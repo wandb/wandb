@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -69,7 +70,7 @@ def dict_no_value_from_proto_list(obj_list):
         if not isinstance(possible_dict, dict) or "value" not in possible_dict:
             # (tss) TODO: This is protecting against legacy 'wandb_version' field.
             # Should investigate why the config payload even has 'wandb_version'.
-            logger.warning(f"key '{item.key}' has no 'value' attribute")
+            logger.warning(f"key {item.key!r} has no 'value' attribute")
             continue
         d[item.key] = possible_dict["value"]
 
@@ -86,14 +87,17 @@ def save_config_file_from_dict(config_filename, config_dict):
             default_flow_style=False,
             allow_unicode=True,
             encoding="utf-8",
+            sort_keys=False,
         )
     data = s.decode("utf-8")
-    filesystem._safe_makedirs(os.path.dirname(config_filename))
+    filesystem.mkdir_exists_ok(os.path.dirname(config_filename))
     with open(config_filename, "w") as conf_file:
         conf_file.write(data)
 
 
-def dict_from_config_file(filename, must_exist=False):
+def dict_from_config_file(
+    filename: str, must_exist: bool = False
+) -> Optional[Dict[str, Any]]:
     if not os.path.exists(filename):
         if must_exist:
             raise ConfigError("config file %s doesn't exist" % filename)

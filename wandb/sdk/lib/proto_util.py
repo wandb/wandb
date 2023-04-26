@@ -25,6 +25,14 @@ def _result_from_record(record: "pb.Record") -> "pb.Result":
     return result
 
 
+def _assign_record_num(record: "pb.Record", record_num: int) -> None:
+    record.num = record_num
+
+
+def _assign_end_offset(record: "pb.Record", end_offset: int) -> None:
+    record.control.end_offset = end_offset
+
+
 def proto_encode_to_dict(
     pb_obj: Union["tpb.TelemetryRecord", "pb.MetricRecord"]
 ) -> Dict[int, Any]:
@@ -64,7 +72,8 @@ def settings_dict_from_pbmap(
     for k in pbmap:
         v_obj = pbmap[k]
         v_type = v_obj.WhichOneof("value_type")
-        v: Union[int, str, float, None, tuple, datetime] = None
+
+        v: Union[int, str, float, None, tuple, dict, datetime] = None
         if v_type == "int_value":
             v = v_obj.int_value
         elif v_type == "string_value":
@@ -77,6 +86,13 @@ def settings_dict_from_pbmap(
             v = None
         elif v_type == "tuple_value":
             v = tuple(v_obj.tuple_value.string_values)
+        elif v_type == "map_value":
+            v = dict(v_obj.map_value.map_values)
+        elif v_type == "nested_map_value":
+            v = {
+                k: dict(vv.map_values)
+                for k, vv in dict(v_obj.nested_map_value.nested_map_values).items()
+            }
         elif v_type == "timestamp_value":
             v = datetime.strptime(v_obj.timestamp_value, "%Y%m%d_%H%M%S")
         d[k] = v
@@ -86,10 +102,7 @@ def settings_dict_from_pbmap(
 def message_to_dict(
     message: "Message",
 ) -> Dict[str, Any]:
-    """
-    Converts a protobuf message into a dictionary.
-    """
-
+    """Convert a protobuf message into a dictionary."""
     from google.protobuf.json_format import MessageToDict
 
     return MessageToDict(message, preserving_proto_field_name=True)

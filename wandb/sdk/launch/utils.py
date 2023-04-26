@@ -10,13 +10,47 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import click
 
 import wandb
+import wandb.docker as docker
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
+
+from .builder.templates._wandb_bootstrap import (
+    FAILED_PACKAGES_POSTFIX,
+    FAILED_PACKAGES_PREFIX,
+)
+
+FAILED_PACKAGES_REGEX = re.compile(
+    f"{re.escape(FAILED_PACKAGES_PREFIX)}(.*){re.escape(FAILED_PACKAGES_POSTFIX)}"
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
+
+
+class LaunchError(Error):
+    """Raised when a known error occurs in wandb launch."""
+
+    pass
+
+
+class LaunchDockerError(Error):
+    """Raised when Docker daemon is not running."""
+
+    pass
+
+
+class ExecutionError(Error):
+    """Generic execution exception."""
+
+    pass
+
+
+class SweepError(Error):
+    """Raised when a known error occurs with wandb sweeps."""
+
+    pass
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -38,10 +72,10 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
 API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
-PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
+LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 
 _logger = logging.getLogger(__name__)
@@ -73,28 +107,35 @@ def sanitize_wandb_api_key(s: str) -> str:
     return str(re.sub(API_KEY_REGEX, "WANDB_API_KEY", s))
 
 
+def get_project_from_job(job: str) -> Optional[str]:
+    job_parts = job.split("/")
+    if len(job_parts) == 3:
+        return job_parts[1]
+    return None
+
+
 def set_project_entity_defaults(
     uri: Optional[str],
+    job: Optional[str],
     api: Api,
     project: Optional[str],
     entity: Optional[str],
     launch_config: Optional[Dict[str, Any]],
 ) -> Tuple[str, str]:
     # set the target project and entity if not provided
+    source_uri = None
     if uri is not None:
         if _is_wandb_uri(uri):
-            _, uri_project, _ = parse_wandb_uri(uri)
+            _, source_uri, _ = parse_wandb_uri(uri)
         elif _is_git_uri(uri):
-            uri_project = os.path.splitext(os.path.basename(uri))[0]
-        else:
-            uri_project = UNCATEGORIZED_PROJECT
-    else:
-        uri_project = UNCATEGORIZED_PROJECT
+            source_uri = os.path.splitext(os.path.basename(uri))[0]
+    elif job is not None:
+        source_uri = get_project_from_job(job)
     if project is None:
         config_project = None
         if launch_config:
             config_project = launch_config.get("project")
-        project = config_project or uri_project or UNCATEGORIZED_PROJECT
+        project = config_project or source_uri or UNCATEGORIZED_PROJECT
     if entity is None:
         config_entity = None
         if launch_config:
@@ -118,14 +159,13 @@ def construct_launch_spec(
     resource: Optional[str],
     entry_point: Optional[List[str]],
     version: Optional[str],
-    parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
-    cuda: Optional[bool],
     run_id: Optional[str],
     repository: Optional[str],
+    author: Optional[str],
 ) -> Dict[str, Any]:
-    """Constructs the launch specification from CLI arguments."""
+    """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     if uri is not None:
@@ -134,12 +174,15 @@ def construct_launch_spec(
         launch_spec["job"] = job
     project, entity = set_project_entity_defaults(
         uri,
+        job,
         api,
         project,
         entity,
         launch_config,
     )
     launch_spec["entity"] = entity
+    if author:
+        launch_spec["author"] = author
 
     launch_spec["project"] = project
     if name:
@@ -150,7 +193,7 @@ def construct_launch_spec(
         launch_spec["docker"]["docker_image"] = docker_image
 
     if "resource" not in launch_spec:
-        launch_spec["resource"] = resource or "local"
+        launch_spec["resource"] = resource if resource else None
 
     if "git" not in launch_spec:
         launch_spec["git"] = {}
@@ -160,24 +203,14 @@ def construct_launch_spec(
     if "overrides" not in launch_spec:
         launch_spec["overrides"] = {}
 
-    if parameters:
-        override_args = util._user_args_to_dict(
-            launch_spec["overrides"].get("args", [])
-        )
-        base_args = override_args
-        launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
-    elif isinstance(launch_spec["overrides"].get("args"), list):
-        launch_spec["overrides"]["args"] = util._user_args_to_dict(
-            launch_spec["overrides"].get("args")
-        )
+    if not isinstance(launch_spec["overrides"].get("args", []), list):
+        raise LaunchError("override args must be a list of strings")
 
     if resource_args:
         launch_spec["resource_args"] = resource_args
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
-    if cuda is not None:
-        launch_spec["cuda"] = cuda
 
     if run_id is not None:
         launch_spec["run_id"] = run_id
@@ -206,7 +239,7 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
-    """Parses wandb uri to retrieve entity, project and run name."""
+    """Parse wandb uri to retrieve entity, project and run name."""
     ref = WandbReference.parse(uri)
     if not ref or not ref.entity or not ref.project or not ref.run_id:
         raise LaunchError(f"Trouble parsing wandb uri {uri}")
@@ -214,10 +247,12 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 
 def is_bare_wandb_uri(uri: str) -> bool:
-    """Checks if the uri is of the format
-    /<entity>/<project>/runs/<run_name>[other stuff]
+    """Check that a wandb uri is valid.
+
+    URI must be in the format
+    `/<entity>/<project>/runs/<run_name>[other stuff]`
     or
-    /<entity>/<project>/artifacts/job/<job_name>[other stuff]
+    `/<entity>/<project>/artifacts/job/<job_name>[other stuff]`.
     """
     _logger.info(f"Checking if uri {uri} is bare...")
     return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
@@ -247,8 +282,6 @@ def fetch_wandb_project_run_info(
             result["codePath"] = data.get("codePath")
             result["cudaVersion"] = data.get("cuda", None)
 
-    if result.get("args") is not None:
-        result["args"] = util._user_args_to_dict(result["args"])
     return result
 
 
@@ -298,7 +331,7 @@ def get_local_python_deps(
 
 
 def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
-    """Returns a list of pip requirements that are not in req_1 but are in req_2."""
+    """Return a list of pip requirements that are not in req_1 but are in req_2."""
 
     def _parse_req(req: List[str]) -> Dict[str, str]:
         # TODO: This can be made more exhaustive, but for 99% of cases this is fine
@@ -358,7 +391,7 @@ def validate_wandb_python_deps(
     requirements_file: Optional[str],
     dir: str,
 ) -> None:
-    """Warns if local python dependencies differ from wandb requirements.txt"""
+    """Warn if local python dependencies differ from wandb requirements.txt."""
     if requirements_file is not None:
         requirements_path = os.path.join(dir, requirements_file)
         with open(requirements_path) as f:
@@ -409,10 +442,7 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
 
 
 def _make_refspec_from_version(version: Optional[str]) -> List[str]:
-    """
-    Helper to create a refspec that checks for the existence of origin/main
-    and the version, if provided.
-    """
+    """Create a refspec that checks for the existence of origin/main and the version."""
     if version:
         return [f"+{version}"]
 
@@ -444,10 +474,10 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
             repo.git.checkout(version)
         except git.exc.GitCommandError as e:
             raise LaunchError(
-                "Unable to checkout version '%s' of git repo %s"
+                f"Unable to checkout version '{version}' of git repo {uri}"
                 "- please ensure that the version exists in the repo. "
-                "Error: %s" % (version, uri, e)
-            )
+                f"Error: {e}"
+            ) from e
     else:
         if getattr(repo, "references", None) is not None:
             branches = [ref.name for ref in repo.references]
@@ -467,10 +497,10 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
             )
         except (AttributeError, IndexError) as e:
             raise LaunchError(
-                "Unable to checkout default version '%s' of git repo %s "
+                f"Unable to checkout default version '{version}' of git repo {uri} "
                 "- to specify a git version use: --git-version \n"
-                "Error: %s" % (version, uri, e)
-            )
+                f"Error: {e}"
+            ) from e
 
     repo.submodule_update(init=True, recursive=True)
     return version
@@ -549,11 +579,10 @@ def validate_build_and_registry_configs(
 
 
 def get_kube_context_and_api_client(
-    kubernetes: Any,  # noqa: F811
-    resource_args: Dict[str, Any],  # noqa: F811
+    kubernetes: Any,
+    resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
-
-    config_file = resource_args.get("config_file", None)
+    config_file = resource_args.get("configFile", None)
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
         # context only exist in the non-incluster case
@@ -571,7 +600,14 @@ def get_kube_context_and_api_client(
             raise LaunchError(f"Specified context {context_name} was not found.")
         else:
             context = active_context
-
+        # TODO: We should not really be performing this check if the user is not
+        # using EKS but I don't see an obvious way to make an eks specific code path
+        # right here.
+        util.get_module(
+            "awscli",
+            "awscli is required to load a kubernetes context "
+            "from eks. Please run `pip install wandb[launch]` to install it.",
+        )
         kubernetes.config.load_kube_config(config_file, context["name"])
         api_client = kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
@@ -590,7 +626,7 @@ def resolve_build_and_registry_config(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     resolved_build_config: Dict[str, Any] = {}
     if build_config is None and default_launch_config is not None:
-        resolved_build_config = default_launch_config.get("build", {})
+        resolved_build_config = default_launch_config.get("builder", {})
     elif build_config is not None:
         resolved_build_config = build_config
     resolved_registry_config: Dict[str, Any] = {}
@@ -603,10 +639,10 @@ def resolve_build_and_registry_config(
 
 
 def check_logged_in(api: Api) -> bool:
-    """
-    Uses an internal api reference to check if a user is logged in
-    raises an error if the viewer doesn't load, likely broken API key
-    expected time cost is 0.1-0.2 seconds
+    """Check if a user is logged in.
+
+    Raises an error if the viewer doesn't load (likely a broken API key). Expected time
+    cost is 0.1-0.2 seconds.
     """
     res = api.api.viewer()
     if not res:
@@ -617,3 +653,46 @@ def check_logged_in(api: Api) -> bool:
         )
 
     return True
+
+
+def make_name_dns_safe(name: str) -> str:
+    resp = name.replace("_", "-").lower()
+    resp = re.sub(r"[^a-z\.\-]", "", resp)
+    # Actual length limit is 253, but we want to leave room for the generated suffix
+    resp = resp[:200]
+    return resp
+
+
+def warn_failed_packages_from_build_logs(log: str, image_uri: str) -> None:
+    match = FAILED_PACKAGES_REGEX.search(log)
+    if match:
+        wandb.termwarn(
+            f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
+        )
+
+
+def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
+    """Check if a specific image is already available.
+
+    Optionally raises an exception if the image is not found.
+    """
+    _logger.info("Checking if base image exists...")
+    try:
+        docker.run(["docker", "image", "inspect", docker_image])
+        return True
+    except (docker.DockerError, ValueError) as e:
+        if should_raise:
+            raise e
+        _logger.info("Base image not found. Generating new base image")
+        return False
+
+
+def pull_docker_image(docker_image: str) -> None:
+    """Pull the requested docker image."""
+    if docker_image_exists(docker_image):
+        # don't pull images if they exist already, eg if they are local images
+        return
+    try:
+        docker.run(["docker", "pull", docker_image])
+    except docker.DockerError as e:
+        raise LaunchError(f"Docker server returned error: {e}")

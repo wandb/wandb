@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: launch-agent
+  namespace: wandb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: launch-agent
+  template:
+    metadata:
+      labels:
+        app: launch-agent
+    spec:
+      serviceAccountName: wandb-launch-serviceaccount
+      containers:
+        - name: launch-agent
+          image: wandb/launch-agent-dev:df552430
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: WANDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wandb-api-key
+                  key: password
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /home/launch_agent/.config/gcp/gcp-creds.json # TODO: change the last part of this path to match the key for the service account json in your secret
+          volumeMounts:
+            - name: wandb-launch-config
+              mountPath: /home/launch_agent/.config/wandb
+              readOnly: true
+            - name: gcp-creds
+              mountPath: /home/launch_agent/.config/gcp
+              readOnly: true
+      volumes:
+        - name: wandb-launch-config
+          configMap:
+            name: wandb-launch-configmap
+        - name: gcp-creds
+          secret:
+            secretName: my-secret-name # TODO: set name of your secret here - the secret should contain the contents of a gcp service account json file

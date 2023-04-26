@@ -1,4 +1,10 @@
 # GraphQL changes need extra scrutiny
 /wandb/sdk/internal/internal_api.py @wandb/sdk-team
 # Changing interfaces need extra scrutiny
-/tests/unit_tests/test_library_public.py @wandb/sdk-team
+/tests/pytest_tests/unit_tests/test_library_public.py @wandb/sdk-team
+# Adding or removing dependencies needs extra scrutiny
+/setup.py @wandb/sdk-team
+/requirements.txt @wandb/sdk-team
+
+/tests/pytest_tests/unit_tests/test_launch/ @wandb/mlw-team
+/tests/pytest_tests/unit_tests_old/tests_launch/ @wandb/mlw-team

@@ -11,10 +11,10 @@ class PreInitObject:
             self.__doc__ = destination.__doc__
 
     def __getitem__(self, key: str) -> None:
-        raise wandb.Error(f'You must call wandb.init() before {self._name}["{key}"]')
+        raise wandb.Error(f"You must call wandb.init() before {self._name}[{key!r}]")
 
     def __setitem__(self, key: str, value: Any) -> Any:
-        raise wandb.Error(f'You must call wandb.init() before {self._name}["{key}"]')
+        raise wandb.Error(f"You must call wandb.init() before {self._name}[{key!r}]")
 
     def __setattr__(self, key: str, value: Any) -> Any:
         if not key.startswith("_"):
@@ -26,7 +26,7 @@ class PreInitObject:
         if not key.startswith("_"):
             raise wandb.Error(f"You must call wandb.init() before {self._name}.{key}")
         else:
-            raise AttributeError()
+            raise AttributeError
 
 
 def PreInitCallable(  # noqa: N802

@@ -1,7 +1,5 @@
 import json
 
-from six import unichr
-
 from ..error import GraphQLSyntaxError
 
 __all__ = ['Token', 'Lexer', 'TokenKind',
@@ -134,7 +132,7 @@ def print_char_code(code):
         return '<EOF>'
 
     if code < 0x007F:
-        return json.dumps(unichr(code))
+        return json.dumps(chr(code))
 
     return '"\\u%04X"' % code
 
@@ -368,12 +366,12 @@ def read_string(source, start):
                         u'Invalid character escape sequence: \\u{}.'.format(body[position + 1: position + 5])
                     )
 
-                append(unichr(char_code))
+                append(chr(char_code))
                 position += 4
             else:
                 raise GraphQLSyntaxError(
                     source, position,
-                    u'Invalid character escape sequence: \\{}.'.format(unichr(code))
+                    u'Invalid character escape sequence: \\{}.'.format(chr(code))
                 )
 
             position += 1

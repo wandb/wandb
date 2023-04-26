@@ -15,12 +15,12 @@ metadata:
   namespace: wandb
   name: wandb-launch-agent
 rules:
-- apiGroups: [""]
-  resources: ["pods", "configmaps", "secrets", "pods/log"]
-  verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
-- apiGroups: ["batch"]
-  resources: ["jobs", "jobs/status"]
-  verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "secrets", "pods/log"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "jobs/status"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 ---
 # cluster role to creating ML jobs in desired namespaces
 apiVersion: rbac.authorization.k8s.io/v1
@@ -28,12 +28,12 @@ kind: ClusterRole
 metadata:
   name: job-creator
 rules:
-- apiGroups: [""]
-  resources: ["pods", "pods/log", "secrets"]
-  verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
-- apiGroups: ["batch"]
-  resources: ["jobs", "jobs/status"]
-  verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "secrets"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "jobs/status"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -48,9 +48,9 @@ metadata:
   name: wandb-launch-role-binding
   namespace: wandb
 subjects:
-- kind: ServiceAccount
-  name: wandb-launch-serviceaccount
-  namespace: wandb
+  - kind: ServiceAccount
+    name: wandb-launch-serviceaccount
+    namespace: wandb
 roleRef:
   kind: Role
   name: wandb-launch-agent
@@ -63,9 +63,9 @@ metadata:
   name: wandb-launch-cluster-role-binding
   namespace: default #TODO: SET YOUR TRAINING NAMESPACE
 subjects:
-- kind: ServiceAccount
-  name: wandb-launch-serviceaccount
-  namespace: wandb
+  - kind: ServiceAccount
+    name: wandb-launch-serviceaccount
+    namespace: wandb
 roleRef:
   kind: ClusterRole
   name: job-creator
@@ -75,20 +75,18 @@ apiVersion: v1
 data:
   launch-config.yaml: |
     base_url: https://api.wandb.ai # TODO: set wandb base url
-    project: launch-welcome # TODO: set ml project
     max_jobs: -1 # TODO: set max concurrent jobs here
+    queues:
+    - default # TODO: set queue name here
+    environment:
+      type: aws
+      region: us-east-1 # TODO: set aws region here
     registry:
-      url: # TODO: set ecr repository url here
-      ecr-provider: aws # TODO: set ecr provider here
-      region: us-east-1 # TODO: specify registry region here
-    build:
+      type: ecr
+      repository: # TODO: set ecr repository name here
+    builder:
       type: kaniko
-      cloud-provider: aws # TODO: set cloud provider here
-      build-context-store: wandb-build # name here
-    runner: # this can be set to specify default runner configuration
-      type: sagemaker
-      role_arn: # TODO: fill in sagemaker execution role
-      s3_output_path: # TODO: set your sagemaker artifact output bucket
+      build-context-store: s3://my-bucket/... # TODO: set your build context store here
 
 kind: ConfigMap
 metadata:
@@ -102,4 +100,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: ""  ### API KEY HERE
+  password: "" ### API KEY HERE

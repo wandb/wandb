@@ -1,4 +1,4 @@
-"""Backend - Send to internal process
+"""Backend - Send to internal process.
 
 Manage backend.
 
@@ -8,9 +8,10 @@ import importlib.machinery
 import logging
 import multiprocessing
 import os
+import queue
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union, cast
 
 import wandb
 
@@ -27,6 +28,9 @@ if TYPE_CHECKING:
     from ..service.service_grpc import ServiceGrpcInterface
     from ..service.service_sock import ServiceSockInterface
     from ..wandb_run import Run
+
+    RecordQueue = Union[queue.Queue[Record], multiprocessing.Queue[Record]]
+    ResultQueue = Union[queue.Queue[Result], multiprocessing.Queue[Result]]
 
 logger = logging.getLogger("wandb")
 
@@ -53,8 +57,8 @@ class Backend:
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
     _settings: Optional[Settings]
-    record_q: Optional["multiprocessing.Queue[Record]"]
-    result_q: Optional["multiprocessing.Queue[Result]"]
+    record_q: Optional["RecordQueue"]
+    result_q: Optional["ResultQueue"]
     _mailbox: Mailbox
 
     def __init__(
@@ -177,7 +181,7 @@ class Backend:
         settings["_log_level"] = self._log_level or logging.DEBUG
 
         # TODO: this is brittle and should likely be handled directly on the
-        #  settings object. Multi-processing blows up when it can't pickle
+        #  settings object. Multiprocessing blows up when it can't pickle
         #  objects.
         if "_early_logger" in settings:
             del settings["_early_logger"]
@@ -188,11 +192,11 @@ class Backend:
             self._ensure_launched_manager()
             return
 
-        self.record_q = self._multiprocessing.Queue()
-        self.result_q = self._multiprocessing.Queue()
         user_pid = os.getpid()
 
         if start_method == "thread":
+            self.record_q = queue.Queue()
+            self.result_q = queue.Queue()
             wandb._set_internal_process(disable=True)  # type: ignore
             wandb_thread = BackendThread(
                 target=wandb_internal,
@@ -206,6 +210,8 @@ class Backend:
             # TODO: risky cast, assumes BackendThread Process duck typing
             self.wandb_process = wandb_thread  # type: ignore
         else:
+            self.record_q = self._multiprocessing.Queue()
+            self.result_q = self._multiprocessing.Queue()
             self.wandb_process = self._multiprocessing.Process(  # type: ignore
                 target=wandb_internal,
                 kwargs=dict(
@@ -236,10 +242,6 @@ class Backend:
             mailbox=self._mailbox,
         )
 
-    def server_connect(self) -> None:
-        """Connect to server."""
-        pass
-
     def server_status(self) -> None:
         """Report server status."""
         pass
@@ -254,8 +256,8 @@ class Backend:
         if self.wandb_process:
             self.wandb_process.join()
 
-        if self.record_q:
+        if self.record_q and hasattr(self.record_q, "close"):
             self.record_q.close()
-        if self.result_q:
+        if self.result_q and hasattr(self.result_q, "close"):
             self.result_q.close()
         # No printing allowed from here until redirect restore!!!

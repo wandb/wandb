@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Base case - logging sequence of media types multiple times
+"""Base case - logging sequence of media types multiple times.
 
 ---
 id: 0.core.05-log-media

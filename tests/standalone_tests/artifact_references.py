@@ -4,11 +4,12 @@ import time
 from filecmp import dircmp
 
 import wandb
+from wandb.sdk.lib import runid
 
 # These should have bucket versioning enabled
 GCS_BUCKET = "gs://wandb-experiments"
 S3_BUCKET = "s3://kubeml"
-PREFIX = wandb.util.generate_id()
+PREFIX = runid.generate_id()
 GCS_NAME = f"gcs-artifact-{PREFIX}"
 S3_NAME = f"s3-artifact-{PREFIX}"
 GCS_REMOTE = f"{GCS_BUCKET}/artifact-versions/{PREFIX}"
@@ -32,15 +33,11 @@ def update_versions(version=1):
 
 def sync_buckets(root):
     # Sync up
-    gs = (root, GCS_REMOTE)
-    s3 = (root, S3_REMOTE)
-    os.system("gsutil rsync %s %s" % gs)
-    os.system("aws s3 sync %s %s" % s3)
+    os.system(f"gsutil rsync {root} {GCS_REMOTE}")
+    os.system(f"aws s3 sync {root} {S3_REMOTE}")
     # Sync down
-    gs = (GCS_REMOTE, root)
-    s3 = (S3_REMOTE, root)
-    os.system("gsutil rsync %s %s" % gs)
-    os.system("aws s3 sync %s %s" % s3)
+    os.system(f"gsutil rsync {GCS_REMOTE} {root}")
+    os.system(f"aws s3 sync {S3_REMOTE} {root}")
 
 
 def log_artifacts():

@@ -2,10 +2,11 @@ import sys
 import time
 
 import wandb
+from wandb.sdk.lib import runid
 
 
 def main(args):
-    run_id = wandb.util.generate_id()
+    run_id = runid.generate_id()
     try:
         wandb.init(project="resuming", resume="must", id=run_id)
     except wandb.Error:

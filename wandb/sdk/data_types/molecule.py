@@ -4,6 +4,7 @@ import pathlib
 from typing import TYPE_CHECKING, Optional, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import runid
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -20,8 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Molecule(BatchableMedia):
-    """
-    Wandb class for 3D Molecular data
+    """Wandb class for 3D Molecular data.
 
     Arguments:
         data_or_path: (string, io)
@@ -76,7 +76,7 @@ class Molecule(BatchableMedia):
                 )
 
             tmp_path = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + extension
+                MEDIA_TMP.name, runid.generate_id() + "." + extension
             )
             with open(tmp_path, "w") as f:
                 f.write(molecule)
@@ -102,8 +102,7 @@ class Molecule(BatchableMedia):
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
     ) -> "Molecule":
-        """
-        Convert RDKit-supported file/object types to wandb.Molecule
+        """Convert RDKit-supported file/object types to wandb.Molecule.
 
         Arguments:
             data_or_path: (string, rdkit.Chem.rdchem.Mol)
@@ -170,8 +169,7 @@ class Molecule(BatchableMedia):
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
     ) -> "Molecule":
-        """
-        Convert SMILES string to wandb.Molecule
+        """Convert SMILES string to wandb.Molecule.
 
         Arguments:
             data: (string)

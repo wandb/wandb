@@ -1,4 +1,4 @@
-from six.moves.collections_abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 from ..pyutils.ordereddict import OrderedDict
 from ..utils.assert_valid_name import assert_valid_name

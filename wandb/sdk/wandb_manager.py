@@ -7,8 +7,11 @@ import atexit
 import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import psutil
+
 import wandb
 from wandb import env, trigger
+from wandb.errors import Error
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
@@ -17,6 +20,18 @@ if TYPE_CHECKING:
     from wandb.sdk.service import service
     from wandb.sdk.service.service_base import ServiceInterface
     from wandb.sdk.wandb_settings import Settings
+
+
+class ManagerConnectionError(Error):
+    """Raised when service process is not running."""
+
+    pass
+
+
+class ManagerConnectionRefusedError(ManagerConnectionError):
+    """Raised when service process is not running."""
+
+    pass
 
 
 class _ManagerToken:
@@ -93,24 +108,43 @@ class _Manager:
     _settings: "Settings"
     _service: "service._Service"
 
-    def __init__(self, settings: "Settings", _use_grpc: bool = False) -> None:
-        # TODO: warn if user doesnt have grpc installed
+    def _service_connect(self) -> None:
+        port = self._token.port
+        svc_iface = self._get_service_interface()
+
+        try:
+            svc_iface._svc_connect(port=port)
+        except ConnectionRefusedError as e:
+            if not psutil.pid_exists(self._token.pid):
+                message = (
+                    "Connection to wandb service failed "
+                    "since the process is not available. "
+                )
+            else:
+                message = f"Connection to wandb service failed: {e}. "
+            raise ManagerConnectionRefusedError(message)
+        except Exception as e:
+            raise ManagerConnectionError(f"Connection to wandb service failed: {e}")
+
+    def __init__(self, settings: "Settings") -> None:
+        # TODO: warn if user doesn't have grpc installed
         from wandb.sdk.service import service
 
         self._settings = settings
         self._atexit_lambda = None
         self._hooks = None
 
-        self._service = service._Service(
-            _python_executable=settings._executable,
-            _use_grpc=_use_grpc,
-        )
+        self._service = service._Service(settings=self._settings)
+
+        # Temporary setting to allow use of grpc so that we can keep
+        # that code from rotting during the transition
+        use_grpc = self._settings._service_transport == "grpc"
 
         token = _ManagerToken.from_environment()
         if not token:
             self._service.start()
             host = "localhost"
-            if _use_grpc:
+            if use_grpc:
                 transport = "grpc"
                 port = self._service.grpc_port
             else:
@@ -123,9 +157,10 @@ class _Manager:
 
         self._token = token
 
-        port = self._token.port
-        svc_iface = self._get_service_interface()
-        svc_iface._svc_connect(port=port)
+        try:
+            self._service_connect()
+        except ManagerConnectionError as e:
+            wandb._sentry.reraise(e)
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
@@ -153,7 +188,7 @@ class _Manager:
                 os._exit(result)
         except Exception as e:
             wandb.termlog(
-                f"While tearing down the service manager. The following error has occured: {e}",
+                f"While tearing down the service manager. The following error has occurred: {e}",
                 repeat=False,
             )
         finally:
@@ -176,9 +211,12 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
 
-    def _inform_attach(self, attach_id: str) -> Dict[str, Any]:
+    def _inform_attach(self, attach_id: str) -> Optional[Dict[str, Any]]:
         svc_iface = self._get_service_interface()
-        response = svc_iface._svc_inform_attach(attach_id=attach_id)
+        try:
+            response = svc_iface._svc_inform_attach(attach_id=attach_id)
+        except Exception:
+            return None
         return settings_dict_from_pbmap(response._settings_map)
 
     def _inform_finish(self, run_id: Optional[str] = None) -> None:

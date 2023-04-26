@@ -945,7 +945,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads
         metrics = {}
-        for (weight, grad) in zip(weights, grads):
+        for weight, grad in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
             ] = wandb.Histogram(grad)
@@ -1016,7 +1016,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
-        except (ImportError, RuntimeError, TypeError) as e:
+        except (ImportError, RuntimeError, TypeError, AttributeError) as e:
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
                 "as an W&B Artifact in the 'tf' format."

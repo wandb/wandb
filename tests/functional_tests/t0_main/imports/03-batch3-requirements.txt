@@ -3,8 +3,8 @@
 # lightgbm
 lightning-flash
 openmim # handles dependencies for mmlab projects
-mmcv<1.6.1 # 1.6.1 breaks mmdet 2.25.0
-mmdet
+mmcv
+mmdet>=2.26.0
 # mmf
 monai
 # nemo_toolkit[all]

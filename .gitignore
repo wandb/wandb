@@ -5,6 +5,7 @@ coverage.xml
 .tox/
 .mypy_cache/
 .pytest_cache/
+.hypothesis/
 .circle_cache/
 .yea_cache/
 build/
@@ -24,6 +25,10 @@ test-results/
 mypy-results/
 cover-results/
 wandb/proto_check/
+*.log
+wandb/latest-run
+wandb/run-202*
 .idea/
 .yea-requirements.txt
 .yeadoc/
+logs/

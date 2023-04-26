@@ -24,7 +24,7 @@ class GitRepo:
         self._commit = commit
         self._repo = None
         if not lazy:
-            self.repo
+            self.repo  # noqa: B018
 
     @property
     def repo(self):
@@ -62,7 +62,12 @@ class GitRepo:
     def root(self) -> Optional[str]:
         if not self.repo:
             return None
-        return self.repo.git.rev_parse("--show-toplevel")
+        try:
+            return self.repo.git.rev_parse("--show-toplevel")
+        except exc.GitCommandError as e:
+            # todo: collect telemetry on this
+            logger.error(f"git root error: {e}")
+            return None
 
     @property
     def dirty(self) -> bool:
@@ -132,7 +137,6 @@ class GitRepo:
         if parsed.port is not None:
             hostname += ":" + str(parsed.port)
         if parsed.password is not None:
-
             return urlunparse(parsed._replace(netloc=f"{parsed.username}:@{hostname}"))
         return urlunparse(parsed._replace(netloc=hostname))
 
@@ -143,8 +147,7 @@ class GitRepo:
         return self.repo.git.rev_parse("--show-toplevel")
 
     def get_upstream_fork_point(self):
-        """Get the most recent ancestor of HEAD that occurs on an upstream
-        branch.
+        """Get the most recent ancestor of HEAD that occurs on an upstream branch.
 
         First looks at the current branch's tracking branch, if applicable. If
         that doesn't work, looks at every other branch to find the most recent

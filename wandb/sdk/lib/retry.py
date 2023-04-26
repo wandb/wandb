@@ -1,21 +1,33 @@
+import abc
+import asyncio
 import datetime
 import functools
 import logging
 import os
 import random
+import threading
 import time
-from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar
+from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
 
 from requests import HTTPError
 
 import wandb
 from wandb.util import CheckRetryFnType
 
+from .mailbox import ContextCancelledError
+
 logger = logging.getLogger(__name__)
 
 
+# To let tests mock out the retry logic's now()/sleep() funcs, this file
+# should only use these variables, not call the stdlib funcs directly.
+NOW_FN = datetime.datetime.now
+SLEEP_FN = time.sleep
+SLEEP_ASYNC_FN = asyncio.sleep
+
+
 class TransientError(Exception):
-    """Exception type designated for errors that may only be temporary
+    """Exception type designated for errors that may only be temporary.
 
     Can have its own message and/or wrap another exception.
     """
@@ -32,7 +44,7 @@ _R = TypeVar("_R")
 
 
 class Retry(Generic[_R]):
-    """Creates a retryable version of a function.
+    """Create a retryable version of a function.
 
     Calling this will call the passed function, retrying if any exceptions in
     retryable_exceptions are caught, with exponential backoff.
@@ -44,21 +56,19 @@ class Retry(Generic[_R]):
         self,
         call_fn: Callable[..., _R],
         retry_timedelta: Optional[datetime.timedelta] = None,
+        retry_cancel_event: Optional[threading.Event] = None,
         num_retries: Optional[int] = None,
         check_retry_fn: CheckRetryFnType = lambda e: True,
         retryable_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
         error_prefix: str = "Network error",
         retry_callback: Optional[Callable[[int, str], Any]] = None,
-        sleep_fn_for_testing: Callable[[float], None] = time.sleep,
-        datetime_now_fn_for_testing: Callable[
-            [], datetime.datetime
-        ] = datetime.datetime.now,
     ) -> None:
         self._call_fn = call_fn
         self._check_retry_fn = check_retry_fn
         self._error_prefix = error_prefix
         self._last_print = datetime.datetime.now() - datetime.timedelta(minutes=1)
         self._retry_timedelta = retry_timedelta
+        self._retry_cancel_event = retry_cancel_event
         self._num_retries = num_retries
         if retryable_exceptions is not None:
             self._retryable_exceptions = retryable_exceptions
@@ -66,15 +76,22 @@ class Retry(Generic[_R]):
             self._retryable_exceptions = (TransientError,)
         self._index = 0
         self.retry_callback = retry_callback
-        self._sleep_fn = sleep_fn_for_testing
-        self._datetime_now_fn = datetime_now_fn_for_testing
+
+    def _sleep_check_cancelled(
+        self, wait_seconds: float, cancel_event: Optional[threading.Event]
+    ) -> bool:
+        if not cancel_event:
+            SLEEP_FN(wait_seconds)
+            return False
+        cancelled = cancel_event.wait(wait_seconds)
+        return cancelled
 
     @property
     def num_iters(self) -> int:
         """The number of iterations the previous __call__ retried."""
         return self._num_iter
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _R:
+    def __call__(self, *args: Any, **kwargs: Any) -> _R:  # noqa: C901
         """Call the wrapped function, with retries.
 
         Arguments:
@@ -82,10 +99,11 @@ class Retry(Generic[_R]):
            sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
                are derived from this one.
         """
-
         retry_timedelta = kwargs.pop("retry_timedelta", self._retry_timedelta)
         if retry_timedelta is None:
             retry_timedelta = datetime.timedelta(days=365)
+
+        retry_cancel_event = kwargs.pop("retry_cancel_event", self._retry_cancel_event)
 
         num_retries = kwargs.pop("num_retries", self._num_retries)
         if num_retries is None:
@@ -102,7 +120,7 @@ class Retry(Generic[_R]):
         )
 
         sleep = sleep_base
-        now = self._datetime_now_fn()
+        now = NOW_FN()
         start_time = now
         start_time_triggered = None
 
@@ -115,12 +133,12 @@ class Retry(Generic[_R]):
                 if self._num_iter > 2 and now - self._last_print > datetime.timedelta(
                     minutes=1
                 ):
-                    self._last_print = self._datetime_now_fn()
+                    self._last_print = NOW_FN()
                     if self.retry_callback:
                         self.retry_callback(
                             200,
                             "{} resolved after {}, resuming normal operation.".format(
-                                self._error_prefix, self._datetime_now_fn() - start_time
+                                self._error_prefix, NOW_FN() - start_time
                             ),
                         )
                 return result
@@ -134,7 +152,7 @@ class Retry(Generic[_R]):
                 if self._num_iter >= num_retries:
                     raise
 
-                now = self._datetime_now_fn()
+                now = NOW_FN()
 
                 # handle a triggered secondary check which could have a shortened timeout
                 if isinstance(retry_timedelta_triggered, datetime.timedelta):
@@ -142,7 +160,7 @@ class Retry(Generic[_R]):
                     if not start_time_triggered:
                         start_time_triggered = now
 
-                    # make sure that we havent run out of time from secondary trigger
+                    # make sure that we haven't run out of time from secondary trigger
                     if now - start_time_triggered >= retry_timedelta_triggered:
                         raise
 
@@ -151,7 +169,7 @@ class Retry(Generic[_R]):
                     raise
 
                 if self._num_iter == 2:
-                    logger.exception("Retry attempt failed:")
+                    logger.info("Retry attempt failed:", exc_info=e)
                     if (
                         isinstance(e, HTTPError)
                         and e.response is not None
@@ -169,11 +187,15 @@ class Retry(Generic[_R]):
                         )
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
-            self._sleep_fn(sleep + random.random() * 0.25 * sleep)
+            cancelled = self._sleep_check_cancelled(
+                sleep + random.random() * 0.25 * sleep, cancel_event=retry_cancel_event
+            )
+            if cancelled:
+                raise ContextCancelledError("retry timeout")
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS
-            now = self._datetime_now_fn()
+            now = NOW_FN()
 
             self._num_iter += 1
 
@@ -192,3 +214,75 @@ def retriable(*args: Any, **kargs: Any) -> Callable[[_F], _F]:
         return wrapped_fn  # type: ignore
 
     return decorator
+
+
+class Backoff(abc.ABC):
+    """A backoff strategy: decides whether to sleep or give up when an exception is raised."""
+
+    @abc.abstractmethod
+    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
+        raise NotImplementedError  # pragma: no cover
+
+
+class ExponentialBackoff(Backoff):
+    """Jittered exponential backoff: sleep times increase ~exponentially up to some limit."""
+
+    def __init__(
+        self,
+        initial_sleep: datetime.timedelta,
+        max_sleep: datetime.timedelta,
+        max_retries: Optional[int] = None,
+        timeout_at: Optional[datetime.datetime] = None,
+    ) -> None:
+        self._next_sleep = min(max_sleep, initial_sleep)
+        self._max_sleep = max_sleep
+        self._remaining_retries = max_retries
+        self._timeout_at = timeout_at
+
+    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
+        if self._remaining_retries is not None:
+            if self._remaining_retries <= 0:
+                raise exc
+            self._remaining_retries -= 1
+
+        if self._timeout_at is not None and NOW_FN() > self._timeout_at:
+            raise exc
+
+        result, self._next_sleep = self._next_sleep, min(
+            self._max_sleep, self._next_sleep * (1 + random.random())
+        )
+
+        return result
+
+
+class FilteredBackoff(Backoff):
+    """Re-raise any exceptions that fail a predicate; delegate others to another Backoff."""
+
+    def __init__(self, filter: Callable[[Exception], bool], wrapped: Backoff) -> None:
+        self._filter = filter
+        self._wrapped = wrapped
+
+    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
+        if not self._filter(exc):
+            raise exc
+        return self._wrapped.next_sleep_or_reraise(exc)
+
+
+async def retry_async(
+    backoff: Backoff,
+    fn: Callable[..., Awaitable[_R]],
+    *args: Any,
+    on_exc: Optional[Callable[[Exception], None]] = None,
+    **kwargs: Any,
+) -> _R:
+    """Call `fn` repeatedly until either it succeeds, or `backoff` decides we should give up.
+
+    Each time `fn` fails, `on_exc` is called with the exception.
+    """
+    while True:
+        try:
+            return await fn(*args, **kwargs)
+        except Exception as e:
+            if on_exc is not None:
+                on_exc(e)
+            await SLEEP_ASYNC_FN(backoff.next_sleep_or_reraise(e).total_seconds())

@@ -7,6 +7,7 @@ from urllib import parse
 
 import wandb
 from wandb import util
+from wandb.sdk.lib import hashutil, runid
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -33,13 +34,16 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _server_accepts_image_filenames() -> bool:
-    from pkg_resources import parse_version
+    if util._is_offline():
+        return True
 
     # Newer versions of wandb accept large image filenames arrays
     # but older versions would have issues with this.
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
+    from pkg_resources import parse_version
+
     accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
         max_cli_version
     )
@@ -296,7 +300,7 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(MEDIA_TMP.name, str(util.generate_id()) + ".png")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".png")
         self.format = "png"
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
@@ -405,7 +409,7 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                class_id = hashlib.md5(
+                class_id = hashutil._md5(
                     str(self._classes._class_set).encode("utf-8")
                 ).hexdigest()
                 class_name = os.path.join(
@@ -434,9 +438,7 @@ class Image(BatchableMedia):
         return json_dict
 
     def guess_mode(self, data: "np.ndarray") -> str:
-        """
-        Guess what type of image the np.array is representing
-        """
+        """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
             return "L"
@@ -451,9 +453,10 @@ class Image(BatchableMedia):
 
     @classmethod
     def to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
-        """
-        Converts floating point image on the range [0,1] and integer images
-        on the range [0,255] to uint8, clipping if necessary.
+        """Convert image data to uint8.
+
+        Convert floating point image on the range [0,1] and integer images on the range
+        [0,255] to uint8, clipping if necessary.
         """
         np = util.get_module(
             "numpy",
@@ -481,9 +484,7 @@ class Image(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
-        """
-        Combines a list of images into a meta dictionary object describing the child images.
-        """
+        """Combine a list of images into a meta dictionary object describing the child images."""
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 
@@ -527,7 +528,7 @@ class Image(BatchableMedia):
             ]
         else:
             wandb.termwarn(
-                "Unable to log image array filenames. In some cases, this can prevent images from being"
+                "Unable to log image array filenames. In some cases, this can prevent images from being "
                 "viewed in the UI. Please upgrade your wandb server",
                 repeat=False,
             )

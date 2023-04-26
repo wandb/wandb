@@ -1,5 +1,5 @@
 diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/client.py b/wandb/vendor/gql-0.2.0/wandb_gql/client.py
-index 95c565c4e..ab3ed7f0e 100644
+index 95c565c..ab3ed7f 100644
 --- a/wandb/vendor/gql-0.2.0/wandb_gql/client.py
 +++ b/wandb/vendor/gql-0.2.0/wandb_gql/client.py
 @@ -1,7 +1,7 @@
@@ -13,13 +13,16 @@ index 95c565c4e..ab3ed7f0e 100644
  from .transport.local_schema import LocalSchemaTransport
  
 diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/dsl.py b/wandb/vendor/gql-0.2.0/wandb_gql/dsl.py
-index 39ff3c2ed..060543645 100644
+index 135d808..052e1eb 100644
 --- a/wandb/vendor/gql-0.2.0/wandb_gql/dsl.py
 +++ b/wandb/vendor/gql-0.2.0/wandb_gql/dsl.py
-@@ -3,9 +3,9 @@ import decimal
+@@ -1,11 +1,10 @@
+-import collections
++from collections.abc import Iterable
+ import decimal
  from functools import partial
  
- import six
+-import six
 -from graphql.language import ast
 -from graphql.language.printer import print_ast
 -from graphql.type import (GraphQLField, GraphQLList,
@@ -29,12 +32,30 @@ index 39ff3c2ed..060543645 100644
                            GraphQLNonNull, GraphQLEnumType)
  
  from .utils import to_camel_case
+@@ -61,7 +60,7 @@ def selections(*fields):
+ def get_ast_value(value):
+     if isinstance(value, ast.Node):
+         return value
+-    if isinstance(value, six.string_types):
++    if isinstance(value, str):
+         return ast.StringValue(value=value)
+     elif isinstance(value, bool):
+         return ast.BooleanValue(value=value)
+@@ -134,7 +133,7 @@ def query(*fields):
+ 
+ 
+ def serialize_list(serializer, values):
+-    assert isinstance(values, collections.Iterable), 'Expected iterable, received "{}"'.format(repr(values))
++    assert isinstance(values, Iterable), 'Expected iterable, received "{}"'.format(repr(values))
+     return [serializer(v) for v in values]
+ 
+ 
 diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/gql.py b/wandb/vendor/gql-0.2.0/wandb_gql/gql.py
-index 782943f0e..39a8a5859 100644
+index 782943f..21edd39 100644
 --- a/wandb/vendor/gql-0.2.0/wandb_gql/gql.py
 +++ b/wandb/vendor/gql-0.2.0/wandb_gql/gql.py
-@@ -1,6 +1,6 @@
- import six
+@@ -1,10 +1,9 @@
+-import six
 -from graphql.language.parser import parse
 -from graphql.language.source import Source
 +from wandb_graphql.language.parser import parse
@@ -42,8 +63,13 @@ index 782943f0e..39a8a5859 100644
  
  
  def gql(request_string):
+-    if isinstance(request_string, six.string_types):
++    if isinstance(request_string, str):
+         source = Source(request_string, 'GraphQL request')
+         return parse(source)
+     else:
 diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/transport/local_schema.py b/wandb/vendor/gql-0.2.0/wandb_gql/transport/local_schema.py
-index 30d577ec0..5bc7d33dc 100644
+index 30d577e..5bc7d33 100644
 --- a/wandb/vendor/gql-0.2.0/wandb_gql/transport/local_schema.py
 +++ b/wandb/vendor/gql-0.2.0/wandb_gql/transport/local_schema.py
 @@ -1,4 +1,4 @@
@@ -53,7 +79,7 @@ index 30d577ec0..5bc7d33dc 100644
  
  class LocalSchemaTransport(object):
 diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py b/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py
-index 71399a55d..305ca8af9 100644
+index 71399a5..305ca8a 100644
 --- a/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py
 +++ b/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py
 @@ -1,8 +1,8 @@

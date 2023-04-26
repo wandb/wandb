@@ -16,7 +16,8 @@ from typing import (
 
 import wandb
 from wandb import util
-from wandb.sdk.interface.artifacts import b64_string_to_hex, md5_files_b64
+from wandb.sdk.lib import runid
+from wandb.sdk.lib.hashutil import md5_file_hex
 
 from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
@@ -43,7 +44,7 @@ def _add_deterministic_dir_to_artifact(
     for dirpath, _, filenames in os.walk(dir_name, topdown=True):
         for fn in filenames:
             file_paths.append(os.path.join(dirpath, fn))
-    dirname = b64_string_to_hex(md5_files_b64(file_paths))[:20]
+    dirname = md5_file_hex(*file_paths)[:20]
     target_path = util.to_forward_slash_path(os.path.join(target_dir_root, dirname))
     artifact.add_dir(dir_name, target_path)
     return target_path
@@ -70,8 +71,7 @@ SavedModelObjType = TypeVar("SavedModelObjType")
 
 
 class _SavedModel(WBValue, Generic[SavedModelObjType]):
-    """SavedModel is a private data type that can be used to store a model object
-    inside of a W&B Artifact.
+    """Internal W&B Artifact model storage.
 
     _model_type_id: (str) The id of the SavedModel subclass used to serialize the model.
     """
@@ -183,7 +183,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         return json_obj
 
     def model_obj(self) -> SavedModelObjType:
-        """Returns the model object."""
+        """Return the model object."""
         if self._model_obj is None:
             assert self._path is not None, "Cannot load model object without path"
             self._set_obj(self._deserialize(self._path))
@@ -194,21 +194,24 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     # Methods to be implemented by subclasses
     @staticmethod
     def _deserialize(path: str) -> SavedModelObjType:
-        """Returns the model object from a path. Allowed to throw errors"""
-        raise NotImplementedError()
+        """Return the model object from a path. Allowed to throw errors."""
+        raise NotImplementedError
 
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
-        """Validates the model object. Allowed to throw errors"""
-        raise NotImplementedError()
+        """Validate the model object. Allowed to throw errors."""
+        raise NotImplementedError
 
     @staticmethod
     def _serialize(obj: SavedModelObjType, dir_or_file_path: str) -> None:
-        """Save the model to disk. The method will receive a directory path which all
-        files needed for deserialization should be saved. A directory will always be passed if
-        _path_extension is an empty string, else a single file will be passed. Allowed to throw errors
+        """Save the model to disk.
+
+        The method will receive a directory path which all files needed for
+        deserialization should be saved. A directory will always be passed if
+        _path_extension is an empty string, else a single file will be passed. Allowed
+        to throw errors.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     # Private Class Methods
     @classmethod
@@ -241,9 +244,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # Generates a tmp path under our MEDIA_TMP directory which confirms to the file
         # or folder preferences of the class.
         assert isinstance(cls._path_extension, str), "_path_extension must be a string"
-        tmp_path = os.path.abspath(
-            os.path.join(MEDIA_TMP.name, str(util.generate_id()))
-        )
+        tmp_path = os.path.abspath(os.path.join(MEDIA_TMP.name, runid.generate_id()))
         if cls._path_extension != "":
             tmp_path += "." + cls._path_extension
         return tmp_path
@@ -300,7 +301,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
         if dep_py_files is not None and len(dep_py_files) > 0:
             self._dep_py_files = dep_py_files
             self._dep_py_files_path = os.path.abspath(
-                os.path.join(MEDIA_TMP.name, str(util.generate_id()))
+                os.path.join(MEDIA_TMP.name, runid.generate_id())
             )
             os.makedirs(self._dep_py_files_path, exist_ok=True)
             for extra_file in self._dep_py_files:

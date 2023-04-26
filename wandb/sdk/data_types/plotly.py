@@ -3,6 +3,7 @@ import os
 from typing import TYPE_CHECKING, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import runid
 
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
@@ -11,7 +12,7 @@ from .image import Image
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import pandas as pd  # type: ignore
+    import pandas as pd
     import plotly  # type: ignore
 
     from ..wandb_artifacts import Artifact as LocalArtifact
@@ -29,8 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Plotly(Media):
-    """
-    Wandb class for plotly plots.
+    """Wandb class for plotly plots.
 
     Arguments:
         val: matplotlib or plotly figure
@@ -65,7 +65,7 @@ class Plotly(Media):
                     "Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly"
                 )
 
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".plotly.json")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(val, fp)

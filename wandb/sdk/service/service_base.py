@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 def _pbmap_apply_dict(
     m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
 ) -> None:
-
     for k, v in d.items():
         if isinstance(v, enum.Enum):
             continue
@@ -38,7 +37,18 @@ def _pbmap_apply_dict(
         elif isinstance(v, str):
             sv.string_value = v
         elif isinstance(v, Iterable) and not isinstance(v, (str, bytes, Mapping)):
-            sv.tuple_value.string_values.extend(v)
+            if all(isinstance(x, str) for x in v):  # Iterable[str]
+                sv.tuple_value.string_values.extend(v)
+        elif isinstance(v, Mapping):
+            for kk, vv in v.items():
+                if isinstance(vv, str):
+                    # flat map
+                    sv.map_value.map_values[kk] = vv
+                elif isinstance(vv, Mapping):
+                    # nested map
+                    for kkk, vvv in vv.items():
+                        sv.nested_map_value.nested_map_values[kk].map_values[kkk] = vvv
+
         elif isinstance(v, datetime.datetime):
             sv.timestamp_value = datetime.datetime.strftime(v, "%Y%m%d_%H%M%S")
         else:

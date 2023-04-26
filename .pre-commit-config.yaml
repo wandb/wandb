@@ -2,26 +2,22 @@
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.2.0
+    rev: v4.4.0
     hooks:
+      - id: check-merge-conflict
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-#  - repo: https://github.com/pycqa/isort
-#    rev: 5.10.1
-#    hooks:
-#      - id: isort
-#        args: [--resolve-all-config]
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: "v0.0.263"
+    hooks:
+      - id: ruff
+        args: [ --fix]
   - repo: https://github.com/psf/black
-    rev: 22.3.0
+    rev: 23.3.0
     hooks:
-      - id: black
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v2.31.1
-    hooks:
-      - id: pyupgrade
-        args: [--py36-plus, --keep-mock]
+      - id: black-jupyter
   - repo: https://github.com/asottile/blacken-docs
-    rev: v1.12.1
+    rev: 1.13.0
     hooks:
       - id: blacken-docs

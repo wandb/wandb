@@ -1,0 +1,3 @@
+global-exclude tests/*
+recursive-exclude tests *
+include LICENSE
