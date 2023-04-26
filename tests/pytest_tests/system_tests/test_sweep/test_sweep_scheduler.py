@@ -276,6 +276,8 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             "run6": RunState.PENDING,
             "run7": RunState.PREEMPTED,
             "run8": RunState.PREEMPTING,
+            "run9": RunState.UNKNOWN,
+            "run10": "?????",
         }
 
         def mock_get_run_state(entity, project, run_id, *args, **kwargs):
@@ -290,6 +292,9 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             )
         _scheduler._update_run_states()
         for run_id, _state in mock_run_states.items():
+            if _state == "?????":  # special case
+                assert _scheduler._runs[run_id].state == RunState.UNKNOWN
+                continue
             if not _state.is_alive:
                 # Dead runs should be removed from the run dict
                 assert run_id not in _scheduler._runs.keys()

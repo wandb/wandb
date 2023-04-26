@@ -411,7 +411,6 @@ class Scheduler(ABC):
             except CommError as e:
                 _logger.debug(f"error getting state for run ({run_id}): {e}")
                 run.state = RunState.UNKNOWN
-                continue
             except AttributeError as e:
                 _logger.debug(f"bad state ({state}) for run ({run_id}): {e}")
                 run.state = RunState.UNKNOWN
