@@ -6,7 +6,9 @@ import optuna
 import pytest
 import wandb
 from wandb.apis import internal, public
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.sweeps import SchedulerError
+from wandb.sdk.launch.sweeps.scheduler import RunState
 from wandb.sdk.launch.sweeps.scheduler_optuna import (
     OptunaComponents,
     OptunaScheduler,
@@ -253,3 +255,76 @@ def objective(trial):
     scheduler._load_state()
     with pytest.raises(TimeoutError):
         scheduler._trial_func()
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+def test_optuna_sweep(user, monkeypatch, wandb_init, sweep_config, test_settings):
+    # monkeypatch run stuff
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
+        lambda _x: make_mock_run(),
+    )
+
+    # write a job-script
+    train_job = """
+import wandb
+
+r = wandb.init(project="proj")
+wandb.termlog('metric: 1')
+r.log_code('./tmp')
+r.finish()
+"""
+    os.mkdir("./tmp")
+    with open("./tmp/job.py", "w") as f:
+        f.write(train_job)
+
+    # make a job
+    proj = "proj"
+    internal_api = InternalApi()
+    public_api = public.Api()
+
+    import subprocess
+
+    subprocess.call(["python", "./tmp/job.py"])
+    time.sleep(5)
+
+    # get the job
+    job = public_api.job(f"{user}/{proj}/job-source-proj-tmp_job.py:latest")
+    assert job
+
+    # make a queue
+    queue = "queue"
+    internal_api.create_run_queue(
+        entity=user, project=proj, queue_name=queue, access="PROJECT"
+    )
+
+    # make a sweep
+    sweep_config["run_cap"] = 5
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=proj)
+
+    scheduler = OptunaScheduler(
+        internal_api,
+        job=f"{user}/{proj}/job-source-proj-tmp_job.py:latest",
+        sweep_type="optuna",
+        sweep_id=sweep_id,
+        entity=user,
+        project=proj,
+        polling_sleep=0,
+        num_workers=2,
+        queue=queue,
+        project_queue=proj,
+        resource="local-process",
+    )
+
+    # patch run polling
+    scheduler._get_run_history = lambda run_id: [i for i in range(100)]
+
+    def mock_update_run_states():
+        rqi = internal_api.pop_from_run_queue(queue, user, proj)
+        if not rqi:
+            return
+        scheduler._runs[rqi["runSpec"]["run_id"]].state = RunState.DEAD
+
+    scheduler._update_run_states = mock_update_run_states
+
+    scheduler.start()
