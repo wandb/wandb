@@ -47,12 +47,14 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
+from wandb.sdk.internal import job_builder
 from wandb.sdk.lib.filesystem import StrPath
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
 from wandb.util import (
+    FilePathStr,
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
@@ -2273,9 +2275,9 @@ class Run:
         installed_packages_list: List[str],
         patch_path: Optional[os.PathLike] = None,
     ) -> "Artifact":
-        job_artifact = wandb.Artifact(name, type="job")
+        job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
-            job_artifact.add_file(patch_path, "diff.patch")
+            job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
         with job_artifact.new_file("wandb-job.json") as f:
@@ -3782,6 +3784,10 @@ class _LazyArtifact(ArtifactInterface):
     @property
     def name(self) -> str:
         return self._instance.name
+
+    @property
+    def full_name(self) -> str:
+        return self._instance.full_name
 
     @property
     def type(self) -> str:
