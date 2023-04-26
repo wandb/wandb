@@ -75,20 +75,24 @@ def test_cleanup(*args, **kwargs):
     print(proc.open_files())
 
 
-def wait_for_port_file():
-    # port = 0
-    # start_time = time.time()
-    # while not port:
-    #     try:
-    #         port = int(open(port_file).read().strip())
-    #         if port:
-    #             break
-    #     except Exception as e:
-    #         print(f"Problem parsing port file: {e}")
-    #     now = time.time()
-    #     if now > start_time + 30:
-    #         raise Exception(f"Could not start server {now} {start_time}")
-    #     time.sleep(0.5)
+def wait_for_port_file(port_file):
+    port = 0
+    start_time = time.time()
+    while not port:
+        try:
+            port = int(open(port_file).read().strip())
+            if port:
+                break
+        except Exception as e:
+            print(f"Problem parsing port file: {e}")
+        now = time.time()
+        if now > start_time + 30:
+            raise Exception(f"Could not start server {now} {start_time}")
+        time.sleep(0.5)
+    return port
+
+
+def find_port():
     import socket
 
     sock = socket.socket()
@@ -104,13 +108,14 @@ def start_mock_server(worker_id):
     path = os.path.join(this_folder, "utils", "mock_server.py")
     command = [sys.executable, "-u", path]
     env = os.environ
-    # env["PORT"] = "0"  # Let the server find its own port
     env["PYTHONPATH"] = os.path.abspath(os.path.join(this_folder, os.pardir))
 
+    # env["PORT"] = "0"  # Let the server find its own port
     # port_file = os.path.join(
     #     this_folder, "logs", f"live_mock_server-{worker_id}-{os.getpid()}-{random.randint(0, 2**32)}.port"
     # )
-    env["PORT"] = str(wait_for_port_file())
+    # env["PORT_FILE"] = port_file
+    env["PORT"] = str(find_port())
     logfname = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.log")
     server = subprocess.Popen(
         command,
@@ -121,7 +126,9 @@ def start_mock_server(worker_id):
         close_fds=True,
     )
 
-    server._port = int(env["PORT"])
+    # port = wait_for_port_file(port_file)
+    port = int(env["PORT"])
+    server._port = port
     server.base_url = f"http://localhost:{server._port}"
 
     headers = {"Content-type": "application/json", "Accept": "application/json"}
