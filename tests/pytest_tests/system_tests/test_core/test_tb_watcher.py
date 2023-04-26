@@ -70,7 +70,6 @@ def tbwatcher_util(internal_hm, backend_interface):
     def tbwatcher_util_helper(
         run, write_function, logdir="./", save=True, root_dir="./"
     ):
-
         with backend_interface(run=run):
             proto_run = pb.RunRecord()
             run._make_proto_run(proto_run)
