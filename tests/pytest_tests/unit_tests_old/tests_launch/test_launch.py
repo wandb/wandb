@@ -1145,10 +1145,7 @@ def test_launch_build_config_file(
         assert isinstance(builder, DockerBuilder)
 
 
-def test_resolve_agent_config(test_settings, monkeypatch, runner):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
+def test_resolve_agent_config(monkeypatch, runner):
     monkeypatch.setattr(
         "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
@@ -1159,6 +1156,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         with open("./config/wandb/launch-config.yaml", "w") as f:
             yaml.dump(
                 {
+                    "base_url": "testurl",
                     "entity": "different-entity",
                     "max_jobs": 2,
                     "registry": {"url": "test"},
@@ -1166,9 +1164,10 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
                 f,
             )
         config, returned_api = launch.resolve_agent_config(
-            api, None, None, -1, ["diff-queue"], None
+            None, None, -1, ["diff-queue"], None
         )
 
+        assert returned_api.api.default_settings.get("base_url") == "testurl"
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1
