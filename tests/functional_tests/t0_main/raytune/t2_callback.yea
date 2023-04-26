@@ -29,3 +29,6 @@ assert:
   - :op:contains:
     - :wandb:runs[4][telemetry][1]  # imports_init
     - 30  # ray
+  - :op:contains:
+    - :wandb:runs[4][telemetry][2]  # imports_init
+    - 30  # ray

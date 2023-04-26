@@ -8,7 +8,7 @@ import numpy as np
 from _test_support import get_wandb_api_key_file
 from ray import air, tune
 from ray.air import session
-from ray.air.callbacks.wandb import WandbLoggerCallback
+from ray.air.integrations.wandb import WandbLoggerCallback
 
 
 def objective(config, checkpoint_dir=None):

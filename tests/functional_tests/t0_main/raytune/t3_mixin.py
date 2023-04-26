@@ -5,19 +5,19 @@ Based on:
 """
 
 import numpy as np
-import wandb
 from _test_support import get_wandb_api_key_file
 from ray import tune
 from ray.air import session
-from ray.tune.integration.wandb import wandb_mixin
+from ray.air.integrations.wandb import setup_wandb
 
 
-@wandb_mixin
-def decorated_objective(config, checkpoint_dir=None):
+# @wandb_mixin
+def decorated_objective(config):
+    run = setup_wandb(config)
     for _i in range(30):
         loss = config["mean"] + config["sd"] * np.random.randn()
         session.report({"loss": loss})
-        wandb.log(dict(loss=loss))
+        run.log(dict(loss=loss))
 
 
 def tune_decorated(api_key_file):

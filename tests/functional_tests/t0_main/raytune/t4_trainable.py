@@ -5,18 +5,23 @@ Based on:
 """
 
 import numpy as np
-import wandb
 from _test_support import get_wandb_api_key_file
 from ray import tune
+from ray.air.integrations.wandb import setup_wandb
 from ray.tune import Trainable
-from ray.tune.integration.wandb import WandbTrainableMixin
 
 
-class WandbTrainable(WandbTrainableMixin, Trainable):
+class WandbTrainable(Trainable):
+    def setup(self, config):
+        self.wandb = setup_wandb(
+            config, trial_id=self.trial_id, trial_name=self.trial_name, group="Example"
+        )
+
     def step(self):
-        for _i in range(30):
+        loss = None
+        for _ in range(30):
             loss = self.config["mean"] + self.config["sd"] * np.random.randn()
-            wandb.log({"loss": loss})
+            self.wandb.log({"loss": loss})
         return {"loss": loss, "done": True}
 
 
