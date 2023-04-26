@@ -50,7 +50,6 @@ def end_run_resume_pause(interface):
     ],
 )
 def test_runtime(relay_server, publish_util, mock_run, end_cb, lower_bound, user):
-
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay:
         publish_util(run=run, end_cb=end_cb, initial_start=True)
