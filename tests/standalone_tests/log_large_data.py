@@ -5,7 +5,6 @@ import wandb
 
 
 def main(size: int) -> None:
-
     run = wandb.init(settings={"console": "off"})
     run.log({f"v_{i}": i for i in range(size)})
     run.finish()

@@ -442,8 +442,9 @@ class Scheduler(ABC):
             entity=self._entity,
             queue_name=self._kwargs.get("queue"),
             project_queue=self._project_queue,
-            resource=self._kwargs.get("resource"),
-            resource_args=self._kwargs.get("resource_args"),
+            resource=self._kwargs.get("resource", None),
+            resource_args=self._kwargs.get("resource_args", None),
+            author=self._kwargs.get("author"),
         )
         run.queued_run = queued_run
         self._runs[run_id] = run

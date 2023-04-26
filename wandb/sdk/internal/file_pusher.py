@@ -12,8 +12,7 @@ from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
 
 if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import artifacts as internal_artifacts
-    from wandb.sdk.internal import file_stream, internal_api
+    from wandb.sdk.internal import artifact_saver, file_stream, internal_api
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
@@ -143,8 +142,8 @@ class FilePusher:
         self,
         manifest: "artifacts.ArtifactManifest",
         artifact_id: str,
-        save_fn: "internal_artifacts.SaveFn",
-        save_fn_async: "internal_artifacts.SaveFnAsync",
+        save_fn: "artifact_saver.SaveFn",
+        save_fn_async: "artifact_saver.SaveFnAsync",
     ) -> None:
         event = step_checksum.RequestStoreManifestFiles(
             manifest, artifact_id, save_fn, save_fn_async
