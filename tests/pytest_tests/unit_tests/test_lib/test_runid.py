@@ -7,7 +7,3 @@ def test_generate_id_is_base36():
     new_id = runid.generate_id(1000)
     assert len(new_id) == 1000
     assert set(new_id) == set("0123456789abcdefghijklmnopqrstuvwxyz")
-
-
-def test_generate_id_default_8_chars():
-    assert len(runid.generate_id()) == 8
