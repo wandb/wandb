@@ -92,7 +92,7 @@ def wait_for_port_file():
     import socket
 
     sock = socket.socket()
-    sock.bind(("", 0))
+    sock.bind(("127.0.0.1", 0))
 
     _, port = sock.getsockname()
     return port
