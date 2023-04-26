@@ -352,6 +352,22 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
+  fetch-containers:
+    docker:
+      # this is a trick to cache the docker image for local-testcontainer
+      - image: "python:3.10"
+      - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+        auth:
+          username: _json_key
+          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
+        environment:
+          CI: 1
+          WANDB_ENABLE_TEST_CONTAINER: true
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+
   pytest:
     parameters:
       python_version_major:
@@ -1313,9 +1329,17 @@ workflows:
           toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,ruff,flake8,docstrings"
 
       #
+      # Pre-fetch containers
+      #
+      - fetch-containers:
+          name: "fetch-local-testcontainer"
+
+      #
       # System tests with pytest on Linux, using real wandb server
       #
       - pytest:
+          requires:
+            - "fetch-local-testcontainer"
           matrix:
             parameters:
               python_version_major: [3]
