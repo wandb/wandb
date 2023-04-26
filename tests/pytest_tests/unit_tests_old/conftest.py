@@ -76,19 +76,24 @@ def test_cleanup(*args, **kwargs):
 
 
 def wait_for_port_file(port_file):
-    port = 0
-    start_time = time.time()
-    while not port:
-        try:
-            port = int(open(port_file).read().strip())
-            if port:
-                break
-        except Exception as e:
-            print(f"Problem parsing port file: {e}")
-        now = time.time()
-        if now > start_time + 30:
-            raise Exception(f"Could not start server {now} {start_time}")
-        time.sleep(0.5)
+    # port = 0
+    # start_time = time.time()
+    # while not port:
+    #     try:
+    #         port = int(open(port_file).read().strip())
+    #         if port:
+    #             break
+    #     except Exception as e:
+    #         print(f"Problem parsing port file: {e}")
+    #     now = time.time()
+    #     if now > start_time + 30:
+    #         raise Exception(f"Could not start server {now} {start_time}")
+    #     time.sleep(0.5)
+    import socket
+    sock = socket.socket()
+    sock.bind(("", 0))
+
+    _, port = sock.getsockname()
     return port
 
 
