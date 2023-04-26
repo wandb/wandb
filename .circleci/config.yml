@@ -381,7 +381,7 @@ jobs:
         default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-      - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
