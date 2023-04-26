@@ -1002,7 +1002,7 @@ def launch_sweep(
         custom_config = {}
         if "optuna" in parsed_sweep_config:
             _type = "optuna"
-            custom_config = parsed_sweep_config["optuna"]
+            custom_config = parsed_sweep_config.pop("optuna")
             if not validate_optuna(api, custom_config):
                 return
         elif "raytune" in parsed_sweep_config:
@@ -1037,7 +1037,11 @@ def launch_sweep(
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        launch_config=None,
+        launch_config={
+            "overrides": {
+                "run_config": {"custom": custom_config, "scheduler": scheduler_args}
+            }
+        },
         run_id=None,
         author=None,  # author gets passed into scheduler command
     )

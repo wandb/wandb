@@ -80,6 +80,9 @@ class OptunaScheduler(Scheduler):
         self._trial_func = self._make_trial
         self._optuna_runs: Dict[str, OptunaRun] = {}
 
+        # Load optuna args from wandb_run
+        self._optuna_config = self._wandb_run.config.get("custom", {})
+
     @property
     def study(self) -> optuna.study.Study:
         if not self._study:
@@ -244,7 +247,7 @@ class OptunaScheduler(Scheduler):
         Create an optuna study with a sqlite backened for loose state management
         """
         study, pruner, sampler = None, None, None
-        optuna_artifact_name = self._sweep_config.get("optuna", {}).get("artifact")
+        optuna_artifact_name = self._optuna_config.get("artifact")
         if optuna_artifact_name:
             study, pruner, sampler = self._load_optuna_from_user_provided_artifact(
                 optuna_artifact_name
@@ -265,7 +268,7 @@ class OptunaScheduler(Scheduler):
         if pruner:
             wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner.__class__.__name__})")
         else:
-            pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
+            pruner_args = self._optuna_config.get("pruner", {})
             if pruner_args:
                 pruner = load_optuna_pruner(
                     pruner_args["type"], pruner_args.get("args")
@@ -277,7 +280,7 @@ class OptunaScheduler(Scheduler):
         if sampler:
             wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler.__class__.__name__})")
         else:
-            sampler_args = self._sweep_config.get("optuna", {}).get("sampler", {})
+            sampler_args = self._optuna_config.get("sampler", {})
             if sampler_args:
                 sampler = load_optuna_sampler(
                     sampler_args["type"], sampler_args.get("args")
