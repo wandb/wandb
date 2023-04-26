@@ -75,7 +75,7 @@ def test_cleanup(*args, **kwargs):
     print(proc.open_files())
 
 
-def wait_for_port_file(port_file):
+def wait_for_port_file():
     # port = 0
     # start_time = time.time()
     # while not port:
@@ -96,53 +96,51 @@ def wait_for_port_file(port_file):
     _, port = sock.getsockname()
     return port
 
-
 def start_mock_server(worker_id):
     """We start a flask server process for each pytest-xdist worker_id"""
     this_folder = os.path.dirname(__file__)
     path = os.path.join(this_folder, "utils", "mock_server.py")
     command = [sys.executable, "-u", path]
     env = os.environ
-    env["PORT"] = "0"  # Let the server find its own port
+    # env["PORT"] = "0"  # Let the server find its own port
     env["PYTHONPATH"] = os.path.abspath(os.path.join(this_folder, os.pardir))
+
+    # port_file = os.path.join(
+    #     this_folder, "logs", f"live_mock_server-{worker_id}-{os.getpid()}-{random.randint(0, 2**32)}.port"
+    # )
+    env["PORT"] = str(wait_for_port_file())
     logfname = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.log")
-    pid = os.getpid()
-    rand = random.randint(0, 2**32)
-    port_file = os.path.join(
-        this_folder, "logs", f"live_mock_server-{worker_id}-{pid}-{rand}.port"
-    )
-    env["PORT_FILE"] = port_file
-    logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
-        stdout=logfile,
+        stdout=open(logfname, "w"),
         env=env,
         stderr=subprocess.STDOUT,
         bufsize=1,
         close_fds=True,
     )
 
-    port = wait_for_port_file(port_file)
-    server._port = port
+    server._port = int(env["PORT"])
     server.base_url = f"http://localhost:{server._port}"
 
+    headers = {'Content-type':'application/json', 'Accept':'application/json'}
+
     def get_ctx():
-        return requests.get(server.base_url + "/ctx").json()
+        return requests.get(f"{server.base_url}/ctx", headers=headers).json()
 
     def set_ctx(payload):
-        return requests.put(server.base_url + "/ctx", json=payload).json()
+        return requests.put(f"{server.base_url}/ctx", headers=headers, json=payload).json()
 
     def reset_ctx():
-        return requests.delete(server.base_url + "/ctx").json()
+        return requests.delete(f"{server.base_url}/ctx", headers=headers).json()
 
     server.get_ctx = get_ctx
     server.set_ctx = set_ctx
     server.reset_ctx = reset_ctx
 
     started = False
-    for i in range(10):
+    for _ in range(10):
         try:
-            res = requests.get("%s/ctx" % server.base_url, timeout=5)
+            res = requests.get(f"{server.base_url}/ctx", headers=headers, timeout=5)
             if res.status_code == 200:
                 started = True
                 break
@@ -168,7 +166,7 @@ def start_mock_server(worker_id):
             print("=" * 40)
         except Exception as e:
             print("EXCEPTION:", e)
-        raise ValueError("Failed to start server!  Exit code %s" % server.returncode)
+        raise ValueError(f"Failed to start server!  Exit code {server.returncode}")
     return server
 
 
