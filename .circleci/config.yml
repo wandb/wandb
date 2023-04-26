@@ -270,6 +270,12 @@ jobs:
                   pip install -U pip
                 no_output_timeout: 5m
             - run:
+                name: Setup tox environment
+                command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+            - run:
+                name: Check re-run time
+                command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+            - run:
                 name: Run tests
                 no_output_timeout: 240m
                 command: |
@@ -402,6 +408,12 @@ jobs:
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
+          name: Setup tox environment
+          command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+      - run:
+          name: Check re-run time
+          command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+      - run:
           name: Run tests
           no_output_timeout: 10m
           command: |
@@ -507,6 +519,14 @@ jobs:
                         v=${CUDA_VERSION_NO_DOT:1}
                         sed -i -e "s/whl\/cpu/whl\/cu$v/g" tox.ini
             - run:
+                name: Setup tox environment
+                shell: bash.exe
+                command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+            - run:
+                name: Check re-run time
+                shell: bash.exe
+                command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+            - run:
                 name: Run tests
                 shell: bash.exe
                 command: |
@@ -547,6 +567,12 @@ jobs:
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
       - run:
+          name: Setup tox environment
+          command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+      - run:
+          name: Check re-run time
+          command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+      - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
           command: |
@@ -578,6 +604,12 @@ jobs:
           command: |
             docker pull nvidia/cuda:10.0-runtime
             docker pull python:3.6-buster
+      - run:
+          name: Setup tox environment
+          command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+      - run:
+          name: Check re-run time
+          command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
       - run:
           name: Run tests
           command: |
@@ -646,6 +678,12 @@ jobs:
                   sleep 10s
                   kubectl wait --for condition=ready --timeout=300s pods -n kubeflow --all
                   kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80 &
+            - run:
+                name: Setup tox environment
+                command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
+            - run:
+                name: Check re-run time
+                command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py || true
             - run:
                 name: Run tests
                 command: |
