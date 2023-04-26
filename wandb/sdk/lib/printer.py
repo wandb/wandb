@@ -284,7 +284,6 @@ class PrinterJupyter(_Printer):
             self._progress.close()
 
     def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
-
         format_row = "".join(["<tr>", "<td>{}</td>" * len(rows[0]), "</tr>"])
         grid = "".join([format_row.format(*row) for row in rows])
         grid = f'<table class="wandb">{grid}</table>'
