@@ -33,7 +33,10 @@ def main():
             "a": tune.choice([1, 2, 3]),
             "b": tune.choice([4, 5, 6]),
             # wandb configuration
-            "wandb": {"project": "Optimization_Project", "api_key": get_wandb_api_key()},
+            "wandb": {
+                "project": "Optimization_Project",
+                "api_key": get_wandb_api_key(),
+            },
         },
     )
 

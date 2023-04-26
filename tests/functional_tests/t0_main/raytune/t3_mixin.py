@@ -11,19 +11,21 @@ from ray.air import session
 from ray.air.integrations.wandb import setup_wandb
 
 
-# @wandb_mixin
-def decorated_objective(config):
+def train_function_wandb(config):
     run = setup_wandb(config)
-    for _i in range(30):
+
+    for _ in range(30):
         loss = config["mean"] + config["sd"] * np.random.randn()
         session.report({"loss": loss})
         run.log(dict(loss=loss))
 
 
-def tune_decorated(api_key_file):
-    """Example for using the @wandb_mixin decorator with the function API."""
+def tune_with_setup():
+    """Example for using the setup_wandb utility with the function API."""
+    api_key_file = get_wandb_api_key_file()
+
     tuner = tune.Tuner(
-        decorated_objective,
+        train_function_wandb,
         tune_config=tune.TuneConfig(
             metric="loss",
             mode="min",
@@ -39,10 +41,5 @@ def tune_decorated(api_key_file):
     return results.get_best_result().config
 
 
-def main():
-    api_key_file = get_wandb_api_key_file()
-    tune_decorated(api_key_file)
-
-
 if __name__ == "__main__":
-    main()
+    tune_with_setup()

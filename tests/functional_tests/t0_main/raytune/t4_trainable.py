@@ -24,9 +24,17 @@ class WandbTrainable(Trainable):
             self.wandb.log({"loss": loss})
         return {"loss": loss, "done": True}
 
+    def save_checkpoint(self, _):
+        pass
 
-def tune_trainable(api_key_file):
-    """Example for using a WandTrainableMixin with the class API."""
+    def load_checkpoint(self, _):
+        pass
+
+
+def tune_trainable():
+    """Example for using a WandTrainable with the class API."""
+    api_key_file = get_wandb_api_key_file()
+
     tuner = tune.Tuner(
         WandbTrainable,
         tune_config=tune.TuneConfig(
@@ -44,10 +52,5 @@ def tune_trainable(api_key_file):
     return results.get_best_result().config
 
 
-def main():
-    api_key_file = get_wandb_api_key_file()
-    tune_trainable(api_key_file)
-
-
 if __name__ == "__main__":
-    main()
+    tune_trainable()

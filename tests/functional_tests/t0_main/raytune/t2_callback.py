@@ -6,26 +6,28 @@ Based on:
 
 import numpy as np
 from _test_support import get_wandb_api_key_file
-from ray import air, tune
-from ray.air import session
+from ray import tune
+from ray.air import RunConfig, session
 from ray.air.integrations.wandb import WandbLoggerCallback
 
 
-def objective(config, checkpoint_dir=None):
-    for _i in range(30):
+def train_function(config):
+    for _ in range(30):
         loss = config["mean"] + config["sd"] * np.random.randn()
         session.report({"loss": loss})
 
 
-def tune_function(api_key_file):
+def tune_with_callback():
     """Example for using a WandbLoggerCallback with the function API."""
+    api_key_file = get_wandb_api_key_file()
+
     tuner = tune.Tuner(
-        objective,
+        train_function,
         tune_config=tune.TuneConfig(
             metric="loss",
             mode="min",
         ),
-        run_config=air.RunConfig(
+        run_config=RunConfig(
             callbacks=[
                 WandbLoggerCallback(api_key_file=api_key_file, project="Wandb_example")
             ],
@@ -40,10 +42,5 @@ def tune_function(api_key_file):
     return results.get_best_result().config
 
 
-def main():
-    api_key_file = get_wandb_api_key_file()
-    tune_function(api_key_file)
-
-
 if __name__ == "__main__":
-    main()
+    tune_with_callback()
