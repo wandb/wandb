@@ -23,7 +23,6 @@ def test_launch_local_process_base_case(
     monkeypatch,
     capsys,
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
