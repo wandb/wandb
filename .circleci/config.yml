@@ -222,7 +222,24 @@ commands:
           paths:
             - ".git"
 
+  restore-python-cache:
+    steps:
+      - run:
+          command: |
+            cat tox.ini setup.py requirements.txt requirements_dev.txt requirements_test.txt > sources.txt
+      - restore_cache:
+          keys:
+            - &python-cache python-v1-{{ arch }}-{{ checksum "sources.txt" }}
+            - python-v1-{{ arch }}-
+            - python-v1-
 
+  save-python-cache:
+    steps:
+      - save_cache:
+          key: *python-cache
+          paths:
+            - ".tox"
+            - $(pip cache dir)
 
 jobs:
   regression:
@@ -344,6 +361,7 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
+            - restore-python-cache
             - run:
                 name: Install python dependencies
                 command: |
@@ -357,6 +375,7 @@ jobs:
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
+            - save-python-cache
             - when:
                 condition: << parameters.notify_on_failure >>
                 steps:
