@@ -188,7 +188,6 @@ def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
 def test_sweep_scheduler_base_scheduler_states(
     user, relay_server, sweep_config, monkeypatch
 ):
-
     with relay_server():
         _entity = user
         _project = "test-project"
@@ -653,3 +652,46 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         gold += ["--image_uri", "image:latest"]
 
     assert entrypoint == gold
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        [],
+        ["python", "train.py"],
+        ["${env}", "python", "train.py", "${args}"],
+        ["python", "train.py", "${args_no_hyphens}"],
+        ["python", "train.py", "${args_no_equals}"],
+        ["python", "train.py", "${args}", "--another", "param"],
+        ["python", "train.py", "--float", 1.99999, "${args_json}"],
+    ],
+)
+def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
+    def mock_launch_add(*args, **kwargs):
+        mock = Mock(spec=public.QueuedRun)
+        mock.args = Mock(return_value=args)
+        return mock
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.launch_add._launch_add",
+        mock_launch_add,
+    )
+
+    sweep_config = {
+        "job": "job",
+        "method": "grid",
+        "parameters": {
+            "foo-1": {"values": [1, 2]},
+            "bool_2": {"values": [True, False]},
+        },
+        "command": command,
+    }
+    # Entity, project, and sweep should be everything you need to create a scheduler
+    api = internal.Api()
+    s = wandb.sweep(sweep_config, entity=user, project="t")
+    scheduler = SweepScheduler(
+        api, sweep_id=s, entity=user, project="t", queue="q", num_workers=1
+    )
+    scheduler._register_agents()
+    srun2 = scheduler._get_next_sweep_run(0)
+    scheduler._add_to_launch_queue(srun2)
