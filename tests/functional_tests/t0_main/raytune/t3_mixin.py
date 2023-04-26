@@ -5,27 +5,25 @@ Based on:
 """
 
 import numpy as np
+import wandb
 from _test_support import get_wandb_api_key_file
 from ray import tune
 from ray.air import session
-from ray.air.integrations.wandb import setup_wandb
+from ray.tune.integration.wandb import wandb_mixin
 
 
-def train_function_wandb(config):
-    run = setup_wandb(config)
-
-    for _ in range(30):
+@wandb_mixin
+def decorated_objective(config, checkpoint_dir=None):
+    for _i in range(30):
         loss = config["mean"] + config["sd"] * np.random.randn()
         session.report({"loss": loss})
-        run.log(dict(loss=loss))
+        wandb.log(dict(loss=loss))
 
 
-def tune_with_setup():
-    """Example for using the setup_wandb utility with the function API."""
-    api_key_file = get_wandb_api_key_file()
-
+def tune_decorated(api_key_file):
+    """Example for using the @wandb_mixin decorator with the function API."""
     tuner = tune.Tuner(
-        train_function_wandb,
+        decorated_objective,
         tune_config=tune.TuneConfig(
             metric="loss",
             mode="min",
@@ -41,5 +39,10 @@ def tune_with_setup():
     return results.get_best_result().config
 
 
+def main():
+    api_key_file = get_wandb_api_key_file()
+    tune_decorated(api_key_file)
+
+
 if __name__ == "__main__":
-    tune_with_setup()
+    main()

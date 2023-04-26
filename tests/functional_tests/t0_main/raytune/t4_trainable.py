@@ -5,36 +5,23 @@ Based on:
 """
 
 import numpy as np
+import wandb
 from _test_support import get_wandb_api_key_file
 from ray import tune
-from ray.air.integrations.wandb import setup_wandb
 from ray.tune import Trainable
+from ray.tune.integration.wandb import WandbTrainableMixin
 
 
-class WandbTrainable(Trainable):
-    def setup(self, config):
-        self.wandb = setup_wandb(
-            config, trial_id=self.trial_id, trial_name=self.trial_name, group="Example"
-        )
-
+class WandbTrainable(WandbTrainableMixin, Trainable):
     def step(self):
-        loss = None
-        for _ in range(30):
+        for _i in range(30):
             loss = self.config["mean"] + self.config["sd"] * np.random.randn()
-            self.wandb.log({"loss": loss})
+            wandb.log({"loss": loss})
         return {"loss": loss, "done": True}
 
-    def save_checkpoint(self, _):
-        pass
 
-    def load_checkpoint(self, _):
-        pass
-
-
-def tune_trainable():
-    """Example for using a WandTrainable with the class API."""
-    api_key_file = get_wandb_api_key_file()
-
+def tune_trainable(api_key_file):
+    """Example for using a WandTrainableMixin with the class API."""
     tuner = tune.Tuner(
         WandbTrainable,
         tune_config=tune.TuneConfig(
@@ -52,5 +39,10 @@ def tune_trainable():
     return results.get_best_result().config
 
 
+def main():
+    api_key_file = get_wandb_api_key_file()
+    tune_trainable(api_key_file)
+
+
 if __name__ == "__main__":
-    tune_trainable()
+    main()
