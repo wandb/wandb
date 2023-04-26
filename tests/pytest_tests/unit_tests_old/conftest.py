@@ -969,7 +969,6 @@ def publish_util(
 @pytest.fixture
 def tbwatcher_util(mocked_run, mock_server, internal_hm, backend_interface, parse_ctx):
     def fn(write_function, logdir="./", save=True, root_dir="./"):
-
         with backend_interface() as interface:
             proto_run = pb.RunRecord()
             mocked_run._make_proto_run(proto_run)
