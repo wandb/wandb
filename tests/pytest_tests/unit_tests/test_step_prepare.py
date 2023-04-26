@@ -196,7 +196,6 @@ class TestGatherBatch:
         assert q.get.call_count == 2
 
     def test_respects_batch_time(self):
-
         clock = MockClock()
         q = MockRequestQueue(
             clock=clock,
@@ -220,7 +219,6 @@ class TestGatherBatch:
         assert len(batch) == 3
 
     def test_respects_inter_event_time(self):
-
         clock = MockClock()
         q = MockRequestQueue(
             clock=clock,
