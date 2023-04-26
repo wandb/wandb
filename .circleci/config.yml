@@ -336,6 +336,12 @@ jobs:
                   pip install -U pip
                 no_output_timeout: 5m
             - run:
+                name: Setup tox environment
+                command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py
+            - run:
+                name: Check re-run time
+                command: tox -v -e << parameters.toxenv >> -- -n=1 --no-cov tests/pytest_tests/test_echo.py
+            - run:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
