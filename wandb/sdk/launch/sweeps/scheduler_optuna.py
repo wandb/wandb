@@ -1,6 +1,7 @@
 import base64
 import logging
 import os
+import signal
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
@@ -63,6 +64,8 @@ def _get_module(
 
 
 class OptunaScheduler(Scheduler):
+    OPT_TIMEOUT = 2
+
     def __init__(
         self,
         *args: Optional[Any],
@@ -495,18 +498,17 @@ class OptunaScheduler(Scheduler):
         study_copy.add_trials(self.study.trials)
 
         # Signal handler to raise error if objective func takes too long
-        import signal
-
         def handler(signum, frame):
             raise TimeoutError(
                 "Passed optuna objective function only creates parameter config."
-                f" Do not train; must execute in {2} seconds. See docs."
+                f" Do not train; must execute in {self.OPT_TIMEOUT} seconds. See docs."
             )
 
         signal.signal(signal.SIGALRM, handler)
-        signal.alarm(2)
-
+        signal.alarm(self.OPT_TIMEOUT)
+        # run mock objective func to parse pythonic search space
         study_copy.optimize(self._objective_func, n_trials=1)
+        signal.alarm(0)  # disable alarm
 
         temp_trial = study_copy.trials[-1]
         # convert from optuna-type param config to wandb-type param config

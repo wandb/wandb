@@ -477,6 +477,7 @@ class Scheduler(ABC):
         )
         run.queued_run = queued_run
         self._runs[run_id] = run
+
         wandb.termlog(
             f"{LOG_PREFIX}Added run ({run_id}) to queue ({self._kwargs.get('queue')})"
         )
