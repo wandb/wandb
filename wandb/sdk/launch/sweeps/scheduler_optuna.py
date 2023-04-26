@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from importlib.machinery import SourceFileLoader
 from pprint import pformat
+import traceback
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -14,7 +15,7 @@ import click
 import optuna
 
 import wandb
-from wandb.apis.public import Artifact, QueuedRun, Run
+from wandb.apis.public import Api, Artifact, QueuedRun, Run
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import RunState, Scheduler, SweepRun
 
@@ -528,6 +529,41 @@ class OptunaScheduler(Scheduler):
 
     def _cleanup_runs(self, runs_to_remove) -> None:
         logger.debug(f"[_cleanup_runs] not removing: {runs_to_remove}")
+
+
+# External validation functions
+def validate_optuna(public_api: Api, custom_config: Dict[str, Any]) -> bool:
+    """Accepts a user provided optuna configuration.
+
+    optuna library must be installed in scope, otherwise returns False.
+    validates sampler and pruner configuration args.
+    validates artifact existence.
+    """
+    try:
+        import optuna  # noqa: F401
+    except ImportError:
+        wandb.termerror(
+            f"Optuna must be installed to validate user-provided configuration. Error: {traceback.format_exc()}"
+        )
+        return False
+
+    if custom_config.get("pruner"):
+        if not validate_optuna_pruner(custom_config["pruner"]):
+            return False
+
+    if custom_config.get("sampler"):
+        if not validate_optuna_sampler(custom_config["sampler"]):
+            return False
+
+    if custom_config.get("artifact"):
+        try:
+            _ = public_api.artifact(custom_config.get("artifact"))
+        except Exception:
+            if ":" not in custom_config.get("artifact"):
+                wandb.termerror("No alias (ex. :latest) found in artifact name")
+            wandb.termerror(f"{traceback.format_exc()}")
+            return False
+    return True
 
 
 def validate_optuna_pruner(args: Dict[str, Any]) -> bool:

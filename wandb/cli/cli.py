@@ -35,10 +35,7 @@ from wandb.apis.public import Runs
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
-from wandb.sdk.launch.sweeps.scheduler_optuna import (
-    validate_optuna_pruner,
-    validate_optuna_sampler,
-)
+from wandb.sdk.launch.sweeps.scheduler_optuna import validate_optuna
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
@@ -999,31 +996,18 @@ def launch_sweep(
     else:
         parsed_sweep_config = parsed_config
 
-    _type = "optuna" if parsed_sweep_config.get("method") == "optuna" else "sweep"
-    # Validate optuna sweep config
-    if _type == "optuna":
-        try:
-            import optuna  # noqa: F401
-        except ImportError:
-            wandb.termerror(f"Error importing optuna: {traceback.format_exc()}")
-
-        opt_config = parsed_sweep_config.get("optuna", {})
-        optuna_artifact = opt_config.get("artifact")
-        if opt_config.get("pruner"):
-            if optuna_artifact:
-                wandb.termwarn(
-                    "User provided optuna artifact will override `pruner.args` if a pruner is provided"
-                )
-            if not validate_optuna_pruner(opt_config["pruner"]):
+    # Determine type (scheduler) for sweep
+    _type = "sweep"
+    if parsed_sweep_config.get("method") == "custom":
+        custom_config = {}
+        if "optuna" in parsed_sweep_config:
+            _type = "optuna"
+            custom_config = parsed_sweep_config["optuna"]
+            if not validate_optuna(api, custom_config):
                 return
-
-        if opt_config.get("sampler"):
-            if optuna_artifact:
-                wandb.termwarn(
-                    "User provided optuna artifact will override `sampler.args` if a sampler is provided"
-                )
-            if not validate_optuna_sampler(opt_config["sampler"]):
-                return
+        elif "raytune" in parsed_sweep_config:
+            wandb.termerror("Ray Tune is not supported for launch sweeps")
+            return
 
     num_workers = num_workers or scheduler_args.get("num_workers", 8)
     scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
@@ -1032,7 +1016,7 @@ def launch_sweep(
         queue=queue,
         project=project,
         num_workers=num_workers,
-        previous_runs=num_previous_runs,
+        num_previous_runs=num_previous_runs,
         author=entity,
     )
     if not scheduler_entrypoint:
