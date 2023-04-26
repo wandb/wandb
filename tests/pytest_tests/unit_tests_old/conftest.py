@@ -90,11 +90,13 @@ def wait_for_port_file():
     #         raise Exception(f"Could not start server {now} {start_time}")
     #     time.sleep(0.5)
     import socket
+
     sock = socket.socket()
     sock.bind(("", 0))
 
     _, port = sock.getsockname()
     return port
+
 
 def start_mock_server(worker_id):
     """We start a flask server process for each pytest-xdist worker_id"""
@@ -122,13 +124,15 @@ def start_mock_server(worker_id):
     server._port = int(env["PORT"])
     server.base_url = f"http://localhost:{server._port}"
 
-    headers = {'Content-type':'application/json', 'Accept':'application/json'}
+    headers = {"Content-type": "application/json", "Accept": "application/json"}
 
     def get_ctx():
         return requests.get(f"{server.base_url}/ctx", headers=headers).json()
 
     def set_ctx(payload):
-        return requests.put(f"{server.base_url}/ctx", headers=headers, json=payload).json()
+        return requests.put(
+            f"{server.base_url}/ctx", headers=headers, json=payload
+        ).json()
 
     def reset_ctx():
         return requests.delete(f"{server.base_url}/ctx", headers=headers).json()
