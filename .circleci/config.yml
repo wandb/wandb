@@ -1342,6 +1342,10 @@ workflows:
       - pytest:
           requires:
             - "system-tests"
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1508,6 +1512,10 @@ workflows:
           toxenv: "pylaunch,covercircle"
 
       - pytest:
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
           name: "launch-relay-server"
           toxenv: "pylaunch,covercircle"
           tox_args: "tests/pytest_tests/system_tests/tests_launch"
@@ -1516,6 +1524,10 @@ workflows:
       # wandb sweeps tests
       #
       - pytest:
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1528,6 +1540,10 @@ workflows:
       # wandb artifacts tests
       #
       - pytest:
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
           matrix:
             parameters:
               python_version_major: [3]
