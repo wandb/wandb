@@ -43,6 +43,7 @@ def launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    author: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -110,6 +111,7 @@ def launch_add(
         run_id=run_id,
         build=build,
         repository=repository,
+        author=author,
     )
 
 
@@ -131,6 +133,7 @@ def _launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    author: Optional[str] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -147,6 +150,7 @@ def _launch_add(
         config,
         run_id,
         repository,
+        author,
     )
 
     if build:

@@ -16,8 +16,7 @@ if TYPE_CHECKING:
 
     from wandb.filesync import stats
     from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import artifacts as internal_artifacts
-    from wandb.sdk.internal import internal_api
+    from wandb.sdk.internal import artifact_saver, internal_api
 
 
 class RequestUpload(NamedTuple):
@@ -29,8 +28,8 @@ class RequestUpload(NamedTuple):
 class RequestStoreManifestFiles(NamedTuple):
     manifest: "artifacts.ArtifactManifest"
     artifact_id: str
-    save_fn: "internal_artifacts.SaveFn"
-    save_fn_async: "internal_artifacts.SaveFnAsync"
+    save_fn: "artifact_saver.SaveFn"
+    save_fn_async: "artifact_saver.SaveFnAsync"
 
 
 class RequestCommitArtifact(NamedTuple):
@@ -101,7 +100,6 @@ class StepChecksum:
             elif isinstance(req, RequestStoreManifestFiles):
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
-
                         self._stats.init_file(
                             entry.local_path,
                             cast(int, entry.size),
