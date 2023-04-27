@@ -1149,7 +1149,7 @@ def class_colors(class_count: int) -> List[List[int]]:
 
 
 def _prompt_choice(
-    input_timeout: Optional[int] = None,
+    input_timeout: Union[int, float, None] = None,
     jupyter: bool = False,
 ) -> str:
     input_fn: Callable = input
@@ -1159,7 +1159,7 @@ def _prompt_choice(
         from wandb.sdk.lib import timed_input
 
         input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
-        # timed_input doesnt handle enhanced prompts
+        # timed_input doesn't handle enhanced prompts
         if platform.system() == "Windows":
             prompt = "wandb"
 
@@ -1173,7 +1173,7 @@ def _prompt_choice(
 
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: Optional[int] = None,
+    input_timeout: Union[int, float, None] = None,
     jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options."""
