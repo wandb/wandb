@@ -172,6 +172,46 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
+    def fill_macros(self, image: str) -> None:
+        """Substitute values for macros in resource arguments.
+
+        Certain macros can be used in resource args. These macros allow the
+        user to set resource args dynamically in the context of the
+        run being launched. The macros are given in the ${macro} format. The
+        following macros are currently supported:
+
+        ${wandb_project} - the name of the project the run is being launched to.
+        ${wandb_entity} - the owner of the project the run being launched to.
+        ${wandb_run_id} - the id of the run being launched
+        ${wandb_run_name} - the name of the run being launched
+        ${wandb_image} - the URI of the docker image being launched for this run
+
+        Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
+        environment variables that you plan to set in the environment of any
+        agents that will receive these resource args.
+
+        Calling this method will overwrite the contents of self.resource_args
+        with the substituted values.
+
+        Args:
+            image (str): The image name to fill in for ${wandb-image}.
+
+        Returns:
+            None
+        """
+
+        update_dict = {
+            "wandb_project": self.target_project,
+            "wandb_entity": self.target_entity,
+            "wandb_run_id": self.run_id,
+            "wandb_run_name": self.name,
+            "wandb_image": image,
+        }
+        update_dict.update(os.environ)
+        resource_args_str = json.dumps(self.resource_args)
+        utils.macro_sub(resource_args_str, update_dict)
+        self.resource_args = json.loads(resource_args_str)
+
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
         # since the image tag for images built from jobs
