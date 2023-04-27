@@ -1245,7 +1245,6 @@ def launch(
     if queue is None:
         # direct launch
         try:
-
             wandb_launch.run(
                 api,
                 uri,
@@ -1360,10 +1359,9 @@ def launch_agent(
 
     from wandb.sdk.launch import launch as wandb_launch
 
-    api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
-        api, entity, project, max_jobs, queues, config
+        entity, project, max_jobs, queues, config
     )
     if agent_config.get("project") is None:
         raise LaunchError(

@@ -61,7 +61,7 @@ from wandb.sdk.lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -170,6 +170,12 @@ class Artifact(ArtifactInterface):
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
                 'Invalid name: "%s"' % name
             )
+        if type == "job" or type.startswith("wandb-"):
+            raise ValueError(
+                "Artifact types 'job' and 'wandb-*' are reserved for internal use. "
+                "Please use a different type."
+            )
+
         metadata = _normalize_metadata(metadata)
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.

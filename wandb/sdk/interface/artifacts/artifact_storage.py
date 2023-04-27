@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
 
-from wandb.util import FilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult

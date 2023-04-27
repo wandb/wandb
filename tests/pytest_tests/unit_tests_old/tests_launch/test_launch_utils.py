@@ -24,7 +24,6 @@ REQUIREMENT_FILE_GIT: List[str] = [
 
 
 def test_diff_pip_requirements():
-
     # Order in requirements file should not matter
     _shuffled = REQUIREMENT_FILE_BASIC.copy()
     random.shuffle(_shuffled)
