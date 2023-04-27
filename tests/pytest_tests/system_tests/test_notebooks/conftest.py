@@ -69,13 +69,13 @@ class WandbNotebookClient(NotebookClient):
 
         for idx, cell in enumerate(self.nb.cells):
             # the first cell is the setup cell
-            nb_cell_id = idx + 1 if idx >= 1 else idx
+            nb_cell_id = idx + 1
             try:
                 # print(cell)
                 executed_cell = super().execute_cell(
                     cell=cell,
                     cell_index=idx,
-                    store_history=False if idx == 1 else store_history,
+                    store_history=False if idx == 0 else store_history,
                 )
             except CellExecutionError as e:
                 print("Cell output before exception:")
@@ -85,7 +85,7 @@ class WandbNotebookClient(NotebookClient):
                         print(output["text"])
                 raise e
             for output in executed_cell["outputs"]:
-                if output["output_type"] == "error" and nb_cell_id != 1:
+                if output["output_type"] == "error" and nb_cell_id != 0:
                     print("Error in cell: %d" % nb_cell_id)
                     print("\n".join(output["traceback"]))
                     raise ValueError(output["evalue"])
@@ -95,18 +95,17 @@ class WandbNotebookClient(NotebookClient):
 
     @property
     def cells(self):
-        return iter([self.nb.cells[0]] + self.nb.cells[2:])
+        return iter(self.nb.cells[1:])
 
     def cell_output(self, cell_index: int) -> List[dict[str, Any]]:
         """Return a cell's outputs."""
-        idx = cell_index + 1 if cell_index >= 1 else cell_index
-
+        idx = cell_index + 1
         outputs = self.nb.cells[idx]["outputs"]
         return outputs
 
     def cell_output_html(self, cell_index: int) -> str:
         """Return a cell's HTML outputs concatenated into a string."""
-        idx = cell_index + 1 if cell_index >= 1 else cell_index
+        idx = cell_index + 1
         html = io.StringIO()
         for output in self.nb.cells[idx]["outputs"]:
             if output["output_type"] == "display_data":
@@ -115,7 +114,7 @@ class WandbNotebookClient(NotebookClient):
 
     def cell_output_text(self, cell_index: int) -> str:
         """Return a cell's text outputs concatenated into a string."""
-        idx = cell_index + 1 if cell_index >= 1 else cell_index
+        idx = cell_index + 1
         text = io.StringIO()
         # print(len(self.nb.cells), idx)
         for output in self.nb.cells[idx]["outputs"]:
@@ -164,8 +163,9 @@ def notebook(user, run_id, assets_path):
         with open(nb_path) as f:
             nb = nbformat.read(f, as_version=4)
 
-        # in the test notebooks, the 0th cell is always the one with only the imports.
-        # therefore, all the extra setup code goes into the 1st cell.
+        # set up extra env vars and do monkey-patching.
+        # in particular, we import and patch wandb.
+        # this goes in the first cell of the notebook.
 
         setup_cell = io.StringIO()
 
@@ -183,11 +183,12 @@ def notebook(user, run_id, assets_path):
         setup_cell.write(
             "import pytest\n"
             "mp = pytest.MonkeyPatch()\n"
+            "import wandb\n"
             f"mp.setattr(wandb.sdk.wandb_settings, '_get_python_type', lambda: '{notebook_type}')"
         )
 
         # inject:
-        nb.cells.insert(1, nbformat.v4.new_code_cell(setup_cell.getvalue()))
+        nb.cells.insert(0, nbformat.v4.new_code_cell(setup_cell.getvalue()))
 
         client = WandbNotebookClient(nb, kernel_name=kernel_name)
         try:
