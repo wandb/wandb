@@ -50,7 +50,7 @@ class RunState(Enum):
     KILLED = "killed", "dead"
     FINISHED = "finished", "dead"
     PREEMPTED = "preempted", "dead"
-    UNKNOWN = "unknown", "unknown"
+    UNKNOWN = "unknown", "alive"  # TODO(gst): dead?
 
     def __new__(cls: Any, *args: List, **kwds: Any) -> "RunState":
         obj: "RunState" = object.__new__(cls)
