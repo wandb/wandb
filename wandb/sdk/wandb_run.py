@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import traceback
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -34,7 +35,7 @@ from typing import (
 import requests
 
 import wandb
-from wandb import errors, trigger, util
+from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
@@ -46,11 +47,12 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
-from wandb.sdk.lib.filesystem import StrPath
+from wandb.sdk.internal import job_builder
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -335,6 +337,28 @@ class _run_decorator:  # noqa: N801
         return wrapper
 
     @classmethod
+    def _noop_on_finish(cls, message: str = "", only_warn: bool = False) -> Callable:
+        def decorator_fn(func: Callable) -> Callable:
+            @functools.wraps(func)
+            def wrapper_fn(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+                if not getattr(self, "_is_finished", False):
+                    return func(self, *args, **kwargs)
+
+                default_message = (
+                    f"Run ({self.id}) is finished. The call to `{func.__name__}` will be ignored. "
+                    f"Please make sure that you are using an active run."
+                )
+                resolved_message = message or default_message
+                if only_warn:
+                    warnings.warn(resolved_message, UserWarning, stacklevel=2)
+                else:
+                    raise errors.UsageError(resolved_message)
+
+            return wrapper_fn
+
+        return decorator_fn
+
+    @classmethod
     def _noop(cls, func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
@@ -499,6 +523,7 @@ class Run:
 
     _attach_id: Optional[str]
     _is_attached: bool
+    _is_finished: bool
     _settings: Settings
 
     _launch_artifacts: Optional[Dict[str, Any]]
@@ -637,6 +662,7 @@ class Run:
         self._iface_port = None
         self._attach_id = None
         self._is_attached = False
+        self._is_finished = False
 
         self._attach_pid = os.getpid()
 
@@ -785,7 +811,11 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=self._attach_id, _init_pid=self._init_pid)
+        return dict(
+            _attach_id=_attach_id,
+            _init_pid=self._init_pid,
+            _is_finished=self._is_finished,
+        )
 
     def __setstate__(self, state: Any) -> None:
         """Set run state from a custom pickle."""
@@ -847,6 +877,7 @@ class Run:
         return self._run_obj.display_name
 
     @name.setter
+    @_run_decorator._noop_on_finish()
     def name(self, name: str) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
@@ -870,6 +901,7 @@ class Run:
         return self._run_obj.notes
 
     @notes.setter
+    @_run_decorator._noop_on_finish()
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
@@ -888,6 +920,7 @@ class Run:
         return None
 
     @tags.setter
+    @_run_decorator._noop_on_finish()
     def tags(self, tags: Sequence) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
@@ -1022,6 +1055,7 @@ class Run:
         """Name of the W&B project associated with the run."""
         return self.project_name()
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log_code(
         self,
@@ -1219,7 +1253,7 @@ class Run:
     @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this run in jupyter."""
-        if self._settings._jupyter and ipython.in_jupyter():
+        if self._settings._jupyter:
             ipython.display_html(self.to_html(height, hidden))
             return True
         else:
@@ -1242,6 +1276,7 @@ class Run:
     ) -> Dict[str, str]:
         return {"text/html": self.to_html(hidden=True)}
 
+    @_run_decorator._noop_on_finish()
     def _config_callback(
         self,
         key: Optional[Union[Tuple[str, ...], str]] = None,
@@ -1292,6 +1327,7 @@ class Run:
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
 
+    @_run_decorator._noop_on_finish()
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
@@ -1376,6 +1412,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
+    @_run_decorator._noop_on_finish(only_warn=True)
     def _console_raw_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
 
@@ -1517,6 +1554,7 @@ class Run:
             self._step += 1
 
     @_run_decorator._noop
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log(
         self,
@@ -1712,6 +1750,7 @@ class Run:
             )
         self._log(data=data, step=step, commit=commit)
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def save(
         self,
@@ -1872,6 +1911,7 @@ class Run:
         if manager:
             manager._inform_finish(run_id=self._run_id)
 
+        self._is_finished = True
         # end sentry session
         wandb._sentry.end_session()
 
@@ -1887,6 +1927,7 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def status(
         self,
@@ -2097,10 +2138,10 @@ class Run:
             if wandb.wandb_agent._is_running():
                 raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
-            if not self._settings._jupyter:
+            if not self._settings._notebook:
                 os._exit(-1)
         except Exception as e:
-            if not self._settings._jupyter:
+            if not self._settings._notebook:
                 report_failure = True
             self._console_stop()
             self._backend.cleanup()
@@ -2233,9 +2274,9 @@ class Run:
         installed_packages_list: List[str],
         patch_path: Optional[os.PathLike] = None,
     ) -> "Artifact":
-        job_artifact = wandb.Artifact(name, type="job")
+        job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
-            job_artifact.add_file(patch_path, "diff.patch")
+            job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
         with job_artifact.new_file("wandb-job.json") as f:
@@ -2383,6 +2424,7 @@ class Run:
             printer=self._printer,
         )
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def define_metric(
         self,
@@ -2545,6 +2587,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def link_artifact(
         self,
@@ -2588,6 +2631,7 @@ class Run:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def use_artifact(
         self,
@@ -2695,6 +2739,7 @@ class Run:
             self._backend.interface.publish_use_artifact(artifact)
         return artifact
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log_artifact(
         self,
@@ -2731,6 +2776,7 @@ class Run:
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def upsert_artifact(
         self,
@@ -2784,6 +2830,7 @@ class Run:
             finalize=False,
         )
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def finish_artifact(
         self,
@@ -2958,6 +3005,7 @@ class Run:
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def alert(
         self,
@@ -3005,6 +3053,7 @@ class Run:
         self._finish(exit_code)
         return exc_type is None
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def mark_preempting(self) -> None:
         """Mark this run as preempting.
@@ -3026,7 +3075,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-        # printer = printer or get_printer(settings._jupyter)
         Run._header_version_check_info(
             check_version, settings=settings, printer=printer
         )
@@ -3044,7 +3092,6 @@ class Run:
         if not check_version or settings._offline:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
             printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
@@ -3063,7 +3110,6 @@ class Run:
         if settings.quiet or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         # TODO: add this to a higher verbosity level
         printer.display(
             f"Tracking run with wandb version {wandb.__version__}", off=False
@@ -3075,7 +3121,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-        # printer = printer or get_printer(settings._jupyter)
         if settings._offline:
             printer.display(
                 [
@@ -3110,7 +3155,6 @@ class Run:
         if not run_name:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if printer._html:
             if not wandb.jupyter.maybe_display():
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
@@ -3366,8 +3410,6 @@ class Run:
         if settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
-
         if settings._offline:
             printer.display(
                 [
@@ -3420,7 +3462,6 @@ class Run:
         if (quiet or settings.quiet) or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         panel = []
 
         # Render history if available
@@ -3501,7 +3542,6 @@ class Run:
             local_info = server_info_response.local_info
             latest_version, out_of_date = local_info.version, local_info.out_of_date
             if out_of_date:
-                # printer = printer or get_printer(settings._jupyter)
                 printer.display(
                     f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
                     f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
@@ -3548,7 +3588,6 @@ class Run:
         if (quiet or settings.quiet) or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
             printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
@@ -3572,8 +3611,6 @@ class Run:
 
         if not reporter:
             return
-
-        # printer = printer or get_printer(settings._jupyter)
 
         warning_lines = reporter.warning_lines
         if warning_lines:
@@ -3736,6 +3773,10 @@ class _LazyArtifact(ArtifactInterface):
         return self._instance.name
 
     @property
+    def full_name(self) -> str:
+        return self._instance.full_name
+
+    @property
     def type(self) -> str:
         return self._instance.type
 
@@ -3805,7 +3846,7 @@ class _LazyArtifact(ArtifactInterface):
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
-    ) -> util.FilePathStr:
+    ) -> FilePathStr:
         return self._instance.download(root, recursive)
 
     def checkout(self, root: Optional[str] = None) -> str:

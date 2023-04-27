@@ -18,7 +18,6 @@ from tests.pytest_tests.unit_tests_old import utils
 
 
 def test_from_path(mock_server, api):
-
     run = api.from_path("test/test/test")
     assert isinstance(run, wandb.apis.public.Run)
     run = api.from_path("test/test/runs/test")

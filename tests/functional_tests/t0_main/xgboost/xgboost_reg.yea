@@ -1,12 +1,14 @@
 id: 0.xgboost.01-regression
+tag:
+  shard: service
 plugin:
   - wandb
 command:
-    program: test_xgboost_reg.py
+  program: test_xgboost_reg.py
 depend:
-    requirements:
-        - xgboost>=1.3.0
-        
+  requirements:
+    - xgboost>=1.3.0
+    - scikit-learn
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][learner][gradient_booster][name]: gbtree
