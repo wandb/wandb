@@ -137,7 +137,6 @@ class GitRepo:
         if not self.repo:
             return None
         try:
-            assert self.remote_name is not None
             return self.repo.remotes[self.remote_name]
         except IndexError:
             return None
