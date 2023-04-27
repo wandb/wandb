@@ -5,7 +5,7 @@ from typing import Generator, Optional
 
 import git
 import pytest
-from wandb.sdk.lib.gitilb import GitRepo
+from wandb.sdk.lib.gitlib import GitRepo
 
 
 @pytest.fixture

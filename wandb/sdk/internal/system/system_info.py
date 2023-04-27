@@ -18,7 +18,7 @@ from wandb.sdk.lib.filenames import (
     METADATA_FNAME,
     REQUIREMENTS_FNAME,
 )
-from wandb.sdk.lib.gitilb import GitRepo
+from wandb.sdk.lib.gitlib import GitRepo
 
 from .assets.interfaces import Interface
 
