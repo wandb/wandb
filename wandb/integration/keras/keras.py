@@ -945,7 +945,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads
         metrics = {}
-        for (weight, grad) in zip(weights, grads):
+        for weight, grad in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
             ] = wandb.Histogram(grad)

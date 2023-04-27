@@ -20,8 +20,11 @@ from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
+from wandb.sdk.launch.sweeps.utils import (
+    create_sweep_command_args,
+    make_launch_sweep_entrypoint,
+)
 from wandb.sdk.lib.runid import generate_id
-from wandb.wandb_agent import Agent, _create_sweep_command_args
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
@@ -420,16 +423,25 @@ class Scheduler(ABC):
         elif _job is not None and _image_uri is not None:
             raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
 
-        entry_point = None
-        if self._sweep_config.get("command"):
-            entry_point = Agent._create_sweep_command(self._sweep_config["command"])
+        args = create_sweep_command_args({"args": run.args})
+        entry_point, macro_args = make_launch_sweep_entrypoint(
+            args, self._sweep_config.get("command")
+        )
+        launch_config = {"overrides": {"run_config": args["args_dict"]}}
+        if macro_args:  # pipe in hyperparam args as params to launch
+            launch_config["overrides"]["args"] = macro_args
+
+        if entry_point:
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
                 f' {"job" if _job else "image_uri"} entrypoint'
             )
-
-        _args = _create_sweep_command_args({"args": run.args})["args_dict"]
-        launch_config = {"overrides": {"run_config": _args}}
+            unresolved = [x for x in entry_point if str(x).startswith("${")]
+            if unresolved:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Sweep command contains unresolved macros: "
+                    f"{unresolved}, see launch docs for supported macros."
+                )
 
         run_id = run.id or generate_id()
         queued_run = launch_add(

@@ -91,7 +91,6 @@ def train_epoch(run, epoch, model, device, data_loader, optimizer):
 
 
 if __name__ == "__main__":
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MyModel().to(device)
     # NOTE: this is required for the ``fork`` method to work

@@ -188,7 +188,7 @@ def load_ipython_extension(ipython):
     ipython.register_magics(wandb.jupyter.WandBMagics)
 
 
-if wandb_sdk.lib.ipython.in_jupyter():
+if wandb_sdk.lib.ipython.in_notebook():
     from IPython import get_ipython
 
     load_ipython_extension(get_ipython())
