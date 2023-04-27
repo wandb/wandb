@@ -80,8 +80,9 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
-        self._source_type: Optional[Literal["repo", "artifact", "image"]] = None
-        self._source_type = settings.get("job_source")
+        self._source_type: Optional[
+            Literal["repo", "artifact", "image"]
+        ] = settings.get("job_source")
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
