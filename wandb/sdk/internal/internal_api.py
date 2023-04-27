@@ -201,7 +201,7 @@ class Api:
         #  keeping this code here to limit scope and so that it is easy to remove later
         extra_http_headers = self.settings(
             "_extra_http_headers"
-        ) or wandb.sdk.wandb_settings._str_as_dict(
+        ) or wandb.sdk.wandb_settings._str_as_json(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
         )
 
@@ -2535,7 +2535,7 @@ class Api:
         )
 
         response = self.gql(mutation, variable_values={})
-        key: str = response["createAnonymousEntity"]["apiKey"]["name"]
+        key: str = str(response["createAnonymousEntity"]["apiKey"]["name"])
         return key
 
     @staticmethod
