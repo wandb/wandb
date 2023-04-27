@@ -680,7 +680,9 @@ class Settings:
             },
             _stats_open_metrics_filters={
                 # capture all metrics on all endpoints by default
-                "value": (".*",),
+                "value": {
+                    ".*": {},
+                },
                 "preprocessor": _str_as_json,
             },
             _tmp_code_dir={
