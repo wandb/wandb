@@ -223,6 +223,9 @@ commands:
             - ".git"
 
   restore-python-cache:
+    parameters:
+      toxenv:
+        type: string
     steps:
       - run:
           name: "Prepare python cache"
@@ -231,9 +234,10 @@ commands:
             ln -s $(pip cache dir) .pip
       - restore_cache:
           keys:
-            - &python-cache python-v1-{{ arch }}-{{ checksum "sources.txt" }}
-            - python-v1-{{ arch }}-
-            - python-v1-
+            - &python-cache python-v2-{{ arch }}-{{ << parameters.toxenv >> }}-{{ checksum "sources.txt" }}
+            - python-v2-{{ arch }}-{{ << parameters.toxenv >> }}-
+            - python-v2-{{ arch }}-
+            - python-v2-
 
   save-python-cache:
     steps:
@@ -242,6 +246,7 @@ commands:
           paths:
             - ".tox"
             - ".pip"
+
 
 jobs:
   regression:
@@ -288,7 +293,8 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
-            - restore-python-cache
+            - restore-python-cache:
+                toxenv: << parameters.toxenv >>
             - run:
                 name: Setup environment
                 command: |
@@ -365,7 +371,8 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
-            - restore-python-cache
+            - restore-python-cache:
+                toxenv: << parameters.toxenv >>
             - run:
                 name: Install python dependencies
                 command: |
@@ -396,7 +403,7 @@ jobs:
     resource_class: small
     working_directory: /mnt/ramdisk
     steps:
-      - checkout
+      - cached-checkout
 
   pytest:
     parameters:
@@ -434,7 +441,8 @@ jobs:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
-      - restore-python-cache
+      - restore-python-cache:
+          toxenv: << parameters.toxenv >>
       - run:
           name: Install python dependencies
           command: |
@@ -584,7 +592,8 @@ jobs:
     parallelism: << parameters.parallelism >>
     steps:
       - cached-checkout
-      - restore-python-cache
+      - restore-python-cache:
+          toxenv: << parameters.toxenv >>
       - run:
           name: Install python dependencies
           command: |
