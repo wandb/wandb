@@ -1267,7 +1267,8 @@ def from_human_size(size: str, units: Optional[List[Tuple[str, Any]]] = None) ->
 
 def auto_project_name(program: Optional[str]) -> str:
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = wandb.wandb_sdk.lib.git.GitRepo().root_dir
+    from wandb.sdk.lib.gitilb import GitRepo
+    root_dir = GitRepo().root_dir
     if root_dir is None:
         return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows

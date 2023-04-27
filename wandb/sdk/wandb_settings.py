@@ -42,7 +42,7 @@ from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
-from .lib.git import GitRepo
+from .lib.gitilb import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 

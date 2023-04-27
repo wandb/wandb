@@ -44,7 +44,7 @@ from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
-from ..lib.git import GitRepo
+from ..lib.gitilb import GitRepo
 from . import context
 from .progress import AsyncProgress, Progress
 

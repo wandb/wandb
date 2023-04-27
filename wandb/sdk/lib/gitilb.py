@@ -4,8 +4,12 @@ import os
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
-from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
-from git.repo import Repo
+try:
+    from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
+    from git.repo import Repo
+except ImportError:
+    Repo = None
+
 
 import wandb
 
@@ -27,26 +31,26 @@ class GitRepo:
         self._commit = commit
         self._repo = None
         if not lazy:
-            self.repo  # noqa: B018
+            self._repo = self._init_repo()
+
+    def _init_repo(self):
+        if Repo is None:
+            return False
+        if self.remote_name is None:
+            return False
+        try:
+            return Repo(self._root or os.getcwd(), search_parent_directories=True)
+        except InvalidGitRepositoryError:
+            logger.debug("git repository is invalid")
+        except NoSuchPathError:
+            wandb.termwarn(f"git root {self._root} does not exist")
+            logger.warn(f"git root {self._root} does not exist")
+        return False
 
     @property
     def repo(self):
-        if self._repo is not None:
-            return self._repo
-        if self.remote_name is None:
-            self._repo = False
-        else:
-            try:
-                self._repo = Repo(
-                    self._root or os.getcwd(), search_parent_directories=True
-                )
-            except InvalidGitRepositoryError:
-                logger.debug("git repository is invalid")
-                self._repo = False
-            except NoSuchPathError:
-                wandb.termwarn(f"git root {self._root} does not exist")
-                logger.warn(f"git root {self._root} does not exist")
-                self._repo = False
+        if self._repo is None:
+            self._repo = self._init_repo()
         return self._repo
 
     @property
@@ -56,7 +60,10 @@ class GitRepo:
     def is_untracked(self, file_name: str) -> bool:
         if not self.repo:
             return True
-        return file_name in self.repo.untracked_files
+        try:
+            return file_name in self.repo.untracked_files
+        except GitCommandError:
+            return None
 
     @property
     def enabled(self) -> bool:
@@ -98,6 +105,7 @@ class GitRepo:
             return self._commit
         if not self.repo:
             return None
+        breakpoint()
         if not self.repo.head or not self.repo.head.is_valid():
             return None
         # TODO: Saw a user getting a Unicode decode error when parsing refs,
@@ -122,7 +130,6 @@ class GitRepo:
         if not self.repo:
             return None
         try:
-            breakpoint()
             return self.repo.remotes[self.remote_name]
         except IndexError:
             return None
