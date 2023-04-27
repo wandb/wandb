@@ -2535,7 +2535,7 @@ class Api:
         )
 
         response = self.gql(mutation, variable_values={})
-        key: str = response["createAnonymousEntity"]["apiKey"]["name"]
+        key: str = str(response["createAnonymousEntity"]["apiKey"]["name"])
         return key
 
     @staticmethod
