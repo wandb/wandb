@@ -90,6 +90,7 @@ _Setting = Literal[
     "ignore_globs",
     "init_timeout",
     "is_local",
+    "job_source",
     "label_disable",
     "launch",
     "launch_config_path",
