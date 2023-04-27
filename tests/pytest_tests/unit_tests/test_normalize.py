@@ -47,6 +47,5 @@ def raise_wandb_error():
     ],
 )
 def test_normalize_http_error(func, args, error, message):
-
     with pytest.raises(error, match=message):
         normalize_exceptions(func)(*args)

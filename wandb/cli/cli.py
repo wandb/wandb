@@ -1267,7 +1267,6 @@ def launch(
     if queue is None:
         # direct launch
         try:
-
             wandb_launch.run(
                 api,
                 uri,

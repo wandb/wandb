@@ -2,7 +2,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, 
 
 import wandb
 from wandb.data_types import WBValue
-from wandb.util import FilePathStr
+from wandb.sdk.lib.paths import FilePathStr
 
 if TYPE_CHECKING:
     import wandb.apis.public

@@ -1,3 +1,5 @@
+from typing import Any
+
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
@@ -6,7 +8,7 @@ class Api:
 
     # TODO: Move these methods to PublicApi.
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._api_args = args
         self._api_kwargs = kwargs
         self._api = None
@@ -29,7 +31,7 @@ class Api:
         self._api = None
 
     @property
-    def api(self):
+    def api(self) -> InternalApi:
         # This is a property in order to delay construction of Internal API
         # for as long as possible. If constructed in constructor, then the
         # whole InternalAPI is started when simply importing wandb.
@@ -98,11 +100,15 @@ class Api:
     def settings(self, *args, **kwargs):
         return self.api.settings(*args, **kwargs)
 
-    def clear_setting(self, *args, **kwargs):
-        return self.api.clear_setting(*args, **kwargs)
+    def clear_setting(
+        self, key: str, globally: bool = False, persist: bool = False
+    ) -> None:
+        return self.api.clear_setting(key, globally, persist)
 
-    def set_setting(self, *args, **kwargs):
-        return self.api.set_setting(*args, **kwargs)
+    def set_setting(
+        self, key: str, value: Any, globally: bool = False, persist: bool = False
+    ) -> None:
+        return self.api.set_setting(key, value, globally, persist)
 
     def parse_slug(self, *args, **kwargs):
         return self.api.parse_slug(*args, **kwargs)
@@ -113,7 +119,7 @@ class Api:
     def download_urls(self, *args, **kwargs):
         return self.api.download_urls(*args, **kwargs)
 
-    def create_anonymous_api_key(self):
+    def create_anonymous_api_key(self) -> str:
         return self.api.create_anonymous_api_key()
 
     def push(self, *args, **kwargs):

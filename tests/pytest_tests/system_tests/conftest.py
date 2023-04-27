@@ -536,7 +536,7 @@ def check_server_up(
             "wandb-local",
             "--platform",
             "linux/amd64",
-            f"gcr.io/wandb-production/local-testcontainer:{wandb_server_tag}",
+            f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{wandb_server_tag}",
         ]
         subprocess.Popen(command)
         # wait for the server to start
