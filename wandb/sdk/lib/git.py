@@ -122,7 +122,6 @@ class GitRepo:
         if not self.repo:
             return None
         try:
-            breakpoint()
             return self.repo.remotes[self.remote_name]
         except IndexError:
             return None
