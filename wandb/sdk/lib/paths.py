@@ -1,14 +1,13 @@
 import os
 import platform
 from functools import wraps
-from pathlib import PurePath, PurePosixPath
+from pathlib import PurePosixPath
 from typing import Any, NewType, Union
 
 # Path _inputs_ should generally accept any kind of path. This is named the same and
 # modeled after the hint defined in the Python standard library's `typeshed`:
 # https://github.com/python/typeshed/blob/0b1cd5989669544866213807afa833a88f649ee7/stdlib/_typeshed/__init__.pyi#L56-L65
 StrPath = Union[str, "os.PathLike[str]"]
-
 
 # An artifact-relative or run-relative path. It is always POSIX-style.
 LogicalFilePathStr = NewType("LogicalFilePathStr", str)
@@ -68,6 +67,7 @@ class LogicalPath(str):
         path = str(path)
         if platform.system() == "Windows":
             path = path.replace("\\", "/")
+        path = str(PurePosixPath(path))
         return super().__new__(cls, path)
 
     def to_path(self) -> PurePosixPath:
@@ -76,9 +76,16 @@ class LogicalPath(str):
 
     def __getattr__(self, attr: str) -> Any:
         """Act like a subclass of PurePosixPath for all methods not defined on str."""
-        result = getattr(self.to_path(), attr)
+        try:
+            result = getattr(self.to_path(), attr)
+        except AttributeError as e:
+            raise AttributeError(f"LogicalPath has no attribute {attr!r}") from e
+
         if isinstance(result, PurePosixPath):
             return LogicalPath(result)
+
+        # If the result is a callable (a method), wrap it so that it has the same
+        # behavior: if the call result returns a PurePosixPath, return a LogicalPath.
         if callable(result):
 
             @wraps(result)
@@ -94,62 +101,3 @@ class LogicalPath(str):
     def __truediv__(self, other: StrPath) -> "LogicalPath":
         """Act like a PurePosixPath for the / operator, but return a LogicalPath."""
         return LogicalPath(self.to_path() / other)
-
-
-PROHIBITED_CHARS = r'<>:"|?*'
-RESERVED_NAMES = (
-    ["CON", "PRN", "AUX", "NUL"]
-    + ["COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9"]
-    + ["LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"]
-)
-
-
-def sanitize_path(path: StrPath) -> PurePosixPath:
-    """Convert a path to a Path that can be used as a relative path on any platform.
-
-    This destructively modifies the path to be POSIX-style, removing anchors, converting
-    "legal" backslashes to forward slashes, and removing or replacing all characters
-    that might be allowed locally but are not allowed universally.
-    """
-    # Convert any non-pathlib object to a native PurePath.
-    if not isinstance(path, PurePath) and hasattr(path, "__fspath__"):
-        path = path.__fspath__()
-    if isinstance(path, bytes):
-        path = os.fsdecode(path)
-    if isinstance(path, str):
-        path = PurePath(path)
-
-    # If absolute, make relative to the root/drive. Handling pathological inputs means
-    # we can't guarantee a path has a valid representation on the current platform.
-    try:
-        pure_path = PurePath(path)
-        path = pure_path.relative_to(pure_path.anchor)
-    except ValueError:
-        pure_path = PurePosixPath(path)
-        path = pure_path.relative_to(pure_path.anchor)
-
-    # Remove unprintable characters.
-    path_str = "".join(c for c in path.as_posix() if c.isprintable())
-
-    # Replace all backslashes with forward slashes.
-    path = PurePosixPath(path_str.replace("\\", "/"))
-
-    # We do this again because the previous steps may have introduced a new root.
-    if path.anchor:
-        path = path.relative_to(path.anchor)
-
-    # Replace characters not allowed in Windows filenames.
-    path_str = "".join(c if c not in PROHIBITED_CHARS else "_" for c in path.as_posix())
-
-    # Strip trailing dots and spaces (another Windows requirement).
-    # Also normalize by eliminating trailing slashes.
-    path_str = path_str.rstrip(" ./")
-
-    # Alter any path parts that are reserved on Windows.
-    parts = list(PurePosixPath(path_str).parts)
-    parts = [part if part not in RESERVED_NAMES else f"_{part}" for part in parts]
-    posix_path = PurePosixPath(*parts)
-    if posix_path.name.split(".")[0] in RESERVED_NAMES:
-        posix_path = posix_path.with_name(f"_{posix_path.name}")
-
-    return posix_path
