@@ -4,7 +4,6 @@ import logging
 import socket
 import sys
 import threading
-import time
 import urllib.parse
 from collections import defaultdict, deque
 from copy import deepcopy
@@ -27,6 +26,7 @@ import responses
 
 import wandb
 import wandb.util
+from wandb.sdk.lib.timer import Timer
 
 try:
     from typing import Literal, TypedDict
@@ -73,27 +73,11 @@ class DeliberateHTTPError(Exception):
         return f"DeliberateHTTPError({self.message!r}, {self.status_code!r})"
 
 
-class Timer:
-    def __init__(self) -> None:
-        self.start: float = time.perf_counter()
-        self.stop: float = self.start
-
-    def __enter__(self) -> "Timer":
-        return self
-
-    def __exit__(self, *args: Any) -> None:
-        self.stop = time.perf_counter()
-
-    @property
-    def elapsed(self) -> float:
-        return self.stop - self.start
-
-
 class Context:
-    """
-    Implements a container used to store the snooped state/data of a test,
-    including raw requests and responses; parsed and processed data; and
-    a number of convenience methods and properties for accessing the data.
+    """A container used to store the snooped state/data of a test.
+
+    Includes raw requests and responses, parsed and processed data, and a number of
+    convenience methods and properties for accessing the data.
     """
 
     def __init__(self) -> None:
@@ -242,9 +226,9 @@ class Context:
 
 
 class QueryResolver:
-    """
-    Resolves request/response pairs against a set of known patterns
-    to extract and process useful data, to be later stored in a Context object.
+    """Resolve request/response pairs against a set of known patterns.
+
+    This extracts and processes useful data to be later stored in a Context object.
     """
 
     def __init__(self):
@@ -468,9 +452,10 @@ class InjectedResponse:
         self,
         other: Union["InjectedResponse", requests.Request, requests.PreparedRequest],
     ):
-        """
-        Equality check for InjectedResponse objects.
-        We use this to check if this response should be injected as a replacement of `other`.
+        """Check InjectedResponse object equality.
+
+        We use this to check if this response should be injected as a replacement of
+        `other`.
 
         :param other:
         :return:
@@ -555,9 +540,9 @@ class RelayServer:
         self.session = requests.Session()
         self.relay_url = f"http://127.0.0.1:{self.port}"
 
-        # recursively merge-able object to store state
-        self.resolver = QueryResolver()
         # todo: add an option to add custom resolvers
+        self.resolver = QueryResolver()
+        # recursively merge-able object to store state
         self.context = Context()
 
         # injected responses

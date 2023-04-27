@@ -1,10 +1,8 @@
-import json
 from unittest.mock import MagicMock
 
 import kubernetes
 from wandb.apis.internal import Api
-from wandb.sdk.launch.builder.loader import load_builder
-from wandb.sdk.launch.runner.loader import load_backend
+from wandb.sdk.launch import loader
 from wandb.sdk.launch.utils import make_name_dns_safe
 
 
@@ -20,13 +18,6 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
     )
 
     with relay_server():
-        api = Api()
-        runner = load_backend(
-            backend_name="kubernetes",
-            api=api,
-            backend_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
-        )
-
         entity_name = "test.@#$()entity"
         project_name = "test_\\[]project"
         expected_generate_name = make_name_dns_safe(
@@ -39,7 +30,7 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project = MagicMock()
         project.resource_args = {
             "kubernetes": {
-                "config_file": str(assets_path("launch_k8s_config.yaml")),
+                "configFile": str(assets_path("launch_k8s_config.yaml")),
             }
         }
         project.target_entity = entity_name
@@ -47,9 +38,18 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project.override_config = {}
         project.job = "testjob"
 
-        builder = load_builder({"type": "noop"})
+        environment = loader.environment_from_config({})
+        registry = loader.registry_from_config({}, environment)
+        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
+        api = Api()
+        runner = loader.runner_from_config(
+            runner_name="kubernetes",
+            api=api,
+            runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+            environment=environment,
+        )
+        run = runner.run(launch_project=project, builder=builder)
 
-        run = runner.run(launch_project=project, builder=builder, registry_config={})
     assert run.name == expected_run_name
     assert run.job["metadata"]["generateName"] == expected_generate_name
 
@@ -67,10 +67,15 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
 
     with relay_server():
         api = Api()
-        runner = load_backend(
-            backend_name="kubernetes",
+        environment = loader.environment_from_config({})
+        registry = loader.registry_from_config({}, environment)
+        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
+        api = Api()
+        runner = loader.runner_from_config(
+            runner_name="kubernetes",
             api=api,
-            backend_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+            runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+            environment=environment,
         )
 
         entity_name = "testentity"
@@ -82,26 +87,23 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
 
         setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
 
-        job_spec = json.dumps({"metadata": {"annotations": {"x": "y"}}})
-
         project = MagicMock()
         project.resource_args = {
             "kubernetes": {
-                "config_file": str(assets_path("launch_k8s_config.yaml")),
-                "job_spec": job_spec,
+                "configFile": str(assets_path("launch_k8s_config.yaml")),
+                "metadata": {"annotations": {"x": "y"}},
             }
         }
         project.target_entity = entity_name
         project.target_project = project_name
         project.override_config = {}
+        project.override_args = ["-a", "2"]
         project.job = "testjob"
-
-        builder = load_builder({"type": "noop"})
-
-        run = runner.run(launch_project=project, builder=builder, registry_config={})
+        run = runner.run(launch_project=project, builder=builder)
     assert run.name == expected_run_name
     assert run.job["metadata"]["generateName"] == expected_generate_name
     assert run.job["metadata"]["annotations"] == {"x": "y"}
+    assert run.job["spec"]["template"]["spec"]["containers"][0]["args"] == ["-a", "2"]
 
 
 class MockDict(dict):
@@ -162,7 +164,6 @@ def pods(job_name):
 
 
 def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
-
     monkeypatch.setattr(
         kubernetes.client,
         "BatchV1Api",
@@ -183,9 +184,10 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
 
     def mock_create_from_yaml(yaml_objects, jobs_dict, mock_status):
         jobd = yaml_objects[0]
-        name = jobd["metadata"]["name"]
+        name = jobd["metadata"].get("name")
         if not name:
             name = jobd["metadata"]["generateName"] + "testname"
+            jobd["metadata"]["name"] = name
 
         metadata = MockDict(jobd["metadata"])
         metadata.labels = metadata.get("labels", {})

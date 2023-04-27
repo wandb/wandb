@@ -108,6 +108,12 @@ message Imports {
   bool albumentations = 80;
   bool keras_cv = 81;
   bool mmengine = 82;
+  bool diffusers = 83;
+  bool trl = 84;
+  bool trlx = 85;
+  bool langchain = 86;
+  bool llama_index = 87;
+  bool stability_sdk = 88;
 }
 
 message Feature {
@@ -156,6 +162,13 @@ message Feature {
   bool flow_control_disabled = 43; // Flow control disabled by user
   bool flow_control_custom = 44; // Flow control customized by user
   bool service_disabled = 45; // Service disabled by user
+  bool open_metrics = 46; // Consuming metrics from an OpenMetrics endpoint
+  bool ultralytics_yolov8 = 47; // Ultralytics YOLOv8 integration callbacks used
+  bool importer_mlflow = 48; // Using Import API for MLFlow
+  bool sync_tfevents = 49; // Using wandb sync for tfevent files
+  bool async_uploads = 50; // Async file uploads enabled by user
+  bool openai_autolog = 51; // OpenAI autolog used
+  bool langchain_tracer = 52; // Langchain wandb tracer callback used
 }
 
 message Env {
@@ -170,6 +183,8 @@ message Env {
   bool maybe_mp = 9; // maybe user running multiprocessing
   bool trainium = 10; // AWS Trainium env detected
   bool pex = 11; // pex env detected
+  bool colab = 12; // colab env detected
+  bool ipython = 13; // ipython env detected
 }
 
 message Labels {

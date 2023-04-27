@@ -1,6 +1,4 @@
-"""
-job builder.
-"""
+"""job builder."""
 import json
 import os
 import sys
@@ -59,6 +57,12 @@ class ArtifactInfoForJob(TypedDict):
     name: str
 
 
+class JobArtifact(Artifact):
+    def __init__(self, name: str, *args: Any, **kwargs: Any):
+        super().__init__(name, "placeholder", *args, **kwargs)
+        self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
+
+
 class JobBuilder:
     _settings: SettingsStatic
     _metadatafile_path: Optional[str]
@@ -75,7 +79,7 @@ class JobBuilder:
         self._config = None
         self._summary = None
         self._logged_code_artifact = None
-        self._disable = False
+        self._disable = settings.disable_job_creation
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -124,7 +128,7 @@ class JobBuilder:
 
         name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
             artifact.add_file(
                 os.path.join(self._settings.files_dir, DIFF_FNAME),
@@ -144,10 +148,9 @@ class JobBuilder:
             ],
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
+        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
-        name = f"job-{self._logged_code_artifact['name']}"
-
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = JobArtifact(name)
         return artifact, source
 
     def _build_image_job(
@@ -156,7 +159,7 @@ class JobBuilder:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
         name = make_artifact_name_safe(f"job-{image_name}")
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
         }

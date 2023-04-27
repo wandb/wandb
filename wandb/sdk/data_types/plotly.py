@@ -12,7 +12,7 @@ from .image import Image
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import pandas as pd  # type: ignore
+    import pandas as pd
     import plotly  # type: ignore
 
     from ..wandb_artifacts import Artifact as LocalArtifact
@@ -30,8 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Plotly(Media):
-    """
-    Wandb class for plotly plots.
+    """Wandb class for plotly plots.
 
     Arguments:
         val: matplotlib or plotly figure
