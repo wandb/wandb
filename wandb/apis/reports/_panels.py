@@ -721,13 +721,24 @@ class CustomChart(Panel):
     query: dict = Attr(json_path="spec.config.userQuery.queryFields")
     chart_name: str = Attr(json_path="spec.config.panelDefId")
     chart_fields: dict = Attr(json_path="spec.config.fieldSettings")
+    chart_strings: dict = Attr(json_path="spec.config.stringSettings")
 
-    def __init__(self, query=None, chart_name="", chart_fields=None, *args, **kwargs):
+    def __init__(
+        self,
+        query=None,
+        chart_name="",
+        chart_fields=None,
+        chart_strings=None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.spec["config"] = {"transform": {"name": "tableWithLeafColNames"}}
         self.query = coalesce(query, {})
         self.chart_name = chart_name
         self.chart_fields = coalesce(chart_fields, {})
+        self.chart_strings = coalesce(chart_strings, {})
+
 
     @property
     def view_type(self) -> str:
@@ -737,6 +748,8 @@ class CustomChart(Panel):
     def query(self):
         def fields_to_dict(fields):
             d = {}
+        self.chart_strings = coalesce(chart_strings, {})
+
             for field in fields:
                 keys = set(field.keys())
                 name = field["name"]
