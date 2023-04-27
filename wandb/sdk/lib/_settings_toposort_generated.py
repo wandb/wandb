@@ -163,6 +163,7 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "api_key",
     "base_url",
     "console",
+    "job_source",
     "mode",
     "problem",
     "project",
