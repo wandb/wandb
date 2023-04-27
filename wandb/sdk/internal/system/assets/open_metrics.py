@@ -5,7 +5,7 @@ import threading
 from collections import defaultdict, deque
 from functools import lru_cache
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, List, Mapping, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Mapping, Tuple, Union
 
 if sys.version_info >= (3, 8):
     from typing import Final
@@ -115,10 +115,7 @@ class OpenMetricsMetric:
     """Container for all the COUNTER and GAUGE metrics extracted from an OpenMetrics endpoint."""
 
     def __init__(
-        self,
-        name: str,
-        url: str,
-        filters: Union[Mapping[str, Mapping[str, str]], Sequence[str], None],
+        self, name: str, url: str, filters: Mapping[str, Mapping[str, str]]
     ) -> None:
         self.name = name
         self.url = url
