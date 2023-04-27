@@ -104,7 +104,6 @@ class GitRepo:
             return self._commit
         if not self.repo:
             return None
-        breakpoint()
         if not self.repo.head or not self.repo.head.is_valid():
             return None
         # TODO: Saw a user getting a Unicode decode error when parsing refs,
