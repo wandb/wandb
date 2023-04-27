@@ -2,7 +2,6 @@ import collections
 import dataclasses
 import json
 import logging
-import multiprocessing as mp
 import pathlib
 import shutil
 import subprocess
@@ -288,7 +287,7 @@ class Trainium:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [

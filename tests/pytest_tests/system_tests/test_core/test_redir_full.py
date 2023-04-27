@@ -40,7 +40,6 @@ def test_offline_compression(wandb_init, capfd, console):
     if console == "wrap":
         console = "wrap_emu"
     with capfd.disabled():
-
         run = wandb_init(settings={"console": console, "mode": "offline"})
         run_dir, run_id = run.dir, run.id
 

@@ -84,7 +84,7 @@ model = create_model()  # reset our model
 EPOCHS = wandb.config.epochs
 
 for epoch in range(EPOCHS):
-    for (x_train, y_train) in train_dataset:
+    for x_train, y_train in train_dataset:
         train_step(model, optimizer, x_train, y_train)
 
     with train_summary_writer.as_default():
@@ -92,7 +92,7 @@ for epoch in range(EPOCHS):
         tf.summary.scalar("accuracy", train_accuracy.result(), step=epoch)
 
     images = None
-    for (x_test, y_test) in test_dataset:
+    for x_test, y_test in test_dataset:
         test_step(model, x_test, y_test)
         if images is None:
             images = np.reshape(x_test[0:25], (-1, 28, 28, 1))

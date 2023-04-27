@@ -3,11 +3,12 @@ import base64
 import os
 import random
 from multiprocessing import Pool
+from urllib.parse import urlparse
 
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
-from wandb.sdk.interface import artifacts
+from wandb.sdk.internal.artifact_saver import get_staging_dir
 
 
 def test_opener_rejects_append_mode(cache):
@@ -351,7 +352,7 @@ def test_storage_handler_incomplete():
     ush = UnfinishedStorageHandler()
 
     with pytest.raises(NotImplementedError):
-        ush.scheme()
+        ush.can_handle(parsed_url=urlparse("https://wandb.com"))
     with pytest.raises(NotImplementedError):
         ush.load_path(manifest_entry=None)
     with pytest.raises(NotImplementedError):
@@ -367,4 +368,4 @@ def test_unwritable_staging_dir(monkeypatch):
     monkeypatch.setattr(os, "makedirs", nope)
 
     with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
-        _ = artifacts.get_new_staging_file()
+        _ = get_staging_dir()
