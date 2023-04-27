@@ -1524,6 +1524,8 @@ workflows:
       # wandb launch tests
       #
       - launch:
+          requires:
+            - "unit-tests-mock-server"
           name: "launch-mock-server"
           toxenv: "pylaunch,covercircle"
 
