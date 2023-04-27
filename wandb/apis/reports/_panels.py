@@ -739,6 +739,9 @@ class CustomChart(Panel):
         self.chart_fields = coalesce(chart_fields, {})
         self.chart_strings = coalesce(chart_strings, {})
 
+    @classmethod
+    def from_table(cls, table_name):
+        return CustomChart(query={"summaryTable": {"tableKey": table_name}})
 
     @property
     def view_type(self) -> str:
@@ -748,8 +751,6 @@ class CustomChart(Panel):
     def query(self):
         def fields_to_dict(fields):
             d = {}
-        self.chart_strings = coalesce(chart_strings, {})
-
             for field in fields:
                 keys = set(field.keys())
                 name = field["name"]
