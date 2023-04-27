@@ -1327,6 +1327,10 @@ workflows:
       #       currently these are just placeholders
       - prep:
           name: "system-tests"
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
       - prep:
           name: "unit-tests"
       - prep:
@@ -1338,8 +1342,7 @@ workflows:
           filters:
             branches:
               # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-#              ignore: /pull\/[0-9]+/
-              ignore: jypy
+              ignore: /pull\/[0-9]+/
 
       #
       # System tests with pytest on Linux, using real wandb server
@@ -1347,10 +1350,6 @@ workflows:
       - pytest:
           requires:
             - "system-tests"
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1529,10 +1528,8 @@ workflows:
           toxenv: "pylaunch,covercircle"
 
       - pytest:
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
+          requires:
+            - "system-tests"
           name: "launch-relay-server"
           toxenv: "pylaunch,covercircle"
           tox_args: "tests/pytest_tests/system_tests/tests_launch"
@@ -1541,10 +1538,8 @@ workflows:
       # wandb sweeps tests
       #
       - pytest:
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
+          requires:
+            - "system-tests"
           matrix:
             parameters:
               python_version_major: [3]
@@ -1557,10 +1552,8 @@ workflows:
       # wandb artifacts tests
       #
       - pytest:
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
+          requires:
+            - "system-tests"
           matrix:
             parameters:
               python_version_major: [3]
@@ -1573,10 +1566,8 @@ workflows:
       # notebook tests
       #
       - pytest:
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
+          requires:
+            - "system-tests"
           matrix:
             parameters:
               python_version_major: [3]
