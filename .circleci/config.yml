@@ -1335,6 +1335,11 @@ workflows:
           name: "functional-tests"
       - prep:
           name: "executor-tests"
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+#              ignore: /pull\/[0-9]+/
+              ignore: jypy
 
       #
       # System tests with pytest on Linux, using real wandb server
@@ -1568,6 +1573,10 @@ workflows:
       # notebook tests
       #
       - pytest:
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
           matrix:
             parameters:
               python_version_major: [3]
