@@ -33,7 +33,7 @@ from wandb.proto import wandb_internal_pb2
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import (
-    artifacts,
+    artifact_saver,
     context,
     datastore,
     file_stream,
@@ -1114,9 +1114,8 @@ class SendManager:
         # so that fields like entity or project are available to be attached to Sentry events.
         run_settings = message_to_dict(self._run)
         self._settings = SettingsStatic({**dict(self._settings), **run_settings})
-        util.sentry_set_scope(
-            settings_dict=self._settings,
-        )
+        wandb._sentry.configure_scope(settings=self._settings)
+
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
         self._dir_watcher = DirWatcher(
@@ -1486,7 +1485,7 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifacts.ArtifactSaver(
+        saver = artifact_saver.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
             manifest_json=_manifest_json_from_proto(artifact.manifest),
@@ -1562,6 +1561,7 @@ class SendManager:
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+        wandb._sentry.end_session()
 
     def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()
