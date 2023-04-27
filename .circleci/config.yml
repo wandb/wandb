@@ -600,8 +600,6 @@ jobs:
     parallelism: << parameters.parallelism >>
     steps:
       - cached-checkout
-      - restore-python-cache:
-          toxenv: << parameters.toxenv >>
       - run:
           name: Install python dependencies
           command: |
@@ -614,7 +612,6 @@ jobs:
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
-      - save-python-cache
 
   launch:
     parameters:
