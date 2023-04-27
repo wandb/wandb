@@ -85,10 +85,10 @@ def test_sweep_construct_scheduler_entrypoint():
         "project",
         "--num_workers",
         "1",
-        "--job",
-        "job:latest",
         "--author",
         "author",
+        "--job",
+        "job:latest",
     ]
 
     entry, args = utils.construct_scheduler_entrypoint(
