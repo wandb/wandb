@@ -80,7 +80,9 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
-        self._source_type = settings.job_source
+        self._source_type = None
+        if "job_source" in settings:
+            self._source_type = settings.job_source
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -199,6 +201,7 @@ class JobBuilder:
             assert program_relpath is not None
             artifact, source = self._build_repo_job(metadata, program_relpath)
         elif source_type == "artifact":
+            assert program_relpath is not None
             artifact, source = self._build_artifact_job(program_relpath)
         elif source_type == "image":
             artifact, source = self._build_image_job(metadata)
