@@ -80,6 +80,7 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
+        self._source_type = settings.job_source
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -181,23 +182,26 @@ class JobBuilder:
 
         program_relpath: Optional[str] = metadata.get("codePath")
 
+        source_type = self._source_type
+        if not source_type:
+            if self._has_git_job_ingredients(metadata, program_relpath):
+                source_type = "repo"
+            elif self._has_artifact_job_ingredients(program_relpath):
+                source_type = "artifact"
+            elif self._has_image_job_ingredients(metadata):
+                source_type = "image"
+
         artifact = None
-        source_type = None
         source: Optional[
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
-
-        if self._has_git_job_ingredients(metadata, program_relpath):
+        if source_type == "repo":
             assert program_relpath is not None
             artifact, source = self._build_repo_job(metadata, program_relpath)
-            source_type = "repo"
-        elif self._has_artifact_job_ingredients(program_relpath):
-            assert program_relpath is not None
+        elif source_type == "artifact":
             artifact, source = self._build_artifact_job(program_relpath)
-            source_type = "artifact"
-        elif self._has_image_job_ingredients(metadata):
+        elif source_type == "image":
             artifact, source = self._build_image_job(metadata)
-            source_type = "image"
 
         if artifact is None or source_type is None or source is None:
             return None

@@ -529,6 +529,7 @@ class Settings:
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
+    job_source: str
     label_disable: bool
     launch: bool
     launch_config_path: str
