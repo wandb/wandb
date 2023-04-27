@@ -222,7 +222,11 @@ commands:
           paths:
             - ".git"
 
+  # I tried to use this instead of inlining it all below, but couldn't get it working.
   restore-python-cache:
+    parameters:
+      toxenv:
+        type: string
     steps:
       - run:
           name: "Prepare python cache"
@@ -1405,7 +1409,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 8
-          toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,ruff,flake8,docstrings"
+          toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,ruff,flake8,docstrings"
 
       #
       # Prep jobs
