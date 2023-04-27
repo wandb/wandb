@@ -221,7 +221,7 @@ class Scheduler(ABC):
 
         run: SdkRun = wandb.init(
             name=f"{_type}-scheduler-{self._sweep_id}",
-            job_type="sweep-controller",
+            job_type="sweep-scheduler",
             resume="allow",
         )
         return run
@@ -309,7 +309,14 @@ class Scheduler(ABC):
 
     def exit(self) -> None:
         self._exit()
-        self._save_state()
+        # _save_state isn't controlled, possibly fails
+        try:
+            self._save_state()
+        except Exception:
+            wandb.termerror(
+                f"{LOG_PREFIX}Failed to save state: {traceback.format_exc()}"
+            )
+
         if self.state not in [
             SchedulerState.COMPLETED,
             SchedulerState.STOPPED,

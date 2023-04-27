@@ -333,7 +333,10 @@ class OptunaScheduler(Scheduler):
         artifact.add_file(self._storage_path)
         self._wandb_run.log_artifact(artifact)
 
-        wandb.termlog(f"{LOG_PREFIX}Saved study with trials:\n{self.formatted_trials}")
+        if self._study:
+            wandb.termlog(
+                f"{LOG_PREFIX}Saved study with trials:\n{self.formatted_trials}"
+            )
         return
 
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
@@ -427,7 +430,6 @@ class OptunaScheduler(Scheduler):
 
         Returns list of runs optuna marked as PRUNED, to be deleted
         """
-        wandb.termlog(f"{LOG_PREFIX}Polling. Current state:\n{self.formatted_trials}")
         to_kill = []
         for run_id, orun in self._optuna_runs.items():
             run_finished = self._poll_run(orun)
