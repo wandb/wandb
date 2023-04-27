@@ -209,20 +209,6 @@ commands:
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
-  cached-checkout:
-    steps:
-      - restore_cache:
-          keys:
-            - &source-cache source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-      - checkout
-      - save_cache:
-          key: *source-cache
-          paths:
-            - ".git"
-
-
 
 jobs:
   regression:
@@ -259,7 +245,7 @@ jobs:
     resource_class: xlarge
     working_directory: /mnt/ramdisk/wandb
     steps:
-      - cached-checkout
+      - checkout
       - add_ssh_keys:
           fingerprints:
       - when:
@@ -336,7 +322,7 @@ jobs:
     resource_class: xlarge
     working_directory: /mnt/ramdisk
     steps:
-      - cached-checkout
+      - checkout
       - when:
           condition: << parameters.execute >>
           steps:
@@ -373,7 +359,16 @@ jobs:
     resource_class: small
     working_directory: /mnt/ramdisk
     steps:
+      - restore_cache:
+          keys:
+            - &source-cache source-v1-{{ .Branch }}-{{ .Revision }}
+            - source-v1-{{ .Branch }}-
+            - source-v1-
       - checkout
+      - save_cache:
+          key: *source-cache
+          paths:
+            - ".git"
 
   pytest:
     parameters:
@@ -406,7 +401,7 @@ jobs:
     resource_class: xlarge
     working_directory: /mnt/ramdisk
     steps:
-      - cached-checkout
+      - checkout
       - run:
           name: Install system deps
           command: |
@@ -450,7 +445,7 @@ jobs:
     resource_class: small
     working_directory: /mnt/ramdisk
     steps:
-      - cached-checkout
+      - checkout
       - run:
           name: Install system deps
           command: |
@@ -497,7 +492,7 @@ jobs:
       size: << parameters.executor_size >>
     parallelism: << parameters.parallelism >>
     steps:
-      - cached-checkout
+      - checkout
       - when:
           condition: << parameters.execute >>
           steps:
@@ -558,7 +553,7 @@ jobs:
     resource_class: large
     parallelism: << parameters.parallelism >>
     steps:
-      - cached-checkout
+      - checkout
       - run:
           name: Install python dependencies
           command: |
@@ -583,7 +578,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - cached-checkout
+      - checkout
       - run:
           name: Install python dependencies, build r2d
           command: |
@@ -622,7 +617,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - cached-checkout
+      - checkout
       - when:
           condition: << parameters.execute >>
           steps:
@@ -749,7 +744,7 @@ jobs:
     docker:
       - image: "google/cloud-sdk:alpine"
     steps:
-      - cached-checkout
+      - checkout
       - when:
           condition: << parameters.execute >>
           steps:
@@ -809,7 +804,7 @@ jobs:
     docker:
       - image: "cimg/base:stable"
     steps:
-      - cached-checkout
+      - checkout
       - go/install
       - gcloud/install
       - gcloud/install
@@ -847,7 +842,7 @@ jobs:
     docker:
       - image: "cimg/base:stable"
     steps:
-      - cached-checkout
+      - checkout
       - go/install
       - gcloud/install
       - setup_gcloud
@@ -918,7 +913,7 @@ jobs:
     docker:
       - image: "cimg/base:stable"
     steps:
-      - cached-checkout
+      - checkout
       - when:
           condition: << parameters.execute >>
           steps:
