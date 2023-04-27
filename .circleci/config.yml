@@ -632,7 +632,7 @@ jobs:
     resource_class: large
     parallelism: << parameters.parallelism >>
     steps:
-      - cached-checkout
+      - checkout
 
       - run:
           name: Install python dependencies
