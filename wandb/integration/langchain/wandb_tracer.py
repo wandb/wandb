@@ -17,7 +17,6 @@ will be raised when importing this module.
 
 
 import json
-import pathlib
 import sys
 
 if sys.version_info >= (3, 8):
@@ -30,6 +29,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, ca
 import wandb
 import wandb.util
 from wandb.sdk.data_types import trace_tree
+from wandb.sdk.lib import telemetry as wb_telemetry
+from wandb.sdk.lib.paths import StrPath
 
 _ = wandb.util.get_module(
     name="langchain",
@@ -71,7 +72,7 @@ monkeypatch.ensure_patched()
 
 class WandbRunArgs(TypedDict):
     job_type: Optional[str]
-    dir: Union[str, pathlib.Path, None]
+    dir: Optional[StrPath]
     config: Union[Dict, str, None]
     project: Optional[str]
     entity: Optional[str]
@@ -186,7 +187,7 @@ class WandbTracer(SharedTracer):
         self._run_args = run_args
         self._run = None
 
-        # Make a shallow copy of the run args so we don't modify the original
+        # Make a shallow copy of the run args, so we don't modify the original
         run_args = run_args or {}  # type: ignore
         run_args: dict = {**run_args}  # type: ignore
 
@@ -198,6 +199,9 @@ class WandbTracer(SharedTracer):
         # Start the run and add the stream table
         self._run = wandb.init(**run_args)
         print_wandb_init_message(self._run.settings.run_url)
+
+        with wb_telemetry.context(self._run) as tel:
+            tel.feature.langchain_tracer = True
 
     def finish_run(self) -> None:
         """Waits for W&B data to upload."""
@@ -229,7 +233,7 @@ class WandbTracer(SharedTracer):
         )
         self._run.log({"langchain_trace": model_trace})
 
-    # Start of required methods (this methods are required by the BaseCallbackHandler interface)
+    # Start of required methods (these methods are required by the BaseCallbackHandler interface)
     @property
     def always_verbose(self) -> bool:
         """Whether to call verbose callbacks even if verbose is False."""

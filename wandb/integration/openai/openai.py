@@ -1,3 +1,4 @@
+import functools
 import logging
 import sys
 from typing import Any, Dict, List, Optional
@@ -16,6 +17,9 @@ else:
 
 
 logger = logging.getLogger(__name__)
+
+
+AutologOpenAIInitArgs = Optional[Dict[str, Any]]
 
 
 class PatchOpenAIAPI:
@@ -49,6 +53,7 @@ class PatchOpenAIAPI:
             original = getattr(self.openai, symbol).create
 
             def method_factory(original_method: Any):
+                @functools.wraps(original_method)
                 def create(*args, **kwargs):
                     with Timer() as timer:
                         result = original_method(*args, **kwargs)
@@ -77,44 +82,70 @@ class PatchOpenAIAPI:
 class AutologOpenAI:
     def __init__(self) -> None:
         """Autolog OpenAI API calls to W&B."""
-        self.patch_openai_api = PatchOpenAIAPI()
-        self.run: Optional["wandb.sdk.wandb_run.Run"] = None
-        self.__user_provided_run: bool = False
+        self._patch_openai_api = PatchOpenAIAPI()
+        self._run: Optional["wandb.sdk.wandb_run.Run"] = None
+        self.__run_created_by_autolog: bool = False
 
-    def __call__(self, run: Optional["wandb.sdk.wandb_run.Run"] = None) -> None:
+    @property
+    def _is_enabled(self) -> bool:
+        """Returns whether autologging is enabled."""
+        return self._run is not None
+
+    def __call__(self, init: AutologOpenAIInitArgs = None) -> None:
         """Enable OpenAI autologging."""
-        self.enable(run=run)
+        self.enable(init=init)
 
-    def enable(self, run: Optional["wandb.sdk.wandb_run.Run"] = None) -> None:
+    def _run_init(self, init: AutologOpenAIInitArgs = None) -> None:
+        """Handle wandb run initialization."""
+        # - autolog(init: dict = {...}) calls wandb.init(**{...})
+        #   regardless of whether there is a wandb.run or not,
+        #   we only track if the run was created by autolog
+        #    - todo: autolog(init: dict | run = run) would use the user-provided run
+        # - autolog() uses the wandb.run if there is one, otherwise it calls wandb.init()
+        if init:
+            _wandb_run = wandb.run
+            # we delegate dealing with the init dict to wandb.init()
+            self._run = wandb.init(**init)
+            if _wandb_run != self._run:
+                self.__run_created_by_autolog = True
+        elif wandb.run is None:
+            self._run = wandb.init()
+            self.__run_created_by_autolog = True
+        else:
+            self._run = wandb.run
+
+    def enable(self, init: AutologOpenAIInitArgs = None) -> None:
         """Enable OpenAI autologging.
 
         Args:
-            run: Optional wandb run object. If not specified, `wandb.init()` will be called.
+            init: Optional dictionary of arguments to pass to wandb.init().
 
         """
-        if self.run is not None:
-            wandb.termwarn(
-                "OpenAI autologging is already enabled. Skipping.", repeat=False
+        if self._is_enabled:
+            logger.info(
+                "OpenAI autologging is already enabled, disabling and re-enabling."
             )
-            return
-        if run is None:
-            logger.info("Enabling OpenAI autologging (no run specified).")
-            self.run = wandb.init()
-        else:
-            logger.info("Enabling OpenAI autologging.")
-            self.__user_provided_run = True
-            self.run = run
+            self.disable()
 
-        self.patch_openai_api.patch(self.run)
+        logger.info("Enabling OpenAI autologging.")
+        self._run_init(init=init)
 
-        with wb_telemetry.context(self.run) as tel:
+        self._patch_openai_api.patch(self._run)
+
+        with wb_telemetry.context(self._run) as tel:
             tel.feature.openai_autolog = True
 
     def disable(self) -> None:
         """Disable OpenAI autologging."""
-        if self.run is not None and not self.__user_provided_run:
-            self.run.finish()
-        self.run = None
-        self.__user_provided_run = False
+        if self._run is None:
+            return
 
-        self.patch_openai_api.unpatch()
+        logger.info("Disabling OpenAI autologging.")
+
+        if self.__run_created_by_autolog:
+            self._run.finish()
+            self.__run_created_by_autolog = False
+
+        self._run = None
+
+        self._patch_openai_api.unpatch()

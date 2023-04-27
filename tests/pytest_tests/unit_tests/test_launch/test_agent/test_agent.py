@@ -238,3 +238,22 @@ def test_thread_finish_run_fail_start_old_server(mocker):
     agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
     assert not mocker.api.fail_run_queue_item.called
+
+
+def test_thread_finish_run_fail_different_entity(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    job = JobAndRunStatus("run_queue_item_id")
+    job.run_id = "test_run_id"
+    job.project = "test-project"
+    job.entity = "other-entity"
+    agent._jobs = {"thread_1": job}
+    agent._jobs_lock = MagicMock()
+    agent.finish_thread_id("thread_1")
+    assert len(agent._jobs) == 0
+    assert not mocker.api.fail_run_queue_item.called

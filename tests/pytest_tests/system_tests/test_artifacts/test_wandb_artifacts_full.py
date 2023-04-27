@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 import time
 from datetime import datetime, timedelta, timezone
@@ -29,6 +30,16 @@ def example_files(tmp_path: Path) -> Path:
     for i in range(3):
         (artifact_dir / f"artifact_{i}.txt").write_text(f"file-{i}")
     return artifact_dir
+
+
+@pytest.fixture
+def logged_artifact(wandb_init, example_files) -> Artifact:
+    with wandb.init() as run:
+        artifact = wandb.Artifact("test-artifact", "dataset")
+        artifact.add_dir(example_files)
+        run.log_artifact(artifact)
+    artifact.wait()
+    return artifact
 
 
 def test_add_table_from_dataframe(wandb_init):
@@ -215,7 +226,7 @@ def test_edit_after_add(wandb_init):
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
-    staging_dir = Path(wandb_sdk.internal.artifacts.get_staging_dir())
+    staging_dir = Path(wandb_sdk.internal.artifact_saver.get_staging_dir())
 
     def dir_size():
         return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
@@ -403,3 +414,14 @@ def test_log_reference_directly(example_files, wandb_init):
     assert artifact is not None
     assert artifact.id is not None
     assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
+
+
+def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
+    art_dir = tmp_path / "an-unusual-path"
+    monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
+    name_path = logged_artifact.name
+    if platform.system() == "Windows":
+        name_path = name_path.replace(":", "-")
+
+    downloaded = Path(logged_artifact.download())
+    assert downloaded == art_dir / name_path

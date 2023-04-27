@@ -4,7 +4,7 @@ import sys
 import unittest.mock
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Union
+from typing import Any, Callable, Generator, Optional, Union
 
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
@@ -18,6 +18,7 @@ from wandb import Api  # noqa: E402
 from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
 from wandb.sdk.lib import filesystem, runid  # noqa: E402
 from wandb.sdk.lib.git import GitRepo  # noqa: E402
+from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 # --------------------------------
 # Misc Fixtures utilities
@@ -34,9 +35,7 @@ def assets_path() -> Generator[Callable, None, None]:
 
 @pytest.fixture
 def copy_asset(assets_path) -> Generator[Callable, None, None]:
-    def copy_asset_fn(
-        path: Union[str, Path], dst: Union[str, Path, None] = None
-    ) -> Path:
+    def copy_asset_fn(path: StrPath, dst: Optional[StrPath] = None) -> Path:
         src = assets_path(path)
         if src.is_file():
             return shutil.copy(src, dst or path)
