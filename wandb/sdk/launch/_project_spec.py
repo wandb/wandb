@@ -209,8 +209,8 @@ class LaunchProject:
         }
         update_dict.update(os.environ)
         resource_args_str = json.dumps(self.resource_args)
-        utils.macro_sub(resource_args_str, update_dict)
-        self.resource_args = json.loads(resource_args_str)
+        new_resource_args = utils.macro_sub(resource_args_str, update_dict)
+        self.resource_args = json.loads(new_resource_args)
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""

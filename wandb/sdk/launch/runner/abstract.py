@@ -3,10 +3,8 @@
 This class defines the interface that the W&B launch runner uses to manage the lifecycle
 of runs launched in different environments (e.g. runs launched locally or in a cluster).
 """
-import json
 import logging
 import os
-import re
 import subprocess
 import sys
 from abc import ABC, abstractmethod
@@ -33,8 +31,6 @@ else:
 State = Literal[
     "unknown", "starting", "running", "failed", "finished", "stopping", "stopped"
 ]
-
-MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
 
 class Status:
@@ -150,38 +146,6 @@ class AbstractRunner(ABC):
             )
             sys.exit(1)
         return True
-
-    def _fill_macros(self, project: LaunchProject, image: str) -> None:
-        """Substitutes macros in the resource args of the given launch project.
-
-        Certain macros can be used in resource args. These macros allow the
-        user to set resource args dynamically in the context of the
-        run being launched. The macros are given in the ${macro} format. The
-        following macros are currently supported:
-
-        ${wandb_project} - the name of the project the run is being launched to.
-        ${wandb_entity} - the owner of the project the run being launched to.
-        ${wandb_run_id} - the id of the run being launched
-        ${wandb_run_name} - the name of the run being launched
-        ${wandb_image} - the URI of the docker image being launched for this run
-
-        Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
-        environment variables that you plan to set in the environment of any
-        agents that will receive these resource args.
-        """
-        update_dict = {
-            "wandb_project": project.target_project,
-            "wandb_entity": project.target_entity,
-            "wandb_run_id": project.run_id,
-            "wandb_run_name": project.run_name,
-            "wandb_image": image,
-        }
-        update_dict.update(os.environ)
-        config = json.dumps(project.resource_args)
-        subbed = MACRO_REGEX.sub(
-            lambda match: update_dict.get(match.group(1), match.group(0)), config
-        )
-        return json.loads(subbed)
 
     @abstractmethod
     def run(
