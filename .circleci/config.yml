@@ -387,7 +387,7 @@ jobs:
 
             - run:
                 name: Tox dry run
-                command: tox -v -e << parameters.toxenv >> -- --notest
+                command: tox -v -e << parameters.toxenv >> --notest
 
             - save_cache:
                 key: *python-cache
