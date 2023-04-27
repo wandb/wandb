@@ -143,7 +143,7 @@ class SystemInfo:
                     )
 
             upstream_commit = self.git.get_upstream_fork_point()
-            if upstream_commit and upstream_commit != self.git.repo.head.commit: # type: ignore
+            if upstream_commit and upstream_commit != self.git.repo.head.commit:  # type: ignore
                 sha = upstream_commit.hexsha
                 upstream_patch_path = os.path.join(
                     self.settings.files_dir, f"upstream_diff_{sha}.patch"

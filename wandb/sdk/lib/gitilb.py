@@ -4,16 +4,21 @@ import os
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse, urlunparse
 
+import wandb
+
 try:
-    from git import GitCommandError, InvalidGitRepositoryError, NoSuchPathError, Repo
+    from git import (  # type: ignore
+        GitCommandError,
+        InvalidGitRepositoryError,
+        NoSuchPathError,
+        Repo,
+    )
 except ImportError:
     Repo = None
 
 if TYPE_CHECKING:
     from git import Repo
 
-
-import wandb
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +103,7 @@ class GitRepo:
         if not self.repo:
             return None
         try:
-            return self.repo.config_reader().get_value("user", "email") # type: ignore
+            return self.repo.config_reader().get_value("user", "email")  # type: ignore
         except configparser.Error:
             return None
 
@@ -205,7 +210,7 @@ class GitRepo:
                 for ancestor in self.repo.merge_base(head, possible_relative):
                     if most_recent_ancestor is None:
                         most_recent_ancestor = ancestor
-                    elif self.repo.is_ancestor(most_recent_ancestor, ancestor): # type: ignore
+                    elif self.repo.is_ancestor(most_recent_ancestor, ancestor):  # type: ignore
                         most_recent_ancestor = ancestor
             return most_recent_ancestor
         except GitCommandError as e:

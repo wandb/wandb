@@ -81,4 +81,4 @@ class TestGitRepo:
 
     def test_root_doesnt_exist(self):
         git_repo = GitRepo(root="/tmp/foo")
-        assert git_repo.repo is False
+        assert git_repo.repo is None and git_repo._repo_initialized is True
