@@ -11,7 +11,6 @@ import copy
 import json
 import logging
 import os
-import pathlib
 import platform
 import sys
 import tempfile
@@ -26,6 +25,7 @@ from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
+from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
@@ -917,7 +917,7 @@ def _attach(
 
 def init(
     job_type: Optional[str] = None,
-    dir: Union[str, pathlib.Path, None] = None,
+    dir: Optional[StrPath] = None,
     config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
