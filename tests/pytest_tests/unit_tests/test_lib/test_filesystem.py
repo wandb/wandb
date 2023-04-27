@@ -360,7 +360,8 @@ def test_safe_copy_different_file_systems(fs, fs_type: OSType):
     assert target_path.read_text("utf-8") == source_content
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Windows locks active files")
+# I *think* this will work with the absurd copy function. If not, we can disable again.
+# @pytest.mark.skipif(sys.platform == "win32", reason="Windows locks active files")
 def test_safe_copy_target_file_changes_during_copy(tmp_path: Path, monkeypatch):
     source_path = tmp_path / "source.txt"
     target_path = tmp_path / "target.txt"
@@ -372,14 +373,30 @@ def test_safe_copy_target_file_changes_during_copy(tmp_path: Path, monkeypatch):
     def repeatedly_write_content():
         end_time = time.time() + 1.0
         while time.time() < end_time:
-            target_path.write_text(changed_target_content, encoding="utf-8")
+            try:
+                target_path.write_text(changed_target_content, encoding="utf-8")
+            except PermissionError:
+                pass
 
     def delayed_copy_with_pause(src, dst, *args, **kwargs):
-        time.sleep(0.1)
-        with open(src, "rb") as infile, open(dst, "wb") as outfile:
+        """Write a 4096 byte block at a time, pausing 0.1 seconds between writes."""
+        # Windows often doesn't allow opening a file for writing while there is an open
+        # file handle to it. To get around the PermissionError, we close the file
+        # between writes, but also retry failed writes.
+        pos = 0
+        with open(src, "rb") as infile:
             for block in iter(lambda: infile.read(4096), b""):
-                outfile.write(block)
-                time.sleep(0.1)
+                success = False
+                while not success:
+                    time.sleep(0.1)
+                    try:
+                        with open(dst, "wb") as outfile:
+                            outfile.seek(pos)
+                            outfile.write(block)
+                        pos += len(block)
+                        success = True
+                    except PermissionError:
+                        pass
 
     monkeypatch.setattr(shutil, "copy2", delayed_copy_with_pause)
 
