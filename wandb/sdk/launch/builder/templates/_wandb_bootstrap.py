@@ -8,7 +8,6 @@ from typing import List, Optional, Set
 
 FAILED_PACKAGES_PREFIX = "ERROR: Failed to install: "
 FAILED_PACKAGES_POSTFIX = ". During automated build process."
-CORES = multiprocessing.cpu_count()
 ONLY_INCLUDE = {x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""}
 OPTS = []
 # If the builder doesn't support buildx no need to use the cache
@@ -84,7 +83,6 @@ def main() -> None:
         with open("requirements.frozen.txt") as f:
             print("Installing frozen dependencies...")
             reqs = []
-            failed: Set[str] = set()
             for req in f:
                 if (
                     len(ONLY_INCLUDE) == 0
@@ -109,15 +107,7 @@ def main() -> None:
                         reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
-                if len(reqs) >= CORES:
-                    deps_failed = install_deps(reqs, opts=OPTS)
-                    reqs = []
-                    if deps_failed is not None:
-                        failed = failed.union(deps_failed)
-            if len(reqs) > 0:
-                deps_failed = install_deps(reqs, opts=OPTS)
-                if deps_failed is not None:
-                    failed = failed.union(deps_failed)
+            failed = install_deps(reqs, opts=OPTS)
             with open("_wandb_bootstrap_errors.json", "w") as f:
                 f.write(json.dumps({"pip": list(failed)}))
             if len(failed) > 0:
