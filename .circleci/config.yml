@@ -634,32 +634,10 @@ jobs:
     steps:
       - cached-checkout
 
-
-      - run:
-          name: "Prepare python cache"
-          command: |
-            cat tox.ini setup.py requirements.txt requirements_dev.txt requirements_test.txt > sources.txt
-      - restore_cache:
-          keys:
-            - &python-cache python-v2-{{ arch }}-<< parameters.toxenv >>-{{ checksum "sources.txt" }}
-            - python-v2-{{ arch }}-<< parameters.toxenv >>-
-            - python-v2-{{ arch }}-
-            - python-v2-
-
       - run:
           name: Install python dependencies
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
-
-      - run:
-          name: Tox dry run
-          command: tox -v -e << parameters.toxenv >> --notest
-
-      - save_cache:
-          key: *python-cache
-          paths:
-            - ".tox"
-            - "~/Library/Caches/pip"
 
       - run:
           name: Run tests
