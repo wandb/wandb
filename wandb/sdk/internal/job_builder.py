@@ -12,9 +12,9 @@ from wandb.util import make_artifact_name_safe
 from .settings_static import SettingsStatic
 
 if sys.version_info >= (3, 8):
-    from typing import TypedDict
+    from typing import Literal, TypedDict
 else:
-    from typing_extensions import TypedDict
+    from typing_extensions import Literal, TypedDict
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import ArtifactRecord
@@ -80,9 +80,8 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
-        self._source_type = None
-        if "job_source" in settings:
-            self._source_type = settings.job_source
+        self._source_type: Optional[Literal["repo", "artifact", "image"]] = None
+        self._source_type = settings.get("job_source")
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
