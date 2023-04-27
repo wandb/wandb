@@ -56,7 +56,7 @@ def test_load_launch_sweep_config():
 
 
 def test_sweep_construct_scheduler_entrypoint():
-    assert utils.construct_scheduler_entrypoint({}, "queue", "project", 1) == []
+    assert not utils.construct_scheduler_entrypoint({}, "queue", "project", 1)
 
     entry, args = utils.construct_scheduler_entrypoint(
         {"job": "job:12315"}, "queue", "project", 1
