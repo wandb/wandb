@@ -6,7 +6,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from importlib.machinery import SourceFileLoader
-from pprint import pformat
 import traceback
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple
@@ -106,33 +105,33 @@ class OptunaScheduler(Scheduler):
 
     @property
     def formatted_trials(self) -> str:
-        """
-        Prints out trials from the current optuna study in a pleasing
-        format, showing the total/best/last metrics
+        """Prints out the last 10 trials from the current optuna study.
+        Shows the run_id/run_state/total_metrics/last_metric
 
-        returns a string with whitespace
+        Returns a string with whitespace.
         """
-        trials = {}
+        if not self._study or len(self._study.trials) == 0:
+            return ""
+
+        trial_strs = []
         for trial in self.study.trials:
-            i = trial.number + 1
-            i_str = f"trial-{'0' * max(0, 2 - int(i / 10))}{i}"
+            run_id = trial.user_attrs["run_id"]
             vals = list(trial.intermediate_values.values())
+            best = None
             if len(vals) > 0:
-                best = (
-                    max(vals)
-                    if self.study.direction == optuna.study.StudyDirection.MAXIMIZE
-                    else min(vals)
-                )
-                trials[
-                    f"trial-{i_str}"
-                ] = f"state: {trial.state.name}, metrics: {len(vals)}, best: {round(best, 5)}, last: {round(vals[-1], 5)}"
-            else:
-                trials[f"trial-{i_str}"] = "total: 0, best: None, last: None"
-        return pformat(trials)
+                if self.study.direction == optuna.study.StudyDirection.MINIMIZE:
+                    best = round(min(vals), 5)
+                elif self.study.direction == optuna.study.StudyDirection.MAXIMIZE:
+                    best = round(max(vals), 5)
+            trial_strs += [
+                f"\t[trial-{trial.number + 1}] run: {run_id}, state: {trial.state.name}, num-metrics: {len(vals)}, best: {best}"
+            ]
+
+        return "\n".join(trial_strs[-10:])  # only print out last 10
 
     def _validate_optuna_study(self, study: optuna.Study) -> Optional[str]:
-        """
-        Accepts an optuna study, runs validation
+        """Accepts an optuna study, runs validation.
+
         Returns an error string if validation fails
         """
         if len(study.trials) > 0:
@@ -357,6 +356,13 @@ class OptunaScheduler(Scheduler):
             trial=trial,
             sweep_run=srun,
         )
+        self._optuna_runs[srun.id].trial.set_user_attr("run_id", srun.id)
+
+        wandb.termlog(
+            f"{LOG_PREFIX}Starting new run ({srun.id}) with params: {trial.params}"
+        )
+        wandb.termlog(f"{LOG_PREFIX}Study state:\n{self.formatted_trials}")
+
         return srun
 
     def _get_run_history(self, run_id: str) -> List[int]:
@@ -528,6 +534,7 @@ class OptunaScheduler(Scheduler):
 
     def _poll(self) -> None:
         self._poll_running_runs()
+        wandb.termlog(f"{LOG_PREFIX}Study state:\n{self.formatted_trials}")
 
     def _exit(self) -> None:
         pass
