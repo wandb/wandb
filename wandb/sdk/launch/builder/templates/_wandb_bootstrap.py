@@ -1,5 +1,4 @@
 import json
-import multiprocessing
 import os
 import re
 import subprocess
@@ -107,7 +106,7 @@ def main() -> None:
                         reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
-            failed = install_deps(reqs, opts=OPTS)
+            failed = install_deps(reqs, opts=OPTS) or set()
             with open("_wandb_bootstrap_errors.json", "w") as f:
                 f.write(json.dumps({"pip": list(failed)}))
             if len(failed) > 0:
