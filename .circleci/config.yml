@@ -293,8 +293,6 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
-            - restore-python-cache:
-                toxenv: << parameters.toxenv >>
             - run:
                 name: Setup environment
                 command: |
@@ -318,7 +316,6 @@ jobs:
                   tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
-            - save-python-cache
             - when:
                 condition: << parameters.notify_on_failure >>
                 steps:
