@@ -223,9 +223,6 @@ commands:
             - ".git"
 
   restore-python-cache:
-    parameters:
-      toxenv:
-        type: string
     steps:
       - run:
           name: "Prepare python cache"
