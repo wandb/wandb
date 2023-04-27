@@ -4,6 +4,9 @@ import os
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
+from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
+from git.repo import Repo
+
 import wandb
 
 logger = logging.getLogger(__name__)
@@ -28,21 +31,22 @@ class GitRepo:
 
     @property
     def repo(self):
-        if self._repo is None:
-            if self.remote_name is None:
+        if self._repo is not None:
+            return self._repo
+        if self.remote_name is None:
+            self._repo = False
+        else:
+            try:
+                self._repo = Repo(
+                    self._root or os.getcwd(), search_parent_directories=True
+                )
+            except InvalidGitRepositoryError:
+                logger.debug("git repository is invalid")
                 self._repo = False
-            else:
-                try:
-                    self._repo = Repo(
-                        self._root or os.getcwd(), search_parent_directories=True
-                    )
-                except exc.InvalidGitRepositoryError:
-                    logger.debug("git repository is invalid")
-                    self._repo = False
-                except exc.NoSuchPathError:
-                    wandb.termwarn(f"git root {self._root} does not exist")
-                    logger.warn(f"git root {self._root} does not exist")
-                    self._repo = False
+            except NoSuchPathError:
+                wandb.termwarn(f"git root {self._root} does not exist")
+                logger.warn(f"git root {self._root} does not exist")
+                self._repo = False
         return self._repo
 
     @property
@@ -64,7 +68,8 @@ class GitRepo:
             return None
         try:
             return self.repo.git.rev_parse("--show-toplevel")
-        except exc.GitCommandError as e:
+        except GitCommandError as e:
+            # raise Exception("git root error: {}".format(e))
             # todo: collect telemetry on this
             logger.error(f"git root error: {e}")
             return None
@@ -73,7 +78,10 @@ class GitRepo:
     def dirty(self) -> bool:
         if not self.repo:
             return False
-        return self.repo.is_dirty()
+        try:
+            return self.repo.is_dirty()
+        except GitCommandError:
+            return False
 
     @property
     def email(self) -> Optional[str]:
@@ -114,6 +122,7 @@ class GitRepo:
         if not self.repo:
             return None
         try:
+            breakpoint()
             return self.repo.remotes[self.remote_name]
         except IndexError:
             return None
@@ -144,7 +153,10 @@ class GitRepo:
     def root_dir(self):
         if not self.repo:
             return None
-        return self.repo.git.rev_parse("--show-toplevel")
+        try:
+            return self.repo.git.rev_parse("--show-toplevel")
+        except GitCommandError:
+            return None
 
     def get_upstream_fork_point(self):
         """Get the most recent ancestor of HEAD that occurs on an upstream branch.
@@ -186,7 +198,7 @@ class GitRepo:
                     elif self.repo.is_ancestor(most_recent_ancestor, ancestor):
                         most_recent_ancestor = ancestor
             return most_recent_ancestor
-        except exc.GitCommandError as e:
+        except GitCommandError as e:
             logger.debug("git remote upstream fork point could not be found")
             logger.debug(str(e))
             return None
@@ -194,26 +206,15 @@ class GitRepo:
     def tag(self, name, message):
         try:
             return self.repo.create_tag("wandb/" + name, message=message, force=True)
-        except exc.GitCommandError:
+        except GitCommandError:
             print("Failed to tag repository.")
             return None
 
     def push(self, name):
-        if self.remote:
-            try:
-                return self.remote.push("wandb/" + name, force=True)
-            except exc.GitCommandError:
-                logger.debug("failed to push git")
-                return None
-
-
-class FakeGitRepo(GitRepo):
-    @property
-    def repo(self):
-        return None
-
-
-try:
-    from git import Repo, exc  # type: ignore
-except ImportError:  # import fails if user doesn't have git
-    GitRepo = FakeGitRepo  # type: ignore
+        if not self.remote:
+            return None
+        try:
+            return self.remote.push("wandb/" + name, force=True)
+        except GitCommandError:
+            logger.debug("failed to push git")
+            return None
