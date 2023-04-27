@@ -290,8 +290,6 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
-            - restore-python-cache:
-                toxenv: << parameters.toxenv >>
             - run:
                 name: Setup environment
                 command: |
@@ -315,7 +313,6 @@ jobs:
                   tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
-            - save-python-cache
             - when:
                 condition: << parameters.notify_on_failure >>
                 steps:
@@ -368,8 +365,19 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
-            - restore-python-cache:
-                toxenv: << parameters.toxenv >>
+
+            - run:
+                name: "Prepare python cache"
+                command: |
+                  cat tox.ini setup.py requirements.txt requirements_dev.txt requirements_test.txt > sources.txt
+                  ln -s $(pip cache dir) .pip
+            - restore_cache:
+                keys:
+                  - &python-cache python-v2-{{ arch }}-<< parameters.toxenv >>-{{ checksum "sources.txt" }}
+                  - python-v2-{{ arch }}-<< parameters.toxenv >>-
+                  - python-v2-{{ arch }}-
+                  - python-v2-
+
             - run:
                 name: Install python dependencies
                 command: |
@@ -382,8 +390,14 @@ jobs:
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
+
+            - save_cache:
+                key: *python-cache
+                paths:
+                  - ".tox"
+                  - ".pip"
+
             # conditionally post a notification to slack if the job failed
-            - save-python-cache
             - when:
                 condition: << parameters.notify_on_failure >>
                 steps:
@@ -438,8 +452,6 @@ jobs:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
-      - restore-python-cache:
-          toxenv: << parameters.toxenv >>
       - run:
           name: Install python dependencies
           command: |
@@ -455,7 +467,6 @@ jobs:
             tox -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
-      - save-python-cache
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
