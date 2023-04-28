@@ -151,7 +151,7 @@ class Media(WBValue):
 
         Args:
             run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which
-                this object should be generating JSON for - this is useful to to store
+                this object should be generating JSON for - this is useful to store
                 additional data if needed.
 
         Returns:

@@ -1,18 +1,10 @@
-import os
 import platform
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 
 import pytest
-from hypothesis import example, given, settings
-from hypothesis.strategies import binary, one_of, sampled_from, text
+from hypothesis import assume, example, given
 from hypothesis_fspaths import fspaths
-from wandb.sdk.lib.paths import (
-    PROHIBITED_CHARS,
-    RESERVED_NAMES,
-    LocalPath,
-    LogicalPath,
-    sanitize_path,
-)
+from wandb.sdk.lib.paths import LocalPath, LogicalPath
 from wandb.util import to_forward_slash_path
 
 
@@ -20,7 +12,7 @@ from wandb.util import to_forward_slash_path
     "target,posix,windows,_bytes",
     [
         ("foo/bar.txt", "foo/bar.txt", "foo\\bar.txt", b"foo/bar.txt"),
-        ("et/tu.txt", "et/tu.txt", "et/tu.txt", b"et\\tu.txt"),
+        ("et/tu.txt", "et//tu.txt", "et/tu.txt", b"et//tu.txt"),
         ("/ab/ra.txt", "/ab/ra.txt", "\\ab\\ra.txt", b"/ab/ra.txt"),
         ("C:/a/b.txt", "C:/a/b.txt", "C:\\a\\b.txt", b"C:/a/b.txt"),
     ],
@@ -29,7 +21,7 @@ def test_path_groups(target, posix, windows, _bytes):
     assert target == LogicalPath(target)
     assert target == LogicalPath(PurePosixPath(posix))
     assert target == LogicalPath(PureWindowsPath(windows))
-    assert target == LogicalPath(_bytes) or platform.system() != "Windows"
+    assert target == LogicalPath(_bytes)
 
 
 @given(fspaths())
@@ -45,14 +37,26 @@ def test_path_conversion(path):
         assert "\\" not in logical_path
 
     # For compatibility, enforce output identical to `to_forward_slash_path`.
-    if isinstance(path, str):
+    # One exception: we send both `'.'` and `''` to `'.'`.
+    if path and isinstance(path, str):
         assert logical_path == to_forward_slash_path(path)
 
 
 @given(fspaths())
+def test_logical_path_matches_to_posix_path(path):
+    # If PurePosixPath can be constructed it should be the same as the LogicalPath.
+    try:
+        posix_path = PurePosixPath(path)
+    except TypeError:
+        assume(False)  # Tell hypothesis to skip these examples.
+
+    assert posix_path == LogicalPath(path).to_path()
+    assert str(posix_path) == LogicalPath(path)
+
+
+@given(fspaths())
 def test_logical_path_is_idempotent(path):
-    norm_path = LogicalPath(path)
-    logical_path = LogicalPath(norm_path)
+    logical_path = LogicalPath(path)
     assert logical_path == LogicalPath(logical_path)
     assert logical_path == LogicalPath(to_forward_slash_path(logical_path))
     assert logical_path == to_forward_slash_path(LogicalPath(logical_path))
@@ -87,8 +91,6 @@ def test_logical_path_acts_like_posix_path(path1, path2):
     path2 = LogicalPath(path2)
     assert path1 / path2 == path1.joinpath(path2)
     assert path1 / PurePosixPath("/foo") == LogicalPath("/foo")
-    assert (path1 == PurePosixPath(path2)) == (path1 == path2)
-    assert (path1 != PurePosixPath(path2)) == (path1 != path2)
 
 
 @given(fspaths())
@@ -120,70 +122,3 @@ def test_local_path_acts_like_posix_path(path1, path2):
     assert path1 / Path("/foo") == LocalPath("/foo")
     assert (path1 == Path(path2)) == (Path(path1) == Path(path2))
     assert (path1 != Path(path2)) == (Path(path1) != Path(path2))
-
-
-def test_sanitize_path_on_awful_input():
-    path = '\r/foo\u0000/AUX/<:?"*>/\0/\n\\\tCOM5.tar.gz /'
-    sanitized = sanitize_path(path)
-    assert sanitized == PurePosixPath("foo/_AUX/______/_COM5.tar.gz")
-
-
-@settings(max_examples=500)
-@given(one_of(fspaths(), text(), binary()))
-def test_sanitize_path_on_arbitrary_input(path):
-    try:
-        check_sanitized(sanitize_path(path))
-    except UnicodeDecodeError:
-        # Fuzz testing leads to some invalid UTF-8 sequences we don't try to handle.
-        pass
-
-
-@given(fspaths(), sampled_from(RESERVED_NAMES))
-def test_sanitize_path_on_paths_with_reserved_parts(path, name):
-    parts = list(PurePath(path_as_str(path)).parts)
-    for i in range(len(parts)):
-        cut = parts[:i] + [name] + parts[i:]
-        check_sanitized(sanitize_path(PurePath(*cut)))
-
-
-dangerous_chars = list(PROHIBITED_CHARS + "/\\ .")
-
-
-@given(fspaths(), text(dangerous_chars))
-@example(path="\x01", snippet="\\")
-def test_sanitize_path_on_paths_with_dangerous_chars(path, snippet):
-    path = path_as_str(path)
-    bookended = snippet + path + snippet
-    check_sanitized(sanitize_path(bookended))
-    if len(bookended) > 1:
-        m = len(bookended) // 2
-        inserted = bookended[:m] + snippet + bookended[m:]
-        check_sanitized(sanitize_path(inserted))
-
-
-def check_sanitized(path):
-    assert isinstance(path, PurePosixPath)
-    assert not path.is_absolute()
-
-    str_path = str(path)
-    assert "\\" not in str_path
-    assert all(c.isprintable() for c in str_path)
-    assert all(c not in r'<>:"\|?*' for c in str_path)
-    assert not str_path.endswith(" ")
-    assert not str_path.endswith(".") or str_path == "."
-
-    assert all(part not in RESERVED_NAMES for part in path.parts)
-    assert path.stem not in RESERVED_NAMES
-
-
-def path_as_str(path):
-    if isinstance(path, (str, PurePath)):
-        return str(path)
-    if hasattr(path, "__fspath__"):
-        path = path.__fspath__()
-    if isinstance(path, bytes):
-        try:
-            return os.fsdecode(path)
-        except UnicodeDecodeError:
-            return repr(path)
-    return str(path)
