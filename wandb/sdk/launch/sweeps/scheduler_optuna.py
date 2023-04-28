@@ -110,7 +110,7 @@ class OptunaScheduler(Scheduler):
 
         Returns a string with whitespace.
         """
-        if not self._study or len(self._study.trials) == 0:
+        if not self._study or len(self.study.trials) == 0:
             return ""
 
         trial_strs = []
@@ -290,7 +290,6 @@ class OptunaScheduler(Scheduler):
 
         direction = self._sweep_config.get("metric", {}).get("goal")
         self._storage_path = existing_storage or OptunaComponents.storage.value
-        # TODO(gst): implement basic early_stopping opt
         self._study = optuna.create_study(
             study_name=self.study_name,
             storage=f"sqlite:///{self._storage_path}",
@@ -322,7 +321,9 @@ class OptunaScheduler(Scheduler):
 
         Save optuna study sqlite data to an artifact in the controller run
         """
-        artifact = wandb.Artifact(OptunaComponents.storage.name, type="optuna")
+        artifact = wandb.Artifact(
+            f"{OptunaComponents.storage.name}-{self._sweep_id}", type="optuna"
+        )
         if not self._storage_path:
             wandb.termwarn(
                 f"{LOG_PREFIX}No db storage path found, saving to default path"
