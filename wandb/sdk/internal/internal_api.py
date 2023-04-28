@@ -1048,7 +1048,9 @@ class Api:
         return status
 
     @normalize_exceptions
-    def update_artifact_collection(self, artifact_sequence_id, name, description):
+    def update_artifact_collection(
+        self, artifact_sequence_id: str, name: Optional[str], description: Optional[str]
+    ) -> Dict[str, Any]:
         mutation = gql(
             """
             mutation UpdateArtifactCollection(
