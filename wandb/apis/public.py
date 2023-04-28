@@ -418,23 +418,21 @@ class Api:
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         auth = None
-        # if _thread_local_api_settings.api_key is not None:
-        #     auth = ("api", _thread_local_api_settings.api_key)
-        if self.api_key:
-            auth = ("api", self.api_key)
+        if _thread_local_api_settings.api_key is not None:
+            auth = ("api", _thread_local_api_settings.api_key)
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
-                    # **(_thread_local_api_settings.headers or {}),
+                    **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
                 url="%s/graphql" % self.settings["base_url"],
-                # cookies=_thread_local_api_settings.cookies,
+                cookies=_thread_local_api_settings.cookies,
                 auth=auth,
             )
         )
