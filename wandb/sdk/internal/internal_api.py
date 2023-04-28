@@ -157,6 +157,9 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+        auth = None
+        if _thread_local_api_settings.api_key is not None:
+            auth = ("api", _thread_local_api_settings.api_key)
         self.client = Client(
             transport=RequestsHTTPTransport(
                 headers={
@@ -171,6 +174,7 @@ class Api:
                 timeout=self.HTTP_TIMEOUT,
                 url=f"{self.settings('base_url')}/graphql",
                 cookies=_thread_local_api_settings.cookies,
+                auth=auth,
             )
         )
         self.retry_callback = retry_callback
