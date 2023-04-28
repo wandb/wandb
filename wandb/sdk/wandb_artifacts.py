@@ -932,15 +932,13 @@ class WandbStoragePolicy(StoragePolicy):
         )
         if hit:
             return path
-        auth = None
-        if _thread_local_api_settings.api_key is not None:
-            auth = ("api", _thread_local_api_settings.api_key)
+
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
+            auth=("api", self._api.api_key),
             stream=True,
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
-            auth=auth,
         )
         response.raise_for_status()
 

@@ -1366,11 +1366,11 @@ def download_file_from_url(
 ) -> None:
     response = requests.get(
         source_url,
+        auth=("api", api_key),
         stream=True,
         timeout=5,
         headers=(_thread_local_api_settings.headers or {}),
         cookies=(_thread_local_api_settings.cookies or {}),
-        auth=("api", api_key),
     )
     response.raise_for_status()
 
