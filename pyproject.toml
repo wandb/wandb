@@ -1,12 +1,12 @@
 [build-system]
-requires = ['setuptools<64']
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 88
-target-version = ['py36', 'py37', 'py38', 'py39', 'py310', 'py311']
+target-version = ["py36", "py37", "py38", "py39", "py310", "py311"]
 include = '\.pyi?$'
-exclude = '''
+exclude = """
 wandb/vendor/
 | wandb/bin/
 | wandb/proto/
@@ -17,7 +17,7 @@ wandb/vendor/
 | __pycache__
 | .pyc
 | .tox/
-'''
+"""
 
 [tool.isort]
 profile = "black"
