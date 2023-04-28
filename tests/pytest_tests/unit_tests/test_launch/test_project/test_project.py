@@ -73,12 +73,12 @@ def test_project_fill_macros():
         resource="local-container",
         resource_args={
             "labels": [
-                {"key": "wandb-project", "value": "${wandb_project}"},
-                {"key": "wandb-entity", "value": "${wandb_entity}"},
+                {"key": "wandb-project", "value": "${projectName}"},
+                {"key": "wandb-entity", "value": "${entityName}"},
             ],
-            "jobName": "launch-job-${wandb_run_id}",
+            "jobName": "launch-job-${runId}",
             "gpus": "${CUDA_VISIBLE_DEVICES}",
-            "image": "${wandb_image}",
+            "image": "${image}",
         },
         uri=None,
         name=None,

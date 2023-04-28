@@ -180,11 +180,11 @@ class LaunchProject:
         run being launched. The macros are given in the ${macro} format. The
         following macros are currently supported:
 
-        ${wandb_project} - the name of the project the run is being launched to.
-        ${wandb_entity} - the owner of the project the run being launched to.
-        ${wandb_run_id} - the id of the run being launched
-        ${wandb_run_name} - the name of the run being launched
-        ${wandb_image} - the URI of the docker image being launched for this run
+        ${projectName} - the name of the project the run is being launched to.
+        ${entityName} - the owner of the project the run being launched to.
+        ${runId} - the id of the run being launched
+        ${runName} - the name of the run being launched
+        ${image} - the URI of the docker image being launched for this run
 
         Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
         environment variables that you plan to set in the environment of any
@@ -200,11 +200,11 @@ class LaunchProject:
             None
         """
         update_dict = {
-            "wandb_project": self.target_project,
-            "wandb_entity": self.target_entity,
-            "wandb_run_id": self.run_id,
-            "wandb_run_name": self.name,
-            "wandb_image": image,
+            "projectName": self.target_project,
+            "entityName": self.target_entity,
+            "runId": self.run_id,
+            "runName": self.name,
+            "image": image,
         }
         update_dict.update(os.environ)
         resource_args_str = json.dumps(self.resource_args)
