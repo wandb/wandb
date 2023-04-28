@@ -180,11 +180,11 @@ class LaunchProject:
         run being launched. The macros are given in the ${macro} format. The
         following macros are currently supported:
 
-        ${projectName} - the name of the project the run is being launched to.
-        ${entityName} - the owner of the project the run being launched to.
-        ${runId} - the id of the run being launched
-        ${runName} - the name of the run being launched
-        ${image} - the URI of the docker image being launched for this run
+        ${project_name} - the name of the project the run is being launched to.
+        ${entity_name} - the owner of the project the run being launched to.
+        ${run_id} - the id of the run being launched.
+        ${run_name} - the name of the run that is launching.
+        ${image} - the URI of the container image for this run.
 
         Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
         environment variables that you plan to set in the environment of any
@@ -200,10 +200,10 @@ class LaunchProject:
             None
         """
         update_dict = {
-            "projectName": self.target_project,
-            "entityName": self.target_entity,
-            "runId": self.run_id,
-            "runName": self.name,
+            "project_name": self.target_project,
+            "entity_name": self.target_entity,
+            "run_id": self.run_id,
+            "run_name": self.name,
             "image": image,
         }
         update_dict.update(os.environ)
@@ -485,8 +485,8 @@ def fetch_and_validate_project(
         launch_project._fetch_project_local(internal_api=api)
 
     assert launch_project.project_dir is not None
-    # this prioritizes pip, and we don't support any cases where both are present
-    # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
+    # this prioritizes pip, and we don't support any cases where both are present conda projects when uploaded to
+    # wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.txt")
     ) or os.path.exists(
