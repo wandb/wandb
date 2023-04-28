@@ -1,5 +1,4 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
-import json
 import logging
 import os
 import platform
@@ -28,7 +27,6 @@ FAILED_PACKAGES_REGEX = re.compile(
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
-    from wandb.sdk.launch._project_spec import LaunchProject
 
 
 class LaunchError(Error):

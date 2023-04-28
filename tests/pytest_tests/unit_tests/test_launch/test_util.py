@@ -1,6 +1,3 @@
-import os
-from unittest.mock import MagicMock
-
 from wandb.sdk.launch.utils import macro_sub
 
 

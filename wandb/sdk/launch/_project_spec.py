@@ -199,7 +199,6 @@ class LaunchProject:
         Returns:
             None
         """
-
         update_dict = {
             "wandb_project": self.target_project,
             "wandb_entity": self.target_entity,
