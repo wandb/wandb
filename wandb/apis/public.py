@@ -418,9 +418,9 @@ class Api:
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         auth = None
-        if _thread_local_api_settings.api_key is not None:
-            auth = ("api", _thread_local_api_settings.api_key)
-        elif self.api_key:
+        # if _thread_local_api_settings.api_key is not None:
+        #     auth = ("api", _thread_local_api_settings.api_key)
+        if self.api_key:
             auth = ("api", self.api_key)
         self._base_client = Client(
             transport=RequestsHTTPTransport(

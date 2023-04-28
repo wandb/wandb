@@ -159,9 +159,9 @@ class Api:
         }
         # auth = None
         auth = ("api", "")
-        if _thread_local_api_settings.api_key is not None:
-            auth = ("api", _thread_local_api_settings.api_key)
-        elif self.api_key:
+        # if _thread_local_api_settings.api_key is not None:
+        #     auth = ("api", _thread_local_api_settings.api_key)
+        if self.api_key:
             auth = ("api", self.api_key)
         self.client = Client(
             transport=RequestsHTTPTransport(
@@ -176,7 +176,7 @@ class Api:
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
                 url=f"{self.settings('base_url')}/graphql",
-                cookies=_thread_local_a / pi_settings.cookies,
+                # cookies=_thread_local_api_settings.cookies,
                 auth=auth,
             )
         )
