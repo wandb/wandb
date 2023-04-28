@@ -597,10 +597,10 @@ class Artifact(ArtifactInterface):
             self._manifest.remove_entry(entry)
             return
 
-        remove = self._manifest.get_entries_in_directory(path)
-        if not remove:
+        entries = self._manifest.get_entries_in_directory(path)
+        if not entries:
             raise FileNotFoundError(f"No such file or directory: {path}")
-        for entry in remove:
+        for entry in entries:
             self._manifest.remove_entry(entry)
 
     def get_path(self, name: str) -> ArtifactManifestEntry:
