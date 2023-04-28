@@ -160,6 +160,8 @@ class Api:
         auth = None
         if _thread_local_api_settings.api_key is not None:
             auth = ("api", _thread_local_api_settings.api_key)
+        elif self.api_key:
+            auth = ("api", self.api_key)
         self.client = Client(
             transport=RequestsHTTPTransport(
                 headers={
