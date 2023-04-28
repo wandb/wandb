@@ -936,8 +936,9 @@ class WandbStoragePolicy(StoragePolicy):
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
             stream=True,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
+            # cookies=_thread_local_api_settings.cookies,
+            # headers=_thread_local_api_settings.headers,
+            auth=("api", self._api.api_key),
         )
         response.raise_for_status()
 
@@ -1852,8 +1853,8 @@ class HTTPHandler(StorageHandler):
         response = self._session.get(
             manifest_entry.ref,
             stream=True,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
+            # cookies=_thread_local_api_settings.cookies,
+            # headers=_thread_local_api_settings.headers,
         )
         response.raise_for_status()
 
@@ -1886,8 +1887,8 @@ class HTTPHandler(StorageHandler):
         with self._session.get(
             path,
             stream=True,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
+            # cookies=_thread_local_api_settings.cookies,
+            # headers=_thread_local_api_settings.headers,
         ) as response:
             response.raise_for_status()
             digest: Optional[Union[util.ETag, util.FilePathStr, util.URIStr]]

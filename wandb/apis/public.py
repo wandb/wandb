@@ -426,15 +426,15 @@ class Api:
             transport=RequestsHTTPTransport(
                 headers={
                     "User-Agent": self.user_agent,
-                    "Use-Admin-Privileges": "true"
-                    ** (_thread_local_api_settings.headers or {}),
+                    "Use-Admin-Privileges": "true",
+                    # **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
                 url="%s/graphql" % self.settings["base_url"],
-                cookies=_thread_local_api_settings.cookies,
+                # cookies=_thread_local_api_settings.cookies,
                 auth=auth,
             )
         )
