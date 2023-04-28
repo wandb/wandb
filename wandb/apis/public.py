@@ -4731,8 +4731,8 @@ class Artifact(artifacts.Artifact):
                 root=dirpath,
                 download_logger=download_logger,
                 tlas_api_key=_thread_local_api_settings.api_key,
-                tlas_headers={**_thread_local_api_settings.headers},
-                tlas_cookies={**_thread_local_api_settings.cookies},
+                tlas_headers={**(_thread_local_api_settings.headers or {})},
+                tlas_cookies={**(_thread_local_api_settings.cookies or {})},
             ),
             manifest.entries,
         )
