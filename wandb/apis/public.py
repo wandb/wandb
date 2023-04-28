@@ -417,14 +417,10 @@ class Api:
         self._reports = {}
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
-        auth = None
-        if _thread_local_api_settings.api_key is not None:
-            auth = ("api", _thread_local_api_settings.api_key)
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={
                     "User-Agent": self.user_agent,
-                    "Use-Admin-Privileges": "true",
                     **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
@@ -433,7 +429,7 @@ class Api:
                 timeout=self._timeout,
                 url="%s/graphql" % self.settings["base_url"],
                 cookies=_thread_local_api_settings.cookies,
-                auth=auth,
+                auth=("api", self.api_key or ""),
             )
         )
         self._client = RetryingClient(self._base_client)

@@ -157,27 +157,21 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
-        # auth = None
-        auth = ("api", "")
-        # if _thread_local_api_settings.api_key is not None:
-        #     auth = ("api", _thread_local_api_settings.api_key)
-        if self.api_key:
-            auth = ("api", self.api_key)
         self.client = Client(
             transport=RequestsHTTPTransport(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
-                    # **(_thread_local_api_settings.headers or {}),
+                    **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
                 url=f"{self.settings('base_url')}/graphql",
-                # cookies=_thread_local_api_settings.cookies,
-                auth=auth,
+                cookies=_thread_local_api_settings.cookies,
+                auth=("api", self.api_key or ""),
             )
         )
         self.retry_callback = retry_callback
@@ -1873,10 +1867,10 @@ class Api:
         """
         response = requests.get(
             url,
-            # cookies=_thread_local_api_settings.cookies or {},
-            # headers=_thread_local_api_settings.headers or {},
+            cookies=_thread_local_api_settings.cookies or {},
+            headers=_thread_local_api_settings.headers or {},
             stream=True,
-            auth=("user", self.api_key),
+            auth=("user", self.api_key or ""),
         )
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
