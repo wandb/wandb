@@ -740,8 +740,12 @@ class CustomChart(Panel):
         self.chart_strings = coalesce(chart_strings, {})
 
     @classmethod
-    def from_table(cls, table_name):
-        return CustomChart(query={"summaryTable": {"tableKey": table_name}})
+    def from_table(cls, table_name, chart_fields=None, chart_strings=None):
+        return CustomChart(
+            query={"summaryTable": {"tableKey": table_name}},
+            chart_fields=chart_fields,
+            chart_strings=chart_strings,
+        )
 
     @property
     def view_type(self) -> str:
