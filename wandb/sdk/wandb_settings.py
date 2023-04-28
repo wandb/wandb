@@ -1511,7 +1511,7 @@ class Settings:
 
     def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
         if _logger is not None:
-            _logger.info("Current SDK version is %s", wandb.__version__)
+            _logger.info(f"Current SDK version is {wandb.__version__}")
             _logger.info(f"Configure stats pid to {pid}")
         self.update({"_stats_pid": pid}, source=Source.SETUP)
 
