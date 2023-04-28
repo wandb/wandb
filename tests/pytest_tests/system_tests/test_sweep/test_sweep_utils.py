@@ -75,7 +75,7 @@ def test_sweep_construct_scheduler_entrypoint():
     ]
 
     assert utils.construct_scheduler_entrypoint(
-        {"job": "job"}, "queue", "project", "1"
+        {"job": "job"}, "queue", "project", "1", "author"
     ) == [
         "wandb",
         "scheduler",
@@ -88,6 +88,8 @@ def test_sweep_construct_scheduler_entrypoint():
         "1",
         "--job",
         "job:latest",
+        "--author",
+        "author",
     ]
 
     assert utils.construct_scheduler_entrypoint(

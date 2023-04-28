@@ -58,7 +58,6 @@ def gather_batch(
     max_batch_size: int,
     clock: Callable[[], float] = time.monotonic,
 ) -> Tuple[bool, Sequence[RequestPrepare]]:
-
     batch_start_time = clock()
     remaining_time = batch_time
 
