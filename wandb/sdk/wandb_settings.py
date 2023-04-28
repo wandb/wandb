@@ -1,3 +1,4 @@
+import collections.abc
 import configparser
 import enum
 import getpass
@@ -104,21 +105,21 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
-def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """Parse a string as a dict."""
-    if isinstance(val, dict):
+def _str_as_json(val: Union[str, Dict[str, Any]]) -> Any:
+    """Parse a string as a json object."""
+    if not isinstance(val, str):
         return val
     try:
-        return dict(json.loads(val))
+        return json.loads(val)
     except (AttributeError, ValueError):
         pass
 
     # todo: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a dict. ",
+        f"Could not parse value {val} as JSON. ",
         repeat=False,
     )
-    raise UsageError(f"Could not parse value {val} as a dict.")
+    raise UsageError(f"Could not parse value {val} as JSON.")
 
 
 def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
@@ -177,6 +178,71 @@ def _get_program_relpath_from_gitrepo(
     if _logger is not None:
         _logger.warning(f"Could not find program at {program}")
     return None
+
+
+def is_instance_recursive(obj: Any, type_hint: Any) -> bool:  # noqa: C901
+    if type_hint is Any:
+        return True
+
+    origin = get_origin(type_hint)
+    args = get_args(type_hint)
+
+    if origin is None:
+        return isinstance(obj, type_hint)
+
+    if origin is Union:
+        return any(is_instance_recursive(obj, arg) for arg in args)
+
+    if issubclass(origin, collections.abc.Mapping):
+        if not isinstance(obj, collections.abc.Mapping):
+            return False
+        key_type, value_type = args
+
+        for key, value in obj.items():
+            if not is_instance_recursive(key, key_type) or not is_instance_recursive(
+                value, value_type
+            ):
+                return False
+
+        return True
+
+    if issubclass(origin, collections.abc.Sequence):
+        if not isinstance(obj, collections.abc.Sequence) or isinstance(
+            obj, (str, bytes, bytearray)
+        ):
+            return False
+
+        if len(args) == 1 and args[0] != ...:
+            (item_type,) = args
+            for item in obj:
+                if not is_instance_recursive(item, item_type):
+                    return False
+        elif len(args) == 2 and args[-1] == ...:
+            item_type = args[0]
+            for item in obj:
+                if not is_instance_recursive(item, item_type):
+                    return False
+        elif len(args) == len(obj):
+            for item, item_type in zip(obj, args):
+                if not is_instance_recursive(item, item_type):
+                    return False
+        else:
+            return False
+
+        return True
+
+    if issubclass(origin, collections.abc.Set):
+        if not isinstance(obj, collections.abc.Set):
+            return False
+
+        (item_type,) = args
+        for item in obj:
+            if not is_instance_recursive(item, item_type):
+                return False
+
+        return True
+
+    return False
 
 
 @enum.unique
@@ -395,10 +461,12 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _extra_http_headers: Mapping[str, str]
     _flow_control_custom: bool
     _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
+    _ipython: bool
     _jupyter: bool
     _jupyter_name: str
     _jupyter_path: str
@@ -409,6 +477,7 @@ class Settings:
     _log_level: int
     _network_buffer: int
     _noop: bool
+    _notebook: bool
     _offline: bool
     _sync: bool
     _os: str
@@ -426,8 +495,10 @@ class Settings:
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
-    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
-    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
+    # open metrics filters in one of the two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -540,6 +611,7 @@ class Settings:
             },
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _extra_http_headers={"preprocessor": _str_as_json},
             _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
@@ -548,12 +620,23 @@ class Settings:
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
+            _ipython={
+                "hook": lambda _: _get_python_type() == "ipython",
+                "auto_hook": True,
+            },
             _jupyter={
-                "hook": lambda _: str(_get_python_type()) != "python",
+                "hook": lambda _: _get_python_type() == "jupyter",
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
             _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
+            _notebook={
+                "hook": lambda _: self._ipython
+                or self._jupyter
+                or self._colab
+                or self._kaggle,
+                "auto_hook": True,
+            },
             _offline={
                 "hook": (
                     lambda _: True
@@ -593,18 +676,12 @@ class Settings:
                 "hook": lambda x: self._path_convert(x),
             },
             _stats_open_metrics_endpoints={
-                # todo: opt-in to this feature
-                # "value": {
-                #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
-                # },
-                "preprocessor": _str_as_dict,
+                "preprocessor": _str_as_json,
             },
             _stats_open_metrics_filters={
-                # capture all metrics by default
-                "value": {
-                    ".*": {},
-                },
-                "preprocessor": _str_as_dict,
+                # capture all metrics on all endpoints by default
+                "value": (".*",),
+                "preprocessor": _str_as_json,
             },
             _tmp_code_dir={
                 "value": "code",
@@ -786,24 +863,17 @@ class Settings:
 
     # helper methods for validating values
     @staticmethod
-    def _validator_factory(hint: Any) -> Callable[[Any], bool]:
-        """Return a factory for type validators.
+    def _validator_factory(hint: Any) -> Callable[[Any], bool]:  # noqa: C901
+        """Return a factory for setting type validators."""
 
-        Given a type hint for a setting into a function that type checks the argument.
-        """
-        origin, args = get_origin(hint), get_args(hint)
+        def helper(value: Any) -> bool:
+            try:
+                is_valid = is_instance_recursive(value, hint)
+            except Exception:
+                # instance check failed, but let's not crash and only print a warning
+                is_valid = False
 
-        def helper(x: Any) -> bool:
-            if origin is None:
-                return isinstance(x, hint)
-            elif origin is Union:
-                return isinstance(x, args) if args is not None else True
-            else:
-                return (
-                    isinstance(x, origin) and all(isinstance(y, args) for y in x)
-                    if args is not None
-                    else isinstance(x, origin)
-                )
+            return is_valid
 
         return helper
 
@@ -1441,6 +1511,7 @@ class Settings:
 
     def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
         if _logger is not None:
+            _logger.info(f"Current SDK version is {wandb.__version__}")
             _logger.info(f"Configure stats pid to {pid}")
         self.update({"_stats_pid": pid}, source=Source.SETUP)
 

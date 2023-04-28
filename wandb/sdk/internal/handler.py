@@ -843,6 +843,8 @@ class HandleManager:
 
     def finish(self) -> None:
         logger.info("shutting down handler")
+        if self._system_monitor is not None:
+            self._system_monitor.finish()
         if self._tb_watcher:
             self._tb_watcher.finish()
         # self._context_keeper._debug_print_orphans()

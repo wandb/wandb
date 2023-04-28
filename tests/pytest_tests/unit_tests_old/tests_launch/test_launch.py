@@ -384,36 +384,6 @@ def test_launch_run_config_in_spec(
     check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
 
 
-def test_launch_args_supersede_config_vals(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "project": "new_test_project",
-        "entity": "mock_server_entity",
-        "config": {
-            "project": "not-this-project",
-            "overrides": {
-                "run_config": {"epochs": 3},
-                "args": ["--epochs=2", "--heavy"],
-            },
-        },
-        "parameters": {"epochs": 5},
-    }
-    input_kwargs = kwargs.copy()
-    input_kwargs["parameters"] = ["epochs", 5]
-    mock_with_run_info = launch.run(**kwargs)
-    for arg in mock_with_run_info.args:
-        if isinstance(arg, _project_spec.LaunchProject):
-            assert arg.override_args["epochs"] == 5
-            assert arg.override_config.get("epochs") is None
-            assert arg.target_project == "new_test_project"
-
-
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
@@ -790,9 +760,11 @@ def test_agent_inf_jobs(test_settings, live_mock_server):
 
 
 @pytest.mark.timeout(320)
+@pytest.mark.skip(reason="The nb tests are now run against the unmock server.")
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython, monkeypatch
 ):
+    # TODO: make this test work with the unmock server
     live_mock_server.set_ctx({"run_script_type": "notebook"})
 
     api = wandb.sdk.internal.internal_api.Api(
@@ -1100,7 +1072,7 @@ def test_launch_entrypoint(test_settings):
         None,  # run_id
     )
     launch_project.add_entry_point(entry_point)
-    calced_ep = launch_project.get_single_entry_point().compute_command({"blah": 2})
+    calced_ep = launch_project.get_single_entry_point().compute_command(["--blah", "2"])
     assert calced_ep == ["python", "main.py", "--blah", "2"]
 
 
@@ -1175,10 +1147,7 @@ def test_launch_build_config_file(
         assert isinstance(builder, DockerBuilder)
 
 
-def test_resolve_agent_config(test_settings, monkeypatch, runner):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
+def test_resolve_agent_config(monkeypatch, runner):
     monkeypatch.setattr(
         "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
@@ -1189,6 +1158,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         with open("./config/wandb/launch-config.yaml", "w") as f:
             yaml.dump(
                 {
+                    "base_url": "testurl",
                     "entity": "different-entity",
                     "max_jobs": 2,
                     "registry": {"url": "test"},
@@ -1196,9 +1166,10 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
                 f,
             )
         config, returned_api = launch.resolve_agent_config(
-            api, None, None, -1, ["diff-queue"], None
+            None, None, -1, ["diff-queue"], None
         )
 
+        assert returned_api.api.default_settings.get("base_url") == "testurl"
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1

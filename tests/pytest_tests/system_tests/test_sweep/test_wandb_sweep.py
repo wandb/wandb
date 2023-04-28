@@ -37,6 +37,7 @@ SWEEP_CONFIG_GRID_NESTED: Dict[str, Any] = {
 }
 SWEEP_CONFIG_BAYES: Dict[str, Any] = {
     "name": "mock-sweep-bayes",
+    "command": ["echo", "hello world"],
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [1, 2, 3]}},
@@ -125,6 +126,17 @@ def test_sweep_entity_project_callable(user, relay_server, sweep_config):
     assert sweep_response["project"]["entity"]["name"] == user
     assert sweep_response["project"]["name"] == "test"
     assert sweep_response["name"] == sweep_id
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_ALL)
+def test_object_dict_config(user, relay_server, sweep_config):
+    class DictLikeObject(dict):
+        def __init__(self, d: dict):
+            super().__init__(d)
+
+    with relay_server() as relay:
+        sweep_id = wandb.sweep(DictLikeObject(sweep_config), entity=user)
+    assert sweep_id in relay.context.entries
 
 
 def test_minmax_validation():

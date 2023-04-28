@@ -15,7 +15,7 @@ def test_init(test_settings):
         with patch("wandb.sdk.wandb_init.logger", autospec=True), patch(
             "wandb.sdk.wandb_init.getcaller", autospec=True
         ), patch("os._exit", side_effect=MyExitError("")), patch(
-            "wandb.sdk.wandb_init.sentry_exc", autospec=True
+            "wandb._sentry.exception", autospec=True
         ), patch(
             "wandb._assert_is_user_process", side_effect=lambda: None
         ):
