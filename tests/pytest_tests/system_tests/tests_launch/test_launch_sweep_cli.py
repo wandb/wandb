@@ -35,7 +35,8 @@ def test_launch_sweep_param_validation(user):
     json.dump(config, open("s.yaml", "w"))
 
     err_msg = "No 'job' nor 'image_uri' top-level key found in sweep config, exactly one is required for a launch-sweep"
-    _run_cmd_check_msg(base + ["s.yaml"], err_msg)
+    with pytest.raises(subprocess.CalledProcessError):
+        _run_cmd_check_msg(base + ["s.yaml"], err_msg)
 
     del config["launch"]["queue"]
     config["job"] = "job123"
@@ -164,20 +165,22 @@ def test_launch_sweep_launch_error(user, image_uri, launch_config, job):
     with open("sweep-config.yaml", "w") as f:
         json.dump(sweep_config, f)
 
-    out = subprocess.check_output(
-        [
-            "wandb",
-            "launch-sweep",
-            "sweep-config.yaml",
-            "-e",
-            user,
-            "-p",
-            LAUNCH_DEFAULT_PROJECT,
-            "-q",
-            queue,
-        ],
-        stderr=subprocess.STDOUT,
-    )
+    out = ""
+    with pytest.raises(subprocess.CalledProcessError):
+        out = subprocess.check_output(
+            [
+                "wandb",
+                "launch-sweep",
+                "sweep-config.yaml",
+                "-e",
+                user,
+                "-p",
+                LAUNCH_DEFAULT_PROJECT,
+                "-q",
+                queue,
+            ],
+            stderr=subprocess.STDOUT,
+        )
 
     if job:
         assert (
