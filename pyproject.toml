@@ -1,5 +1,5 @@
 [build-system]
-requires = ['setuptools<64']
+requires = ['setuptools']
 build-backend = "setuptools.build_meta"
 
 [tool.black]
@@ -50,10 +50,10 @@ select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
     "E501",
-    "D1",  # Allow missing docstrings.
+    "D1",    # Allow missing docstrings.
     "D417",  # Don't require descriptions for all arguments.
-    "UP022",  # Only valid for Python 3.7+
-    "UP036",  # Only valid for Python 3.7+
+    "UP022", # Only valid for Python 3.7+
+    "UP036", # Only valid for Python 3.7+
 ]
 exclude = [
     "tests/functional_tests/t0_main/fastai/t1_v1.py",
