@@ -38,6 +38,13 @@ _ = wandb.util.get_module(
     "package installed. Please install it with `pip install langchain`.",
 )
 
+import langchain
+from packaging import version
+if version.parse(langchain.__version__) > version.parse('0.0.153'):
+    raise ValueError(
+        "This langchain integration is only valid for langchain versions less than 0.0.154"
+    )
+
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
 from langchain.callbacks import (  # noqa: E402
