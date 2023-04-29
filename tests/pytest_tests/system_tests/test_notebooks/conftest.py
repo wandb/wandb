@@ -3,7 +3,7 @@ import os
 import pathlib
 import shutil
 from contextlib import contextmanager
-from typing import Any, List
+from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
 import nbformat
@@ -97,7 +97,7 @@ class WandbNotebookClient(NotebookClient):
     def cells(self):
         return iter(self.nb.cells[1:])
 
-    def cell_output(self, cell_index: int) -> List[dict[str, Any]]:
+    def cell_output(self, cell_index: int) -> List[Dict[str, Any]]:
         """Return a cell's outputs."""
         idx = cell_index + 1
         outputs = self.nb.cells[idx]["outputs"]
