@@ -497,9 +497,10 @@ class Settings:
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
-    # open metrics filters
-    # {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
+    # open metrics filters in one of the two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -685,9 +686,7 @@ class Settings:
             },
             _stats_open_metrics_filters={
                 # capture all metrics on all endpoints by default
-                "value": {
-                    ".*": {},
-                },
+                "value": (".*",),
                 "preprocessor": _str_as_json,
             },
             _tmp_code_dir={
@@ -1518,6 +1517,7 @@ class Settings:
 
     def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
         if _logger is not None:
+            _logger.info(f"Current SDK version is {wandb.__version__}")
             _logger.info(f"Configure stats pid to {pid}")
         self.update({"_stats_pid": pid}, source=Source.SETUP)
 
