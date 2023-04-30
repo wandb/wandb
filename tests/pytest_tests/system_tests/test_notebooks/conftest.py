@@ -4,7 +4,7 @@ import pathlib
 import shutil
 from contextlib import contextmanager
 from typing import Any, Dict, List
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import nbformat
 import pytest
@@ -40,27 +40,33 @@ def mocked_module(monkeypatch):
 
 
 @pytest.fixture
-def mocked_ipython(mocker):
-    mocker.patch("wandb.sdk.lib.ipython._get_python_type", lambda: "jupyter")
-    mocker.patch("wandb.sdk.wandb_settings._get_python_type", lambda: "jupyter")
-    html_mock = mocker.MagicMock()
-    mocker.patch("wandb.sdk.lib.ipython.display_html", html_mock)
-    ipython = MagicMock()
-    ipython.html = html_mock
-
+def mocked_ipython():
     def run_cell(cell):
         print("Running cell: ", cell)
         exec(cell)
 
-    ipython.run_cell = run_cell
-    # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
-    orig_get_ipython = wandb.jupyter.get_ipython
-    orig_display = wandb.jupyter.display
-    wandb.jupyter.get_ipython = lambda: ipython
-    wandb.jupyter.display = lambda obj: html_mock(obj._repr_html_())
-    yield ipython
-    wandb.jupyter.get_ipython = orig_get_ipython
-    wandb.jupyter.display = orig_display
+    with patch(
+        'wandb.sdk.lib.ipython._get_python_type'
+    ) as ipython_get_type, patch(
+        'wandb.sdk.wandb_settings._get_python_type'
+    ) as settings_get_type:
+        ipython_get_type.return_value = "jupyter"
+        settings_get_type.return_value = "jupyter"
+        html_mock = MagicMock()
+        with patch(
+            'wandb.sdk.lib.ipython.display_html', html_mock
+        ):
+            ipython = MagicMock()
+            ipython.html = html_mock
+            ipython.run_cell = run_cell
+            # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
+            orig_get_ipython = wandb.jupyter.get_ipython
+            orig_display = wandb.jupyter.display
+            wandb.jupyter.get_ipython = lambda: ipython
+            wandb.jupyter.display = lambda obj: html_mock(obj._repr_html_())
+            yield ipython
+            wandb.jupyter.get_ipython = orig_get_ipython
+            wandb.jupyter.display = orig_display
 
 
 class WandbNotebookClient(NotebookClient):

@@ -13,30 +13,41 @@ export BROWSER_PYSCRIPT
 BROWSER := python -c "$$BROWSER_PYSCRIPT"
 
 
-coverage: ## check code coverage quickly with the default Python
-	coverage run --source wandb -m pytest
-	coverage report -m
-	coverage html
-	$(BROWSER) htmlcov/index.html
-
-release-test: dist ## package and upload test release
-	twine upload --repository testpypi dist/*
-
-release: dist ## package and upload release
-	twine upload dist/*
-
-dist: clean ## builds source and wheel package
-	python setup.py sdist bdist_wheel
-	ls -l dist
-
-clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
-
 clean-build: ## remove build artifacts
 	rm -fr build/
 	rm -fr dist/
 	rm -fr .eggs/
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
+
+clean-pyc: ## remove Python file artifacts
+	find . -name '*.pyc' -exec rm -f {} +
+	find . -name '*.pyo' -exec rm -f {} +
+	find . -name '*~' -exec rm -f {} +
+	find . -name '__pycache__' -exec rm -fr {} +
+
+clean-test: ## remove test and coverage artifacts
+	rm -fr .tox/
+	rm -f .coverage
+	rm -fr htmlcov/
+
+clean:	## remove all build, test, coverage and Python artifacts
+	clean-build 
+	clean-pyc
+	clean-test 
+
+build: ## builds source and wheel package
+	clean 
+	python setup.py sdist bdist_wheel
+	ls -l dist
+
+release-test: ## package and upload test release
+	dist 
+	twine upload --repository testpypi dist/*
+
+release: ## package and upload release
+	dist
+	twine upload dist/*
 
 setup-clean:
 	rm -fr build/
@@ -50,14 +61,12 @@ test-clean:
 	rm -rf .tox/
 	rm -rf .pytest_cache/
 
-test:
-	tox -e "pyupgrade,black,mypy,flake8,docstrings"
+code-check:
+	tox -m code-check -p all
+generated-code-check:
+	tox -e auto-code-check,proto3-check,proto4-check 
+	# -p all
 
-test-full:
-	tox
-
-test-short:
-	tox -e "pyupgrade,black,mypy,flake8,docstrings,py36"
 
 format:
 	tox -e format
@@ -69,16 +78,11 @@ proto:
 isort:
 	isort -o wandb -o gql --force-sort-within-sections $(args)
 
-clean-pyc: ## remove Python file artifacts
-	find . -name '*.pyc' -exec rm -f {} +
-	find . -name '*.pyo' -exec rm -f {} +
-	find . -name '*~' -exec rm -f {} +
-	find . -name '__pycache__' -exec rm -fr {} +
-
-clean-test: ## remove test and coverage artifacts
-	rm -fr .tox/
-	rm -f .coverage
-	rm -fr htmlcov/
+coverage: ## check code coverage quickly with the default Python
+	coverage run --source wandb -m pytest
+	coverage report -m
+	coverage html
+	$(BROWSER) htmlcov/index.html
 
 bumpversion-to-dev:
 	tox -e bumpversion-to-dev
