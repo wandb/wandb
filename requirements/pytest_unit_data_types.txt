@@ -1,0 +1,11 @@
+numpy
+matplotlib
+pandas
+plotly
+rdkit
+responses
+bokeh
+soundfile
+moviepy
+imageio
+cloudpickle

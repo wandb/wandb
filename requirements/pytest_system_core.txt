@@ -1,0 +1,6 @@
+# core
+kfp
+pillow
+tensorboard
+tensorflow
+tqdm

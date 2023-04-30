@@ -1,0 +1,7 @@
+-r pytest_base.txt
+-r pytest_system_base.txt
+-r pytest_system_core.txt
+-r pytest_system_artifacts.txt
+-r pytest_system_import.txt
+-r pytest_system_luanch.txt
+-r pytest_system_notebooks.txt

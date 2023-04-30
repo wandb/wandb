@@ -1,0 +1,6 @@
+# notebook
+nbclient
+nbconvert
+nbformat
+ipykernel
+ipython

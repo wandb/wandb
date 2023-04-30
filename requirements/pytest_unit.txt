@@ -1,0 +1,8 @@
+-r pytest_base.txt
+-r pytest_unit_core.txt
+-r pytest_unit_data_types.txt
+-r pytest_unit_integrations.txt
+-r pytest_unit_launch.txt
+-r pytest_unit_metrics.txt
+-r pytest_unit_server.txt
+-r pytest_unit_utilities.txt

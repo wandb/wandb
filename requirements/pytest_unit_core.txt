@@ -1,0 +1,4 @@
+httpx
+responses
+respx
+azure-storage-blob

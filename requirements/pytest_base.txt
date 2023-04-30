@@ -1,0 +1,14 @@
+pytest
+pytest-xdist
+pytest-rerunfailures
+pytest-cov
+pytest-timeout
+
+# pytest-flask
+# pytest-split
+# pytest-mock
+# pytest-openfiles
+# pytest-flakefinder
+# pytest-rerunfailures
+# pyfakefs
+# parameterized
