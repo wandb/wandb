@@ -1,6 +1,6 @@
 import logging
 
-from sentry_sdk.integrations.aws_lambda import get_lambda_bootstrap
+from sentry_sdk.integrations.aws_lambda import get_lambda_bootstrap  # type: ignore
 
 logger = logging.getLogger(__name__)
 
