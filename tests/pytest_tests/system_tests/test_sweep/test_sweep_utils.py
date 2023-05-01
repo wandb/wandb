@@ -56,12 +56,11 @@ def test_load_launch_sweep_config():
 
 
 def test_sweep_construct_scheduler_entrypoint():
-    assert not utils.construct_scheduler_entrypoint({}, "queue", "project", 1)
+    assert utils.construct_scheduler_entrypoint({}, "queue", "project", 1) == []
 
-    entry, args = utils.construct_scheduler_entrypoint(
+    assert utils.construct_scheduler_entrypoint(
         {"job": "job:12315"}, "queue", "project", 1
-    )
-    assert entry + args == [
+    ) == [
         "wandb",
         "scheduler",
         "WANDB_SWEEP_ID",
@@ -75,26 +74,30 @@ def test_sweep_construct_scheduler_entrypoint():
         "job:12315",
     ]
 
-    entry, args = utils.construct_scheduler_entrypoint(
+    assert utils.construct_scheduler_entrypoint(
         {"job": "job"}, "queue", "project", "1", "author"
-    )
-    assert args == [
+    ) == [
+        "wandb",
+        "scheduler",
+        "WANDB_SWEEP_ID",
         "--queue",
         "'queue'",
         "--project",
         "project",
         "--num_workers",
         "1",
-        "--author",
-        "author",
         "--job",
         "job:latest",
+        "--author",
+        "author",
     ]
 
-    entry, args = utils.construct_scheduler_entrypoint(
+    assert utils.construct_scheduler_entrypoint(
         {"image_uri": "image_uri"}, "queue", "project", 1
-    )
-    assert args == [
+    ) == [
+        "wandb",
+        "scheduler",
+        "WANDB_SWEEP_ID",
         "--queue",
         "'queue'",
         "--project",
@@ -105,20 +108,23 @@ def test_sweep_construct_scheduler_entrypoint():
         "image_uri",
     ]
 
-    assert not (
+    assert (
         utils.construct_scheduler_entrypoint(
             {"job": "job", "image_uri": "image_uri"}, "queue", "project", 1
         )
+        == []
     )
 
-    assert not (
+    assert (
         utils.construct_scheduler_entrypoint(
             {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1cpu"
         )
+        == []
     )
 
-    assert not (
+    assert (
         utils.construct_scheduler_entrypoint(
             {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1.5"
         )
+        == []
     )
