@@ -994,14 +994,14 @@ def launch_sweep(
         parsed_sweep_config = parsed_config
 
     num_workers = num_workers or scheduler_args.get("num_workers", 8)
-    entrypoint, args = sweep_utils.construct_scheduler_entrypoint(
+    scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
         num_workers=num_workers,
         author=entity,
     )
-    if not entrypoint:
+    if not scheduler_entrypoint:
         # error already logged
         return
 
@@ -1014,12 +1014,12 @@ def launch_sweep(
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=entrypoint,
+        entry_point=scheduler_entrypoint,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        launch_config={"overrides": {"args": args}},
+        launch_config=None,
         run_id=None,
         author=None,  # author gets passed into scheduler command
     )

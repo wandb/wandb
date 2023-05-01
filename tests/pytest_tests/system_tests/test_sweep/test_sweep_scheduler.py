@@ -624,35 +624,30 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
     queue = "queue"
     project = "test"
 
-    entrypoint, args = construct_scheduler_entrypoint(
+    entrypoint = construct_scheduler_entrypoint(
         sweep_config=sweep_config,
         queue=queue,
         project=project,
         num_workers=1,
-        author="author",
     )
 
-    assert entrypoint == [
+    gold = [
         "wandb",
         "scheduler",
         "WANDB_SWEEP_ID",
-    ]
-    gold_args = [
         "--queue",
         f"{queue!r}",
         "--project",
         project,
         "--num_workers",
         "1",
-        "--author",
-        "author",
     ]
     if sweep_config.get("job"):
-        gold_args += ["--job", "job:latest"]
+        gold += ["--job", "job:latest"]
     else:
-        gold_args += ["--image_uri", "image:latest"]
+        gold += ["--image_uri", "image:latest"]
 
-    assert args == gold_args
+    assert entrypoint == gold
 
 
 @pytest.mark.parametrize(
