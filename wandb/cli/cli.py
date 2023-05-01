@@ -996,7 +996,7 @@ def launch_sweep(
         parsed_sweep_config = parsed_config
 
     num_workers = num_workers or scheduler_args.get("num_workers", 8)
-    scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
+    args = sweep_utils.construct_scheduler_args(
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
@@ -1004,9 +1004,16 @@ def launch_sweep(
         author=entity,
         num_previous_runs=num_previous_runs,
     )
-    if not scheduler_entrypoint:
+    if not args:
         # error already logged
         return
+
+    overrides = {
+        "overrides": {
+            "run_config": {**scheduler_args, **launch_args},
+            "args": args,
+        }
+    }
 
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
@@ -1017,14 +1024,14 @@ def launch_sweep(
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=scheduler_entrypoint,
+        entry_point=["wandb", "scheduler", "WANDB_SWEEP_ID"],
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        launch_config={"overrides": {"run_config": {**scheduler_args, **launch_args}}},
+        launch_config=overrides,
         run_id=None,
-        author=None,  # author gets passed into scheduler command
+        author=None,  # author gets passed into scheduler override args
     )
     launch_scheduler_with_queue = json.dumps(
         {
