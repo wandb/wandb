@@ -50,7 +50,9 @@ class RunState(Enum):
     KILLED = "killed", "dead"
     FINISHED = "finished", "dead"
     PREEMPTED = "preempted", "dead"
-    UNKNOWN = "unknown", "alive"  # TODO(gst): dead?
+    # unknown when api.get_run_state fails or returns unexpected state
+    # assumed alive, unless we get unknown 2x then move to failed (dead)
+    UNKNOWN = "unknown", "alive"
 
     def __new__(cls: Any, *args: List, **kwds: Any) -> "RunState":
         obj: "RunState" = object.__new__(cls)
@@ -414,6 +416,7 @@ class Scheduler(ABC):
             except CommError as e:
                 _logger.debug(f"error getting state for run ({run_id}): {e}")
                 if run.state == RunState.UNKNOWN:
+                    # triggers when we get an unknown state for the second time
                     wandb.termwarn(f"Failed to get runstate for run ({run_id}")
                     run.state = RunState.FAILED
                 else:
