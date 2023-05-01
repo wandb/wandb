@@ -1548,7 +1548,7 @@ workflows:
                 - "sweep"
                 - "artifacts"
           name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>,cover-linux-circle"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
 
       #
