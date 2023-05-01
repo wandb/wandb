@@ -921,12 +921,6 @@ def sweep(
     default=None,
     help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
 )
-@click.option(
-    "--num_workers",
-    "-n",
-    default=1,
-    help="Number of concurrent jobs a scheduler can run",
-)
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
 @display_error
@@ -937,7 +931,6 @@ def launch_sweep(
     queue,
     config,
     resume_id,
-    num_workers,
 ):
     api = _get_cling_api()
     if api.api_key is None:
@@ -993,12 +986,11 @@ def launch_sweep(
     else:
         parsed_sweep_config = parsed_config
 
-    num_workers = num_workers or scheduler_args.get("num_workers", 8)
     scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
-        num_workers=num_workers,
+        num_workers=scheduler_args.get("num_workers", 8),
         author=entity,
     )
     if not scheduler_entrypoint:
