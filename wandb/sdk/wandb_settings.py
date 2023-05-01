@@ -530,6 +530,7 @@ class Settings:
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
+    job_source: str
     label_disable: bool
     launch: bool
     launch_config_path: str
@@ -731,6 +732,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            job_source={"validator": self._validate_job_source},
             label_disable={"preprocessor": _str_as_bool},
             launch={"preprocessor": _str_as_bool},
             log_dir={
@@ -1111,6 +1113,15 @@ class Settings:
                     repeat=False,
                 )
 
+        return True
+
+    @staticmethod
+    def _validate_job_source(value: str) -> bool:
+        valid_sources = ["repo", "artifact", "image"]
+        if value not in valid_sources:
+            raise UsageError(
+                f"Settings field `job_source`: {value!r} not in {valid_sources}"
+            )
         return True
 
     # other helper methods
