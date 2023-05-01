@@ -25,6 +25,7 @@ from wandb.sdk.launch.sweeps.utils import (
     make_launch_sweep_entrypoint,
 )
 from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.wandb_run import Run as SdkRun
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
@@ -117,10 +118,13 @@ class Scheduler(ABC):
         # launch agent is the one that actually runs the training workloads.
         self._workers: Dict[int, _Worker] = {}
         self._num_workers = num_workers
-        self._num_runs_launched = 0
+        self._num_runs_launched = kwargs.get('num_runs_launched', 0)
 
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
+
+        # Init wandb scheduler run
+        self._wandb_run = self._init_wandb_run()
 
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
@@ -199,6 +203,21 @@ class Scheduler(ABC):
         return {
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
+
+    def _init_wandb_run(self) -> SdkRun:
+        """Controls resume or init logic for a scheduler wandb run."""
+        if self._kwargs.get("run_id"):  # resume
+            resumed_run: SdkRun = wandb.init(resume=self._kwargs["run_id"])
+            return resumed_run
+
+        _type = self._kwargs.get("sweep_type")
+
+        run: SdkRun = wandb.init(
+            name=f"{_type}-scheduler-{self._sweep_id}",
+            job_type="sweep-scheduler",
+            resume="allow",
+        )
+        return run
 
     def stop_sweep(self) -> None:
         """Stop the sweep."""
@@ -290,6 +309,7 @@ class Scheduler(ABC):
         ]:
             self.state = SchedulerState.FAILED
         self._stop_runs()
+        self._wandb_run.finish()
 
     def _try_load_executable(self) -> bool:
         """Check existance of valid executable for a run.
