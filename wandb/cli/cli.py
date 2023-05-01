@@ -986,6 +986,17 @@ def launch_sweep(
     else:
         parsed_sweep_config = parsed_config
 
+    # validate job existence, add :latest alias if not specified
+    if "job" in parsed_sweep_config:
+        if ":" not in parsed_sweep_config["job"]:
+            wandb.termwarn("No alias specified for job, defaulting to 'latest'")
+            parsed_sweep_config["job"] = f"{parsed_sweep_config['job']}:latest"
+        try:
+            api.artifact(parsed_sweep_config["job"], type="job")
+        except Exception:
+            wandb.termerror(traceback.format_exc())
+            return False
+
     scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
         sweep_config=parsed_sweep_config,
         queue=queue,
