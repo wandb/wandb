@@ -565,6 +565,12 @@ jobs:
         type: string
       tox_args:
         type: string
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
