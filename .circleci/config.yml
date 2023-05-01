@@ -370,6 +370,9 @@ jobs:
       python_version_minor:
         type: integer
         default: 8
+      shard:
+        type: string
+        default: "core"
       toxenv:
         type: string
       notify_on_failure:
