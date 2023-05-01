@@ -125,6 +125,7 @@ def construct_scheduler_entrypoint(
     num_workers: Union[str, int],
     author: Optional[str] = None,
     num_previous_runs: Optional[int] = None,
+    sweep_type: Optional[str] = "sweep",
 ) -> Optional[List[str]]:
     """Construct a sweep scheduler run spec.
 
@@ -162,6 +163,8 @@ def construct_scheduler_entrypoint(
         project,
         "--num_workers",
         f"{num_workers}",
+        "--sweep_type",
+        f"{sweep_type}",
     ]
 
     if job:
