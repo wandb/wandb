@@ -296,8 +296,10 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler completed")
-            self.state = SchedulerState.STOPPED
+            wandb.termlog(f"{LOG_PREFIX}Scheduler completed successfully")
+            # don't overwrite special states (e.g. STOPPED, FAILED)
+            if self.state in [SchedulerState.RUNNING, SchedulerState.FLUSH_RUNS]:
+                self.state = SchedulerState.COMPLETED
             self.exit()
 
     def exit(self) -> None:

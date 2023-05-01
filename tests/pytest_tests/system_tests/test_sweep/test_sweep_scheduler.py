@@ -859,7 +859,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
             [
                 {
                     "type": "run",
-                    "run_id": f"mock-run-id-1",
+                    "run_id": "mock-run-id-1",
                     "args": {"foo_arg": {"value": 1}},
                     "program": "train.py",
                 }
@@ -887,7 +887,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
 
     _scheduler.start()
 
-    assert _scheduler.state == SchedulerState.STOPPED
+    assert _scheduler.state == SchedulerState.COMPLETED
     assert _scheduler._wandb_run.state == "finished"
     assert _scheduler.num_active_runs == 0
     assert _scheduler._num_runs_launched == 5
