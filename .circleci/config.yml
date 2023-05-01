@@ -318,7 +318,7 @@ jobs:
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     environment:
-      SHARD: ${{ parameters.shard }}
+      SHARD: << parameters.shard >>
     parallelism: << parameters.parallelism >>
     resource_class: xlarge
     working_directory: /mnt/ramdisk
