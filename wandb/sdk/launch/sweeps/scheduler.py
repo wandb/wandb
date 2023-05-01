@@ -172,7 +172,6 @@ class Scheduler(ABC):
     @property
     def at_runcap(self) -> bool:
         """False if under user-specified cap on # of runs."""
-        # TODO(gst): Count previous runs for resumed sweeps
         run_cap = self._sweep_config.get("run_cap")
         if not run_cap:
             return False
@@ -298,6 +297,7 @@ class Scheduler(ABC):
             raise e
         else:
             wandb.termlog(f"{LOG_PREFIX}Scheduler completed")
+            self.state = SchedulerState.STOPPED
             self.exit()
 
     def exit(self) -> None:

@@ -987,6 +987,7 @@ def launch_sweep(
             wandb.termwarn(
                 "Sweep params loaded from resumed sweep, ignoring provided keys"
             )
+            # Look up number of previous runs in the sweep for run_cap handling
             previous_runs: Runs = api.runs(
                 path=f"{entity}/{project}/{resume_id}", per_page=1
             )
