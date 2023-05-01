@@ -1540,8 +1540,8 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7]
-          name: "launch-mock-server"
+              python_version_minor: [9]
+          name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           tox_args: "tests/pytest_tests/unit_tests_old/tests_launch/"
 

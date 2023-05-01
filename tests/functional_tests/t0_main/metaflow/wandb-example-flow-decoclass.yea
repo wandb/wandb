@@ -4,6 +4,7 @@ plugin:
 depend:
   requirements:
     - "metaflow>=2.3.5"
+    - scikit-learn
 tag:
   shard: metaflow
   skips:
