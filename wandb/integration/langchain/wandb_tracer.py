@@ -26,9 +26,10 @@ else:
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
 
+from packaging import version
+
 import wandb
 import wandb.util
-from packaging import version
 from wandb.sdk.data_types import trace_tree
 from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.paths import StrPath
