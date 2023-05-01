@@ -25,13 +25,13 @@ from click.exceptions import ClickException
 from dockerpycreds.utils import find_executable
 
 import wandb
-from wandb.apis.public import Runs
 import wandb.env
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public import Runs
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import SCHEDULER_URI

@@ -118,7 +118,7 @@ class Scheduler(ABC):
         # launch agent is the one that actually runs the training workloads.
         self._workers: Dict[int, _Worker] = {}
         self._num_workers = num_workers
-        self._num_runs_launched = kwargs.get("num_runs_launched", 0)
+        self._num_runs_launched: int = kwargs.get("num_runs_launched", 0)
 
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs

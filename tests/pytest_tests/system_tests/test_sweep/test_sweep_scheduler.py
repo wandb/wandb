@@ -3,7 +3,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 import wandb
-import random
 from wandb.apis import internal, public
 from wandb.errors import CommError
 from wandb.sdk.launch.sweeps import SchedulerError, load_scheduler
@@ -761,7 +760,7 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
 
 
 def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
-    """Test scheduler wandb_run state management"""
+    """Test scheduler wandb_run state management."""
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
