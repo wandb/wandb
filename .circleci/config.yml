@@ -1528,7 +1528,7 @@ workflows:
       - launch:
           requires:
             - "unit-tests-mock-server"
-           matrix:
+          matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [7]
