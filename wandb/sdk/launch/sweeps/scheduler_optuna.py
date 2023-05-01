@@ -483,7 +483,7 @@ class OptunaScheduler(Scheduler):
                     param, extras["min"], extras["max"], log=log
                 )
             else:
-                logger.debug(f"Unknown parameter type: {param=}, {extras=}")
+                logger.debug(f"Unknown parameter type: param={param}, val={extras}")
         return config, trial
 
     def _make_trial_from_objective(self) -> Tuple[Dict[str, Any], optuna.Trial]:
