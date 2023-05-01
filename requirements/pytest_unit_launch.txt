@@ -1,5 +1,0 @@
-boto3
-google-cloud-compute
-google-cloud-storage
-google-cloud-artifact-registry
-pytest-mock
