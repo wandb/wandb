@@ -413,7 +413,11 @@ class Scheduler(ABC):
                 run.state = RunState(state)
             except CommError as e:
                 _logger.debug(f"error getting state for run ({run_id}): {e}")
-                run.state = RunState.UNKNOWN
+                if run.state == RunState.UNKNOWN:
+                    wandb.termwarn(f"Failed to get runstate for run ({run_id}")
+                    run.state = RunState.FAILED
+                else:
+                    run.state = RunState.UNKNOWN
             except (AttributeError, ValueError) as e:
                 _logger.debug(f"bad state ({state}) for run ({run_id}): {e}")
                 run.state = RunState.UNKNOWN
@@ -471,6 +475,7 @@ class Scheduler(ABC):
             author=self._kwargs.get("author"),
         )
         run.queued_run = queued_run
+        # TODO(gst): unify run and queued_run state
         run.state = RunState.RUNNING  # assume it will get picked up
         self._runs[run_id] = run
 
