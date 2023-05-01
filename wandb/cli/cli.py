@@ -25,6 +25,7 @@ from click.exceptions import ClickException
 from dockerpycreds.utils import find_executable
 
 import wandb
+from wandb.apis.public import Runs
 import wandb.env
 
 # from wandb.old.core import wandb_dir
@@ -951,13 +952,9 @@ def launch_sweep(
         return
 
     parsed_config = sweep_utils.load_launch_sweep_config(config)
-    # Rip special keys out of config
-    scheduler_args: Dict[str, Any] = parsed_config.get("scheduler", {})
-    launch_args: Dict[str, Any] = parsed_config.get("launch", {})
-    if scheduler_args:
-        del parsed_config["scheduler"]
-    if launch_args:
-        del parsed_config["launch"]
+    # Rip special keys out of config, store in scheduler run_config
+    scheduler_args: Dict[str, Any] = parsed_config.pop("scheduler", {})
+    launch_args: Dict[str, Any] = parsed_config.pop("launch", {})
 
     queue = queue or launch_args.get("queue")
     if not queue:
@@ -977,7 +974,7 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
-    parsed_sweep_config, sweep_obj_id = None, None
+    parsed_sweep_config, sweep_obj_id, num_previous_runs = None, None, None
     if resume_id:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
         if not found:
@@ -990,6 +987,10 @@ def launch_sweep(
             wandb.termwarn(
                 "Sweep params loaded from resumed sweep, ignoring provided keys"
             )
+            previous_runs: Runs = api.runs(
+                path=f"{entity}/{project}/{resume_id}", per_page=1
+            )
+            num_previous_runs = previous_runs.length
     else:
         parsed_sweep_config = parsed_config
 
@@ -1000,6 +1001,7 @@ def launch_sweep(
         project=project,
         num_workers=num_workers,
         author=entity,
+        num_previous_runs=num_previous_runs,
     )
     if not scheduler_entrypoint:
         # error already logged
@@ -1019,7 +1021,7 @@ def launch_sweep(
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        launch_config=None,
+        launch_config={"overrides": {"run_config": {**scheduler_args, **launch_args}}},
         run_id=None,
         author=None,  # author gets passed into scheduler command
     )
