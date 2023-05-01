@@ -55,27 +55,24 @@ def test_load_launch_sweep_config():
         utils.load_launch_sweep_config("s1.yaml")
 
 
-def test_sweep_construct_scheduler_entrypoint():
-    assert not utils.construct_scheduler_entrypoint({}, "queue", "project", 1)
+def test_sweep_construct_scheduler_args():
+    assert not utils.construct_scheduler_args({}, "queue", "project", 1)
 
-    entry, args = utils.construct_scheduler_entrypoint(
-        {"job": "job:12315"}, "queue", "project", 1
-    )
-    assert entry + args == [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    args = utils.construct_scheduler_args({"job": "job:12315"}, "queue", "project", 1)
+    assert args == [
         "--queue",
         "'queue'",
         "--project",
         "project",
         "--num_workers",
         "1",
+        "--sweep_type",
+        "sweep",
         "--job",
         "job:12315",
     ]
 
-    entry, args = utils.construct_scheduler_entrypoint(
+    args = utils.construct_scheduler_args(
         {"job": "job"}, "queue", "project", "1", "author"
     )
     assert args == [
@@ -85,13 +82,15 @@ def test_sweep_construct_scheduler_entrypoint():
         "project",
         "--num_workers",
         "1",
+        "--sweep_type",
+        "sweep",
         "--author",
         "author",
         "--job",
         "job:latest",
     ]
 
-    entry, args = utils.construct_scheduler_entrypoint(
+    args = utils.construct_scheduler_args(
         {"image_uri": "image_uri"}, "queue", "project", 1
     )
     assert args == [
@@ -101,24 +100,52 @@ def test_sweep_construct_scheduler_entrypoint():
         "project",
         "--num_workers",
         "1",
+        "--sweep_type",
+        "sweep",
         "--image_uri",
         "image_uri",
     ]
 
+    args = utils.construct_scheduler_args(
+        sweep_config={"job": "job:12315"},
+        queue="queue",
+        project="project",
+        num_workers=1,
+        author="author",
+        num_previous_runs=1,
+        sweep_type="sweep",
+    )
+    assert args == [
+        "--queue",
+        "'queue'",
+        "--project",
+        "project",
+        "--num_workers",
+        "1",
+        "--sweep_type",
+        "sweep",
+        "--author",
+        "author",
+        "--num_previous_runs",
+        "1",
+        "--job",
+        "job:12315",
+    ]
+
     assert not (
-        utils.construct_scheduler_entrypoint(
+        utils.construct_scheduler_args(
             {"job": "job", "image_uri": "image_uri"}, "queue", "project", 1
         )
     )
 
     assert not (
-        utils.construct_scheduler_entrypoint(
+        utils.construct_scheduler_args(
             {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1cpu"
         )
     )
 
     assert not (
-        utils.construct_scheduler_entrypoint(
+        utils.construct_scheduler_args(
             {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1.5"
         )
     )

@@ -13,7 +13,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SweepRun,
 )
 from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
-from wandb.sdk.launch.sweeps.utils import construct_scheduler_entrypoint
+from wandb.sdk.launch.sweeps.utils import construct_scheduler_args
 
 from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
 
@@ -685,7 +685,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
     queue = "queue"
     project = "test"
 
-    entrypoint, args = construct_scheduler_entrypoint(
+    args = construct_scheduler_args(
         sweep_config=sweep_config,
         queue=queue,
         project=project,
@@ -693,11 +693,6 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         author="author",
     )
 
-    assert entrypoint == [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
-    ]
     gold_args = [
         "--queue",
         f"{queue!r}",
@@ -705,6 +700,8 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         project,
         "--num_workers",
         "1",
+        "--sweep_type",
+        "sweep",
         "--author",
         "author",
     ]

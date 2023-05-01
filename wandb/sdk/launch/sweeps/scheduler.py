@@ -106,6 +106,9 @@ class Scheduler(ABC):
                 f"{LOG_PREFIX}Exception when finding sweep ({sweep_id}) {e}"
             )
 
+        # Scheduler may receive additional kwargs which will be piped into the launch command
+        self._kwargs: Dict[str, Any] = kwargs
+
         # Dictionary of the runs being managed by the scheduler
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
@@ -118,10 +121,7 @@ class Scheduler(ABC):
         # launch agent is the one that actually runs the training workloads.
         self._workers: Dict[int, _Worker] = {}
         self._num_workers = num_workers
-        self._num_runs_launched: int = kwargs.get("num_runs_launched", 0)
-
-        # Scheduler may receive additional kwargs which will be piped into the launch command
-        self._kwargs: Dict[str, Any] = kwargs
+        self._num_runs_launched = self._kwargs.get("num_runs_launched", 0)
 
         # Init wandb scheduler run
         self._wandb_run = self._init_wandb_run()
