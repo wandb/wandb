@@ -507,14 +507,14 @@ class Artifact(ArtifactInterface):
 
         return manifest_entries
 
-    def add_artifact_reference(self, art: "Artifact"):
+    def add_artifact_reference(self, art: "Artifact") -> None:
         # Add the entire artifact as a reference
         for name in art.manifest.entries:
             ref = art.get_path(name)
             namespaced_fname = f"{art.name}/{name}"
             self.add_reference(ref, namespaced_fname)
 
-    def add_artifact_references(self, *arts: "Iterable[Artifact]"):
+    def add_artifact_references(self, *arts: "Iterable[Artifact]") -> None:
         for art in arts:
             self.add_artifact_reference(art)
 
