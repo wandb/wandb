@@ -1,10 +1,10 @@
 """Implementation of AzureEnvironment class."""
 
-from .abstract import AbstractEnvironment
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobClient
 
 from ..utils import LaunchError
+from .abstract import AbstractEnvironment
 
 
 class AzureEnvironment(AbstractEnvironment):
@@ -14,6 +14,7 @@ class AzureEnvironment(AbstractEnvironment):
         self,
         storage_account: str,
         storage_container: str,
+        verify: bool = True,
     ):
         """Initialize an AzureEnvironment."""
         credentials = AzureEnvironment.get_credentials()
@@ -32,24 +33,34 @@ class AzureEnvironment(AbstractEnvironment):
         storage_container = config.get("storage_container")
         if storage_container is None:
             raise LaunchError(
-                "Please specify a storage container to use under the environment.storage_container key."
+                "Please specify a storage container to use under the "
+                "environment.storage_container key."
             )
         return cls(
             storage_account=storage_account,
             storage_container=storage_container,
+            verify=True,
         )
 
     @classmethod
     def get_credentials(cls):
         """Get Azure credentials."""
-        credentials = DefaultAzureCredential()
-        return credentials.get_token("https://storage.azure.com/.com")
+        return DefaultAzureCredential()
 
     def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to Azure blob storage."""
+        creds = self.get_credentials()
+        client = BlobClient(
+            f"https://{self.storage_account}.blob.core.windows.net",
+            self.storage_container,
+            destination,
+            credential=creds,
+        )
+        client.upload_blob(source)
 
     def upload_dir(self, source: str, destination: str) -> None:
-        pass
+        """Upload a directory to Azure blob storage."""
+        raise NotImplementedError()
 
     def verify_storage_uri(self, uri: str) -> None:
         pass
