@@ -14,6 +14,7 @@ from typing import (
     Any,
     Dict,
     Generator,
+    Iterable,
     List,
     Mapping,
     Optional,
@@ -505,6 +506,17 @@ class Artifact(ArtifactInterface):
             self._manifest.add_entry(entry)
 
         return manifest_entries
+
+    def add_artifact_reference(self, art: "Artifact"):
+        # Add the entire artifact as a reference
+        for name in art.manifest.entries:
+            ref = art.get_path(name)
+            namespaced_fname = f"{art.name}/{name}"
+            self.add_reference(ref, namespaced_fname)
+
+    def add_artifact_references(self, *arts: "Iterable[Artifact]"):
+        for art in arts:
+            self.add_artifact_reference(art)
 
     def add(self, obj: data_types.WBValue, name: str) -> ArtifactManifestEntry:
         self._ensure_can_add()
