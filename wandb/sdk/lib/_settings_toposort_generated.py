@@ -12,6 +12,7 @@ else:
 
 _Setting = Literal[
     "_args",
+    "_aws_lambda",
     "_async_upload_concurrency_limit",
     "_cli_only_mode",
     "_colab",
@@ -169,6 +170,7 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "project",
     "run_id",
     "start_method",
+    "_aws_lambda",
     "_colab",
     "_console",
     "_ipython",

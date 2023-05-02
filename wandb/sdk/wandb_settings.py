@@ -37,6 +37,7 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.wandb_config import Config
@@ -449,6 +450,7 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _aws_lambda: bool
     _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
@@ -600,6 +602,10 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
+            _aws_lambda={
+                "hook": lambda _: is_aws_lambda(),
+                "auto_hook": True,
+            },
             _async_upload_concurrency_limit={
                 "preprocessor": int,
                 "validator": self._validate__async_upload_concurrency_limit,
