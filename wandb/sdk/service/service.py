@@ -2,9 +2,8 @@
 
 Backend server process can be connected to using tcp sockets or grpc transport.
 """
-import datetime
+
 import os
-import pathlib
 import platform
 import shutil
 import subprocess
@@ -15,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry
 from wandb.errors import Error
-from wandb.util import get_module, sentry_reraise, sentry_set_scope
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -183,41 +181,6 @@ class _Service:
                 service_args.append("--serve-grpc")
             else:
                 service_args.append("--serve-sock")
-
-            if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
-                # enable memory profiling with memray
-                import wandb
-
-                _ = get_module(
-                    "memray",
-                    required=(
-                        "wandb service memory profiling requires memray, "
-                        "install with `pip install memray`"
-                    ),
-                )
-                time_tag = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-                output_file = f"wandb_service.memray.{time_tag}.bin"
-                cli_executable = (
-                    pathlib.Path(__file__).parent.parent.parent.parent
-                    / "tools"
-                    / "cli.py"
-                )
-                exec_cmd_list = [
-                    executable,
-                    "-m",
-                    "memray",
-                    "run",
-                    "-o",
-                    output_file,
-                ]
-                service_args[0] = str(cli_executable)
-                wandb.termlog(
-                    f"wandb service memory profiling enabled, output file: {output_file}"
-                )
-                wandb.termlog(
-                    f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
-                )
-
             internal_proc = subprocess.Popen(
                 exec_cmd_list + service_args,
                 env=os.environ,
