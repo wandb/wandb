@@ -157,6 +157,9 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+        auth = None
+        if _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
         self.client = Client(
             transport=RequestsHTTPTransport(
                 headers={
@@ -169,7 +172,7 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key or ""),
+                auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
                 cookies=_thread_local_api_settings.cookies,
             )
@@ -1865,9 +1868,12 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
+        auth = None
+        if _thread_local_api_settings.cookies is None:
+            auth = ("user", self.api_key)
         response = requests.get(
             url,
-            auth=("user", self.api_key),
+            auth=auth,
             cookies=_thread_local_api_settings.cookies or {},
             headers=_thread_local_api_settings.headers or {},
             stream=True,

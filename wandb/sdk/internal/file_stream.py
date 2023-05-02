@@ -333,14 +333,10 @@ class FileStreamApi:
         self._client = requests.Session()
         # todo: actually use the timeout once more thorough error injection in testing covers it
         # self._client.post = functools.partial(self._client.post, timeout=self.HTTP_TIMEOUT)
-        self._client.auth = ("api", api.api_key or "")
-        self._client.headers.update(
-            {
-                "User-Agent": api.user_agent,
-                "X-WANDB-USERNAME": env.get_username() or "",
-                "X-WANDB-USER-EMAIL": env.get_user_email() or "",
-            }
-        )
+        self._client.auth = api.client.transport.auth
+        self._client.headers.update(api.client.transport.headers or {})
+        self._client.cookies.update(api.client.transport.cookies or {})
+
         self._file_policies: Dict[str, "DefaultFilePolicy"] = {}
         self._dropped_chunks: int = 0
         self._queue: queue.Queue = queue.Queue()

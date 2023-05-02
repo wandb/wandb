@@ -1364,9 +1364,12 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
+    auth = None
+    if not _thread_local_api_settings.cookies:
+        auth = ("api", api_key or "")
     response = requests.get(
         source_url,
-        auth=("api", api_key),
+        auth=auth,
         stream=True,
         timeout=5,
         headers=(_thread_local_api_settings.headers or {}),
