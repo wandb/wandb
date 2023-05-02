@@ -45,17 +45,13 @@ def mocked_ipython():
         print("Running cell: ", cell)
         exec(cell)
 
-    with patch(
-        'wandb.sdk.lib.ipython._get_python_type'
-    ) as ipython_get_type, patch(
-        'wandb.sdk.wandb_settings._get_python_type'
+    with patch("wandb.sdk.lib.ipython._get_python_type") as ipython_get_type, patch(
+        "wandb.sdk.wandb_settings._get_python_type"
     ) as settings_get_type:
         ipython_get_type.return_value = "jupyter"
         settings_get_type.return_value = "jupyter"
         html_mock = MagicMock()
-        with patch(
-            'wandb.sdk.lib.ipython.display_html', html_mock
-        ):
+        with patch("wandb.sdk.lib.ipython.display_html", html_mock):
             ipython = MagicMock()
             ipython.html = html_mock
             ipython.run_cell = run_cell

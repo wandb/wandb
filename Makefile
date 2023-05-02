@@ -12,10 +12,19 @@ endef
 export BROWSER_PYSCRIPT
 BROWSER := python -c "$$BROWSER_PYSCRIPT"
 
-
-clean-build: ## remove build artifacts
+setup-clean:
 	rm -fr build/
 	rm -fr dist/
+
+test-clean:
+	setup-clean
+	find . -name '*.pyc' -delete
+	find . -name '__pycache__' -delete
+	rm -rf .tox/
+	rm -rf .pytest_cache/
+
+clean-build: ## remove build artifacts
+	setup-clean
 	rm -fr .eggs/
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
@@ -49,27 +58,17 @@ release: ## package and upload release
 	dist
 	twine upload dist/*
 
-setup-clean:
-	rm -fr build/
-	rm -fr dist/
+bumpversion-to-dev:
+	tox -e bumpversion -- --to-dev
 
-test-clean:
-	rm -fr build/
-	rm -fr dist/
-	find . -name '*.pyc' -delete
-	find . -name '__pycache__' -delete
-	rm -rf .tox/
-	rm -rf .pytest_cache/
+bumpversion-from-dev:
+	tox -e bumpversion -- --from-dev
 
 code-check:
-	tox -m code-check -p all
-generated-code-check:
-	tox -e auto-code-check,proto3-check,proto4-check 
-	# -p all
-
+	tox -e isort-check,ruff-check,pyupgrade-check,black-check,mypy,flake8-base,flake8-docstrings -p all
 
 format:
-	tox -e format
+	tox -e black
 
 proto:
 	tox -e proto3
@@ -83,9 +82,3 @@ coverage: ## check code coverage quickly with the default Python
 	coverage report -m
 	coverage html
 	$(BROWSER) htmlcov/index.html
-
-bumpversion-to-dev:
-	tox -e bumpversion-to-dev
-
-bumpversion-from-dev:
-	tox -e bumpversion-from-dev
