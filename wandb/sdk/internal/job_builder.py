@@ -37,6 +37,7 @@ class GitSourceDict(TypedDict):
 class ArtifactSourceDict(TypedDict):
     artifact: str
     entrypoint: List[str]
+    notebook: Optional[bool]
 
 
 class ImageSourceDict(TypedDict):
@@ -106,6 +107,19 @@ class JobBuilder:
                 }
             )
 
+    def _build_notebook_job(self):
+        assert isinstance(self._logged_code_artifact, dict)
+        source: ArtifactSourceDict = {
+            "entrypoint": [
+                os.path.basename(sys.executable)
+            ],
+            "notebook": True,
+            "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
+        }
+        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+        artifact = JobArtifact(name)
+        return artifact, source
+
     def _build_repo_job(
         self, metadata: Dict[str, Any], program_relpath: str
     ) -> Tuple[Artifact, GitSourceDict]:
@@ -146,6 +160,7 @@ class JobBuilder:
                 os.path.basename(sys.executable),
                 program_relpath,
             ],
+            "notebook": False,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
         name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
@@ -187,7 +202,10 @@ class JobBuilder:
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
 
-        if self._has_git_job_ingredients(metadata, program_relpath):
+        if self._settings._jupyter and self._logged_code_artifact is not None:
+            artifact, source = self._build_notebook_job()
+            source_type = "artifact"
+        elif self._has_git_job_ingredients(metadata, program_relpath):
             assert program_relpath is not None
             artifact, source = self._build_repo_job(metadata, program_relpath)
             source_type = "repo"
