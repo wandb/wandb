@@ -571,7 +571,8 @@ class _WandbInit:
                 logger.info(
                     f"re-initializing run, found existing run on stack: {latest_run._run_id}"
                 )
-                jupyter = self.settings._jupyter and ipython.in_jupyter()
+
+                jupyter = self.settings._jupyter
                 if jupyter and not self.settings.silent:
                     ipython.display_html(
                         f"Finishing last run (ID:{latest_run._run_id}) before initializing another..."
@@ -623,6 +624,10 @@ class _WandbInit:
                 tel.huggingface_version = hf_version
             if self.settings._jupyter:
                 tel.env.jupyter = True
+            if self.settings._ipython:
+                tel.env.ipython = True
+            if self.settings._colab:
+                tel.env.colab = True
             if self.settings._kaggle:
                 tel.env.kaggle = True
             if self.settings._windows:
@@ -657,6 +662,9 @@ class _WandbInit:
 
             if os.environ.get("PEX"):
                 tel.env.pex = True
+
+            if self.settings._aws_lambda:
+                tel.env.aws_lambda = True
 
             if os.environ.get(wandb.env._DISABLE_SERVICE):
                 tel.feature.service_disabled = True
