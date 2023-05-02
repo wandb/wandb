@@ -107,12 +107,10 @@ class JobBuilder:
                 }
             )
 
-    def _build_notebook_job(self):
+    def _build_notebook_job(self) -> Tuple[Artifact, ArtifactSourceDict]:
         assert isinstance(self._logged_code_artifact, dict)
         source: ArtifactSourceDict = {
-            "entrypoint": [
-                os.path.basename(sys.executable)
-            ],
+            "entrypoint": [os.path.basename(sys.executable)],
             "notebook": True,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }

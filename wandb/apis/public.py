@@ -56,7 +56,7 @@ from wandb.sdk.launch.utils import (
     LaunchError,
     _fetch_git_repo,
     apply_patch,
-    convert_jupyter_notebook_to_script
+    convert_jupyter_notebook_to_script,
 )
 from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
@@ -5526,7 +5526,9 @@ class Job:
 
         is_notebook = self._source_info.get("source", {}).get("notebook")
         if is_notebook:
-            new_fname = convert_jupyter_notebook_to_script("_session_history.ipynb", launch_project.project_dir)
+            new_fname = convert_jupyter_notebook_to_script(
+                "_session_history.ipynb", launch_project.project_dir
+            )
             self._entrypoint.append(new_fname)
             launch_project.add_entry_point(self._entrypoint)
         else:
