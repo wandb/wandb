@@ -19,7 +19,6 @@ gcp_requirements = ["google-cloud-storage"]
 aws_requirements = ["boto3"]
 azure_requirements = ["azure-identity", "azure-storage-blob"]
 grpc_requirements = ["grpcio>=1.27.2"]
-service_requirements = []
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = [
     "numpy",
@@ -100,7 +99,6 @@ setup(
         "gcp": gcp_requirements,
         "aws": aws_requirements,
         "azure": azure_requirements,
-        "service": service_requirements,
         "grpc": grpc_requirements,
         "media": media_requirements,
         "sweeps": sweeps_requirements,
