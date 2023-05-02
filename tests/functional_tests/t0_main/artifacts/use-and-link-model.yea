@@ -3,7 +3,7 @@ plugin:
   - wandb
 depend:
   requirements:
-    - wandb[models]
+    - cloudpickle
     - torch
 assert:
   - :wandb:runs_len: 1
