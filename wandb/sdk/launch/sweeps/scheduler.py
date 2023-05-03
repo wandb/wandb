@@ -417,12 +417,16 @@ class Scheduler(ABC):
                 _logger.debug(f"error getting state for run ({run_id}): {e}")
                 if run.state == RunState.UNKNOWN:
                     # triggers when we get an unknown state for the second time
-                    wandb.termwarn(f"Failed to get runstate for run ({run_id}")
+                    wandb.termwarn(
+                        f"Failed to get runstate for run ({run_id}). Error: {traceback.format_exc()}"
+                    )
                     run.state = RunState.FAILED
-                else:
+                else:  # first time we get unknwon state
                     run.state = RunState.UNKNOWN
-            except (AttributeError, ValueError) as e:
-                _logger.debug(f"bad state ({state}) for run ({run_id}): {e}")
+            except (AttributeError, ValueError):
+                wandb.termwarn(
+                    f"Bad state ({state}) for run ({run_id}). Error: {traceback.format_exc()}"
+                )
                 run.state = RunState.UNKNOWN
 
             rqi_state = run.queued_run.state if run.queued_run else None
