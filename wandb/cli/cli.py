@@ -997,14 +997,14 @@ def launch_sweep(
             wandb.termerror(traceback.format_exc())
             return False
 
-    scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
+    entrypoint, args = sweep_utils.construct_scheduler_entrypoint(
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
         num_workers=scheduler_args.get("num_workers", 8),
         author=entity,
     )
-    if not scheduler_entrypoint:
+    if not entrypoint:
         # error already logged
         return
 
@@ -1017,12 +1017,12 @@ def launch_sweep(
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=scheduler_entrypoint,
+        entry_point=entrypoint,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        launch_config=None,
+        launch_config={"overrides": {"args": args}},
         run_id=None,
         author=None,  # author gets passed into scheduler command
     )

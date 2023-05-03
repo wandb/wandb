@@ -124,10 +124,10 @@ def construct_scheduler_entrypoint(
     project: str,
     num_workers: Union[str, int],
     author: Optional[str] = None,
-) -> Optional[List[str]]:
-    """Construct a sweep scheduler run spec.
+) -> Optional[Tuple[List[str], List[str]]]:
+    """Construct a sweep scheduler entrypoing and args.
 
-    logs error and returns None if misconfigured, otherwise returns entrypoint
+    logs error and returns None if misconfigured, otherwise returns entrypoint and args
     """
     job = sweep_config.get("job")
     image_uri = sweep_config.get("image_uri")
@@ -135,12 +135,12 @@ def construct_scheduler_entrypoint(
         wandb.termerror(
             "No 'job' nor 'image_uri' top-level key found in sweep config, exactly one is required for a launch-sweep"
         )
-        return []
+        return None
     elif job and image_uri:
         wandb.termerror(
             "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
         )
-        return []
+        return None
 
     if type(num_workers) is str:
         if num_workers.isdigit():
@@ -149,12 +149,10 @@ def construct_scheduler_entrypoint(
             wandb.termerror(
                 "'num_workers' must be an integer or a string that can be parsed as an integer"
             )
-            return []
+            return None
 
-    entrypoint = [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    entrypoint = ["wandb", "scheduler", "WANDB_SWEEP_ID"]
+    args = [
         "--queue",
         f"{queue!r}",
         "--project",
@@ -163,15 +161,15 @@ def construct_scheduler_entrypoint(
         f"{num_workers}",
     ]
 
-    if job:
-        entrypoint += ["--job", job]
-    elif image_uri:
-        entrypoint += ["--image_uri", image_uri]
-
     if author:
-        entrypoint += ["--author", author]
+        args += ["--author", author]
 
-    return entrypoint
+    if job:
+        args += ["--job", job]
+    elif image_uri:
+        args += ["--image_uri", image_uri]
+
+    return entrypoint, args
 
 
 def create_sweep_command(command: Optional[List] = None) -> List:
