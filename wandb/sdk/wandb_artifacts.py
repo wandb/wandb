@@ -1530,9 +1530,7 @@ class S3Handler(StorageHandler):
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = PurePosixPath(obj.key)  # the bucket key
-        posix_path = PurePosixPath(bucket) / PurePosixPath(
-            key
-        )  # the path, with the scheme stripped
+        posix_path = PurePosixPath(bucket) / key  # the path, with the scheme stripped
         posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
         posix_name = PurePosixPath(name or "")
         posix_ref = posix_path
@@ -1911,7 +1909,7 @@ class AzureHandler(StorageHandler):
             entries.append(
                 self._create_entry(
                     blob_properties,
-                    path=name / suffix if name else suffix,
+                    path=LogicalPath(name) / suffix if name else suffix,
                     ref=URIStr(
                         f"{account_url}/{container_name}/{blob_properties.name}"
                     ),
