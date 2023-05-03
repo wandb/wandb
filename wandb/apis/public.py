@@ -5514,7 +5514,7 @@ class Job:
                 raise LaunchError(f"Job {self.name} notebook info missing source artifact")
             code_artifact = self._get_code_artifact(artifact_string)
             code_artifact.download(launch_project.project_dir)
-        
+
         new_fname = convert_jupyter_notebook_to_script("_session_history.ipynb", launch_project.project_dir)
         executable = notebook_info.get("executable")
         self._entrypoint = [executable, new_fname]
@@ -5536,7 +5536,7 @@ class Job:
         if is_notebook:
             self._configure_launch_project_notebook(launch_project)
         else:
-            launch_project.add_entry_point(self._entrypoint)        
+            launch_project.add_entry_point(self._entrypoint)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
