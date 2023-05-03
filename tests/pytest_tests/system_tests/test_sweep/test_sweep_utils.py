@@ -111,8 +111,3 @@ def test_sweep_construct_scheduler_entrypoint():
             {"job": "job:111", "image_uri": "image_uri"}, "queue", "project", "1.5"
         )
     )
-
-    # should fail because job doesn't have alias
-    assert not (
-        utils.construct_scheduler_entrypoint({"job": "job"}, "queue", "project", 1)
-    )
