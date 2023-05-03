@@ -624,7 +624,7 @@ def test_launch_sweep_scheduler_try_executable_image(user):
 
 @pytest.mark.parametrize(
     "sweep_config",
-    [{"job": "job"}, {"job": "job:latest"}, {"image_uri": "image:latest"}],
+    [{"job": "job:v9"}, {"job": "job:v9"}, {"image_uri": "image:latest"}],
 )
 def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
     queue = "queue"
@@ -654,7 +654,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         "author",
     ]
     if sweep_config.get("job"):
-        gold_args += ["--job", "job:latest"]
+        gold_args += ["--job", "job:v9"]
     else:
         gold_args += ["--image_uri", "image:latest"]
 
@@ -685,7 +685,7 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     )
 
     sweep_config = {
-        "job": "job",
+        "job": "job:latest",
         "method": "grid",
         "parameters": {
             "foo-1": {"values": [1, 2]},
