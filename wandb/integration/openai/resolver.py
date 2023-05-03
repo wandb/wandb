@@ -44,7 +44,7 @@ class OpenAIRequestResponseResolver:
             elif response["object"] == "chat.completion":
                 return self._resolve_chat_completion(request, response, time_elapsed)
             else:
-                logger.info(f"Unknown OpenAI response object: {response['object']}")
+                logger.info(f"Unsupported OpenAI response object: {response['object']}")
         except Exception as e:
             logger.warning(f"Failed to resolve request/response: {e}")
         return None
