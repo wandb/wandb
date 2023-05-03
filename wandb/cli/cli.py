@@ -996,8 +996,8 @@ def launch_sweep(
         try:
             public_api = PublicApi()
             public_api.artifact(parsed_sweep_config["job"], type="job")
-        except Exception:
-            wandb.termerror(traceback.format_exc())
+        except Exception as e:
+            wandb.termerror(f"Failed to load job. Error: {e}")
             return False
 
     entrypoint, args = sweep_utils.construct_scheduler_entrypoint(
