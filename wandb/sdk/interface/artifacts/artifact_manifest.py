@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
 from wandb import util
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_artifacts
@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 @dataclass
 class ArtifactManifestEntry:
+    """A single entry in an artifact manifest."""
+
     path: LogicalFilePathStr
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
     ref: Optional[Union[FilePathStr, URIStr]] = None
@@ -44,7 +46,6 @@ class ArtifactManifestEntry:
 
         Returns:
             (str): The path of the downloaded artifact entry.
-
         """
         raise NotImplementedError
 

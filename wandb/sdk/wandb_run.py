@@ -35,7 +35,7 @@ from typing import (
 import requests
 
 import wandb
-from wandb import errors, trigger, util
+from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
@@ -48,13 +48,12 @@ from wandb.proto.wandb_internal_pb2 import (
     ServerInfoResponse,
 )
 from wandb.sdk.internal import job_builder
-from wandb.sdk.lib.filesystem import StrPath
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.util import (
-    FilePathStr,
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
@@ -1254,7 +1253,7 @@ class Run:
     @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this run in jupyter."""
-        if self._settings._jupyter and ipython.in_jupyter():
+        if self._settings._jupyter:
             ipython.display_html(self.to_html(height, hidden))
             return True
         else:
@@ -2139,10 +2138,10 @@ class Run:
             if wandb.wandb_agent._is_running():
                 raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
-            if not self._settings._jupyter:
+            if not self._settings._notebook:
                 os._exit(-1)
         except Exception as e:
-            if not self._settings._jupyter:
+            if not self._settings._notebook:
                 report_failure = True
             self._console_stop()
             self._backend.cleanup()
@@ -3076,7 +3075,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-        # printer = printer or get_printer(settings._jupyter)
         Run._header_version_check_info(
             check_version, settings=settings, printer=printer
         )
@@ -3094,7 +3092,6 @@ class Run:
         if not check_version or settings._offline:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
             printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
@@ -3113,7 +3110,6 @@ class Run:
         if settings.quiet or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         # TODO: add this to a higher verbosity level
         printer.display(
             f"Tracking run with wandb version {wandb.__version__}", off=False
@@ -3125,7 +3121,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-        # printer = printer or get_printer(settings._jupyter)
         if settings._offline:
             printer.display(
                 [
@@ -3160,7 +3155,6 @@ class Run:
         if not run_name:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if printer._html:
             if not wandb.jupyter.maybe_display():
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
@@ -3416,8 +3410,6 @@ class Run:
         if settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
-
         if settings._offline:
             printer.display(
                 [
@@ -3470,7 +3462,6 @@ class Run:
         if (quiet or settings.quiet) or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         panel = []
 
         # Render history if available
@@ -3551,7 +3542,6 @@ class Run:
             local_info = server_info_response.local_info
             latest_version, out_of_date = local_info.version, local_info.out_of_date
             if out_of_date:
-                # printer = printer or get_printer(settings._jupyter)
                 printer.display(
                     f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
                     f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
@@ -3598,7 +3588,6 @@ class Run:
         if (quiet or settings.quiet) or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
             printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
@@ -3622,8 +3611,6 @@ class Run:
 
         if not reporter:
             return
-
-        # printer = printer or get_printer(settings._jupyter)
 
         warning_lines = reporter.warning_lines
         if warning_lines:
@@ -3859,7 +3846,7 @@ class _LazyArtifact(ArtifactInterface):
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
-    ) -> util.FilePathStr:
+    ) -> FilePathStr:
         return self._instance.download(root, recursive)
 
     def checkout(self, root: Optional[str] = None) -> str:
