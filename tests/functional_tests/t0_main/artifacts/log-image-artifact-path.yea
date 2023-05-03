@@ -1,6 +1,9 @@
 id: 0.artifacts.log-image-artifact-path
 plugin:
   - wandb
+depend:
+  requirements:
+    - pillow
 assert:
   - :wandb:runs_len: 2
   - :op:contains_regex:
