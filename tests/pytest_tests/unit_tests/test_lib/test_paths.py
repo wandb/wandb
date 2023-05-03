@@ -28,9 +28,9 @@ def test_path_groups(target, posix, windows, _bytes):
 @example(b"")
 @example(".")
 @example("\\")
+@example(" /")
 @example(PureWindowsPath("C:/foo/bar.txt"))
 @example(PurePosixPath("x\\a/b.bin"))
-@pytest.mark.skip(reason="Fails on path = ' /', should fix")
 def test_path_conversion(path):
     logical_path = LogicalPath(path)
     assert isinstance(logical_path, str)
@@ -38,9 +38,11 @@ def test_path_conversion(path):
         assert "\\" not in logical_path
 
     # For compatibility, enforce output identical to `to_forward_slash_path`.
-    # One exception: we send both `'.'` and `''` to `'.'`.
+    # Two exceptions, neither affect the interpretation of the path:
+    # 1. We send both `'.'` and `''` to `'.'`
+    # 2. We strip trailing slashes
     if path and isinstance(path, str):
-        assert logical_path == to_forward_slash_path(path)
+        assert logical_path == to_forward_slash_path(path).rstrip("/")
 
 
 @given(fspaths())
