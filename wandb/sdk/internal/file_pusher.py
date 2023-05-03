@@ -10,6 +10,7 @@ import wandb
 import wandb.util
 from wandb.filesync import stats, step_checksum, step_upload
 from wandb.sdk.lib.paths import LogicalPath
+from wandb.filesync.grabthars_hammer import ArtifactFileUploader
 
 if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts
@@ -70,6 +71,8 @@ class FilePusher:
             settings=settings,
         )
         self._step_upload.start()
+
+        self._artifact_file_uploaders = []
 
     def get_status(self) -> Tuple[bool, stats.Summary]:
         running = self.is_alive()
@@ -136,10 +139,15 @@ class FilePusher:
         save_fn: "artifact_saver.SaveFn",
         save_fn_async: "artifact_saver.SaveFnAsync",
     ) -> None:
-        event = step_checksum.RequestStoreManifestFiles(
-            manifest, artifact_id, save_fn, save_fn_async
+        # event = step_checksum.RequestStoreManifestFiles(
+        #     manifest, artifact_id, save_fn, save_fn_async
+        # )
+        # self._incoming_queue.put(event)
+        uploader = ArtifactFileUploader(
+            artifact_id, 0, manifest, self._stats, self._api
         )
-        self._incoming_queue.put(event)
+        self._artifact_file_uploaders.append(uploader)
+        uploader.start()
 
     def commit_artifact(
         self,
