@@ -160,6 +160,8 @@ class WandbTracer(BaseTracer):
         tracer.init_run(run_args)
         tracer.load_session("")
 
+        # TODO: maybe consider monkey patching here ?
+
 
 
     def finish(self) -> None:

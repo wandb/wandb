@@ -271,6 +271,7 @@ def _wrap_init(cls):
 
     def init(self, *args, **kwargs):
         if current_init:
+            # TODO: maybe consider monkey patching the callbacks list instead ?
             try:
                 if "callback_manager" in kwargs and isinstance(
                     kwargs["callback_manager"], _CallbackManagerOnStartProxy
