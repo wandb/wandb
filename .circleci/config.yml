@@ -379,6 +379,9 @@ jobs:
         default: "core"
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       notify_on_failure:
         type: boolean
         default: false
@@ -399,6 +402,9 @@ jobs:
           WANDB_ENABLE_TEST_CONTAINER: true
     resource_class: xlarge
     working_directory: /mnt/ramdisk
+    environment:
+      SHARD: << parameters.shard >>
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - run:
@@ -468,6 +474,9 @@ jobs:
         default: 9
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -490,6 +499,8 @@ jobs:
       name: win/<< parameters.machine_executor >>
       size: << parameters.executor_size >>
     parallelism: << parameters.parallelism >>
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - when:
@@ -538,6 +549,9 @@ jobs:
         default: 7
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -551,6 +565,8 @@ jobs:
       xcode: 13.4.1
     resource_class: large
     parallelism: << parameters.parallelism >>
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - run:
@@ -572,6 +588,9 @@ jobs:
         type: string
       tox_args:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       python_version_major:
         type: integer
         default: 3
@@ -582,6 +601,8 @@ jobs:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
     resource_class: large
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - attach_workspace:
           at: .
