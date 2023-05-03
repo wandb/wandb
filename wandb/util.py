@@ -1074,7 +1074,10 @@ def image_id_from_k8s() -> Optional[str]:
         except (ValueError, KeyError, IndexError):
             logger.exception("Error checking kubernetes for image id")
             return None
-    return None
+    else:
+        current_uid = os.getuid()
+        logger.warning(f"Unable to read the token file at {token_path}. The current user id is {current_uid}. Consider changing the securityContext to run the container as the current user.")
+        return None
 
 
 def async_call(
