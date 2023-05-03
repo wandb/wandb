@@ -67,6 +67,10 @@ class SweepRun:
 class Scheduler(ABC):
     """A controller/agent that populates a Launch RunQueue from a hyperparameter sweep."""
 
+    PLACEHOLDER_URI = "placeholder-uri-scheduler"
+    SWEEP_JOB_TYPE = "sweep-controller"
+    ENTRYPOINT = ["wandb", "scheduler", "WANDB_SWEEP_ID"]
+
     def __init__(
         self,
         api: Api,
@@ -213,7 +217,7 @@ class Scheduler(ABC):
 
         run: SdkRun = wandb.init(
             name=f"{_type}-scheduler-{self._sweep_id}",
-            job_type="sweep-scheduler",
+            job_type=self.SWEEP_JOB_TYPE,
             resume="allow",
         )
         return run

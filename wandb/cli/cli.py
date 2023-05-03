@@ -34,7 +34,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Runs
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.sweeps import SCHEDULER_URI
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
@@ -987,11 +987,14 @@ def launch_sweep(
             wandb.termwarn(
                 "Sweep params loaded from resumed sweep, ignoring provided keys"
             )
-            # Look up number of previous runs in the sweep for run_cap handling
-            previous_runs: Runs = api.runs(
-                path=f"{entity}/{project}/{resume_id}", per_page=1
-            )
-            num_previous_runs = previous_runs.length
+            try:
+                # Look up number of previous runs in the sweep for run_cap handling
+                previous_runs: Runs = api.runs(
+                    path=f"{entity}/{project}/{resume_id}", per_page=1
+                )
+                num_previous_runs = previous_runs.length
+            except Exception as e:
+                logger.debug(f"Failed to get previous runs. Error: {e}")
     else:
         parsed_sweep_config = parsed_config
 
@@ -1010,21 +1013,24 @@ def launch_sweep(
 
     overrides = {
         "overrides": {
-            "run_config": {**scheduler_args, **launch_args},
+            "run_config": {
+                "scheduler_args": scheduler_args,
+                "launch_args": launch_args,
+            },
             "args": args,
         }
     }
 
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
-        uri=SCHEDULER_URI,
+        uri=Scheduler.PLACEHOLDER_URI,
         api=api,
         name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=["wandb", "scheduler", "WANDB_SWEEP_ID"],
+        entry_point=Scheduler.ENTRYPOINT,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
