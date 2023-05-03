@@ -1,5 +1,6 @@
 import configparser
 import os
+import tempfile
 from typing import Any, Optional
 
 from wandb import env
@@ -106,9 +107,12 @@ class Settings:
 
     @staticmethod
     def _global_path():
-        config_dir = os.environ.get(
-            env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb")
-        )
+        default_config_dir = os.path.join(os.path.expanduser("~"), ".config", "wandb")
+        # if not writable, fall back to a temp directory
+        if not os.access(default_config_dir, os.W_OK):
+            default_config_dir = os.path.join(tempfile.gettempdir(), ".config", "wandb")
+
+        config_dir = os.environ.get(env.CONFIG_DIR, default_config_dir)
         os.makedirs(config_dir, exist_ok=True)
         return os.path.join(config_dir, "settings")
 
