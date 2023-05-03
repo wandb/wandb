@@ -1026,7 +1026,7 @@ def launch_sweep(
         job=None,
         version=None,
         launch_config=overrides,
-        run_id=None,
+        run_id="WANDB_SWEEP_ID",
         author=None,  # author gets passed into scheduler override args
     )
     launch_scheduler_with_queue = json.dumps(
