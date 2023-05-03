@@ -14,6 +14,7 @@ kubernetes
 moviepy
 imageio
 ipython
+ipython<8.13; python_version < '3.9'
 ipykernel
 nbclient
 scikit-learn
