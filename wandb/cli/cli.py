@@ -34,8 +34,8 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Runs
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.sweeps import utils as sweep_utils
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
