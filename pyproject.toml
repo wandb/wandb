@@ -1,5 +1,5 @@
 [build-system]
-requires = ['setuptools<64']
+requires = ['setuptools']
 build-backend = "setuptools.build_meta"
 
 [tool.black]
@@ -29,7 +29,7 @@ skip_gitignore = "True"
 [tool.commitizen]
 name = "cz_conventional_commits"
 major_version_zero = true
-version = "0.15.1.dev1"
+version = "0.15.2.dev1"
 version_files = ["setup.py", "setup.cfg", "wandb/__init__.py"]
 tag_format = "v$major.$minor.$patch$prerelease"
 changelog_incremental = true
@@ -50,10 +50,10 @@ select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
     "E501",
-    "D1",  # Allow missing docstrings.
+    "D1",    # Allow missing docstrings.
     "D417",  # Don't require descriptions for all arguments.
-    "UP022",  # Only valid for Python 3.7+
-    "UP036",  # Only valid for Python 3.7+
+    "UP022", # Only valid for Python 3.7+
+    "UP036", # Only valid for Python 3.7+
 ]
 exclude = [
     "tests/functional_tests/t0_main/fastai/t1_v1.py",

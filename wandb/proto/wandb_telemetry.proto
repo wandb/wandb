@@ -185,6 +185,7 @@ message Env {
   bool pex = 11; // pex env detected
   bool colab = 12; // colab env detected
   bool ipython = 13; // ipython env detected
+  bool aws_lambda = 14; // running in AWS Lambda
 }
 
 message Labels {
