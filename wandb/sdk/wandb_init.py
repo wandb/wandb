@@ -663,6 +663,9 @@ class _WandbInit:
             if os.environ.get("PEX"):
                 tel.env.pex = True
 
+            if self.settings._aws_lambda:
+                tel.env.aws_lambda = True
+
             if os.environ.get(wandb.env._DISABLE_SERVICE):
                 tel.feature.service_disabled = True
 
