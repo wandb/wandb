@@ -193,6 +193,9 @@ class JobBuilder:
         }
         return artifact, source
 
+    def _is_notebook_run(self):
+        return self._settings._jupyter and self._logged_code_artifact is not None
+
     def build(self) -> Optional[Artifact]:
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
