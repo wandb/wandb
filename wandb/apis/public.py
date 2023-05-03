@@ -5494,6 +5494,32 @@ class Job:
     def _set_configure_launch_project(self, func):
         self.configure_launch_project = func
 
+    def _get_code_artifact(self, artifact_string):
+        artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
+        if is_id:
+            code_artifact = Artifact.from_id(artifact_string, self._api._client)
+        else:
+            code_artifact = self._api.artifact(name=artifact_string, type="code")
+        if code_artifact is None:
+            raise LaunchError("No code artifact found")
+        return code_artifact
+
+    def _configure_launch_project_notebook(self, launch_project, sourced_from_artifact=False):
+        notebook_info = self._source_info.get("notebook")
+        if notebook_info is None:
+            raise LaunchError(f"Attempted to configure job: {self.name} for notebook without notebook info present in job")
+        if not sourced_from_artifact:
+            artifact_string = notebook_info.get("notebook_artifact")
+            if artifact_string is None:
+                raise LaunchError(f"Job {self.name} notebook info missing source artifact")
+            code_artifact = self._get_code_artifact(artifact_string)
+            code_artifact.download(launch_project.project_dir)
+        
+        new_fname = convert_jupyter_notebook_to_script("_session_history.ipynb", launch_project.project_dir)
+        executable = notebook_info.get("executable")
+        self._entrypoint = [executable, new_fname]
+        launch_project.add_entry_point(self._entrypoint)
+
     def _configure_launch_project_repo(self, launch_project):
         git_info = self._source_info.get("source", {}).get("git", {})
         _fetch_git_repo(
@@ -5505,20 +5531,18 @@ class Job:
             with open(os.path.join(self._fpath, "diff.patch")) as f:
                 apply_patch(f.read(), launch_project.project_dir)
         shutil.copy(self._requirements_file, launch_project.project_dir)
-        launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
+        is_notebook = self._source_info.get("source", {}).get("notebook")
+        if is_notebook:
+            self._configure_launch_project_notebook(launch_project)
+        else:
+            launch_project.add_entry_point(self._entrypoint)        
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
         if artifact_string is None:
             raise LaunchError(f"Job {self.name} had no source artifact")
-        artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
-        if is_id:
-            code_artifact = Artifact.from_id(artifact_string, self._api._client)
-        else:
-            code_artifact = self._api.artifact(name=artifact_string, type="code")
-        if code_artifact is None:
-            raise LaunchError("No code artifact found")
+        code_artifact = self._get_code_artifact(artifact_string)
         launch_project.python_version = self._source_info.get("runtime")
         shutil.copy(self._requirements_file, launch_project.project_dir)
 
@@ -5526,11 +5550,7 @@ class Job:
 
         is_notebook = self._source_info.get("source", {}).get("notebook")
         if is_notebook:
-            new_fname = convert_jupyter_notebook_to_script(
-                "_session_history.ipynb", launch_project.project_dir
-            )
-            self._entrypoint.append(new_fname)
-            launch_project.add_entry_point(self._entrypoint)
+            self.__configure_launch_project_notebook(launch_project, True)
         else:
             launch_project.add_entry_point(self._entrypoint)
 
