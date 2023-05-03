@@ -987,12 +987,15 @@ def launch_sweep(
         parsed_sweep_config = parsed_config
 
     # validate job existence, add :latest alias if not specified
-    if "job" in parsed_sweep_config:
-        if ":" not in parsed_sweep_config["job"]:
-            wandb.termwarn("No alias specified for job, defaulting to 'latest'")
-            parsed_sweep_config["job"] = f"{parsed_sweep_config['job']}:latest"
+    job = parsed_sweep_config.get("job")
+    if job:
+        if not isinstance(job, str) or ":" not in job:
+            wandb.termerror("Job must be a string of format <job_string>:<alias>")
+            return False
+
         try:
-            api.artifact(parsed_sweep_config["job"], type="job")
+            public_api = PublicApi()
+            public_api.artifact(parsed_sweep_config["job"], type="job")
         except Exception:
             wandb.termerror(traceback.format_exc())
             return False

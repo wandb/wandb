@@ -39,7 +39,7 @@ def test_launch_sweep_param_validation(user):
         _run_cmd_check_msg(base + ["s.yaml"], err_msg)
 
     del config["launch"]["queue"]
-    config["job"] = "job123"
+    config["job"] = "job123:latest"
     json.dump(config, open("s.yaml", "w"))
 
     err_msg = "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in the config"

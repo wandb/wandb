@@ -76,7 +76,7 @@ def test_sweep_construct_scheduler_entrypoint():
     ]
 
     entry, args = utils.construct_scheduler_entrypoint(
-        {"job": "job"}, "queue", "project", "1", "author"
+        {"job": "job:latest"}, "queue", "project", "1", "author"
     )
     assert args == [
         "--queue",
@@ -105,20 +105,14 @@ def test_sweep_construct_scheduler_entrypoint():
         "image_uri",
     ]
 
+    # should fail because job and image_uri are mutually exclusive
     assert not (
         utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", 1
+            {"job": "job:111", "image_uri": "image_uri"}, "queue", "project", "1.5"
         )
     )
 
+    # should fail because job doesn't have alias
     assert not (
-        utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1cpu"
-        )
-    )
-
-    assert not (
-        utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1.5"
-        )
+        utils.construct_scheduler_entrypoint({"job": "job"}, "queue", "project", 1)
     )
