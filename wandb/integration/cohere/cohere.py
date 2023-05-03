@@ -32,7 +32,7 @@ class PatchCohereAPI:
     def __init__(self) -> None:
         """Patches the Cohere API to log traces to W&B."""
         self.original_methods: Dict[str, Any] = {}
-        # self.resolver = CohereRequestResponseResolver()
+        self.resolver = CohereRequestResponseResolver()
         self._cohere = None
 
     @property
@@ -58,7 +58,9 @@ class PatchCohereAPI:
                     with Timer() as timer:
                         result = original_method(*args, **kwargs)
                     try:
-                        trace = self.resolver(kwargs, result, timer.elapsed)
+                        trace = self.resolver(
+                            kwargs, result, timer.start_time, timer.elapsed
+                        )
                         if trace is not None:
                             run.log({"trace": trace})
                     except Exception:

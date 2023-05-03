@@ -5,6 +5,7 @@ from typing import Any
 class Timer:
     def __init__(self) -> None:
         self.start: float = time.perf_counter()
+        self.start_time: float = time.time()
         self.stop: float = self.start
 
     def __enter__(self) -> "Timer":

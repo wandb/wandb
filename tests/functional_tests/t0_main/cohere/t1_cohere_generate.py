@@ -1,5 +1,3 @@
-import os
-
 import cohere
 from wandb.integration.cohere import autolog as cohere_autolog
 
@@ -15,13 +13,14 @@ def main():
         prompt=(
             "There were four of us. George, and William Samuel Harris, and myself, and Montmorency."
         ),
-        max_tokens=30
+        max_tokens=30,
     )
 
     print(prediction)
+    # breakpoint()
 
     # print the predicted text
-    print('prediction: {}'.format(prediction.generations[0].text))
+    print(f"prediction: {prediction.generations[0].text}")
 
     # res = co.chat(query="Hey! How are you doing today?")
     # print(res)

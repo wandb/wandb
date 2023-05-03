@@ -1,4 +1,3 @@
-import io
 import logging
 import sys
 from typing import Any, Dict, List, Optional, TypeVar
@@ -6,9 +5,9 @@ from typing import Any, Dict, List, Optional, TypeVar
 from wandb.sdk.data_types import trace_tree
 
 if sys.version_info >= (3, 8):
-    from typing import Literal, Protocol
+    from typing import Protocol
 else:
-    from typing_extensions import Literal, Protocol
+    from typing_extensions import Protocol
 
 
 logger = logging.getLogger(__name__)
@@ -19,6 +18,8 @@ V = TypeVar("V")
 
 
 class CohereResponse(Protocol[K, V]):
+    id: str
+
     def __getitem__(self, key: K) -> V:
         ...  # pragma: no cover
 
@@ -31,24 +32,31 @@ class CohereRequestResponseResolver:
         self,
         request: Dict[str, Any],
         response: CohereResponse,
+        start_time: float,
         time_elapsed: float,
     ) -> Optional[trace_tree.WBTraceTree]:
         try:
             if hasattr(response, "generations"):
-                return self._resolve_generate(request, response, time_elapsed)
+                return self._resolve_generate(
+                    request, response, start_time, time_elapsed
+                )
             # elif hasattr(response, "chatlog"):
             #     return self._resolve_chat(request, response, time_elapsed)
             else:
                 logger.info(f"Unsupported Cohere response object: {response}")
         except Exception as e:
+            print(e)
+            breakpoint()
             logger.warning(f"Failed to resolve request/response: {e}")
         return None
 
     @staticmethod
     def results_to_trace_tree(
         request: Dict[str, Any],
-        response: CohereResponse,
+        response: Dict[str, Any],
+        endpoint: str,
         results: List[trace_tree.Result],
+        start_time: float,
         time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
         """Converts the request, response, and results into a trace tree.
@@ -61,11 +69,10 @@ class CohereRequestResponseResolver:
         returns:
             A wandb trace tree object.
         """
-        # start_time_ms = int(round(response["created"] * 1000))
-        start_time_ms = 0
+        start_time_ms = int(round(start_time * 1000))
         end_time_ms = start_time_ms + int(round(time_elapsed * 1000))
         span = trace_tree.Span(
-            name=f"cohere_{response.__class__.__name__}_{response.get('id')}",
+            name=f"cohere_{endpoint}_{start_time_ms}",
             attributes=dict(response),  # type: ignore
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
@@ -79,31 +86,36 @@ class CohereRequestResponseResolver:
         self,
         request: Dict[str, Any],
         response: CohereResponse,
+        start_time: float,
         time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
         """Resolves the request and response objects for `cohere.Client.generate`."""
-        request_str = f"\n\n**Query**: {request['query']}\n"
-        choices = [
-            f"\n\n**Response**: {response['text']}\n"
-        ]
+        request_str = f"\n\n**Prompt**: {request['prompt']}\n"
+        choices = [f"\n\n**Generation**: {choice.text}\n" for choice in response]
 
         return self._request_response_result_to_trace(
             request=request,
-            response=response,
+            # response=response,
+            response={"generations": [g.__dict__ for g in response]},
+            endpoint="generate",
             request_str=request_str,
             choices=choices,
+            start_time=start_time,
             time_elapsed=time_elapsed,
         )
 
     def _request_response_result_to_trace(
         self,
         request: Dict[str, Any],
-        response: CohereResponse,
+        response: Dict[str, Any],
+        endpoint: str,
         request_str: str,
         choices: List[str],
+        start_time: float,
         time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
         """Resolves the request and response objects for `cohere.Client`."""
+        # breakpoint()
         results = [
             trace_tree.Result(
                 inputs={"request": request_str},
@@ -111,5 +123,7 @@ class CohereRequestResponseResolver:
             )
             for choice in choices
         ]
-        trace = self.results_to_trace_tree(request, response, results, time_elapsed)
+        trace = self.results_to_trace_tree(
+            request, response, endpoint, results, start_time, time_elapsed
+        )
         return trace
