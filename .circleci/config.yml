@@ -1431,10 +1431,10 @@ workflows:
       - win:
           requires:
             - "unit-tests-mock-server"
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
+          filters:
+            branches:
+              only:
+                - main
           matrix:
             parameters:
               python_version_major: [3]
@@ -1447,10 +1447,10 @@ workflows:
       - win:
           requires:
             - "unit-tests"
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
+          filters:
+            branches:
+              only:
+                - main
           matrix:
             parameters:
               python_version_major: [3]
@@ -1552,10 +1552,10 @@ workflows:
       - win:
           requires:
             - "functional-tests"
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
+          filters:
+            branches:
+              only:
+                - main
           matrix:
             parameters:
               python_version_major: [3]
