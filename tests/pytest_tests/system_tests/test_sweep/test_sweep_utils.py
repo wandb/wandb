@@ -112,7 +112,6 @@ def test_sweep_construct_scheduler_args():
         project="project",
         num_workers=1,
         author="author",
-        num_previous_runs=1,
         sweep_type="sweep",
     )
     assert args == [
@@ -126,8 +125,6 @@ def test_sweep_construct_scheduler_args():
         "sweep",
         "--author",
         "author",
-        "--num_previous_runs",
-        "1",
         "--job",
         "job:12315",
     ]

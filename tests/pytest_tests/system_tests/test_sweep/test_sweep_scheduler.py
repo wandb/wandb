@@ -808,12 +808,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
     def make_mocked_wandb_run(kwargs):
         mrun = Mock()
         mrun.state = "running"
-        if kwargs.get("resume"):
-            mrun.resumed = True
-            mrun.name = kwargs.get("resume")
-        else:
-            mrun.resumed = False
-            mrun.name = f"sweep-scheduler-{sweep_id}"
+        mrun.name = f"sweep-scheduler-{sweep_id}"
 
         def finish():
             mrun.state = "finished"
@@ -880,11 +875,10 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
         polling_sleep=0,
         image_uri=_image_uri,
         num_workers=1,
-        num_runs_launched=3,  # this would be set in CLI
     )
+    _scheduler._num_runs_launched = 3  # hack for testing
 
-    assert _scheduler._wandb_run.resumed
-    assert _scheduler._wandb_run.name == sweep_id
+    assert _scheduler._wandb_run.name == f"sweep-scheduler-{sweep_id}"
 
     _scheduler.start()
 

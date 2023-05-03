@@ -105,6 +105,11 @@ class Scheduler(ABC):
             if resp.get("state") == SchedulerState.CANCELLED.name:
                 self._state = SchedulerState.CANCELLED
             self._sweep_config = yaml.safe_load(resp["config"])
+            self._num_runs_launched: int = len(resp["runs"])
+            if self._num_runs_launched > 0:
+                wandb.termlog(
+                    f"{LOG_PREFIX}Found {self._num_runs_launched} previous runs for sweep {self._sweep_id}"
+                )
         except Exception as e:
             raise SchedulerError(
                 f"{LOG_PREFIX}Exception when finding sweep ({sweep_id}) {e}"
@@ -125,7 +130,6 @@ class Scheduler(ABC):
         # launch agent is the one that actually runs the training workloads.
         self._workers: Dict[int, _Worker] = {}
         self._num_workers = num_workers
-        self._num_runs_launched = self._kwargs.get("num_runs_launched", 0)
 
         # Init wandb scheduler run
         self._wandb_run = self._init_wandb_run()
@@ -209,12 +213,7 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> SdkRun:
         """Controls resume or init logic for a scheduler wandb run."""
-        if self._kwargs.get("run_id"):  # resume
-            resumed_run: SdkRun = wandb.init(resume=self._kwargs["run_id"])
-            return resumed_run
-
         _type = self._kwargs.get("sweep_type")
-
         run: SdkRun = wandb.init(
             name=f"{_type}-scheduler-{self._sweep_id}",
             job_type=self.SWEEP_JOB_TYPE,

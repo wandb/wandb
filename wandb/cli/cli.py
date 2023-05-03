@@ -31,7 +31,6 @@ import wandb.env
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
-from wandb.apis.public import Runs
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
@@ -974,7 +973,7 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
-    parsed_sweep_config, sweep_obj_id, num_previous_runs = None, None, None
+    parsed_sweep_config, sweep_obj_id = None, None
     if resume_id:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
         if not found:
@@ -987,14 +986,6 @@ def launch_sweep(
             wandb.termwarn(
                 "Sweep params loaded from resumed sweep, ignoring provided keys"
             )
-            try:
-                # Look up number of previous runs in the sweep for run_cap handling
-                previous_runs: Runs = api.runs(
-                    path=f"{entity}/{project}/{resume_id}", per_page=1
-                )
-                num_previous_runs = previous_runs.length
-            except Exception as e:
-                logger.debug(f"Failed to get previous runs. Error: {e}")
     else:
         parsed_sweep_config = parsed_config
 
@@ -1005,7 +996,6 @@ def launch_sweep(
         project=project,
         num_workers=num_workers,
         author=entity,
-        num_previous_runs=num_previous_runs,
     )
     if not args:
         # error already logged

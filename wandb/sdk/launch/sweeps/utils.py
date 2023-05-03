@@ -124,7 +124,6 @@ def construct_scheduler_args(
     project: str,
     num_workers: Union[str, int],
     author: Optional[str] = None,
-    num_previous_runs: Optional[int] = None,
     sweep_type: Optional[str] = "sweep",
 ) -> Optional[List[str]]:
     """Construct a sweep scheduler entrypoing and args.
@@ -166,10 +165,6 @@ def construct_scheduler_args(
 
     if author:
         args += ["--author", author]
-
-    if num_previous_runs:
-        args += ["--num_previous_runs", str(num_previous_runs)]
-
     if job:
         if ":" not in job:
             wandb.termwarn("No alias specified for job, defaulting to 'latest'")
