@@ -5504,18 +5504,26 @@ class Job:
             raise LaunchError("No code artifact found")
         return code_artifact
 
-    def _configure_launch_project_notebook(self, launch_project, sourced_from_artifact=False):
+    def _configure_launch_project_notebook(
+        self, launch_project, sourced_from_artifact=False
+    ):
         notebook_info = self._source_info.get("notebook")
         if notebook_info is None:
-            raise LaunchError(f"Attempted to configure job: {self.name} for notebook without notebook info present in job")
+            raise LaunchError(
+                f"Attempted to configure job: {self.name} for notebook without notebook info present in job"
+            )
         if not sourced_from_artifact:
             artifact_string = notebook_info.get("notebook_artifact")
             if artifact_string is None:
-                raise LaunchError(f"Job {self.name} notebook info missing source artifact")
+                raise LaunchError(
+                    f"Job {self.name} notebook info missing source artifact"
+                )
             code_artifact = self._get_code_artifact(artifact_string)
             code_artifact.download(launch_project.project_dir)
 
-        new_fname = convert_jupyter_notebook_to_script("_session_history.ipynb", launch_project.project_dir)
+        new_fname = convert_jupyter_notebook_to_script(
+            "_session_history.ipynb", launch_project.project_dir
+        )
         executable = notebook_info.get("executable")
         self._entrypoint = [executable, new_fname]
         launch_project.add_entry_point(self._entrypoint)

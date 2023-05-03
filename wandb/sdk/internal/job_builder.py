@@ -193,7 +193,7 @@ class JobBuilder:
         }
         return artifact, source
 
-    def _is_notebook_run(self):
+    def _is_notebook_run(self) -> bool:
         return self._settings._jupyter and self._logged_code_artifact is not None
 
     def build(self) -> Optional[Artifact]:

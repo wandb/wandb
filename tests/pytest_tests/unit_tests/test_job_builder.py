@@ -25,7 +25,9 @@ def test_build_repo_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False, "_jupyter": False})
+        settings = SettingsStatic(
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+        )
         job_builder = JobBuilder(settings)
         artifact = job_builder.build()
         assert artifact is not None
@@ -35,6 +37,7 @@ def test_build_repo_job(runner):
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
+
 
 def test_build_repo_notebook_job(runner):
     remote_name = str_of_length(129)
@@ -50,7 +53,9 @@ def test_build_repo_notebook_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False, "_jupyter": False})
+        settings = SettingsStatic(
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": True}
+        )
         job_builder = JobBuilder(settings)
         job_builder._logged_code_artifact = {
             "id": "testtest",
@@ -67,7 +72,6 @@ def test_build_repo_notebook_job(runner):
         assert job_builder._is_notebook_run() is True
 
 
-
 def test_build_artifact_job(runner):
     metadata = {
         "codePath": "blah/test.py",
@@ -81,7 +85,9 @@ def test_build_artifact_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False, "_jupyter": False})
+        settings = SettingsStatic(
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+        )
         job_builder = JobBuilder(settings)
         job_builder._logged_code_artifact = {
             "id": "testtest",
@@ -108,7 +114,9 @@ def test_build_artifact_notebook_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False, "_jupyter": True})
+        settings = SettingsStatic(
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": True}
+        )
         job_builder = JobBuilder(settings)
         job_builder._logged_code_artifact = {
             "id": "testtest",
@@ -137,7 +145,9 @@ def test_build_image_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False, "_jupyter": False})
+        settings = SettingsStatic(
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+        )
         job_builder = JobBuilder(settings)
         artifact = job_builder.build()
         assert artifact is not None
@@ -145,7 +155,6 @@ def test_build_image_job(runner):
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
-
 
 
 def test_set_disabled():
