@@ -26,7 +26,7 @@ else:
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
 
-from packaging import version
+# from packaging import version
 
 import wandb
 import wandb.util
@@ -40,19 +40,19 @@ langchain = wandb.util.get_module(
     "package installed. Please install it with `pip install langchain`.",
 )
 
-if version.parse(langchain.__version__) > version.parse("0.0.153"):
-    raise ValueError(
-        "Langchain integration is incompatible with versions 0.0.154 and above. "
-        "Please use a version below 0.0.154 to ensure proper functionality."
-    )
+# if version.parse(langchain.__version__) > version.parse("0.0.153"):
+#     raise ValueError(
+#         "Langchain integration is incompatible with versions 0.0.154 and above. "
+#         "Please use a version below 0.0.154 to ensure proper functionality."
+#     )
 
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
 from langchain.callbacks import (  # noqa: E402
     StdOutCallbackHandler,
-    get_callback_manager,
 )
-from langchain.callbacks.tracers.base import SharedTracer  # noqa: E402
+from langchain.callbacks.manager import CallbackManager  # noqa: E402
+from langchain.callbacks.tracers.base import BaseTracer  # noqa: E402
 from langchain.callbacks.tracers.schemas import (  # noqa: E402
     ChainRun,
     LLMRun,
@@ -75,7 +75,7 @@ if TYPE_CHECKING:
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
 
-monkeypatch.ensure_patched()
+# monkeypatch.ensure_patched()
 
 
 class WandbRunArgs(TypedDict):
@@ -105,7 +105,7 @@ class WandbRunArgs(TypedDict):
     settings: Union["WBSettings", Dict[str, Any], None]
 
 
-class WandbTracer(SharedTracer):
+class WandbTracer(BaseTracer):
     """Callback Handler that logs to Weights and Biases.
 
     This handler will log the model architecture and run traces to Weights and Biases. It is rare
@@ -116,6 +116,13 @@ class WandbTracer(SharedTracer):
 
     _run: Optional["WBRun"] = None
     _run_args: Optional[WandbRunArgs] = None
+
+    def __init__(self, run_args:Optional[WandbRunArgs]=None, **kwargs:Any) -> None:
+        super().__init__(**kwargs)
+        self._run_args = run_args
+        self.init_run(run_args)
+        self.session = self.load_session("")
+
 
     @classmethod
     def init(
@@ -139,10 +146,11 @@ class WandbTracer(SharedTracer):
         the notebook or script:
         ```
         from wandb.integration.langchain import WandbTracer
-        WandbTracer.init()
+        tracer = WandbTracer()
         # ...
+        LLMChain(llm, callbacks=[tracer])
         # end of notebook / script:
-        WandbTracer.finish()
+        tracer.finish()
         ```.
 
         It is safe to call this repeatedly with the same arguments (such as in a
@@ -151,24 +159,16 @@ class WandbTracer(SharedTracer):
         tracer = cls()
         tracer.init_run(run_args)
         tracer.load_session("")
-        manager = get_callback_manager()
-        handlers: List["BaseCallbackHandler"] = [tracer]
-        if include_stdout:
-            handlers.append(StdOutCallbackHandler())
-        additional_handlers = additional_handlers or []
-        manager.set_handlers(handlers + additional_handlers)
 
-    @staticmethod
-    def finish() -> None:
+
+
+    def finish(self) -> None:
         """Stops watching all LangChain activity and resets the default handler.
 
         It is recommended to call this function before terminating the kernel or
         python script.
         """
-        if WandbTracer._instance:
-            cast(WandbTracer, WandbTracer._instance).finish_run()
-            manager = get_callback_manager()
-            manager.set_handlers([])
+        self.finish_run()
 
     def init_run(self, run_args: Optional[WandbRunArgs] = None) -> None:
         """Initialize wandb if it has not been initialized.
@@ -285,7 +285,7 @@ class WandbTracer(SharedTracer):
     ) -> None:
         """Add child run to a chain run or tool run."""
         try:
-            parent_run.child_runs.append(child_run)
+            parent_run.child_chain_runs.append(child_run)
         except Exception:
             # Silently ignore errors to not break user code
             pass
