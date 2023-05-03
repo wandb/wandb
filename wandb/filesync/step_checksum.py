@@ -118,6 +118,7 @@ class StepChecksum:
                                 entry.digest,
                             )
                         )
+
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(
                     step_upload.RequestCommitArtifact(
