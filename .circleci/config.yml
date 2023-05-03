@@ -297,6 +297,9 @@ jobs:
         default: 9
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       shard:
         type: string
         default: "default"
@@ -319,6 +322,7 @@ jobs:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     environment:
       SHARD: << parameters.shard >>
+      COVERAGE_DIR: << parameters.coverage_dir >>
     parallelism: << parameters.parallelism >>
     resource_class: xlarge
     working_directory: /mnt/ramdisk
@@ -375,6 +379,9 @@ jobs:
         default: "core"
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       notify_on_failure:
         type: boolean
         default: false
@@ -395,6 +402,9 @@ jobs:
           WANDB_ENABLE_TEST_CONTAINER: true
     resource_class: xlarge
     working_directory: /mnt/ramdisk
+    environment:
+      SHARD: << parameters.shard >>
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - run:
@@ -464,6 +474,9 @@ jobs:
         default: 9
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -486,6 +499,8 @@ jobs:
       name: win/<< parameters.machine_executor >>
       size: << parameters.executor_size >>
     parallelism: << parameters.parallelism >>
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - when:
@@ -534,6 +549,9 @@ jobs:
         default: 7
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -547,6 +565,8 @@ jobs:
       xcode: 13.4.1
     resource_class: large
     parallelism: << parameters.parallelism >>
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - run:
@@ -568,6 +588,9 @@ jobs:
         type: string
       tox_args:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       python_version_major:
         type: integer
         default: 3
@@ -578,6 +601,8 @@ jobs:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
     resource_class: large
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - attach_workspace:
           at: .
@@ -1369,6 +1394,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
       #
       # Unit tests with pytest on Linux, using the old mock server
@@ -1382,6 +1408,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10]
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
       #
       # Unit tests with pytest on Linux
@@ -1395,6 +1422,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
 
       #
@@ -1413,6 +1441,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-win-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
 
       - win:
@@ -1428,6 +1457,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests --timeout 300"
 
       - mac:
@@ -1439,6 +1469,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
 
       - mac:
@@ -1450,6 +1481,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
 
       #
@@ -1466,6 +1498,7 @@ workflows:
                 - "default"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
           parallelism: 4
 
@@ -1481,8 +1514,10 @@ workflows:
                 - "grpc"
                 - "docs"
                 - "llm"
+                - "noml"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
 
       #
@@ -1501,7 +1536,6 @@ workflows:
                 - "tf24"
                 - "tf25"
                 - "tf26"
-                - "noml"
                 - "sklearn"
                 - "ray112"
                 - "ray2"
@@ -1509,6 +1543,7 @@ workflows:
                 - "service"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
 
       #
@@ -1525,7 +1560,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "func-win-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "func-win-s_default-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
           parallelism: 6
@@ -1543,6 +1578,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old/tests_launch/"
 
       - pytest:
@@ -1558,6 +1594,7 @@ workflows:
                 - "artifacts"
           name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
 
       #
@@ -1572,6 +1609,7 @@ workflows:
               python_version_minor: [9]
           name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-notebooks-linux-circle"
+          coverage_dir: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_notebooks"
 #      - win:
 #          matrix:
