@@ -184,7 +184,7 @@ class LaunchProject:
         ${entity_name} - the owner of the project the run being launched to.
         ${run_id} - the id of the run being launched.
         ${run_name} - the name of the run that is launching.
-        ${image} - the URI of the container image for this run.
+        ${image_uri} - the URI of the container image for this run.
 
         Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
         environment variables that you plan to set in the environment of any
@@ -204,7 +204,7 @@ class LaunchProject:
             "entity_name": self.target_entity,
             "run_id": self.run_id,
             "run_name": self.name,
-            "image": image,
+            "image_uri": image,
         }
         update_dict.update(os.environ)
         resource_args_str = json.dumps(self.resource_args)

@@ -78,7 +78,7 @@ def test_project_fill_macros():
             ],
             "jobName": "launch-job-${run_id}",
             "gpus": "${CUDA_VISIBLE_DEVICES}",
-            "image": "${image}",
+            "image": "${image_uri}",
         },
         uri=None,
         name=None,
