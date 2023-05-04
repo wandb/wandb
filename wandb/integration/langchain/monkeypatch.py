@@ -14,7 +14,6 @@ goes away entirely.
 import inspect
 from typing import TYPE_CHECKING
 
-from langchain.callbacks.manager import CallbackManager
 
 if TYPE_CHECKING:
     from langchain.chains.base import Chain
@@ -265,7 +264,11 @@ def _clear_tool_call():
     del patched_symbols["BaseTool._call__"]
 
 
-def _wrap_call(cls):
+def _wrap_call(
+    cls,
+):
+    from langchain.callbacks.manager import CallbackManager
+
     current_call = None
     if hasattr(cls, "__call__"):
         current_call = cls.__call__
