@@ -112,32 +112,8 @@ class WandbTracer(BaseTracer):
         Parameters:
             run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
                 called with no arguments. Please refer to the `wandb.init` for more details.
-        """
-        super().__init__(**kwargs)
-        self._run_args = run_args
-        self.init_run(run_args)
-        self.session = self.load_session("")
 
-    @classmethod
-    def init(
-        cls,
-        run_args: Optional[WandbRunArgs] = None,
-        include_stdout: bool = True,
-        additional_handlers: Optional[List["BaseCallbackHandler"]] = None,
-    ) -> None:
-        """Sets up a WandbTracer and makes it the default handler.
-
-        Parameters:
-            run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
-                called with no arguments. Please refer to the `wandb.init` for more details.
-            include_stdout: (bool, optional) If True, the `StdOutCallbackHandler` will be added to the list of
-                handlers. This is common practice when using LangChain as it prints useful information to stdout.
-            additional_handlers: (list, optional) A list of additional handlers to add to the list of LangChain handlers.
-
-
-        To use W&B to
-        monitor all LangChain activity, simply call this function at the top of
-        the notebook or script:
+        To use W&B to monitor all LangChain activity, add this tracer like any other langchain callback
         ```
         from wandb.integration.langchain import WandbTracer
         tracer = WandbTracer()
@@ -146,15 +122,11 @@ class WandbTracer(BaseTracer):
         # end of notebook / script:
         tracer.finish()
         ```.
-
-        It is safe to call this repeatedly with the same arguments (such as in a
-        notebook), as it will only create a new run if the run_args differ.
         """
-        tracer = cls()
-        tracer.init_run(run_args)
-        tracer.load_session("")
-
-        # TODO: maybe consider monkey patching here ?
+        super().__init__(**kwargs)
+        self._run_args = run_args
+        self.init_run(run_args)
+        self.session = self.load_session("")
 
     def init_run(self, run_args: Optional[WandbRunArgs] = None) -> None:
         """Initialize wandb if it has not been initialized.
