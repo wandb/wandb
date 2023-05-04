@@ -269,7 +269,7 @@ def _wrap_call(
     from langchain.callbacks.manager import CallbackManager
 
     current_call = None
-    if hasattr(cls, "__call__"):
+    if callable(cls):
         current_call = cls.__call__
 
     def call(self, *args, **kwargs):
