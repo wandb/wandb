@@ -354,7 +354,7 @@ class KubernetesRunner(AbstractRunner):
                     for item in root:
                         add_wandb_env(item)
 
-            add_wandb_env(resource_args)
+            add_wandb_env(launch_project.resource_args)
             api = kubernetes.client.CustomObjectsApi(api_client)
             namespace = self.get_namespace(resource_args, context)
             group = resource_args.get("group", api_version.split("/")[0])
@@ -366,10 +366,9 @@ class KubernetesRunner(AbstractRunner):
                 version=version,
                 namespace=namespace,
                 plural=plural,
-                body=resource_args,
+                body=launch_project.resource_args.get("kubernetes"),
             )
-            # TODO: Implement SubmittedRun for these CRD
-            return
+            raise
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)

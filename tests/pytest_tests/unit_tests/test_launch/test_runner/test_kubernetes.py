@@ -1,9 +1,9 @@
-from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
-from wandb.apis.internal import Api
-from wandb.sdk.launch._project_spec import LaunchProject
-
+import uuid
 from unittest.mock import MagicMock
 
+from wandb.apis.internal import Api
+from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
 
 VOLCANO_JOB = {
     "kind": "Job",
@@ -48,19 +48,20 @@ VOLCANO_JOB = {
         "minAvailable": 1,
         "schedulerName": "volcano",
     },
-    "metadata": {"name": "pytorch-job"},
+    "metadata": {"name": f"{uuid.uuid4()}"},
     "apiVersion": "batch.volcano.sh/v1alpha1",
 }
 
 
-def test_kubernetes_runner(test_settings):
+def test_kubernetes_runner(test_settings, mocker):
     api = MagicMock(Api)
+    api.settings = lambda x: "test_base_url"
     runner = KubernetesRunner(api, {}, MagicMock())
     project = LaunchProject(
         uri="www.test.com",
         job="",
         api=api,
-        launch_spec=MagicMock(),
+        launch_spec={"_wandb_api_key": "test_api_key"},
         target_entity="test_entity",
         target_project="test_project",
         name="test_name",
