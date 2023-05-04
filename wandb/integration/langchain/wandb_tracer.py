@@ -55,8 +55,8 @@ from langchain.callbacks.tracers.schemas import TracerSession  # noqa: E402
 from .util import (  # noqa: E402
     print_wandb_init_message,
     safely_convert_lc_run_to_wb_span,
-    safely_convert_model_to_dict,
-    safely_get_span_producing_model,
+    # safely_convert_model_to_dict,
+    # safely_get_span_producing_model,
 )
 
 if TYPE_CHECKING:
@@ -116,8 +116,7 @@ Please directly construct a `WandbTracer` and add it to the list of callbacks. F
 
 LLMChain(llm, callbacks=[WandbTracer()])
 # end of notebook / script:
-WandbTracer.finish()
-"""
+WandbTracer.finish()"""
         wandb.termlog(message)
 
     def __init__(self, run_args: Optional[WandbRunArgs] = None, **kwargs: Any) -> None:
