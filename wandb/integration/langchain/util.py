@@ -130,7 +130,12 @@ def _convert_chain_run_to_wb_span(run: "ChainRun") -> "trace_tree.Span":
 
     base_span.results = [trace_tree.Result(inputs=run.inputs, outputs=run.outputs)]
     base_span.child_spans = [
-        _convert_lc_run_to_wb_span(child_run) for child_run in run.child_chain_runs
+        _convert_lc_run_to_wb_span(child_run)
+        for child_run in [
+            *run.child_llm_runs,
+            *run.child_chain_runs,
+            *run.child_tool_runs,
+        ]
     ]
     base_span.span_kind = (
         trace_tree.SpanKind.AGENT
@@ -151,7 +156,12 @@ def _convert_tool_run_to_wb_span(run: "ToolRun") -> "trace_tree.Span":
         )
     ]
     base_span.child_spans = [
-        _convert_lc_run_to_wb_span(child_run) for child_run in run.child_tool_runs
+        _convert_lc_run_to_wb_span(child_run)
+        for child_run in [
+            *run.child_llm_runs,
+            *run.child_chain_runs,
+            *run.child_tool_runs,
+        ]
     ]
     base_span.span_kind = trace_tree.SpanKind.TOOL
 

@@ -2,9 +2,9 @@
 
 Specifically, it exposes a `WandbTracer` class that can be used to stream
 LangChain activity to W&B. The intended usage pattern is to call
-`WandbTracer.init()` at the top of the script/notebook, and call
-`WandbTracer.finish()` at the end of the script/notebook. This will
-automatically stream all LangChain activity to W&B.
+`tracer = WandbTracer()` at the top of the script/notebook, and call
+`tracer.finish()` at the end of the script/notebook.
+ This will stream all LangChain activity to W&B.
 
 Technical Note:
 LangChain is in very rapid development - meaning their APIs and schemas are actively changing.
@@ -24,12 +24,11 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import TypedDict
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
-
-# from packaging import version
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import wandb
 import wandb.util
+from packaging import version
 from wandb.sdk.data_types import trace_tree
 from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.paths import StrPath
@@ -40,19 +39,16 @@ langchain = wandb.util.get_module(
     "package installed. Please install it with `pip install langchain`.",
 )
 
-# if version.parse(langchain.__version__) > version.parse("0.0.153"):
-#     raise ValueError(
-#         "Langchain integration is incompatible with versions 0.0.154 and above. "
-#         "Please use a version below 0.0.154 to ensure proper functionality."
-#     )
+if version.parse(langchain.__version__) < version.parse("0.0.154"):
+    raise ValueError(
+        "The Weights & Biases Langchain integration is incompatible with versions 0.0.154 and below. "
+        "Please use a version above 0.0.154 to ensure proper functionality."
+    )
 
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
-from langchain.callbacks import (  # noqa: E402
-    StdOutCallbackHandler,
-)
-from langchain.callbacks.manager import CallbackManager  # noqa: E402
-from langchain.callbacks.tracers.base import BaseTracer  # noqa: E402
+
+from langchain.callbacks.tracers.base import BaseTracer, TracerException  # noqa: E402
 from langchain.callbacks.tracers.schemas import (  # noqa: E402
     ChainRun,
     LLMRun,
@@ -60,7 +56,6 @@ from langchain.callbacks.tracers.schemas import (  # noqa: E402
     TracerSession,
 )
 
-from . import monkeypatch  # noqa: E402
 from .util import (  # noqa: E402
     print_wandb_init_message,
     safely_convert_lc_run_to_wb_span,
@@ -71,11 +66,8 @@ from .util import (  # noqa: E402
 if TYPE_CHECKING:
     from langchain.callbacks.base import BaseCallbackHandler
     from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
-
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
-
-# monkeypatch.ensure_patched()
 
 
 class WandbRunArgs(TypedDict):
@@ -108,21 +100,23 @@ class WandbRunArgs(TypedDict):
 class WandbTracer(BaseTracer):
     """Callback Handler that logs to Weights and Biases.
 
-    This handler will log the model architecture and run traces to Weights and Biases. It is rare
-    that you will need to instantiate this class directly. Instead, you should use the
-    `WandbTracer.init()` method to set up the handler and make it the default handler. This will
+    This handler will log the model architecture and run traces to Weights and Biases. This will
     ensure that all LangChain activity is logged to W&B.
     """
 
     _run: Optional["WBRun"] = None
     _run_args: Optional[WandbRunArgs] = None
 
-    def __init__(self, run_args:Optional[WandbRunArgs]=None, **kwargs:Any) -> None:
+    def __init__(self, run_args: Optional[WandbRunArgs] = None, **kwargs: Any) -> None:
+        """Initializes the WandbTracer.
+        Parameters:
+            run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
+                called with no arguments. Please refer to the `wandb.init` for more details.
+        """
         super().__init__(**kwargs)
         self._run_args = run_args
         self.init_run(run_args)
         self.session = self.load_session("")
-
 
     @classmethod
     def init(
@@ -161,16 +155,6 @@ class WandbTracer(BaseTracer):
         tracer.load_session("")
 
         # TODO: maybe consider monkey patching here ?
-
-
-
-    def finish(self) -> None:
-        """Stops watching all LangChain activity and resets the default handler.
-
-        It is recommended to call this function before terminating the kernel or
-        python script.
-        """
-        self.finish_run()
 
     def init_run(self, run_args: Optional[WandbRunArgs] = None) -> None:
         """Initialize wandb if it has not been initialized.
@@ -213,8 +197,10 @@ class WandbTracer(BaseTracer):
         with wb_telemetry.context(self._run) as tel:
             tel.feature.langchain_tracer = True
 
-    def finish_run(self) -> None:
-        """Waits for W&B data to upload."""
+    def finish(self) -> None:
+        """Stops watching all LangChain activity and Waits for W&B data to upload.
+        It is recommended to call this function before terminating the kernel or python script.
+        """
         if self._run is not None:
             url = self._run.settings.run_url
             self._run.finish()
@@ -287,7 +273,14 @@ class WandbTracer(BaseTracer):
     ) -> None:
         """Add child run to a chain run or tool run."""
         try:
-            parent_run.child_chain_runs.append(child_run)
+            if isinstance(child_run, LLMRun):
+                parent_run.child_llm_runs.append(child_run)
+            elif isinstance(child_run, ChainRun):
+                parent_run.child_chain_runs.append(child_run)
+            elif isinstance(child_run, ToolRun):
+                parent_run.child_tool_runs.append(child_run)
+            else:
+                raise TracerException(f"Invalid run type: {type(child_run)}")
         except Exception:
             # Silently ignore errors to not break user code
             pass
