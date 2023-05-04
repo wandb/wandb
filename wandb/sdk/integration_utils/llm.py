@@ -115,7 +115,7 @@ class PatchLLMAPI:
                 )
 
     def unpatch(self) -> None:
-        """Unpatches the Cohere API."""
+        """Unpatches the LLM API."""
         for symbol, original in self.original_methods.items():
             # split on dots, e.g. "Client.generate" -> ["Client", "generate"]
             symbol_parts = symbol.split(".")

@@ -1,5 +1,3 @@
 __all__ = ("autolog",)
 
-from .cohere import AutologCohere
-
-autolog = AutologCohere()
+from .cohere import autolog

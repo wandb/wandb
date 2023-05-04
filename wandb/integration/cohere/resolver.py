@@ -1,37 +1,17 @@
 import logging
-import sys
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Any, Dict, List, Optional
 
 from wandb.sdk.data_types import trace_tree
-
-if sys.version_info >= (3, 8):
-    from typing import Protocol
-else:
-    from typing_extensions import Protocol
-
+from wandb.sdk.integration_utils.llm import Response
 
 logger = logging.getLogger(__name__)
-
-
-K = TypeVar("K", bound=str)
-V = TypeVar("V")
-
-
-class CohereResponse(Protocol[K, V]):
-    id: str
-
-    def __getitem__(self, key: K) -> V:
-        ...  # pragma: no cover
-
-    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
-        ...  # pragma: no cover
 
 
 class CohereRequestResponseResolver:
     def __call__(
         self,
         request: Dict[str, Any],
-        response: CohereResponse,
+        response: Response,
         start_time: float,
         time_elapsed: float,
     ) -> Optional[trace_tree.WBTraceTree]:
@@ -85,7 +65,7 @@ class CohereRequestResponseResolver:
     def _resolve_generate(
         self,
         request: Dict[str, Any],
-        response: CohereResponse,
+        response: Response,
         start_time: float,
         time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
