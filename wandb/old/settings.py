@@ -52,7 +52,10 @@ class Settings:
             path = os.path.abspath(fp.name)
             with open(path, "w+") as f:
                 settings.write(f)
-        os.replace(path, settings_path)
+        try:
+            os.replace(path, settings_path)
+        except AttributeError:
+            os.rename(path, settings_path)
 
     def set(self, section, key, value, globally=False, persist=False) -> None:
         """Persist settings to disk if persist = True"""
