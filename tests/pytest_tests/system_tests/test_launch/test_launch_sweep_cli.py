@@ -15,7 +15,13 @@ def _run_cmd_check_msg(cmd: List[str], assert_str: str) -> None:
     assert assert_str in out.decode("utf-8")
 
 
-def test_launch_sweep_param_validation(user):
+def test_launch_sweep_param_validation(user, wandb_init):
+    # make a job artifact for testing
+    run = wandb_init()
+    job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr", args=[])
+    job_name = job_artifact.wait().name
+    run.finish()
+
     base = ["wandb", "launch-sweep"]
     _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
 
@@ -38,7 +44,7 @@ def test_launch_sweep_param_validation(user):
     _run_cmd_check_msg(base + ["s.yaml"], err_msg)
 
     del config["launch"]["queue"]
-    config["job"] = "job123"
+    config["job"] = job_name
     json.dump(config, open("s.yaml", "w"))
 
     err_msg = "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in the config"
@@ -121,6 +127,7 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     assert "Scheduler added to launch queue (test)" in out.decode("utf-8")
 
 
+<<<<<<< HEAD
 @pytest.mark.parametrize(
     "image_uri,launch_config,job",
     [
@@ -191,6 +198,8 @@ def test_launch_sweep_launch_error(user, image_uri, launch_config, job):
         )
 
 
+=======
+>>>>>>> 6bdd00f7dbe8e7aa64d2f0ee891ecceb77231144
 def test_launch_sweep_launch_resume(user):
     api = InternalApi()
     public_api = Api()

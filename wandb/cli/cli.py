@@ -921,12 +921,6 @@ def sweep(
     default=None,
     help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
 )
-@click.option(
-    "--num_workers",
-    "-n",
-    default=1,
-    help="Number of concurrent jobs a scheduler can run",
-)
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
 @display_error
@@ -937,7 +931,6 @@ def launch_sweep(
     queue,
     config,
     resume_id,
-    num_workers,
 ):
     api = _get_cling_api()
     if api.api_key is None:
@@ -988,13 +981,25 @@ def launch_sweep(
             )
     else:
         parsed_sweep_config = parsed_config
+    
+    # validate job existence, add :latest alias if not specified
+    job = parsed_sweep_config.get("job")
+    if job:
+        if not isinstance(job, str) or ":" not in job:
+            wandb.termerror("Job must be a string of format <job_string>:<alias>")
+            return False
 
-    num_workers = num_workers or scheduler_args.get("num_workers", 8)
+        try:
+            public_api = PublicApi()
+            public_api.artifact(parsed_sweep_config["job"], type="job")
+        except Exception as e:
+            wandb.termerror(f"Failed to load job. Error: {e}")
+            return False
+
     args = sweep_utils.construct_scheduler_args(
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
-        num_workers=num_workers,
         author=entity,
     )
     if not args:
