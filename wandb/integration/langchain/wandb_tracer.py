@@ -16,7 +16,6 @@ will be raised when importing this module.
 """
 
 
-import json
 import sys
 
 if sys.version_info >= (3, 8):
@@ -61,6 +60,7 @@ from .util import (  # noqa: E402
 
 if TYPE_CHECKING:
     from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
+    from langchain.callbacks.base import BaseCallbackHandler
 
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
