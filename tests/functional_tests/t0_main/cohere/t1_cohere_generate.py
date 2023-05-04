@@ -5,7 +5,7 @@ cohere_autolog()
 
 
 def main():
-    # initialize the Cohere Client with an API Key
+    # The API Key is stored in the environment variable CO_API_KEY
     co = cohere.Client()
 
     # generate a prediction for a prompt
@@ -16,14 +16,7 @@ def main():
         max_tokens=30,
     )
 
-    print(prediction)
-    # breakpoint()
-
-    # print the predicted text
-    print(f"prediction: {prediction.generations[0].text}")
-
-    # res = co.chat(query="Hey! How are you doing today?")
-    # print(res)
+    print(prediction[0])
 
 
 if __name__ == "__main__":
