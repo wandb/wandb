@@ -5560,7 +5560,7 @@ class Job:
         code_artifact.download(launch_project.project_dir)
 
         if self._notebook_job:
-            self.__configure_launch_project_notebook(launch_project, True)
+            self._configure_launch_project_notebook(launch_project, True)
         else:
             launch_project.add_entry_point(self._entrypoint)
 

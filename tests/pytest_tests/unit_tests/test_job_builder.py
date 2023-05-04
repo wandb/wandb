@@ -57,7 +57,7 @@ def test_build_repo_notebook_job(runner):
             {"files_dir": "./", "disable_job_creation": False, "_jupyter": True}
         )
         job_builder = JobBuilder(settings)
-        artifact_name = str_of_length(129)
+        artifact_name = str_of_length(15)
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
