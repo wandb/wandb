@@ -1,3 +1,3 @@
-__all__ = ("WandbTracer",)
+__all__ = ("WandbTracer", "autolog")
 
-from .wandb_tracer import WandbTracer
+from .wandb_tracer import WandbTracer, autolog

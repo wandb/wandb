@@ -236,3 +236,13 @@ class WandbTracer(BaseTracer):
         return self._session
 
     # End of required methods
+
+
+def autolog(run_args: Optional[WandbRunArgs] = None):
+    monkeypatch.clear_patches()
+    tracer = WandbTracer(run_args=run_args)
+    monkeypatch.ensure_patched(tracer=tracer)
+
+
+def disable_autolog():
+    monkeypatch.clear_patches()

@@ -12,10 +12,10 @@ goes away entirely.
 """
 
 import inspect
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
+    from langchain.callbacks.tracers.base import BaseTracer
     from langchain.chains.base import Chain
     from langchain.llms.base import BaseLLM
     from langchain.tools.base import BaseTool
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 patched_symbols = {}
 
 
-def ensure_patched():
+def ensure_patched(tracer: Optional[BaseTracer] = None):
     for patch_method in [
         _patch_chain_type,
         _patch_single_agent_type,
@@ -31,12 +31,18 @@ def ensure_patched():
         _patch_llm_type,
         _patch_prompt_type,
         _patch_output_parser_type,
+    ]:
+        try:
+            patch_method()
+        except Exception:
+            pass
+    for patch_method in [
         _patch_chain_call,
         _patch_llm_call,
         _patch_tool_call,
     ]:
         try:
-            patch_method()
+            patch_method(tracer=tracer)
         except Exception:
             pass
 
@@ -204,7 +210,7 @@ def _clear_prompt_type():
     del patched_symbols["BasePromptTemplate._prompt_type"]
 
 
-def _patch_chain_call():
+def _patch_chain_call(tracer: Optional[BaseTracer] = None):
     from langchain.chains.base import Chain
 
     if "Chain._call__" in patched_symbols:
@@ -212,7 +218,7 @@ def _patch_chain_call():
 
     patched_symbols["Chain._call__"] = Chain.__call__
 
-    _wrap_call(Chain)
+    _wrap_call(Chain, tracer=tracer)
 
 
 def _clear_chain_call():
@@ -220,11 +226,11 @@ def _clear_chain_call():
 
     if "Chain._call__" not in patched_symbols:
         return
-    Chain.__init__ = patched_symbols["Chain._call__"]
+    Chain.__call__ = patched_symbols["Chain._call__"]
     del patched_symbols["Chain._call__"]
 
 
-def _patch_llm_call():
+def _patch_llm_call(tracer: Optional[BaseTracer] = None):
     from langchain.llms.base import BaseLLM
 
     if "BaseLLM._call__" in patched_symbols:
@@ -232,7 +238,7 @@ def _patch_llm_call():
 
     patched_symbols["BaseLLM._call__"] = BaseLLM.__call__
 
-    _wrap_call(BaseLLM)
+    _wrap_call(BaseLLM, tracer=tracer)
 
 
 def _clear_llm_call():
@@ -240,11 +246,11 @@ def _clear_llm_call():
 
     if "BaseLLM._call__" not in patched_symbols:
         return
-    BaseLLM.__init__ = patched_symbols["BaseLLM._call__"]
+    BaseLLM.__call__ = patched_symbols["BaseLLM._call__"]
     del patched_symbols["BaseLLM._call__"]
 
 
-def _patch_tool_call():
+def _patch_tool_call(tracer: Optional[BaseTracer] = None):
     from langchain.tools.base import BaseTool
 
     if "BaseTool._call__" in patched_symbols:
@@ -252,7 +258,7 @@ def _patch_tool_call():
 
     patched_symbols["BaseTool._call__"] = BaseTool.__call__
 
-    _wrap_call(BaseTool)
+    _wrap_call(BaseTool, tracer=tracer)
 
 
 def _clear_tool_call():
@@ -260,13 +266,11 @@ def _clear_tool_call():
 
     if "BaseTool._call__" not in patched_symbols:
         return
-    BaseTool.__init__ = patched_symbols["BaseTool._call__"]
+    BaseTool.__call__ = patched_symbols["BaseTool._call__"]
     del patched_symbols["BaseTool._call__"]
 
 
-def _wrap_call(
-    cls,
-):
+def _wrap_call(cls, tracer: Optional[BaseTracer] = None):
     from langchain.callbacks.manager import CallbackManager
 
     current_call = None
@@ -276,9 +280,13 @@ def _wrap_call(
     def call(self, *args, **kwargs):
         if current_call:
             inputs = self.prep_inputs(*args)
+            callbacks = self.callbacks if self.callbacks is not None else []
+            callbacks = callbacks + [tracer] if tracer is not None else callbacks
+            if not callbacks:
+                callbacks = None
             callback_manager = CallbackManager.configure(
                 inspect.signature(self.__call__).parameters.get("callbacks"),
-                self.callbacks,
+                callbacks,
                 self.verbose,
             )
             new_arg_supported = inspect.signature(self._call).parameters.get(
