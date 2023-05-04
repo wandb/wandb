@@ -48,14 +48,10 @@ if version.parse(langchain.__version__) < version.parse("0.0.154"):
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
 
-from langchain.callbacks.tracers.base import BaseTracer, TracerException  # noqa: E402
-from langchain.callbacks.tracers.schemas import (  # noqa: E402
-    ChainRun,
-    LLMRun,
-    ToolRun,
-    TracerSession,
-)
+from langchain.callbacks.tracers.base import BaseTracer  # noqa: E402
+from langchain.callbacks.tracers.schemas import TracerSession  # noqa: E402
 
+from . import monkeypatch  # noqa: E402
 from .util import (  # noqa: E402
     print_wandb_init_message,
     safely_convert_lc_run_to_wb_span,
@@ -64,10 +60,11 @@ from .util import (  # noqa: E402
 )
 
 if TYPE_CHECKING:
-    from langchain.callbacks.base import BaseCallbackHandler
     from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
+
+monkeypatch.ensure_patched()
 
 
 class WandbRunArgs(TypedDict):
@@ -237,24 +234,5 @@ class WandbTracer(BaseTracer):
         """Load the default tracing session and set it as the Tracer's session."""
         self._session = TracerSession(id=1)
         return self._session
-
-    def _add_child_run(
-        self,
-        parent_run: Union["ChainRun", "ToolRun"],
-        child_run: Union["LLMRun", "ChainRun", "ToolRun"],
-    ) -> None:
-        """Add child run to a chain run or tool run."""
-        try:
-            if isinstance(child_run, LLMRun):
-                parent_run.child_llm_runs.append(child_run)
-            elif isinstance(child_run, ChainRun):
-                parent_run.child_chain_runs.append(child_run)
-            elif isinstance(child_run, ToolRun):
-                parent_run.child_tool_runs.append(child_run)
-            else:
-                raise TracerException(f"Invalid run type: {type(child_run)}")
-        except Exception:
-            # Silently ignore errors to not break user code
-            pass
 
     # End of required methods

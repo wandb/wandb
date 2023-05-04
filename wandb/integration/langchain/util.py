@@ -11,10 +11,9 @@ These functions are used by the `WandbTracer` to extract and save the relevant i
 
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+import wandb
 from langchain.agents import BaseSingleActionAgent
 from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun
-
-import wandb
 from wandb.sdk.data_types import trace_tree
 
 if TYPE_CHECKING:
@@ -49,7 +48,7 @@ def safely_convert_lc_run_to_wb_span(run: "BaseRun") -> Optional["trace_tree.Spa
 
 def safely_get_span_producing_model(run: "BaseRun") -> Any:
     try:
-        return run.serialized
+        return run.serialized.get("_self")
     except Exception as e:
         if PRINT_WARNINGS:
             wandb.termwarn(
@@ -68,9 +67,15 @@ def safely_convert_model_to_dict(
     data = None
     message = None
     try:
-        data = model
+        data = model.dict()
     except Exception as e:
         message = str(e)
+        if hasattr(model, "agent"):
+            try:
+                data = model.agent.dict()
+            except Exception as e:
+                message = str(e)
+
     if data is not None and not isinstance(data, dict):
         message = (
             f"Model's dict transformation resulted in {type(data)}, expected a dict."

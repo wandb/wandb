@@ -12,10 +12,11 @@ goes away entirely.
 """
 
 import inspect
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING
+
+from langchain.callbacks.manager import CallbackManager
 
 if TYPE_CHECKING:
-    from langchain.callbacks.base import BaseCallbackManager
     from langchain.chains.base import Chain
     from langchain.llms.base import BaseLLM
     from langchain.tools.base import BaseTool
@@ -31,9 +32,9 @@ def ensure_patched():
         _patch_llm_type,
         _patch_prompt_type,
         _patch_output_parser_type,
-        _patch_chain_init,
-        _patch_llm_init,
-        _patch_tool_init,
+        _patch_chain_call,
+        _patch_llm_call,
+        _patch_tool_call,
     ]:
         try:
             patch_method()
@@ -49,9 +50,9 @@ def clear_patches():
         _clear_llm_type,
         _clear_prompt_type,
         _clear_output_parser_type,
-        _clear_chain_init,
-        _clear_llm_init,
-        _clear_tool_init,
+        _clear_chain_call,
+        _clear_llm_call,
+        _clear_tool_call,
     ]:
         try:
             clear_method()
@@ -204,135 +205,103 @@ def _clear_prompt_type():
     del patched_symbols["BasePromptTemplate._prompt_type"]
 
 
-def _patch_chain_init():
+def _patch_chain_call():
     from langchain.chains.base import Chain
 
-    if "Chain._init__" in patched_symbols:
+    if "Chain._call__" in patched_symbols:
         return
 
-    patched_symbols["Chain._init__"] = Chain.__init__
+    patched_symbols["Chain._call__"] = Chain.__call__
 
-    _wrap_init(Chain)
+    _wrap_call(Chain)
 
 
-def _clear_chain_init():
+def _clear_chain_call():
     from langchain.chains.base import Chain
 
-    if "Chain._init__" not in patched_symbols:
+    if "Chain._call__" not in patched_symbols:
         return
-    Chain.__init__ = patched_symbols["Chain._init__"]
-    del patched_symbols["Chain._init__"]
+    Chain.__init__ = patched_symbols["Chain._call__"]
+    del patched_symbols["Chain._call__"]
 
 
-def _patch_llm_init():
+def _patch_llm_call():
     from langchain.llms.base import BaseLLM
 
-    if "BaseLLM._init__" in patched_symbols:
+    if "BaseLLM._call__" in patched_symbols:
         return
 
-    patched_symbols["BaseLLM._init__"] = BaseLLM.__init__
+    patched_symbols["BaseLLM._call__"] = BaseLLM.__call__
 
-    _wrap_init(BaseLLM)
+    _wrap_call(BaseLLM)
 
 
-def _clear_llm_init():
+def _clear_llm_call():
     from langchain.llms.base import BaseLLM
 
-    if "BaseLLM._init__" not in patched_symbols:
+    if "BaseLLM._call__" not in patched_symbols:
         return
-    BaseLLM.__init__ = patched_symbols["BaseLLM._init__"]
-    del patched_symbols["BaseLLM._init__"]
+    BaseLLM.__init__ = patched_symbols["BaseLLM._call__"]
+    del patched_symbols["BaseLLM._call__"]
 
 
-def _patch_tool_init():
+def _patch_tool_call():
     from langchain.tools.base import BaseTool
 
-    if "BaseTool._init__" in patched_symbols:
+    if "BaseTool._call__" in patched_symbols:
         return
 
-    patched_symbols["BaseTool._init__"] = BaseTool.__init__
+    patched_symbols["BaseTool._call__"] = BaseTool.__call__
 
-    _wrap_init(BaseTool)
+    _wrap_call(BaseTool)
 
 
-def _clear_tool_init():
+def _clear_tool_call():
     from langchain.tools.base import BaseTool
 
-    if "BaseTool._init__" not in patched_symbols:
+    if "BaseTool._call__" not in patched_symbols:
         return
-    BaseTool.__init__ = patched_symbols["BaseTool._init__"]
-    del patched_symbols["BaseTool._init__"]
+    BaseTool.__init__ = patched_symbols["BaseTool._call__"]
+    del patched_symbols["BaseTool._call__"]
 
 
-def _wrap_init(cls):
-    current_init = None
-    if hasattr(cls, "__init__"):
-        current_init = cls.__init__
+def _wrap_call(cls):
+    current_call = None
+    if hasattr(cls, "__call__"):
+        current_call = cls.__call__
 
-    def init(self, *args, **kwargs):
-        if current_init:
-            # TODO: maybe consider monkey patching the callbacks list instead ?
+    def call(self, *args, **kwargs):
+        if current_call:
+            inputs = self.prep_inputs(*args)
+            callback_manager = CallbackManager.configure(
+                inspect.signature(self.__call__).parameters.get("callbacks"),
+                self.callbacks,
+                self.verbose,
+            )
+            new_arg_supported = inspect.signature(self._call).parameters.get(
+                "run_manager"
+            )
+            run_manager = callback_manager.on_chain_start(
+                {
+                    "name": self.__class__.__name__,
+                    "_self": self,
+                },
+                inputs,
+            )
             try:
-                if "callback_manager" in kwargs and isinstance(
-                    kwargs["callback_manager"], _CallbackManagerOnStartProxy
-                ):
-                    kwargs["callback_manager"] = kwargs[
-                        "callback_manager"
-                    ]._internal_callback_manager
-            except Exception:
-                pass
-            current_init(self, *args, **kwargs)
-        self.callback_manager = _CallbackManagerOnStartProxy(
-            self.callback_manager, self
-        )
+                outputs = (
+                    self._call(inputs, run_manager=run_manager)
+                    if new_arg_supported
+                    else self._call(inputs)
+                )
+            except (KeyboardInterrupt, Exception) as e:
+                run_manager.on_chain_error(e)
+                raise e
+            run_manager.on_chain_end(outputs)
+            return self.prep_outputs(
+                inputs,
+                outputs,
+                inspect.signature(self.__call__).parameters.get("return_only_outputs"),
+            )
 
-    cls.__init__ = init
-
-
-class _CallbackManagerOnStartProxy:
-    _internal_callback_manager: "BaseCallbackManager"
-    _bound_model: Union["BaseLLM", "BaseTool", "Chain"]
-
-    def __init__(
-        self, callback_manager: "BaseCallbackManager", bound_model=None
-    ) -> None:
-        self._internal_callback_manager = callback_manager
-        self._bound_model = bound_model
-
-    def __getattr__(self, name: str) -> Any:
-        if name == "_internal_callback_manager":
-            return self.__dict__["_internal_callback_manager"]
-        elif name == "_bound_model":
-            return self.__dict__["_bound_model"]
-
-        return getattr(self.__dict__["_internal_callback_manager"], name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name == "_internal_callback_manager":
-            self.__dict__["_internal_callback_manager"] = value
-        elif name == "_bound_model":
-            self.__dict__["_bound_model"] = value
-        setattr(self._internal_callback_manager, name, value)
-
-    def _handle_proxied_call(self, cb_name: str, *args, **kwargs) -> None:
-        method = getattr(self._internal_callback_manager, cb_name)
-        try:
-            sig = inspect.signature(method)
-            bound_kwargs = sig.bind(*args, **kwargs).arguments
-            serialized = bound_kwargs.get("serialized", {})
-            serialized["_self"] = self._bound_model
-            bound_kwargs["serialized"] = serialized
-            args = []
-            kwargs = bound_kwargs
-        except Exception:
-            pass
-        method(*args, **kwargs)
-
-    def on_llm_start(self, *args, **kwargs) -> None:
-        self._handle_proxied_call("on_llm_start", *args, **kwargs)
-
-    def on_chain_start(self, *args, **kwargs) -> None:
-        self._handle_proxied_call("on_chain_start", *args, **kwargs)
-
-    def on_tool_start(self, *args, **kwargs) -> None:
-        self._handle_proxied_call("on_tool_start", *args, **kwargs)
+    cls.__call__ = call
