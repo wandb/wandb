@@ -26,9 +26,10 @@ else:
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
+from packaging import version
+
 import wandb
 import wandb.util
-from packaging import version
 from wandb.sdk.data_types import trace_tree
 from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.paths import StrPath
@@ -61,6 +62,7 @@ from .util import (  # noqa: E402
 
 if TYPE_CHECKING:
     from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
+
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
 
