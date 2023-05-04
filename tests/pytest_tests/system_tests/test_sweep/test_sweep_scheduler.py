@@ -695,7 +695,6 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         sweep_config=sweep_config,
         queue=queue,
         project=project,
-        num_workers=1,
         author="author",
     )
 
