@@ -48,8 +48,9 @@ if version.parse(langchain.__version__) < version.parse("0.0.154"):
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
 
-from langchain.callbacks.tracers.base import BaseTracer  # noqa: E402
-from langchain.callbacks.tracers.schemas import TracerSession  # noqa: E402
+# isort: off
+from langchain.callbacks.tracers.base import BaseTracer  # noqa: E402, I001
+from langchain.callbacks.tracers.schemas import TracerSession  # noqa: E402, I001
 
 from .util import (  # noqa: E402
     print_wandb_init_message,
@@ -121,6 +122,7 @@ WandbTracer.finish()"""
 
     def __init__(self, run_args: Optional[WandbRunArgs] = None, **kwargs: Any) -> None:
         """Initializes the WandbTracer.
+
         Parameters:
             run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
                 called with no arguments. Please refer to the `wandb.init` for more details.
@@ -147,7 +149,7 @@ WandbTracer.finish()"""
         wandb.finish()
 
     def _log_trace_from_run(self, run: "BaseRun") -> None:
-        """Logs a LangChain Run to W*B as a W&B Trace"""
+        """Logs a LangChain Run to W*B as a W&B Trace."""
         self._ensure_run()
 
         root_span = safely_convert_lc_run_to_wb_span(run)
@@ -168,8 +170,9 @@ WandbTracer.finish()"""
         wandb.run.log({"langchain_trace": model_trace})
 
     def _ensure_run(self, should_print_url=False) -> None:
-        """Ensures an active W&B run exists. If not, will start a new run
-        with the provided run_args.
+        """Ensures an active W&B run exists.
+
+        If not, will start a new run with the provided run_args.
         """
         if wandb.run is None:
             # Make a shallow copy of the run args, so we don't modify the original
