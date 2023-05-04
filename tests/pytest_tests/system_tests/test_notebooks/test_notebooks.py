@@ -277,6 +277,7 @@ def test_notebook_creates_artifact_job(notebook):
         nb.execute_all()
         output = nb.cell_output_html(2)
         # 3 artifact files if code, 5 if also job
+        # TODO: test contents of artifact, requires relay server context for artifacts
         assert "5 artifact file(s)" in output
 
 
@@ -285,4 +286,5 @@ def test_notebook_creates_repo_job(notebook):
         nb.execute_all()
         output = nb.cell_output_html(2)
         # 3 artifact files if code, 5 if also job
+        # TODO: test contents of artifact, requires relay server context for artifacts
         assert "5 artifact file(s)" in output
