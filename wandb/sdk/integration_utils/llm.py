@@ -195,11 +195,9 @@ class AutologLLMAPI:
 
         self._patch_llm_api.patch(self._run)
 
-        if not self._telemetry_feature:
-            return
-
-        with wb_telemetry.context(self._run) as tel:
-            tel.feature.cohere_autolog = True
+        if self._telemetry_feature:
+            with wb_telemetry.context(self._run) as tel:
+                setattr(tel.feature, self._telemetry_feature, True)
 
     def disable(self) -> None:
         """Disable autologging."""
