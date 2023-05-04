@@ -42,7 +42,7 @@ langchain = wandb.util.get_module(
 
 if version.parse(langchain.__version__) < version.parse("0.0.154"):
     raise ValueError(
-        "The Weights & Biases Langchain integration is incompatible with versions 0.0.154 and below. "
+        "The Weights & Biases Langchain integration is incompatible with versions 0.0.153 and below. "
         "Please use a version above 0.0.154 to ensure proper functionality."
     )
 
