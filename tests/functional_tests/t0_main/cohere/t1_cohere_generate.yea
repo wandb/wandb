@@ -19,3 +19,6 @@ assert:
     - :op:contains:
         - :wandb:runs[0][summary][trace]
         - model_dict_dumps
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # features
+        - 53  # cohere autolog
