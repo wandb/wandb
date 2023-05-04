@@ -16,8 +16,9 @@ from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
 from wandb.sdk.lib.runid import generate_id
 
-from . import utils
-from .utils import LOG_PREFIX, LaunchError
+from wandb.sdk.launch import utils
+from .utils import LOG_PREFIX, LaunchError, recursive_macro_sub
+
 
 _logger = logging.getLogger(__name__)
 
@@ -207,9 +208,7 @@ class LaunchProject:
             "image_uri": image,
         }
         update_dict.update(os.environ)
-        resource_args_str = json.dumps(self.resource_args)
-        new_resource_args = utils.macro_sub(resource_args_str, update_dict)
-        self.resource_args = json.loads(new_resource_args)
+        self.resource_args = recursive_macro_sub(self.resource_args, update_dict)
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""

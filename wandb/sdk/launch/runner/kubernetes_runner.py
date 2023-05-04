@@ -322,6 +322,55 @@ class KubernetesRunner(AbstractRunner):
 
         context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
+        api_version = resource_args.get("apiVersion")
+        if api_version and not str(api_version).startswith("batch/v1"):
+            # CRD codepath 🌋
+            entrypoint = launch_project.get_single_entry_point()
+            if launch_project.docker_image:
+                image_uri = launch_project.docker_image
+            else:
+                image_uri = builder.build_image(launch_project, entrypoint)
+            launch_project.fill_macros(image_uri)
+            env_vars = get_env_vars_dict(launch_project, self._api)
+
+            def add_wandb_env(root):
+                """Injects wandb environment variables into specs."""
+                if isinstance(root, dict):
+                    for k, v in root.items():
+                        if k == "containers":
+                            if isinstance(v, list):
+                                for cont in v:
+                                    env = cont.get("env", [])
+                                    env.extend(
+                                        [
+                                            {"name": key, "value": value}
+                                            for key, value in env_vars.items()
+                                        ]
+                                    )
+                                    cont["env"] = env
+                        elif isinstance(v, (dict, list)):
+                            add_wandb_env(v)
+                elif isinstance(root, list):
+                    for item in root:
+                        add_wandb_env(item)
+
+            add_wandb_env(resource_args)
+            api = kubernetes.client.CustomObjectsApi(api_client)
+            namespace = self.get_namespace(resource_args, context)
+            group = resource_args.get("group", api_version.split("/")[0])
+            version = api_version.split("/")[1]
+            kind = resource_args.get("kind", version)
+            plural = f"{kind.lower()}s"
+            api.create_namespaced_custom_object(
+                group=group,
+                version=version,
+                namespace=namespace,
+                plural=plural,
+                body=resource_args,
+            )
+            # TODO: Implement SubmittedRun for these CRD
+            return
+
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
 
