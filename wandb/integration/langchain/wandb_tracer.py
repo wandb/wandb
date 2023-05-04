@@ -59,8 +59,8 @@ from .util import (  # noqa: E402
 )
 
 if TYPE_CHECKING:
-    from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
     from langchain.callbacks.base import BaseCallbackHandler
+    from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
 
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
