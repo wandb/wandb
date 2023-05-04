@@ -165,10 +165,6 @@ def construct_scheduler_entrypoint(
         args += ["--author", author]
 
     if job:
-        if ":" not in job:
-            wandb.termwarn("No alias specified for job, defaulting to 'latest'")
-            job += ":latest"
-
         args += ["--job", job]
     elif image_uri:
         args += ["--image_uri", image_uri]
