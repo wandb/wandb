@@ -65,7 +65,7 @@ def test_build_repo_notebook_job(runner):
         artifact = job_builder.build()
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(
-            f"job-{remote_name}_blah_test.py"
+            f"job-{remote_name}_{artifact_name}"
         )
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
