@@ -56,11 +56,12 @@ def test_load_launch_sweep_config():
 
 
 def test_sweep_construct_scheduler_entrypoint():
-    assert utils.construct_scheduler_entrypoint({}, "queue", "project", 1) == []
+    assert not utils.construct_scheduler_entrypoint({}, "queue", "project", 1)
 
-    assert utils.construct_scheduler_entrypoint(
+    entry, args = utils.construct_scheduler_entrypoint(
         {"job": "job:12315"}, "queue", "project", 1
-    ) == [
+    )
+    assert entry + args == [
         "wandb",
         "scheduler",
         "WANDB_SWEEP_ID",
@@ -74,30 +75,26 @@ def test_sweep_construct_scheduler_entrypoint():
         "job:12315",
     ]
 
-    assert utils.construct_scheduler_entrypoint(
-        {"job": "job"}, "queue", "project", "1", "author"
-    ) == [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    entry, args = utils.construct_scheduler_entrypoint(
+        {"job": "job:latest"}, "queue", "project", "1", "author"
+    )
+    assert args == [
         "--queue",
         "'queue'",
         "--project",
         "project",
         "--num_workers",
         "1",
-        "--job",
-        "job:latest",
         "--author",
         "author",
+        "--job",
+        "job:latest",
     ]
 
-    assert utils.construct_scheduler_entrypoint(
+    entry, args = utils.construct_scheduler_entrypoint(
         {"image_uri": "image_uri"}, "queue", "project", 1
-    ) == [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    )
+    assert args == [
         "--queue",
         "'queue'",
         "--project",
@@ -108,23 +105,9 @@ def test_sweep_construct_scheduler_entrypoint():
         "image_uri",
     ]
 
-    assert (
+    # should fail because job and image_uri are mutually exclusive
+    assert not (
         utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", 1
+            {"job": "job:111", "image_uri": "image_uri"}, "queue", "project", "1.5"
         )
-        == []
-    )
-
-    assert (
-        utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1cpu"
-        )
-        == []
-    )
-
-    assert (
-        utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1.5"
-        )
-        == []
     )

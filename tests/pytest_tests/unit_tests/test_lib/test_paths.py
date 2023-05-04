@@ -27,7 +27,9 @@ def test_path_groups(target, posix, windows, _bytes):
 @given(fspaths())
 @example(b"")
 @example(".")
-@example("\\")
+@example("\\\\")
+@example(" /")
+@example("/")
 @example(PureWindowsPath("C:/foo/bar.txt"))
 @example(PurePosixPath("x\\a/b.bin"))
 def test_path_conversion(path):
@@ -37,9 +39,20 @@ def test_path_conversion(path):
         assert "\\" not in logical_path
 
     # For compatibility, enforce output identical to `to_forward_slash_path`.
-    # One exception: we send both `'.'` and `''` to `'.'`.
+    # Three exceptions, none should affect the interpretation of the path:
+    # 1. We send both `'.'` and `''` to `'.'`
+    # 2. We strip trailing slashes
+    # 3. We collapse multiple slashes (e.g. `'a//b'` -> `'a/b'`)
     if path and isinstance(path, str):
-        assert logical_path == to_forward_slash_path(path)
+        canonical = to_forward_slash_path(path)
+        while "//" in canonical:
+            canonical = canonical.replace("//", "/")
+        # We strip trailing slashes, but obviously not the root path.
+        if canonical.startswith("/") and canonical.rstrip("/") == "":
+            canonical = "/"
+        else:
+            canonical = canonical.rstrip("/")
+        assert logical_path == canonical
 
 
 @given(fspaths())
