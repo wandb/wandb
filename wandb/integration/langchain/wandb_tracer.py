@@ -17,7 +17,6 @@ will be raised when importing this module.
 
 
 import json
-import pathlib
 import sys
 
 if sys.version_info >= (3, 8):
@@ -27,16 +26,25 @@ else:
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
 
+from packaging import version
+
 import wandb
 import wandb.util
 from wandb.sdk.data_types import trace_tree
 from wandb.sdk.lib import telemetry as wb_telemetry
+from wandb.sdk.lib.paths import StrPath
 
-_ = wandb.util.get_module(
+langchain = wandb.util.get_module(
     name="langchain",
     required="To use the LangChain WandbTracer you need to have the `langchain` python "
     "package installed. Please install it with `pip install langchain`.",
 )
+
+if version.parse(langchain.__version__) > version.parse("0.0.153"):
+    raise ValueError(
+        "Langchain integration is incompatible with versions 0.0.154 and above. "
+        "Please use a version below 0.0.154 to ensure proper functionality."
+    )
 
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
@@ -72,7 +80,7 @@ monkeypatch.ensure_patched()
 
 class WandbRunArgs(TypedDict):
     job_type: Optional[str]
-    dir: Union[str, pathlib.Path, None]
+    dir: Optional[StrPath]
     config: Union[Dict, str, None]
     project: Optional[str]
     entity: Optional[str]
