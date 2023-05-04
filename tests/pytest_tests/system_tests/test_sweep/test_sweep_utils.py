@@ -71,7 +71,7 @@ def test_sweep_construct_scheduler_args():
     ]
 
     args = utils.construct_scheduler_args(
-        {"job": "job"}, "queue", "project", author="author"
+        {"job": "job:latest"}, "queue", "project", author="author"
     )
     assert args == [
         "--queue",
