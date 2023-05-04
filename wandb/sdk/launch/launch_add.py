@@ -207,7 +207,7 @@ def _launch_add(
     container_job = False
     if job:
         job_artifact = public_api.job(job)
-        if job_artifact._source_info.get("source_type") == "image":
+        if job_artifact._job_info.get("source_type") == "image":
             container_job = True
 
     queued_run = public_api.queued_run(

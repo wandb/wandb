@@ -36,13 +36,13 @@ class NotebookSourceDict(TypedDict):
 
 class GitSourceDict(TypedDict):
     git: GitInfo
-    entrypoint: List[str]
+    entrypoint: Optional[List[str]]
     notebook: Optional[NotebookSourceDict]
 
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
-    entrypoint: List[str]
+    entrypoint: Optional[List[str]]
     notebook: Optional[NotebookSourceDict]
 
 
@@ -126,22 +126,30 @@ class JobBuilder:
         return source
 
     def _build_repo_job(
-        self, metadata: Dict[str, Any], program_relpath: str
+        self, metadata: Dict[str, Any], program_relpath: Optional[str]
     ) -> Tuple[Artifact, GitSourceDict]:
-        notebook_source = None
-        if self._notebook_job:
-            notebook_source = self._build_notebook_source_dict()
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
         assert remote is not None
         assert commit is not None
-        # TODO: update executable to a method that supports pex
-        source: GitSourceDict = {
-            "entrypoint": [
+        entrypoint = None
+        notebook_source = None
+        if self._notebook_job:
+            assert isinstance(self._logged_code_artifact, dict)
+            notebook_source = self._build_notebook_source_dict()
+            file_path = self._logged_code_artifact["name"]
+        else:
+            assert program_relpath is not None
+            entrypoint = [
                 os.path.basename(sys.executable),
                 program_relpath,
-            ],
+            ]
+            file_path = program_relpath
+
+        # TODO: update executable to a method that supports pex
+        source: GitSourceDict = {
+            "entrypoint": entrypoint,
             "notebook": notebook_source,
             "git": {
                 "remote": remote,
@@ -149,7 +157,7 @@ class JobBuilder:
             },
         }
 
-        name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
+        name = make_artifact_name_safe(f"job-{remote}_{file_path}")
 
         artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
@@ -160,22 +168,28 @@ class JobBuilder:
         return artifact, source
 
     def _build_artifact_job(
-        self, program_relpath: str
+        self, program_relpath: Optional[str]
     ) -> Tuple[Artifact, ArtifactSourceDict]:
         assert isinstance(self._logged_code_artifact, dict)
 
+        entrypoint = None
         notebook_source = None
         if self._notebook_job:
             notebook_source = self._build_notebook_source_dict()
-        # TODO: update executable to a method that supports pex
-        source: ArtifactSourceDict = {
-            "entrypoint": [
+        else:
+            assert program_relpath is not None
+            entrypoint = [
                 os.path.basename(sys.executable),
                 program_relpath,
-            ],
+            ]
+
+        # TODO: update executable to a method that supports pex
+        source: ArtifactSourceDict = {
+            "entrypoint": entrypoint,
             "notebook": notebook_source,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
+
         name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         artifact = JobArtifact(name)
@@ -194,7 +208,11 @@ class JobBuilder:
         return artifact, source
 
     def _is_notebook_run(self) -> bool:
-        return hasattr(self._settings, "_jupyter") and self._settings._jupyter and self._logged_code_artifact is not None
+        return (
+            hasattr(self._settings, "_jupyter")
+            and bool(self._settings._jupyter)
+            and self._logged_code_artifact is not None
+        )
 
     def build(self) -> Optional[Artifact]:
         if not os.path.exists(
@@ -229,10 +247,10 @@ class JobBuilder:
         ] = None
 
         if source_type == "repo":
-            assert program_relpath is not None
+            program_relpath is not None or self._notebook_job
             artifact, source = self._build_repo_job(metadata, program_relpath)
         elif source_type == "artifact":
-            assert program_relpath is not None
+            assert program_relpath is not None or self._notebook_job
             artifact, source = self._build_artifact_job(program_relpath)
         elif source_type == "image":
             artifact, source = self._build_image_job(metadata)
@@ -279,11 +297,13 @@ class JobBuilder:
         return (
             git_info.get("remote") is not None
             and git_info.get("commit") is not None
-            and program_relpath is not None
+            and (program_relpath is not None or self._notebook_job)
         )
 
     def _has_artifact_job_ingredients(self, program_relpath: Optional[str]) -> bool:
-        return self._logged_code_artifact is not None and program_relpath is not None
+        return self._logged_code_artifact is not None and (
+            program_relpath is not None or self._notebook_job
+        )
 
     def _has_image_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
         return metadata.get("docker") is not None

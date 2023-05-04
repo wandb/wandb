@@ -522,7 +522,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
     )
 
     _logger.info("Converting notebook to script")
-    new_name = fname.rstrip(".ipynb") + ".py"
+    new_name = fname.replace(".ipynb", ".py")
     with open(os.path.join(project_dir, fname)) as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
 

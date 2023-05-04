@@ -5452,7 +5452,8 @@ class Job:
     _output_types: Type
     _entity: str
     _project: str
-    _entrypoint: List[str]
+    _entrypoint: Optional[List[str]]
+    _notebook_job: bool
 
     def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
@@ -5469,22 +5470,28 @@ class Job:
         self._entity = api.default_entity
 
         with open(os.path.join(self._fpath, "wandb-job.json")) as f:
-            self._source_info: Mapping[str, Any] = json.load(f)
-        self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
-        self._args = self._source_info.get("source", {}).get("args")
+            self._job_info: Mapping[str, Any] = json.load(f)
+        source_info = self._job_info.get("source", {})
+        # only use notebook job if entrypoint not set and notebook is set
+        self._notebook_job = (
+            source_info.get("notebook") is not None
+            and source_info.get("entrypoint") is None
+        )
+        self._entrypoint = source_info.get("entrypoint")
+        self._args = source_info.get("args")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
-            self._source_info.get("input_types")
+            self._job_info.get("input_types")
         )
         self._output_types = TypeRegistry.type_from_dict(
-            self._source_info.get("output_types")
+            self._job_info.get("output_types")
         )
 
-        if self._source_info.get("source_type") == "artifact":
+        if self._job_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
-        if self._source_info.get("source_type") == "repo":
+        if self._job_info.get("source_type") == "repo":
             self._set_configure_launch_project(self._configure_launch_project_repo)
-        if self._source_info.get("source_type") == "image":
+        if self._job_info.get("source_type") == "image":
             self._set_configure_launch_project(self._configure_launch_project_container)
 
     @property
@@ -5495,7 +5502,7 @@ class Job:
         self.configure_launch_project = func
 
     def _get_code_artifact(self, artifact_string):
-        artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
+        artifact_string, _, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
             code_artifact = Artifact.from_id(artifact_string, self._api._client)
         else:
@@ -5507,11 +5514,8 @@ class Job:
     def _configure_launch_project_notebook(
         self, launch_project, sourced_from_artifact=False
     ):
-        notebook_info = self._source_info.get("notebook")
-        if notebook_info is None:
-            raise LaunchError(
-                f"Attempted to configure job: {self.name} for notebook without notebook info present in job"
-            )
+        notebook_info = self._job_info.get("source", {}).get("notebook")
+        assert notebook_info is not None
         if not sourced_from_artifact:
             artifact_string = notebook_info.get("notebook_artifact")
             if artifact_string is None:
@@ -5529,7 +5533,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
 
     def _configure_launch_project_repo(self, launch_project):
-        git_info = self._source_info.get("source", {}).get("git", {})
+        git_info = self._job_info.get("source", {}).get("git", {})
         _fetch_git_repo(
             launch_project.project_dir,
             git_info["remote"],
@@ -5539,31 +5543,29 @@ class Job:
             with open(os.path.join(self._fpath, "diff.patch")) as f:
                 apply_patch(f.read(), launch_project.project_dir)
         shutil.copy(self._requirements_file, launch_project.project_dir)
-        launch_project.python_version = self._source_info.get("runtime")
-        is_notebook = self._source_info.get("source", {}).get("notebook")
-        if is_notebook:
+        launch_project.python_version = self._job_info.get("runtime")
+        if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
             launch_project.add_entry_point(self._entrypoint)
 
     def _configure_launch_project_artifact(self, launch_project):
-        artifact_string = self._source_info.get("source", {}).get("artifact")
+        artifact_string = self._job_info.get("source", {}).get("artifact")
         if artifact_string is None:
             raise LaunchError(f"Job {self.name} had no source artifact")
         code_artifact = self._get_code_artifact(artifact_string)
-        launch_project.python_version = self._source_info.get("runtime")
+        launch_project.python_version = self._job_info.get("runtime")
         shutil.copy(self._requirements_file, launch_project.project_dir)
 
         code_artifact.download(launch_project.project_dir)
 
-        is_notebook = self._source_info.get("source", {}).get("notebook")
-        if is_notebook:
+        if self._notebook_job:
             self.__configure_launch_project_notebook(launch_project, True)
         else:
             launch_project.add_entry_point(self._entrypoint)
 
     def _configure_launch_project_container(self, launch_project):
-        launch_project.docker_image = self._source_info.get("source", {}).get("image")
+        launch_project.docker_image = self._job_info.get("source", {}).get("image")
         if launch_project.docker_image is None:
             raise LaunchError(
                 "Job had malformed source dictionary without an image key"
