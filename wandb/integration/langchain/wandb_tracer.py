@@ -52,7 +52,6 @@ if version.parse(langchain.__version__) < version.parse("0.0.154"):
 from langchain.callbacks.tracers.base import BaseTracer  # noqa: E402
 from langchain.callbacks.tracers.schemas import TracerSession  # noqa: E402
 
-from . import monkeypatch  # noqa: E402
 from .util import (  # noqa: E402
     print_wandb_init_message,
     safely_convert_lc_run_to_wb_span,
@@ -65,8 +64,6 @@ if TYPE_CHECKING:
 
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
-
-monkeypatch.ensure_patched()
 
 
 class WandbRunArgs(TypedDict):
@@ -106,6 +103,23 @@ class WandbTracer(BaseTracer):
     _run: Optional["WBRun"] = None
     _run_args: Optional[WandbRunArgs] = None
 
+    @classmethod
+    def init(
+        cls,
+        run_args: Optional[WandbRunArgs] = None,
+        include_stdout: bool = True,
+        additional_handlers: Optional[List["BaseCallbackHandler"]] = None,
+    ) -> None:
+        """Method provided for backwards compatibility. Please directly construct `WandbTracer` instead."""
+        message = """Global autologging is not currently supported for the LangChain integration.
+Please directly construct a `WandbTracer` and add it to the list of callbacks. For example:
+
+LLMChain(llm, callbacks=[WandbTracer()])
+# end of notebook / script:
+WandbTracer.finish()
+"""
+        wandb.termlog(message)
+
     def __init__(self, run_args: Optional[WandbRunArgs] = None, **kwargs: Any) -> None:
         """Initializes the WandbTracer.
         Parameters:
@@ -115,90 +129,67 @@ class WandbTracer(BaseTracer):
         To use W&B to monitor all LangChain activity, add this tracer like any other langchain callback
         ```
         from wandb.integration.langchain import WandbTracer
-        tracer = WandbTracer()
-        # ...
-        LLMChain(llm, callbacks=[tracer])
+        LLMChain(llm, callbacks=[WandbTracer()])
         # end of notebook / script:
-        tracer.finish()
+        WandbTracer.finish()
         ```.
         """
         super().__init__(**kwargs)
         self._run_args = run_args
-        self.init_run(run_args)
         self.session = self.load_session("")
+        self._ensure_run(should_print_url=(wandb.run is None))
 
-    def init_run(self, run_args: Optional[WandbRunArgs] = None) -> None:
-        """Initialize wandb if it has not been initialized.
+    @staticmethod
+    def finish() -> None:
+        """Waits for all asynchronous processes to finish and data to upload.
 
-        Parameters:
-            run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
-                called with no arguments. Please refer to the `wandb.init` for more details.
-
-        We only want to start a new run if the run args differ. This will reduce
-        the number of W&B runs created, which is more ideal in a notebook
-        setting. Note: it is uncommon to call this method directly. Instead, you
-        should use the `WandbTracer.init()` method. This method is exposed if you
-        want to manually initialize the tracer and add it to the list of handlers.
+        Proxy for `wandb.finish()`.
         """
-        # Add a check for differences between wandb.run and self._run
-        if (
-            wandb.run is not None
-            and self._run is not None
-            and json.dumps(self._run_args, sort_keys=True)
-            == json.dumps(run_args, sort_keys=True)
-        ):
-            print_wandb_init_message(self._run.settings.run_url)
-            return
-        self._run_args = run_args
-        self._run = None
-
-        # Make a shallow copy of the run args, so we don't modify the original
-        run_args = run_args or {}  # type: ignore
-        run_args: dict = {**run_args}  # type: ignore
-
-        # Prefer to run in silent mode since W&B has a lot of output
-        # which can be undesirable when dealing with text-based models.
-        if "settings" not in run_args:  # type: ignore
-            run_args["settings"] = {"silent": True}  # type: ignore
-
-        # Start the run and add the stream table
-        self._run = wandb.init(**run_args)
-        print_wandb_init_message(self._run.settings.run_url)
-
-        with wb_telemetry.context(self._run) as tel:
-            tel.feature.langchain_tracer = True
-
-    def finish(self) -> None:
-        """Stops watching all LangChain activity and Waits for W&B data to upload.
-        It is recommended to call this function before terminating the kernel or python script.
-        """
-        if self._run is not None:
-            url = self._run.settings.run_url
-            self._run.finish()
-            self._run = None
-            self._run_args = None
-            wandb.termlog(f"Finished uploading data to W&B at {url}")
-        else:
-            wandb.termlog("W&B run not started. Skipping.")
+        wandb.finish()
 
     def _log_trace_from_run(self, run: "BaseRun") -> None:
-        if self._run is None:
-            return
+        """Logs a LangChain Run to W*B as a W&B Trace"""
+        self._ensure_run()
 
         root_span = safely_convert_lc_run_to_wb_span(run)
         if root_span is None:
             return
 
         model_dict = None
-        model = safely_get_span_producing_model(run)
-        if model is not None:
-            model_dict = safely_convert_model_to_dict(model)
+
+        # TODO: Uncomment this once we have a way to get the model from a run
+        # model = safely_get_span_producing_model(run)
+        # if model is not None:
+        #     model_dict = safely_convert_model_to_dict(model)
 
         model_trace = trace_tree.WBTraceTree(
             root_span=root_span,
             model_dict=model_dict,
         )
-        self._run.log({"langchain_trace": model_trace})
+        wandb.run.log({"langchain_trace": model_trace})
+
+    def _ensure_run(self, should_print_url=False) -> None:
+        """Ensures an active W&B run exists. If not, will start a new run
+        with the provided run_args.
+        """
+        if wandb.run is None:
+            # Make a shallow copy of the run args, so we don't modify the original
+            run_args = self._run_args or {}  # type: ignore
+            run_args: dict = {**run_args}  # type: ignore
+
+            # Prefer to run in silent mode since W&B has a lot of output
+            # which can be undesirable when dealing with text-based models.
+            if "settings" not in run_args:  # type: ignore
+                run_args["settings"] = {"silent": True}  # type: ignore
+
+            # Start the run and add the stream table
+            wandb.init(**run_args)
+
+            if should_print_url:
+                print_wandb_init_message(self._run.settings.run_url)
+
+        with wb_telemetry.context(self._run) as tel:
+            tel.feature.langchain_tracer = True
 
     # Start of required methods (these methods are required by the BaseCallbackHandler interface)
     @property
