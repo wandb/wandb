@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 patched_symbols = {}
 
 
-def ensure_patched(tracer: Optional[BaseTracer] = None):
+def ensure_patched(tracer: Optional["BaseTracer"] = None):
     for patch_method in [
         _patch_chain_type,
         _patch_single_agent_type,
@@ -210,7 +210,7 @@ def _clear_prompt_type():
     del patched_symbols["BasePromptTemplate._prompt_type"]
 
 
-def _patch_chain_call(tracer: Optional[BaseTracer] = None):
+def _patch_chain_call(tracer: Optional["BaseTracer"] = None):
     from langchain.chains.base import Chain
 
     if "Chain._call__" in patched_symbols:
@@ -230,7 +230,7 @@ def _clear_chain_call():
     del patched_symbols["Chain._call__"]
 
 
-def _patch_llm_call(tracer: Optional[BaseTracer] = None):
+def _patch_llm_call(tracer: Optional["BaseTracer"] = None):
     from langchain.llms.base import BaseLLM
 
     if "BaseLLM._call__" in patched_symbols:
@@ -250,7 +250,7 @@ def _clear_llm_call():
     del patched_symbols["BaseLLM._call__"]
 
 
-def _patch_tool_call(tracer: Optional[BaseTracer] = None):
+def _patch_tool_call(tracer: Optional["BaseTracer"] = None):
     from langchain.tools.base import BaseTool
 
     if "BaseTool._call__" in patched_symbols:
@@ -270,7 +270,7 @@ def _clear_tool_call():
     del patched_symbols["BaseTool._call__"]
 
 
-def _wrap_call(cls, tracer: Optional[BaseTracer] = None):
+def _wrap_call(cls, tracer: Optional["BaseTracer"] = None):
     from langchain.callbacks.manager import CallbackManager
 
     current_call = None
