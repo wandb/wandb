@@ -1158,7 +1158,6 @@ def test_resolve_agent_config(monkeypatch, runner):
         with open("./config/wandb/launch-config.yaml", "w") as f:
             yaml.dump(
                 {
-                    "base_url": "testurl",
                     "entity": "different-entity",
                     "max_jobs": 2,
                     "registry": {"url": "test"},
