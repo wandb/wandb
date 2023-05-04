@@ -154,7 +154,9 @@ class Scheduler(ABC):
         self._wandb_run = self._init_wandb_run()
 
         # Grab param from scheduler wandb run config
-        num_workers = num_workers or self._wandb_run.config.get("scheduler", {}).get("num_workers")
+        num_workers = num_workers or self._wandb_run.config.get("scheduler", {}).get(
+            "num_workers"
+        )
         self._num_workers = int(num_workers) if str(num_workers).isdigit() else 8
 
     @abstractmethod
@@ -242,7 +244,7 @@ class Scheduler(ABC):
             job_type=self.SWEEP_JOB_TYPE,
             # run_id=self._sweep_id when resuming, otherwise allow resumed run
             #    or create new run
-            resume=os.environ.get('WANDB_RUN_ID', "allow"),
+            resume=os.environ.get("WANDB_RUN_ID", "allow"),
         )
         return run
 
