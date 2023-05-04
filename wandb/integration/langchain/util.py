@@ -11,9 +11,10 @@ These functions are used by the `WandbTracer` to extract and save the relevant i
 
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-import wandb
 from langchain.agents import BaseSingleActionAgent
 from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun
+
+import wandb
 from wandb.sdk.data_types import trace_tree
 
 if TYPE_CHECKING:
