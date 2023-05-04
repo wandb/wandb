@@ -186,7 +186,7 @@ WandbTracer.finish()
             wandb.init(**run_args)
 
             if should_print_url:
-                print_wandb_init_message(self._run.settings.run_url)
+                print_wandb_init_message(wandb.run.settings.run_url)
 
         with wb_telemetry.context(wandb.run) as tel:
             tel.feature.langchain_tracer = True
