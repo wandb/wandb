@@ -37,6 +37,8 @@ AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
 
+HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
+
 MAX_THREADS = 64
 
 _logger = logging.getLogger(__name__)
@@ -169,15 +171,31 @@ class LaunchAgent:
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
-        self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
         if self._api.entity_is_team(self._entity):
             wandb.termwarn(
                 f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
             )
 
+        agent_response = self._api.get_launch_agent(
+            self._id, self.gorilla_supports_agents
+        )
+        self._name = agent_response["name"]
+        if self.gorilla_supports_agents:
+            self._init_agent_run()
+
     def fail_run_queue_item(self, run_queue_item_id: str) -> None:
         if self._gorilla_supports_fail_run_queue_items:
             self._api.fail_run_queue_item(run_queue_item_id)
+
+    def _init_agent_run(self) -> None:
+        settings = wandb.Settings(silent=True, disable_git=True)
+        wandb.init(
+            project=self._project,
+            entity=self._entity,
+            settings=settings,
+            id=self._name,
+            job_type=HIDDEN_AGENT_RUN_TYPE,
+        )
 
     @property
     def thread_ids(self) -> List[int]:
@@ -367,7 +385,6 @@ class LaunchAgent:
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
                 )
-                self._name = agent_response["name"]  # hack: first time we get name
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt

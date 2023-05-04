@@ -1,3 +1,8 @@
+"""Implementation of the abstract runner class.
+
+This class defines the interface that the W&B launch runner uses to manage the lifecycle
+of runs launched in different environments (e.g. runs launched locally or in a cluster).
+"""
 import logging
 import os
 import subprocess

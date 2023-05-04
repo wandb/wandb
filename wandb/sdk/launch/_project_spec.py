@@ -177,6 +177,45 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
+    def fill_macros(self, image: str) -> None:
+        """Substitute values for macros in resource arguments.
+
+        Certain macros can be used in resource args. These macros allow the
+        user to set resource args dynamically in the context of the
+        run being launched. The macros are given in the ${macro} format. The
+        following macros are currently supported:
+
+        ${project_name} - the name of the project the run is being launched to.
+        ${entity_name} - the owner of the project the run being launched to.
+        ${run_id} - the id of the run being launched.
+        ${run_name} - the name of the run that is launching.
+        ${image_uri} - the URI of the container image for this run.
+
+        Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
+        environment variables that you plan to set in the environment of any
+        agents that will receive these resource args.
+
+        Calling this method will overwrite the contents of self.resource_args
+        with the substituted values.
+
+        Args:
+            image (str): The image name to fill in for ${wandb-image}.
+
+        Returns:
+            None
+        """
+        update_dict = {
+            "project_name": self.target_project,
+            "entity_name": self.target_entity,
+            "run_id": self.run_id,
+            "run_name": self.name,
+            "image_uri": image,
+        }
+        update_dict.update(os.environ)
+        resource_args_str = json.dumps(self.resource_args)
+        new_resource_args = utils.macro_sub(resource_args_str, update_dict)
+        self.resource_args = json.loads(new_resource_args)
+
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
         # since the image tag for images built from jobs
@@ -452,8 +491,8 @@ def fetch_and_validate_project(
         launch_project._fetch_project_local(internal_api=api)
 
     assert launch_project.project_dir is not None
-    # this prioritizes pip, and we don't support any cases where both are present
-    # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
+    # this prioritizes pip, and we don't support any cases where both are present conda projects when uploaded to
+    # wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.txt")
     ) or os.path.exists(

@@ -65,6 +65,7 @@ class SettingsStatic:
     disable_job_creation: bool
     _async_upload_concurrency_limit: Optional[int]
     _extra_http_headers: Optional[Mapping[str, str]]
+    job_source: Optional[str]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int
