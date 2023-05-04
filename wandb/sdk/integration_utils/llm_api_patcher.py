@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional, Sequence, TypeVar
 import wandb.sdk
 import wandb.util
 from wandb.sdk.data_types import trace_tree
+from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.timer import Timer
 
 if sys.version_info >= (3, 8):
@@ -129,73 +130,88 @@ class PatchLLMAPI:
                 )
 
 
-# class AutologCohere:
-#     def __init__(self) -> None:
-#         """Autolog Cohere API calls to W&B."""
-#         self._patch_cohere_api = PatchCohereAPI()
-#         self._run: Optional["wandb.sdk.wandb_run.Run"] = None
-#         self.__run_created_by_autolog: bool = False
-#
-#     @property
-#     def _is_enabled(self) -> bool:
-#         """Returns whether autologging is enabled."""
-#         return self._run is not None
-#
-#     def __call__(self, init: AutologCohereInitArgs = None) -> None:
-#         """Enable Cohere autologging."""
-#         self.enable(init=init)
-#
-#     def _run_init(self, init: AutologCohereInitArgs = None) -> None:
-#         """Handle wandb run initialization."""
-#         # - autolog(init: dict = {...}) calls wandb.init(**{...})
-#         #   regardless of whether there is a wandb.run or not,
-#         #   we only track if the run was created by autolog
-#         #    - todo: autolog(init: dict | run = run) would use the user-provided run
-#         # - autolog() uses the wandb.run if there is one, otherwise it calls wandb.init()
-#         if init:
-#             _wandb_run = wandb.run
-#             # we delegate dealing with the init dict to wandb.init()
-#             self._run = wandb.init(**init)
-#             if _wandb_run != self._run:
-#                 self.__run_created_by_autolog = True
-#         elif wandb.run is None:
-#             self._run = wandb.init()
-#             self.__run_created_by_autolog = True
-#         else:
-#             self._run = wandb.run
-#
-#     def enable(self, init: AutologCohereInitArgs = None) -> None:
-#         """Enable Cohere autologging.
-#
-#         Args:
-#             init: Optional dictionary of arguments to pass to wandb.init().
-#
-#         """
-#         if self._is_enabled:
-#             logger.info(
-#                 "Cohere autologging is already enabled, disabling and re-enabling."
-#             )
-#             self.disable()
-#
-#         logger.info("Enabling Cohere autologging.")
-#         self._run_init(init=init)
-#
-#         self._patch_cohere_api.patch(self._run)
-#
-#         with wb_telemetry.context(self._run) as tel:
-#             tel.feature.cohere_autolog = True
-#
-#     def disable(self) -> None:
-#         """Disable Cohere autologging."""
-#         if self._run is None:
-#             return
-#
-#         logger.info("Disabling Cohere autologging.")
-#
-#         if self.__run_created_by_autolog:
-#             self._run.finish()
-#             self.__run_created_by_autolog = False
-#
-#         self._run = None
-#
-#         self._patch_cohere_api.unpatch()
+class AutologLLMAPI:
+    def __init__(
+        self,
+        name: str,
+        symbols: Sequence[str],
+        resolver: RequestResponseResolver,
+        telemetry_feature: Optional[str] = None,
+    ) -> None:
+        """Autolog LLM API calls to W&B."""
+        self._telemetry_feature = telemetry_feature
+        self._patch_llm_api = PatchLLMAPI(
+            name=name,
+            symbols=symbols,
+            resolver=resolver,
+        )
+        self._name = self._patch_llm_api.name
+        self._run: Optional["wandb.sdk.wandb_run.Run"] = None
+        self.__run_created_by_autolog: bool = False
+
+    @property
+    def _is_enabled(self) -> bool:
+        """Returns whether autologging is enabled."""
+        return self._run is not None
+
+    def __call__(self, init: AutologInitArgs = None) -> None:
+        """Enable Cohere autologging."""
+        self.enable(init=init)
+
+    def _run_init(self, init: AutologInitArgs = None) -> None:
+        """Handle wandb run initialization."""
+        # - autolog(init: dict = {...}) calls wandb.init(**{...})
+        #   regardless of whether there is a wandb.run or not,
+        #   we only track if the run was created by autolog
+        #    - todo: autolog(init: dict | run = run) would use the user-provided run
+        # - autolog() uses the wandb.run if there is one, otherwise it calls wandb.init()
+        if init:
+            _wandb_run = wandb.run
+            # we delegate dealing with the init dict to wandb.init()
+            self._run = wandb.init(**init)
+            if _wandb_run != self._run:
+                self.__run_created_by_autolog = True
+        elif wandb.run is None:
+            self._run = wandb.init()
+            self.__run_created_by_autolog = True
+        else:
+            self._run = wandb.run
+
+    def enable(self, init: AutologInitArgs = None) -> None:
+        """Enable autologging.
+
+        Args:
+            init: Optional dictionary of arguments to pass to wandb.init().
+
+        """
+        if self._is_enabled:
+            logger.info(
+                f"{self._name} autologging is already enabled, disabling and re-enabling."
+            )
+            self.disable()
+
+        logger.info(f"Enabling {self._name} autologging.")
+        self._run_init(init=init)
+
+        self._patch_llm_api.patch(self._run)
+
+        if not self._telemetry_feature:
+            return
+
+        with wb_telemetry.context(self._run) as tel:
+            tel.feature.cohere_autolog = True
+
+    def disable(self) -> None:
+        """Disable autologging."""
+        if self._run is None:
+            return
+
+        logger.info(f"Disabling {self._name} autologging.")
+
+        if self.__run_created_by_autolog:
+            self._run.finish()
+            self.__run_created_by_autolog = False
+
+        self._run = None
+
+        self._patch_llm_api.unpatch()
