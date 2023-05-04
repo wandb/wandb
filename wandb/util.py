@@ -1050,7 +1050,18 @@ def image_id_from_k8s() -> Optional[str]:
           fieldPath: metadata.namespace
     """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-    if os.path.exists(token_path):
+    try:
+        with open(token_path, "r") as token_file:
+            token = token_file.read()
+    except FileNotFoundError:
+        logger.warning(f"Token file not found at {token_path}.")
+        return None
+    except PermissionError as e:
+        current_uid = os.getuid()
+        logger.warning(f"Unable to read the token file at {token_path} due to permission error ({e}). The current user id is {current_uid}. Consider changing the securityContext to run the container as the current user.")
+        return None
+
+    if token:
         k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
             os.getenv("KUBERNETES_SERVICE_HOST"),
             os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
@@ -1062,7 +1073,7 @@ def image_id_from_k8s() -> Optional[str]:
                 k8s_server,
                 verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
                 timeout=3,
-                headers={"Authorization": f"Bearer {open(token_path).read()}"},
+                headers={"Authorization": f"Bearer {token}"},
             )
             res.raise_for_status()
         except requests.RequestException:
@@ -1074,11 +1085,7 @@ def image_id_from_k8s() -> Optional[str]:
         except (ValueError, KeyError, IndexError):
             logger.exception("Error checking kubernetes for image id")
             return None
-    else:
-        current_uid = os.getuid()
-        logger.warning(f"Unable to read the token file at {token_path}. The current user id is {current_uid}. Consider changing the securityContext to run the container as the current user.")
-        return None
-
+    return None
 
 def async_call(
     target: Callable, timeout: Optional[Union[int, float]] = None
