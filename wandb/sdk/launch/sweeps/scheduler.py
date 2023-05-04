@@ -9,7 +9,7 @@ import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import click
 import yaml
@@ -100,6 +100,7 @@ class Scheduler(ABC):
         entity: Optional[str] = None,
         project: Optional[str] = None,
         project_queue: Optional[str] = None,
+        num_workers: Optional[Union[int, str]] = None,
         **kwargs: Optional[Any],
     ):
         self._api = api
@@ -153,7 +154,7 @@ class Scheduler(ABC):
         self._wandb_run = self._init_wandb_run()
 
         # Grab param from scheduler wandb run config
-        num_workers = self._wandb_run.config.get("scheduler_args", {}).get("num_workers")
+        num_workers = num_workers or self._wandb_run.config.get("scheduler", {}).get("num_workers")
         self._num_workers = int(num_workers) if str(num_workers).isdigit() else 8
 
     @abstractmethod

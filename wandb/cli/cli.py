@@ -1009,8 +1009,8 @@ def launch_sweep(
     overrides = {
         "overrides": {
             "run_config": {
-                "scheduler_args": scheduler_args,
-                "launch_args": launch_args,
+                "scheduler": scheduler_args,
+                "launch": launch_args,
             },
             "args": args,
         }

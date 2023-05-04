@@ -122,7 +122,6 @@ def construct_scheduler_args(
     sweep_config: Dict[str, Any],
     queue: str,
     project: str,
-    num_workers: Union[str, int],
     author: Optional[str] = None,
     sweep_type: Optional[str] = "sweep",
 ) -> Optional[List[str]]:
@@ -142,15 +141,6 @@ def construct_scheduler_args(
             "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
         )
         return None
-
-    if type(num_workers) is str:
-        if num_workers.isdigit():
-            num_workers = int(num_workers)
-        else:
-            wandb.termerror(
-                "'num_workers' must be an integer or a string that can be parsed as an integer"
-            )
-            return None
 
     args = [
         "--queue",
