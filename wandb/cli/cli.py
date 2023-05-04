@@ -31,12 +31,11 @@ import wandb.env
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
-from wandb.apis.public import Runs
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.sweeps.scheduler_optuna import validate_optuna
 from wandb.sdk.launch.sweeps import utils as sweep_utils
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
@@ -946,9 +945,7 @@ def launch_sweep(
         return
 
     parsed_config = sweep_utils.load_launch_sweep_config(config)
-    # Rip special keys out of config
-    # TODO(gst): store args in artifact associated with run
-    # can we get the run_id back out of the upsertSweep mutation?
+    # Rip special keys out of config, store in scheduler run_config
     scheduler_args: Dict[str, Any] = parsed_config.pop("scheduler", {})
     launch_args: Dict[str, Any] = parsed_config.pop("launch", {})
 
@@ -996,7 +993,7 @@ def launch_sweep(
             if not validate_optuna(api, custom_config):
                 return
         elif "raytune" in parsed_sweep_config:
-            wandb.termerror("Ray Tune is not supported for launch sweeps")
+            wandb.termerror("raytune is not supported for launch sweeps")
             return
 
     # validate job existence, add :latest alias if not specified
@@ -1013,40 +1010,47 @@ def launch_sweep(
             wandb.termerror(f"Failed to load job. Error: {e}")
             return False
 
-    entrypoint, args = sweep_utils.construct_scheduler_entrypoint(
-        sweep_type=_type,
+    args = sweep_utils.construct_scheduler_args(
+        _type=_type,
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
-        num_workers=scheduler_args.get("num_workers", 8),
         author=entity,
     )
-    if not entrypoint:
+    if not args:
         # error already logged
         return
 
+    overrides = {
+        "overrides": {
+            "run_config": {},
+            "args": args,
+        }
+    }
+    if launch_args:
+        overrides["overrides"]["run_config"]["launch"] = launch_args
+    if scheduler_args:
+        overrides["overrides"]["run_config"]["scheduler"] = scheduler_args
+    if custom_config:
+        overrides["overrides"]["run_config"]["custom"] = custom_config
+
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
-        uri=SCHEDULER_URI,
+        uri=Scheduler.PLACEHOLDER_URI,
         api=api,
         name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=entrypoint,
+        entry_point=Scheduler.ENTRYPOINT,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        launch_config={
-            "overrides": {
-                "args": args,
-                "run_config": {"custom": custom_config, "scheduler": scheduler_args}
-            }
-        },
-        run_id=None,
-        author=None,  # author gets passed into scheduler command
+        launch_config=overrides,
+        run_id="WANDB_SWEEP_ID",
+        author=None,  # author gets passed into scheduler override args
     )
     launch_scheduler_with_queue = json.dumps(
         {

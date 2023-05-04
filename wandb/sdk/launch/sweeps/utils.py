@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -119,14 +119,13 @@ def load_launch_sweep_config(config: Optional[str]) -> Any:
     return parsed_config
 
 
-def construct_scheduler_entrypoint(
+def construct_scheduler_args(
     sweep_type: str,
     sweep_config: Dict[str, Any],
     queue: str,
     project: str,
-    num_workers: Union[str, int],
     author: Optional[str] = None,
-) -> Optional[Tuple[List[str], List[str]]]:
+) -> Optional[List[str]]:
     """Construct a sweep scheduler entrypoing and args.
 
     logs error and returns None if misconfigured, otherwise returns entrypoint and args
@@ -144,36 +143,23 @@ def construct_scheduler_entrypoint(
         )
         return None
 
-    if type(num_workers) is str:
-        if num_workers.isdigit():
-            num_workers = int(num_workers)
-        else:
-            wandb.termerror(
-                "'num_workers' must be an integer or a string that can be parsed as an integer"
-            )
-            return None
-
-    entrypoint = ["wandb", "scheduler", "WANDB_SWEEP_ID"]
     args = [
         "--queue",
         f"{queue!r}",
         "--project",
         project,
-        "--num_workers",
-        f"{num_workers}",
         "--sweep_type",
-        sweep_type,
+        f"{sweep_type}",
     ]
 
     if author:
         args += ["--author", author]
-
     if job:
         args += ["--job", job]
     elif image_uri:
         args += ["--image_uri", image_uri]
 
-    return entrypoint, args
+    return args
 
 
 def create_sweep_command(command: Optional[List] = None) -> List:
