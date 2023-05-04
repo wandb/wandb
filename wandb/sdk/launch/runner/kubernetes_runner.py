@@ -2,7 +2,7 @@ import base64
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -48,6 +48,8 @@ FAIL_MESSAGE_INTERVAL = 60
 _logger = logging.getLogger(__name__)
 
 
+# Dict for mapping possible states of custom objects to the states we want to report
+# to the agent.
 CRD_STATE_DICT = {
     "pending": "starting",
     "running": "running",
@@ -234,7 +236,6 @@ class CrdSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         """Get status of custom object."""
-        # TODO: Examine all pods launched by the custom object to determine status.
         try:
             job_response = self.custom_api.get_namespaced_custom_object_status(
                 group=self.group,
@@ -247,9 +248,11 @@ class CrdSubmittedRun(AbstractRun):
             raise LaunchError(
                 f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
             ) from e
+        # Custom objects can technically define whater states and format the
+        # response to the status request however they want. This checks for
+        # the most common cases.
         status = job_response["status"]
         state = status.get("state")
-        print(state)
         if isinstance(state, dict):
             state = state.get("phase")
         if state is None:
@@ -432,6 +435,15 @@ class KubernetesRunner(AbstractRunner):
         launch_project: LaunchProject,
         builder: Optional[AbstractBuilder],
     ) -> Optional[AbstractRun]:  # noqa: C901
+        """Execute a launch project on Kubernetes.
+
+        Arguments:
+            launch_project: The launch project to execute.
+            builder: The builder to use to build the image.
+
+        Returns:
+            The run object if the run was successful, otherwise None.
+        """
         kubernetes = get_module(  # noqa: F811
             "kubernetes",
             required="Kubernetes runner requires the kubernetes package. Please"
@@ -440,15 +452,18 @@ class KubernetesRunner(AbstractRunner):
         resource_args = launch_project.resource_args.get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
-                f"{LOG_PREFIX}Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
+                f"{LOG_PREFIX}Note: no resource args specified. Add a "
+                "Kubernetes yaml spec or other options in a json file "
+                "with --resource-args <json>."
             )
         _logger.info(f"Running Kubernetes job with resource args: {resource_args}")
 
         context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
-        api_version = resource_args.get("apiVersion")
-        if api_version and not str(api_version).startswith("batch/v1"):
-            # CRD codepath 🌋
+        # If the user specified an alternate api, we need will execute this
+        # run by creating a custom object.
+        api_version = resource_args.get("apiVersion", "batch/v1")
+        if api_version not in ["batch/v1", "batch/v1beta1"]:
             entrypoint = launch_project.get_single_entry_point()
             if launch_project.docker_image:
                 image_uri = launch_project.docker_image
@@ -456,46 +471,16 @@ class KubernetesRunner(AbstractRunner):
                 image_uri = builder.build_image(launch_project, entrypoint)
             launch_project.fill_macros(image_uri)
             env_vars = get_env_vars_dict(launch_project, self._api)
-
-            def add_wandb_env(root):
-                """Injects wandb environment variables into specs."""
-                if isinstance(root, dict):
-                    for k, v in root.items():
-                        if k == "containers":
-                            if isinstance(v, list):
-                                for cont in v:
-                                    env = cont.get("env", [])
-                                    env.extend(
-                                        [
-                                            {"name": key, "value": value}
-                                            for key, value in env_vars.items()
-                                        ]
-                                    )
-                                    cont["env"] = env
-                        elif isinstance(v, (dict, list)):
-                            add_wandb_env(v)
-                elif isinstance(root, list):
-                    for item in root:
-                        add_wandb_env(item)
-
-            def add_label_to_pods(manifest, label_key, label_value):
-                """Add a label to all pod specs in a manifest."""
-                if isinstance(manifest, list):
-                    for item in manifest:
-                        add_label_to_pods(item, label_key, label_value)
-                elif isinstance(manifest, dict):
-                    if "spec" in manifest and "containers" in manifest["spec"]:
-                        metadata = manifest.setdefault("metadata", {})
-                        labels = metadata.setdefault("labels", {})
-                        labels[label_key] = label_value
-                    for value in manifest.values():
-                        add_label_to_pods(value, label_key, label_value)
-
-            add_wandb_env(launch_project.resource_args)
+            # Crawl the resource args and add our env vars to the containers.
+            add_wandb_env(launch_project.resource_args, env_vars)
+            # Crawl the resource arsg and add our labels to the pods. This is
+            # necessary for the agent to find the pods later on.
             add_label_to_pods(
                 launch_project.resource_args, "wandb/run-id", launch_project.run_id
             )
-            api = kubernetes.client.CustomObjectsApi(api_client)
+            api = client.CustomObjectsApi(api_client)
+            # Infer the attributes of a custom object from the apiVersion and/or
+            # a kind: attribute in the resource args.
             namespace = self.get_namespace(resource_args, context)
             group = resource_args.get("group", api_version.split("/")[0])
             version = api_version.split("/")[1]
@@ -515,7 +500,7 @@ class KubernetesRunner(AbstractRunner):
                 ) from e
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
-            core = kubernetes.client.CoreV1Api(api_client)
+            core = client.CoreV1Api(api_client)
             pod_names = self.wait_job_launch(
                 launch_project.run_id, namespace, core, label="wandb/run-id"
             )
@@ -525,7 +510,7 @@ class KubernetesRunner(AbstractRunner):
                 version=version,
                 namespace=namespace,
                 plural=plural,
-                core_api=kubernetes.client.CoreV1Api(api_client),
+                core_api=client.CoreV1Api(api_client),
                 custom_api=api,
                 pod_names=pod_names,
             )
@@ -614,6 +599,64 @@ def maybe_create_imagepull_secret(
         return core_api.create_namespaced_secret(namespace, secret)
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
+
+
+def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
+    """Injects wandb environment variables into specs.
+
+    Recursively walks the spec and injects the environment variables into
+    every container spec. Containers are identified by the "containers" key.
+
+    Arguments:
+        root: The spec to modify.
+        env_vars: The environment variables to inject.
+
+    Returns: None.
+    """
+    if isinstance(root, dict):
+        for k, v in root.items():
+            if k == "containers":
+                if isinstance(v, list):
+                    for cont in v:
+                        env = cont.get("env", [])
+                        env.extend(
+                            [
+                                {"name": key, "value": value}
+                                for key, value in env_vars.items()
+                            ]
+                        )
+                        cont["env"] = env
+            elif isinstance(v, (dict, list)):
+                add_wandb_env(v, env_vars)
+    elif isinstance(root, list):
+        for item in root:
+            add_wandb_env(item, env_vars)
+
+
+def add_label_to_pods(manifest: Union[dict, list], label_key: str, label_value: str):
+    """Add a label to all pod specs in a manifest.
+
+    Recursively traverses the manifest and adds the label to all pod specs.
+    Pod specs are identified by the presence of a "spec" key with a "containers"
+    key in the value.
+
+    Arguments:
+        manifest: The manifest to modify.
+        label_key: The label key to add.
+        label_value: The label value to add.
+
+    Returns: None.
+    """
+    if isinstance(manifest, list):
+        for item in manifest:
+            add_label_to_pods(item, label_key, label_value)
+    elif isinstance(manifest, dict):
+        if "spec" in manifest and "containers" in manifest["spec"]:
+            metadata = manifest.setdefault("metadata", {})
+            labels = metadata.setdefault("labels", {})
+            labels[label_key] = label_value
+        for value in manifest.values():
+            add_label_to_pods(value, label_key, label_value)
 
 
 def create_custom_resource_job(
