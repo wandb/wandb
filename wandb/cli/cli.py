@@ -981,7 +981,7 @@ def launch_sweep(
             )
     else:
         parsed_sweep_config = parsed_config
-    
+
     # validate job existence, add :latest alias if not specified
     job = parsed_sweep_config.get("job")
     if job:

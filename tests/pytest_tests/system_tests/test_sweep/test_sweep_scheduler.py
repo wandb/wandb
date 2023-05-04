@@ -33,7 +33,7 @@ def test_sweep_scheduler_entity_project_sweep_id(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish"]),
+        lambda _x: Mock(["finish", "config"]),
     )
     with relay_server():
         _entity = user
@@ -52,7 +52,7 @@ def test_sweep_scheduler_entity_project_sweep_id(
 def test_sweep_scheduler_start_failed(user, monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish"]),
+        lambda _x: Mock(["finish", "config"]),
     )
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
     _entity = user
