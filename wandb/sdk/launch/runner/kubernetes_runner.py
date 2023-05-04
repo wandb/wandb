@@ -1,3 +1,5 @@
+"""Implementation of KubernetesRunner class for wandb launch."""
+
 import base64
 import json
 import logging
@@ -10,7 +12,7 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
-from wandb.sdk.launch.runner.abstract import Status
+from wandb.sdk.launch.runner.abstract import State, Status
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
@@ -50,7 +52,7 @@ _logger = logging.getLogger(__name__)
 
 # Dict for mapping possible states of custom objects to the states we want to report
 # to the agent.
-CRD_STATE_DICT = {
+CRD_STATE_DICT: Dict[str, State] = {
     "pending": "starting",
     "running": "running",
     "completed": "finished",
@@ -62,6 +64,8 @@ CRD_STATE_DICT = {
 
 
 class KubernetesSubmittedRun(AbstractRun):
+    """Wrapper for a launched run on Kubernetes."""
+
     def __init__(
         self,
         batch_api: "BatchV1Api",
@@ -71,6 +75,19 @@ class KubernetesSubmittedRun(AbstractRun):
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
     ) -> None:
+        """Initialize a KubernetesSubmittedRun.
+
+        Arguments:
+            batch_api: Kubernetes BatchV1Api object.
+            core_api: Kubernetes CoreV1Api object.
+            name: Name of the job.
+            pod_names: List of pod names.
+            namespace: Kubernetes namespace.
+            secret: Kubernetes secret.
+
+        Returns:
+            None.
+        """
         self.batch_api = batch_api
         self.core_api = core_api
         self.name = name
@@ -84,14 +101,21 @@ class KubernetesSubmittedRun(AbstractRun):
 
     @property
     def id(self) -> str:
+        """Return the run id."""
         return self.name
 
     def get_job(self) -> "V1Job":
+        """Return the job object."""
         return self.batch_api.read_namespaced_job(
             name=self.name, namespace=self.namespace
         )
 
     def wait(self) -> bool:
+        """Wait for the run to finish.
+
+        Returns:
+            True if the run finished successfully, False otherwise.
+        """
         while True:
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
@@ -103,6 +127,7 @@ class KubernetesSubmittedRun(AbstractRun):
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
     def get_status(self) -> Status:
+        """Return the run status."""
         job_response = self.batch_api.read_namespaced_job_status(
             name=self.name, namespace=self.namespace
         )
@@ -151,6 +176,7 @@ class KubernetesSubmittedRun(AbstractRun):
         return return_status
 
     def suspend(self) -> None:
+        """Suspend the run."""
         self.job.spec.suspend = True
         self.batch_api.patch_namespaced_job(
             name=self.name, namespace=self.namespace, body=self.job
@@ -174,6 +200,7 @@ class KubernetesSubmittedRun(AbstractRun):
             )
 
     def cancel(self) -> None:
+        """Cancel the run."""
         self.suspend()
         self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
 
@@ -187,10 +214,10 @@ class CrdSubmittedRun(AbstractRun):
         version: str,
         plural: str,
         name: str,
-        namespace: Optional[str] = "default",
-        core_api: Optional["CoreV1Api"] = None,
-        custom_api: Optional["CustomObjectsApi"] = None,
-        pod_names: Optional[List[str]] = None,
+        namespace: str,
+        core_api: CoreV1Api,
+        custom_api: CustomObjectsApi,
+        pod_names: List[str],
     ) -> None:
         """Create a run object for tracking the progress of a CRD.
 
@@ -288,15 +315,42 @@ class CrdSubmittedRun(AbstractRun):
 
 
 class KubernetesRunner(AbstractRunner):
+    """Launches runs onto kubernetes."""
+
     def __init__(
         self, api: Api, backend_config: Dict[str, Any], environment: AbstractEnvironment
     ) -> None:
+        """Create a Kubernetes runner.
+
+        Arguments:
+            api: The API client object.
+            backend_config: The backend configuration.
+            environment: The environment to launch runs into.
+
+        Raises:
+            LaunchError: If the Kubernetes configuration is invalid.
+        """
         super().__init__(api, backend_config)
         self.environment = environment
 
     def wait_job_launch(
-        self, job_name: str, namespace: str, core_api: "CoreV1Api", label="job-name"
+        self,
+        job_name: str,
+        namespace: str,
+        core_api: "CoreV1Api",
+        label: str = "job-name",
     ) -> List[str]:
+        """Wait for a job to be launched and return the pod names.
+
+        Arguments:
+            job_name: The name of the job.
+            namespace: The namespace of the job.
+            core_api: The Kubernetes core API client.
+            label: The label key to match against job_name.
+
+        Returns:
+            The names of the pods associated with the job.
+        """
         pods = core_api.list_namespaced_pod(
             label_selector=f"{label}={job_name}", namespace=namespace
         )
@@ -324,6 +378,15 @@ class KubernetesRunner(AbstractRunner):
     def get_namespace(
         self, resource_args: Dict[str, Any], context: Dict[str, Any]
     ) -> str:
+        """Get the namespace to launch into.
+
+        Arguments:
+            resource_args: The resource args to launch.
+            context: The k8s config context.
+
+        Returns:
+            The namespace to launch into.
+        """
         default_namespace = (
             context["context"].get("namespace", "default") if context else "default"
         )
@@ -341,7 +404,18 @@ class KubernetesRunner(AbstractRunner):
         namespace: str,
         core_api: "CoreV1Api",
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
-        """Apply our default values, return job dict and secret."""
+        """Apply our default values, return job dict and secret.
+
+        Arguments:
+            resource_args (Dict[str, Any]): The resource args to launch.
+            launch_project (LaunchProject): The launch project.
+            builder (Optional[AbstractBuilder]): The builder.
+            namespace (str): The namespace.
+            core_api (CoreV1Api): The core api.
+
+        Returns:
+            Tuple[Dict[str, Any], Optional["V1Secret"]]: The resource args and secret.
+        """
         job: Dict[str, Any] = {
             "apiVersion": "batch/v1",
             "kind": "Job",
@@ -433,7 +507,7 @@ class KubernetesRunner(AbstractRunner):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
+        builder: AbstractBuilder,
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -468,6 +542,7 @@ class KubernetesRunner(AbstractRunner):
             if launch_project.docker_image:
                 image_uri = launch_project.docker_image
             else:
+                assert entrypoint is not None
                 image_uri = builder.build_image(launch_project, entrypoint)
             launch_project.fill_macros(image_uri)
             env_vars = get_env_vars_dict(launch_project, self._api)
@@ -557,6 +632,17 @@ def inject_entrypoint_and_args(
     override_args: List[str],
     should_override_entrypoint: bool,
 ) -> None:
+    """Inject the entrypoint and args into the containers.
+
+    Arguments:
+        containers: The containers to inject the entrypoint and args into.
+        entry_point: The entrypoint to inject.
+        override_args: The args to inject.
+        should_override_entrypoint: Whether to override the entrypoint.
+
+    Returns:
+        None
+    """
     for i in range(len(containers)):
         if override_args:
             containers[i]["args"] = override_args
@@ -572,6 +658,17 @@ def maybe_create_imagepull_secret(
     run_id: str,
     namespace: str,
 ) -> Optional["V1Secret"]:
+    """Create a secret for pulling images from a private registry.
+
+    Arguments:
+        core_api: The Kubernetes CoreV1Api object.
+        registry: The registry to pull from.
+        run_id: The run id.
+        namespace: The namespace to create the secret in.
+
+    Returns:
+        A secret if one was created, otherwise None.
+    """
     secret = None
     if isinstance(registry, LocalRegistry):
         # Secret not required
@@ -633,7 +730,9 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
             add_wandb_env(item, env_vars)
 
 
-def add_label_to_pods(manifest: Union[dict, list], label_key: str, label_value: str):
+def add_label_to_pods(
+    manifest: Union[dict, list], label_key: str, label_value: str
+) -> None:
     """Add a label to all pod specs in a manifest.
 
     Recursively traverses the manifest and adds the label to all pod specs.
@@ -657,9 +756,3 @@ def add_label_to_pods(manifest: Union[dict, list], label_key: str, label_value: 
             labels[label_key] = label_value
         for value in manifest.values():
             add_label_to_pods(value, label_key, label_value)
-
-
-def create_custom_resource_job(
-    launch_project: LaunchProject, builder: AbstractBuilder
-) -> None:
-    """Create a job from a custom resource definition."""
