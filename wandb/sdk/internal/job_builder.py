@@ -247,7 +247,7 @@ class JobBuilder:
         ] = None
 
         if source_type == "repo":
-            program_relpath is not None or self._notebook_job
+            assert program_relpath is not None or self._notebook_job
             artifact, source = self._build_repo_job(metadata, program_relpath)
         elif source_type == "artifact":
             assert program_relpath is not None or self._notebook_job

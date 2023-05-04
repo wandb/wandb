@@ -1,8 +1,8 @@
 import json
 import os
+from unittest.mock import MagicMock
 
 from wandb.apis.public import Job
-from unittest.mock import MagicMock
 
 
 def test_configure_notebook_repo_job(mocker, tmp_path):
