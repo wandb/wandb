@@ -102,7 +102,6 @@ def test_configure_notebook_artifact_job(mocker, tmp_path):
         with open(os.path.join(root, "_session_history.ipynb"), "w") as f:
             f.write("hello")
 
-
     mocker.patch("wandb.apis.public.Artifact.from_id", mock_artifact)
 
     mock_api = MagicMock()
