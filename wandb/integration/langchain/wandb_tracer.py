@@ -188,7 +188,7 @@ WandbTracer.finish()
             if should_print_url:
                 print_wandb_init_message(self._run.settings.run_url)
 
-        with wb_telemetry.context(self._run) as tel:
+        with wb_telemetry.context(wandb.run) as tel:
             tel.feature.langchain_tracer = True
 
     # Start of required methods (these methods are required by the BaseCallbackHandler interface)
