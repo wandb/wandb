@@ -14,11 +14,10 @@ import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
+from wandb.sdk.launch import utils
 from wandb.sdk.lib.runid import generate_id
 
-from wandb.sdk.launch import utils
 from .utils import LOG_PREFIX, LaunchError, recursive_macro_sub
-
 
 _logger = logging.getLogger(__name__)
 
