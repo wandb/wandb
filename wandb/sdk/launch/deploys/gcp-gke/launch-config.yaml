@@ -74,7 +74,6 @@ roleRef:
 apiVersion: v1
 data:
   launch-config.yaml: |
-    base_url: https://api.wandb.ai # TODO: set wandb base url
     max_jobs: -1 # TODO: set max concurrent jobs here
     queues:
     - default # TODO: set queue name here
@@ -90,6 +89,9 @@ data:
       build-context-store: gs://my-bucket/... # TODO: set your build context store here
       secret-name: gcp-creds # TODO: set your secret name here
       secret-key: service_account.json # TODO: set your secret key here, i.e. the key in the secret that contains your service account json
+  setttings: |
+    [default]
+    base_url: https://api.wandb.ai # TODO: set wandb base url
 
 kind: ConfigMap
 metadata:

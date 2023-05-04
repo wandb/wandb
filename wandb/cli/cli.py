@@ -1365,6 +1365,7 @@ def launch_agent(
 
     from wandb.sdk.launch import launch as wandb_launch
 
+    api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
         entity, project, max_jobs, queues, config
