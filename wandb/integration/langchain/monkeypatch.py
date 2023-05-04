@@ -14,7 +14,6 @@ goes away entirely.
 import inspect
 from typing import TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from langchain.chains.base import Chain
     from langchain.llms.base import BaseLLM
@@ -220,7 +219,7 @@ def _clear_chain_call():
 
     if "Chain._call__" not in patched_symbols:
         return
-    Chain.__init__ = patched_symbols["Chain._call__"]
+    Chain.__call__ = patched_symbols["Chain._call__"]
     del patched_symbols["Chain._call__"]
 
 
@@ -240,7 +239,7 @@ def _clear_llm_call():
 
     if "BaseLLM._call__" not in patched_symbols:
         return
-    BaseLLM.__init__ = patched_symbols["BaseLLM._call__"]
+    BaseLLM.__call__ = patched_symbols["BaseLLM._call__"]
     del patched_symbols["BaseLLM._call__"]
 
 
@@ -260,7 +259,7 @@ def _clear_tool_call():
 
     if "BaseTool._call__" not in patched_symbols:
         return
-    BaseTool.__init__ = patched_symbols["BaseTool._call__"]
+    BaseTool.__call__ = patched_symbols["BaseTool._call__"]
     del patched_symbols["BaseTool._call__"]
 
 
