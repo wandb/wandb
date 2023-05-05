@@ -136,7 +136,7 @@ def test_launch_custom(mocker, test_settings, volcano_spec):
     ]
     mock_core_api.list_namespaced_pod.return_value = mock_pod_list_response
     mocker.patch(
-        "wandb.sdk.launch.utils.get_kube_context_and_api_client",
+        "wandb.sdk.launch.runner.kubernetes_runner.get_kube_context_and_api_client",
         return_value=(None, None),
     )
     mocker.patch(
