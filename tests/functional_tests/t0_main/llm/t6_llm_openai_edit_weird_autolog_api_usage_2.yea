@@ -1,14 +1,12 @@
-id: 0.cohere.01-generate
+id: 0.llm.06-openai-edit
 plugin:
   - wandb
 tag:
   shard: llm
-#  skip: true  # todo: fix
-  skips:
-    - platform: win
+  skip: true  # todo: fix
 depend:
   requirements:
-    - "cohere"
+    - "openai>=0.27.4"
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
@@ -21,4 +19,4 @@ assert:
         - model_dict_dumps
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # features
-        - 53  # cohere autolog
+        - 51  # openai autolog
