@@ -4725,12 +4725,22 @@ class Artifact(artifacts.Artifact):
             result._set_artifact_source(self, name)
             return result
 
-    def download(self, root=None, recursive=False):
+    def download(
+        self,
+        root=None,
+        recursive=False,
+        path_predicate: Optional[Callable[[str], bool]] = None,
+    ):
         dirpath = root or self._default_root()
         self._add_download_root(dirpath)
         manifest = self._load_manifest()
-        nfiles = len(manifest.entries)
-        size = sum(e.size for e in manifest.entries.values())
+        entries = {
+            k: v
+            for k, v in manifest.entries.items()
+            if path_predicate is None or path_predicate(k)
+        }
+        nfiles = len(entries)
+        size = sum(e.size for e in entries.values())
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
@@ -4750,7 +4760,7 @@ class Artifact(artifacts.Artifact):
         pool = multiprocessing.dummy.Pool(32)
         pool.map(
             partial(self._download_file, root=dirpath, download_logger=download_logger),
-            manifest.entries,
+            entries,
         )
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
