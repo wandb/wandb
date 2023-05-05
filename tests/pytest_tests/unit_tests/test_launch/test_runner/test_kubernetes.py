@@ -1,75 +1,54 @@
-import uuid
-from unittest.mock import MagicMock
-
-from wandb.apis.internal import Api
-from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
-
-VOLCANO_JOB = {
-    "kind": "Job",
-    "spec": {
-        "tasks": [
-            {
-                "name": "master",
-                "policies": [{"event": "TaskCompleted", "action": "CompleteJob"}],
-                "replicas": 1,
-                "template": {
-                    "spec": {
-                        "containers": [
-                            {
-                                "name": "master",
-                                "image": "${image_uri}",
-                                "imagePullPolicy": "IfNotPresent",
-                            }
-                        ],
-                        "restartPolicy": "OnFailure",
-                    }
-                },
-            },
-            {
-                "name": "worker",
-                "replicas": 2,
-                "template": {
-                    "spec": {
-                        "containers": [
-                            {
-                                "name": "worker",
-                                "image": "${image_uri}",
-                                "workingDir": "/home",
-                                "imagePullPolicy": "IfNotPresent",
-                            }
-                        ],
-                        "restartPolicy": "OnFailure",
-                    }
-                },
-            },
-        ],
-        "plugins": {"pytorch": ["--master=master", "--worker=worker", "--port=23456"]},
-        "minAvailable": 1,
-        "schedulerName": "volcano",
-    },
-    "metadata": {"name": f"{uuid.uuid4()}"},
-    "apiVersion": "batch.volcano.sh/v1alpha1",
-}
+import pytest
+from wandb.sdk.launch.runner.kubernetes_runner import (
+    add_label_to_pods,
+    add_wandb_env,
+)
 
 
-def test_kubernetes_runner(test_settings, mocker):
-    api = MagicMock(Api)
-    api.settings = lambda x: "test_base_url"
-    runner = KubernetesRunner(api, {}, MagicMock())
-    project = LaunchProject(
-        uri="www.test.com",
-        job="",
-        api=api,
-        launch_spec={"_wandb_api_key": "test_api_key"},
-        target_entity="test_entity",
-        target_project="test_project",
-        name="test_name",
-        docker_config=dict(docker_image="test_image"),
-        git_info={},
-        overrides={},
-        resource="kubernetes",
-        resource_args={"kubernetes": VOLCANO_JOB},
-        run_id="test_run_id",
-    )
-    runner.run(project, MagicMock())
+@pytest.fixture
+def manifest():
+    return {
+        "kind": "Job",
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "master",
+                            "image": "${image_uri}",
+                            "imagePullPolicy": "IfNotPresent",
+                        },
+                        {
+                            "name": "worker",
+                            "image": "${image_uri}",
+                            "workingDir": "/home",
+                            "imagePullPolicy": "IfNotPresent",
+                        },
+                    ],
+                    "restartPolicy": "OnFailure",
+                }
+            }
+        },
+    }
+
+
+def test_add_env(manifest):
+    """Test that env vars are added to custom k8s specs."""
+    env = {"TEST_ENV": "test_value", "TEST_ENV_2": "test_value_2"}
+    add_wandb_env(manifest, env)
+    assert manifest["spec"]["template"]["spec"]["containers"][0]["env"] == [
+        {"name": "TEST_ENV", "value": "test_value"},
+        {"name": "TEST_ENV_2", "value": "test_value_2"},
+    ]
+    assert manifest["spec"]["template"]["spec"]["containers"][1]["env"] == [
+        {"name": "TEST_ENV", "value": "test_value"},
+        {"name": "TEST_ENV_2", "value": "test_value_2"},
+    ]
+
+
+def test_add_label(manifest):
+    """Test that we add labels to pod specs correctly."""
+    add_label_to_pods(manifest, "test_label", "test_value")
+    assert manifest["spec"]["template"]["metadata"]["labels"] == {
+        "test_label": "test_value"
+    }
