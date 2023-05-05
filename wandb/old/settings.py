@@ -43,6 +43,20 @@ class Settings:
                 else:
                     raise
 
+    def _persist_settings(self, settings, settings_path) -> None:
+        # write a temp file and then move it to the settings path
+        target_dir = os.path.dirname(settings_path)
+        with tempfile.NamedTemporaryFile(
+            "w+", suffix=".tmp", delete=False, dir=target_dir
+        ) as fp:
+            path = os.path.abspath(fp.name)
+            with open(path, "w+") as f:
+                settings.write(f)
+        try:
+            os.replace(path, settings_path)
+        except AttributeError:
+            os.rename(path, settings_path)
+
     def set(self, section, key, value, globally=False, persist=False) -> None:
         """Persist settings to disk if persist = True"""
 
@@ -50,9 +64,9 @@ class Settings:
             if not settings.has_section(section):
                 Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
             settings.set(section, key, str(value))
+
             if persist:
-                with open(settings_path, "w+") as f:
-                    settings.write(f)
+                self._persist_settings(settings, settings_path)
 
         if globally:
             write_setting(self._global_settings, Settings._global_path(), persist)
@@ -65,8 +79,7 @@ class Settings:
         def clear_setting(settings, settings_path, persist):
             settings.remove_option(section, key)
             if persist:
-                with open(settings_path, "w+") as f:
-                    settings.write(f)
+                self._persist_settings(settings, settings_path)
 
         if globally:
             clear_setting(self._global_settings, Settings._global_path(), persist)
