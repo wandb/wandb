@@ -2,6 +2,7 @@
 
 ### :hammer: Fixes
 * fix(integrations): update WandbTracer for new langchain release by @parambharat @tssweeney in https://github.com/wandb/wandb/pull/5467
+* fix(integrations): fix error message in langchain wandb_tracer version check by @dmitryduev in https://github.com/wandb/wandb/pull/5490
 
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.1...v0.15.2
 
