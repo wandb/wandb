@@ -9,12 +9,20 @@ def manifest():
         "kind": "Job",
         "spec": {
             "template": {
+                "metadata": {
+                    "labels": {
+                        "app": "wandb",
+                    }
+                },
                 "spec": {
                     "containers": [
                         {
                             "name": "master",
                             "image": "${image_uri}",
                             "imagePullPolicy": "IfNotPresent",
+                            "env": [
+                                {"name": "MY_ENV_VAR", "value": "MY_VALUE"},
+                            ],
                         },
                         {
                             "name": "worker",
@@ -24,7 +32,7 @@ def manifest():
                         },
                     ],
                     "restartPolicy": "OnFailure",
-                }
+                },
             }
         },
     }
@@ -35,6 +43,7 @@ def test_add_env(manifest):
     env = {"TEST_ENV": "test_value", "TEST_ENV_2": "test_value_2"}
     add_wandb_env(manifest, env)
     assert manifest["spec"]["template"]["spec"]["containers"][0]["env"] == [
+        {"name": "MY_ENV_VAR", "value": "MY_VALUE"},
         {"name": "TEST_ENV", "value": "test_value"},
         {"name": "TEST_ENV_2", "value": "test_value_2"},
     ]
@@ -48,5 +57,6 @@ def test_add_label(manifest):
     """Test that we add labels to pod specs correctly."""
     add_label_to_pods(manifest, "test_label", "test_value")
     assert manifest["spec"]["template"]["metadata"]["labels"] == {
-        "test_label": "test_value"
+        "app": "wandb",
+        "test_label": "test_value",
     }
