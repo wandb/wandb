@@ -247,7 +247,7 @@ def test_unsized_manifest_entry_real_file():
 
 
 def test_unsized_manifest_entry():
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(FileNotFoundError) as e:
         wandb_artifacts.ArtifactManifestEntry(
             path="foo", digest="123", local_path="some/file.txt"
         )
