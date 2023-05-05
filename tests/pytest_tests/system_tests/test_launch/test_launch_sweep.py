@@ -4,7 +4,7 @@ import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.sweeps import SCHEDULER_URI
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import construct_launch_spec
 
 
@@ -62,7 +62,7 @@ def test_sweeps_on_launch(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        SCHEDULER_URI,  # uri
+                        Scheduler.PLACEHOLDER_URI,  # uri
                         None,  # job
                         api,
                         "Scheduler.WANDB_SWEEP_ID",  # name,
@@ -159,7 +159,7 @@ def test_launch_agent_scheduler(
             "queue": queue,
             "run_spec": json.dumps(
                 construct_launch_spec(
-                    SCHEDULER_URI,  # uri
+                    Scheduler.PLACEHOLDER_URI,  # uri
                     None,  # job
                     api,
                     "Scheduler.WANDB_SWEEP_ID",  # name,
