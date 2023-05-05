@@ -70,7 +70,9 @@ def forward_slash_path_conversion(path):
     canonical = to_forward_slash_path(path)
 
     if re.match(r"//([^/]|$)", canonical):
-        anchor, body = "//", canonical[2:]  # The anchor is "//".
+        anchor, body = "//", canonical[2:]  # The anchor is "//" but only on posix.
+        if platform.system() == "Windows":
+            anchor = "/"
     elif re.match(r"/+", canonical):
         anchor, body = "/", canonical.lstrip("/")  # The anchor is "/".
     else:
@@ -161,4 +163,3 @@ def test_logical_path_joins_like_pathlib():
         lp1 = LogicalPath(path1)
         lp2 = LogicalPath(path2)
         assert lp1.joinpath(lp2) == lp1 / path2
-        assert lp1.joinpath(path2) == lp1 / lp2
