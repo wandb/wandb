@@ -967,6 +967,7 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
+    _type, custom_config = "wandb", {}
     parsed_sweep_config, sweep_obj_id = None, None
     if resume_id:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
@@ -980,34 +981,46 @@ def launch_sweep(
             wandb.termwarn(
                 "Sweep params loaded from resumed sweep, ignoring provided keys"
             )
+        # get the args from the scheduler run to determine type
+        run = api.get_run_info(entity=entity, project=project, name=resume_id)
+        if not run:
+            wandb.termerror("Couldn't resume run from scheduler run")
+            return
+
+        idx = run["args"].index("--sweep_type") + 1
+        if idx > 0:
+            _type = run["args"][idx]
+        else:
+            wandb.termerror("Couldn't determine sweep type from scheduler run args")
+            return
     else:
         parsed_sweep_config = parsed_config
-
-    _type, custom_config = "wandb", {}  # default wandb-powered launch sweep
-    # Check if custom sweep scheduler
-    if parsed_sweep_config.get("method") == "custom":
-        custom_config = parsed_sweep_config.pop("custom", None)
-        if not custom_config:
-            wandb.termerror("Custom sweep requires a 'custom' section in the config")
-            return
-        _type = custom_config.get("type")
-        if not _type:
-            wandb.termerror(
-                "Custom sweep scheduler require setting 'type' in 'custom' section of config"
-            )
-            return
-
-        # Validation
-        if _type == "optuna":
-            if not validate_optuna(api, custom_config):
+        # Check if custom sweep scheduler
+        if parsed_sweep_config.get("method") == "custom":
+            custom_config = parsed_sweep_config.pop("custom", None)
+            if not custom_config:
+                wandb.termerror(
+                    "Custom sweep requires a 'custom' section in the config"
+                )
                 return
-        elif _type == "raytune":
-            wandb.termerror("Unsupported launch sweep type: 'raytune'")
-            return
-        else:
-            wandb.termwarn(
-                f"Unrecognized sweep scheduler type: {_type}, not validating"
-            )
+            _type = custom_config.get("type")
+            if not _type:
+                wandb.termerror(
+                    "Custom sweep scheduler require setting 'type' in 'custom' section of config"
+                )
+                return
+
+            # Validation
+            if _type == "optuna":
+                if not validate_optuna(api, custom_config):
+                    return
+            elif _type == "raytune":
+                wandb.termerror("Unsupported launch sweep type: 'raytune'")
+                return
+            else:
+                wandb.termwarn(
+                    f"Unrecognized sweep scheduler type: {_type}, not validating"
+                )
 
     # validate job existence
     job = parsed_sweep_config.get("job")

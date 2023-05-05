@@ -258,7 +258,7 @@ def objective(trial):
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_optuna_sweep(user, monkeypatch, wandb_init, sweep_config, test_settings):
+def test_optuna_sweep(user, monkeypatch, sweep_config):
     # monkeypatch run stuff
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
