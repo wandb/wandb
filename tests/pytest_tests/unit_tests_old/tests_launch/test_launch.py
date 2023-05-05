@@ -1164,7 +1164,6 @@ def test_resolve_agent_config(monkeypatch, runner):
                 },
                 f,
             )
-        
         config, returned_api = launch.resolve_agent_config(
             None, None, -1, ["diff-queue"], None
         )
