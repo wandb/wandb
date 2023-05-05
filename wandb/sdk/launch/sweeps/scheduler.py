@@ -154,11 +154,12 @@ class Scheduler(ABC):
         # Init wandb scheduler run
         self._wandb_run = self._init_wandb_run()
 
-        # Grab param from scheduler wandb run config
+        # Grab params from scheduler wandb run config
         num_workers = num_workers or self._wandb_run.config.get("scheduler", {}).get(
             "num_workers"
         )
         self._num_workers = int(num_workers) if str(num_workers).isdigit() else 8
+        self._custom_config: Dict[str, Any] = self._wandb_run.config.get("custom", {})
 
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:

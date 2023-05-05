@@ -983,20 +983,33 @@ def launch_sweep(
     else:
         parsed_sweep_config = parsed_config
 
-    # Determine type (scheduler) for sweep
-    _type = "sweep"
+    _type, custom_config = "wandb", {}  # default wandb-powered launch sweep
+    # Check if custom sweep scheduler
     if parsed_sweep_config.get("method") == "custom":
-        custom_config = {}
-        if "optuna" in parsed_sweep_config:
-            _type = "optuna"
-            custom_config = parsed_sweep_config.pop("optuna")
-            if not validate_optuna(api, custom_config):
-                return
-        elif "raytune" in parsed_sweep_config:
-            wandb.termerror("raytune is not supported for launch sweeps")
+        custom_config = parsed_sweep_config.pop("custom", None)
+        if not custom_config:
+            wandb.termerror("Custom sweep requires a 'custom' section in the config")
+            return
+        _type = custom_config.get("type")
+        if not _type:
+            wandb.termerror(
+                "Custom sweep scheduler require setting 'type' in 'custom' section of config"
+            )
             return
 
-    # validate job existence, add :latest alias if not specified
+        # Validation
+        if _type == "optuna":
+            if not validate_optuna(api, custom_config):
+                return
+        elif _type == "raytune":
+            wandb.termerror("Unsupported launch sweep type: 'raytune'")
+            return
+        else:
+            wandb.termwarn(
+                f"Unrecognized sweep scheduler type: {_type}, not validating"
+            )
+
+    # validate job existence
     job = parsed_sweep_config.get("job")
     if job:
         if not isinstance(job, str) or ":" not in job:

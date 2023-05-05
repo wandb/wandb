@@ -274,7 +274,9 @@ class OptunaScheduler(Scheduler):
                 pruner = load_optuna_pruner(
                     pruner_args["type"], pruner_args.get("args")
                 )
-                wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner})")
+                wandb.termlog(
+                    f"{LOG_PREFIX}Loaded pruner ({pruner.__class__.__name__})"
+                )
             else:
                 wandb.termlog(f"{LOG_PREFIX}No pruner args, defaulting to MedianPruner")
 
@@ -286,7 +288,9 @@ class OptunaScheduler(Scheduler):
                 sampler = load_optuna_sampler(
                     sampler_args["type"], sampler_args.get("args")
                 )
-                wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler})")
+                wandb.termlog(
+                    f"{LOG_PREFIX}Loaded sampler ({sampler.__class__.__name__})"
+                )
             else:
                 wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
 
@@ -364,7 +368,8 @@ class OptunaScheduler(Scheduler):
         wandb.termlog(
             f"{LOG_PREFIX}Starting new run ({srun.id}) with params: {trial.params}"
         )
-        wandb.termlog(f"{LOG_PREFIX}Study state:\n{self.formatted_trials}")
+        if self.formatted_trials:
+            wandb.termlog(f"{LOG_PREFIX}Study state:\n{self.formatted_trials}")
 
         return srun
 
