@@ -1435,6 +1435,8 @@ workflows:
             branches:
               only:
                 - main
+                - /^release-.*/
+                - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1451,6 +1453,8 @@ workflows:
             branches:
               only:
                 - main
+                - /^release-.*/
+                - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1556,6 +1560,8 @@ workflows:
             branches:
               only:
                 - main
+                - /^release-.*/
+                - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
