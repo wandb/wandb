@@ -1,8 +1,6 @@
 import pytest
-from wandb.sdk.launch.runner.kubernetes_runner import (
-    add_label_to_pods,
-    add_wandb_env,
-)
+
+from wandb.sdk.launch.runner.kubernetes_runner import add_label_to_pods, add_wandb_env
 
 
 @pytest.fixture
