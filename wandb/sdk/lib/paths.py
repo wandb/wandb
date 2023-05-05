@@ -108,4 +108,4 @@ class LogicalPath(str):
 
     def __truediv__(self, other: StrPath) -> "LogicalPath":
         """Act like a PurePosixPath for the / operator, but return a LogicalPath."""
-        return LogicalPath(self.to_path() / other)
+        return LogicalPath(self.to_path() / LogicalPath(other))

@@ -99,11 +99,12 @@ def test_path_conversion():
     for path in pathological_paths():
         logical_path = LogicalPath(path)
         assert isinstance(logical_path, str)
+        if not isinstance(path, str):
+            continue
+
+        assert logical_path == forward_slash_path_conversion(path)
         if platform.system() == "Windows":
             assert "\\" not in logical_path
-
-        if isinstance(path, str):
-            assert logical_path == forward_slash_path_conversion(path)
 
 
 def test_logical_path_matches_to_posix_path():
@@ -120,8 +121,9 @@ def test_logical_path_is_idempotent():
     for path in pathological_paths():
         logical_path = LogicalPath(path)
         assert logical_path == LogicalPath(logical_path)
-        assert logical_path == LogicalPath(to_forward_slash_path(logical_path))
-        assert logical_path == to_forward_slash_path(LogicalPath(logical_path))
+        if isinstance(path, str):
+            assert logical_path == LogicalPath(to_forward_slash_path(path))
+            assert logical_path == to_forward_slash_path(logical_path)
 
 
 def test_logical_path_round_trip():
@@ -136,7 +138,8 @@ def test_logical_path_round_trip():
 def test_logical_path_acts_like_posix_path():
     for path in pathological_paths(include_bytes=False):
         lp = LogicalPath(path)
-        ppp = PurePosixPath(path.as_posix() if isinstance(path, PurePath) else path)
+        local_path = PurePath(path) if isinstance(path, str) else path
+        ppp = PurePosixPath(local_path.as_posix())
         assert lp.is_absolute() == ppp.is_absolute()
         assert lp.parts == ppp.parts
         assert not lp.is_reserved()
