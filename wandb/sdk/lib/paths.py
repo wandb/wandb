@@ -1,7 +1,6 @@
 import os
-import platform
 from functools import wraps
-from pathlib import PurePosixPath
+from pathlib import PurePath, PurePosixPath
 from typing import Any, NewType, Union
 
 # Path _inputs_ should generally accept any kind of path. This is named the same and
@@ -59,16 +58,12 @@ class LogicalPath(str):
 
     def __new__(cls, path: StrPath) -> "LogicalPath":
         if hasattr(path, "as_posix"):
-            path = path.as_posix()
+            return super().__new__(cls, path.as_posix())
         if hasattr(path, "__fspath__"):
             path = path.__fspath__()  # Can be str or bytes.
         if isinstance(path, bytes):
             path = os.fsdecode(path)
-        path = str(path)
-        if platform.system() == "Windows":
-            path = path.replace("\\", "/")
-        path = str(PurePosixPath(path))
-        return super().__new__(cls, path)
+        return super().__new__(cls, PurePath(path).as_posix())
 
     def to_path(self) -> PurePosixPath:
         """Convert this path to a PurePosixPath."""

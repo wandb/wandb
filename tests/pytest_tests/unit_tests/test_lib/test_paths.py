@@ -109,11 +109,12 @@ def test_path_conversion():
 def test_logical_path_matches_to_posix_path():
     # If PurePosixPath can be constructed it should be the same as the LogicalPath.
     for path in pathological_paths(include_bytes=False):
-        posix_path = PurePosixPath(
-            path.as_posix() if isinstance(path, PurePath) else path
-        )
-        assert posix_path == LogicalPath(path).to_path()
-        assert str(posix_path) == LogicalPath(path)
+        logical_path = LogicalPath(path)
+        if not isinstance(path, PurePath):
+            path = PurePath(path)
+        posix_path = PurePosixPath(path.as_posix())
+        assert posix_path == logical_path.to_path()
+        assert str(posix_path) == logical_path
 
 
 def test_logical_path_is_idempotent():
