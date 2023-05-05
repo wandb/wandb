@@ -57,13 +57,21 @@ class LogicalPath(str):
     # absolute paths or check for prohibited characters etc.
 
     def __new__(cls, path: StrPath) -> "LogicalPath":
+        if isinstance(path, LogicalPath):
+            return super().__new__(cls, path)
         if hasattr(path, "as_posix"):
-            return super().__new__(cls, path.as_posix())
+            path = PurePosixPath(path.as_posix())
+            return super().__new__(cls, str(path))
         if hasattr(path, "__fspath__"):
             path = path.__fspath__()  # Can be str or bytes.
         if isinstance(path, bytes):
             path = os.fsdecode(path)
-        return super().__new__(cls, PurePath(path).as_posix())
+        # This weird contortion and the one above are because in some unusual cases
+        # PurePosixPath(path.as_posix()).as_posix() != path.as_posix()
+        # Here we assume strings correspond to the local platform's file system and use
+        # that to extract the best canonical posix equivalent.
+        path = PurePosixPath(PurePath(path).as_posix())
+        return super().__new__(cls, str(path))
 
     def to_path(self) -> PurePosixPath:
         """Convert this path to a PurePosixPath."""
