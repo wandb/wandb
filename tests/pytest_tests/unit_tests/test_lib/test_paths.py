@@ -12,9 +12,8 @@ from wandb.util import to_forward_slash_path
 # thing, and unearthed many many corner cases I had not accounted for. But it was a bad
 # thing as well, because it found them over time, one by one, and generally on CI,
 # flaking on innocent developers.
-# So instead here is a list of all the possible paths containing the characters "./\\x"
-# of up to length 6, and we deterministically test on these instead.
-def pathological_path_strings(max_length=6, alphabet="./\\x"):
+# Instead, we'll deterministically test on a large set of known difficult cases.
+def pathological_path_strings(max_length=6, alphabet="./\\C:"):
     """All possible strings of up to `max_length` drawn from the given alphabet."""
     for n in range(max_length + 1):
         for seq in itertools.product(alphabet, repeat=n):
