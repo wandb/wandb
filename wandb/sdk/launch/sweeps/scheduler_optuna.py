@@ -68,10 +68,11 @@ class OptunaScheduler(Scheduler):
 
     def __init__(
         self,
+        api: Api,
         *args: Optional[Any],
         **kwargs: Optional[Any],
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(api, *args, **kwargs)
 
         # Optuna
         self._study: Optional[optuna.study.Study] = None
@@ -89,10 +90,11 @@ class OptunaScheduler(Scheduler):
         return self._study
 
     @property
-    def study_name(self):
+    def study_name(self) -> str:
         if not self._study:
             return f"optuna-study-{self._sweep_id}"
-        return self.study.study_name
+        optuna_study_name: str = self.study.study_name
+        return optuna_study_name
 
     @property
     def study_string(self) -> str:
@@ -370,10 +372,13 @@ class OptunaScheduler(Scheduler):
         """
         Gets logged metric history for a given run_id
         """
-        if run_id in self._runs:
-            queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
-            if not queued_run or queued_run.state == "pending":
-                return []
+        if run_id not in self._runs:
+            logger.debug(f"Cant get history for run {run_id} not in self.runs")
+            return []
+
+        queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
+        if not queued_run or queued_run.state == "pending":
+            return []
 
         try:
             api_run: Run = self._public_api.run(
@@ -511,7 +516,7 @@ class OptunaScheduler(Scheduler):
         study_copy.add_trials(self.study.trials)
 
         # Signal handler to raise error if objective func takes too long
-        def handler(signum, frame):
+        def handler(signum: Any, frame: Any) -> None:
             raise TimeoutError(
                 "Passed optuna objective function only creates parameter config."
                 f" Do not train; must execute in {self.OPT_TIMEOUT} seconds. See docs."
@@ -540,7 +545,7 @@ class OptunaScheduler(Scheduler):
     def _exit(self) -> None:
         pass
 
-    def _cleanup_runs(self, runs_to_remove) -> None:
+    def _cleanup_runs(self, runs_to_remove: List[str]) -> None:
         logger.debug(f"[_cleanup_runs] not removing: {runs_to_remove}")
 
 
@@ -570,11 +575,11 @@ def validate_optuna(public_api: Api, custom_config: Dict[str, Any]) -> bool:
 
     if custom_config.get("artifact"):
         try:
-            _ = public_api.artifact(custom_config.get("artifact"))
-        except Exception:
-            if ":" not in custom_config.get("artifact"):
+            _ = public_api.artifact(custom_config["artifact"])
+        except Exception as e:
+            if ":" not in custom_config["artifact"]:
                 wandb.termerror("No alias (ex. :latest) found in artifact name")
-            wandb.termerror(f"{traceback.format_exc()}")
+            wandb.termerror(f"{e}")
             return False
     return True
 
