@@ -136,7 +136,12 @@ def _convert_chain_run_to_wb_span(run: "ChainRun") -> "trace_tree.Span":
 
     base_span.results = [trace_tree.Result(inputs=run.inputs, outputs=run.outputs)]
     base_span.child_spans = [
-        _convert_lc_run_to_wb_span(child_run) for child_run in run.child_runs
+        _convert_lc_run_to_wb_span(child_run)
+        for child_run in [
+            *run.child_llm_runs,
+            *run.child_chain_runs,
+            *run.child_tool_runs,
+        ]
     ]
     base_span.span_kind = (
         trace_tree.SpanKind.AGENT
@@ -157,7 +162,12 @@ def _convert_tool_run_to_wb_span(run: "ToolRun") -> "trace_tree.Span":
         )
     ]
     base_span.child_spans = [
-        _convert_lc_run_to_wb_span(child_run) for child_run in run.child_runs
+        _convert_lc_run_to_wb_span(child_run)
+        for child_run in [
+            *run.child_llm_runs,
+            *run.child_chain_runs,
+            *run.child_tool_runs,
+        ]
     ]
     base_span.span_kind = trace_tree.SpanKind.TOOL
 
@@ -169,10 +179,10 @@ def _convert_run_to_wb_span(run: "BaseRun") -> "trace_tree.Span":
     attributes["execution_order"] = run.execution_order
 
     return trace_tree.Span(
-        span_id=str(run.id) if run.id is not None else None,
+        span_id=str(run.uuid) if run.uuid is not None else None,
         name=run.serialized.get("name"),
-        start_time_ms=run.start_time,
-        end_time_ms=run.end_time,
+        start_time_ms=int(run.start_time.timestamp() * 1000),
+        end_time_ms=int(run.end_time.timestamp() * 1000),
         status_code=trace_tree.StatusCode.SUCCESS
         if run.error is None
         else trace_tree.StatusCode.ERROR,
