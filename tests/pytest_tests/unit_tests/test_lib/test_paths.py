@@ -1,13 +1,34 @@
 import itertools
 import platform
 import re
-from pathlib import PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 
 import pytest
-from hypothesis import assume, example, given
-from hypothesis_fspaths import fspaths
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.util import to_forward_slash_path
+
+
+# Once upon a time I used hypothesis and fspaths to generate test cases. This was a good
+# thing, and unearthed many many corner cases I had not accounted for. But it was a bad
+# thing as well, because it found them over time, one by one, and generally on CI,
+# flaking on innocent developers.
+# So instead here is a list of all the possible paths containing the characters "./\\x"
+# of up to length 6, and we deterministically test on these instead.
+def pathological_path_strings(max_length=6, alphabet="./\\x"):
+    """All possible strings of up to `max_length` drawn from the given alphabet."""
+    for n in range(max_length + 1):
+        for seq in itertools.product(alphabet, repeat=n):
+            yield "".join(seq)
+
+
+def pathological_paths(max_length=6, alphabet="./\\x", include_bytes=True):
+    for path_str in pathological_path_strings(max_length, alphabet):
+        yield path_str
+        if include_bytes:
+            yield path_str.encode("ascii")
+        yield Path(path_str)
+        yield PurePosixPath(path_str)
+        yield PureWindowsPath(path_str)
 
 
 @pytest.mark.parametrize(
@@ -74,80 +95,68 @@ def forward_slash_path_conversion(path):
     return canonical
 
 
-@given(fspaths())
-@example(b"")
-@example(".")
-@example("\\\\")
-@example(" /")
-@example("/")
-@example(PureWindowsPath("C:/foo/bar.txt"))
-@example(PurePosixPath("x\\a/b.bin"))
-def test_path_conversion(path):
-    logical_path = LogicalPath(path)
-    assert isinstance(logical_path, str)
-    if platform.system() == "Windows":
-        assert "\\" not in logical_path
+def test_path_conversion():
+    for path in pathological_paths():
+        logical_path = LogicalPath(path)
+        assert isinstance(logical_path, str)
+        if platform.system() == "Windows":
+            assert "\\" not in logical_path
 
-    if isinstance(path, str):
-        assert logical_path == forward_slash_path_conversion(path)
+        if isinstance(path, str):
+            assert logical_path == forward_slash_path_conversion(path)
 
 
-def test_path_conversion_pathological():
-    path_chars = "./\\x"  # One normal character and three that cause problems.
-
-    # Exercise every path up to length 6 (all 5204 of them) consisting of path_chars.
-    for i in range(1, 5):
-        for seq in itertools.product(path_chars, repeat=i):
-            path = "".join(seq)
-            assert str(LogicalPath(path)) == forward_slash_path_conversion(path)
-
-
-@given(fspaths())
-def test_logical_path_matches_to_posix_path(path):
+def test_logical_path_matches_to_posix_path():
     # If PurePosixPath can be constructed it should be the same as the LogicalPath.
-    try:
-        posix_path = PurePosixPath(path)
-    except TypeError:
-        assume(False)  # Tell hypothesis to skip these examples.
-
-    assert posix_path == LogicalPath(path).to_path()
-    assert str(posix_path) == LogicalPath(path)
-
-
-@given(fspaths())
-def test_logical_path_is_idempotent(path):
-    logical_path = LogicalPath(path)
-    assert logical_path == LogicalPath(logical_path)
-    assert logical_path == LogicalPath(to_forward_slash_path(logical_path))
-    assert logical_path == to_forward_slash_path(LogicalPath(logical_path))
+    for path in pathological_paths(include_bytes=False):
+        posix_path = PurePosixPath(
+            path.as_posix() if isinstance(path, PurePath) else path
+        )
+        assert posix_path == LogicalPath(path).to_path()
+        assert str(posix_path) == LogicalPath(path)
 
 
-@given(fspaths())
-def test_logical_path_round_trip(path):
-    logical_path = LogicalPath(path)
-    posix_path = logical_path.to_path()
-    assert isinstance(posix_path, PurePosixPath)
-    assert posix_path == LogicalPath(posix_path).to_path()
-    assert str(posix_path) == LogicalPath(posix_path) or not path
+def test_logical_path_is_idempotent():
+    for path in pathological_paths():
+        logical_path = LogicalPath(path)
+        assert logical_path == LogicalPath(logical_path)
+        assert logical_path == LogicalPath(to_forward_slash_path(logical_path))
+        assert logical_path == to_forward_slash_path(LogicalPath(logical_path))
 
 
-@given(fspaths(), fspaths())
-def test_logical_path_acts_like_posix_path(path1, path2):
-    path1 = LogicalPath(path1)
-    assert path1.is_absolute() == PurePosixPath(path1).is_absolute()
-    assert path1.parts == PurePosixPath(path1).parts
-    assert not path1.is_reserved()
-    if path1.is_absolute():
-        assert path1.root == "/"
-        assert path1.as_uri() == PurePosixPath(path1).as_uri()
-        assert not path1.relative_to(path1.root).is_absolute()
-    else:
-        assert path1.anchor == ""
+def test_logical_path_round_trip():
+    for path in pathological_paths():
+        logical_path = LogicalPath(path)
+        posix_path = logical_path.to_path()
+        assert isinstance(posix_path, PurePosixPath)
+        assert posix_path == LogicalPath(posix_path).to_path()
+        assert str(posix_path) == LogicalPath(posix_path) or not path
 
-    itself = path1.joinpath("bar").parent
-    assert isinstance(itself, LogicalPath)
-    assert PurePosixPath(itself) == PurePosixPath(path1)
 
-    path2 = LogicalPath(path2)
-    assert path1 / path2 == path1.joinpath(path2)
-    assert path1 / PurePosixPath("/foo") == LogicalPath("/foo")
+def test_logical_path_acts_like_posix_path():
+    for path in pathological_paths(include_bytes=False):
+        lp = LogicalPath(path)
+        ppp = PurePosixPath(path.as_posix() if isinstance(path, PurePath) else path)
+        assert lp.is_absolute() == ppp.is_absolute()
+        assert lp.parts == ppp.parts
+        assert not lp.is_reserved()
+        if lp.is_absolute():
+            assert lp.root == "/" or lp.root == "//"
+            assert lp.as_uri() == ppp.as_uri()
+            assert not lp.relative_to(lp.root).is_absolute()
+        else:
+            assert lp.anchor == ""
+        assert lp / PurePosixPath("/foo") == LogicalPath("/foo")
+
+        itself = lp.joinpath("bar").parent
+        assert isinstance(itself, LogicalPath)
+        assert PurePosixPath(itself) == ppp
+
+
+def test_logical_path_joins_like_pathlib():
+    base_path_set = pathological_path_strings(max_length=3)
+    for path1, path2 in itertools.product(base_path_set, repeat=2):
+        lp1 = LogicalPath(path1)
+        lp2 = LogicalPath(path2)
+        assert lp1.joinpath(lp2) == lp1 / path2
+        assert lp1.joinpath(path2) == lp1 / lp2
