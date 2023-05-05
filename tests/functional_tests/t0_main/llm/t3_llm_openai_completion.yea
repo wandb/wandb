@@ -1,4 +1,4 @@
-id: 0.llm.03-openai-completion
+id: 0.llm-openai.03-completion
 plugin:
   - wandb
 tag:

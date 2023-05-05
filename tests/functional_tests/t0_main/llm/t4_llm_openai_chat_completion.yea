@@ -1,4 +1,4 @@
-id: 0.llm.04-openai-chat.completion
+id: 0.llm-openai.04-chat.completion
 plugin:
   - wandb
 tag:

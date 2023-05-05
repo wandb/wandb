@@ -1,4 +1,4 @@
-id: 0.llm.05-openai-edit
+id: 0.llm-openai.05-edit
 plugin:
   - wandb
 tag:

@@ -1,4 +1,4 @@
-id: 0.llm.01-cohere-generate
+id: 0.llm-cohere.01-generate
 plugin:
   - wandb
 tag:
