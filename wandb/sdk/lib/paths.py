@@ -1,4 +1,5 @@
 import os
+import platform
 from functools import wraps
 from pathlib import PurePath, PurePosixPath
 from typing import Any, NewType, Union
@@ -70,8 +71,12 @@ class LogicalPath(str):
         # PurePosixPath(path.as_posix()).as_posix() != path.as_posix()
         # Here we assume strings correspond to the local platform's file system and use
         # that to extract the best canonical posix equivalent.
-        path = PurePosixPath(PurePath(path).as_posix())
-        return super().__new__(cls, str(path))
+        path = PurePath(path).as_posix()
+        # For historical reasons we have to convert backslashes to forward slashes, but
+        # only on Windows.
+        if platform.system() == "Windows":
+            path = path.replace("\\", "/")
+        return super().__new__(cls, str(PurePosixPath(path)))
 
     def to_path(self) -> PurePosixPath:
         """Convert this path to a PurePosixPath."""
