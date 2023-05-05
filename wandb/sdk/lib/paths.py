@@ -67,15 +67,13 @@ class LogicalPath(str):
             path = path.__fspath__()  # Can be str or bytes.
         if isinstance(path, bytes):
             path = os.fsdecode(path)
-        # This weird contortion and the one above are because in some unusual cases
-        # PurePosixPath(path.as_posix()).as_posix() != path.as_posix()
-        # Here we assume strings correspond to the local platform's file system and use
-        # that to extract the best canonical posix equivalent.
-        path = PurePath(path).as_posix()
         # For historical reasons we have to convert backslashes to forward slashes, but
-        # only on Windows.
+        # only on Windows, and need to do it before any pathlib operations.
         if platform.system() == "Windows":
             path = path.replace("\\", "/")
+        # This weird contortion and the one above are because in some unusual cases
+        # PurePosixPath(path.as_posix()).as_posix() != path.as_posix().
+        path = PurePath(path).as_posix()
         return super().__new__(cls, str(PurePosixPath(path)))
 
     def to_path(self) -> PurePosixPath:
