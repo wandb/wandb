@@ -25,8 +25,6 @@ class CohereRequestResponseResolver:
             else:
                 logger.info(f"Unsupported Cohere response object: {response}")
         except Exception as e:
-            print(e)
-            breakpoint()
             logger.warning(f"Failed to resolve request/response: {e}")
         return None
 
