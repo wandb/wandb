@@ -57,8 +57,9 @@ def forward_slash_path_conversion(path):
     # 2. A directory is always represented as `.../d`, never as `.../d/` or `.../d/.`.
     # 3. Current directories are folded: `./a/././b` is `a/b`.
     # 4. Empty directories are folded: `a///b` is `a/b`.
-    #    4a. Anchors are preserved: `///a` is `/a`, `//a` is `//a`. ("//" is a separate
-    #        anchor from "/", but on posix systems "///" is considered "/").
+    #    4a. Anchors are preserved: `///a` and `/a` are `/a`.
+    #    4b. `//a` is `//a` on posix, but `/a` on Windows, which doesn't have a separate
+    #        "//" anchor. `///+` is always `/`.
     #
     # NOTE: there are still paths that collide! In particular, it's not possible in the
     # presence of symlinks to determine whether `a/../b` and `b` are the same path
@@ -103,7 +104,7 @@ def test_path_conversion():
         if not isinstance(path, str):
             continue
 
-        assert logical_path == forward_slash_path_conversion(path)
+        assert logical_path == forward_slash_path_conversion(path), f"fail: {path!r}"
         if platform.system() == "Windows":
             assert "\\" not in logical_path
 
