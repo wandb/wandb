@@ -1011,7 +1011,7 @@ def launch_sweep(
             return False
 
     args = sweep_utils.construct_scheduler_args(
-        _type=_type,
+        sweep_type=_type,
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,

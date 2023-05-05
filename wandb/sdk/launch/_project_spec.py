@@ -114,7 +114,7 @@ class LaunchProject:
             )
         if overrides.get("sweep_id") is not None:
             _logger.info("Adding override sweep id")
-            self.sweep_id = overrides.get["sweep_id"]
+            self.sweep_id = overrides["sweep_id"]
         if self.docker_image is not None:
             self.source = LaunchSource.DOCKER
             self.project_dir = None

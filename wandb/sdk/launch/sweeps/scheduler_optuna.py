@@ -409,7 +409,7 @@ class OptunaScheduler(Scheduler):
         orun.num_metrics = len(metrics)
 
         # run hasn't started
-        if self._runs[orun.sweep_run.id].state == RunState.ALIVE or len(metrics) == 0:
+        if self._runs[orun.sweep_run.id].state.is_alive or len(metrics) == 0:
             logger.debug(f"Run ({orun.sweep_run.id}) has no metrics")
             return False
 
