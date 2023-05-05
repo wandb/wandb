@@ -58,8 +58,7 @@ def forward_slash_path_conversion(path):
     # 3. Current directories are folded: `./a/././b` is `a/b`.
     # 4. Empty directories are folded: `a///b` is `a/b`.
     #    4a. Anchors are preserved: `///a` and `/a` are `/a`.
-    #    4b. `//a` is `//a` on posix, but `/a` on Windows, which doesn't have a separate
-    #        "//" anchor. `///+` is always `/`.
+    #    4b. `//a` is `//a`, since '//' is a separate anchor. `///+` is always `/`.
     #
     # NOTE: there are still paths that collide! In particular, it's not possible in the
     # presence of symlinks to determine whether `a/../b` and `b` are the same path
@@ -71,9 +70,7 @@ def forward_slash_path_conversion(path):
     canonical = to_forward_slash_path(path)
 
     if re.match(r"//([^/]|$)", canonical):
-        anchor, body = "//", canonical[2:]  # The anchor is "//" but only on posix.
-        if platform.system() == "Windows":
-            anchor = "/"
+        anchor, body = "//", canonical[2:]  # The anchor is "//".
     elif re.match(r"/+", canonical):
         anchor, body = "/", canonical.lstrip("/")  # The anchor is "/".
     else:
