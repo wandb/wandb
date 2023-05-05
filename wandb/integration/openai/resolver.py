@@ -1,8 +1,10 @@
 import io
 import logging
 import sys
+import uuid
 from typing import Any, Dict, List, Optional, TypeVar
 
+import wandb
 from wandb.sdk.data_types import trace_tree
 
 if sys.version_info >= (3, 8):
@@ -27,6 +29,39 @@ class OpenAIResponse(Protocol[K, V]):
 
     def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
         ...  # pragma: no cover
+
+
+def get_alias_and_cost(model_name: str, is_completion: bool = False) -> float:
+    alias_cost_mapping = {
+        "gpt-4": {"alias": "gpt-4", "cost": 0.03},
+        "gpt-4-0314": {"alias": "gpt-4", "cost": 0.03},
+        "gpt-4-completion": {"alias": "gpt-4", "cost": 0.06},
+        "gpt-4-0314-completion": {"alias": "gpt-4", "cost": 0.06},
+        "gpt-4-32k": {"alias": "gpt-4", "cost": 0.06},
+        "gpt-4-32k-0314": {"alias": "gpt-4", "cost": 0.06},
+        "gpt-4-32k-completion": {"alias": "gpt-4", "cost": 0.12},
+        "gpt-4-32k-0314-completion": {"alias": "gpt-4", "cost": 0.12},
+        "gpt-3.5-turbo": {"alias": "gpt-3", "cost": 0.002},
+        "gpt-3.5-turbo-0301": {"alias": "gpt-3", "cost": 0.002},
+        "text-ada-001": {"alias": "gpt-3", "cost": 0.0004},
+        "ada": {"alias": "gpt-3", "cost": 0.0004},
+        "text-babbage-001": {"alias": "gpt-3", "cost": 0.0005},
+        "babbage": {"alias": "gpt-3", "cost": 0.0005},
+        "text-curie-001": {"alias": "gpt-3", "cost": 0.002},
+        "curie": {"alias": "gpt-3", "cost": 0.002},
+        "text-davinci-003": {"alias": "gpt-3", "cost": 0.02},
+        "text-davinci-edit-001": {"alias": "gpt-3", "cost": 0.02},
+        "code-davinci-edit-001": {"alias": "gpt-3", "cost": 0.02},
+        "text-davinci-002": {"alias": "gpt-3", "cost": 0.02},
+        "code-davinci-002": {"alias": "gpt-3", "cost": 0.02},
+    }
+
+    alias_cost = alias_cost_mapping.get(
+        model_name.lower()
+        + ("-completion" if is_completion and model_name.startswith("gpt-4") else ""),
+        None,
+    )
+    return alias_cost
 
 
 class OpenAIRequestResponseResolver:
@@ -94,7 +129,7 @@ class OpenAIRequestResponseResolver:
             f"\n\n**Edited**: {choice['text']}\n" for choice in response["choices"]
         ]
 
-        return self._request_response_result_to_trace(
+        return self._request_response_result_log_dict(
             request=request,
             response=response,
             request_str=request_str,
@@ -114,7 +149,7 @@ class OpenAIRequestResponseResolver:
             f"\n\n**Completion**: {choice['text']}\n" for choice in response["choices"]
         ]
 
-        return self._request_response_result_to_trace(
+        return self._request_response_result_log_dict(
             request=request,
             response=response,
             request_str=request_str,
@@ -139,7 +174,7 @@ class OpenAIRequestResponseResolver:
             for choice in response["choices"]
         ]
 
-        return self._request_response_result_to_trace(
+        return self._request_response_result_log_dict(
             request=request,
             response=response,
             request_str=request_str,
@@ -147,7 +182,7 @@ class OpenAIRequestResponseResolver:
             time_elapsed=time_elapsed,
         )
 
-    def _request_response_result_to_trace(
+    def _request_response_result_log_dict(
         self,
         request: Dict[str, Any],
         response: OpenAIResponse,
@@ -164,4 +199,77 @@ class OpenAIRequestResponseResolver:
             for choice in choices
         ]
         trace = self.results_to_trace_tree(request, response, results, time_elapsed)
-        return trace
+        usage_stats = self._get_usage_stats(request, response, results, time_elapsed)
+        return {"trace": trace, **usage_stats}
+
+    def _get_usage_stats(
+        self,
+        request: Dict[str, Any],
+        response: OpenAIResponse,
+        results: List[Any],
+        time_elapsed: float,
+    ) -> Dict[str, Any]:
+        """Gets the usage stats from the response object."""
+        usage_stats = {}
+        if response.get("usage"):
+            usage_stats = response["usage"]
+        usage_stats["elapsed_time"] = time_elapsed
+        usage_stats["start_time"] = response["created"]
+        if response["object"] in ("text_completion", "chat.completion"):
+            is_completion = True
+        else:
+            is_completion = False
+        model = response.get("model") or request.get("model")
+        if model:
+            model_alias_and_cost = get_alias_and_cost(
+                model.lower(), is_completion=is_completion
+            )
+        else:
+            model_alias_and_cost = None
+        if model_alias_and_cost:
+            model_alias = model_alias_and_cost["alias"]
+            usage_stats["prompt_cost"] = (
+                model_alias_and_cost["cost"]
+                * usage_stats.get("prompt_tokens", 0)
+                / 1000
+            )
+            usage_stats["completion_cost"] = (
+                model_alias_and_cost["cost"]
+                * usage_stats.get("completion_tokens", 0)
+                / 1000
+            )
+            usage_stats["total_cost"] = (
+                usage_stats["prompt_cost"] + usage_stats["completion_cost"]
+            )
+        else:
+            model_alias = None
+
+        usage_table = []
+        for result in results:
+            row = {
+                "request": result.inputs["request"],
+                "response": result.outputs["response"],
+                "model_alias": model_alias,
+                "model": model,
+                "start_time": response["created"],
+                "end_time": response["created"] + time_elapsed,
+                "request_id": response["id"]
+                if response.get("id")
+                else str(uuid.uuid4()),
+                "session_id": wandb.run.id,
+            }
+            row.update(usage_stats)
+            usage_table.append(row)
+        usage_table = wandb.Table(
+            columns=list(usage_table[0].keys()),
+            data=[(item.values()) for item in usage_table],
+        )
+        stats = {"stats": usage_table}
+        for k in usage_stats:
+            wandb.define_metric(
+                k,
+                "start_time",
+                hidden=k != "start_time",
+            )
+        stats.update(usage_stats)
+        return stats

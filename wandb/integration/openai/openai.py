@@ -60,7 +60,7 @@ class PatchOpenAIAPI:
                     try:
                         trace = self.resolver(kwargs, result, timer.elapsed)
                         if trace is not None:
-                            run.log({"trace": trace})
+                            run.log(trace)
                     except Exception:
                         # logger.warning(e)
                         pass
