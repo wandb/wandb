@@ -9,9 +9,6 @@ from typing import Any, NewType, Union
 # https://github.com/python/typeshed/blob/0b1cd5989669544866213807afa833a88f649ee7/stdlib/_typeshed/__init__.pyi#L56-L65
 StrPath = Union[str, "os.PathLike[str]"]
 
-# An artifact-relative or run-relative path. It is always POSIX-style.
-LogicalFilePathStr = NewType("LogicalFilePathStr", str)
-
 # A native path to a file on a local filesystem.
 FilePathStr = NewType("FilePathStr", str)
 
@@ -25,6 +22,8 @@ class LocalPath(str):
     """
 
     def __new__(cls, path: StrPath) -> "LocalPath":
+        if isinstance(path, cls):
+            return super().__new__(cls, path)
         if hasattr(path, "__fspath__"):
             path = path.__fspath__()
         if isinstance(path, bytes):
@@ -109,17 +108,23 @@ class LogicalPath(str):
     # absolute paths or check for prohibited characters etc.
 
     def __new__(cls, path: StrPath) -> "LogicalPath":
+        if isinstance(path, cls):
+            return super().__new__(cls, path)
         if hasattr(path, "as_posix"):
-            path = path.as_posix()
+            path = PurePosixPath(path.as_posix())
+            return super().__new__(cls, str(path))
         if hasattr(path, "__fspath__"):
             path = path.__fspath__()  # Can be str or bytes.
         if isinstance(path, bytes):
             path = os.fsdecode(path)
-        path = str(path)
+        # For historical reasons we have to convert backslashes to forward slashes, but
+        # only on Windows, and need to do it before any pathlib operations.
         if platform.system() == "Windows":
             path = path.replace("\\", "/")
-        path = str(PurePosixPath(path))
-        return super().__new__(cls, path)
+        # This weird contortion and the one above are because in some unusual cases
+        # PurePosixPath(path.as_posix()).as_posix() != path.as_posix().
+        path = PurePath(path).as_posix()
+        return super().__new__(cls, str(PurePosixPath(path)))
 
     def to_path(self) -> PurePosixPath:
         """Convert this path to a PurePosixPath."""
@@ -151,7 +156,7 @@ class LogicalPath(str):
 
     def __truediv__(self, other: StrPath) -> "LogicalPath":
         """Act like a PurePosixPath for the / operator, but return a LogicalPath."""
-        return LogicalPath(self.to_path() / other)
+        return LogicalPath(self.to_path() / LogicalPath(other))
 
     def __eq__(self, other: object) -> bool:
         """Compare equal with PurePosixPath objects."""
@@ -164,4 +169,3 @@ class LogicalPath(str):
         if isinstance(other, PurePosixPath):
             return self.to_path() != other
         return super().__ne__(other)
-
