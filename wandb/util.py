@@ -9,7 +9,6 @@ import logging
 import math
 import numbers
 import os
-import pathlib
 import platform
 import queue
 import random
@@ -37,7 +36,6 @@ from typing import (
     Iterable,
     List,
     Mapping,
-    NewType,
     Optional,
     Sequence,
     Set,
@@ -53,6 +51,7 @@ import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -62,20 +61,6 @@ if TYPE_CHECKING:
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
-# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
-# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
-# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
-#
-# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
-LogicalFilePathStr = NewType("LogicalFilePathStr", str)
-
-# `FilePathStr` represents a path to a file on the local filesystem.
-#
-# TODO(spencerpearson): this should probably be replaced with pathlib.Path
-FilePathStr = NewType("FilePathStr", str)
-
-# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
-URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -1164,7 +1149,7 @@ def class_colors(class_count: int) -> List[List[int]]:
 
 
 def _prompt_choice(
-    input_timeout: Optional[int] = None,
+    input_timeout: Union[int, float, None] = None,
     jupyter: bool = False,
 ) -> str:
     input_fn: Callable = input
@@ -1174,7 +1159,7 @@ def _prompt_choice(
         from wandb.sdk.lib import timed_input
 
         input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
-        # timed_input doesnt handle enhanced prompts
+        # timed_input doesn't handle enhanced prompts
         if platform.system() == "Windows":
             prompt = "wandb"
 
@@ -1188,7 +1173,7 @@ def _prompt_choice(
 
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: Optional[int] = None,
+    input_timeout: Union[int, float, None] = None,
     jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options."""
@@ -1303,12 +1288,14 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def to_forward_slash_path(path: str) -> LogicalFilePathStr:
+# TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
+def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return LogicalFilePathStr(path)
+    return path
 
 
+# TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
 def to_native_slash_path(path: str) -> FilePathStr:
     return FilePathStr(path.replace("/", os.sep))
 
@@ -1412,7 +1399,7 @@ def rand_alphanumeric(
 
 @contextlib.contextmanager
 def fsync_open(
-    path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
+    path: StrPath, mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
     """Open a path for I/O and guarante that the file is flushed and synced."""
     with open(path, mode, encoding=encoding) as f:
