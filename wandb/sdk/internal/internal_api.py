@@ -42,7 +42,7 @@ from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
-from wandb.util import FilePathStr, PathOrStr
+from wandb.util import FilePathStr, StrPath
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -203,7 +203,7 @@ class Api:
         #  keeping this code here to limit scope and so that it is easy to remove later
         extra_http_headers = self.settings(
             "_extra_http_headers"
-        ) or wandb.sdk.wandb_settings._str_as_dict(
+        ) or wandb.sdk.wandb_settings._str_as_json(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
         )
 
@@ -2002,8 +2002,8 @@ class Api:
     def download_write_file(
         self,
         metadata: Dict[str, str],
-        out_dir: Optional[PathOrStr] = None,
-    ) -> Tuple[PathOrStr, Optional[requests.Response]]:
+        out_dir: Optional[StrPath] = None,
+    ) -> Tuple[StrPath, Optional[requests.Response]]:
         """Download a file from a run and write it to wandb/.
 
         Arguments:
@@ -2015,7 +2015,7 @@ class Api:
             already existed and was up-to-date.
         """
         filename = Path(metadata["name"])
-        path: PathOrStr = Path(out_dir or self.settings("wandb_dir")) / filename
+        path: StrPath = Path(out_dir or self.settings("wandb_dir")) / filename
         if self.file_current(filename, B64MD5(metadata["md5"])):
             return FilePathStr(str(path)) if isinstance(out_dir, str) else path, None
 
@@ -2539,11 +2539,11 @@ class Api:
         )
 
         response = self.gql(mutation, variable_values={})
-        key: str = response["createAnonymousEntity"]["apiKey"]["name"]
+        key: str = str(response["createAnonymousEntity"]["apiKey"]["name"])
         return key
 
     @staticmethod
-    def file_current(fname: PathOrStr, md5: B64MD5) -> bool:
+    def file_current(fname: StrPath, md5: B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
 

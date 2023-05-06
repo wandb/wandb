@@ -11,7 +11,6 @@ import copy
 import json
 import logging
 import os
-import pathlib
 import platform
 import sys
 import tempfile
@@ -26,7 +25,8 @@ from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
-from wandb.util import FilePathStr, _is_artifact_representation
+from wandb.sdk.lib.paths import StrPath
+from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
@@ -571,7 +571,8 @@ class _WandbInit:
                 logger.info(
                     f"re-initializing run, found existing run on stack: {latest_run._run_id}"
                 )
-                jupyter = self.settings._jupyter and ipython.in_jupyter()
+
+                jupyter = self.settings._jupyter
                 if jupyter and not self.settings.silent:
                     ipython.display_html(
                         f"Finishing last run (ID:{latest_run._run_id}) before initializing another..."
@@ -623,6 +624,10 @@ class _WandbInit:
                 tel.huggingface_version = hf_version
             if self.settings._jupyter:
                 tel.env.jupyter = True
+            if self.settings._ipython:
+                tel.env.ipython = True
+            if self.settings._colab:
+                tel.env.colab = True
             if self.settings._kaggle:
                 tel.env.kaggle = True
             if self.settings._windows:
@@ -657,6 +662,9 @@ class _WandbInit:
 
             if os.environ.get("PEX"):
                 tel.env.pex = True
+
+            if self.settings._aws_lambda:
+                tel.env.aws_lambda = True
 
             if os.environ.get(wandb.env._DISABLE_SERVICE):
                 tel.feature.service_disabled = True
@@ -805,7 +813,7 @@ class _WandbInit:
             and self.settings.launch_config_path
             and os.path.exists(self.settings.launch_config_path)
         ):
-            run._save(FilePathStr(self.settings.launch_config_path))
+            run._save(self.settings.launch_config_path)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
@@ -912,7 +920,7 @@ def _attach(
 
 def init(
     job_type: Optional[str] = None,
-    dir: Union[str, pathlib.Path, None] = None,
+    dir: Optional[StrPath] = None,
     config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,

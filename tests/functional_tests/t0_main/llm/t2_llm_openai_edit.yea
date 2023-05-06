@@ -1,0 +1,20 @@
+id: 0.llm-openai.02-edit
+plugin:
+  - wandb
+tag:
+  shard: llm
+  skips:
+    - platform: win
+depend:
+  requirements:
+    - "openai>=0.27.4"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][exitcode]: 0
+    - :wandb:runs[0][summary][trace][_type]: wb_trace_tree
+    - :op:contains:
+        - :wandb:runs[0][summary][trace]
+        - root_span_dumps
+    - :op:contains:
+        - :wandb:runs[0][summary][trace]
+        - model_dict_dumps

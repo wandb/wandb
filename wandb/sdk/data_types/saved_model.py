@@ -19,7 +19,7 @@ import wandb
 from wandb import util
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.hashutil import md5_file_hex
-from wandb.util import FilePathStr, PathOrStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
 
 from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
@@ -40,7 +40,7 @@ DEBUG_MODE = False
 
 
 def _add_deterministic_dir_to_artifact(
-    artifact: "LocalArtifact", dir_name: PathOrStr, target_dir_root: PathOrStr
+    artifact: "LocalArtifact", dir_name: StrPath, target_dir_root: StrPath
 ) -> FilePathStr:
     file_paths = []
     dir_path = Path(dir_name).resolve()
@@ -48,9 +48,9 @@ def _add_deterministic_dir_to_artifact(
         if path.is_file():
             file_paths.append(path)
     dirname = md5_file_hex(*file_paths)[:20]
-    target_path = util.to_forward_slash_path(os.path.join(target_dir_root, dirname))
+    target_path = LogicalPath(os.path.join(target_dir_root, dirname))
     artifact.add_dir(dir_path, target_path)
-    return FilePathStr(target_path)
+    return target_path
 
 
 def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str:
@@ -84,11 +84,11 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     _model_obj: Optional["SavedModelObjType"]
     _path: Optional[Path]
-    _input_obj_or_path: Union[SavedModelObjType, PathOrStr]
+    _input_obj_or_path: Union[SavedModelObjType, StrPath]
 
     # Public Methods
     def __init__(
-        self, obj_or_path: Union[SavedModelObjType, PathOrStr], **kwargs: Any
+        self, obj_or_path: Union[SavedModelObjType, StrPath], **kwargs: Any
     ) -> None:
         super().__init__()
         if self.__class__ == _SavedModel:
@@ -197,7 +197,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     # Methods to be implemented by subclasses
     @staticmethod
-    def _deserialize(path: PathOrStr) -> SavedModelObjType:
+    def _deserialize(path: StrPath) -> SavedModelObjType:
         """Return the model object from a path. Allowed to throw errors."""
         raise NotImplementedError
 
@@ -207,7 +207,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         raise NotImplementedError
 
     @staticmethod
-    def _serialize(obj: SavedModelObjType, dir_or_file_path: PathOrStr) -> None:
+    def _serialize(obj: SavedModelObjType, dir_or_file_path: StrPath) -> None:
         """Save the model to disk.
 
         The method will receive a directory path which all files needed for
@@ -271,7 +271,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         ), f"Invalid model object {model_obj}"
         self._model_obj = model_obj
 
-    def _dump(self, target_path: PathOrStr) -> None:
+    def _dump(self, target_path: StrPath) -> None:
         assert self._model_obj is not None, "Cannot dump if model object is None"
         self._serialize(self._model_obj, target_path)
 
@@ -294,7 +294,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
     def __init__(
         self,
-        obj_or_path: Union[SavedModelObjType, PathOrStr],
+        obj_or_path: Union[SavedModelObjType, StrPath],
         dep_py_files: Optional[List[str]] = None,
     ):
         super().__init__(obj_or_path)
@@ -364,7 +364,7 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
     _path_extension = ".pt"
 
     @staticmethod
-    def _deserialize(dir_or_file_path: PathOrStr) -> "torch.nn.Module":
+    def _deserialize(dir_or_file_path: StrPath) -> "torch.nn.Module":
         return _get_torch().load(dir_or_file_path)
 
     @staticmethod
@@ -372,7 +372,7 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
         return isinstance(obj, _get_torch().nn.Module)
 
     @staticmethod
-    def _serialize(model_obj: "torch.nn.Module", dir_or_file_path: PathOrStr) -> None:
+    def _serialize(model_obj: "torch.nn.Module", dir_or_file_path: StrPath) -> None:
         _get_torch().save(
             model_obj,
             dir_or_file_path,
@@ -393,7 +393,7 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
 
     @staticmethod
     def _deserialize(
-        dir_or_file_path: PathOrStr,
+        dir_or_file_path: StrPath,
     ) -> "sklearn.base.BaseEstimator":
         with open(dir_or_file_path, "rb") as file:
             model = _get_cloudpickle().load(file)
@@ -413,7 +413,7 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
 
     @staticmethod
     def _serialize(
-        model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: PathOrStr
+        model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: StrPath
     ) -> None:
         dynamic_cloudpickle = _get_cloudpickle()
         with open(dir_or_file_path, "wb") as file:
@@ -433,7 +433,7 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
 
     @staticmethod
     def _deserialize(
-        dir_or_file_path: PathOrStr,
+        dir_or_file_path: StrPath,
     ) -> "tensorflow.keras.Model":
         return _get_tf_keras().models.load_model(dir_or_file_path)
 
@@ -443,7 +443,7 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
 
     @staticmethod
     def _serialize(
-        model_obj: "tensorflow.keras.Model", dir_or_file_path: PathOrStr
+        model_obj: "tensorflow.keras.Model", dir_or_file_path: StrPath
     ) -> None:
         _get_tf_keras().models.save_model(
             model_obj, dir_or_file_path, include_optimizer=True

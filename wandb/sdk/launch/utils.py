@@ -16,7 +16,7 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
-from wandb.util import FilePathStr, PathOrStr
+from wandb.util import FilePathStr, StrPath
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
@@ -73,12 +73,13 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
 
 API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
+MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
+
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
-
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
@@ -165,6 +166,7 @@ def construct_launch_spec(
     launch_config: Optional[Dict[str, Any]],
     run_id: Optional[str],
     repository: Optional[str],
+    author: Optional[str],
 ) -> Dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -182,6 +184,8 @@ def construct_launch_spec(
         launch_config,
     )
     launch_spec["entity"] = entity
+    if author:
+        launch_spec["author"] = author
 
     launch_spec["project"] = project
     if name:
@@ -285,7 +289,7 @@ def fetch_wandb_project_run_info(
 
 
 def download_entry_point(
-    entity: str, project: str, run_name: str, api: Api, entry_point: str, dir: PathOrStr
+    entity: str, project: str, run_name: str, api: Api, entry_point: str, dir: StrPath
 ) -> bool:
     metadata = api.download_url(
         project, f"code/{entry_point}", run=run_name, entity=entity
@@ -300,7 +304,7 @@ def download_entry_point(
 
 
 def download_wandb_python_deps(
-    entity: str, project: str, run_name: str, api: Api, dir: PathOrStr
+    entity: str, project: str, run_name: str, api: Api, dir: StrPath
 ) -> Optional[str]:
     reqs = api.download_url(project, "requirements.txt", run=run_name, entity=entity)
     if reqs is not None:
@@ -315,8 +319,8 @@ def download_wandb_python_deps(
 
 
 def get_local_python_deps(
-    dir: PathOrStr, filename: Union[os.PathLike, str] = "requirements.local.txt"
-) -> Optional[PathOrStr]:
+    dir: StrPath, filename: Union[os.PathLike, str] = "requirements.local.txt"
+) -> Optional[StrPath]:
     try:
         env = os.environ
         with open(Path(dir) / filename, "w") as f:
@@ -388,7 +392,7 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
 
 def validate_wandb_python_deps(
     requirements_file: Optional[str],
-    dir: PathOrStr,
+    dir: StrPath,
 ) -> None:
     """Warn if local python dependencies differ from wandb requirements.txt."""
     dir_path = Path(dir)
@@ -696,3 +700,48 @@ def pull_docker_image(docker_image: str) -> None:
         docker.run(["docker", "pull", docker_image])
     except docker.DockerError as e:
         raise LaunchError(f"Docker server returned error: {e}")
+
+
+def macro_sub(original: str, sub_dict: Dict[str, Optional[str]]) -> str:
+    """Substitute macros in a string.
+
+    Macros occur in the string in the ${macro} format. The macro names are
+    substituted with their values from the given dictionary. If a macro
+    is not found in the dictionary, it is left unchanged.
+
+    Args:
+        original: The string to substitute macros in.
+        sub_dict: A dictionary mapping macro names to their values.
+
+    Returns:
+        The string with the macros substituted.
+    """
+    return MACRO_REGEX.sub(
+        lambda match: str(sub_dict.get(match.group(1), match.group(0))), original
+    )
+
+
+def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
+    """Recursively substitute macros in a parsed JSON or YAML blob.
+
+    Macros occur in strings at leaves of the blob in the ${macro} format.
+    The macro names are substituted with their values from the given dictionary.
+    If a macro is not found in the dictionary, it is left unchanged.
+
+    Arguments:
+        source: The JSON or YAML blob to substitute macros in.
+        sub_dict: A dictionary mapping macro names to their values.
+
+    Returns:
+        The blob with the macros substituted.
+    """
+    if isinstance(source, str):
+        return macro_sub(source, sub_dict)
+    elif isinstance(source, list):
+        return [recursive_macro_sub(item, sub_dict) for item in source]
+    elif isinstance(source, dict):
+        return {
+            key: recursive_macro_sub(value, sub_dict) for key, value in source.items()
+        }
+    else:
+        return source

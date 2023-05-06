@@ -2,7 +2,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, 
 
 import wandb
 from wandb.data_types import WBValue
-from wandb.util import PathOrStr
+from wandb.sdk.lib.paths import StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -237,7 +237,7 @@ class Artifact:
 
     def add_file(
         self,
-        local_path: PathOrStr,
+        local_path: StrPath,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
     ) -> "ArtifactManifestEntry":
@@ -272,7 +272,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add_dir(self, local_path: PathOrStr, name: Optional[str] = None) -> None:
+    def add_dir(self, local_path: StrPath, name: Optional[str] = None) -> None:
         """Add a local directory to the artifact.
 
         Arguments:
@@ -410,7 +410,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> "ArtifactManifestEntry":
+    def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
 
         Arguments:
@@ -467,8 +467,8 @@ class Artifact:
         raise NotImplementedError
 
     def download(
-        self, root: Optional[PathOrStr] = None, recursive: bool = False
-    ) -> PathOrStr:
+        self, root: Optional[StrPath] = None, recursive: bool = False
+    ) -> StrPath:
         """Download the contents of the artifact to the specified root directory.
 
         NOTE: Any existing files at `root` are left untouched. Explicitly delete
@@ -485,7 +485,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def checkout(self, root: Optional[PathOrStr] = None) -> PathOrStr:
+    def checkout(self, root: Optional[StrPath] = None) -> StrPath:
         """Replace the specified root directory with the contents of the artifact.
 
         WARNING: This will DELETE all files in `root` that are not included in the
@@ -499,7 +499,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def verify(self, root: Optional[PathOrStr] = None) -> bool:
+    def verify(self, root: Optional[StrPath] = None) -> bool:
         """Verify that the actual contents of an artifact match the manifest.
 
         All files in the directory are checksummed and the checksums are then
