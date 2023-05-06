@@ -109,7 +109,7 @@ class StepChecksum:
                         self._output_queue.put(
                             step_upload.RequestUpload(
                                 entry.local_path,
-                                entry.path,
+                                LogicalPath(entry.path),
                                 req.artifact_id,
                                 entry.digest,
                                 False,

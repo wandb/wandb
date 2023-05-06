@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
 
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import LocalPath, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -63,7 +63,7 @@ class StoragePolicy:
     def store_reference(
         self,
         artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
+        path: Union[URIStr, LocalPath],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -91,7 +91,7 @@ class StorageHandler:
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> Union[URIStr, LocalPath]:
         """Load a file or directory given the corresponding index entry.
 
         Args:
@@ -106,7 +106,7 @@ class StorageHandler:
     def store_path(
         self,
         artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
+        path: Union[URIStr, LocalPath],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,

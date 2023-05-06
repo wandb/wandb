@@ -2,7 +2,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, 
 
 import wandb
 from wandb.data_types import WBValue
-from wandb.sdk.lib.paths import FilePathStr, StrPath
+from wandb.sdk.lib.paths import LocalPath, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -468,7 +468,7 @@ class Artifact:
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
-    ) -> FilePathStr:
+    ) -> LocalPath:
         """Download the contents of the artifact to the specified root directory.
 
         NOTE: Any existing files at `root` are left untouched. Explicitly delete

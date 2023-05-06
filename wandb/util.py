@@ -51,7 +51,7 @@ import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.paths import FilePathStr, StrPath
+from wandb.sdk.lib.paths import LocalPath, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -284,13 +284,13 @@ def is_uri(string: str) -> bool:
     return len(parsed_uri.scheme) > 0
 
 
-def local_file_uri_to_path(uri: str) -> str:
+def local_file_uri_to_path(uri: StrPath) -> LocalPath:
     """Convert URI to local filesystem path.
 
     No-op if the uri does not have the expected scheme.
     """
     path = urllib.parse.urlparse(uri).path if uri.startswith("file:") else uri
-    return urllib.request.url2pathname(path)
+    return LocalPath(urllib.request.url2pathname(path))
 
 
 def get_local_path_or_none(path_or_uri: str) -> Optional[str]:
@@ -1296,8 +1296,8 @@ def to_forward_slash_path(path: str) -> str:
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
-def to_native_slash_path(path: str) -> FilePathStr:
-    return FilePathStr(path.replace("/", os.sep))
+def to_native_slash_path(path: str) -> str:
+    return str(path.replace("/", os.sep))
 
 
 def check_and_warn_old(files: List[str]) -> bool:

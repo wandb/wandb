@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.sdk.lib.paths import LocalPath, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_artifacts
@@ -13,18 +13,18 @@ class ArtifactManifestEntry:
     """A single entry in an artifact manifest."""
 
     path: LogicalPath
-    digest: Union[B64MD5, URIStr, FilePathStr, ETag]
-    ref: Optional[Union[FilePathStr, URIStr]]
+    digest: Union[B64MD5, URIStr, LocalPath, ETag]
+    ref: Optional[Union[LocalPath, URIStr]]
     birth_artifact_id: Optional[str]
     size: Optional[int]
     extra: Dict
-    local_path: Optional[str]
+    local_path: Optional[LocalPath]
 
     def __init__(
         self,
         path: StrPath,
-        digest: Union[B64MD5, URIStr, FilePathStr, ETag],
-        ref: Optional[Union[FilePathStr, URIStr]] = None,
+        digest: Union[B64MD5, URIStr, LocalPath, ETag],
+        ref: Optional[Union[LocalPath, URIStr]] = None,
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
         extra: Optional[Dict] = None,
@@ -36,7 +36,7 @@ class ArtifactManifestEntry:
         self.birth_artifact_id = birth_artifact_id
         self.size = size
         self.extra = extra or {}
-        self.local_path = str(local_path) if local_path else None
+        self.local_path = LocalPath(local_path) if local_path is not None else None
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
 
@@ -48,7 +48,7 @@ class ArtifactManifestEntry:
         """
         raise NotImplementedError
 
-    def download(self, root: Optional[str] = None) -> FilePathStr:
+    def download(self, root: Optional[StrPath] = None) -> LocalPath:
         """Download this artifact entry to the specified root path.
 
         Arguments:
@@ -92,7 +92,7 @@ class ArtifactManifestEntry:
 
 
 class ArtifactManifest:
-    entries: Dict[str, "ArtifactManifestEntry"]
+    entries: Dict[LogicalPath, "ArtifactManifestEntry"]
 
     @classmethod
     def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
@@ -111,7 +111,7 @@ class ArtifactManifest:
     def __init__(
         self,
         storage_policy: "wandb_artifacts.WandbStoragePolicy",
-        entries: Optional[Mapping[str, ArtifactManifestEntry]] = None,
+        entries: Optional[Mapping[LogicalPath, ArtifactManifestEntry]] = None,
     ) -> None:
         self.storage_policy = storage_policy
         self.entries = dict(entries) if entries else {}
@@ -130,10 +130,12 @@ class ArtifactManifest:
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 
-    def get_entry_by_path(self, path: str) -> Optional[ArtifactManifestEntry]:
-        return self.entries.get(path)
+    def get_entry_by_path(self, path: StrPath) -> Optional[ArtifactManifestEntry]:
+        return self.entries.get(LogicalPath(path))
 
-    def get_entries_in_directory(self, directory: str) -> List[ArtifactManifestEntry]:
+    def get_entries_in_directory(
+        self, directory: StrPath
+    ) -> List[ArtifactManifestEntry]:
         return [
             self.entries[entry_key]
             for entry_key in self.entries
