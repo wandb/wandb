@@ -1315,7 +1315,7 @@ def test_tracking_storage_handler():
     #
     # Empirically, this test fails with:
     #   AssertionError: assert 'some-file' == '/path/to/file.txt'
-    # But 'some-file' started out as a `name`, i.e. a LogicalFilePathStr,
+    # But 'some-file' started out as a `name`, i.e. a LogicalPath,
     # representing the location of the file *within the artifact*
     # rather than *on the filesystem*.
     #
