@@ -10,7 +10,7 @@ import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
 from wandb.sdk.interface.artifacts import ArtifactNotLoggedError
-from wandb.sdk.internal.artifacts import get_staging_dir
+from wandb.sdk.internal.artifact_saver import get_staging_dir
 from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
 

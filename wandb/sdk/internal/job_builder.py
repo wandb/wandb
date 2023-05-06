@@ -12,9 +12,9 @@ from wandb.util import make_artifact_name_safe
 from .settings_static import SettingsStatic
 
 if sys.version_info >= (3, 8):
-    from typing import TypedDict
+    from typing import Literal, TypedDict
 else:
-    from typing_extensions import TypedDict
+    from typing_extensions import Literal, TypedDict
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import ArtifactRecord
@@ -57,6 +57,12 @@ class ArtifactInfoForJob(TypedDict):
     name: str
 
 
+class JobArtifact(Artifact):
+    def __init__(self, name: str, *args: Any, **kwargs: Any):
+        super().__init__(name, "placeholder", *args, **kwargs)
+        self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
+
+
 class JobBuilder:
     _settings: SettingsStatic
     _metadatafile_path: Optional[str]
@@ -74,6 +80,9 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
+        self._source_type: Optional[
+            Literal["repo", "artifact", "image"]
+        ] = settings.get("job_source")
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -122,7 +131,7 @@ class JobBuilder:
 
         name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
             artifact.add_file(
                 os.path.join(self._settings.files_dir, DIFF_FNAME),
@@ -144,7 +153,7 @@ class JobBuilder:
         }
         name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = JobArtifact(name)
         return artifact, source
 
     def _build_image_job(
@@ -153,7 +162,7 @@ class JobBuilder:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
         name = make_artifact_name_safe(f"job-{image_name}")
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
         }
@@ -175,23 +184,27 @@ class JobBuilder:
 
         program_relpath: Optional[str] = metadata.get("codePath")
 
+        source_type = self._source_type
+        if not source_type:
+            if self._has_git_job_ingredients(metadata, program_relpath):
+                source_type = "repo"
+            elif self._has_artifact_job_ingredients(program_relpath):
+                source_type = "artifact"
+            elif self._has_image_job_ingredients(metadata):
+                source_type = "image"
+
         artifact = None
-        source_type = None
         source: Optional[
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
-
-        if self._has_git_job_ingredients(metadata, program_relpath):
+        if source_type == "repo":
             assert program_relpath is not None
             artifact, source = self._build_repo_job(metadata, program_relpath)
-            source_type = "repo"
-        elif self._has_artifact_job_ingredients(program_relpath):
+        elif source_type == "artifact":
             assert program_relpath is not None
             artifact, source = self._build_artifact_job(program_relpath)
-            source_type = "artifact"
-        elif self._has_image_job_ingredients(metadata):
+        elif source_type == "image":
             artifact, source = self._build_image_job(metadata)
-            source_type = "image"
 
         if artifact is None or source_type is None or source is None:
             return None

@@ -9,6 +9,7 @@ from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
 from wandb.sdk.lib import telemetry
+from wandb.sdk.lib.paths import StrPath
 
 from ..keras import patch_tf_keras
 
@@ -80,7 +81,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
 
     def __init__(
         self,
-        filepath: Union[str, os.PathLike],
+        filepath: StrPath,
         monitor: str = "val_loss",
         verbose: int = 0,
         save_best_only: bool = False,

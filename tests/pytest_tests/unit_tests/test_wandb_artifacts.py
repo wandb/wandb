@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 from wandb.sdk.wandb_artifacts import (
+    Artifact,
     ArtifactManifestEntry,
     ArtifactsCache,
     WandbStoragePolicy,
@@ -332,3 +333,9 @@ class TestStoreFile:
             with pytest.raises(Exception, match=err.args[0]):
                 store()
             assert not is_cache_hit(artifacts_cache, "my-digest", f.stat().st_size)
+
+
+@pytest.mark.parametrize("type", ["job", "wandb-history", "wandb-foo"])
+def test_invalid_artifact_type(type):
+    with pytest.raises(ValueError, match="reserved for internal use"):
+        Artifact("foo", type=type)

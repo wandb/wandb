@@ -7,9 +7,9 @@ from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional,
 
 from wandb import env, util
 from wandb.sdk.interface.artifacts.artifact import ArtifactNotLoggedError
-from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
-from wandb.util import FilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     import sys
@@ -102,7 +102,7 @@ class ArtifactsCache:
         for root, _, files in os.walk(self._cache_dir):
             for file in files:
                 try:
-                    path = str(os.path.join(root, file))
+                    path = os.path.join(root, file)
                     stat = os.stat(path)
 
                     if file.startswith(ArtifactsCache._TMP_PREFIX):
