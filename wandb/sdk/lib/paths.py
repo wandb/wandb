@@ -67,6 +67,9 @@ class LocalPath(str):
             return self.to_path() != other
         return super().__ne__(other)
 
+    def __hash__(self) -> int:
+        return super().__hash__()
+
 
 class LogicalPath(str):
     """A string that represents a path relative to an artifact or run.
@@ -169,3 +172,6 @@ class LogicalPath(str):
         if isinstance(other, PurePosixPath):
             return self.to_path() != other
         return super().__ne__(other)
+
+    def __hash__(self) -> int:
+        return super().__hash__()
