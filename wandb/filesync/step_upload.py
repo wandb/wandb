@@ -226,7 +226,7 @@ class StepUpload:
             )
             self._maybe_commit_artifact(event.artifact_id)
         elif isinstance(event, RequestUpload):
-            raise NotImplementedError("this function should no longer be called")
+            # raise NotImplementedError("this function should no longer be called")
             if event.artifact_id is not None:
                 if event.artifact_id not in self._artifacts:
                     self._init_artifact(event.artifact_id)

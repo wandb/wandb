@@ -12,12 +12,27 @@ from wandb.filesync import stats
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 from wandb.sdk.internal import internal_api
 
+try:
+    from typing import TypedDict
+except ImportError:
+    from typing_extensions import TypedDict
+
+
+class CreateFileSpec(TypedDict):
+    artifactID: str
+    artifactManifestID: str
+    name: str
+    md5: str
+
+
 logger = logging.getLogger(__name__)
 
 
+# These are (by design) shared across all uploads, not per-artifact.
 UPLOAD_BATCH_SIZE = 50
-
-concurrency_limiter = asyncio.Semaphore(100)
+CONCURRENT_UPLOAD_LIMIT = 500
+concurrent_upload_limit = asyncio.Semaphore(CONCURRENT_UPLOAD_LIMIT)
+concurrent_batch_limit = asyncio.Semaphore(CONCURRENT_UPLOAD_LIMIT / UPLOAD_BATCH_SIZE)
 
 shared_session = aiohttp.ClientSession()
 
@@ -27,25 +42,6 @@ class UploadStatus(Enum):
     SUCCESS = auto()
     HALTED = auto()
     FAILED = auto()
-
-
-class GuardedStatus:
-    def __init__(self, status: UploadStatus = UploadStatus.PENDING):
-        self._status = status
-        self._lock = threading.Lock()
-
-    def get(self) -> UploadStatus:
-        return self._status
-
-    def set(self, status: UploadStatus) -> None:
-        with self._lock:
-            if self._status == UploadStatus.PENDING:
-                self._status = status
-            else:
-                logger.warning(
-                    f"Attempted to set status to {self._status} "
-                    f"but status is already {status}"
-                )
 
 
 @dataclass
@@ -64,18 +60,21 @@ class ArtifactFileUploader:
         artifact_id: str,
         manifest_id: str,
         manifest: ArtifactManifest,
-        file_tracker: stats.Stats,
+        # file_tracker: stats.Stats,
         api: internal_api.Api,
     ) -> None:
         self.artifact_id = artifact_id
         self.manifest_id = manifest_id
         self.manifest = manifest
-        self._file_tracker = file_tracker
+        # self._file_tracker = file_tracker
         self._api = api
 
-        self.status = GuardedStatus()
+        self.status = UploadStatus.PENDING
+        self.done = threading.Event()
         self.background_thread = threading.Thread(target=self._thread_body)
-        self.background_thread.start()
+
+    def join(self, timeout: Optional[float] = None) -> None:
+        self.background_thread.join(timeout)
 
     def _thread_body(self) -> None:
         try:
@@ -84,11 +83,12 @@ class ArtifactFileUploader:
             loop = asyncio.new_event_loop()
 
         loop.run_until_complete(self._async_body())
+        self.done.set()
 
     async def _async_body(self) -> None:
         entries = [e for e in self.manifest.entries.values() if e.local_path]
-        for entry in entries:
-            self._file_tracker.init_file(entry.local_path, entry.size)
+        # for entry in entries:
+        #     self._file_tracker.init_file(entry.local_path, entry.size)
 
         batch_tasks = []
         for batch in batches(entries):
@@ -97,22 +97,15 @@ class ArtifactFileUploader:
         for task in asyncio.as_completed(batch_tasks, timeout=60 * 60):
             for result in await task:
                 if result is not None:
-                    self.status.set(UploadStatus.FAILED)
+                    self.status = UploadStatus.FAILED
                     return
 
-        self.status.set(UploadStatus.SUCCESS)
+        self.status = UploadStatus.SUCCESS
 
-    async def _upload_batch(self, batch: list[ArtifactManifestEntry]):
-        create_file_specs = [
-            {
-                "artifactID": self.artifact_id,
-                "artifactManifestID": self.manifest_id,
-                "name": entry.path,
-                "md5": entry.digest,
-            }
-            for entry in batch
-        ]
-        async with concurrency_limiter:
+    async def _upload_batch(self, batch: List[ArtifactManifestEntry]):
+        create_file_specs = [self._file_spec(entry) for entry in batch]
+        async with concurrent_batch_limit:
+            # TODO(hugh): Move GQLClient to async so we can await here.
             request_store_response = self._api.create_artifact_files(create_file_specs)
 
         file_upload_tasks = []
@@ -123,27 +116,35 @@ class ArtifactFileUploader:
         return await asyncio.gather(*file_upload_tasks)
 
     async def _upload_file(
-        self, entry: ArtifactManifestEntry, response: dict[str, str]
+        self, entry: ArtifactManifestEntry, response: Dict[str, str]
     ):
         try:
-            async with concurrency_limiter:
+            async with concurrent_upload_limit:
                 async with aiofiles.open(entry.local_path, "rb") as f:
                     async with shared_session.put(
-                        response.upload_url,
+                        response["uploadUrl"],
                         data=f,
-                        headers=split_headers(response.upload_headers),
+                        headers=split_headers(response["uploadHeaders"]),
                         skip_auto_headers=["Content-Type"],
                     ) as response:
                         response.raise_for_status()
         except Exception as e:
             logger.error(
                 f"Failed to upload file {entry.local_path} "
-                f"to {response['url']}: {e}"
+                f"to {response['uploadUrl']}: {e}"
             )
             return False
 
-        self._file_tracker.finish_file(entry.local_path)
+        # self._file_tracker.finish_file(entry.local_path)
         return True
+
+    def _file_spec(self, entry: ArtifactManifestEntry) -> CreateFileSpec:
+        return CreateFileSpec(
+            artifactID=self.artifact_id,
+            artifactManifestID=self.manifest_id,
+            name=entry.path,
+            md5=entry.digest,
+        )
 
 
 def batches(items, batch_size=UPLOAD_BATCH_SIZE):
@@ -152,6 +153,4 @@ def batches(items, batch_size=UPLOAD_BATCH_SIZE):
 
 
 def split_headers(header_strs: Optional[List[str]]) -> Dict[str, str]:
-    if header_strs is None:
-        return {}
-    return dict([header_str.split(":", 1) for header_str in header_strs])
+    return dict(header_str.split(":", 1) for header_str in (header_strs or []))
