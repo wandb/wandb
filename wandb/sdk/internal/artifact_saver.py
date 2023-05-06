@@ -14,6 +14,7 @@ from wandb import env, util
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -282,7 +283,7 @@ class ArtifactSaver:
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
-                    entry.ref = util.URIStr(
+                    entry.ref = URIStr(
                         "wandb-artifact://{}/{}".format(
                             b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )

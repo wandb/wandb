@@ -8,6 +8,7 @@ from urllib import parse
 import wandb
 from wandb import util
 from wandb.sdk.lib import hashutil, runid
+from wandb.sdk.lib.paths import LogicalPath
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -493,7 +494,7 @@ class Image(BatchableMedia):
         media_dir = cls.get_media_subdir()
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(media_dir)
+            expected = LogicalPath(media_dir)
             if "path" in obj and not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(
