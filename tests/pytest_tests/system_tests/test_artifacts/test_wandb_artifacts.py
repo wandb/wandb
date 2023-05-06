@@ -236,12 +236,22 @@ def mock_http(artifact, path=False, headers=None):
     return mock
 
 
+def test_unsized_manifest_entry_real_file():
+    f = Path("some/file.txt")
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text("hello")
+    entry = wandb_artifacts.ArtifactManifestEntry(
+        path="foo", digest="123", local_path="some/file.txt"
+    )
+    assert entry.size == 5
+
+
 def test_unsized_manifest_entry():
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(FileNotFoundError) as e:
         wandb_artifacts.ArtifactManifestEntry(
             path="foo", digest="123", local_path="some/file.txt"
         )
-    assert "size required" in str(e.value)
+    assert "No such file" in str(e.value)
 
 
 def test_add_one_file():

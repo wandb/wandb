@@ -119,7 +119,7 @@ class TestStoreFile:
             entry=ArtifactManifestEntry(
                 path=entry_path,
                 digest=entry_digest,
-                local_path=entry_local_path,
+                local_path=str(entry_local_path) if entry_local_path else None,
                 size=entry_local_path.stat().st_size if entry_local_path else None,
             ),
             preparer=preparer if preparer else mock_preparer(),
