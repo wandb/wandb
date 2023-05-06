@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
@@ -37,7 +38,7 @@ class ArtifactManifestEntry:
         self.extra = extra or {}
         self.local_path = str(local_path) if local_path else None
         if self.local_path and self.size is None:
-            raise ValueError("size required when local_path specified")
+            self.size = Path(self.local_path).stat().st_size
 
     def parent_artifact(self) -> "Artifact":
         """Get the artifact to which this artifact entry belongs.
