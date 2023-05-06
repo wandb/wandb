@@ -15,7 +15,7 @@ from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
-from wandb.sdk.launch.sweeps import SCHEDULER_URI
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
 
 from .. import loader
@@ -108,7 +108,7 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
     if not run_spec:
         _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
 
-    if run_spec.get("uri") != SCHEDULER_URI:
+    if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
         return False
 
     if run_spec.get("resource") == "local-process":

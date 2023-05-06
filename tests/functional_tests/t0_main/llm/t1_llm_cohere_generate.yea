@@ -1,13 +1,14 @@
-id: 0.openai.03-chat.completion
+id: 0.llm-cohere.01-generate
 plugin:
   - wandb
 tag:
   shard: llm
+#  skip: true  # todo: fix
   skips:
     - platform: win
 depend:
-    requirements:
-        - "openai>=0.27.4"
+  requirements:
+    - "cohere"
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
@@ -18,3 +19,6 @@ assert:
     - :op:contains:
         - :wandb:runs[0][summary][trace]
         - model_dict_dumps
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # features
+        - 53  # cohere autolog

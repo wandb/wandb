@@ -9,7 +9,7 @@ import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import click
 import yaml
@@ -25,6 +25,7 @@ from wandb.sdk.launch.sweeps.utils import (
     make_launch_sweep_entrypoint,
 )
 from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.wandb_run import Run as SdkRun
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
@@ -86,16 +87,20 @@ class SweepRun:
 class Scheduler(ABC):
     """A controller/agent that populates a Launch RunQueue from a hyperparameter sweep."""
 
+    PLACEHOLDER_URI = "placeholder-uri-scheduler"
+    SWEEP_JOB_TYPE = "sweep-controller"
+    ENTRYPOINT = ["wandb", "scheduler", "WANDB_SWEEP_ID"]
+
     def __init__(
         self,
         api: Api,
         *args: Optional[Any],
-        num_workers: int = 8,
         polling_sleep: float = 5.0,
         sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
         project_queue: Optional[str] = None,
+        num_workers: Optional[Union[int, str]] = None,
         **kwargs: Optional[Any],
     ):
         self._api = api
@@ -120,10 +125,18 @@ class Scheduler(ABC):
             if resp.get("state") == SchedulerState.CANCELLED.name:
                 self._state = SchedulerState.CANCELLED
             self._sweep_config = yaml.safe_load(resp["config"])
+            self._num_runs_launched: int = len(resp["runs"])
+            if self._num_runs_launched > 0:
+                wandb.termlog(
+                    f"{LOG_PREFIX}Found {self._num_runs_launched} previous runs for sweep {self._sweep_id}"
+                )
         except Exception as e:
             raise SchedulerError(
                 f"{LOG_PREFIX}Exception when finding sweep ({sweep_id}) {e}"
             )
+
+        # Scheduler may receive additional kwargs which will be piped into the launch command
+        self._kwargs: Dict[str, Any] = kwargs
 
         # Dictionary of the runs being managed by the scheduler
         self._runs: Dict[str, SweepRun] = {}
@@ -136,11 +149,15 @@ class Scheduler(ABC):
         # (emulating a real agent) and add new runs to the launch queue. The
         # launch agent is the one that actually runs the training workloads.
         self._workers: Dict[int, _Worker] = {}
-        self._num_workers = num_workers
-        self._num_runs_launched = 0
 
-        # Scheduler may receive additional kwargs which will be piped into the launch command
-        self._kwargs: Dict[str, Any] = kwargs
+        # Init wandb scheduler run
+        self._wandb_run = self._init_wandb_run()
+
+        # Grab param from scheduler wandb run config
+        num_workers = num_workers or self._wandb_run.config.get("scheduler", {}).get(
+            "num_workers"
+        )
+        self._num_workers = int(num_workers) if str(num_workers).isdigit() else 8
 
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
@@ -188,7 +205,6 @@ class Scheduler(ABC):
     @property
     def at_runcap(self) -> bool:
         """False if under user-specified cap on # of runs."""
-        # TODO(gst): Count previous runs for resumed sweeps
         run_cap = self._sweep_config.get("run_cap")
         if not run_cap:
             return False
@@ -219,6 +235,18 @@ class Scheduler(ABC):
         return {
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
+
+    def _init_wandb_run(self) -> SdkRun:
+        """Controls resume or init logic for a scheduler wandb run."""
+        _type = self._kwargs.get("sweep_type")
+        run: SdkRun = wandb.init(
+            name=f"{_type}-scheduler-{self._sweep_id}",
+            job_type=self.SWEEP_JOB_TYPE,
+            # use the sweep ID as the run ID, if the sweep already exists then
+            #   the run is resumed, else init a new run
+            resume=self._sweep_id,
+        )
+        return run
 
     def stop_sweep(self) -> None:
         """Stop the sweep."""
@@ -298,7 +326,10 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler completed")
+            wandb.termlog(f"{LOG_PREFIX}Scheduler completed successfully")
+            # don't overwrite special states (e.g. STOPPED, FAILED)
+            if self.state in [SchedulerState.RUNNING, SchedulerState.FLUSH_RUNS]:
+                self.state = SchedulerState.COMPLETED
             self.exit()
 
     def exit(self) -> None:
@@ -310,6 +341,7 @@ class Scheduler(ABC):
         ]:
             self.state = SchedulerState.FAILED
         self._stop_runs()
+        self._wandb_run.finish()
 
     def _try_load_executable(self) -> bool:
         """Check existance of valid executable for a run.
