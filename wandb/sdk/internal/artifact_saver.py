@@ -5,9 +5,8 @@ import sys
 import tempfile
 from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
-import wandb
-import wandb.filesync.step_prepare
 from wandb import env, util
+from wandb.filesync.grabthars_hammer import ArtifactFileUploader
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
@@ -183,30 +182,35 @@ class ArtifactSaver:
             type=manifest_type,
         )
 
-        step_prepare = wandb.filesync.step_prepare.StepPrepare(
-            self._api, 0.1, 0.01, 1000
-        )  # TODO: params
-        step_prepare.start()
+        # step_prepare = wandb.filesync.step_prepare.StepPrepare(
+        #     self._api, 0.1, 0.01, 1000
+        # )  # TODO: params
+        # step_prepare.start()
+
+        uploader = ArtifactFileUploader(
+            artifact_id, artifact_manifest_id, self._manifest, self._api
+        )
+        uploader.join()
 
         # Upload Artifact "L1" files, the actual artifact contents
-        self._file_pusher.store_manifest_files(
-            self._manifest,
-            artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_sync(
-                artifact_id,
-                artifact_manifest_id,
-                entry,
-                step_prepare,
-                progress_callback=progress_callback,
-            ),
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
-                artifact_id,
-                artifact_manifest_id,
-                entry,
-                step_prepare,
-                progress_callback=progress_callback,
-            ),
-        )
+        # self._file_pusher.store_manifest_files(
+        #     self._manifest,
+        #     artifact_id,
+        #     lambda entry, progress_callback: self._manifest.storage_policy.store_file_sync(
+        #         artifact_id,
+        #         artifact_manifest_id,
+        #         entry,
+        #         step_prepare,
+        #         progress_callback=progress_callback,
+        #     ),
+        #     lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
+        #         artifact_id,
+        #         artifact_manifest_id,
+        #         entry,
+        #         step_prepare,
+        #         progress_callback=progress_callback,
+        #     ),
+        # )
 
         def before_commit() -> None:
             self._resolve_client_id_manifest_references()
@@ -260,10 +264,7 @@ class ArtifactSaver:
 
         # Block until all artifact files are uploaded and the
         # artifact is committed.
-        try:
-            commit_result.result()
-        finally:
-            step_prepare.shutdown()
+        commit_result.result()
 
         if finalize and use_after_commit:
             self._api.use_artifact(artifact_id)
