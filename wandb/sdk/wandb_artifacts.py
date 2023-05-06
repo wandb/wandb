@@ -423,7 +423,7 @@ class Artifact(ArtifactInterface):
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
 
-        name = util.to_forward_slash_path(name or os.path.basename(local_path))
+        name = LogicalPath(name or os.path.basename(local_path))
         digest = md5_file_b64(local_path)
 
         if is_tmp:
@@ -478,7 +478,7 @@ class Artifact(ArtifactInterface):
     ) -> Sequence[ArtifactManifestEntry]:
         self._ensure_can_add()
         if name is not None:
-            name = util.to_forward_slash_path(name)
+            name = LogicalPath(name)
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactManifestEntry which is a private class returned by Artifact.get_path in
@@ -508,7 +508,7 @@ class Artifact(ArtifactInterface):
 
     def add(self, obj: data_types.WBValue, name: StrPath) -> ArtifactManifestEntry:
         self._ensure_can_add()
-        name = util.to_forward_slash_path(name)
+        name = LogicalPath(name)
 
         # This is a "hack" to automatically rename tables added to
         # the wandb /media/tables directory to their sha-based name.
@@ -736,7 +736,7 @@ class Artifact(ArtifactInterface):
             os.chmod(staging_path, 0o400)
 
         entry = ArtifactManifestEntry(
-            path=util.to_forward_slash_path(name),
+            path=name,
             digest=digest or md5_file_b64(staging_path),
             size=os.path.getsize(staging_path),
             local_path=staging_path,
