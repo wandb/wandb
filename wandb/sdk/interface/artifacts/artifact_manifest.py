@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 class ArtifactManifestEntry:
     """A single entry in an artifact manifest."""
+
     path: LogicalPath
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
     ref: Optional[Union[FilePathStr, URIStr]]
