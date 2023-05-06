@@ -55,59 +55,54 @@ def test_load_launch_sweep_config():
         utils.load_launch_sweep_config("s1.yaml")
 
 
-def test_sweep_construct_scheduler_entrypoint():
-    assert not utils.construct_scheduler_entrypoint({}, "queue", "project", 1)
+def test_sweep_construct_scheduler_args():
+    assert not utils.construct_scheduler_args({}, "queue", "project")
 
-    entry, args = utils.construct_scheduler_entrypoint(
-        {"job": "job:12315"}, "queue", "project", 1
-    )
-    assert entry + args == [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    args = utils.construct_scheduler_args({"job": "job:12315"}, "queue", "project")
+    assert args == [
         "--queue",
         "'queue'",
         "--project",
         "project",
-        "--num_workers",
-        "1",
+        "--sweep_type",
+        "sweep",
         "--job",
         "job:12315",
     ]
 
-    entry, args = utils.construct_scheduler_entrypoint(
-        {"job": "job:latest"}, "queue", "project", "1", "author"
+    args = utils.construct_scheduler_args(
+        {"job": "job:latest"}, "queue", "project", author="author"
     )
     assert args == [
         "--queue",
         "'queue'",
         "--project",
         "project",
-        "--num_workers",
-        "1",
+        "--sweep_type",
+        "sweep",
         "--author",
         "author",
         "--job",
         "job:latest",
     ]
 
-    entry, args = utils.construct_scheduler_entrypoint(
-        {"image_uri": "image_uri"}, "queue", "project", 1
+    args = utils.construct_scheduler_args(
+        {"image_uri": "image_uri"}, "queue", "project"
     )
     assert args == [
         "--queue",
         "'queue'",
         "--project",
         "project",
-        "--num_workers",
-        "1",
+        "--sweep_type",
+        "sweep",
         "--image_uri",
         "image_uri",
     ]
 
     # should fail because job and image_uri are mutually exclusive
     assert not (
-        utils.construct_scheduler_entrypoint(
-            {"job": "job:111", "image_uri": "image_uri"}, "queue", "project", "1.5"
+        utils.construct_scheduler_args(
+            {"job": "job:111", "image_uri": "image_uri"}, "queue", "project"
         )
     )
