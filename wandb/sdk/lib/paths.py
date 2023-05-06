@@ -9,9 +9,6 @@ from typing import Any, NewType, Union
 # https://github.com/python/typeshed/blob/0b1cd5989669544866213807afa833a88f649ee7/stdlib/_typeshed/__init__.pyi#L56-L65
 StrPath = Union[str, "os.PathLike[str]"]
 
-# An artifact-relative or run-relative path. It is always POSIX-style.
-LogicalFilePathStr = NewType("LogicalFilePathStr", str)
-
 # A native path to a file on a local filesystem.
 FilePathStr = NewType("FilePathStr", str)
 
