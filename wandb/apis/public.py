@@ -46,6 +46,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
+from wandb.env import get_artifact_dir
 from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
@@ -59,6 +60,7 @@ from wandb.sdk.launch.utils import (
 from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -662,7 +664,7 @@ class Api:
 
     def _parse_artifact_path(self, path):
         """Return project, entity and artifact name for project specified by path."""
-        project = self.settings["project"]
+        project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
             return entity, project
@@ -1918,20 +1920,16 @@ class Run(Attrs):
             """
             mutation DeleteRun(
                 $id: ID!,
-                %s
-            ) {
-                deleteRun(input: {
+                {}
+            ) {{
+                deleteRun(input: {{
                     id: $id,
-                    %s
-                }) {
+                    {}
+                }}) {{
                     clientMutationId
-                }
-            }
-        """
-            %
-            # Older backends might not support the 'deleteArtifacts' argument,
-            # so only supply it when it is explicitly set.
-            (
+                }}
+            }}
+        """.format(
                 "$deleteArtifacts: Boolean" if delete_artifacts else "",
                 "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
             )
@@ -2039,7 +2037,7 @@ class Run(Attrs):
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
         with open(os.path.join(root, name), "rb") as f:
-            api.push({util.to_forward_slash_path(name): f})
+            api.push({LogicalPath(name): f})
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
@@ -4115,7 +4113,6 @@ class ArtifactCollection:
 class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
     def __init__(
         self,
-        name: str,
         entry: "artifacts.ArtifactManifestEntry",
         parent_artifact: "Artifact",
     ):
@@ -4128,8 +4125,13 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
             extra=entry.extra,
             local_path=entry.local_path,
         )
-        self.name = name
         self._parent_artifact = parent_artifact
+
+    @property
+    def name(self):
+        # TODO(hugh): add telemetry to see if anyone is still using this.
+        wandb.termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
+        return self.path
 
     def parent_artifact(self):
         return self._parent_artifact
@@ -4139,14 +4141,14 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
 
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
-        dest_path = os.path.join(root, self.name)
+        dest_path = os.path.join(root, self.path)
 
         self._parent_artifact._add_download_root(root)
         manifest = self._parent_artifact._load_manifest()
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
-        entry = manifest.entries[self.name]
+        entry = manifest.entries[self.path]
         if os.path.exists(dest_path) and entry.digest == md5_file_b64(dest_path):
             return dest_path
 
@@ -4161,7 +4163,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             return manifest.storage_policy.load_reference(
-                manifest.entries[self.name],
+                manifest.entries[self.path],
                 local=False,
             )
         raise ValueError("Only reference entries support ref_target().")
@@ -4171,7 +4173,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
             "wandb-artifact://"
             + b64_to_hex_id(self._parent_artifact.id)
             + "/"
-            + self.name
+            + self.path
         )
 
 
@@ -4689,16 +4691,13 @@ class Artifact(artifacts.Artifact):
         return None, None
 
     def get_path(self, name):
+        name = LogicalPath(name)
         manifest = self._load_manifest()
-        entry = manifest.entries.get(name)
+        entry = manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            entry = self._get_obj_entry(name)[0]
-            if entry is None:
-                raise KeyError("Path not contained in artifact: %s" % name)
-            else:
-                name = entry.path
+            raise KeyError("Path not contained in artifact: %s" % name)
 
-        return _DownloadedArtifactEntry(name, entry, self)
+        return _DownloadedArtifactEntry(entry, self)
 
     def get(self, name):
         entry, wb_class = self._get_obj_entry(name)
@@ -4738,8 +4737,9 @@ class Artifact(artifacts.Artifact):
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
             termlog(
-                "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self._artifact_name, size / (1024 * 1024), nfiles),
+                "Downloading large artifact {}, {:.2f}MB. {} files... ".format(
+                    self._artifact_name, size / (1024 * 1024), nfiles
+                ),
             )
             start_time = datetime.datetime.now()
 
@@ -4779,9 +4779,7 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(
-                    os.path.relpath(full_path, start=dirpath)
-                )
+                artifact_path = os.path.relpath(full_path, start=dirpath)
                 try:
                     self.get_path(artifact_path)
                 except KeyError:
@@ -4798,9 +4796,7 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(
-                    os.path.relpath(full_path, start=dirpath)
-                )
+                artifact_path = os.path.relpath(full_path, start=dirpath)
                 try:
                     self.get_path(artifact_path)
                 except KeyError:
@@ -4851,11 +4847,8 @@ class Artifact(artifacts.Artifact):
         return downloaded_path
 
     def _default_root(self, include_version=True):
-        root = (
-            os.path.join(".", "artifacts", self.name)
-            if include_version
-            else os.path.join(".", "artifacts", self._sequence_name)
-        )
+        name = self.name if include_version else self._sequence_name
+        root = os.path.join(get_artifact_dir(), name)
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
@@ -5080,8 +5073,7 @@ class Artifact(artifacts.Artifact):
             or response["project"].get("artifact") is None
         ):
             raise ValueError(
-                'Project %s/%s does not contain artifact: "%s"'
-                % (self.entity, self.project, self._artifact_name)
+                f'Project {self.entity}/{self.project} does not contain artifact: "{self._artifact_name}"'
             )
         self._attrs = response["project"]["artifact"]
         return self._attrs
@@ -5287,32 +5279,31 @@ class ArtifactVersions(Paginator):
         }
         self.QUERY = gql(
             """
-            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
-                project(name: $project, entityName: $entity) {
-                    artifactType(name: $type) {
-                        artifactCollection: %s(name: $collection) {
+            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+                project(name: $project, entityName: $entity) {{
+                    artifactType(name: $type) {{
+                        artifactCollection: {}(name: $collection) {{
                             name
-                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                                 totalCount
-                                edges {
-                                    node {
+                                edges {{
+                                    node {{
                                         ...ArtifactFragment
-                                    }
+                                    }}
                                     version
                                     cursor
-                                }
-                                pageInfo {
+                                }}
+                                pageInfo {{
                                     endCursor
                                     hasNextPage
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            %s
-            """
-            % (
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+            {}
+            """.format(
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
@@ -5513,8 +5504,6 @@ class Job:
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
-        if self._args:
-            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
@@ -5531,8 +5520,6 @@ class Job:
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
-        if self._args:
-            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("source", {}).get("image")
@@ -5542,8 +5529,6 @@ class Job:
             )
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
-        if self._args:
-            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint

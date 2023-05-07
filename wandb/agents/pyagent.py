@@ -14,8 +14,9 @@ import threading
 import time
 
 import wandb
-from wandb import util, wandb_sdk
+from wandb import wandb_sdk
 from wandb.apis import InternalApi
+from wandb.sdk.launch.sweeps import utils as sweep_utils
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,6 @@ class RunStatus:
 
 
 class Agent:
-
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
     MAX_INITIAL_FAILURES = 5
@@ -118,7 +118,7 @@ class Agent:
         logger.debug("Agent._setup()")
         self._init()
         parts = dict(entity=self._entity, project=self._project, name=self._sweep_path)
-        err = util.parse_sweep_id(parts)
+        err = sweep_utils.parse_sweep_id(parts)
         if err:
             wandb.termerror(err)
             return

@@ -11,12 +11,11 @@ from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
-import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
-from wandb.sdk.launch.sweeps import SCHEDULER_URI
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
 
 from .. import loader
@@ -38,6 +37,8 @@ AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
 
+HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
+
 MAX_THREADS = 64
 
 _logger = logging.getLogger(__name__)
@@ -48,18 +49,20 @@ class JobAndRunStatus:
     run_queue_item_id: str
     run_id: Optional[str] = None
     project: Optional[str] = None
+    entity: Optional[str] = None
     run: Optional[AbstractRun] = None
     failed_to_start: bool = False
-    completed: bool = False
+    completed_status: Optional[str] = None
     is_scheduler: bool = False
 
     @property
     def job_completed(self) -> bool:
-        return self.completed or self.failed_to_start
+        return self.failed_to_start or self.completed_status is not None
 
     def update_run_info(self, launch_project: LaunchProject) -> None:
         self.run_id = launch_project.run_id
         self.project = launch_project.target_project
+        self.entity = launch_project.target_entity
 
 
 def _convert_access(access: str) -> str:
@@ -105,7 +108,7 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
     if not run_spec:
         _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
 
-    if run_spec.get("uri") != SCHEDULER_URI:
+    if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
         return False
 
     if run_spec.get("resource") == "local-process":
@@ -149,6 +152,7 @@ class LaunchAgent:
             processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
             initargs=(self._jobs, self._jobs_lock),
         )
+        self._secure_mode = config.get("secure_mode", False)
         self.default_config: Dict[str, Any] = config
 
         # serverside creation
@@ -167,15 +171,31 @@ class LaunchAgent:
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
-        self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
         if self._api.entity_is_team(self._entity):
             wandb.termwarn(
                 f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
             )
 
+        agent_response = self._api.get_launch_agent(
+            self._id, self.gorilla_supports_agents
+        )
+        self._name = agent_response["name"]
+        if self.gorilla_supports_agents:
+            self._init_agent_run()
+
     def fail_run_queue_item(self, run_queue_item_id: str) -> None:
         if self._gorilla_supports_fail_run_queue_items:
             self._api.fail_run_queue_item(run_queue_item_id)
+
+    def _init_agent_run(self) -> None:
+        settings = wandb.Settings(silent=True, disable_git=True)
+        wandb.init(
+            project=self._project,
+            entity=self._entity,
+            settings=settings,
+            id=self._name,
+            job_type=HIDDEN_AGENT_RUN_TYPE,
+        )
 
     @property
     def thread_ids(self) -> List[int]:
@@ -256,6 +276,14 @@ class LaunchAgent:
         job_and_run_status = self._jobs[thread_id]
         if not job_and_run_status.run_id or not job_and_run_status.project:
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
+        elif job_and_run_status.entity != self._entity:
+            _logger.info(
+                "Skipping check for completed run status because run is on a different entity than agent"
+            )
+        elif job_and_run_status.completed_status not in ["stopped", "failed"]:
+            _logger.info(
+                "Skipping check for completed run status because run was successful"
+            )
         else:
             run_info = None
             # sweep runs exist but have no info before they are started
@@ -301,12 +329,9 @@ class LaunchAgent:
         # parse job
         _logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
-        if launch_spec.get("overrides") and isinstance(
-            launch_spec["overrides"].get("args"), list
-        ):
-            launch_spec["overrides"]["args"] = util._user_args_to_dict(
-                launch_spec["overrides"].get("args", [])
-            )
+
+        # Abort if this job attempts to override secure mode
+        self._assert_secure(launch_spec)
 
         self._pool.apply_async(
             self.thread_run_job,
@@ -317,6 +342,35 @@ class LaunchAgent:
                 self._api,
             ),
         )
+
+    def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
+        """If secure mode is set, make sure no vulnerable keys are overridden."""
+        if not self._secure_mode:
+            return
+        k8s_config = launch_spec.get("resource_args", {}).get("kubernetes", {})
+
+        pod_secure_keys = ["hostPID", "hostIPC", "hostNetwork", "initContainers"]
+        pod_spec = k8s_config.get("spec", {}).get("template", {}).get("spec", {})
+        for key in pod_secure_keys:
+            if key in pod_spec:
+                raise ValueError(
+                    f'This agent is configured to lock "{key}" in pod spec '
+                    "but the job specification attempts to override it."
+                )
+
+        container_specs = pod_spec.get("containers", [])
+        for container_spec in container_specs:
+            if "command" in container_spec:
+                raise ValueError(
+                    'This agent is configured to lock "command" in container spec '
+                    "but the job specification attempts to override it."
+                )
+
+        if launch_spec.get("overrides", {}).get("entry_point"):
+            raise ValueError(
+                'This agent is configured to lock the "entrypoint" override '
+                "but the job specification attempts to override it."
+            )
 
     def loop(self) -> None:
         """Loop infinitely to poll for jobs and run them.
@@ -331,7 +385,6 @@ class LaunchAgent:
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
                 )
-                self._name = agent_response["name"]  # hack: first time we get name
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
@@ -470,7 +523,7 @@ class LaunchAgent:
             run.command_proc.kill()
 
     def _check_run_finished(self, job_tracker: JobAndRunStatus) -> bool:
-        if job_tracker.completed:
+        if job_tracker.completed_status:
             return True
 
         # the run can be done before the run has started
@@ -492,7 +545,7 @@ class LaunchAgent:
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
-                    job_tracker.completed = True
+                    job_tracker.completed_status = status
                 return True
             return False
         except LaunchError as e:

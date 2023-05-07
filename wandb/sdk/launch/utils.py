@@ -71,12 +71,13 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
 
 API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
+MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
+
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
-
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
@@ -159,11 +160,11 @@ def construct_launch_spec(
     resource: Optional[str],
     entry_point: Optional[List[str]],
     version: Optional[str],
-    parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     run_id: Optional[str],
     repository: Optional[str],
+    author: Optional[str],
 ) -> Dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -181,6 +182,8 @@ def construct_launch_spec(
         launch_config,
     )
     launch_spec["entity"] = entity
+    if author:
+        launch_spec["author"] = author
 
     launch_spec["project"] = project
     if name:
@@ -201,16 +204,8 @@ def construct_launch_spec(
     if "overrides" not in launch_spec:
         launch_spec["overrides"] = {}
 
-    if parameters:
-        override_args = util._user_args_to_dict(
-            launch_spec["overrides"].get("args", [])
-        )
-        base_args = override_args
-        launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
-    elif isinstance(launch_spec["overrides"].get("args"), list):
-        launch_spec["overrides"]["args"] = util._user_args_to_dict(
-            launch_spec["overrides"].get("args")
-        )
+    if not isinstance(launch_spec["overrides"].get("args", []), list):
+        raise LaunchError("override args must be a list of strings")
 
     if resource_args:
         launch_spec["resource_args"] = resource_args
@@ -288,8 +283,6 @@ def fetch_wandb_project_run_info(
             result["codePath"] = data.get("codePath")
             result["cudaVersion"] = data.get("cuda", None)
 
-    if result.get("args") is not None:
-        result["args"] = util._user_args_to_dict(result["args"])
     return result
 
 
@@ -590,7 +583,7 @@ def get_kube_context_and_api_client(
     kubernetes: Any,
     resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
-    config_file = resource_args.get("config_file", None)
+    config_file = resource_args.get("configFile", None)
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
         # context only exist in the non-incluster case
@@ -704,3 +697,48 @@ def pull_docker_image(docker_image: str) -> None:
         docker.run(["docker", "pull", docker_image])
     except docker.DockerError as e:
         raise LaunchError(f"Docker server returned error: {e}")
+
+
+def macro_sub(original: str, sub_dict: Dict[str, Optional[str]]) -> str:
+    """Substitute macros in a string.
+
+    Macros occur in the string in the ${macro} format. The macro names are
+    substituted with their values from the given dictionary. If a macro
+    is not found in the dictionary, it is left unchanged.
+
+    Args:
+        original: The string to substitute macros in.
+        sub_dict: A dictionary mapping macro names to their values.
+
+    Returns:
+        The string with the macros substituted.
+    """
+    return MACRO_REGEX.sub(
+        lambda match: str(sub_dict.get(match.group(1), match.group(0))), original
+    )
+
+
+def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
+    """Recursively substitute macros in a parsed JSON or YAML blob.
+
+    Macros occur in strings at leaves of the blob in the ${macro} format.
+    The macro names are substituted with their values from the given dictionary.
+    If a macro is not found in the dictionary, it is left unchanged.
+
+    Arguments:
+        source: The JSON or YAML blob to substitute macros in.
+        sub_dict: A dictionary mapping macro names to their values.
+
+    Returns:
+        The blob with the macros substituted.
+    """
+    if isinstance(source, str):
+        return macro_sub(source, sub_dict)
+    elif isinstance(source, list):
+        return [recursive_macro_sub(item, sub_dict) for item in source]
+    elif isinstance(source, dict):
+        return {
+            key: recursive_macro_sub(value, sub_dict) for key, value in source.items()
+        }
+    else:
+        return source

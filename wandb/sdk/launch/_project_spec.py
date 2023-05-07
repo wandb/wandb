@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import tempfile
-from shlex import quote
 from typing import Any, Dict, List, Optional
 
 import wandb
@@ -95,7 +94,7 @@ class LaunchProject:
         self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
-        self.override_args: Dict[str, Any] = overrides.get("args", {})
+        self.override_args: List[str] = overrides.get("args", [])
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.override_entrypoint: Optional[EntryPoint] = None
@@ -143,7 +142,6 @@ class LaunchProject:
             self.project_dir = self.uri
 
         self.aux_dir = tempfile.mkdtemp()
-        self.clear_parameter_run_config_collisions()
 
     @property
     def base_image(self) -> str:
@@ -174,6 +172,45 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
+    def fill_macros(self, image: str) -> None:
+        """Substitute values for macros in resource arguments.
+
+        Certain macros can be used in resource args. These macros allow the
+        user to set resource args dynamically in the context of the
+        run being launched. The macros are given in the ${macro} format. The
+        following macros are currently supported:
+
+        ${project_name} - the name of the project the run is being launched to.
+        ${entity_name} - the owner of the project the run being launched to.
+        ${run_id} - the id of the run being launched.
+        ${run_name} - the name of the run that is launching.
+        ${image_uri} - the URI of the container image for this run.
+
+        Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
+        environment variables that you plan to set in the environment of any
+        agents that will receive these resource args.
+
+        Calling this method will overwrite the contents of self.resource_args
+        with the substituted values.
+
+        Args:
+            image (str): The image name to fill in for ${wandb-image}.
+
+        Returns:
+            None
+        """
+        update_dict = {
+            "project_name": self.target_project,
+            "entity_name": self.target_entity,
+            "run_id": self.run_id,
+            "run_name": self.name,
+            "image_uri": image,
+        }
+        update_dict.update(os.environ)
+        resource_args_str = json.dumps(self.resource_args)
+        new_resource_args = utils.macro_sub(resource_args_str, update_dict)
+        self.resource_args = json.loads(new_resource_args)
+
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
         # since the image tag for images built from jobs
@@ -192,15 +229,6 @@ class LaunchProject:
     def docker_image(self, value: str) -> None:
         self._docker_image = value
         self._ensure_not_docker_image_and_local_process()
-
-    def clear_parameter_run_config_collisions(self) -> None:
-        """Clear values from the override run config values if a matching key exists in the override arguments."""
-        if not self.override_config:
-            return
-        keys = [key for key in self.override_config.keys()]
-        for key in keys:
-            if self.override_args.get(key):
-                del self.override_config[key]
 
     def get_single_entry_point(self) -> Optional["EntryPoint"]:
         """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
@@ -350,9 +378,8 @@ class LaunchProject:
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
                 self.add_entry_point(entry_point)
-            self.override_args = utils.merge_parameters(
-                self.override_args, run_info["args"]
-            )
+            if not self.override_args:
+                self.override_args = run_info["args"]
         else:
             assert utils._GIT_URI_REGEX.match(self.uri), (
                 "Non-wandb URI %s should be a Git URI" % self.uri
@@ -376,30 +403,16 @@ class EntryPoint:
         self.name = name
         self.command = command
 
-    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> List[str]:
+    def compute_command(self, user_parameters: Optional[List[str]]) -> List[str]:
         """Converts user parameter dictionary to a string."""
-        command_arr = []
-        command_arr += self.command
-        extras = compute_command_args(user_parameters)
-        command_arr += extras
-        return command_arr
-
-
-def compute_command_args(parameters: Optional[Dict[str, Any]]) -> List[str]:
-    arr: List[str] = []
-    if parameters is None:
-        return arr
-    for key, value in parameters.items():
-        if value is not None:
-            arr.append(f"--{key}")
-            arr.append(quote(str(value)))
-        else:
-            arr.append(f"--{key}")
-    return arr
+        ret = self.command
+        if user_parameters:
+            ret += user_parameters
+        return ret
 
 
 def get_entry_point_command(
-    entry_point: Optional["EntryPoint"], parameters: Dict[str, Any]
+    entry_point: Optional["EntryPoint"], parameters: List[str]
 ) -> List[str]:
     """Returns the shell command to execute in order to run the specified entry point.
 
@@ -472,8 +485,8 @@ def fetch_and_validate_project(
         launch_project._fetch_project_local(internal_api=api)
 
     assert launch_project.project_dir is not None
-    # this prioritizes pip, and we don't support any cases where both are present
-    # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
+    # this prioritizes pip, and we don't support any cases where both are present conda projects when uploaded to
+    # wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.txt")
     ) or os.path.exists(

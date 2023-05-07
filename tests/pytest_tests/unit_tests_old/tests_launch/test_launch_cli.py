@@ -4,7 +4,6 @@ import os
 import pytest
 import wandb
 from wandb.cli import cli
-from wandb.sdk.launch.utils import LaunchError
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -116,68 +115,6 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
         assert result.exit_code != 0
 
 
-def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatch):
-    live_mock_server.set_ctx({"launch_agent_update_fail": True})
-    monkeypatch.setattr(
-        wandb.sdk.launch.agent.agent.LaunchAgent,
-        "pop_from_queue",
-        lambda *args: None,
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.agent.agent.LaunchAgent,
-        "print_status",
-        lambda x: raise_(KeyboardInterrupt),
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.entity_is_team",
-        lambda c, entity: False,
-    )
-
-    # m = mock.Mock()
-    # m.sleep = lambda x: raise_(KeyboardInterrupt)
-    # with mock.patch.dict("sys.modules", time=m):
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch_agent,
-            [
-                "--entity",
-                "mock_server_entity",
-                "--queue",
-                "default",
-            ],
-        )
-
-        assert "Aborted!" in result.output
-
-
-def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
-    def patched_pop_empty_queue(self, queue):
-        # patch to no result, agent should read stopPolling and stop
-        return None
-
-    monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.entity_is_team",
-        lambda c, entity: False,
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
-        lambda c, queue: patched_pop_empty_queue(c, queue),
-    )
-    live_mock_server.set_ctx({"stop_launch_agent": True})
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch_agent,
-            [
-                "--entity",
-                "mock_server_entity",
-                "--queue",
-                "default",
-            ],
-        )
-
-    assert "Shutting down, active jobs" in result.output
-
-
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)
@@ -203,8 +140,6 @@ def test_launch_cli_with_config_file_and_params(
             [
                 "-c",
                 "config.json",
-                "-a",
-                "epochs=1",
                 "-u" "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
@@ -229,8 +164,6 @@ def test_launch_cli_with_config_and_params(
             [
                 "-c",
                 json.dumps(config),
-                "-a",
-                "epochs=1",
                 "-u",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
@@ -264,27 +197,21 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                     "name": "My Sweep",
                     "method": "grid",
                     "job": "test-job:v9",
+                    "launch": {
+                        "queue": "default",
+                        "resource": "local-process",
+                    },
+                    "scheduler": {
+                        "resource": "local-process",
+                    },
                     "parameters": {"parameter1": {"values": [1, 2, 3]}},
                 },
                 f,
             )
-        with open("launch-config.yaml", "w") as f:
-            json.dump(
-                {
-                    "queue": "default",
-                    "resource": "local-process",
-                    "scheduler": {
-                        "resource": "local-process",
-                    },
-                },
-                f,
-            )
         result = runner.invoke(
-            cli.sweep,
+            cli.launch_sweep,
             [
                 "sweep-config.yaml",
-                "--launch_config",
-                "launch-config.yaml",
                 "--entity",
                 "mock_server_entity",
             ],
@@ -397,39 +324,6 @@ def test_launch_agent_project_environment_variable(
         "You must specify a project name or set WANDB_PROJECT environment variable."
         not in str(result.output)
     )
-
-
-def test_launch_agent_launch_error_continue(
-    runner, test_settings, live_mock_server, monkeypatch
-):
-    def print_then_exit():
-        print("except caught, failed item")
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.run_job",
-        lambda a, b: raise_(LaunchError("blah blah")),
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.fail_run_queue_item",
-        lambda a, b: print_then_exit(),
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.entity_is_team",
-        lambda c, entity: False,
-    )
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch_agent,
-            [
-                "--entity",
-                "mock_server_entity",
-                "--queue",
-                "default",
-            ],
-        )
-        assert "blah blah" in result.output
-        assert "except caught, failed item" in result.output
 
 
 def test_launch_name_run_id_environment_variable(

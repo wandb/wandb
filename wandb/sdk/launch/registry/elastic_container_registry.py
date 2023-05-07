@@ -157,5 +157,7 @@ class ElasticContainerRegistry(AbstractRegistry):
 
         except botocore.exceptions.ClientError as e:
             code = e.response["Error"]["Code"]
+            if code == "ImageNotFoundException":
+                return False
             msg = e.response["Error"]["Message"]
             raise LaunchError(f"Error checking if image tag exists: {code} {msg}")
