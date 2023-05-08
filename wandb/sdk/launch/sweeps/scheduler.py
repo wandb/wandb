@@ -31,6 +31,8 @@ from wandb.sdk.wandb_run import Run as SdkRun
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
 
+DEFAULT_POLLING_SLEEP = 5.0
+
 
 class SchedulerState(Enum):
     PENDING = 0
@@ -96,7 +98,7 @@ class Scheduler(ABC):
         self,
         api: Api,
         *args: Optional[Any],
-        polling_sleep: float = 5.0,
+        polling_sleep: Optional[float] = None,
         sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
@@ -143,7 +145,7 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
-        self._polling_sleep = polling_sleep
+        self._polling_sleep = polling_sleep or DEFAULT_POLLING_SLEEP
         self._project_queue = project_queue
         # Optionally run multiple workers in (pseudo-)parallel. Workers do not
         # actually run training workloads, they simply send heartbeat messages

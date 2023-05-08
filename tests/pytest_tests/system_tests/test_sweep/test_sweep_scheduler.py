@@ -13,7 +13,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SchedulerState,
     SweepRun,
 )
-from wandb.sdk.launch.sweeps.scheduler_wandb import WandbScheduler
+from wandb.sdk.launch.sweeps.schedulers.scheduler_wandb import WandbScheduler
 from wandb.sdk.launch.sweeps.utils import construct_scheduler_args
 
 from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
@@ -64,7 +64,7 @@ def test_sweep_scheduler_start_failed(user, monkeypatch):
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
     api.stop_run = lambda run_id: True
-    scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    scheduler = WandbScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
 
     # also test stop run
     assert scheduler._stop_run("nonexistent-run") is False
@@ -134,7 +134,7 @@ def test_sweep_scheduler_runcap(user, monkeypatch):
     api = internal.Api()
     api.get_run_state = mock_get_run_state
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-    scheduler = SweepScheduler(
+    scheduler = WandbScheduler(
         api,
         sweep_id=sweep_id,
         entity=_entity,
@@ -171,7 +171,7 @@ def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     # Entity, project, and sweep
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
     # No job
-    scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    scheduler = WandbScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
     scheduler.start()  # should raise no job found
     assert scheduler.state == SchedulerState.FAILED
     assert scheduler._wandb_run._is_finished
@@ -205,7 +205,7 @@ def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
     # Entity, project, and sweep
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
     # Yes job
-    scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    scheduler = WandbScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
     scheduler.start()  # should raise no job found
     assert scheduler.state == SchedulerState.FAILED
     assert scheduler._wandb_run._is_finished
@@ -477,7 +477,7 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
     _project = "test-project"
     _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
-    scheduler = SweepScheduler(
+    scheduler = WandbScheduler(
         api,
         sweep_id=sweep_id,
         entity=user,
@@ -514,7 +514,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
     api.agent_heartbeat = mock_agent_heartbeat
 
     with pytest.raises(SchedulerError) as e:
-        _scheduler = SweepScheduler(
+        _scheduler = WandbScheduler(
             api,
             sweep_id=sweep_id,
             entity=user,
@@ -534,7 +534,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
     api.agent_heartbeat = mock_agent_heartbeat
 
     with pytest.raises(SchedulerError) as e:
-        _scheduler = SweepScheduler(
+        _scheduler = WandbScheduler(
             api,
             sweep_id=sweep_id,
             entity=user,
@@ -602,7 +602,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
-    _scheduler = SweepScheduler(
+    _scheduler = WandbScheduler(
         api,
         sweep_id=sweep_id,
         entity=user,
@@ -636,7 +636,7 @@ def test_launch_sweep_scheduler_try_executable_works(
         VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
     )
 
-    _scheduler = SweepScheduler(
+    _scheduler = WandbScheduler(
         internal.Api(),
         sweep_id=sweep_id,
         entity=user,
@@ -659,7 +659,7 @@ def test_launch_sweep_scheduler_try_executable_fails(user, monkeypatch):
         VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
     )
 
-    _scheduler = SweepScheduler(
+    _scheduler = WandbScheduler(
         internal.Api(),
         sweep_id=sweep_id,
         entity=user,
@@ -685,7 +685,7 @@ def test_launch_sweep_scheduler_try_executable_image(user, monkeypatch):
         VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
     )
 
-    _scheduler = SweepScheduler(
+    _scheduler = WandbScheduler(
         internal.Api(),
         sweep_id=sweep_id,
         entity=user,
@@ -771,7 +771,7 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     # Entity, project, and sweep should be everything you need to create a scheduler
     api = internal.Api()
     s = wandb.sweep(sweep_config, entity=user, project="t")
-    scheduler = SweepScheduler(
+    scheduler = WandbScheduler(
         api, sweep_id=s, entity=user, project="t", queue="q", num_workers=1
     )
     scheduler._register_agents()
@@ -846,7 +846,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
     sweep_id = wandb.sweep(config, entity=user, project=_project)
 
     # new sweep scheduler
-    _scheduler = SweepScheduler(
+    _scheduler = WandbScheduler(
         api,
         sweep_id=sweep_id,
         sweep_type="sweep",
@@ -883,7 +883,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
         + [[{"type": "stop"}]]
     )
 
-    _scheduler = SweepScheduler(
+    _scheduler = WandbScheduler(
         api,
         sweep_id=sweep_id,
         run_id=sweep_id,  # resuming from previous sweep

@@ -2,11 +2,11 @@ import base64
 import logging
 import os
 import signal
+import traceback
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from importlib.machinery import SourceFileLoader
-import traceback
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -14,7 +14,8 @@ import click
 import optuna
 
 import wandb
-from wandb.apis.public import Api, Artifact, QueuedRun, Run
+from wandb.apis.public import Artifact, QueuedRun, Run, Api as PublicApi
+from wandb.apis.internal import Api
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import Scheduler, SweepRun
 
@@ -41,18 +42,14 @@ class OptunaRun:
 
 
 def _encode(run_id: str) -> str:
-    """
-    Helper to hash the run id for backend format
-    """
+    """Helper to hash the run id for backend format."""
     return base64.b64decode(bytes(run_id.encode("utf-8"))).decode("utf-8").split(":")[2]
 
 
 def _get_module(
     module_name: str, filepath: str
 ) -> Tuple[Optional[ModuleType], Optional[str]]:
-    """
-    Helper function that loads a python module from provided filepath
-    """
+    """Helper function that loads a python module from provided filepath."""
     try:
         loader = SourceFileLoader(module_name, filepath)
         mod = ModuleType(loader.name)
@@ -107,9 +104,9 @@ class OptunaScheduler(Scheduler):
 
     @property
     def formatted_trials(self) -> str:
-        """Prints out the last 10 trials from the current optuna study.
-        Shows the run_id/run_state/total_metrics/last_metric
+        """Print out the last 10 trials from the current optuna study.
 
+        Shows the run_id/run_state/total_metrics/last_metric.
         Returns a string with whitespace.
         """
         if not self._study or len(self.study.trials) == 0:
@@ -160,8 +157,7 @@ class OptunaScheduler(Scheduler):
         Optional[optuna.pruners.BasePruner],
         Optional[optuna.samplers.BaseSampler],
     ]:
-        """
-        Loads custom optuna classes from user-supplied artifact
+        """Loads custom optuna classes from user-supplied artifact.
 
         Returns:
             study: a custom optuna study object created by the user
@@ -218,9 +214,7 @@ class OptunaScheduler(Scheduler):
         return None, pruner, sampler
 
     def _get_and_download_artifact(self, component: OptunaComponents) -> Optional[str]:
-        """
-        Finds and downloads an artifact, returns name of downloaded artifact
-        """
+        """Finds and downloads an artifact, returns name of downloaded artifact."""
         try:
             artifact_name = f"{self._entity}/{self._project}/{component.name}:latest"
             component_artifact: Artifact = self._wandb_run.use_artifact(artifact_name)
@@ -242,8 +236,7 @@ class OptunaScheduler(Scheduler):
         return None
 
     def _load_optuna(self) -> None:
-        """
-        If our run was resumed, attempt to restore optuna artifacts from run state
+        """If our run was resumed, attempt to restore optuna artifacts from run state.
 
         Create an optuna study with a sqlite backened for loose state management
         """
@@ -315,15 +308,14 @@ class OptunaScheduler(Scheduler):
         return
 
     def _load_state(self) -> None:
-        """
-        Called when Scheduler class invokes start()
-        Load optuna study sqlite data from an artifact in controller run
+        """Called when Scheduler class invokes start().
+
+        Load optuna study sqlite data from an artifact in controller run.
         """
         self._load_optuna()
 
     def _save_state(self) -> None:
-        """
-        Called when Scheduler class invokes exit()
+        """Called when Scheduler class invokes exit().
 
         Save optuna study sqlite data to an artifact in the controller run
         """
@@ -374,9 +366,7 @@ class OptunaScheduler(Scheduler):
         return srun
 
     def _get_run_history(self, run_id: str) -> List[int]:
-        """
-        Gets logged metric history for a given run_id
-        """
+        """Gets logged metric history for a given run_id."""
         if run_id not in self._runs:
             logger.debug(f"Cant get history for run {run_id} not in self.runs")
             return []
@@ -400,9 +390,7 @@ class OptunaScheduler(Scheduler):
         return metrics
 
     def _poll_run(self, orun: OptunaRun) -> bool:
-        """
-        Polls metrics for a run, returns true if finished
-        """
+        """Polls metrics for a run, returns true if finished."""
         metrics = self._get_run_history(orun.sweep_run.id)
         for i, metric in enumerate(metrics[orun.num_metrics :]):
             logger.debug(f"{orun.sweep_run.id} (step:{i+orun.num_metrics}) {metrics}")
@@ -442,8 +430,7 @@ class OptunaScheduler(Scheduler):
         return True
 
     def _poll_running_runs(self) -> None:
-        """
-        Iterates through runs, getting metrics, reporting to optuna
+        """Iterates through runs, getting metrics, reporting to optuna.
 
         Returns list of runs optuna marked as PRUNED, to be deleted
         """
@@ -459,10 +446,7 @@ class OptunaScheduler(Scheduler):
             del self._optuna_runs[r]
 
     def _make_trial(self) -> Tuple[Dict[str, Any], optuna.Trial]:
-        """
-        Use a wandb.config to create an optuna trial object with correct
-            optuna distributions
-        """
+        """Use a wandb.config to create an optuna trial."""
         trial = self.study.ask()
         config: Dict[str, Dict[str, Any]] = defaultdict(dict)
         for param, extras in self._sweep_config["parameters"].items():
@@ -497,10 +481,10 @@ class OptunaScheduler(Scheduler):
         return config, trial
 
     def _make_trial_from_objective(self) -> Tuple[Dict[str, Any], optuna.Trial]:
-        """
-        This is the core logic that turns a user-provided MOCK objective func
-            into wandb params, allowing for pythonic search spaces.
-            MOCK: does not actually train, only configures params
+        """Turn a user-provided MOCK objective func into wandb params.
+
+            This enables pythonic search spaces.
+            MOCK: does not actually train, only configures params.
 
         First creates a copy of our real study, quarantined from fake metrics
 
@@ -555,7 +539,7 @@ class OptunaScheduler(Scheduler):
 
 
 # External validation functions
-def validate_optuna(public_api: Api, custom_config: Dict[str, Any]) -> bool:
+def validate_optuna(public_api: PublicApi, custom_config: Dict[str, Any]) -> bool:
     """Accepts a user provided optuna configuration.
 
     optuna library must be installed in scope, otherwise returns False.

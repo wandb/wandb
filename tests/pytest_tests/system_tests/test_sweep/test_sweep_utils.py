@@ -56,22 +56,10 @@ def test_load_launch_sweep_config():
 
 
 def test_sweep_construct_scheduler_args():
-    assert not utils.construct_scheduler_args({}, "queue", "project")
-
-    args = utils.construct_scheduler_args({"job": "job:12315"}, "queue", "project")
-    assert args == [
-        "--queue",
-        "'queue'",
-        "--project",
-        "project",
-        "--sweep_type",
-        "sweep",
-        "--job",
-        "job:12315",
-    ]
+    assert not utils.construct_scheduler_args("wandb", {}, "queue", "project")
 
     args = utils.construct_scheduler_args(
-        {"job": "job:latest"}, "queue", "project", author="author"
+        "wandb", {"job": "job:12315"}, "queue", "project"
     )
     assert args == [
         "--queue",
@@ -79,7 +67,21 @@ def test_sweep_construct_scheduler_args():
         "--project",
         "project",
         "--sweep_type",
-        "sweep",
+        "wandb",
+        "--job",
+        "job:12315",
+    ]
+
+    args = utils.construct_scheduler_args(
+        "wandb", {"job": "job:latest"}, "queue", "project", author="author"
+    )
+    assert args == [
+        "--queue",
+        "'queue'",
+        "--project",
+        "project",
+        "--sweep_type",
+        "wandb",
         "--author",
         "author",
         "--job",
@@ -87,7 +89,7 @@ def test_sweep_construct_scheduler_args():
     ]
 
     args = utils.construct_scheduler_args(
-        {"image_uri": "image_uri"}, "queue", "project"
+        "wandb", {"image_uri": "image_uri"}, "queue", "project"
     )
     assert args == [
         "--queue",
@@ -95,7 +97,7 @@ def test_sweep_construct_scheduler_args():
         "--project",
         "project",
         "--sweep_type",
-        "sweep",
+        "wandb",
         "--image_uri",
         "image_uri",
     ]
@@ -103,6 +105,6 @@ def test_sweep_construct_scheduler_args():
     # should fail because job and image_uri are mutually exclusive
     assert not (
         utils.construct_scheduler_args(
-            {"job": "job:111", "image_uri": "image_uri"}, "queue", "project"
+            "wandb", {"job": "job:111", "image_uri": "image_uri"}, "queue", "project"
         )
     )

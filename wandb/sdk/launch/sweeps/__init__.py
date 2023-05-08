@@ -1,11 +1,10 @@
+import inspect
 import logging
 import os
-from typing import Any, Callable, Dict
 from importlib.machinery import SourceFileLoader
-from types import ModuleType
-import inspect
 from pathlib import Path
-
+from types import ModuleType
+from typing import Any, Callable, Dict
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +37,6 @@ def _import_hyperopt_scheduler() -> Any:
 
 def _import_custom_scheduler(scheduler_type: str) -> Any:
     """Dynamically import custom scheduler from file."""
-
     # This assumes launch-agent running forked wandb repo with a
     # custom scheduler file in the 'schedulers' directory
     source_path = Path(__file__).resolve()

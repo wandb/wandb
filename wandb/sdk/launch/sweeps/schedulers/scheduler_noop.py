@@ -1,4 +1,5 @@
 from typing import Optional
+
 from wandb.sdk.launch.sweeps.scheduler import Scheduler, SweepRun
 
 

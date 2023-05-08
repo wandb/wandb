@@ -80,10 +80,7 @@ class WandbScheduler(Scheduler):
         pass
 
     def _save_state(self) -> None:
-        """
-        This sweep scheduler is currently stateless, might consider saving some
-        metrics to store in the scheduler run.
-        """
+        """This sweep scheduler is stateless."""
         pass
 
     def _poll(self) -> None:

@@ -59,7 +59,7 @@ class LaunchProject:
         resource: str,
         resource_args: Dict[str, Any],
         run_id: Optional[str],
-        sweep_id: Optional[str],
+        sweep_id: Optional[str] = None,
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
