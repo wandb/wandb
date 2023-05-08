@@ -12,6 +12,16 @@ if TYPE_CHECKING:
 class ArtifactManifestEntry:
     """A single entry in an artifact manifest."""
 
+    __slots__ = (
+        "path",
+        "digest",
+        "ref",
+        "birth_artifact_id",
+        "size",
+        "extra",
+        "local_path",
+    )
+
     path: LogicalPath
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
     ref: Optional[Union[FilePathStr, URIStr]]

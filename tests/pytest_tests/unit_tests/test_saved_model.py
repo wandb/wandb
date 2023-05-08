@@ -7,7 +7,6 @@ import wandb
 from wandb.apis.public import Artifact, _DownloadedArtifactEntry
 from wandb.sdk.data_types import saved_model
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
-from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
 
 from . import saved_model_constructors
 
@@ -80,7 +79,13 @@ class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
         return copy_or_overwrite_changed(self.local_path, dest)
 
 
-class ArtifactManifestEntryPatch(ArtifactManifestEntry):
+class ArtifactManifestEntryWrapper:
+    def __init__(self, entry):
+        self._entry = entry
+
+    def __getattr__(self, name):
+        return getattr(self._entry, name)
+
     def download(self, root=None):
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         shutil.copyfile(self.local_path, self.path)
@@ -90,9 +95,6 @@ class ArtifactManifestEntryPatch(ArtifactManifestEntry):
 def make_local_artifact_public(art, mocker):
     mocker.patch(
         "wandb.apis.public._DownloadedArtifactEntry", DownloadedArtifactEntryPatch
-    )
-    mocker.patch(
-        "wandb.sdk.wandb_artifacts.ArtifactManifestEntry", ArtifactManifestEntryPatch
     )
 
     pub = Artifact(
@@ -117,8 +119,10 @@ def make_local_artifact_public(art, mocker):
         },
     )
     pub._manifest = art._manifest
-    for val in pub._manifest.entries.values():
-        val.__class__ = ArtifactManifestEntryPatch
+    wrapped_entries = {}
+    for key, val in pub._manifest.entries.items():
+        wrapped_entries[key] = ArtifactManifestEntryWrapper(val)
+    pub._manifest.entries = wrapped_entries
     return pub
 
 
