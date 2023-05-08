@@ -996,9 +996,8 @@ def launch_sweep(
             wandb.termerror(f"Failed to load job. Error: {e}")
             return False
 
-    scheduler_is_job = False
-    if scheduler_args.get("job"):
-        scheduler_is_job = True
+    scheduler_job = scheduler_args.get("job")
+    if scheduler_job:
         wandb.termwarn(
             "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
         )
@@ -1009,42 +1008,28 @@ def launch_sweep(
         except Exception as e:
             wandb.termerror(f"Failed to load scheduler job. Error: {e}")
             return False
-        args = {
-            "sweep_id": "WANDB_SWEEP_ID",
-            "queue": queue,
-            "project": project,
-            "author": entity,
-        }
-        if job:
-            args["job"] = job
-        else:
-            args["image_uri"] = parsed_sweep_config["image_uri"]
+
+    entrypoint = Scheduler.ENTRYPOINT if scheduler_job else None
+    args = sweep_utils.construct_scheduler_args(
+        is_job="job" in scheduler_args,
+        sweep_config=parsed_sweep_config,
+        queue=queue,
+        project=project,
+        author=entity,
+    )
+    if not args:
+        return
+
+    overrides = {"run_config": {}}
+    if launch_args:
+        overrides["run_config"]["launch"] = launch_args
+    if scheduler_args:
+        overrides["run_config"]["scheduler"] = scheduler_args
+
+    if "job" in scheduler_args:
+        overrides["run_config"]["sweep_args"] = args
     else:
-        args = sweep_utils.construct_scheduler_args(
-            sweep_config=parsed_sweep_config,
-            queue=queue,
-            project=project,
-            author=entity,
-        )
-
-        if not args:
-            # error already logged
-            return
-
-    overrides = {
-        "overrides": {
-            "run_config": {
-                "scheduler": scheduler_args,
-                "launch": launch_args,
-            },
-        }
-    }
-    if scheduler_is_job:
-        # args is a dict here
-        overrides["overrides"]["run_config"]["sweep_args"] = args
-    else:  # scheduler uses raw entrypoint
-        # args is list of parameters
-        overrides["overrides"]["args"] = args
+        overrides["args"] = args
 
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
@@ -1055,12 +1040,12 @@ def launch_sweep(
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=Scheduler.ENTRYPOINT if not scheduler_is_job else None,
+        entry_point=entrypoint,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
-        job=scheduler_args.get("job"),
+        job=scheduler_job,
         version=None,
-        launch_config=overrides,
+        launch_config={"overrides": overrides},
         run_id=None,
         author=None,  # author gets passed into scheduler override args
     )
