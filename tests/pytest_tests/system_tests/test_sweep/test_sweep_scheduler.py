@@ -13,7 +13,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SchedulerState,
     SweepRun,
 )
-from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
+from wandb.sdk.launch.sweeps.scheduler_wandb import WandbScheduler
 from wandb.sdk.launch.sweeps.utils import construct_scheduler_args
 
 from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
@@ -21,7 +21,7 @@ from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
 
 def test_sweep_scheduler_load():
     _scheduler = load_scheduler("sweep")
-    assert _scheduler == SweepScheduler
+    assert _scheduler == WandbScheduler
     with pytest.raises(SchedulerError):
         load_scheduler("unknown")
 

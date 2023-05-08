@@ -1011,17 +1011,15 @@ def launch_sweep(
 
             # Validation
             if _type == "optuna":
-                from wandb.sdk.launch.sweeps.scheduler_optuna import validate_optuna
+                from wandb.sdk.launch.sweeps.schedulers.scheduler_optuna import (
+                    validate_optuna,
+                )
 
                 if not validate_optuna(api, custom_config):
                     return
-            elif _type == "raytune":
-                wandb.termerror("Unsupported launch sweep type: 'raytune'")
+            elif _type in ["raytune", "hyperopt"]:
+                wandb.termerror(f"Currently unsupported launch sweep type: {_type}")
                 return
-            else:
-                wandb.termwarn(
-                    f"Unrecognized sweep scheduler type: {_type}, not validating"
-                )
 
     # validate job existence
     job = parsed_sweep_config.get("job")
