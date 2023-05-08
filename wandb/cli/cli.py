@@ -33,7 +33,6 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.sweeps.scheduler_optuna import validate_optuna
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import (
@@ -1012,6 +1011,8 @@ def launch_sweep(
 
             # Validation
             if _type == "optuna":
+                from wandb.sdk.launch.sweeps.scheduler_optuna import validate_optuna
+
                 if not validate_optuna(api, custom_config):
                     return
             elif _type == "raytune":
