@@ -7,7 +7,6 @@ tag:
     - platform: win
 depend:
   requirements:
-    # todo: fix the integration and remove this pin
     - langchain
 assert:
   - :yea:exit: 0
