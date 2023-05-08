@@ -358,7 +358,11 @@ class TestStepPrepare:
         res = prepare(step_prepare, simple_file_spec(name="foo")).result()
         step_prepare.finish()
 
-        upload_id = caf_result["foo"]["uploadMultipartUrls"]["uploadID"] if caf_result["foo"]["uploadMultipartUrls"] else None
+        upload_id = (
+            caf_result["foo"]["uploadMultipartUrls"]["uploadID"]
+            if caf_result["foo"]["uploadMultipartUrls"]
+            else None
+        )
 
         assert res == ResponsePrepare(
             upload_url=caf_result["foo"]["uploadUrl"],
@@ -366,7 +370,7 @@ class TestStepPrepare:
             birth_artifact_id=caf_result["foo"]["artifact"]["id"],
             storage_path=caf_result["foo"]["storagePath"],
             multipart_upload_url=caf_result["foo"]["uploadMultipartUrls"],
-            upload_id=upload_id
+            upload_id=upload_id,
         )
 
     def test_batches_requests(self, prepare: "PrepareFixture"):

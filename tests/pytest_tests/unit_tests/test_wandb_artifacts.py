@@ -78,7 +78,7 @@ def dummy_response_prepare(spec):
         birth_artifact_id=f"artifact-id-{name}",
         multipart_upload_url=None,
         upload_id=None,
-        storage_path="wandb_artifact/123456789"
+        storage_path="wandb_artifact/123456789",
     )
 
 
