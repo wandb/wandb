@@ -1273,7 +1273,6 @@ class Api:
 
         """ Legacy Method """
         queues_found = self.get_project_run_queues(entity, project_queue)
-
         matching_queues = [
             q
             for q in queues_found
@@ -2353,25 +2352,28 @@ class Api:
         # but it is a subclass of dict, so this conversion is clean
         config = dict(config)
 
-        if "parameters" in config:
-            for parameter_name in config["parameters"]:
-                parameter = config["parameters"][parameter_name]
-                if "min" in parameter and "max" in parameter:
-                    if "distribution" not in parameter:
-                        if isinstance(parameter["min"], int) and isinstance(
-                            parameter["max"], int
-                        ):
-                            parameter["distribution"] = "int_uniform"
-                        elif isinstance(parameter["min"], float) and isinstance(
-                            parameter["max"], float
-                        ):
-                            parameter["distribution"] = "uniform"
-                        else:
-                            raise ValueError(
-                                "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
-                                "uniform distribution) or ints (for an int_uniform distribution)."
-                                % parameter_name
-                            )
+        if "parameters" not in config:
+            # still shows an anaconda warning, but doesn't error
+            return config
+
+        for parameter_name in config["parameters"]:
+            parameter = config["parameters"][parameter_name]
+            if "min" in parameter and "max" in parameter:
+                if "distribution" not in parameter:
+                    if isinstance(parameter["min"], int) and isinstance(
+                        parameter["max"], int
+                    ):
+                        parameter["distribution"] = "int_uniform"
+                    elif isinstance(parameter["min"], float) and isinstance(
+                        parameter["max"], float
+                    ):
+                        parameter["distribution"] = "uniform"
+                    else:
+                        raise ValueError(
+                            "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution)."
+                            % parameter_name
+                        )
         return config
 
     @normalize_exceptions
