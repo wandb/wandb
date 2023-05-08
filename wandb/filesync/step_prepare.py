@@ -134,6 +134,7 @@ class StepPrepare:
                     birth_artifact_id = response_file["artifact"]["id"]
                     multipart_upload_url = None
                     upload_id = None
+                    storage_path = None
                     if (
                         "uploadMultipartUrls" in response_file
                         and response_file["uploadMultipartUrls"] is not None
@@ -145,7 +146,8 @@ class StepPrepare:
                             u["partNumber"]: u["uploadUrl"] for u in multipart_resp
                         }
                         upload_id = response_file["uploadMultipartUrls"]["uploadID"]
-                    storage_path = response_file["storagePath"]
+                    if "storagePath" in response_file:
+                        storage_path = response_file["storagePath"]
 
                     response = ResponsePrepare(
                         upload_url,
