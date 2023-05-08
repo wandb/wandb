@@ -1051,7 +1051,7 @@ def image_id_from_k8s() -> Optional[str]:
     """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
     try:
-        with open(token_path, "r") as token_file:
+        with open(token_path) as token_file:
             token = token_file.read()
     except FileNotFoundError:
         wandb.termwarn(f"Token file not found at {token_path}.")
