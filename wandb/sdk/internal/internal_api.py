@@ -1272,9 +1272,7 @@ class Api:
             return push_result
 
         """ Legacy Method """
-        project_queues = self.get_project_run_queues(entity, project_queue)
-        entity_queues = self.get_project_run_queues(entity, "model-registry")
-        queues_found = project_queues + entity_queues
+        queues_found = self.get_project_run_queues(entity, project_queue)
 
         matching_queues = [
             q

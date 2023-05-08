@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -109,7 +109,6 @@ def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
 
 
 def load_launch_sweep_config(config: Optional[str]) -> Any:
-    """Load a launch sweep config from a path or string."""
     if not config:
         return {}
 
@@ -120,17 +119,15 @@ def load_launch_sweep_config(config: Optional[str]) -> Any:
 
 
 def construct_scheduler_args(
-    sweep_type: str,
     sweep_config: Dict[str, Any],
     queue: str,
     project: str,
     author: Optional[str] = None,
-    is_job: bool = False,
-) -> Optional[Union[List[str], Dict[str, str]]]:
-    """Construct sweep scheduler args.
+    sweep_type: Optional[str] = "sweep",
+) -> Optional[List[str]]:
+    """Construct a sweep scheduler entrypoing and args.
 
-    logs error and returns None if misconfigured,
-    otherwise returns args as a dict if is_job else a list of strings.
+    logs error and returns None if misconfigured, otherwise returns entrypoint and args
     """
     job = sweep_config.get("job")
     image_uri = sweep_config.get("image_uri")
@@ -145,22 +142,6 @@ def construct_scheduler_args(
         )
         return None
 
-    # if scheduler is a job, return args as dict
-    if is_job:
-        args_dict = {
-            "sweep_id": "WANDB_SWEEP_ID",
-            "queue": queue,
-            "project": project,
-            "author": author,
-        }
-        if job:
-            args_dict["job"] = job
-        else:
-            args_dict["image_uri"] = image_uri
-
-        return args_dict
-
-    # scheduler uses cli commands, pass args as param list
     args = [
         "--queue",
         f"{queue!r}",
@@ -169,6 +150,7 @@ def construct_scheduler_args(
         "--sweep_type",
         f"{sweep_type}",
     ]
+
     if author:
         args += ["--author", author]
     if job:

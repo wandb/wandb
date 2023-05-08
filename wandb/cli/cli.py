@@ -993,16 +993,16 @@ def launch_sweep(
             wandb.termerror("Couldn't determine sweep type from scheduler run args")
             return
     else:
-        # parsed_sweep_config = parsed_config
+        parsed_sweep_config = parsed_config
         # # Check if custom sweep scheduler
         if parsed_sweep_config.get("method") == "custom":
             custom_config = parsed_sweep_config.pop("custom", None)
-        #     if not custom_config:
-        #         wandb.termerror(
-        #             "Custom sweep requires a 'custom' section in the config"
-        #         )
-        #         return
-        #     _type = custom_config.get("type")
+            #     if not custom_config:
+            #         wandb.termerror(
+            #             "Custom sweep requires a 'custom' section in the config"
+            #         )
+            #         return
+            _type = custom_config.get("type")
         #     if not _type:
         #         wandb.termerror(
         #             "Custom sweep scheduler require setting 'type' in 'custom' section of config"
@@ -1049,7 +1049,7 @@ def launch_sweep(
             wandb.termerror(f"Failed to load scheduler job. Error: {e}")
             return False
 
-    entrypoint = Scheduler.ENTRYPOINT if scheduler_job else None
+    entrypoint = Scheduler.ENTRYPOINT if not scheduler_job else None
     args = sweep_utils.construct_scheduler_args(
         sweep_type=_type,
         is_job="job" in scheduler_args,
@@ -1063,12 +1063,12 @@ def launch_sweep(
 
     overrides = {"run_config": {}}
     if launch_args:
-        overrides["overrides"]["run_config"]["launch"] = launch_args
+        overrides["run_config"]["launch"] = launch_args
     if scheduler_args:
-        overrides["overrides"]["run_config"]["scheduler"] = scheduler_args
+        overrides["run_config"]["scheduler"] = scheduler_args
     if custom_config:
-        overrides["overrides"]["run_config"]["custom"] = custom_config
-    
+        overrides["run_config"]["custom"] = custom_config
+
     if "job" in scheduler_args:
         overrides["run_config"]["sweep_args"] = args
     else:
@@ -1078,7 +1078,7 @@ def launch_sweep(
     launch_scheduler_spec = construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
         api=api,
-        name="Scheduler.WANDB_SWEEP_ID",
+        name=f"{_type}-scheduler-WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
