@@ -996,15 +996,39 @@ def launch_sweep(
             wandb.termerror(f"Failed to load job. Error: {e}")
             return False
 
-    args = sweep_utils.construct_scheduler_args(
-        sweep_config=parsed_sweep_config,
-        queue=queue,
-        project=project,
-        author=entity,
-    )
-    if not args:
-        # error already logged
-        return
+    scheduler_is_job = False
+    if scheduler_args.get("job"):
+        scheduler_is_job = True
+        wandb.termwarn(
+            "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
+        )
+        try:
+            public_api = PublicApi()
+            public_api.artifact(scheduler_args["job"], type="job")
+        except Exception as e:
+            wandb.termerror(f"Failed to load scheduler job. Error: {e}")
+            return False
+        args = {
+            "sweep_id": "WANDB_SWEEP_ID",
+            "queue": queue,
+            "project": project,
+            "author": entity,
+        }
+        if job:
+            args["job"] = job
+        else:
+            args["image_uri"] = parsed_sweep_config["image_uri"]
+    else:
+        args = sweep_utils.construct_scheduler_args(
+            sweep_config=parsed_sweep_config,
+            queue=queue,
+            project=project,
+            author=entity,
+        )
+
+        if not args:
+            # error already logged
+            return
 
     overrides = {
         "overrides": {
@@ -1012,9 +1036,14 @@ def launch_sweep(
                 "scheduler": scheduler_args,
                 "launch": launch_args,
             },
-            "args": args,
         }
     }
+    if scheduler_is_job:
+        # args is a dict here
+        overrides["overrides"]["run_config"]["sweep_args"] = args
+    else:
+        # args is list of parameters
+        overrides["overrides"]["args"] = args
 
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
@@ -1025,10 +1054,10 @@ def launch_sweep(
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=Scheduler.ENTRYPOINT,
+        entry_point=Scheduler.ENTRYPOINT if not scheduler_is_job else None,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
-        job=None,
+        job=scheduler_args.get("job"),
         version=None,
         launch_config=overrides,
         run_id=None,
