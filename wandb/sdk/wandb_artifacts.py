@@ -97,7 +97,8 @@ _REQUEST_POOL_MAXSIZE = 64
 
 ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
 
-S3_MAX_PART_NUMBERS = 10_000
+# AWS S3 max upload parts without having to make additional requests for extra parts
+S3_MAX_PART_NUMBERS = 1000
 
 
 class _AddedObj:
@@ -1001,15 +1002,15 @@ class WandbStoragePolicy(StoragePolicy):
                 upload_url,
                 file,
                 progress_callback,
-                extra_headers,
+                extra_headers=extra_headers,
             )
 
     def calc_chunk_size(self, file_size: int) -> int:
-        # Default to chunk size of 100MB. S3 has cap of 10,000 upload parts.
-        # If file size is 1TB+, chunk size exceed 100MB so recalculate chunk size.
+        # Default to chunk size of 100MiB. S3 has cap of 10,000 upload parts.
+        # If file size exceeds the default chunk size, recalculate chunk size.
         default_chunk_size = 100 * 1024**2
-        if file_size >= 1_000_000 * 1024**2:
-            return math.ceil(file_size / 10000)
+        if default_chunk_size * S3_MAX_PART_NUMBERS < file_size:
+            return math.ceil(file_size / S3_MAX_PART_NUMBERS)
         return default_chunk_size
 
     def store_file_sync(
@@ -1032,8 +1033,9 @@ class WandbStoragePolicy(StoragePolicy):
         hex_digests = {}
         file_path = entry.local_path if entry.local_path is not None else ""
 
-        # Only chunk files if larger than 2 GB
-        if file_size > 2_000 * 1024**2:
+        # Logic for AWS s3 multipart upload.
+        # Only chunk files if larger than 2 GiB. Currently can only support up to 5TiB.
+        if file_size > 2 * 1024**3 and file_size <= 5 * 1024**4:
             part_number = 1
             with open(file_path, "rb") as f:
                 while True:

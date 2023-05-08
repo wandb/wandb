@@ -239,7 +239,6 @@ class TestStoreFile:
             entry_local_path=some_file(tmp_path),
             preparer=preparer,
         )
-        print(api.upload_method.call_args)
         assert api.upload_method.call_args[1]["extra_headers"] == {
             "x-my-header": "my-header-val"
         }
