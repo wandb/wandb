@@ -1054,11 +1054,14 @@ def image_id_from_k8s() -> Optional[str]:
         with open(token_path, "r") as token_file:
             token = token_file.read()
     except FileNotFoundError:
-        logger.warning(f"Token file not found at {token_path}.")
+        wandb.termwarn(f"Token file not found at {token_path}.")
         return None
     except PermissionError as e:
         current_uid = os.getuid()
-        logger.warning(f"Unable to read the token file at {token_path} due to permission error ({e}). The current user id is {current_uid}. Consider changing the securityContext to run the container as the current user.")
+        wandb.termwarn(
+            f"Unable to read the token file at {token_path} due to permission error ({e})."
+            + f"The current user id is {current_uid}. Consider changing the securityContext to run the container as the current user."
+        )
         return None
 
     if token:
@@ -1086,6 +1089,7 @@ def image_id_from_k8s() -> Optional[str]:
             logger.exception("Error checking kubernetes for image id")
             return None
     return None
+
 
 def async_call(
     target: Callable, timeout: Optional[Union[int, float]] = None
