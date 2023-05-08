@@ -993,33 +993,34 @@ def launch_sweep(
             wandb.termerror("Couldn't determine sweep type from scheduler run args")
             return
     else:
-        parsed_sweep_config = parsed_config
-        # Check if custom sweep scheduler
+        # parsed_sweep_config = parsed_config
+        # # Check if custom sweep scheduler
         if parsed_sweep_config.get("method") == "custom":
             custom_config = parsed_sweep_config.pop("custom", None)
-            if not custom_config:
-                wandb.termerror(
-                    "Custom sweep requires a 'custom' section in the config"
-                )
-                return
-            _type = custom_config.get("type")
-            if not _type:
-                wandb.termerror(
-                    "Custom sweep scheduler require setting 'type' in 'custom' section of config"
-                )
-                return
+        #     if not custom_config:
+        #         wandb.termerror(
+        #             "Custom sweep requires a 'custom' section in the config"
+        #         )
+        #         return
+        #     _type = custom_config.get("type")
+        #     if not _type:
+        #         wandb.termerror(
+        #             "Custom sweep scheduler require setting 'type' in 'custom' section of config"
+        #         )
+        #         return
 
-            # Validation
-            if _type == "optuna":
-                from wandb.sdk.launch.sweeps.schedulers.scheduler_optuna import (
-                    validate_optuna,
-                )
+        #     # Validation
+        #     if _type == "optuna":
+        #         from wandb.sdk.launch.sweeps.schedulers.scheduler_optuna import (
+        #             validate_optuna,
+        #         )
 
-                if not validate_optuna(api, custom_config):
-                    return
-            elif _type in ["raytune", "hyperopt"]:
-                wandb.termerror(f"Currently unsupported launch sweep type: {_type}")
-                return
+        #         if not validate_optuna(api, custom_config):
+        #             return
+        #     elif _type in ["raytune", "hyperopt"]:
+        #         wandb.termerror(f"Currently unsupported launch sweep type: {_type}")
+        #         return
+        pass  # no validation?
 
     # validate job existence
     job = parsed_sweep_config.get("job")
@@ -1035,29 +1036,43 @@ def launch_sweep(
             wandb.termerror(f"Failed to load job. Error: {e}")
             return False
 
+    scheduler_job = scheduler_args.get("job")
+    if scheduler_job:
+        wandb.termwarn(
+            "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
+        )
+        # validate scheduler job existence
+        try:
+            public_api = PublicApi()
+            public_api.artifact(scheduler_args["job"], type="job")
+        except Exception as e:
+            wandb.termerror(f"Failed to load scheduler job. Error: {e}")
+            return False
+
+    entrypoint = Scheduler.ENTRYPOINT if scheduler_job else None
     args = sweep_utils.construct_scheduler_args(
         sweep_type=_type,
+        is_job="job" in scheduler_args,
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
         author=entity,
     )
     if not args:
-        # error already logged
         return
 
-    overrides = {
-        "overrides": {
-            "run_config": {},
-            "args": args,
-        }
-    }
+    overrides = {"run_config": {}}
     if launch_args:
         overrides["overrides"]["run_config"]["launch"] = launch_args
     if scheduler_args:
         overrides["overrides"]["run_config"]["scheduler"] = scheduler_args
     if custom_config:
         overrides["overrides"]["run_config"]["custom"] = custom_config
+    
+    if "job" in scheduler_args:
+        overrides["run_config"]["sweep_args"] = args
+    else:
+        overrides["args"] = args
 
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
@@ -1068,12 +1083,12 @@ def launch_sweep(
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=Scheduler.ENTRYPOINT,
+        entry_point=entrypoint,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
-        job=None,
+        job=scheduler_job,
         version=None,
-        launch_config=overrides,
+        launch_config={"overrides": overrides},
         run_id=None,
         author=None,  # author gets passed into scheduler override args
     )

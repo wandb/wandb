@@ -112,8 +112,9 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
         return False
 
     if run_spec.get("resource") == "local-process":
-        # If a scheduler is a local-process (100%), also
+        # If a scheduler is a local-process, also
         #    confirm command is in format: [wandb scheduler <sweep>]
+        # This will FAIL for schedulers run as jobs
         cmd = run_spec.get("overrides", {}).get("entry_point", [])
         if len(cmd) < 3:
             return False
