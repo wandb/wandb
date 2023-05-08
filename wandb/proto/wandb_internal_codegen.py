@@ -43,11 +43,15 @@ def generate_deprecated_class_definition() -> None:
 
 
 def get_pip_package_version(package_name: str) -> str:
-    out = subprocess.check_output(("pip", "show", package_name))
-    info: Dict[str, Any] = dict(
-        [line.split(": ", 2) for line in out.decode().rstrip("\n").split("\n")]  # type: ignore[misc]
-    )
-    return info["Version"]
+    # out = subprocess.check_output(("pip", "show", package_name))
+    # info: Dict[str, Any] = dict(
+    #     [line.split(": ", 2) for line in out.decode().rstrip("\n").split("\n")]  # type: ignore[misc]
+    # )
+    # return info["Version"]
+    try:
+        return pkg_resources.get_distribution(package_name).version
+    except pkg_resources.DistributionNotFound:
+        raise ValueError(f"Package `{package_name}` not found")
 
 
 def get_min_required_version(requirements_file_name: str, package_name: str) -> str:
