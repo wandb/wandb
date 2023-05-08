@@ -123,7 +123,7 @@ def construct_scheduler_args(
     queue: str,
     project: str,
     author: Optional[str] = None,
-    sweep_type: Optional[str] = "sweep",
+    sweep_type: Optional[str] = "wandb",
 ) -> Optional[List[str]]:
     """Construct a sweep scheduler entrypoing and args.
 

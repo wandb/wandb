@@ -986,6 +986,7 @@ def launch_sweep(
             wandb.termerror("Couldn't resume run from scheduler run")
             return
 
+        # TODO(gst): make this play nice with schedulers jobs
         idx = run["args"].index("--sweep_type") + 1
         if idx > 0:
             _type = run["args"][idx]
@@ -994,33 +995,10 @@ def launch_sweep(
             return
     else:
         parsed_sweep_config = parsed_config
-        # # Check if custom sweep scheduler
+        # Check if custom sweep scheduler
         if parsed_sweep_config.get("method") == "custom":
-            custom_config = parsed_sweep_config.pop("custom", None)
-            #     if not custom_config:
-            #         wandb.termerror(
-            #             "Custom sweep requires a 'custom' section in the config"
-            #         )
-            #         return
+            custom_config = parsed_sweep_config.pop("custom", {})
             _type = custom_config.get("type")
-        #     if not _type:
-        #         wandb.termerror(
-        #             "Custom sweep scheduler require setting 'type' in 'custom' section of config"
-        #         )
-        #         return
-
-        #     # Validation
-        #     if _type == "optuna":
-        #         from wandb.sdk.launch.sweeps.schedulers.scheduler_optuna import (
-        #             validate_optuna,
-        #         )
-
-        #         if not validate_optuna(api, custom_config):
-        #             return
-        #     elif _type in ["raytune", "hyperopt"]:
-        #         wandb.termerror(f"Currently unsupported launch sweep type: {_type}")
-        #         return
-        pass  # no validation?
 
     # validate job existence
     job = parsed_sweep_config.get("job")
