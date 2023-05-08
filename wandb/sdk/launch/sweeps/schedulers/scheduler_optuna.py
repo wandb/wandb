@@ -14,8 +14,9 @@ import click
 import optuna
 
 import wandb
-from wandb.apis.public import Artifact, QueuedRun, Run, Api as PublicApi
 from wandb.apis.internal import Api
+from wandb.apis.public import Api as PublicApi
+from wandb.apis.public import Artifact, QueuedRun, Run
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import Scheduler, SweepRun
 

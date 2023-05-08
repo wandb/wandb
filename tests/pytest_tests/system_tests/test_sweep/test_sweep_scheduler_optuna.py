@@ -9,7 +9,7 @@ from wandb.apis import internal, public
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import RunState
-from wandb.sdk.launch.sweeps.scheduler_optuna import (
+from wandb.sdk.launch.sweeps.schedulers.scheduler_optuna import (
     OptunaComponents,
     OptunaScheduler,
     validate_optuna_pruner,
