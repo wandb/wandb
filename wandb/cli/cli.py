@@ -982,7 +982,7 @@ def launch_sweep(
     else:
         parsed_sweep_config = parsed_config
 
-    # validate job existence, add :latest alias if not specified
+    # validate job existence
     job = parsed_sweep_config.get("job")
     if job:
         if not isinstance(job, str) or ":" not in job:
@@ -1002,6 +1002,7 @@ def launch_sweep(
         wandb.termwarn(
             "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
         )
+        # validate scheduler job existence
         try:
             public_api = PublicApi()
             public_api.artifact(scheduler_args["job"], type="job")
@@ -1041,7 +1042,7 @@ def launch_sweep(
     if scheduler_is_job:
         # args is a dict here
         overrides["overrides"]["run_config"]["sweep_args"] = args
-    else:
+    else:  # scheduler uses raw entrypoint
         # args is list of parameters
         overrides["overrides"]["args"] = args
 
