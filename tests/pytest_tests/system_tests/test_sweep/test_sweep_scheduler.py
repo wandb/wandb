@@ -20,7 +20,7 @@ from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
 
 
 def test_sweep_scheduler_load():
-    _scheduler = load_scheduler("sweep")
+    _scheduler = load_scheduler("wandb")
     assert _scheduler == SweepScheduler
     with pytest.raises(SchedulerError):
         load_scheduler("unknown")
@@ -704,7 +704,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         "--project",
         project,
         "--sweep_type",
-        "sweep",
+        "wandb",
         "--author",
         "author",
     ]
@@ -834,7 +834,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
     _scheduler = SweepScheduler(
         api,
         sweep_id=sweep_id,
-        sweep_type="sweep",
+        sweep_type="wandb",
         entity=user,
         project=_project,
         polling_sleep=0,
@@ -872,7 +872,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
         api,
         sweep_id=sweep_id,
         run_id=sweep_id,  # resuming from previous sweep
-        sweep_type="sweep",
+        sweep_type="wandb",
         entity=user,
         project=_project,
         polling_sleep=0,

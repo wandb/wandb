@@ -17,7 +17,7 @@ def _import_sweep_scheduler() -> Any:
 
 
 _WANDB_SCHEDULERS: Dict[str, Callable] = {
-    "sweep": _import_sweep_scheduler,
+    "wandb": _import_sweep_scheduler,
 }
 
 

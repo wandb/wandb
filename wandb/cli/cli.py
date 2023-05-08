@@ -1486,7 +1486,7 @@ def scheduler(
                 _args = int(_args)
             kwargs[_key] = _args
     try:
-        sweep_type = kwargs.get("sweep_type", "sweep")
+        sweep_type = kwargs.get("sweep_type", "wandb")
         _scheduler = load_scheduler(scheduler_type=sweep_type)(
             api,
             sweep_id=sweep_id,
