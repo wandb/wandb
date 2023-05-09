@@ -114,6 +114,10 @@ message Imports {
   bool langchain = 86;
   bool llama_index = 87;
   bool stability_sdk = 88;
+  bool pinecone = 89;
+  bool chromadb = 90;
+  bool weaviate = 91;
+  bool promptlayer = 92;
 }
 
 message Feature {
