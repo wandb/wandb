@@ -113,13 +113,13 @@ class GPUAMD:
             shutdown_event,
         )
         telemetry_record = telemetry.TelemetryRecord()
-        telemetry_record.env.m1_gpu = True
+        telemetry_record.env.amd_gpu = True
         interface._publish_telemetry(telemetry_record)
 
     @classmethod
     def is_available(cls) -> bool:
         try:
-            rocm_smi_available = shutil.which("rocm-smi") is not None
+            rocm_smi_available = shutil.which(ROCM_SMI_CMD) is not None
             if rocm_smi_available:
                 _ = get_rocm_smi_stats()
                 return True
