@@ -51,7 +51,7 @@ import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.paths import FilePathStr, LogicalFilePathStr, StrPath
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -1050,7 +1050,21 @@ def image_id_from_k8s() -> Optional[str]:
           fieldPath: metadata.namespace
     """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-    if os.path.exists(token_path):
+    try:
+        with open(token_path) as token_file:
+            token = token_file.read()
+    except FileNotFoundError:
+        wandb.termwarn(f"Token file not found at {token_path}.")
+        return None
+    except PermissionError as e:
+        current_uid = os.getuid()
+        wandb.termwarn(
+            f"Unable to read the token file at {token_path} due to permission error ({e})."
+            + f"The current user id is {current_uid}. Consider changing the securityContext to run the container as the current user."
+        )
+        return None
+
+    if token:
         k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
             os.getenv("KUBERNETES_SERVICE_HOST"),
             os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
@@ -1062,7 +1076,7 @@ def image_id_from_k8s() -> Optional[str]:
                 k8s_server,
                 verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
                 timeout=3,
-                headers={"Authorization": f"Bearer {open(token_path).read()}"},
+                headers={"Authorization": f"Bearer {token}"},
             )
             res.raise_for_status()
         except requests.RequestException:
@@ -1289,10 +1303,10 @@ def auto_project_name(program: Optional[str]) -> str:
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
-def to_forward_slash_path(path: str) -> LogicalFilePathStr:
+def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return LogicalFilePathStr(path)
+    return path
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
