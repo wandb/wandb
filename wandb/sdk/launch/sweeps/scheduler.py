@@ -524,6 +524,7 @@ class Scheduler(ABC):
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
             author=self._kwargs.get("author"),
+            sweep_id=self._sweep_id,
         )
         run.queued_run = queued_run
         # TODO(gst): unify run and queued_run state

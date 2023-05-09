@@ -125,7 +125,7 @@ def construct_scheduler_args(
     project: str,
     author: Optional[str] = None,
     sweep_type: Optional[str] = "sweep",
-) -> Optional[Union[List[str], Dict[str, str]]]:
+) -> Union[List[str], Dict[str, str], None]:
     """Construct sweep scheduler args.
 
     logs error and returns None if misconfigured,
