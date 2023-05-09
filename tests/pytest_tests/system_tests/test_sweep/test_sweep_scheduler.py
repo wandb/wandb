@@ -731,7 +731,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
 def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish"]),
+        lambda _x: Mock(["finish", "config"]),
     )
 
     def mock_launch_add(*args, **kwargs):

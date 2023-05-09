@@ -56,11 +56,11 @@ def test_load_launch_sweep_config():
 
 
 def test_sweep_construct_scheduler_args():
-    assert not utils.construct_scheduler_args("wandb", {}, "queue", "project")
-
-    args = utils.construct_scheduler_args(
-        "wandb", {"job": "job:12315"}, "queue", "project"
+    assert not utils.construct_scheduler_args(
+        {}, "queue", "project", sweep_type="wandb"
     )
+
+    args = utils.construct_scheduler_args({"job": "job:12315"}, "queue", "project")
     assert args == [
         "--queue",
         "'queue'",
@@ -73,7 +73,7 @@ def test_sweep_construct_scheduler_args():
     ]
 
     args = utils.construct_scheduler_args(
-        "wandb", {"job": "job:latest"}, "queue", "project", author="author"
+        {"job": "job:latest"}, "queue", "project", author="author", sweep_type="wandb"
     )
     assert args == [
         "--queue",
@@ -89,7 +89,7 @@ def test_sweep_construct_scheduler_args():
     ]
 
     args = utils.construct_scheduler_args(
-        "wandb", {"image_uri": "image_uri"}, "queue", "project"
+        {"image_uri": "image_uri"}, "queue", "project"
     )
     assert args == [
         "--queue",
@@ -105,6 +105,6 @@ def test_sweep_construct_scheduler_args():
     # should fail because job and image_uri are mutually exclusive
     assert not (
         utils.construct_scheduler_args(
-            "wandb", {"job": "job:111", "image_uri": "image_uri"}, "queue", "project"
+            {"job": "job:111", "image_uri": "image_uri"}, "queue", "project"
         )
     )
