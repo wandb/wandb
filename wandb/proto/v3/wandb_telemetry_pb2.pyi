@@ -583,6 +583,7 @@ class Env(google.protobuf.message.Message):
     COLAB_FIELD_NUMBER: builtins.int
     IPYTHON_FIELD_NUMBER: builtins.int
     AWS_LAMBDA_FIELD_NUMBER: builtins.int
+    AMD_GPU_FIELD_NUMBER: builtins.int
     jupyter: builtins.bool
     """jupyter env detected"""
     kaggle: builtins.bool
@@ -611,6 +612,8 @@ class Env(google.protobuf.message.Message):
     """ipython env detected"""
     aws_lambda: builtins.bool
     """running in AWS Lambda"""
+    amd_gpu: builtins.bool
+    """AMD GPU detected"""
     def __init__(
         self,
         *,
@@ -628,8 +631,9 @@ class Env(google.protobuf.message.Message):
         colab: builtins.bool = ...,
         ipython: builtins.bool = ...,
         aws_lambda: builtins.bool = ...,
+        amd_gpu: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["aws_lambda", b"aws_lambda", "colab", b"colab", "ipython", b"ipython", "jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "pex", b"pex", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "trainium", b"trainium", "windows", b"windows"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["amd_gpu", b"amd_gpu", "aws_lambda", b"aws_lambda", "colab", b"colab", "ipython", b"ipython", "jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "pex", b"pex", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "trainium", b"trainium", "windows", b"windows"]) -> None: ...
 
 global___Env = Env
 
