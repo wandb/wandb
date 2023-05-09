@@ -99,6 +99,8 @@ ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
 
 # AWS S3 max upload parts without having to make additional requests for extra parts
 S3_MAX_PART_NUMBERS = 1000
+S3_MIN_MULTI_UPLOAD_SIZE = 2 * 1024**3
+S3_MAX_MULTI_UPLOAD_SIZE = 5 * 1024**4
 
 
 class _AddedObj:
@@ -1032,10 +1034,12 @@ class WandbStoragePolicy(StoragePolicy):
         upload_parts = []
         hex_digests = {}
         file_path = entry.local_path if entry.local_path is not None else ""
-
         # Logic for AWS s3 multipart upload.
         # Only chunk files if larger than 2 GiB. Currently can only support up to 5TiB.
-        if file_size > 2 * 1024**3 and file_size <= 5 * 1024**4:
+        if (
+            file_size >= S3_MIN_MULTI_UPLOAD_SIZE
+            and file_size <= S3_MAX_MULTI_UPLOAD_SIZE
+        ):
             part_number = 1
             with open(file_path, "rb") as f:
                 while True:
@@ -1062,7 +1066,7 @@ class WandbStoragePolicy(StoragePolicy):
         entry.birth_artifact_id = resp.birth_artifact_id
 
         multipart_urls = resp.multipart_upload_url
-        if resp.upload_url is None and multipart_urls is None:
+        if resp.upload_url is None:
             return True
         if entry.local_path is None:
             return False
