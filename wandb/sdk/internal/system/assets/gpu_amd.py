@@ -5,7 +5,7 @@ import subprocess
 import sys
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Union
 
 if sys.version_info >= (3, 8):
     from typing import Final, TypedDict
@@ -46,9 +46,7 @@ class _Stats(TypedDict):
     powerPercent: float  # noqa: N815
 
 
-class _InfoDict(TypedDict):
-    gpu_count: int
-    gpu_devices: List[Dict[str, Any]]
+_InfoDict = Dict[str, Union[int, List[Dict[str, Any]]]]
 
 
 class GPUAMDStats:
