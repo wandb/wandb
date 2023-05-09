@@ -41,7 +41,6 @@ def get_rocm_smi_stats() -> Dict[str, Any]:
 class _Stats(TypedDict):
     gpu: float
     memory: float
-    memoryAllocated: float  # noqa: N815
     temp: float
     powerWatts: float  # noqa: N815
     powerPercent: float  # noqa: N815
@@ -51,7 +50,7 @@ class GPUAMDStats:
     """Stats for AMD GPU devices."""
 
     name = "gpu.{gpu_id}.{key}"
-    samples: "Deque[_Stats]"
+    samples: "Deque[List[_Stats]]"
 
     def __init__(self) -> None:
         self.samples = deque()
@@ -59,17 +58,30 @@ class GPUAMDStats:
     def sample(self) -> None:
         try:
             raw_stats = get_rocm_smi_stats()
+            cards = []
 
-            stats: _Stats = {
-                "gpu": raw_stats["utilization"],
-                "memory": raw_stats["mem_total"],
-                "memoryAllocated": raw_stats["mem_used"],
-                "temp": raw_stats["temperature"],
-                "powerWatts": raw_stats["power"],
-                "powerPercent": 100,
-            }
+            for key in sorted(raw_stats.keys()):
+                if not key.startswith("card"):
+                    continue
+                card_stats = raw_stats[key]
 
-            self.samples.append(stats)
+                stats: _Stats = {
+                    "gpu": float(card_stats["GPU use (%)"]),
+                    "memory": float(card_stats["GPU memory use (%)"]),
+                    "temp": float(card_stats["Temperature (Sensor memory) (C)"]),
+                    "powerWatts": float(
+                        card_stats["Average Graphics Package Power (W)"]
+                    ),
+                    "powerPercent": (
+                        float(card_stats["Average Graphics Package Power (W)"])
+                        / float(card_stats["Max Graphics Package Power (W)"])
+                        * 100
+                    ),
+                }
+
+                cards.append(stats)
+
+            self.samples.append(cards)
 
         except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
             logger.exception(f"GPU stats error: {e}")
@@ -81,10 +93,16 @@ class GPUAMDStats:
         if not self.samples:
             return {}
         stats = {}
-        for key in self.samples[0].keys():
-            samples = [s[key] for s in self.samples]  # type: ignore
-            aggregate = aggregate_mean(samples)
-            stats[self.name.format(key)] = aggregate
+        device_count = len(self.samples[0])
+
+        for i in range(device_count):
+            samples = [sample[i] for sample in self.samples]
+
+            for key in samples[0].keys():
+                samples_key = [s[key] for s in samples]  # type: ignore
+                aggregate = aggregate_mean(samples_key)
+                stats[self.name.format(gpu_id=i, key=key)] = aggregate
+
         return stats
 
 

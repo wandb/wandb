@@ -89,7 +89,7 @@ def test_gpu_amd(test_settings):
         "which",
         return_value=True,
     ):
-        print(wandb.sdk.internal.system.assets.gpu_amd.get_rocm_smi_stats())
+        # print(wandb.sdk.internal.system.assets.gpu_amd.get_rocm_smi_stats())
 
         interface = AssetInterface()
         settings = SettingsStatic(
