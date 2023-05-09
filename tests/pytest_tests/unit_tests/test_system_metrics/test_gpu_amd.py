@@ -109,7 +109,12 @@ def test_gpu_amd(test_settings):
         )
         assert gpu.is_available()
         gpu.start()
-        # assert gpu.probe() == {"gpuapple": {"type": "arm", "vendor": "Apple"}}
+        probe = gpu.probe()
+        assert probe["gpu_count"] == 1
+        assert (
+            probe["gpu_devices"][0]["vendor"]
+            == "Advanced Micro Devices, Inc. [AMD/ATI]"
+        )
         time.sleep(1)
         shutdown_event.set()
         gpu.finish()

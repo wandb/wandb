@@ -154,4 +154,34 @@ class GPUAMD:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        return {}
+        info = {}
+        try:
+            stats = get_rocm_smi_stats()
+
+            info["gpu_count"] = len(
+                [key for key in stats.keys() if key.startswith("card")]
+            )
+            info["gpu_devices"] = [
+                {
+                    "id": stats[key]["GPU ID"],
+                    "unique_id": stats[key]["Unique ID"],
+                    "vbios_version": stats[key]["VBIOS version"],
+                    "performance_level": stats[key]["Performance Level"],
+                    "gpu_overdrive": stats[key]["GPU OverDrive value (%)"],
+                    "gpu_memory_overdrive": stats[key][
+                        "GPU Memory OverDrive value (%)"
+                    ],
+                    "max_power": stats[key]["Max Graphics Package Power (W)"],
+                    "series": stats[key]["Card series"],
+                    "model": stats[key]["Card model"],
+                    "vendor": stats[key]["Card vendor"],
+                    "sku": stats[key]["Card SKU"],
+                    "sclk_range": stats[key]["Valid sclk range"],
+                    "mclk_range": stats[key]["Valid mclk range"],
+                }
+                for key in stats.keys()
+                if key.startswith("card")
+            ]
+        except Exception as e:
+            logger.exception(f"GPUAMD probe error: {e}")
+        return info
