@@ -187,6 +187,7 @@ message Env {
   bool colab = 12; // colab env detected
   bool ipython = 13; // ipython env detected
   bool aws_lambda = 14; // running in AWS Lambda
+  bool amd_gpu = 15; // AMD GPU detected
 }
 
 message Labels {

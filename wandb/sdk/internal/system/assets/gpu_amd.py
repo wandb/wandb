@@ -1,13 +1,18 @@
+import json
+import logging
+import shutil
+import subprocess
+import sys
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, TypedDict
 
-try:
-    import wandb.vendor.rocm_smi.rocm_smi as rocm_smi  # type: ignore
-except ImportError:
-    rocm_smi = None
+if sys.version_info >= (3, 8):
+    from typing import Final
+else:
+    from typing_extensions import Final
 
-import wandb
+from wandb.sdk.lib import telemetry
 
 from .aggregators import aggregate_mean
 from .asset_registry import asset_registry
@@ -19,84 +24,53 @@ if TYPE_CHECKING:
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
+logger = logging.getLogger(__name__)
+
+
+ROCM_SMI_CMD: Final[str] = shutil.which("rocm-smi") or "/usr/bin/rocm-smi"
+
+
+def get_rocm_smi_stats() -> Dict[str, Any]:
+    command = [str(ROCM_SMI_CMD), "-a", "--json"]
+    output = (
+        subprocess.check_output(command, universal_newlines=True).strip().split("\n")
+    )[0]
+    return json.loads(output)
+
+
+class _Stats(TypedDict):
+    gpu: float
+    memoryAllocated: float  # noqa: N815
+    temp: float
+    powerWatts: float  # noqa: N815
+    powerPercent: float  # noqa: N815
+
+
 class GPUAMDStats:
     """Stats for AMD GPU devices."""
 
-    name = "gpu.{}.{}"
-    samples: "Deque[dict]"
+    name = "gpu.{gpu_id}.{key}"
+    samples: "Deque[_Stats]"
 
-    def __init__(self, pid: int, gc_ipu_info: Optional[Any] = None) -> None:
-        self.samples: "Deque[dict]" = deque()
-
-        if gc_ipu_info is None:
-            if not gcipuinfo:
-                raise ImportError(
-                    "Monitoring IPU stats requires gcipuinfo to be installed"
-                )
-
-            self._gc_ipu_info = gcipuinfo.gcipuinfo()
-        else:
-            self._gc_ipu_info = gc_ipu_info
-        self._gc_ipu_info.setUpdateMode(True)
-
-        self._pid = pid
-        self._devices_called: Set[str] = set()
-
-    @staticmethod
-    def parse_metric(key: str, value: str) -> Optional[Tuple[str, Union[int, float]]]:
-        metric_suffixes = {
-            "temp": "C",
-            "clock": "MHz",
-            "power": "W",
-            "utilisation": "%",
-            "utilisation (session)": "%",
-            "speed": "GT/s",
-        }
-
-        for metric, suffix in metric_suffixes.items():
-            if key.endswith(metric) and value.endswith(suffix):
-                value = value[: -len(suffix)]
-                key = f"{key} ({suffix})"
-
-        try:
-            float_value = float(value)
-            num_value = int(float_value) if float_value.is_integer() else float_value
-        except ValueError:
-            return None
-
-        return key, num_value
+    def __init__(self) -> None:
+        self.samples = deque()
 
     def sample(self) -> None:
         try:
-            stats = {}
-            devices = self._gc_ipu_info.getDevices()
+            raw_stats = get_rocm_smi_stats()
 
-            for device in devices:
-                device_metrics: Dict[str, str] = dict(device)
-
-                pid = device_metrics.get("user process id")
-                if pid is None or int(pid) != self._pid:
-                    continue
-
-                device_id = device_metrics.get("id")
-                initial_call = device_id not in self._devices_called
-                if device_id is not None:
-                    self._devices_called.add(device_id)
-
-                for key, value in device_metrics.items():
-                    log_metric = initial_call or key in self.variable_metric_keys
-                    if not log_metric:
-                        continue
-                    parsed = self.parse_metric(key, value)
-                    if parsed is None:
-                        continue
-                    parsed_key, parsed_value = parsed
-                    stats[self.name.format(device_id, parsed_key)] = parsed_value
+            stats: _Stats = {
+                "gpu": raw_stats["utilization"],
+                "memoryAllocated": raw_stats["mem_used"],
+                "temp": raw_stats["temperature"],
+                "powerWatts": raw_stats["power"],
+                "powerPercent": 100,
+            }
 
             self.samples.append(stats)
 
-        except Exception as e:
-            wandb.termwarn(f"IPU stats error {e}", repeat=False)
+        except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
+            logger.exception(f"GPU stats error: {e}")
 
     def clear(self) -> None:
         self.samples.clear()
@@ -106,9 +80,9 @@ class GPUAMDStats:
             return {}
         stats = {}
         for key in self.samples[0].keys():
-            samples = [s[key] for s in self.samples if key in s]
+            samples = [s[key] for s in self.samples]  # type: ignore
             aggregate = aggregate_mean(samples)
-            stats[key] = aggregate
+            stats[self.name.format(key)] = aggregate
         return stats
 
 
@@ -116,7 +90,7 @@ class GPUAMDStats:
 class GPUAMD:
     """GPUAMD is a class for monitoring AMD GPU devices.
 
-    Uses AMD's ROCm python bindings to get GPU stats.
+    Uses AMD's rocm_smi tool to get GPU stats.
     For the list of supported environments and devices, see
     https://github.com/RadeonOpenCompute/ROCm/blob/develop/docs/deploy/
     """
@@ -129,7 +103,7 @@ class GPUAMD:
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
-            IPUStats(settings._stats_pid),
+            GPUAMDStats(),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,
@@ -138,10 +112,20 @@ class GPUAMD:
             settings,
             shutdown_event,
         )
+        telemetry_record = telemetry.TelemetryRecord()
+        telemetry_record.env.m1_gpu = True
+        interface._publish_telemetry(telemetry_record)
 
     @classmethod
     def is_available(cls) -> bool:
-        return (rocm_smi is not None) and rocm_smi.listDevices()
+        try:
+            rocm_smi_available = shutil.which("rocm-smi") is not None
+            if rocm_smi_available:
+                _ = get_rocm_smi_stats()
+                return True
+        except Exception:
+            pass
+        return False
 
     def start(self) -> None:
         self.metrics_monitor.start()
@@ -150,23 +134,4 @@ class GPUAMD:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        device_data = self.metrics[0]._gc_ipu_info.getDevices()  # type: ignore
-        device_count = len(device_data)
-        devices = []
-        for i, device in enumerate(device_data):
-            device_metrics: Dict[str, str] = dict(device)
-            devices.append(
-                {
-                    "id": device_metrics.get("id") or i,
-                    "board ipu index": device_metrics.get("board ipu index"),
-                    "board type": device_metrics.get("board type") or "unknown",
-                }
-            )
-
-        return {
-            self.name: {
-                "device_count": device_count,
-                "devices": devices,
-                "vendor": "Graphcore",
-            }
-        }
+        return {}
