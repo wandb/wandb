@@ -5,12 +5,12 @@ import subprocess
 import sys
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, Dict, List, TypedDict
+from typing import TYPE_CHECKING, Any, Dict, List
 
 if sys.version_info >= (3, 8):
-    from typing import Final
+    from typing import Final, TypedDict
 else:
-    from typing_extensions import Final
+    from typing_extensions import Final, TypedDict
 
 from wandb.sdk.lib import telemetry
 
@@ -35,15 +35,20 @@ def get_rocm_smi_stats() -> Dict[str, Any]:
     output = (
         subprocess.check_output(command, universal_newlines=True).strip().split("\n")
     )[0]
-    return json.loads(output)
+    return json.loads(output)  # type: ignore
 
 
 class _Stats(TypedDict):
     gpu: float
-    memoryAllocated: float
+    memoryAllocated: float  # noqa: N815
     temp: float
     powerWatts: float  # noqa: N815
     powerPercent: float  # noqa: N815
+
+
+class _InfoDict(TypedDict):
+    gpu_count: int
+    gpu_devices: List[Dict[str, Any]]
 
 
 class GPUAMDStats:
@@ -154,7 +159,7 @@ class GPUAMD:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        info = {}
+        info: _InfoDict = {}
         try:
             stats = get_rocm_smi_stats()
 
