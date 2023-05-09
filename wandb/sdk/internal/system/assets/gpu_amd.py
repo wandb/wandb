@@ -141,13 +141,13 @@ class GPUAMD:
 
     @classmethod
     def is_available(cls) -> bool:
-        try:
-            rocm_smi_available = shutil.which(ROCM_SMI_CMD) is not None
-            if rocm_smi_available:
+        rocm_smi_available = shutil.which(ROCM_SMI_CMD) is not None
+        if rocm_smi_available:
+            try:
                 _ = get_rocm_smi_stats()
                 return True
-        except Exception:
-            pass
+            except Exception:
+                pass
         return False
 
     def start(self) -> None:
