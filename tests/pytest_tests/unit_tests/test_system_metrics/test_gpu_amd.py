@@ -1,3 +1,13 @@
+import json
+import threading
+import time
+from unittest import mock
+
+import wandb
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.internal.system.assets import GPUAMD
+from wandb.sdk.internal.system.system_monitor import AssetInterface
+
 STATS_AMD = {
     "card0": {
         "GPU ID": "0x740f",
@@ -67,3 +77,41 @@ STATS_AMD = {
     },
     "system": {"Driver version": "5.18.13"},
 }
+
+
+def test_gpu_amd(test_settings):
+    with mock.patch.object(
+        wandb.sdk.internal.system.assets.gpu_amd.subprocess,
+        "check_output",
+        return_value=json.dumps(STATS_AMD),
+    ), mock.patch.object(
+        wandb.sdk.internal.system.assets.gpu_amd.shutil,
+        "which",
+        return_value=True,
+    ):
+        print(wandb.sdk.internal.system.assets.gpu_amd.get_rocm_smi_stats())
+
+        interface = AssetInterface()
+        settings = SettingsStatic(
+            test_settings(
+                dict(
+                    _stats_sample_rate_seconds=0.1,
+                    _stats_samples_to_average=2,
+                )
+            ).make_static()
+        )
+        shutdown_event = threading.Event()
+
+        gpu = GPUAMD(
+            interface=interface,
+            settings=settings,
+            shutdown_event=shutdown_event,
+        )
+        assert gpu.is_available()
+        gpu.start()
+        # assert gpu.probe() == {"gpuapple": {"type": "arm", "vendor": "Apple"}}
+        time.sleep(1)
+        shutdown_event.set()
+        gpu.finish()
+
+        assert not interface.metrics_queue.empty()

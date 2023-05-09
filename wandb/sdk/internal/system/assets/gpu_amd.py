@@ -40,6 +40,7 @@ def get_rocm_smi_stats() -> Dict[str, Any]:
 
 class _Stats(TypedDict):
     gpu: float
+    memory: float
     memoryAllocated: float  # noqa: N815
     temp: float
     powerWatts: float  # noqa: N815
@@ -61,6 +62,7 @@ class GPUAMDStats:
 
             stats: _Stats = {
                 "gpu": raw_stats["utilization"],
+                "memory": raw_stats["mem_total"],
                 "memoryAllocated": raw_stats["mem_used"],
                 "temp": raw_stats["temperature"],
                 "powerWatts": raw_stats["power"],
