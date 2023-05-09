@@ -118,6 +118,13 @@ message Imports {
   bool chromadb = 90;
   bool weaviate = 91;
   bool promptlayer = 92;
+  bool openai = 93;
+  bool cohere = 94;
+  bool anthropic = 95;
+  bool peft = 96;
+  bool optimum = 97;
+  bool evaluate = 98;
+  bool langflow = 99;
 }
 
 message Feature {
