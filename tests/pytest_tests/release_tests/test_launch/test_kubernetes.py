@@ -1,4 +1,5 @@
 import subprocess
+
 from wandb.sdk.launch.launch_add import launch_add
 
 ENTITY = "launch-release-testing"
