@@ -23,6 +23,7 @@ else:
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
+from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -335,7 +336,7 @@ class Object3D(BatchableMedia):
         jsons = [obj.to_json(run) for obj in seq]
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            expected = LogicalPath(cls.get_media_subdir())
             if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Object3D's must be in the {} directory, not {}".format(
