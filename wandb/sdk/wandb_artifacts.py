@@ -737,6 +737,11 @@ class Artifact(ArtifactInterface):
     def _add_local_file(
         self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
+        # Verify that we have enough space to copy the file.
+        reserve_bytes = env.get_minimum_free_space()
+        size = os.path.getsize(path)
+        filesystem.check_available_space(path, reserve=reserve_bytes, size=size)
+
         with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
