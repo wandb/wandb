@@ -1,34 +1,13 @@
 import io
 import logging
-import sys
 import uuid
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.sdk.data_types import trace_tree
-
-if sys.version_info >= (3, 8):
-    from typing import Literal, Protocol
-else:
-    from typing_extensions import Literal, Protocol
-
+from wandb.sdk.integration_utils.llm import Response
 
 logger = logging.getLogger(__name__)
-
-
-K = TypeVar("K", bound=str)
-V = TypeVar("V")
-
-
-class OpenAIResponse(Protocol[K, V]):
-    # contains a (known) object attribute
-    object: Literal["chat.completion", "edit", "text_completion"]
-
-    def __getitem__(self, key: K) -> V:
-        ...  # pragma: no cover
-
-    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
-        ...  # pragma: no cover
 
 
 def get_alias_and_cost(model_name: str, is_completion: bool = False) -> float:
@@ -68,18 +47,21 @@ class OpenAIRequestResponseResolver:
     def __call__(
         self,
         request: Dict[str, Any],
-        response: OpenAIResponse,
+        response: Response,
+        start_time: float,  # pass to comply with the protocol, but use response["created"] instead
         time_elapsed: float,
     ) -> Optional[Dict[str, Any]]:
         try:
-            if response["object"] == "edit":
+            if response.get("object") == "edit":
                 return self._resolve_edit(request, response, time_elapsed)
-            elif response["object"] == "text_completion":
+            elif response.get("object") == "text_completion":
                 return self._resolve_completion(request, response, time_elapsed)
-            elif response["object"] == "chat.completion":
+            elif response.get("object") == "chat.completion":
                 return self._resolve_chat_completion(request, response, time_elapsed)
             else:
-                logger.info(f"Unknown OpenAI response object: {response['object']}")
+                logger.info(
+                    f"Unsupported OpenAI response object: {response.get('object')}"
+                )
         except Exception as e:
             logger.warning(f"Failed to resolve request/response: {e}")
         return None
@@ -87,7 +69,7 @@ class OpenAIRequestResponseResolver:
     @staticmethod
     def results_to_trace_tree(
         request: Dict[str, Any],
-        response: OpenAIResponse,
+        response: Response,
         results: List[trace_tree.Result],
         time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
@@ -117,7 +99,7 @@ class OpenAIRequestResponseResolver:
     def _resolve_edit(
         self,
         request: Dict[str, Any],
-        response: OpenAIResponse,
+        response: Response,
         time_elapsed: float,
     ) -> Dict[str, Any]:
         """Resolves the request and response objects for `openai.Edit`."""
@@ -140,7 +122,7 @@ class OpenAIRequestResponseResolver:
     def _resolve_completion(
         self,
         request: Dict[str, Any],
-        response: OpenAIResponse,
+        response: Response,
         time_elapsed: float,
     ) -> Dict[str, Any]:
         """Resolves the request and response objects for `openai.Completion`."""
@@ -160,7 +142,7 @@ class OpenAIRequestResponseResolver:
     def _resolve_chat_completion(
         self,
         request: Dict[str, Any],
-        response: OpenAIResponse,
+        response: Response,
         time_elapsed: float,
     ) -> Dict[str, Any]:
         """Resolves the request and response objects for `openai.Completion`."""
@@ -185,7 +167,7 @@ class OpenAIRequestResponseResolver:
     def _resolve_metrics(
         self,
         request: Dict[str, Any],
-        response: OpenAIResponse,
+        response: Response,
         request_str: str,
         choices: List[str],
         time_elapsed: float,
@@ -203,7 +185,7 @@ class OpenAIRequestResponseResolver:
 
     def _get_usage_metrics(
         self,
-        response: OpenAIResponse,
+        response: Response,
         time_elapsed: float,
         model_alias_and_cost: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -238,7 +220,7 @@ class OpenAIRequestResponseResolver:
     def _get_metrics_to_log(
         self,
         request: Dict[str, Any],
-        response: OpenAIResponse,
+        response: Response,
         results: List[Any],
         time_elapsed: float,
     ) -> Dict[str, Any]:
