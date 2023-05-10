@@ -692,6 +692,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
     project = "test"
 
     args = construct_scheduler_args(
+        is_job=False,
         sweep_config=sweep_config,
         queue=queue,
         project=project,
