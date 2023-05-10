@@ -248,7 +248,8 @@ class Scheduler(ABC):
             job_type=self.SWEEP_JOB_TYPE,
             # use the sweep ID as the run ID, if the sweep already exists then
             #   the run is resumed, else init a new run
-            resume=self._sweep_id,
+            resume="allow",
+            id=self._sweep_id,
         )
         return run
 
