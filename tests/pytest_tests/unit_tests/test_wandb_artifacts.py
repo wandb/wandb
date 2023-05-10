@@ -1,13 +1,13 @@
 import asyncio
 import functools
 import queue
+import unittest.mock as mock
 from pathlib import Path
-import requests
 from typing import TYPE_CHECKING, Any, Mapping, Optional
 from unittest.mock import Mock
-import unittest.mock as mock
 
 import pytest
+import requests
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 from wandb.sdk.wandb_artifacts import (
     Artifact,
