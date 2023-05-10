@@ -146,16 +146,18 @@ def construct_scheduler_args(
 
     # if scheduler is a job, return args as dict
     if is_job:
-        args_dict = {
+        args_dict: Dict[str, str] = {
             "sweep_id": "WANDB_SWEEP_ID",
             "queue": queue,
             "project": project,
-            "author": author,
         }
         if job:
             args_dict["job"] = job
-        else:
+        elif image_uri:
             args_dict["image_uri"] = image_uri
+
+        if author:
+            args_dict["author"] = author
 
         return args_dict
 

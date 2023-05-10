@@ -153,8 +153,8 @@ def _launch_add(
         config,
         run_id,
         repository,
-        sweep_id,
         author,
+        sweep_id,
     )
 
     if build:
