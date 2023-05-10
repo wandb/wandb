@@ -1022,9 +1022,11 @@ def launch_sweep(
         # validate scheduler job existence
         try:
             public_api = PublicApi()
-            public_api.artifact(scheduler_args["job"], type="job")
+            public_api.artifact(scheduler_job, type="job")
         except Exception as e:
-            wandb.termerror(f"Failed to load scheduler job. Error: {e}")
+            wandb.termerror(
+                f"Failed to load scheduler job: {scheduler_job}. Error: {e}"
+            )
             return False
 
     entrypoint = Scheduler.ENTRYPOINT if not scheduler_job else None

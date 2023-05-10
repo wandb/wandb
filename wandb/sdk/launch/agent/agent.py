@@ -31,7 +31,7 @@ from ..utils import (
 )
 
 AGENT_POLLING_INTERVAL = 10
-ACTIVE_SWEEP_POLLING_INTERVAL = 5  # more frequent when we know we have jobs
+ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
 
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
