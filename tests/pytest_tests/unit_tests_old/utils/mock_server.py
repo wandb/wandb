@@ -1210,6 +1210,24 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "query ProbeServerCreateArtifactFileSpecInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "CreateArtifactFileSpecInputInfoType": {
+                            "inputFields": [
+                                {"name": "artifactID"},
+                                {"name": "name"},
+                                {"name": "md5"},
+                                {"name": "mimetype"},
+                                {"name": "artifactManifestID"},
+                                {"name": "uploadPartsInput"},
+                            ]
+                        },
+                    }
+                }
+            )
+
         if "mutation CreateArtifactFiles" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create_files(variables=body["variables"])
