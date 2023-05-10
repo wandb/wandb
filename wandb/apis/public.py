@@ -60,6 +60,7 @@ from wandb.sdk.launch.utils import (
 from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -2036,7 +2037,7 @@ class Run(Attrs):
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
         with open(os.path.join(root, name), "rb") as f:
-            api.push({util.to_forward_slash_path(name): f})
+            api.push({LogicalPath(name): f})
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
@@ -4112,7 +4113,6 @@ class ArtifactCollection:
 class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
     def __init__(
         self,
-        name: str,
         entry: "artifacts.ArtifactManifestEntry",
         parent_artifact: "Artifact",
     ):
@@ -4125,8 +4125,13 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
             extra=entry.extra,
             local_path=entry.local_path,
         )
-        self.name = name
         self._parent_artifact = parent_artifact
+
+    @property
+    def name(self):
+        # TODO(hugh): add telemetry to see if anyone is still using this.
+        wandb.termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
+        return self.path
 
     def parent_artifact(self):
         return self._parent_artifact
@@ -4136,14 +4141,14 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
 
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
-        dest_path = os.path.join(root, self.name)
+        dest_path = os.path.join(root, self.path)
 
         self._parent_artifact._add_download_root(root)
         manifest = self._parent_artifact._load_manifest()
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
-        entry = manifest.entries[self.name]
+        entry = manifest.entries[self.path]
         if os.path.exists(dest_path) and entry.digest == md5_file_b64(dest_path):
             return dest_path
 
@@ -4158,7 +4163,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             return manifest.storage_policy.load_reference(
-                manifest.entries[self.name],
+                manifest.entries[self.path],
                 local=False,
             )
         raise ValueError("Only reference entries support ref_target().")
@@ -4168,7 +4173,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
             "wandb-artifact://"
             + b64_to_hex_id(self._parent_artifact.id)
             + "/"
-            + self.name
+            + self.path
         )
 
 
@@ -4686,16 +4691,13 @@ class Artifact(artifacts.Artifact):
         return None, None
 
     def get_path(self, name):
+        name = LogicalPath(name)
         manifest = self._load_manifest()
-        entry = manifest.entries.get(name)
+        entry = manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            entry = self._get_obj_entry(name)[0]
-            if entry is None:
-                raise KeyError("Path not contained in artifact: %s" % name)
-            else:
-                name = entry.path
+            raise KeyError("Path not contained in artifact: %s" % name)
 
-        return _DownloadedArtifactEntry(name, entry, self)
+        return _DownloadedArtifactEntry(entry, self)
 
     def get(self, name):
         entry, wb_class = self._get_obj_entry(name)
@@ -4777,9 +4779,7 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(
-                    os.path.relpath(full_path, start=dirpath)
-                )
+                artifact_path = os.path.relpath(full_path, start=dirpath)
                 try:
                     self.get_path(artifact_path)
                 except KeyError:
@@ -4796,9 +4796,7 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(
-                    os.path.relpath(full_path, start=dirpath)
-                )
+                artifact_path = os.path.relpath(full_path, start=dirpath)
                 try:
                     self.get_path(artifact_path)
                 except KeyError:

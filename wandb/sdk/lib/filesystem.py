@@ -8,9 +8,9 @@ import stat
 import tempfile
 import threading
 from pathlib import Path
-from typing import IO, Any, BinaryIO, Generator, Union
+from typing import IO, Any, BinaryIO, Generator
 
-StrPath = Union[str, "os.PathLike[str]"]
+from wandb.sdk.lib.paths import StrPath
 
 logger = logging.getLogger(__name__)
 

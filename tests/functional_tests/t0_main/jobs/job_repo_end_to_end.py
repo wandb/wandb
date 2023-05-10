@@ -6,7 +6,7 @@ import wandb
 from wandb.apis.internal import InternalApi
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.util import to_forward_slash_path
+from wandb.sdk.lib.paths import LogicalPath
 
 # this test is kind of hacky, it piggy backs off of the existing wandb/client git repo to construct the job
 # should probably have it use wandb_examples or something
@@ -51,9 +51,9 @@ lp = LaunchProject(**kwargs)
 
 job.configure_launch_project(lp)
 command = lp.get_single_entry_point().compute_command({})
-print(to_forward_slash_path(command[1]))
+print(LogicalPath(command[1]))
 assert (
-    to_forward_slash_path(command[1])
+    LogicalPath(command[1])
     == "tests/functional_tests/t0_main/jobs/job_repo_creation.py"
 )
 assert "requirements.frozen.txt" in os.listdir(lp.project_dir)

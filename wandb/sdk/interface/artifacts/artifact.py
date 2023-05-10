@@ -2,7 +2,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, 
 
 import wandb
 from wandb.data_types import WBValue
-from wandb.util import FilePathStr
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -23,7 +23,7 @@ class ArtifactStatusError(AttributeError):
         super().__init__(msg.format(artifact=artifact, attr=attr, method_id=method_id))
         # Follow the same pattern as AttributeError.
         self.obj = artifact
-        self.name = attr
+        self.name = attr or ""
 
 
 class ArtifactNotLoggedError(ArtifactStatusError):
@@ -410,7 +410,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> "ArtifactManifestEntry":
+    def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
 
         Arguments:
