@@ -967,7 +967,7 @@ def launch_sweep(
         return
 
     _type, custom_config = "wandb", {}
-    parsed_sweep_config, sweep_obj_id = None, None
+    parsed_sweep_config, sweep_obj_id, prev_sweep_run_spec = None, None, None
     if resume_id:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
         if not found:
@@ -1011,7 +1011,7 @@ def launch_sweep(
         wandb.termwarn(
             "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
         )
-        if prev_sweep_run_spec.get("job") and scheduler_job != prev_sweep_run_spec.get(
+        if prev_sweep_run_spec and prev_sweep_run_spec.get("job") and scheduler_job != prev_sweep_run_spec.get(
             "job"
         ):
             wandb.termerror(
