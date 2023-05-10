@@ -980,27 +980,19 @@ def launch_sweep(
             wandb.termwarn(
                 "Sweep params loaded from resumed sweep, ignoring provided keys"
             )
-        # get the args from the scheduler run to determine type
-        run = api.get_run_info(entity=entity, project=project, name=resume_id)
-        if not run:
-            wandb.termerror("Couldn't resume run from scheduler run")
-            return
 
-        # TODO(gst): make this play nice with schedulers jobs
-        idx = run["args"].index("--sweep_type") + 1
-        if idx > 0:
-            _type = run["args"][idx]
-        else:
-            wandb.termerror("Couldn't determine sweep type from scheduler run args")
-            return
+        prev_sweep_scheduler = json.loads(found.get("scheduler", "{}"))
+        prev_sweep_run_spec = json.loads(prev_sweep_scheduler.get("run_spec", "{}"))
+        if prev_sweep_run_spec.get("job"):
+            _type = "job"
     else:
         parsed_sweep_config = parsed_config
         # Check if custom sweep scheduler
         if parsed_sweep_config.get("method") == "custom":
             custom_config = parsed_sweep_config.pop("custom", {})
-            _type = custom_config.get("type")
+            _type = "job"
 
-    # validate job existence
+    # validate training job existence
     job = parsed_sweep_config.get("job")
     if job:
         if not isinstance(job, str) or ":" not in job:
@@ -1019,6 +1011,14 @@ def launch_sweep(
         wandb.termwarn(
             "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
         )
+        if prev_sweep_run_spec.get("job") and scheduler_job != prev_sweep_run_spec.get(
+            "job"
+        ):
+            wandb.termerror(
+                f"Resuming a launch sweep with a different scheduler job is not supported. Loaded from sweep: {prev_sweep_run_spec.get('job')}, Provided in config: {scheduler_job}"
+            )
+            return False
+
         # validate scheduler job existence
         try:
             public_api = PublicApi()
@@ -1028,11 +1028,12 @@ def launch_sweep(
                 f"Failed to load scheduler job: {scheduler_job}. Error: {e}"
             )
             return False
+        _type = "job"
 
     entrypoint = Scheduler.ENTRYPOINT if not scheduler_job else None
     args = sweep_utils.construct_scheduler_args(
         sweep_type=_type,
-        is_job="job" in scheduler_args,
+        is_job=_type == "job",
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
@@ -1049,7 +1050,7 @@ def launch_sweep(
     if custom_config:
         overrides["run_config"]["custom"] = custom_config
 
-    if "job" in scheduler_args:
+    if _type == "job":
         overrides["run_config"]["sweep_args"] = args
     else:
         overrides["args"] = args
@@ -1069,7 +1070,7 @@ def launch_sweep(
         job=scheduler_job,
         version=None,
         launch_config={"overrides": overrides},
-        run_id=None,
+        run_id="WANDB_SWEEP_ID",  # scheduler inits run with sweep_id=run_id
         author=None,  # author gets passed into scheduler override args
     )
     launch_scheduler_with_queue = json.dumps(

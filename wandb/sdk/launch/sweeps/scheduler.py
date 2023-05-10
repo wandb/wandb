@@ -246,10 +246,8 @@ class Scheduler(ABC):
         run: SdkRun = wandb.init(
             name=f"{_type}-scheduler-{self._sweep_id}",
             job_type=self.SWEEP_JOB_TYPE,
-            # use the sweep ID as the run ID, if the sweep already exists then
-            #   the run is resumed, else init a new run
+            # WANDB_RUN_ID = sweep_id for scheduler
             resume="allow",
-            id=self._sweep_id,
         )
         return run
 
