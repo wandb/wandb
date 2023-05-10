@@ -16,8 +16,8 @@ def main():
             {"role": "user", "content": "Where was it played?"},
         ],
     )
-    for _ in range(5):
-        _ = openai.ChatCompletion.create(**request_kwargs)
+
+    _ = openai.ChatCompletion.create(**request_kwargs)
 
 
 if __name__ == "__main__":

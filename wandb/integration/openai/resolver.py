@@ -70,7 +70,7 @@ class OpenAIRequestResponseResolver:
         request: Dict[str, Any],
         response: OpenAIResponse,
         time_elapsed: float,
-    ) -> Optional[trace_tree.WBTraceTree]:
+    ) -> Optional[Dict[str, Any]]:
         try:
             if response["object"] == "edit":
                 return self._resolve_edit(request, response, time_elapsed)
@@ -119,7 +119,7 @@ class OpenAIRequestResponseResolver:
         request: Dict[str, Any],
         response: OpenAIResponse,
         time_elapsed: float,
-    ) -> trace_tree.WBTraceTree:
+    ) -> Dict[str, Any]:
         """Resolves the request and response objects for `openai.Edit`."""
         request_str = (
             f"\n\n**Instruction**: {request['instruction']}\n\n"
@@ -129,7 +129,7 @@ class OpenAIRequestResponseResolver:
             f"\n\n**Edited**: {choice['text']}\n" for choice in response["choices"]
         ]
 
-        return self._request_response_result_log_dict(
+        return self._resolve_metrics(
             request=request,
             response=response,
             request_str=request_str,
@@ -142,14 +142,14 @@ class OpenAIRequestResponseResolver:
         request: Dict[str, Any],
         response: OpenAIResponse,
         time_elapsed: float,
-    ) -> trace_tree.WBTraceTree:
+    ) -> Dict[str, Any]:
         """Resolves the request and response objects for `openai.Completion`."""
         request_str = f"\n\n**Prompt**: {request['prompt']}\n"
         choices = [
             f"\n\n**Completion**: {choice['text']}\n" for choice in response["choices"]
         ]
 
-        return self._request_response_result_log_dict(
+        return self._resolve_metrics(
             request=request,
             response=response,
             request_str=request_str,
@@ -162,7 +162,7 @@ class OpenAIRequestResponseResolver:
         request: Dict[str, Any],
         response: OpenAIResponse,
         time_elapsed: float,
-    ) -> trace_tree.WBTraceTree:
+    ) -> Dict[str, Any]:
         """Resolves the request and response objects for `openai.Completion`."""
         prompt = io.StringIO()
         for message in request["messages"]:
@@ -174,7 +174,7 @@ class OpenAIRequestResponseResolver:
             for choice in response["choices"]
         ]
 
-        return self._request_response_result_log_dict(
+        return self._resolve_metrics(
             request=request,
             response=response,
             request_str=request_str,
@@ -182,14 +182,14 @@ class OpenAIRequestResponseResolver:
             time_elapsed=time_elapsed,
         )
 
-    def _request_response_result_log_dict(
+    def _resolve_metrics(
         self,
         request: Dict[str, Any],
         response: OpenAIResponse,
         request_str: str,
         choices: List[str],
         time_elapsed: float,
-    ) -> trace_tree.WBTraceTree:
+    ) -> Dict[str, Any]:
         """Resolves the request and response objects for `openai.Completion`."""
         results = [
             trace_tree.Result(
@@ -198,16 +198,14 @@ class OpenAIRequestResponseResolver:
             )
             for choice in choices
         ]
-        trace = self.results_to_trace_tree(request, response, results, time_elapsed)
-        usage_stats = self._get_usage_stats(request, response, results, time_elapsed)
-        return {"trace": trace, **usage_stats}
+        metrics = self._get_metrics_to_log(request, response, results, time_elapsed)
+        return metrics
 
-    def _get_usage_stats(
+    def _get_usage_metrics(
         self,
-        request: Dict[str, Any],
         response: OpenAIResponse,
-        results: List[Any],
         time_elapsed: float,
+        model_alias_and_cost: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Gets the usage stats from the response object."""
         usage_stats = {}
@@ -215,19 +213,7 @@ class OpenAIRequestResponseResolver:
             usage_stats = response["usage"]
         usage_stats["elapsed_time"] = time_elapsed
         usage_stats["start_time"] = response["created"]
-        if response["object"] in ("text_completion", "chat.completion"):
-            is_completion = True
-        else:
-            is_completion = False
-        model = response.get("model") or request.get("model")
-        if model:
-            model_alias_and_cost = get_alias_and_cost(
-                model.lower(), is_completion=is_completion
-            )
-        else:
-            model_alias_and_cost = None
         if model_alias_and_cost:
-            model_alias = model_alias_and_cost["alias"]
             usage_stats["prompt_cost"] = (
                 model_alias_and_cost["cost"]
                 * usage_stats.get("prompt_tokens", 0)
@@ -241,8 +227,36 @@ class OpenAIRequestResponseResolver:
             usage_stats["total_cost"] = (
                 usage_stats["prompt_cost"] + usage_stats["completion_cost"]
             )
+        for k in usage_stats:
+            wandb.define_metric(
+                k,
+                "start_time",
+                hidden=k != "start_time",
+            )
+        return usage_stats
+
+    def _get_metrics_to_log(
+        self,
+        request: Dict[str, Any],
+        response: OpenAIResponse,
+        results: List[Any],
+        time_elapsed: float,
+    ) -> Dict[str, Any]:
+        if response["object"] in ("text_completion", "chat.completion"):
+            is_completion = True
         else:
-            model_alias = None
+            is_completion = False
+        model = response.get("model") or request.get("model")
+        if model:
+            model_alias_and_cost = get_alias_and_cost(
+                model.lower(), is_completion=is_completion
+            )
+        else:
+            model_alias_and_cost = None
+
+        model_alias = model_alias_and_cost["alias"] if model_alias_and_cost else None
+
+        metrics = self._get_usage_metrics(response, time_elapsed, model_alias_and_cost)
 
         usage_table = []
         for result in results:
@@ -258,18 +272,17 @@ class OpenAIRequestResponseResolver:
                 else str(uuid.uuid4()),
                 "session_id": wandb.run.id,
             }
-            row.update(usage_stats)
+            row.update(metrics)
             usage_table.append(row)
         usage_table = wandb.Table(
             columns=list(usage_table[0].keys()),
             data=[(item.values()) for item in usage_table],
         )
-        stats = {"stats": usage_table}
-        for k in usage_stats:
-            wandb.define_metric(
-                k,
-                "start_time",
-                hidden=k != "start_time",
-            )
-        stats.update(usage_stats)
-        return stats
+
+        metrics["trace"] = self.results_to_trace_tree(
+            request, response, results, time_elapsed
+        )
+
+        metrics["stats"] = usage_table
+
+        return metrics
