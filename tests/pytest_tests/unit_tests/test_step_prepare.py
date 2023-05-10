@@ -365,12 +365,12 @@ class TestStepPrepare:
         )
 
         assert res == ResponsePrepare(
+            birth_artifact_id=caf_result["foo"]["artifact"]["id"],
             upload_url=caf_result["foo"]["uploadUrl"],
             upload_headers=caf_result["foo"]["uploadHeaders"],
-            birth_artifact_id=caf_result["foo"]["artifact"]["id"],
+            upload_id=upload_id,
             storage_path=caf_result["foo"]["storagePath"],
             multipart_upload_url=caf_result["foo"]["uploadMultipartUrls"],
-            upload_id=upload_id,
         )
 
     def test_batches_requests(self, prepare: "PrepareFixture"):

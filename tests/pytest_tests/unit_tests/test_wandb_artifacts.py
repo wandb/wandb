@@ -75,12 +75,12 @@ def singleton_queue(x):
 def dummy_response_prepare(spec):
     name = spec["name"]
     return ResponsePrepare(
+        birth_artifact_id=f"artifact-id-{name}",
         upload_url=f"http://wandb-test/upload-url-{name}",
         upload_headers=["x-my-header-key:my-header-val"],
-        birth_artifact_id=f"artifact-id-{name}",
-        multipart_upload_url=None,
         upload_id=None,
         storage_path="wandb_artifact/123456789",
+        multipart_upload_url=None,
     )
 
 
