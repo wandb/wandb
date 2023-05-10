@@ -31,6 +31,7 @@ Path = str
 
 
 def _make_run(
+    name: Optional[str] = None,
     tags: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, float]] = None,
     metrics: Optional[Iterable[Dict[str, float]]] = None,
@@ -39,6 +40,8 @@ def _make_run(
 ):
     client = MlflowClient()
     with mlflow.start_run() as run:
+        if name:
+            mlflow.set_tag("mlflow.runName", name)
         if tags:
             mlflow.set_tags(tags)
         if params:
@@ -118,7 +121,9 @@ def make_metrics(n_steps):
         }
 
 
-def make_artifact_fns(temp_path: Path) -> Iterable[Callable[[], Path]]:
+def make_artifact_fns(
+    temp_path: Path, n_artifacts: int
+) -> Iterable[Callable[[], Path]]:
     def artifact_fn():
         fname = str(uuid.uuid4())
         file_path = f"{temp_path}/{fname}.txt"
@@ -126,28 +131,30 @@ def make_artifact_fns(temp_path: Path) -> Iterable[Callable[[], Path]]:
             f.write(f"text from {file_path}")
         return file_path
 
-    for _ in range(N_ARTIFACTS_PER_RUN):
+    for _ in range(n_artifacts):
         yield artifact_fn
 
 
-def make_run(n_steps, mlflow_batch_size):
+def make_run(name, n_steps, mlflow_batch_size, n_artifacts):
     with tempfile.TemporaryDirectory() as temp_path:
         _make_run(
+            name=name,
             tags=make_tags(),
             params=make_params(),
             metrics=make_metrics(n_steps),
-            make_artifact_fns=make_artifact_fns(temp_path),
+            make_artifact_fns=make_artifact_fns(temp_path, n_artifacts),
             batch_size=mlflow_batch_size,
         )
 
 
-def make_exp(n_runs, n_steps, mlflow_batch_size):
-    name = "Experiment " + str(uuid.uuid4())
-    mlflow.set_experiment(name)
+def make_exp(n_runs, n_steps, mlflow_batch_size, n_artifacts_per_run):
+    exp_name = "Experiment " + str(uuid.uuid4())
+    mlflow.set_experiment(exp_name)
 
     # Can't use ProcessPoolExecutor -- it seems to always fail in tests!
     for _ in range(n_runs):
-        make_run(n_steps, mlflow_batch_size)
+        run_name = "Run :/" + str(uuid.uuid4())
+        make_run(run_name, n_steps, mlflow_batch_size, n_artifacts_per_run)
 
 
 def log_to_mlflow(
@@ -156,6 +163,7 @@ def log_to_mlflow(
     n_runs_per_exp: int = 3,
     n_steps: int = 1000,
     mlflow_batch_size: int = 50,
+    n_artifacts_per_run: int = 10,
 ):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
@@ -163,7 +171,7 @@ def log_to_mlflow(
 
         # Can't use ProcessPoolExecutor -- it seems to always fail in tests!
         for _ in range(n_exps):
-            make_exp(n_runs_per_exp, n_steps, mlflow_batch_size)
+            make_exp(n_runs_per_exp, n_steps, mlflow_batch_size, n_artifacts_per_run)
 
 
 def check_mlflow_server_health(
@@ -287,5 +295,7 @@ def mlflow_server(mlflow_backend, mlflow_artifacts_destination):
 
 @pytest.fixture
 def prelogged_mlflow_server(mlflow_server):
-    log_to_mlflow(mlflow_server, EXPERIMENTS, RUNS_PER_EXPERIMENT, STEPS)
-    yield mlflow_server, EXPERIMENTS, RUNS_PER_EXPERIMENT, STEPS
+    log_to_mlflow(
+        mlflow_server, EXPERIMENTS, RUNS_PER_EXPERIMENT, STEPS, N_ARTIFACTS_PER_RUN
+    )
+    yield mlflow_server, EXPERIMENTS, RUNS_PER_EXPERIMENT, STEPS, N_ARTIFACTS_PER_RUN
