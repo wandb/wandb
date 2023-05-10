@@ -130,12 +130,12 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
 def test_launch_sweep_launch_resume(user):
     api = InternalApi()
     public_api = Api()
-    public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
+    public_api.create_project("proj", user)
 
     # make launch project queue
     res = api.create_run_queue(
         entity=user,
-        project=LAUNCH_DEFAULT_PROJECT,
+        project="proj",
         queue_name="queue",
         access="USER",
     )
@@ -153,7 +153,7 @@ def test_launch_sweep_launch_resume(user):
                 "-e",
                 user,
                 "-p",
-                LAUNCH_DEFAULT_PROJECT,
+                "proj",
                 "-q",
                 "queue",
             ],
@@ -183,7 +183,7 @@ def test_launch_sweep_launch_resume(user):
             "-e",
             user,
             "-p",
-            LAUNCH_DEFAULT_PROJECT,
+            "proj",
         ],
         stderr=subprocess.STDOUT,
     )
@@ -202,7 +202,7 @@ def test_launch_sweep_launch_resume(user):
             "-e",
             user,
             "-p",
-            LAUNCH_DEFAULT_PROJECT,
+            "proj",
         ],
         stderr=subprocess.STDOUT,
     )
