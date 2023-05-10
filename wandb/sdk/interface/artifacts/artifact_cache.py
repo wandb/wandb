@@ -6,7 +6,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional,
 
 from wandb import env, util
 from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.sdk.lib.filesystem import check_available_space, mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -35,12 +35,14 @@ class ArtifactsCache:
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id: Dict[str, Artifact] = {}
         self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
+        self._reserve_bytes = env.get_minimum_free_space(default=1_000_000)
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
+        check_available_space(path, reserve=self._reserve_bytes, size=size)
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return FilePathStr(path), True, opener
@@ -60,6 +62,7 @@ class ArtifactsCache:
             + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
+        check_available_space(path, reserve=self._reserve_bytes, size=size)
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return FilePathStr(path), True, opener
