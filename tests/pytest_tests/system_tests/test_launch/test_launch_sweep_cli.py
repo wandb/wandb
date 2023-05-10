@@ -171,7 +171,7 @@ def test_launch_sweep_launch_resume(user):
         json.dump(sweep_config, f)
 
     # Entity, project, and sweep
-    sweep_id = wandb.sweep(sweep_config, entity=user, project=LAUNCH_DEFAULT_PROJECT)
+    sweep_id = wandb.sweep(sweep_config, entity=user, project="proj")
 
     # no queue
     out = subprocess.check_output(
