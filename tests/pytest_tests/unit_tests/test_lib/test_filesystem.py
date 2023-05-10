@@ -1,3 +1,5 @@
+import errno
+import logging
 import os
 import platform
 import shutil
@@ -5,6 +7,7 @@ import stat
 import sys
 import tempfile
 import time
+from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +15,7 @@ from unittest.mock import patch
 import pytest
 from pyfakefs.fake_filesystem import OSType
 from wandb.sdk.lib.filesystem import (
+    check_available_space,
     copy_or_overwrite_changed,
     mkdir_exists_ok,
     safe_copy,
@@ -442,3 +446,58 @@ def test_safe_copy_with_links(tmp_path: Path, src_link, dest_link):
     safe_copy(source_path, target_path)
 
     assert target_path.read_text("utf-8") == source_content
+
+
+@pytest.fixture
+def mock_disk_usage(monkeypatch):
+    DiskUsage = namedtuple("DiskUsage", ["total", "used", "free"])
+
+    def mock_disk_usage(path):
+        return DiskUsage(total=1000, used=100, free=900)
+
+    monkeypatch.setattr(shutil, "disk_usage", mock_disk_usage)
+
+
+def test_check_available_space_explicit(caplog, tmp_path, mock_disk_usage):
+    """Test checking disk space with an explicit file size request."""
+    # Test when there's enough space
+    assert check_available_space(tmp_path, size=100, reserve=100) == 700
+
+    # Test when the remaining space is smaller than the file size (log a warning).
+    with caplog.at_level(logging.WARNING):
+        assert check_available_space(tmp_path, size=500, reserve=100) == 300
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelname == "WARNING"
+    assert "Running low on disk space" in caplog.records[0].message
+
+    # Test when there's not enough space for the reserve
+    with pytest.raises(OSError) as e:
+        check_available_space(tmp_path, size=850, reserve=100)
+    assert e.value.errno == errno.ENOSPC
+
+    # Test when there's not enough space for the file itself
+    with pytest.raises(OSError) as e:
+        check_available_space(tmp_path, size=1000, reserve=0)
+    assert e.value.errno == errno.ENOSPC
+
+
+def test_check_available_space_implicit(tmp_path, mock_disk_usage):
+    """Test checking disk space with a file of a given size."""
+    # Create a file of size 300 bytes
+    file_path = tmp_path / "file.txt"
+    file_path.write_bytes(b"#" * 300)
+
+    assert check_available_space(file_path, reserve=100) == 500
+
+    with pytest.raises(OSError):
+        check_available_space(file_path, reserve=700)
+
+
+def test_check_available_space_no_file(caplog, tmp_path, mock_disk_usage):
+    """Test checking disk space with a file that doesn't exist."""
+    not_a_file = tmp_path / "not" / "a" / "file.txt"
+
+    assert check_available_space(not_a_file, size=300, reserve=100) == 500
+
+    with pytest.raises(ValueError, match="`path` must be a real file"):
+        check_available_space(not_a_file, reserve=100)
