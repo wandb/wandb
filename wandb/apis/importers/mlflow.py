@@ -75,7 +75,13 @@ class MlflowRun(ImporterRun):
         return self.run.info.start_time // 1000
 
     def runtime(self):
-        return self.run.info.end_time // 1_000 - self.start_time()
+        end_time = (
+            self.run.info.end_time // 1000
+            if self.run.info.end_time is not None
+            else self.start_time()
+        )
+
+        return end_time - self.start_time()
 
     def git(self):
         ...
