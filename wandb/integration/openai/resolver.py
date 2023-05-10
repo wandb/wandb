@@ -194,7 +194,6 @@ class OpenAIRequestResponseResolver:
         if response.get("usage"):
             usage_stats = response["usage"]
         usage_stats["elapsed_time"] = time_elapsed
-        usage_stats["start_time"] = response["created"]
         if model_alias_and_cost:
             usage_stats["prompt_cost"] = (
                 model_alias_and_cost["cost"]
@@ -208,12 +207,6 @@ class OpenAIRequestResponseResolver:
             )
             usage_stats["total_cost"] = (
                 usage_stats["prompt_cost"] + usage_stats["completion_cost"]
-            )
-        for k in usage_stats:
-            wandb.define_metric(
-                k,
-                "start_time",
-                hidden=k != "start_time",
             )
         return usage_stats
 

@@ -91,11 +91,17 @@ class PatchLLMAPI:
                     with Timer() as timer:
                         result = original_method(*args, **kwargs)
                     try:
-                        trace = self.resolver(
+                        metrics = self.resolver(
                             kwargs, result, timer.start_time, timer.elapsed
                         )
-                        if trace is not None:
-                            run.log({"trace": trace})
+                        if isinstance(metrics, trace_tree.WBTraceTree):
+                            run.log({"trace": metrics})
+                        elif isinstance(metrics, dict):
+                            run.log(metrics)
+                        else:
+                            logger.warning(
+                                f"Unable to log {self.name} metrics: {metrics}"
+                            )
                     except Exception as e:
                         logger.warning(e)
                     return result
