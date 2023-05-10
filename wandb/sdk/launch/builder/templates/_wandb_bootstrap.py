@@ -146,12 +146,15 @@ def get_current_package(
     Used to keep track of what the currently-installing package is,
     in case an error message isn't on the same line as the package
     """
+    # "Collecting my-package==1.0.0"
     if line.startswith("Collecting"):
         return line.split(" ")[1]
+    # "Building wheel for my-package (pyproject.toml): finished with status 'error'"
     elif line.strip().startswith("Building wheel") and line.strip().endswith(
         "finished with status 'error'"
     ):
         return add_version_to_package_name(deps, line.strip().split(" ")[3])
+    # "Running setup.py install for my-package: finished with status 'error'"
     elif line.strip().startswith("Running setup.py install") and line.strip().endswith(
         "finished with status 'error'"
     ):
