@@ -119,12 +119,12 @@ def load_launch_sweep_config(config: Optional[str]) -> Any:
 
 
 def construct_scheduler_args(
-    is_job: bool,
     sweep_config: Dict[str, Any],
     queue: str,
     project: str,
     author: Optional[str] = None,
-    sweep_type: Optional[str] = "sweep",
+    sweep_type: Optional[str] = "wandb",
+    is_job: bool = False,
 ) -> Union[List[str], Dict[str, str], None]:
     """Construct sweep scheduler args.
 
