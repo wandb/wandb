@@ -288,7 +288,7 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         ):
             requirements_files += ["src/requirements.txt"]
             pip_install_line = "pip install -r requirements.txt"
-        if launch_project.project_dir is not None and os.path.exists(
+        elif launch_project.project_dir is not None and os.path.exists(
             os.path.join(launch_project.project_dir, "requirements.frozen.txt")
         ):
             # if we have frozen requirements stored, copy those over and have them take precedence
@@ -408,6 +408,7 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
             while True:
                 try:
                     pkg = next(iter)
+                    print(pkg)
                     if hasattr(pkg, "name"):
                         name = pkg.name.lower()
                     else:
