@@ -1011,8 +1011,10 @@ def launch_sweep(
         wandb.termwarn(
             "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
         )
-        if prev_sweep_run_spec and prev_sweep_run_spec.get("job") and scheduler_job != prev_sweep_run_spec.get(
-            "job"
+        if (
+            prev_sweep_run_spec
+            and prev_sweep_run_spec.get("job")
+            and scheduler_job != prev_sweep_run_spec.get("job")
         ):
             wandb.termerror(
                 f"Resuming a launch sweep with a different scheduler job is not supported. Loaded from sweep: {prev_sweep_run_spec.get('job')}, Provided in config: {scheduler_job}"

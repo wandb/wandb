@@ -189,20 +189,18 @@ def test_launch_sweep_launch_resume(user):
     )
     assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
 
-    config = {"launch": {"queue": "queue"}}
-    json.dump(config, open("s.yaml", "w"))
-
     out = subprocess.check_output(
         [
             "wandb",
             "launch-sweep",
-            "s.yaml",
             "--resume_id",
             sweep_id,
             "-e",
             user,
             "-p",
             "proj",
+            "-q",
+            "queue",
         ],
         stderr=subprocess.STDOUT,
     )
