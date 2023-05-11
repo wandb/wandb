@@ -114,11 +114,11 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
     if run_spec.get("resource") == "local-process":
         # If a scheduler is a job, and run in local-process, check
         # whitelist of supported wandb jobs
-        wandb.termwarn(f"{run_spec=}")
-        if run_spec.get("job") in [
-            "wandb/jobs/job-WandbScheduler",
-            "wandb/jobs/job-OptunaScheduler",
-            "wandb/jobs/job-HyperoptScheduler",
+        job = run_spec.get("job")
+        if job and job.split(":")[0].split("/")[-1] in [
+            "job-WandbScheduler",
+            "job-OptunaScheduler",
+            "job-HyperoptScheduler",
         ]:
             return True
 
