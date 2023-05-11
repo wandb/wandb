@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
-
+from wandb.apis.public import Artifact, QueuedRun, Run
 import click
 import yaml
 
@@ -441,11 +441,15 @@ class Scheduler(ABC):
             f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
         ).decode("utf-8")
 
-        success: bool = self._api.stop_run(run_id=encoded_run_id)
-        if success:
-            wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
+        try:
+            success: bool = self._api.stop_run(run_id=encoded_run_id)
+            if success:
+                wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
+                return True
+        except Exception as e:
+            _logger.debug(f"error stopping run ({run_id}): {e}")
 
-        return success
+        return False
 
     def _update_run_states(self) -> None:
         """Iterate through runs.
@@ -478,6 +482,46 @@ class Scheduler(ABC):
                 _logger.debug(f"({run_id}) states: ({run.state}, {rqi_state})")
                 runs_to_remove.append(run_id)
         self._cleanup_runs(runs_to_remove)
+
+    def _get_metrics_from_run(self, run_id: str) -> List[Any]:
+        """Use the public api to get metrics from a run.
+
+        Uses the metric name found in the sweep config, any
+        misspellings will result in an empty list."""
+        try:
+            queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
+            api_run: Run = self._public_api.run(
+                f"{queued_run.entity}/{queued_run.project}/{run_id}"
+            )
+            metric_name = self._sweep_config["metric"]["name"]
+            history = api_run.scan_history(keys=["_step", metric_name])
+            metrics = [x[metric_name] for x in history]
+
+            return metrics
+        except Exception as e:
+            _logger.debug(f"[_get_metrics_from_run] {e}")
+        return []
+
+    def _get_run_info(self, run_id: str) -> Dict[str, Any]:
+        """Use the public api to get info about a run."""
+        try:
+            return self._public_api.get_run_info(self._entity, self._project, run_id)
+        except Exception as e:
+            _logger.debug(f"[_get_run_info] {e}")
+        return {}
+
+    def _create_run(self) -> Dict[str, Any]:
+        """Use the public api to create a blank run."""
+        return self._api.upsert_run(
+            project=self._project,
+            entity=self._entity,
+            sweep_name=self._sweep_id,
+        )[0]
+
+    def _encode(self, _id: str) -> str:
+        return (
+            base64.b64decode(bytes(_id.encode("utf-8"))).decode("utf-8").split(":")[2]
+        )
 
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
