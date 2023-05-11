@@ -3,7 +3,7 @@ plugin:
   - wandb
 depend:
   requirements:
-    - "metaflow>=2.3.5"
+    - "metaflow>=2.3.5,<2.8.6"
     - scikit-learn
     - fastcore
     - pyarrow

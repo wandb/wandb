@@ -6,7 +6,7 @@ depend:
     - --extra-index-url
     - https://download.pytorch.org/whl/cpu
   requirements:
-    - "metaflow>=2.3.5"
+    - "metaflow>=2.3.5,<2.8.6"
     - "torch"
     - "torchvision"
     - fastcore
