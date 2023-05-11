@@ -20,10 +20,6 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         lambda x: None,
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container.docker_image_exists",
-        lambda x: False,
-    )
-    monkeypatch.setattr(
         "wandb.sdk.launch.builder.noop.NoOpBuilder.build_image",
         lambda *args, **kwargs: "testimage",
     )
