@@ -116,9 +116,9 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
         # whitelist of supported wandb jobs
         wandb.termwarn(f"{run_spec=}")
         if run_spec.get("job") in [
-            "wandb/jobs/WandbScheduler",
-            "wandb/jobs/OptunaScheduler",
-            "wandb/jobs/HyperoptScheduler",
+            "wandb/jobs/job-WandbScheduler",
+            "wandb/jobs/job-OptunaScheduler",
+            "wandb/jobs/job-HyperoptScheduler",
         ]:
             return True
 
