@@ -992,6 +992,18 @@ def launch_sweep(
             custom_config = parsed_sweep_config.pop("custom", {})
             _type = "job"
 
+    entrypoint = Scheduler.ENTRYPOINT if not scheduler_args.get("job") else None
+    args = sweep_utils.construct_scheduler_args(
+        sweep_type=_type,
+        is_job=_type == "job",
+        sweep_config=parsed_sweep_config,
+        queue=queue,
+        project=project,
+        author=entity,
+    )
+    if not args:
+        return
+
     # validate training job existence
     job = parsed_sweep_config.get("job")
     if job:
@@ -1032,18 +1044,6 @@ def launch_sweep(
             return False
         _type = "job"
 
-    entrypoint = Scheduler.ENTRYPOINT if not scheduler_job else None
-    args = sweep_utils.construct_scheduler_args(
-        sweep_type=_type,
-        is_job=_type == "job",
-        sweep_config=parsed_sweep_config,
-        queue=queue,
-        project=project,
-        author=entity,
-    )
-    if not args:
-        return
-
     overrides = {"run_config": {}}
     if launch_args:
         overrides["run_config"]["launch"] = launch_args
@@ -1054,6 +1054,8 @@ def launch_sweep(
 
     if _type == "job":
         overrides["run_config"]["sweep_args"] = args
+        # set _type to "sweep" for display name
+        _type = "sweep"
     else:
         overrides["args"] = args
 

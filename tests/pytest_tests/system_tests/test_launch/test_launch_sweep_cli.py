@@ -162,7 +162,6 @@ def test_launch_sweep_launch_resume(user):
         assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
 
     sweep_config = {
-        "job": None,
         "method": "grid",
         "image_uri": "test-image:latest",
         "parameters": {"parameter1": {"values": [1, 2, 3]}},
