@@ -29,9 +29,9 @@ if TYPE_CHECKING:  # pragma: no cover
     import tensorflow  # type: ignore
     import torch  # type: ignore
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
 
@@ -339,7 +339,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_obj = super().to_json(run_or_artifact)
-        assert isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact)
+        assert isinstance(run_or_artifact, wandb.Artifact)
         if self._dep_py_files_path is not None:
             json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(
                 run_or_artifact,
