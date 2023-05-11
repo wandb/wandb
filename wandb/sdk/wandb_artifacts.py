@@ -1065,7 +1065,7 @@ class WandbStoragePolicy(StoragePolicy):
 
         entry.birth_artifact_id = resp.birth_artifact_id
 
-        multipart_urls = resp.multipart_upload_url
+        multipart_urls = resp.multipart_upload_urls
         if resp.upload_url is None:
             return True
         if entry.local_path is None:

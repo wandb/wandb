@@ -45,7 +45,7 @@ class ResponsePrepare(NamedTuple):
     upload_headers: Sequence[str]
     upload_id: Optional[str]
     storage_path: Optional[str]
-    multipart_upload_url: Optional[Dict[int, str]]
+    multipart_upload_urls: Optional[Dict[int, str]]
 
 
 Request = Union[RequestPrepare, RequestFinish]
@@ -103,7 +103,7 @@ def prepare_response(response: "CreateArtifactFilesResponseFile") -> ResponsePre
         upload_headers=response["uploadHeaders"],
         upload_id=multipart_resp and multipart_resp.get("uploadID"),
         storage_path=response.get("storagePath"),
-        multipart_upload_url=multipart_parts,
+        multipart_upload_urls=multipart_parts,
     )
 
 
