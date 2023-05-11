@@ -20,8 +20,8 @@ def get_alias_and_cost(model_name: str, is_completion: bool = False) -> float:
         "gpt-4-32k-0314": {"alias": "gpt-4", "cost": 0.06},
         "gpt-4-32k-completion": {"alias": "gpt-4", "cost": 0.12},
         "gpt-4-32k-0314-completion": {"alias": "gpt-4", "cost": 0.12},
-        "gpt-3.5-turbo": {"alias": "gpt-3", "cost": 0.002},
-        "gpt-3.5-turbo-0301": {"alias": "gpt-3", "cost": 0.002},
+        "gpt-3.5-turbo": {"alias": "gpt-3.5", "cost": 0.002},
+        "gpt-3.5-turbo-0301": {"alias": "gpt-3.5", "cost": 0.002},
         "text-ada-001": {"alias": "gpt-3", "cost": 0.0004},
         "ada": {"alias": "gpt-3", "cost": 0.0004},
         "text-babbage-001": {"alias": "gpt-3", "cost": 0.0005},
@@ -196,18 +196,19 @@ class OpenAIRequestResponseResolver:
         usage_stats["elapsed_time"] = time_elapsed
         if model_alias_and_cost:
             usage_stats["prompt_cost"] = (
-                model_alias_and_cost["cost"]
+                model_alias_and_cost["cost($)"]
                 * usage_stats.get("prompt_tokens", 0)
                 / 1000
             )
-            usage_stats["completion_cost"] = (
+            usage_stats["completion_cost($)"] = (
                 model_alias_and_cost["cost"]
                 * usage_stats.get("completion_tokens", 0)
                 / 1000
             )
-            usage_stats["total_cost"] = (
-                usage_stats["prompt_cost"] + usage_stats["completion_cost"]
+            usage_stats["total_cost($)"] = (
+                usage_stats["prompt_cost($)"] + usage_stats["completion_cost($)"]
             )
+        usage_stats = {f"usage_stats/{k}": v for k, v in usage_stats.items()}
         return usage_stats
 
     def _get_metrics_to_log(
