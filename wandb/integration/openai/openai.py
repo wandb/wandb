@@ -1,6 +1,6 @@
 import logging
 
-from wandb.sdk.integration_utils.llm import AutologAPI
+from wandb.sdk.integration_utils.auto_logging import AutologAPI
 
 from .resolver import OpenAIRequestResponseResolver
 
