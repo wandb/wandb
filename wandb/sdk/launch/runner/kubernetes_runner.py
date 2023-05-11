@@ -553,14 +553,15 @@ class KubernetesRunner(AbstractRunner):
             add_label_to_pods(
                 launch_project.resource_args, "wandb/run-id", launch_project.run_id
             )
-            # Add overrides of the container entrypoint and args.
-            if launch_project.override_entrypoint or launch_project.override_args:
-                inject_entrypoint_and_args(
-                    launch_project.resource_args.get("containers", []),
-                    launch_project.override_entrypoint,
-                    launch_project.override_args,
-                    launch_project.override_entrypoint is not None,
-                )
+            overrides = {}
+            if launch_project.override_args:
+                overrides["args"] = launch_project.override_args
+            if launch_project.override_entrypoint:
+                overrides["command"] = launch_project.override_entrypoint.command
+            add_entrypoint_args_overrides(
+                launch_project.resource_args,
+                overrides,
+            )
             api = client.CustomObjectsApi(api_client)
             # Infer the attributes of a custom object from the apiVersion and/or
             # a kind: attribute in the resource args.
