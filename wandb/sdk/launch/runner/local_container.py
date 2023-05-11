@@ -17,7 +17,6 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
-    docker_image_exists,
     pull_docker_image,
     sanitize_wandb_api_key,
 )
@@ -112,8 +111,7 @@ class LocalContainerRunner(AbstractRunner):
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.image_name
-            if not docker_image_exists(image_uri):
-                pull_docker_image(image_uri)
+            pull_docker_image(image_uri)
             entry_cmd = []
             if entry_point is not None:
                 entry_cmd = entry_point.command
