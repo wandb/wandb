@@ -75,12 +75,12 @@ def singleton_queue(x):
 def dummy_response_prepare(spec):
     name = spec["name"]
     return ResponsePrepare(
+        birth_artifact_id=f"artifact-id-{name}",
         upload_url=f"http://wandb-test/upload-url-{name}",
         upload_headers=["x-my-header-key:my-header-val"],
-        birth_artifact_id=f"artifact-id-{name}",
-        multipart_upload_url=None,
         upload_id=None,
         storage_path="wandb_artifact/123456789",
+        multipart_upload_urls=None,
     )
 
 
@@ -346,7 +346,7 @@ class TestStoreFile:
     @pytest.mark.parametrize(
         [
             "upload_url",
-            "multipart_upload_url",
+            "multipart_upload_urls",
             "expect_single_upload",
             "expect_multipart_upload",
             "expect_deduped",
@@ -385,7 +385,7 @@ class TestStoreFile:
         api,
         tmp_path: Path,
         upload_url: Optional[str],
-        multipart_upload_url: Optional[dict],
+        multipart_upload_urls: Optional[dict],
         expect_multipart_upload: bool,
         expect_single_upload: bool,
         expect_deduped: bool,
@@ -395,7 +395,7 @@ class TestStoreFile:
         preparer = mock_preparer(
             prepare_sync=lambda spec: singleton_queue(
                 dummy_response_prepare(spec)._replace(
-                    upload_url=upload_url, multipart_upload_url=multipart_upload_url
+                    upload_url=upload_url, multipart_upload_urls=multipart_upload_urls
                 )
             )
         )
