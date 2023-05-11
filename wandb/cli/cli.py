@@ -966,7 +966,7 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
-    _type, custom_config = "wandb", {}
+    _type = "job" if scheduler_args.get("job") else "wandb"
     parsed_sweep_config, sweep_obj_id, prev_sweep_run_spec = None, None, None
     if resume_id:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
@@ -987,10 +987,6 @@ def launch_sweep(
             _type = "job"
     else:
         parsed_sweep_config = parsed_config
-        # Check if custom sweep scheduler
-        if parsed_sweep_config.get("method") == "custom":
-            custom_config = parsed_sweep_config.pop("custom", {})
-            _type = "job"
 
     entrypoint = Scheduler.ENTRYPOINT if not scheduler_args.get("job") else None
     args = sweep_utils.construct_scheduler_args(
@@ -1049,6 +1045,8 @@ def launch_sweep(
         overrides["run_config"]["launch"] = launch_args
     if scheduler_args:
         overrides["run_config"]["scheduler"] = scheduler_args
+
+    custom_config = parsed_sweep_config.pop("custom", {})
     if custom_config:
         overrides["run_config"]["custom"] = custom_config
 

@@ -248,6 +248,7 @@ class Scheduler(ABC):
             job_type=self.SWEEP_JOB_TYPE,
             # WANDB_RUN_ID = sweep_id for scheduler
             resume="allow",
+            config=self._kwargs,  # when run as a job, this sets config
         )
         return run
 

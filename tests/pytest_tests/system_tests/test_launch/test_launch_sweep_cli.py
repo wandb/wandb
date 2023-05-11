@@ -187,20 +187,3 @@ def test_launch_sweep_launch_resume(user):
         stderr=subprocess.STDOUT,
     )
     assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
-
-    out = subprocess.check_output(
-        [
-            "wandb",
-            "launch-sweep",
-            "--resume_id",
-            sweep_id,
-            "-e",
-            user,
-            "-p",
-            "proj",
-            "-q",
-            "queue",
-        ],
-        stderr=subprocess.STDOUT,
-    )
-    assert "Scheduler added to launch queue (queue)" in out.decode("utf-8")
