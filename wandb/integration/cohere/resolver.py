@@ -19,9 +19,11 @@ class CohereRequestResponseResolver:
         request = kwargs
         try:
             if hasattr(response, "generations"):
-                return {"trace" : self._resolve_generate(
-                    request, response, start_time, time_elapsed
-                )}
+                return {
+                    "trace": self._resolve_generate(
+                        request, response, start_time, time_elapsed
+                    )
+                }
             # elif hasattr(response, "chatlog"):
             #     return self._resolve_chat(request, response, time_elapsed)
             else:

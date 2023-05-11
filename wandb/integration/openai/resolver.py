@@ -22,9 +22,15 @@ class OpenAIRequestResponseResolver:
             if response.get("object") == "edit":
                 return {"trace": self._resolve_edit(request, response, time_elapsed)}
             elif response.get("object") == "text_completion":
-                return {"trace": self._resolve_completion(request, response, time_elapsed)}
+                return {
+                    "trace": self._resolve_completion(request, response, time_elapsed)
+                }
             elif response.get("object") == "chat.completion":
-                return {"trace": self._resolve_chat_completion(request, response, time_elapsed)}
+                return {
+                    "trace": self._resolve_chat_completion(
+                        request, response, time_elapsed
+                    )
+                }
             else:
                 logger.info(
                     f"Unsupported OpenAI response object: {response.get('object')}"
