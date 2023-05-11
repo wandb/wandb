@@ -40,12 +40,12 @@ class RequestFinish(NamedTuple):
 
 
 class ResponsePrepare(NamedTuple):
+    birth_artifact_id: str
     upload_url: Optional[str]
-    multipart_upload_url: Optional[Dict[int, str]]
+    upload_headers: Sequence[str]
     upload_id: Optional[str]
     storage_path: Optional[str]
-    upload_headers: Sequence[str]
-    birth_artifact_id: str
+    multipart_upload_url: Optional[Dict[int, str]]
 
 
 Request = Union[RequestPrepare, RequestFinish]
@@ -98,12 +98,12 @@ def prepare_response(response: "CreateArtifactFilesResponseFile") -> ResponsePre
     multipart_parts = {u["partNumber"]: u["uploadUrl"] for u in part_list} or None
 
     return ResponsePrepare(
+        birth_artifact_id=response["artifact"]["id"],
         upload_url=response["uploadUrl"],
-        multipart_upload_url=multipart_parts,
+        upload_headers=response["uploadHeaders"],
         upload_id=multipart_resp and multipart_resp.get("uploadID"),
         storage_path=response.get("storagePath"),
-        upload_headers=response["uploadHeaders"],
-        birth_artifact_id=response["artifact"]["id"],
+        multipart_upload_url=multipart_parts,
     )
 
 
