@@ -195,8 +195,8 @@ class OpenAIRequestResponseResolver:
             usage_stats = response["usage"]
         usage_stats["elapsed_time"] = time_elapsed
         if model_alias_and_cost:
-            usage_stats["prompt_cost"] = (
-                model_alias_and_cost["cost($)"]
+            usage_stats["prompt_cost($)"] = (
+                model_alias_and_cost["cost"]
                 * usage_stats.get("prompt_tokens", 0)
                 / 1000
             )
@@ -208,7 +208,9 @@ class OpenAIRequestResponseResolver:
             usage_stats["total_cost($)"] = (
                 usage_stats["prompt_cost($)"] + usage_stats["completion_cost($)"]
             )
-        usage_stats = {f"usage_stats/{k}": v for k, v in usage_stats.items()}
+        usage_stats = {f"usage/{k}": v for k, v in usage_stats.items()}
+        for key in usage_stats:
+            wandb.define_metric(key, step_metric="_timestamp")
         return usage_stats
 
     def _get_metrics_to_log(
