@@ -578,13 +578,14 @@ class Api:
         return "failRunQueueItem" in mutations
 
     @normalize_exceptions
-    def fail_run_queue_item(self, run_queue_item_id: str) -> bool:
+    def fail_run_queue_item(self, run_queue_item_id: str, err_info: str) -> bool:
         mutation = gql(
             """
         mutation failRunQueueItem($runQueueItemId: ID!) {
             failRunQueueItem(
                 input: {
                     runQueueItemId: $runQueueItemId
+                    info: $errInfo
                 }
             ) {
                 success
@@ -596,6 +597,7 @@ class Api:
             mutation,
             variable_values={
                 "runQueueItemId": run_queue_item_id,
+                "errInfo": err_info,
             },
         )
         result: bool = response["failRunQueueItem"]["success"]

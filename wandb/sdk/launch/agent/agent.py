@@ -1,4 +1,5 @@
 """Implementation of launch agent."""
+import json
 import logging
 import os
 import pprint
@@ -29,6 +30,7 @@ from ..utils import (
     LaunchDockerError,
     LaunchError,
 )
+from .job_phase_tracker import JobPhase, JobPhaseTracker
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -45,7 +47,7 @@ _logger = logging.getLogger(__name__)
 
 
 @dataclass
-class JobAndRunStatus:
+class JobAndRunStatusTracker:
     run_queue_item_id: str
     run_id: Optional[str] = None
     project: Optional[str] = None
@@ -54,6 +56,7 @@ class JobAndRunStatus:
     failed_to_start: bool = False
     completed_status: Optional[str] = None
     is_scheduler: bool = False
+    _phase: JobPhaseTracker
 
     @property
     def job_completed(self) -> bool:
@@ -139,7 +142,7 @@ class LaunchAgent:
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
-        self._jobs: Dict[int, JobAndRunStatus] = {}
+        self._jobs: Dict[int, JobAndRunStatusTracker] = {}
         self._jobs_lock = threading.Lock()
         self._jobs_event = Event()
         self._jobs_event.set()
@@ -183,9 +186,14 @@ class LaunchAgent:
         if self.gorilla_supports_agents:
             self._init_agent_run()
 
-    def fail_run_queue_item(self, run_queue_item_id: str) -> None:
+    def fail_run_queue_item(self, run_queue_item_id: str, message: str, phase: JobPhase, stack_trace: Optional[str]) -> None:
         if self._gorilla_supports_fail_run_queue_items:
-            self._api.fail_run_queue_item(run_queue_item_id)
+            err_info = json.dumps({
+                "message": message,
+                "stack_trace": stack_trace,
+                "phase": phase
+            })
+            self._api.fail_run_queue_item(run_queue_item_id, err_info)
 
     def _init_agent_run(self) -> None:
         settings = wandb.Settings(silent=True, disable_git=True)
@@ -411,7 +419,8 @@ class LaunchAgent:
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
                                 wandb._sentry.exception(e)
-                                self.fail_run_queue_item(job["runQueueItemId"])
+                                # always the first phase, because we only enter phase 2 within the thread
+                                self.fail_run_queue_item(job["runQueueItemId"], e.message, "initialize", traceback.format_exc())
 
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
@@ -448,9 +457,11 @@ class LaunchAgent:
         api: Api,
     ) -> None:
         thread_id = threading.current_thread().ident
+        job_phase_tracker = JobPhaseTracker()
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], job_phase_tracker)
         assert thread_id is not None
         try:
-            self._thread_run_job(launch_spec, job, default_config, api, thread_id)
+            self._thread_run_job(launch_spec, job, default_config, api, thread_id, job_tracker)
         except LaunchDockerError as e:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
@@ -469,8 +480,8 @@ class LaunchAgent:
         default_config: Dict[str, Any],
         api: Api,
         thread_id: int,
+        job_tracker: JobAndRunStatusTracker
     ) -> None:
-        job_tracker = JobAndRunStatus(job["runQueueItemId"])
         with self._jobs_lock:
             self._jobs[thread_id] = job_tracker
         project = create_project_from_spec(launch_spec, api)
@@ -497,7 +508,7 @@ class LaunchAgent:
         backend = loader.runner_from_config(resource, api, backend_config, environment)
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
-        run = backend.run(project, builder)
+        run = backend.run(project, builder, job_tracker)
 
         if _job_is_scheduler(launch_spec):
             with self._jobs_lock:
@@ -522,7 +533,7 @@ class LaunchAgent:
         if isinstance(run, LocalSubmittedRun):
             run.command_proc.kill()
 
-    def _check_run_finished(self, job_tracker: JobAndRunStatus) -> bool:
+    def _check_run_finished(self, job_tracker: JobAndRunStatusTracker) -> bool:
         if job_tracker.completed_status:
             return True
 

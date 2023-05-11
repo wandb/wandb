@@ -7,6 +7,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
+from wandb.sdk.launch.agent import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
@@ -81,6 +82,7 @@ class LocalContainerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: Optional[AbstractBuilder],
+        job_tracker: Optional["JobAndRunStatusTracker"]
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = launch_project.resource_args.get(

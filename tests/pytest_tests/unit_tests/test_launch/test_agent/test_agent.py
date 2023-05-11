@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import CommError
-from wandb.sdk.launch.agent.agent import JobAndRunStatus, LaunchAgent
+from wandb.sdk.launch.agent.agent import JobAndRunStatusTracker, LaunchAgent
 from wandb.sdk.launch.utils import LaunchError
 
 
@@ -164,7 +164,7 @@ def test_thread_finish_no_fail(mocker):
 
     mocker.api.get_run_info = MagicMock(return_value=lambda x: {"program": "blah"})
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    job = JobAndRunStatusTracker("run_queue_item_id")
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
@@ -182,7 +182,7 @@ def test_thread_finish_sweep_fail(mocker):
 
     mocker.api.get_run_info = MagicMock(return_value=None)
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    job = JobAndRunStatusTracker("run_queue_item_id")
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
@@ -200,7 +200,7 @@ def test_thread_finish_run_fail(mocker):
 
     mocker.api.get_run_info = MagicMock(side_effect=[CommError("failed")])
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    job = JobAndRunStatusTracker("run_queue_item_id")
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
@@ -217,7 +217,7 @@ def test_thread_finish_run_fail_start(mocker):
     }
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    job = JobAndRunStatusTracker("run_queue_item_id")
     job.run_id = "test_run_id"
     agent._jobs = {"thread_1": job}
     agent._jobs_lock = MagicMock()
@@ -235,7 +235,7 @@ def test_thread_finish_run_fail_start_old_server(mocker):
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     agent._gorilla_supports_fail_run_queue_items = False
-    job = JobAndRunStatus("run_queue_item_id")
+    job = JobAndRunStatusTracker("run_queue_item_id")
     job.run_id = "test_run_id"
     agent._jobs_lock = MagicMock()
     agent._jobs = {"thread_1": job}
@@ -252,7 +252,7 @@ def test_thread_finish_run_fail_different_entity(mocker):
     }
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    job = JobAndRunStatusTracker("run_queue_item_id")
     job.run_id = "test_run_id"
     job.project = "test-project"
     job.entity = "other-entity"
