@@ -3,12 +3,12 @@ import logging
 from typing import Any, Dict, List, Optional, Sequence
 
 from wandb.sdk.data_types import trace_tree
-from wandb.sdk.integration_utils.auto_logging import Response
+from wandb.sdk.integration_utils.auto_logging import Response, ArgumentResponseResolver
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAIRequestResponseResolver:
+class OpenAIRequestResponseResolver(ArgumentResponseResolver):
     def __call__(
         self,
         args: Sequence[Any],
