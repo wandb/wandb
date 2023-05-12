@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
+from wandb.apis.public import Api as PublicApi
+
 import wandb
 from wandb import util
 from wandb.sdk.launch.utils import LaunchError
@@ -167,6 +169,7 @@ def construct_scheduler_args(
         f"{queue!r}",
         "--project",
         project,
+        # sweep type only used when scheduler is NOT a job
         "--sweep_type",
         f"{sweep_type}",
     ]
@@ -267,3 +270,23 @@ def make_launch_sweep_entrypoint(
         return None, macro_args
 
     return entry_point, macro_args
+
+
+def check_job_exists(public_api: PublicApi, job: Optional[str]) -> bool:
+    """Check if the job exists using the public api.
+
+    Returns: True if no job is passed, or if the job exists.
+    Returns: False if the job is misformatted or doesn't exist."""
+    if not job:
+        return True
+
+    if not isinstance(job, str) or ":" not in job:
+        wandb.termerror("Job must be a string of format <job_string>:<alias>")
+        return False
+
+    try:
+        public_api.artifact(job, type="job")
+    except Exception as e:
+        wandb.termerror(f"Failed to load job. Error: {e}")
+        return False
+    return True

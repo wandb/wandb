@@ -490,6 +490,9 @@ class Scheduler(ABC):
         misspellings will result in an empty list."""
         try:
             queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
+            if not queued_run:
+                return []
+
             api_run: Run = self._public_api.run(
                 f"{queued_run.entity}/{queued_run.project}/{run_id}"
             )
@@ -505,18 +508,23 @@ class Scheduler(ABC):
     def _get_run_info(self, run_id: str) -> Dict[str, Any]:
         """Use the public api to get info about a run."""
         try:
-            return self._public_api.get_run_info(self._entity, self._project, run_id)
+            info: Dict[str, Any] = self._api.get_run_info(self._entity, self._project, run_id)
+            if info:
+                return info
         except Exception as e:
             _logger.debug(f"[_get_run_info] {e}")
         return {}
 
     def _create_run(self) -> Dict[str, Any]:
         """Use the public api to create a blank run."""
-        return self._api.upsert_run(
+        run: Dict[str, Any] = self._api.upsert_run(
             project=self._project,
             entity=self._entity,
             sweep_name=self._sweep_id,
-        )[0]
+        )
+        if run:
+            return run[0]
+        return {}
 
     def _encode(self, _id: str) -> str:
         return (
