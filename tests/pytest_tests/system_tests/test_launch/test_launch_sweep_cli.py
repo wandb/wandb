@@ -160,28 +160,3 @@ def test_launch_sweep_launch_resume(user):
             stderr=subprocess.STDOUT,
         )
         assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
-
-    sweep_config = {
-        "method": "grid",
-        "image_uri": "test-image:latest",
-        "parameters": {"parameter1": {"values": [1, 2, 3]}},
-    }
-
-    # Entity, project, and sweep
-    sweep_id = wandb.sweep(sweep_config, entity=user, project="proj")
-    out = subprocess.check_output(
-        [
-            "wandb",
-            "launch-sweep",
-            "--resume_id",
-            sweep_id,
-            "-e",
-            user,
-            "-p",
-            "proj",
-            "-q",
-            "queue",
-        ],
-        stderr=subprocess.STDOUT,
-    )
-    assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")

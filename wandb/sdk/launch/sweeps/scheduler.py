@@ -470,7 +470,8 @@ class Scheduler(ABC):
         """Use the public api to get metrics from a run.
 
         Uses the metric name found in the sweep config, any
-        misspellings will result in an empty list."""
+        misspellings will result in an empty list.
+        """
         try:
             queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
             if not queued_run:

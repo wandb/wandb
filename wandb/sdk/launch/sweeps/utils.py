@@ -275,7 +275,8 @@ def check_job_exists(public_api: PublicApi, job: Optional[str]) -> bool:
     """Check if the job exists using the public api.
 
     Returns: True if no job is passed, or if the job exists.
-    Returns: False if the job is misformatted or doesn't exist."""
+    Returns: False if the job is misformatted or doesn't exist.
+    """
     if not job:
         return True
 
