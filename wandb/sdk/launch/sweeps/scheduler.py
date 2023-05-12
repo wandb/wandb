@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
-from wandb.apis.public import Artifact, QueuedRun, Run
+
 import click
 import yaml
 
@@ -18,6 +18,7 @@ import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
+from wandb.apis.public import QueuedRun, Run
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError

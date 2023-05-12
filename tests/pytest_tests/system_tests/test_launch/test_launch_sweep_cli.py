@@ -25,10 +25,10 @@ def test_launch_sweep_param_validation(user, wandb_init):
     base = ["wandb", "launch-sweep"]
     _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
 
+    base += ["-e", user, "-p", "p"]
     err_msg = "'config' and/or 'resume_id' required"
     _run_cmd_check_msg(base + ["-q", "q"], err_msg)
 
-    base += ["-e", user, "-p", "p"]
     err_msg = "Could not find sweep"
     with pytest.raises(subprocess.CalledProcessError):
         _run_cmd_check_msg(base + ["-r", "id", "-q", "q"], err_msg)
@@ -166,13 +166,9 @@ def test_launch_sweep_launch_resume(user):
         "image_uri": "test-image:latest",
         "parameters": {"parameter1": {"values": [1, 2, 3]}},
     }
-    with open("sweep-config.yaml", "w") as f:
-        json.dump(sweep_config, f)
 
     # Entity, project, and sweep
     sweep_id = wandb.sweep(sweep_config, entity=user, project="proj")
-
-    # no queue
     out = subprocess.check_output(
         [
             "wandb",
@@ -183,6 +179,8 @@ def test_launch_sweep_launch_resume(user):
             user,
             "-p",
             "proj",
+            "-q",
+            "queue",
         ],
         stderr=subprocess.STDOUT,
     )
