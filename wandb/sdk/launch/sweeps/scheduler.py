@@ -458,25 +458,7 @@ class Scheduler(ABC):
         """
         runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
-            try:
-                state = self._api.get_run_state(self._entity, self._project, run_id)
-                run.state = RunState(state)
-            except CommError as e:
-                _logger.debug(f"error getting state for run ({run_id}): {e}")
-                if run.state == RunState.UNKNOWN:
-                    # triggers when we get an unknown state for the second time
-                    wandb.termwarn(
-                        f"Failed to get runstate for run ({run_id}). Error: {traceback.format_exc()}"
-                    )
-                    run.state = RunState.FAILED
-                else:  # first time we get unknwon state
-                    run.state = RunState.UNKNOWN
-            except (AttributeError, ValueError):
-                wandb.termwarn(
-                    f"Bad state ({state}) for run ({run_id}). Error: {traceback.format_exc()}"
-                )
-                run.state = RunState.UNKNOWN
-
+            run.state = self._get_run_state(run_id)
             rqi_state = run.queued_run.state if run.queued_run else None
             if not run.state.is_alive or rqi_state == "failed":
                 _logger.debug(f"({run_id}) states: ({run.state}, {rqi_state})")
@@ -516,6 +498,30 @@ class Scheduler(ABC):
         except Exception as e:
             _logger.debug(f"[_get_run_info] {e}")
         return {}
+
+    def _get_run_state(
+        self, run_id: str, run_state: RunState = RunState.UNKNOWN
+    ) -> RunState:
+        """Use the public api to get state of a run."""
+        try:
+            state = self._api.get_run_state(self._entity, self._project, run_id)
+            run_state = RunState(state)
+        except CommError as e:
+            _logger.debug(f"error getting state for run ({run_id}): {e}")
+            if run_state == RunState.UNKNOWN:
+                # triggers when we get an unknown state for the second time
+                wandb.termwarn(
+                    f"Failed to get runstate for run ({run_id}). Error: {traceback.format_exc()}"
+                )
+                run_state = RunState.FAILED
+            else:  # first time we get unknwon state
+                run_state = RunState.UNKNOWN
+        except (AttributeError, ValueError):
+            wandb.termwarn(
+                f"Bad state ({state}) for run ({run_id}). Error: {traceback.format_exc()}"
+            )
+            run_state = RunState.UNKNOWN
+        return run_state
 
     def _create_run(self) -> Dict[str, Any]:
         """Use the public api to create a blank run."""
