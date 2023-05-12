@@ -1,6 +1,8 @@
 import base64
 import contextlib
+import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -94,6 +96,11 @@ _REQUEST_POOL_CONNECTIONS = 64
 _REQUEST_POOL_MAXSIZE = 64
 
 ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
+
+# AWS S3 max upload parts without having to make additional requests for extra parts
+S3_MAX_PART_NUMBERS = 1000
+S3_MIN_MULTI_UPLOAD_SIZE = 2 * 1024**3
+S3_MAX_MULTI_UPLOAD_SIZE = 5 * 1024**4
 
 
 class _AddedObj:
@@ -951,6 +958,63 @@ class WandbStoragePolicy(StoragePolicy):
         else:
             raise Exception(f"unrecognized storage layout: {storage_layout}")
 
+    def s3_multipart_file_upload(
+        self,
+        file_path: str,
+        chunk_size: int,
+        hex_digests: Dict[int, str],
+        multipart_urls: Dict[int, str],
+        extra_headers: Dict[str, str],
+    ) -> List[Dict[str, Any]]:
+        etags = []
+        part_number = 1
+
+        with open(file_path, "rb") as f:
+            while True:
+                data = f.read(chunk_size)
+                if not data:
+                    break
+                md5_b64_str = str(hex_to_b64_id(hex_digests[part_number]))
+                upload_resp = self._api.upload_multipart_file_chunk_retry(
+                    multipart_urls[part_number],
+                    data,
+                    extra_headers={
+                        "content-md5": md5_b64_str,
+                        "content-length": str(len(data)),
+                        "content-type": extra_headers.get("Content-Type"),
+                    },
+                )
+                etags.append(
+                    {"partNumber": part_number, "hexMD5": upload_resp.headers["ETag"]}
+                )
+                part_number += 1
+        return etags
+
+    def default_file_upload(
+        self,
+        upload_url: str,
+        file_path: str,
+        extra_headers: Dict[str, Any],
+        progress_callback: Optional["progress.ProgressFn"] = None,
+    ) -> None:
+        """Upload a file to the artifact store and write to cache."""
+        with open(file_path, "rb") as file:
+            # This fails if we don't send the first byte before the signed URL expires.
+            self._api.upload_file_retry(
+                upload_url,
+                file,
+                progress_callback,
+                extra_headers=extra_headers,
+            )
+
+    def calc_chunk_size(self, file_size: int) -> int:
+        # Default to chunk size of 100MiB. S3 has cap of 10,000 upload parts.
+        # If file size exceeds the default chunk size, recalculate chunk size.
+        default_chunk_size = 100 * 1024**2
+        if default_chunk_size * S3_MAX_PART_NUMBERS < file_size:
+            return math.ceil(file_size / S3_MAX_PART_NUMBERS)
+        return default_chunk_size
+
     def store_file_sync(
         self,
         artifact_id: str,
@@ -965,31 +1029,71 @@ class WandbStoragePolicy(StoragePolicy):
             True if the file was a duplicate (did not need to be uploaded),
             False if it needed to be uploaded or was a reference (nothing to dedupe).
         """
+        file_size = entry.size if entry.size is not None else 0
+        chunk_size = self.calc_chunk_size(file_size)
+        upload_parts = []
+        hex_digests = {}
+        file_path = entry.local_path if entry.local_path is not None else ""
+        # Logic for AWS s3 multipart upload.
+        # Only chunk files if larger than 2 GiB. Currently can only support up to 5TiB.
+        if (
+            file_size >= S3_MIN_MULTI_UPLOAD_SIZE
+            and file_size <= S3_MAX_MULTI_UPLOAD_SIZE
+        ):
+            part_number = 1
+            with open(file_path, "rb") as f:
+                while True:
+                    data = f.read(chunk_size)
+                    if not data:
+                        break
+                    hex_digest = hashlib.md5(data).hexdigest()
+                    upload_parts.append(
+                        {"hexMD5": hex_digest, "partNumber": part_number}
+                    )
+                    hex_digests[part_number] = hex_digest
+                    part_number += 1
+
         resp = preparer.prepare_sync(
             {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
+                "uploadPartsInput": upload_parts,
             }
         ).get()
 
         entry.birth_artifact_id = resp.birth_artifact_id
+
+        multipart_urls = resp.multipart_upload_urls
         if resp.upload_url is None:
             return True
         if entry.local_path is None:
             return False
 
-        with open(entry.local_path, "rb") as file:
-            # This fails if we don't send the first byte before the signed URL expires.
-            self._api.upload_file_retry(
-                resp.upload_url,
-                file,
-                progress_callback,
-                extra_headers={
-                    header.split(":", 1)[0]: header.split(":", 1)[1]
-                    for header in (resp.upload_headers or {})
-                },
+        extra_headers = {
+            header.split(":", 1)[0]: header.split(":", 1)[1]
+            for header in (resp.upload_headers or {})
+        }
+
+        # This multipart upload isn't available, do a regular single url upload
+        if multipart_urls is None and resp.upload_url:
+            self.default_file_upload(
+                resp.upload_url, file_path, extra_headers, progress_callback
+            )
+        else:
+            if multipart_urls is None:
+                raise ValueError(f"No multipart urls to upload for file: {file_path}")
+            # Upload files using s3 multipart upload urls
+            etags = self.s3_multipart_file_upload(
+                file_path,
+                chunk_size,
+                hex_digests,
+                multipart_urls,
+                extra_headers,
+            )
+            self._api.complete_multipart_upload_artifact(
+                artifact_id, resp.storage_path, etags, resp.upload_id
             )
         self._write_cache(entry)
 
