@@ -5,10 +5,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
-from wandb.apis.public import Api as PublicApi
-
 import wandb
 from wandb import util
+from wandb.apis.public import Api as PublicApi
 from wandb.sdk.launch.utils import LaunchError
 
 DEFAULT_SWEEP_COMMAND: List[str] = [
