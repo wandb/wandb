@@ -2,12 +2,12 @@ import logging
 from typing import Any, Dict, List, Optional, Sequence
 
 from wandb.sdk.data_types import trace_tree
-from wandb.sdk.integration_utils.auto_logging import ArgumentResponseResolver, Response
+from wandb.sdk.integration_utils.auto_logging import Response
 
 logger = logging.getLogger(__name__)
 
 
-class CohereRequestResponseResolver(ArgumentResponseResolver):
+class CohereRequestResponseResolver:
     def __call__(
         self,
         args: Sequence[Any],
