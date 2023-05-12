@@ -3,6 +3,7 @@ import polars as pl
 from pathlib import Path
 import itertools
 from .base import Importer, ImporterRun
+from wandb.sdk.lib import runid
 
 
 class WandbRun(ImporterRun):
@@ -51,7 +52,23 @@ class WandbRun(ImporterRun):
         return self.run.summary["_runtime"]
 
     def artifacts(self):
-        ...
+        for art in self.run.logged_artifacts():
+            if art.type == "wandb-history":
+                continue
+
+            # Is this safe?
+            art._client_id = runid.generate_id(128)
+            art._sequence_client_id = runid.generate_id(128)
+            art.distributed_id = None
+            art.incremental = False
+
+            name, ver = art.name.split(":v")
+            art._name = name
+
+            yield art
+        # return [
+        #     art for art in self.run.logged_artifacts() if art.type != "wandb-history"
+        # ]
 
 
 class WandbImporter(Importer):

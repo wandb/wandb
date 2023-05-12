@@ -1,6 +1,7 @@
 from typing import Any, Dict, Iterable, Optional
 
 from wandb.util import get_module
+import wandb
 
 from .base import Importer, ImporterRun
 
@@ -87,10 +88,15 @@ class MlflowRun(ImporterRun):
         ...
 
     def artifacts(self):
+        # Mlflow only has one artifact
+        artifact_name = self._handle_incompatible_strings(self.display_name())
+        art = wandb.Artifact(artifact_name, "imported-artifacts")
         for f in self.mlflow_client.list_artifacts(self.run.info.run_id):
             dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
-            full_path = dir_path + f.path
-            yield (f.path, full_path)
+            name = f.path
+            full_path = dir_path + name
+            art.add_file(full_path, name)
+        yield art
 
 
 class MlflowImporter(Importer):

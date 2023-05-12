@@ -194,13 +194,7 @@ class ImporterRun:
             {"files": [[f"{self.run_dir}/files/wandb-metadata.json", "end"]]}
         )
 
-    def _make_artifact_record(self) -> pb.Record:
-        artifact_name = self._handle_incompatible_strings(self.display_name())
-        art = wandb.Artifact(artifact_name, "imported-artifacts")
-        artifacts = self.artifacts()
-        if artifacts is not None:
-            for name, path in artifacts:
-                art.add_file(path, name)
+    def _make_artifact_record(self, art) -> pb.Record:
         proto = self.interface._make_artifact(art)
         proto.run_id = self.run_id()
         proto.project = self.project()
@@ -323,8 +317,8 @@ class Importer(ABC):
             sm.send(run._make_metadata_files_record())
             for history_record in run._make_history_records():
                 sm.send(history_record)
-            if run.artifacts() is not None:
-                sm.send(run._make_artifact_record())
+            for art in run.artifacts():
+                sm.send(run._make_artifact_record(art))
             sm.send(run._make_telem_record())
 
 
