@@ -1,16 +1,24 @@
 import unittest
-import pytest
-from unittest.mock import MagicMock
-from wandb.sdk.integration_utils.auto_logging import AutologAPI, PatchAPI, ArgumentResponseResolver
-import wandb
 from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
+import wandb
+from wandb.sdk.integration_utils.auto_logging import (
+    ArgumentResponseResolver,
+    AutologAPI,
+    PatchAPI,
+)
+
 
 def sample_method(x, y):
     return x + y
 
+
 class SampleClass:
     def sample_class_method(self, x, y):
         return x * y
+
 
 class TestPatchAPI(PatchAPI):
     def __init__(self, *args, **kwargs):
@@ -21,15 +29,19 @@ class TestPatchAPI(PatchAPI):
     def set_api(self) -> Any:
         return self._test_api
 
-class TestAutologAPIAndPatchAPI(unittest.TestCase):
 
+class TestAutologAPIAndPatchAPI(unittest.TestCase):
     def setUp(self):
         # Setting up the necessary resources for the test
         self.mock_run = MagicMock(spec=wandb.sdk.wandb_run.Run)
         wandb.run = self.mock_run
 
         def sample_resolver(args, kwargs, response, start_time, time_elapsed):
-            return {"arg_sum": sum(args), "kwarg_sum": sum(kwargs.values()), "elapsed": time_elapsed}
+            return {
+                "arg_sum": sum(args),
+                "kwarg_sum": sum(kwargs.values()),
+                "elapsed": time_elapsed,
+            }
 
         patch_api = TestPatchAPI(
             name="Sample",
@@ -60,22 +72,33 @@ class TestAutologAPIAndPatchAPI(unittest.TestCase):
         # Test method patching and logging for sample_method
         assert self.sample_method != sample_method
         result = self.sample_method(2, 3)
-        
+
         # Use assertAlmostEqual for 'elapsed' value comparison
         log_call = self.mock_run.log.call_args[0][0]
         self.assertAlmostEqual(log_call["elapsed"], 0, delta=0.1)
-        log_call["elapsed"] = 0  # Set "elapsed" to the expected value for the next assertion
-        self.mock_run.log.assert_called_with({"arg_sum": 5, "kwarg_sum": 0, "elapsed": 0})
+        log_call[
+            "elapsed"
+        ] = 0  # Set "elapsed" to the expected value for the next assertion
+        self.mock_run.log.assert_called_with(
+            {"arg_sum": 5, "kwarg_sum": 0, "elapsed": 0}
+        )
 
         # Test method patching and logging for SampleClass.sample_class_method
-        assert self.sample_class_module.sample_class_method != SampleClass().sample_class_method
+        assert (
+            self.sample_class_module.sample_class_method
+            != SampleClass().sample_class_method
+        )
         result = self.sample_class_module.sample_class_method(2, 3)
-        
+
         # Use assertAlmostEqual for 'elapsed' value comparison
         log_call = self.mock_run.log.call_args[0][0]
         self.assertAlmostEqual(log_call["elapsed"], 0, delta=0.1)
-        log_call["elapsed"] = 0  # Set "elapsed" to the expected value for the next assertion
-        self.mock_run.log.assert_called_with({"arg_sum": 5, "kwarg_sum": 0, "elapsed": 0})
+        log_call[
+            "elapsed"
+        ] = 0  # Set "elapsed" to the expected value for the next assertion
+        self.mock_run.log.assert_called_with(
+            {"arg_sum": 5, "kwarg_sum": 0, "elapsed": 0}
+        )
 
         # Test disabling and unpatching
         self.sample_autolog_api.disable()
@@ -84,12 +107,13 @@ class TestAutologAPIAndPatchAPI(unittest.TestCase):
         # TODO: Fix this assertion
         # assert self.sample_class_module.sample_class_method == SampleClass().sample_class_method
 
+
 class TestArgumentResponseResolver(unittest.TestCase):
     def test_argument_response_resolver(self):
         class SampleResolver(ArgumentResponseResolver):
             def __call__(self, args, kwargs, response, start_time, time_elapsed):
                 return {"arg_sum": sum(args), "kwarg_sum": sum(kwargs.values())}
-                
+
         resolver = SampleResolver()
         loggable_dict = resolver([1, 2, 3], {"a": 4, "b": 5}, None, 0, 0)
         assert loggable_dict == {"arg_sum": 6, "kwarg_sum": 9}
