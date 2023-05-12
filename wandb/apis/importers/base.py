@@ -165,6 +165,7 @@ class ImporterRun:
             "_runtime": self.runtime(),  # quirk of runtime -- it has to be here!
             # '_timestamp': self.start_time()/1000,
         }
+        d = cast_dictlike_to_dict(d)
         summary = self.interface._make_summary_from_dict(d)
         return self.interface._make_record(summary=summary)
 
@@ -325,3 +326,13 @@ class Importer(ABC):
             if run.artifacts() is not None:
                 sm.send(run._make_artifact_record())
             sm.send(run._make_telem_record())
+
+
+def cast_dictlike_to_dict(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            cast_dictlike_to_dict(v)
+        elif hasattr(v, "keys"):
+            d[k] = dict(v)
+            cast_dictlike_to_dict(d[k])
+    return d
