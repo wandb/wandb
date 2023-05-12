@@ -1,11 +1,11 @@
 import io
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import wandb
 from wandb.sdk.data_types import trace_tree
-from wandb.sdk.integration_utils.llm import Response
+from wandb.sdk.integration_utils.auto_logging import Response
 
 logger = logging.getLogger(__name__)
 from dataclasses import asdict, dataclass
@@ -104,11 +104,13 @@ class Metrics:
 class OpenAIRequestResponseResolver:
     def __call__(
         self,
-        request: Dict[str, Any],
+        args: Sequence[Any],
+        kwargs: Dict[str, Any],
         response: Response,
         start_time: float,  # pass to comply with the protocol, but use response["created"] instead
         time_elapsed: float,
     ) -> Optional[Dict[str, Any]]:
+        request = kwargs
         try:
             if response.get("object") == "edit":
                 return self._resolve_edit(request, response, time_elapsed)
