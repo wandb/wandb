@@ -65,6 +65,7 @@ from wandb.sdk.lib.paths import LogicalPath
 if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util
+    from wandb import Artifact as LocalArtifact
 
 logger = logging.getLogger(__name__)
 
@@ -5231,6 +5232,19 @@ class Artifact(artifacts.Artifact):
                 run_obj["project"]["name"],
                 run_obj["name"],
             )
+
+    def new_draft(self) -> "LocalArtifact":
+        """Create a new draft artifact with the same content as this committed artifact.
+
+        The artifact returned can be extended or modified and logged as a new version.
+        """
+        artifact = wandb.Artifact(self.name.split(":")[0], self.type)
+        artifact._description = self.description
+        artifact._metadata = self.metadata
+        artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
+            self.manifest.to_manifest_json()
+        )
+        return artifact
 
 
 class ArtifactVersions(Paginator):
