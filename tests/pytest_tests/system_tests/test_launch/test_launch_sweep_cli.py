@@ -130,21 +130,19 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
 def test_launch_sweep_launch_resume(user):
     api = InternalApi()
     public_api = Api()
-    public_api.create_project("proj", user)
+    public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 
     # make launch project queue
-    res = api.create_run_queue(
+    api.create_run_queue(
         entity=user,
-        project="proj",
+        project=LAUNCH_DEFAULT_PROJECT,
         queue_name="queue",
         access="USER",
     )
 
-    if res.get("success") is not True:
-        raise Exception("create queue" + str(res))
-
+    # bogus sweep
     with pytest.raises(subprocess.CalledProcessError):
-        out = subprocess.check_output(
+        subprocess.check_output(
             [
                 "wandb",
                 "launch-sweep",
@@ -153,10 +151,49 @@ def test_launch_sweep_launch_resume(user):
                 "-e",
                 user,
                 "-p",
-                "proj",
+                LAUNCH_DEFAULT_PROJECT,
                 "-q",
                 "queue",
             ],
             stderr=subprocess.STDOUT,
         )
-        assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
+
+    sweep_config = {
+        "method": "grid",
+        "image_uri": "test-image:latest",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+
+    # Entity, project, and sweep
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=LAUNCH_DEFAULT_PROJECT)
+    subprocess.check_output(
+        [
+            "wandb",
+            "launch-sweep",
+            "--resume_id",
+            sweep_id,
+            "-e",
+            user,
+            "-p",
+            LAUNCH_DEFAULT_PROJECT,
+            "-q",
+            "queue",
+        ],
+        stderr=subprocess.STDOUT,
+    )
+
+    # Resume the same sweep, NO queue, should pick up from previous
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=LAUNCH_DEFAULT_PROJECT)
+    subprocess.check_output(
+        [
+            "wandb",
+            "launch-sweep",
+            "--resume_id",
+            sweep_id,
+            "-e",
+            user,
+            "-p",
+            LAUNCH_DEFAULT_PROJECT,
+        ],
+        stderr=subprocess.STDOUT,
+    )

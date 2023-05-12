@@ -996,7 +996,8 @@ def launch_sweep(
 
         # Is the resuming scheduler executing from a job? grab it to confirm
         # the inputted scheduler job matches the resumed scheduler job
-        prev_sweep_scheduler = json.loads(found.get("scheduler", "{}"))
+        raw_scheduler_args = found.get("scheduler") or "{}"
+        prev_sweep_scheduler = json.loads(raw_scheduler_args)
         prev_sweep_run_spec = json.loads(prev_sweep_scheduler.get("run_spec", "{}"))
         if prev_sweep_run_spec.get("job"):
             if scheduler_args and not scheduler_job:
@@ -1012,8 +1013,12 @@ def launch_sweep(
                 return False
 
         # grab the queue from previously run scheduler if not specified
-        if not queue and prev_sweep_run_spec.get("queue"):
-            queue = prev_sweep_run_spec["queue"]
+        if not queue and prev_sweep_run_spec.get("overrides", {}).get(
+            "run_config", {}
+        ).get("sweep_args", {}).get("queue"):
+            queue = prev_sweep_run_spec["overrides"]["run_config"]["sweep_args"][
+                "queue"
+            ]
 
     if not queue:
         wandb.termerror(
