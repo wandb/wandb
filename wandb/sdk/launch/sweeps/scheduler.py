@@ -508,7 +508,9 @@ class Scheduler(ABC):
     def _get_run_info(self, run_id: str) -> Dict[str, Any]:
         """Use the public api to get info about a run."""
         try:
-            info: Dict[str, Any] = self._api.get_run_info(self._entity, self._project, run_id)
+            info: Dict[str, Any] = self._api.get_run_info(
+                self._entity, self._project, run_id
+            )
             if info:
                 return info
         except Exception as e:
@@ -518,7 +520,7 @@ class Scheduler(ABC):
     def _create_run(self) -> Dict[str, Any]:
         """Use the public api to create a blank run."""
         try:
-            run: Dict[str, Any] = self._api.upsert_run(
+            run: List[Dict[str, Any]] = self._api.upsert_run(
                 project=self._project,
                 entity=self._entity,
                 sweep_name=self._sweep_id,
@@ -527,7 +529,9 @@ class Scheduler(ABC):
                 return run[0]
         except Exception as e:
             _logger.debug(f"[_create_run] {e}")
-            raise SchedulerError("Error creating run from scheduler, check API connection and CLI version.")
+            raise SchedulerError(
+                "Error creating run from scheduler, check API connection and CLI version."
+            )
         return {}
 
     def _encode(self, _id: str) -> str:

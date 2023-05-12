@@ -956,9 +956,9 @@ def launch_sweep(
 
     parsed_user_config = sweep_utils.load_launch_sweep_config(config)
     # Rip special keys out of config, store in scheduler run_config
-    scheduler_args: Dict[str, Any] = parsed_user_config.pop("scheduler", {})
     launch_args: Dict[str, Any] = parsed_user_config.pop("launch", {})
-    settings: Dict[str, Any] = parsed_user_config.pop("settings", {})
+    scheduler_args: Dict[str, Any] = parsed_user_config.pop("scheduler", {})
+    settings: Dict[str, Any] = scheduler_args.pop("settings", {})
 
     scheduler_job: Optional[str] = scheduler_args.get("job")
     if scheduler_job:
@@ -970,6 +970,17 @@ def launch_sweep(
     sweep_config, sweep_obj_id = None, None
     if not resume_id:
         sweep_config = parsed_user_config
+
+        # check method
+        method = sweep_config.get("method")
+        if scheduler_job and not method:
+            sweep_config["method"] = "custom"
+        elif scheduler_job and method != "custom":
+            wandb.termerror(
+                "Using a scheduler job for launch sweeps is only supported with the 'custom' method"
+            )
+            return
+
     else:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
         if not found:
