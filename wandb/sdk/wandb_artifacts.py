@@ -196,7 +196,6 @@ class Artifact(ArtifactInterface):
                 #  TODO: storage region
             }
         )
-        self._api = InternalApi()
         self._final = False
         self._digest = ""
         self._file_entries = None
@@ -248,14 +247,13 @@ class Artifact(ArtifactInterface):
     def entity(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.entity
-        return self._api.settings("entity") or self._api.viewer().get("entity")  # type: ignore
+        raise ArtifactNotLoggedError(self, "entity")
 
     @property
     def project(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.project
-
-        return self._api.settings("project")  # type: ignore
+        raise ArtifactNotLoggedError(self, "project")
 
     @property
     def manifest(self) -> ArtifactManifest:
@@ -289,11 +287,11 @@ class Artifact(ArtifactInterface):
         return self._name
 
     @property
-    def full_name(self) -> str:
+    def qualified_name(self) -> str:
         if self._logged_artifact:
-            return self._logged_artifact.full_name
+            return self._logged_artifact.qualified_name
 
-        return super().full_name
+        return super().qualified_name
 
     @property
     def state(self) -> str:
