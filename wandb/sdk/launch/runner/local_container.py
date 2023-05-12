@@ -17,10 +17,8 @@ from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
-    docker_image_exists,
     pull_docker_image,
     sanitize_wandb_api_key,
 )
@@ -141,13 +139,7 @@ class LocalContainerRunner(AbstractRunner):
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.image_name
-            try:
-                pull_docker_image(image_uri)
-            except LaunchError as e:
-                if not docker_image_exists(image_uri):
-                    raise LaunchError(
-                        "Docker image not found locally or on remotely."
-                    ) from e
+            pull_docker_image(image_uri)
             entry_cmd = []
             if entry_point is not None:
                 entry_cmd = entry_point.command
