@@ -8,31 +8,74 @@ from wandb.sdk.data_types import trace_tree
 from wandb.sdk.integration_utils.llm import Response
 
 logger = logging.getLogger(__name__)
+from dataclasses import asdict, dataclass
 
 
-def get_alias_and_cost(model_name: str, is_completion: bool = False) -> float:
+def get_model_alias(model_name: str, is_completion: bool = False) -> Dict[str, str]:
     alias_cost_mapping = {
-        "gpt-4": {"alias": "gpt-4", "cost": 0.03},
-        "gpt-4-0314": {"alias": "gpt-4", "cost": 0.03},
-        "gpt-4-completion": {"alias": "gpt-4", "cost": 0.06},
-        "gpt-4-0314-completion": {"alias": "gpt-4", "cost": 0.06},
-        "gpt-4-32k": {"alias": "gpt-4", "cost": 0.06},
-        "gpt-4-32k-0314": {"alias": "gpt-4", "cost": 0.06},
-        "gpt-4-32k-completion": {"alias": "gpt-4", "cost": 0.12},
-        "gpt-4-32k-0314-completion": {"alias": "gpt-4", "cost": 0.12},
-        "gpt-3.5-turbo": {"alias": "gpt-3.5", "cost": 0.002},
-        "gpt-3.5-turbo-0301": {"alias": "gpt-3.5", "cost": 0.002},
-        "text-ada-001": {"alias": "gpt-3", "cost": 0.0004},
-        "ada": {"alias": "gpt-3", "cost": 0.0004},
-        "text-babbage-001": {"alias": "gpt-3", "cost": 0.0005},
-        "babbage": {"alias": "gpt-3", "cost": 0.0005},
-        "text-curie-001": {"alias": "gpt-3", "cost": 0.002},
-        "curie": {"alias": "gpt-3", "cost": 0.002},
-        "text-davinci-003": {"alias": "gpt-3", "cost": 0.02},
-        "text-davinci-edit-001": {"alias": "gpt-3", "cost": 0.02},
-        "code-davinci-edit-001": {"alias": "gpt-3", "cost": 0.02},
-        "text-davinci-002": {"alias": "gpt-3", "cost": 0.02},
-        "code-davinci-002": {"alias": "gpt-3", "cost": 0.02},
+        "gpt-4": {
+            "alias": "gpt-4",
+        },
+        "gpt-4-0314": {
+            "alias": "gpt-4",
+        },
+        "gpt-4-completion": {
+            "alias": "gpt-4",
+        },
+        "gpt-4-0314-completion": {
+            "alias": "gpt-4",
+        },
+        "gpt-4-32k": {
+            "alias": "gpt-4",
+        },
+        "gpt-4-32k-0314": {
+            "alias": "gpt-4",
+        },
+        "gpt-4-32k-completion": {
+            "alias": "gpt-4",
+        },
+        "gpt-4-32k-0314-completion": {
+            "alias": "gpt-4",
+        },
+        "gpt-3.5-turbo": {
+            "alias": "gpt-3.5",
+        },
+        "gpt-3.5-turbo-0301": {
+            "alias": "gpt-3.5",
+        },
+        "text-ada-001": {
+            "alias": "gpt-3",
+        },
+        "ada": {
+            "alias": "gpt-3",
+        },
+        "text-babbage-001": {
+            "alias": "gpt-3",
+        },
+        "babbage": {
+            "alias": "gpt-3",
+        },
+        "text-curie-001": {
+            "alias": "gpt-3",
+        },
+        "curie": {
+            "alias": "gpt-3",
+        },
+        "text-davinci-003": {
+            "alias": "gpt-3",
+        },
+        "text-davinci-edit-001": {
+            "alias": "gpt-3",
+        },
+        "code-davinci-edit-001": {
+            "alias": "gpt-3",
+        },
+        "text-davinci-002": {
+            "alias": "gpt-3",
+        },
+        "code-davinci-002": {
+            "alias": "gpt-3",
+        },
     }
 
     alias_cost = alias_cost_mapping.get(
@@ -41,6 +84,21 @@ def get_alias_and_cost(model_name: str, is_completion: bool = False) -> float:
         None,
     )
     return alias_cost
+
+
+@dataclass
+class UsageMetrics:
+    elapsed_time: float = None
+    prompt_tokens: int = None
+    completion_tokens: int = None
+    total_tokens: int = None
+
+
+@dataclass
+class Metrics:
+    usage: UsageMetrics = None
+    stats: wandb.Table = None
+    trace: trace_tree.WBTraceTree = None
 
 
 class OpenAIRequestResponseResolver:
@@ -181,36 +239,20 @@ class OpenAIRequestResponseResolver:
             for choice in choices
         ]
         metrics = self._get_metrics_to_log(request, response, results, time_elapsed)
+        metrics = self._convert_metrics_to_dict(metrics)
         return metrics
 
     def _get_usage_metrics(
         self,
         response: Response,
         time_elapsed: float,
-        model_alias_and_cost: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+    ) -> UsageMetrics:
         """Gets the usage stats from the response object."""
-        usage_stats = {}
         if response.get("usage"):
-            usage_stats = response["usage"]
-        usage_stats["elapsed_time"] = time_elapsed
-        if model_alias_and_cost:
-            usage_stats["prompt_cost($)"] = (
-                model_alias_and_cost["cost"]
-                * usage_stats.get("prompt_tokens", 0)
-                / 1000
-            )
-            usage_stats["completion_cost($)"] = (
-                model_alias_and_cost["cost"]
-                * usage_stats.get("completion_tokens", 0)
-                / 1000
-            )
-            usage_stats["total_cost($)"] = (
-                usage_stats["prompt_cost($)"] + usage_stats["completion_cost($)"]
-            )
-        usage_stats = {f"usage/{k}": v for k, v in usage_stats.items()}
-        for key in usage_stats:
-            wandb.define_metric(key, step_metric="_timestamp")
+            usage_stats = UsageMetrics(**response["usage"])
+        else:
+            usage_stats = UsageMetrics()
+        usage_stats.elapsed_time = time_elapsed
         return usage_stats
 
     def _get_metrics_to_log(
@@ -219,22 +261,20 @@ class OpenAIRequestResponseResolver:
         response: Response,
         results: List[Any],
         time_elapsed: float,
-    ) -> Dict[str, Any]:
+    ) -> Metrics:
         if response["object"] in ("text_completion", "chat.completion"):
             is_completion = True
         else:
             is_completion = False
         model = response.get("model") or request.get("model")
         if model:
-            model_alias_and_cost = get_alias_and_cost(
-                model.lower(), is_completion=is_completion
-            )
+            model_alias = get_model_alias(model.lower(), is_completion=is_completion)
         else:
-            model_alias_and_cost = None
+            model_alias = None
 
-        model_alias = model_alias_and_cost["alias"] if model_alias_and_cost else None
+        model_alias = model_alias["alias"] if model_alias else None
 
-        metrics = self._get_usage_metrics(response, time_elapsed, model_alias_and_cost)
+        usage_metrics = self._get_usage_metrics(response, time_elapsed)
 
         usage_table = []
         for result in results:
@@ -250,17 +290,26 @@ class OpenAIRequestResponseResolver:
                 else str(uuid.uuid4()),
                 "session_id": wandb.run.id,
             }
-            row.update(metrics)
+            row.update(asdict(usage_metrics))
             usage_table.append(row)
         usage_table = wandb.Table(
             columns=list(usage_table[0].keys()),
             data=[(item.values()) for item in usage_table],
         )
 
-        metrics["trace"] = self.results_to_trace_tree(
-            request, response, results, time_elapsed
-        )
+        trace = self.results_to_trace_tree(request, response, results, time_elapsed)
 
-        metrics["stats"] = usage_table
-
+        stats = usage_table
+        metrics = Metrics(stats=stats, trace=trace, usage=usage_metrics)
         return metrics
+
+    def _convert_metrics_to_dict(self, metrics: Metrics):
+        """Converts metrics to a dict."""
+        metrics_dict = {}
+        metrics_dict["stats"] = metrics.stats
+        metrics_dict["trace"] = metrics.trace
+        usage_stats = {f"usage/{k}": v for k, v in asdict(metrics.usage).items()}
+        for key in usage_stats:
+            wandb.define_metric(key, step_metric="_timestamp")
+        metrics_dict.update(usage_stats)
+        return metrics_dict
