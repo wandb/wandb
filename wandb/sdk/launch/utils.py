@@ -143,6 +143,8 @@ def set_project_entity_defaults(
             config_entity = launch_config.get("entity")
         entity = config_entity or api.default_entity
     prefix = ""
+    if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
+        prefix = "🚀 "
     wandb.termlog(f"{LOG_PREFIX}{prefix}Launching run into {entity}/{project}")
     return project, entity
 
@@ -163,7 +165,6 @@ def construct_launch_spec(
     run_id: Optional[str],
     repository: Optional[str],
     author: Optional[str],
-    sweep_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -191,8 +192,6 @@ def construct_launch_spec(
         launch_spec["docker"] = {}
     if docker_image:
         launch_spec["docker"]["docker_image"] = docker_image
-    if sweep_id:
-        launch_spec["sweep_id"] = sweep_id
 
     if "resource" not in launch_spec:
         launch_spec["resource"] = resource if resource else None
