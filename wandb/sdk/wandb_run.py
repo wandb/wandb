@@ -3760,32 +3760,40 @@ class _LazyArtifact(ArtifactInterface):
         return self._instance.id
 
     @property
-    def source_version(self) -> Optional[str]:
-        return self._instance.source_version
-
-    @property
-    def version(self) -> str:
-        return self._instance.version
-
-    @property
-    def name(self) -> str:
-        return self._instance.name
-
-    @property
-    def qualified_name(self) -> str:
-        return self._instance.qualified_name
-
-    @property
-    def type(self) -> str:
-        return self._instance.type
-
-    @property
     def entity(self) -> str:
         return self._instance.entity
 
     @property
     def project(self) -> str:
         return self._instance.project
+
+    @property
+    def name(self) -> str:
+        return self._instance.name
+
+    @property
+    def version(self) -> str:
+        return self._instance.version
+
+    @property
+    def source_entity(self) -> str:
+        return self._instance.source_entity
+
+    @property
+    def source_project(self) -> str:
+        return self._instance.source_project
+
+    @property
+    def source_name(self) -> str:
+        return self._instance.source_name
+
+    @property
+    def source_version(self) -> str:
+        return self._instance.source_version
+
+    @property
+    def type(self) -> str:
+        return self._instance.type
 
     @property
     def manifest(self) -> "ArtifactManifest":
