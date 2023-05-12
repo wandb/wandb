@@ -553,6 +553,15 @@ class KubernetesRunner(AbstractRunner):
             add_label_to_pods(
                 launch_project.resource_args, "wandb/run-id", launch_project.run_id
             )
+            overrides = {}
+            if launch_project.override_args:
+                overrides["args"] = launch_project.override_args
+            if launch_project.override_entrypoint:
+                overrides["command"] = launch_project.override_entrypoint.command
+            add_entrypoint_args_overrides(
+                launch_project.resource_args,
+                overrides,
+            )
             api = client.CustomObjectsApi(api_client)
             # Infer the attributes of a custom object from the apiVersion and/or
             # a kind: attribute in the resource args.
@@ -756,3 +765,31 @@ def add_label_to_pods(
             labels[label_key] = label_value
         for value in manifest.values():
             add_label_to_pods(value, label_key, label_value)
+
+
+def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) -> None:
+    """Add entrypoint and args overrides to all containers in a manifest.
+
+    Recursively traverses the manifest and adds the entrypoint and args overrides
+    to all containers. Containers are identified by the presence of a "spec" key
+    with a "containers" key in the value.
+
+    Arguments:
+        manifest: The manifest to modify.
+        overrides: Dictionary with args and entrypoint keys.
+
+    Returns: None.
+    """
+    if isinstance(manifest, list):
+        for item in manifest:
+            add_entrypoint_args_overrides(item, overrides)
+    elif isinstance(manifest, dict):
+        if "spec" in manifest and "containers" in manifest["spec"]:
+            containers = manifest["spec"]["containers"]
+            for container in containers:
+                if "command" in overrides:
+                    container["command"] = overrides["command"]
+                if "args" in overrides:
+                    container["args"] = overrides["args"]
+        for value in manifest.values():
+            add_entrypoint_args_overrides(value, overrides)
