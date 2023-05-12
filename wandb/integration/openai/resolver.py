@@ -1,6 +1,7 @@
 import io
 import logging
 import uuid
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
 import wandb
@@ -8,7 +9,6 @@ from wandb.sdk.data_types import trace_tree
 from wandb.sdk.integration_utils.auto_logging import Response
 
 logger = logging.getLogger(__name__)
-from dataclasses import asdict, dataclass
 
 
 def get_model_alias(model_name: str, is_completion: bool = False) -> Dict[str, str]:

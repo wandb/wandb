@@ -70,7 +70,7 @@ class TestAutologAPIAndPatchAPI(unittest.TestCase):
 
         # Test method patching and logging for sample_method
         assert self.sample_method != sample_method
-        result = self.sample_method(2, 3)
+        _ = self.sample_method(2, 3)
 
         # Use assertAlmostEqual for 'elapsed' value comparison
         log_call = self.mock_run.log.call_args[0][0]
@@ -87,7 +87,7 @@ class TestAutologAPIAndPatchAPI(unittest.TestCase):
             self.sample_class_module.sample_class_method
             != SampleClass().sample_class_method
         )
-        result = self.sample_class_module.sample_class_method(2, 3)
+        _ = self.sample_class_module.sample_class_method(2, 3)
 
         # Use assertAlmostEqual for 'elapsed' value comparison
         log_call = self.mock_run.log.call_args[0][0]
