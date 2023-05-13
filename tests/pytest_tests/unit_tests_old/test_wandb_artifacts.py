@@ -242,8 +242,6 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
         # These properties should be valid both before and after logging
         testable_getters_valid = [
             "id",
-            "entity",
-            "project",
             "manifest",
             "digest",
             "type",
@@ -258,7 +256,13 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
         testable_getters_always_valid = ["distributed_id"]
 
         # These properties should be valid only after logging
-        testable_getters_invalid = ["version", "commit_hash", "aliases"]
+        testable_getters_invalid = [
+            "entity",
+            "project",
+            "version",
+            "commit_hash",
+            "aliases",
+        ]
 
         # These setters should be valid both before and after logging
         testable_setters_valid = ["description", "metadata"]
