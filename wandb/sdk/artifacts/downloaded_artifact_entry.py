@@ -1,11 +1,12 @@
 """Artifact manifest entry."""
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union
 
 import wandb
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
@@ -29,18 +30,15 @@ class DownloadedArtifactEntry(ArtifactManifestEntry):
         self._parent_artifact = parent_artifact
 
     @property
-    def name(self):
+    def name(self) -> LogicalPath:
         # TODO(hugh): add telemetry to see if anyone is still using this.
         wandb.termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
         return self.path
 
-    def parent_artifact(self):
+    def parent_artifact(self) -> "PublicArtifact":
         return self._parent_artifact
 
-    def copy(self, cache_path, target_path):
-        raise NotImplementedError()
-
-    def download(self, root=None):
+    def download(self, root: Optional[str] = None) -> FilePathStr:
         root = root or self._parent_artifact._default_root()
         dest_path = os.path.join(root, self.path)
 
@@ -51,16 +49,18 @@ class DownloadedArtifactEntry(ArtifactManifestEntry):
         # and has the digest we're expecting.
         entry = manifest.entries[self.path]
         if os.path.exists(dest_path) and entry.digest == md5_file_b64(dest_path):
-            return dest_path
+            return FilePathStr(dest_path)
 
         if self.ref is not None:
             cache_path = manifest.storage_policy.load_reference(entry, local=True)
         else:
             cache_path = manifest.storage_policy.load_file(self._parent_artifact, entry)
 
-        return filesystem.copy_or_overwrite_changed(cache_path, dest_path)
+        return FilePathStr(
+            str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
+        )
 
-    def ref_target(self):
+    def ref_target(self) -> Union[FilePathStr, URIStr]:
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             return manifest.storage_policy.load_reference(
@@ -69,10 +69,11 @@ class DownloadedArtifactEntry(ArtifactManifestEntry):
             )
         raise ValueError("Only reference entries support ref_target().")
 
-    def ref_url(self):
+    def ref_url(self) -> str:
+        assert self._parent_artifact.id is not None
         return (
             "wandb-artifact://"
-            + b64_to_hex_id(self._parent_artifact.id)
+            + b64_to_hex_id(B64MD5(self._parent_artifact.id))
             + "/"
             + self.path
         )

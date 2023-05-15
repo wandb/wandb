@@ -31,7 +31,7 @@ class StoragePolicy:
 
     def load_file(
         self, artifact: "ArtifactInterface", manifest_entry: "ArtifactManifestEntry"
-    ) -> str:
+    ) -> FilePathStr:
         raise NotImplementedError
 
     def store_file_sync(
@@ -69,5 +69,5 @@ class StoragePolicy:
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
-    ) -> str:
+    ) -> Union[FilePathStr, URIStr]:
         raise NotImplementedError

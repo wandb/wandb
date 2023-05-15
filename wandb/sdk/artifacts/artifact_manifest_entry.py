@@ -60,7 +60,7 @@ class ArtifactManifestEntry:
         """
         raise NotImplementedError
 
-    def ref_target(self) -> str:
+    def ref_target(self) -> Union[FilePathStr, URIStr]:
         """Get the reference URL that is targeted by this artifact entry.
 
         Returns:
