@@ -11,14 +11,11 @@ These functions are used by the `WandbTracer` to extract and save the relevant i
 
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-from langchain.agents import BaseSingleActionAgent
-from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun
-
 import wandb
+from langchain.callbacks.tracers.schemas import Run, RunTypeEnum
 from wandb.sdk.data_types import trace_tree
 
 if TYPE_CHECKING:
-    from langchain.callbacks.tracers.schemas import BaseRun
     from langchain.chains.base import Chain
     from langchain.llms.base import BaseLLM
     from langchain.schema import BaseLanguageModel
@@ -36,7 +33,7 @@ def print_wandb_init_message(run_url: str) -> None:
     )
 
 
-def safely_convert_lc_run_to_wb_span(run: "BaseRun") -> Optional["trace_tree.Span"]:
+def safely_convert_lc_run_to_wb_span(run: Run) -> Optional["trace_tree.Span"]:
     try:
         return _convert_lc_run_to_wb_span(run)
     except Exception as e:
@@ -47,7 +44,7 @@ def safely_convert_lc_run_to_wb_span(run: "BaseRun") -> Optional["trace_tree.Spa
     return None
 
 
-def safely_get_span_producing_model(run: "BaseRun") -> Any:
+def safely_get_span_producing_model(run: Run) -> Any:
     try:
         return run.serialized.get("_self")
     except Exception as e:
@@ -94,92 +91,78 @@ def safely_convert_model_to_dict(
     return data
 
 
-def _convert_lc_run_to_wb_span(run: "BaseRun") -> "trace_tree.Span":
-    if isinstance(run, LLMRun):
+def _convert_lc_run_to_wb_span(run: "Run") -> "trace_tree.Span":
+    if run.run_type == RunTypeEnum.llm:
         return _convert_llm_run_to_wb_span(run)
-    elif isinstance(run, ChainRun):
+    elif run.run_type == RunTypeEnum.chain:
         return _convert_chain_run_to_wb_span(run)
-    elif isinstance(run, ToolRun):
+    elif run.run_type == RunTypeEnum.tool:
         return _convert_tool_run_to_wb_span(run)
     else:
         return _convert_run_to_wb_span(run)
 
 
-def _convert_llm_run_to_wb_span(run: "LLMRun") -> "trace_tree.Span":
+def _convert_llm_run_to_wb_span(run: "Run") -> "trace_tree.Span":
     base_span = _convert_run_to_wb_span(run)
 
-    if run.response is not None:
-        base_span.attributes["llm_output"] = run.response.llm_output
+    if run.outputs is not None:
+        base_span.attributes["llm_output"] = run.outputs
     base_span.results = [
         trace_tree.Result(
             inputs={"prompt": prompt},
             outputs={
-                f"gen_{g_i}": gen.text
-                for g_i, gen in enumerate(run.response.generations[ndx])
+                f"gen_{g_i}": gen["text"]
+                for g_i, gen in enumerate(run.outputs["generations"][ndx])
             }
             if (
-                run.response is not None
-                and len(run.response.generations) > ndx
-                and len(run.response.generations[ndx]) > 0
+                run.outputs is not None
+                and len(run.outputs["generations"]) > ndx
+                and len(run.outputs["generations"][ndx]) > 0
             )
             else None,
         )
-        for ndx, prompt in enumerate(run.prompts or [])
+        for ndx, prompt in enumerate(run.inputs["prompts"] or [])
     ]
     base_span.span_kind = trace_tree.SpanKind.LLM
 
     return base_span
 
 
-def _convert_chain_run_to_wb_span(run: "ChainRun") -> "trace_tree.Span":
+def _convert_chain_run_to_wb_span(run: "Run") -> "trace_tree.Span":
     base_span = _convert_run_to_wb_span(run)
 
     base_span.results = [trace_tree.Result(inputs=run.inputs, outputs=run.outputs)]
     base_span.child_spans = [
-        _convert_lc_run_to_wb_span(child_run)
-        for child_run in [
-            *run.child_llm_runs,
-            *run.child_chain_runs,
-            *run.child_tool_runs,
-        ]
+        _convert_lc_run_to_wb_span(child_run) for child_run in run.child_runs
     ]
     base_span.span_kind = (
         trace_tree.SpanKind.AGENT
-        if isinstance(safely_get_span_producing_model(run), BaseSingleActionAgent)
+        if "agent" in run.serialized.get("name").lower()
         else trace_tree.SpanKind.CHAIN
     )
 
     return base_span
 
 
-def _convert_tool_run_to_wb_span(run: "ToolRun") -> "trace_tree.Span":
+def _convert_tool_run_to_wb_span(run: "Run") -> "trace_tree.Span":
     base_span = _convert_run_to_wb_span(run)
 
-    base_span.attributes["action"] = run.action
-    base_span.results = [
-        trace_tree.Result(
-            inputs={"input": run.tool_input}, outputs={"output": run.output}
-        )
-    ]
+    base_span.attributes["input"] = run.inputs["input"]
+    base_span.results = [trace_tree.Result(inputs=run.inputs, outputs=run.outputs)]
     base_span.child_spans = [
-        _convert_lc_run_to_wb_span(child_run)
-        for child_run in [
-            *run.child_llm_runs,
-            *run.child_chain_runs,
-            *run.child_tool_runs,
-        ]
+        _convert_lc_run_to_wb_span(child_run) for child_run in run.child_runs
     ]
     base_span.span_kind = trace_tree.SpanKind.TOOL
 
     return base_span
 
 
-def _convert_run_to_wb_span(run: "BaseRun") -> "trace_tree.Span":
+def _convert_run_to_wb_span(run: "Run") -> "trace_tree.Span":
     attributes = {**run.extra} if run.extra else {}
     attributes["execution_order"] = run.execution_order
 
     return trace_tree.Span(
-        span_id=str(run.uuid) if run.uuid is not None else None,
+        span_id=str(run.id) if run.id is not None else None,
         name=run.serialized.get("name"),
         start_time_ms=int(run.start_time.timestamp() * 1000),
         end_time_ms=int(run.end_time.timestamp() * 1000),
