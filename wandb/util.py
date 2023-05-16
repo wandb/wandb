@@ -634,6 +634,8 @@ def json_friendly(  # noqa: C901
         obj = None
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)
+    elif isinstance(obj,set):
+        obj = tuple(obj)
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
