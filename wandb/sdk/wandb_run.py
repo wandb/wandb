@@ -3772,8 +3772,8 @@ class _LazyArtifact(ArtifactInterface):
         return self._instance.name
 
     @property
-    def full_name(self) -> str:
-        return self._instance.full_name
+    def qualified_name(self) -> str:
+        return self._instance.qualified_name
 
     @property
     def type(self) -> str:
