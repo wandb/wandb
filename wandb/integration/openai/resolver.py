@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import wandb
 from wandb.sdk.data_types import trace_tree
-from wandb.sdk.integration_utils.auto_logging import ArgumentResponseResolver, Response
+from wandb.sdk.integration_utils.auto_logging import Response
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class Metrics:
     trace: trace_tree.WBTraceTree = None
 
 
-class OpenAIRequestResponseResolver(ArgumentResponseResolver):
+class OpenAIRequestResponseResolver:
     def __call__(
         self,
         args: Sequence[Any],
