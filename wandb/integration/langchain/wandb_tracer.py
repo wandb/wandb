@@ -25,10 +25,9 @@ else:
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
-from packaging import version
-
 import wandb
 import wandb.util
+from packaging import version
 from wandb.sdk.data_types import trace_tree
 from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.paths import StrPath
@@ -41,8 +40,8 @@ langchain = wandb.util.get_module(
 
 if version.parse(langchain.__version__) < version.parse("0.0.154"):
     raise ValueError(
-        "The Weights & Biases Langchain integration is incompatible with versions 0.0.153 and below. "
-        "Please use a version above 0.0.154 to ensure proper functionality."
+        "The Weights & Biases Langchain integration does not support versions 0.0.153 and lower. "
+        "To ensure proper functionality, please use version 0.0.154 or higher."
     )
 
 # We want these imports after the import_langchain() call, so that we can

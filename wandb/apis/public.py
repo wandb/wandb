@@ -60,10 +60,12 @@ from wandb.sdk.launch.utils import (
 from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util
+    from wandb import Artifact as LocalArtifact
 
 logger = logging.getLogger(__name__)
 
@@ -2036,7 +2038,7 @@ class Run(Attrs):
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
         with open(os.path.join(root, name), "rb") as f:
-            api.push({util.to_forward_slash_path(name): f})
+            api.push({LogicalPath(name): f})
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
@@ -4306,25 +4308,14 @@ class Artifact(artifacts.Artifact):
             variable_values={"id": artifact_id},
         )
 
-        name = None
         if response.get("artifact") is not None:
-            if response["artifact"].get("aliases") is not None:
-                aliases = response["artifact"]["aliases"]
-                name = ":".join(
-                    [aliases[0]["artifactCollectionName"], aliases[0]["alias"]]
-                )
-                if len(aliases) > 1:
-                    for alias in aliases:
-                        if alias["alias"] != "latest":
-                            name = ":".join(
-                                [alias["artifactCollectionName"], alias["alias"]]
-                            )
-                            break
-
             p = response.get("artifact", {}).get("artifactType", {}).get("project", {})
             project = p.get("name")  # defaults to None
             entity = p.get("entity", {}).get("name")
-
+            name = "{}:v{}".format(
+                response["artifact"]["artifactSequence"]["name"],
+                response["artifact"]["versionIndex"],
+            )
             artifact = cls(
                 client=client,
                 entity=entity,
@@ -4477,9 +4468,7 @@ class Artifact(artifacts.Artifact):
 
     @property
     def name(self):
-        if self._sequence_version_index is None:
-            return self.digest
-        return f"{self._sequence_name}:v{self._sequence_version_index}"
+        return self._artifact_name
 
     @property
     def aliases(self):
@@ -4690,6 +4679,7 @@ class Artifact(artifacts.Artifact):
         return None, None
 
     def get_path(self, name):
+        name = LogicalPath(name)
         manifest = self._load_manifest()
         entry = manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
@@ -4777,9 +4767,7 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(
-                    os.path.relpath(full_path, start=dirpath)
-                )
+                artifact_path = os.path.relpath(full_path, start=dirpath)
                 try:
                     self.get_path(artifact_path)
                 except KeyError:
@@ -4796,9 +4784,7 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(
-                    os.path.relpath(full_path, start=dirpath)
-                )
+                artifact_path = os.path.relpath(full_path, start=dirpath)
                 try:
                     self.get_path(artifact_path)
                 except KeyError:
@@ -5246,6 +5232,19 @@ class Artifact(artifacts.Artifact):
                 run_obj["project"]["name"],
                 run_obj["name"],
             )
+
+    def new_draft(self) -> "LocalArtifact":
+        """Create a new draft artifact with the same content as this committed artifact.
+
+        The artifact returned can be extended or modified and logged as a new version.
+        """
+        artifact = wandb.Artifact(self.name.split(":")[0], self.type)
+        artifact._description = self.description
+        artifact._metadata = self.metadata
+        artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
+            self.manifest.to_manifest_json()
+        )
+        return artifact
 
 
 class ArtifactVersions(Paginator):

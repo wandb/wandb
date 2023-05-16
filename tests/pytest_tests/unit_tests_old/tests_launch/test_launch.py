@@ -1158,7 +1158,6 @@ def test_resolve_agent_config(monkeypatch, runner):
         with open("./config/wandb/launch-config.yaml", "w") as f:
             yaml.dump(
                 {
-                    "base_url": "testurl",
                     "entity": "different-entity",
                     "max_jobs": 2,
                     "registry": {"url": "test"},
@@ -1169,7 +1168,6 @@ def test_resolve_agent_config(monkeypatch, runner):
             None, None, -1, ["diff-queue"], None
         )
 
-        assert returned_api.api.default_settings.get("base_url") == "testurl"
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1

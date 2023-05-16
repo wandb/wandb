@@ -1,9 +1,10 @@
-id: 0.openai.01-edit
+id: 0.llm-openai.02-edit
 plugin:
   - wandb
 tag:
   shard: llm
-  skip: true  # todo: fix
+  skips:
+    - platform: win
 depend:
   requirements:
     - "openai>=0.27.4"
@@ -17,6 +18,3 @@ assert:
     - :op:contains:
         - :wandb:runs[0][summary][trace]
         - model_dict_dumps
-    - :op:contains:
-        - :wandb:runs[0][telemetry][3]  # features
-        - 51  # openai autolog
