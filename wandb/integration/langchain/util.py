@@ -106,8 +106,6 @@ def _convert_lc_run_to_wb_span(run: "Run") -> "trace_tree.Span":
 def _convert_llm_run_to_wb_span(run: "Run") -> "trace_tree.Span":
     base_span = _convert_run_to_wb_span(run)
 
-    if run.outputs is not None:
-        base_span.attributes["llm_output"] = run.outputs
     base_span.results = [
         trace_tree.Result(
             inputs={"prompt": prompt},
