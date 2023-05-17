@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry
 from wandb.errors import Error
+from wandb.util import get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
