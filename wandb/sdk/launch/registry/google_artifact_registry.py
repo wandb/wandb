@@ -99,7 +99,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Arguments:
             config: A dictionary containing the following keys:
                 repository: The repository name.
-                image_name: The image name.
+                image-name: The image name.
             environment: A GcpEnvironment configured for access to this registry.
 
         Returns:
@@ -110,7 +110,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
             raise LaunchError(
                 "The Google Artifact Registry repository must be specified."
             )
-        image_name = config.get("image_name")
+        image_name = config.get("image-name")
         if not image_name:
             raise LaunchError("The image name must be specified.")
         return cls(repository, image_name, environment, verify=verify)
@@ -122,9 +122,19 @@ class GoogleArtifactRegistry(AbstractRegistry):
             LaunchError: If the registry is not properly configured.
         """
         credentials = self.environment.get_credentials()
-        parent = (
-            f"projects/{self.environment.project}/locations/{self.environment.region}"
+        # extract project and region from repository uri
+        match = re.match(
+            r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)",
+            self.repository,
         )
+        if not match:
+            raise LaunchError(
+                f"The Google Artifact Registry repository {self.repository} is invalid."
+            )
+        project = match.group("project")
+        region = match.group("region")
+        repository = match.group("repository")
+        parent = f"projects/{project}/locations/{region}"
         # We need to list the repositories to verify that the repository exists.
         request = google.cloud.artifactregistry.ListRepositoriesRequest(parent=parent)
         client = google.cloud.artifactregistry.ArtifactRegistryClient(
@@ -139,7 +149,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
             )
         # Look for self.repository in the list of responses.
         for repo in response:
-            if repo.name.endswith(self.repository):
+            if repo.name.endswith(repository):
                 break
         # If we didn't find the repository, raise an error.
         else:
@@ -165,10 +175,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Returns:
             The repository URI.
         """
-        return (
-            f"{self.environment.region}-docker.pkg.dev/"
-            f"{self.environment.project}/{self.repository}/{self.image_name}"
-        )
+        return self.repository
 
     def check_image_exists(self, image_uri: str) -> bool:
         """Check if the image exists.
