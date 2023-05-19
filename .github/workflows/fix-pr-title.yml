@@ -3,16 +3,17 @@ name: PR Title Bot
 on:
   issue_comment:
     types: [created]
-  workflow_dispatch:
-    inputs:
-      suggest-title:
-        description: 'Trigger the bot to suggest a new title'
-        required: true
-        default: false
-      fix-title:
-        description: 'Trigger the bot to fix the title'
-        required: true
-        default: false
+#  workflow_dispatch:
+#    inputs:
+#      suggest-title:
+#        description: 'Trigger the bot to suggest a new title'
+#        required: true
+#        default: false
+#      fix-title:
+#        description: 'Trigger the bot to fix the title'
+#        required: true
+#        default: false
+
 jobs:
   handle_pr_title:
     runs-on: ubuntu-latest
@@ -36,7 +37,7 @@ jobs:
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
-      if: contains(github.event.comment.body, '/suggest-title') || github.event.inputs.suggest-title
+      if: contains(github.event.comment.body, '/suggest-title')
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -49,7 +50,7 @@ jobs:
           --data '{ "body": "Suggested title:\n```\n${{ steps.get_new_title.outputs.title }}\n```" }'
 
     - name: Update PR title
-      if: contains(github.event.comment.body, '/suggest-title') || github.event.inputs.suggest-title
+      if: contains(github.event.comment.body, '/suggest-title')
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
