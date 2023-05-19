@@ -1,8 +1,10 @@
 name: PR Title Bot
 
 on:
-  issue_comment:
-    types: [created]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+#  issue_comment:
+#    types: [created]
 
 jobs:
   handle_pr_title:
