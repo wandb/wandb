@@ -49,22 +49,14 @@ jobs:
           --data '{ "body": "Suggested title:\n```\n${{ steps.get_new_title.outputs.title }}\n```" }'
 
     - name: Update PR title
-      if: contains(github.event.comment.body, '/fix-title') || github.event.inputs.fix-title
-      uses: actions/github-script@v5
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const newTitle = '${{ steps.get_new_title.outputs.title }}';
-          const { data: pr } = await github.rest.pulls.get({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            pull_number: context.issue.number
-          });
-          if (pr.title !== newTitle) {
-            await github.rest.pulls.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              title: newTitle
-            });
-          }
+      if: contains(github.event.comment.body, '/suggest-title') || github.event.inputs.suggest-title
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        curl -L \
+          -X POST \
+          https://api.github.com/repos/wandb/wandb/pulls/5569 \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $GITHUB_TOKEN"\
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          --data '{ "title": "${{ steps.get_new_title.outputs.title }}" }'
