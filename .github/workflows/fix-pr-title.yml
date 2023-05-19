@@ -60,16 +60,6 @@ jobs:
           -H "X-GitHub-Api-Version: 2022-11-28" \
           $URL \
           --data '{ "body": "Suggested title:\n' + '```\n' + ${{ steps.get_new_title.outputs.title }} + '\n```" }'
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const newTitle = '${{ steps.get_new_title.outputs.title }}';
-          await github.rest.issues.createComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-            body: 'Suggested title:\n' + '```\n' + newTitle + '\n```'
-          });
 
     - name: Update PR title
       if: contains(github.event.comment.body, '/fix-title') || github.event.inputs.fix-title
