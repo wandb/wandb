@@ -42,7 +42,7 @@ jobs:
       run: |
         curl -L \
           -X POST \
-          ${{github.event.issue.comments_url}} \
+          https://api.github.com/repos/wandb/wandb/issues/5569/comments \
           -H "Accept: application/vnd.github+json" \
           -H "Authorization: Bearer $GITHUB_TOKEN"\
           -H "X-GitHub-Api-Version: 2022-11-28" \
