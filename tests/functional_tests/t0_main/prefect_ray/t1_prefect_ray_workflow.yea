@@ -1,4 +1,4 @@
-id: 0.llm-cohere.01-generate
+id: 0.prefect_ray_workflow.01-ray-task-runner
 plugin:
   - wandb
 tag:
