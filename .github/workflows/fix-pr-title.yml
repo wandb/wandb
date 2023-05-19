@@ -35,18 +35,6 @@ jobs:
         title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py 5569)
         echo "title=$title" >> $GITHUB_OUTPUT
 
-    - name: Add comment to PR
-      env:
-        URL: ${{ github.event.issue.comments_url }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        curl \
-          -X POST \
-          $URL \
-          -H "Content-Type: application/json" \
-          -H "Authorization: token $GITHUB_TOKEN" \
-          --data '{ "body": "blah blah" }'
-
     - name: Suggest title
       if: contains(github.event.comment.body, '/suggest-title') || github.event.inputs.suggest-title
       env:
