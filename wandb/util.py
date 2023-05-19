@@ -635,6 +635,8 @@ def json_friendly(  # noqa: C901
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)
     elif isinstance(obj,set):
+        print('I am a set and i am being turned into a tuple')
+        print(f' object {obj}')
         obj = tuple(obj)
     else:
         converted = False
