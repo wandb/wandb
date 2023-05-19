@@ -47,7 +47,7 @@ jobs:
           -H "Authorization: Bearer $GITHUB_TOKEN"\
           -H "X-GitHub-Api-Version: 2022-11-28" \
           $URL \
-          --data '{ "body": "Suggested title:\n' + '```\n' + ${{ steps.get_new_title.outputs.title }} + '\n```" }'
+          --data '{ "body": "Suggested title:\n```\n${{ steps.get_new_title.outputs.title }}\n```" }'
 
     - name: Update PR title
       if: contains(github.event.comment.body, '/fix-title') || github.event.inputs.fix-title
