@@ -17,7 +17,7 @@ on:
 jobs:
   handle_pr_title:
     runs-on: ubuntu-latest
-    if: github.event.issue.pull_request != ''
+#     if: github.event.issue.pull_request != ''
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
