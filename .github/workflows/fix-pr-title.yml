@@ -13,7 +13,8 @@ on:
         description: 'Trigger the bot to fix the title'
         required: true
         default: false
-
+env:
+  GITHUB_PR_NUMBER: ${{github.event.issue.number}}
 jobs:
   handle_pr_title:
     runs-on: ubuntu-latest
@@ -32,8 +33,6 @@ jobs:
 
     - name: Run script to get new title
       id: get_new_title
-      env:
-        GITHUB_PR_NUMBER: ${{github.event.issue.number}}
       run: |
         title=$(GITHUB_API_TOKEN=${{ secrets.GITHUB_API_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py ${{ GITHUB_PR_NUMBER }})
         echo "title=$title" >> $GITHUB_OUTPUT
