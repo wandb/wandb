@@ -1062,9 +1062,9 @@ class WandbStoragePolicy(StoragePolicy):
         ).get()
 
         entry.birth_artifact_id = resp.birth_artifact_id
-
         multipart_urls = resp.multipart_upload_urls
-        if resp.upload_url is None:
+        upload_url = resp.upload_url
+        if upload_url is None:
             return True
         if entry.local_path is None:
             return False
@@ -1074,14 +1074,53 @@ class WandbStoragePolicy(StoragePolicy):
             for header in (resp.upload_headers or {})
         }
 
+        # https://<bucket-name>.s3.amazonaws.com/<object-key>?<query-string-parameters>
+        # vcp = "https://<vpc-endpoint-id>.s3.<region>.amazonaws.com/<bucket-name>/<object-key>?<query-string-parameters>"
+        vpce_id = os.getenv("AWS_VPC_ENDPOINT_ID")
+        region = os.getenv("AWS_VPC_REGION")
+        s3_url_parsed = urlparse(upload_url)
+        bucket = s3_url_parsed.netloc.split(".", 1)[0]
+        key = s3_url_parsed.path  # /object key...
+
         # This multipart upload isn't available, do a regular single url upload
-        if multipart_urls is None and resp.upload_url:
+        if multipart_urls is None and upload_url:
+            query = s3_url_parsed.query
+            print("BEFORE: ", upload_url, end="/n")
+            if vpce_id and region:
+                upload_url = (
+                    "https://"
+                    + vpce_id
+                    + ".s3."
+                    + region
+                    + ".amazonaws.com/"
+                    + bucket
+                    + key
+                    + "?"
+                    + query
+                )
+            print("AFTER: ", upload_url, end="/n")
             self.default_file_upload(
-                resp.upload_url, file_path, extra_headers, progress_callback
+                upload_url, file_path, extra_headers, progress_callback
             )
         else:
             if multipart_urls is None:
                 raise ValueError(f"No multipart urls to upload for file: {file_path}")
+            s3_multipart_parsed = urlparse(multipart_urls)
+            query = s3_multipart_parsed.query
+            print("BEFORE: ", multipart_urls, end="/n")
+            if vpce_id and region:
+                multipart_urls = (
+                    "https://"
+                    + vpce_id
+                    + ".s3."
+                    + region
+                    + ".amazonaws.com/"
+                    + bucket
+                    + key
+                    + "?"
+                    + query
+                )
+            print("AFTER: ", multipart_urls, end="/n")
             # Upload files using s3 multipart upload urls
             etags = self.s3_multipart_file_upload(
                 file_path,
@@ -1149,6 +1188,16 @@ class WandbStoragePolicy(StoragePolicy):
         if not hit:
             with cache_open() as f:
                 shutil.copyfile(entry.local_path, f.name)
+
+    def _parse_uri_s3(self, uri: str) -> Tuple[str, str, Optional[str]]:
+        url = urlparse(uri)
+        query = dict(parse_qsl(url.query))
+
+        bucket = url.netloc
+        key = url.path[1:]  # strip leading slash
+        query = url.query
+
+        return bucket, key, query
 
 
 # Don't use this yet!
@@ -1437,6 +1486,8 @@ class S3Handler(StorageHandler):
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
             lazy=False,
         )
+        endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
+        print("***** ENDPOINT ", endpoint)
         self._s3 = boto.session.Session().resource(
             "s3",
             endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"),
