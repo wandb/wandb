@@ -32,16 +32,6 @@ jobs:
     - name: Run script to get new title
       id: get_new_title
       run: |
-        echo 1
-        echo ${GITHUB_PR_NUMBER}
-        echo 2
-        echo ${{github.event.number}}
-        echo 3
-        echo ${{github.event.issue.number}}
-        echo 4
-        echo ${{github.event.workflow.number}}
-        echo 5
-        echo ${{github.event.workflow.number}}
         title=$(GITHUB_API_TOKEN=${{ secrets.GITHUB_API_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py 5569)
         echo "title=$title" >> $GITHUB_OUTPUT
 
