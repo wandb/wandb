@@ -38,15 +38,14 @@ jobs:
     - name: Suggest title
       if: contains(github.event.comment.body, '/suggest-title') || github.event.inputs.suggest-title
       env:
-        URL: ${{ github.event.issue.comments_url }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         curl -L \
           -X POST \
+          ${{github.event.issue.comments_url}} \
           -H "Accept: application/vnd.github+json" \
           -H "Authorization: Bearer $GITHUB_TOKEN"\
           -H "X-GitHub-Api-Version: 2022-11-28" \
-          $URL \
           --data '{ "body": "Suggested title:\n```\n${{ steps.get_new_title.outputs.title }}\n```" }'
 
     - name: Update PR title
