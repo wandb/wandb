@@ -10,7 +10,7 @@ else:
 import openai
 from github import Github
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_TOKEN = os.environ.get("GITHUB_API_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 Model = Literal["gpt-4", "gpt-3.5-turbo", "vicuna-7b-v1.1"]
