@@ -33,7 +33,7 @@ jobs:
     - name: Run script to get new title
       id: get_new_title
       run: |
-        title=$(GITHUB_API_TOKEN=${{ secrets.GITHUB_API_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} tools/pr-title-bot.py ${GITHUB_EVENT.issue.number})
+        title=$(GITHUB_API_TOKEN=${{ secrets.GITHUB_API_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} tools/pr-title-bot.py ${{GITHUB_EVENT.issue.number}})
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
