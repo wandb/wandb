@@ -114,6 +114,8 @@ message Imports {
   bool langchain = 86;
   bool llama_index = 87;
   bool stability_sdk = 88;
+  bool prefect = 89;
+  bool prefect_ray = 90;
 }
 
 message Feature {
