@@ -674,8 +674,14 @@ class MediaBrowser(Panel):
     # Attr(json_path="spec.config.segmentationMaskConfig")
     # Attr(json_path="spec.config.boundingBoxConfig")
 
-    def __init__(self, num_columns=None, media_keys=None, media_key_placeholder=None, *args,
-                 **kwargs):
+    def __init__(
+        self,
+        num_columns=None,
+        media_keys=None,
+        media_key_placeholder=None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.num_columns = num_columns
         self.media_keys = media_keys
