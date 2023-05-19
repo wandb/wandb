@@ -13,8 +13,6 @@ on:
         description: 'Trigger the bot to fix the title'
         required: true
         default: false
-env:
-  GITHUB_PR_NUMBER: ${{github.event.issue.number}}
 jobs:
   handle_pr_title:
     runs-on: ubuntu-latest
@@ -39,8 +37,12 @@ jobs:
         echo 2
         echo ${{github.event.number}}
         echo 3
-        echo {{github.event.issue.number}}
-        title=$(GITHUB_API_TOKEN=${{ secrets.GITHUB_API_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py ${GITHUB_PR_NUMBER})
+        echo ${{github.event.issue.number}}
+        echo 4
+        echo ${{github.event.workflow.number}}
+        echo 5
+        echo ${{github.event.workflow.number}}
+        title=$(GITHUB_API_TOKEN=${{ secrets.GITHUB_API_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py 5569)
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
