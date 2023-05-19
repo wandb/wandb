@@ -8,6 +8,11 @@ on:
       suggest-title:
         description: 'Trigger the bot to suggest a new title'
         required: true
+        default: false
+      fix-title:
+        description: 'Trigger the bot to fix the title'
+        required: true
+        default: false
 
 jobs:
   handle_pr_title:
@@ -46,7 +51,7 @@ jobs:
           });
 
     - name: Update PR title
-      if: contains(github.event.comment.body, '/fix-title')
+      if: contains(github.event.comment.body, '/fix-title') || github.event.inputs.fix-title
       uses: actions/github-script@v5
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
