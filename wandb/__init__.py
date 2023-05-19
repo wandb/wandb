@@ -11,7 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.15.3"
+__version__ = "0.15.4.dev2"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -30,6 +30,7 @@ import wandb
 wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
+session = wandb_sdk.session
 setup = wandb_sdk.setup
 _attach = wandb_sdk._attach
 _teardown = wandb_sdk.teardown
@@ -223,4 +224,5 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
+    "session",
 )

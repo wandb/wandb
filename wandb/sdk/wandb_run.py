@@ -52,6 +52,7 @@ from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
+from wandb.sdk import automations
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.util import (
     _is_artifact_object,
@@ -552,6 +553,7 @@ class Run:
         sweep_config: Optional[Dict[str, Any]] = None,
         launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
+        self.automations = automations
         self._settings = settings
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)

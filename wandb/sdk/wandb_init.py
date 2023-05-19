@@ -1187,3 +1187,8 @@ def init(
                 os._exit(1)
             raise Error("An unexpected error occurred") from error_seen
     return run
+
+
+def session(project):
+    run = init(project=project)
+    return run
