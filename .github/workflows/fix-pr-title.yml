@@ -3,21 +3,21 @@ name: PR Title Bot
 on:
   issue_comment:
     types: [created]
-  workflow_dispatch:
-    inputs:
-      suggest-title:
-        description: 'Trigger the bot to suggest a new title'
-        required: true
-        default: false
-      fix-title:
-        description: 'Trigger the bot to fix the title'
-        required: true
-        default: false
+#  workflow_dispatch:
+#    inputs:
+#      suggest-title:
+#        description: 'Trigger the bot to suggest a new title'
+#        required: true
+#        default: false
+#      fix-title:
+#        description: 'Trigger the bot to fix the title'
+#        required: true
+#        default: false
 
 jobs:
   handle_pr_title:
     runs-on: ubuntu-latest
-    if: github.event.issue.pull_request != ''
+#     if: github.event.issue.pull_request != ''
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -33,40 +33,31 @@ jobs:
     - name: Run script to get new title
       id: get_new_title
       run: |
-        title=$(GITHUB_API_TOKEN=${{ secrets.GITHUB_API_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} tools/pr-title-bot.py ${GITHUB_EVENT.issue.number})
+        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py 5569)
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
-      if: contains(github.event.comment.body, '/suggest-title') || github.event.inputs.suggest-title
-      uses: actions/github-script@v5
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const newTitle = '${{ steps.get_new_title.outputs.title }}';
-          await github.rest.issues.createComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-            body: 'Suggested title:\n' + '```\n' + newTitle + '\n```'
-          });
+      if: contains(github.event.comment.body, '/suggest-title')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        curl -L \
+          -X POST \
+          https://api.github.com/repos/wandb/wandb/issues/5569/comments \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $GITHUB_TOKEN"\
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          --data '{ "body": "Suggested title:\n```\n${{ steps.get_new_title.outputs.title }}\n```" }'
 
     - name: Update PR title
-      if: contains(github.event.comment.body, '/fix-title') || github.event.inputs.fix-title
-      uses: actions/github-script@v5
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const newTitle = '${{ steps.get_new_title.outputs.title }}';
-          const { data: pr } = await github.rest.pulls.get({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            pull_number: context.issue.number
-          });
-          if (pr.title !== newTitle) {
-            await github.rest.pulls.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              title: newTitle
-            });
-          }
+      if: contains(github.event.comment.body, '/suggest-title')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        curl -L \
+          -X POST \
+          https://api.github.com/repos/wandb/wandb/pulls/5569 \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $GITHUB_TOKEN"\
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          --data '{ "title": "${{ steps.get_new_title.outputs.title }}" }'
