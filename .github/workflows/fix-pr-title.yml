@@ -3,6 +3,16 @@ name: PR Title Bot
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      suggest-title:
+        description: 'Trigger the bot to suggest a new title'
+        required: true
+        default: false
+      fix-title:
+        description: 'Trigger the bot to fix the title'
+        required: true
+        default: false
 
 jobs:
   handle_pr_title:
@@ -22,10 +32,12 @@ jobs:
 
     - name: Run script to get new title
       id: get_new_title
-      run: echo "::set-output name=title::$(python tools/pr-title-bot.py ${GITHUB_EVENT.issue.number})"
+      run: |
+        title=$(GITHUB_API_TOKEN=${{ secrets.GITHUB_API_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} tools/pr-title-bot.py ${GITHUB_EVENT.issue.number})
+        echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
-      if: contains(github.event.comment.body, '/suggest-title')
+      if: contains(github.event.comment.body, '/suggest-title') || github.event.inputs.suggest-title
       uses: actions/github-script@v5
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -34,12 +46,12 @@ jobs:
           await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            issue_number: github.event.issue.number,
+            issue_number: context.issue.number,
             body: 'Suggested title:\n' + '```\n' + newTitle + '\n```'
           });
 
     - name: Update PR title
-      if: contains(github.event.comment.body, '/fix-title')
+      if: contains(github.event.comment.body, '/fix-title') || github.event.inputs.fix-title
       uses: actions/github-script@v5
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -48,13 +60,13 @@ jobs:
           const { data: pr } = await github.rest.pulls.get({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            pull_number: github.event.issue.number
+            pull_number: context.issue.number
           });
           if (pr.title !== newTitle) {
             await github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: github.event.issue.number,
+              pull_number: context.issue.number,
               title: newTitle
             });
           }
