@@ -3,6 +3,11 @@ name: PR Title Bot
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      suggest-title:
+        description: 'Trigger the bot to suggest a new title'
+        required: true
 
 jobs:
   handle_pr_title:
@@ -27,7 +32,7 @@ jobs:
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
-      if: contains(github.event.comment.body, '/suggest-title')
+      if: contains(github.event.comment.body, '/suggest-title') || github.event.inputs.suggest-title
       uses: actions/github-script@v5
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
