@@ -1,0 +1,60 @@
+name: PR Title Bot
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  handle_pr_title:
+    runs-on: ubuntu-latest
+    if: github.event.issue.pull_request != ''
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.10
+
+    - name: Install dependencies
+      run: pip install pygithub openai
+
+    - name: Run script to get new title
+      id: get_new_title
+      run: echo "::set-output name=title::$(python tools/pr-title-bot.py ${GITHUB_EVENT.issue.number})"
+
+    - name: Suggest title
+      if: contains(github.event.comment.body, '/suggest-title')
+      uses: actions/github-script@v5
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const newTitle = '${{ steps.get_new_title.outputs.title }}';
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: github.event.issue.number,
+            body: 'Suggested title:\n' + '```\n' + newTitle + '\n```'
+          });
+
+    - name: Update PR title
+      if: contains(github.event.comment.body, '/fix-title')
+      uses: actions/github-script@v5
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const newTitle = '${{ steps.get_new_title.outputs.title }}';
+          const { data: pr } = await github.rest.pulls.get({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: github.event.issue.number
+          });
+          if (pr.title !== newTitle) {
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: github.event.issue.number,
+              title: newTitle
+            });
+          }
