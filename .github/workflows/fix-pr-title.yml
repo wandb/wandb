@@ -50,7 +50,7 @@ jobs:
           --data '{ "body": "Suggested title:\n```\n${{ steps.get_new_title.outputs.title }}\n```" }'
 
     - name: Update PR title
-      if: contains(github.event.comment.body, '/suggest-title')
+      if: contains(github.event.comment.body, '/fix-title')
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
