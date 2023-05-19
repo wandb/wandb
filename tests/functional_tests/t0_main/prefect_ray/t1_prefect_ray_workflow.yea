@@ -2,8 +2,6 @@ id: 0.llm-cohere.01-generate
 plugin:
   - wandb
 tag:
-  shard: llm
-#  skip: true  # todo: fix
   skips:
     - platform: win
 depend:
