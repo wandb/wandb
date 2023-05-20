@@ -8,7 +8,7 @@ import re
 import shutil
 import tempfile
 import time
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import (
     IO,
@@ -403,11 +403,11 @@ class Artifact(ArtifactInterface):
         self, name: str, mode: str = "w", encoding: Optional[str] = None
     ) -> Generator[IO, None, None]:
         self._ensure_can_add()
-        path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
-        if os.path.exists(path):
+        path = Path(self._artifact_dir.name) / name.lstrip("/")
+        if path.exists():
             raise ValueError(f"File with name {name!r} already exists at {path!r}")
 
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(path.parent)
         try:
             with util.fsync_open(path, mode, encoding) as f:
                 yield f
@@ -420,15 +420,16 @@ class Artifact(ArtifactInterface):
 
     def add_file(
         self,
-        local_path: str,
+        local_path: StrPath,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
     ) -> ArtifactManifestEntry:
         self._ensure_can_add()
-        if not os.path.isfile(local_path):
+        local_path = Path(local_path)
+        if not local_path.is_file():
             raise ValueError("Path is not a file: %s" % local_path)
 
-        name = LogicalPath(name or os.path.basename(local_path))
+        name = LogicalPath(name or local_path.name)
         digest = md5_file_b64(local_path)
 
         if is_tmp:
@@ -439,9 +440,10 @@ class Artifact(ArtifactInterface):
 
         return self._add_local_file(name, local_path, digest=digest)
 
-    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    def add_dir(self, local_path: StrPath, name: Optional[str] = None) -> None:
         self._ensure_can_add()
-        if not os.path.isdir(local_path):
+        local_path = Path(local_path)
+        if not local_path.is_dir():
             raise ValueError("Path is not a directory: %s" % local_path)
 
         termlog(
@@ -452,15 +454,14 @@ class Artifact(ArtifactInterface):
         start_time = time.time()
 
         paths = []
-        for dirpath, _, filenames in os.walk(local_path, followlinks=True):
-            for fname in filenames:
-                physical_path = os.path.join(dirpath, fname)
-                logical_path = os.path.relpath(physical_path, start=local_path)
+        for path in Path(local_path).rglob("*"):
+            if path.is_file():
+                logical_path = FilePathStr(str(path.relative_to(local_path)))
                 if name is not None:
-                    logical_path = os.path.join(name, logical_path)
-                paths.append((logical_path, physical_path))
+                    logical_path = FilePathStr(str(Path(name) / logical_path))
+                paths.append((logical_path, path))
 
-        def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
+        def add_manifest_file(log_phy_path: Tuple[FilePathStr, Path]) -> None:
             logical_path, physical_path = log_phy_path
             self._add_local_file(logical_path, physical_path)
 
@@ -569,15 +570,15 @@ class Artifact(ArtifactInterface):
             f.write(json.dumps(val, sort_keys=True))
 
         if is_tmp_name:
-            file_path = os.path.join(ARTIFACT_TMP.name, str(id(self)), name)
-            folder_path, _ = os.path.split(file_path)
-            if not os.path.exists(folder_path):
+            file_path = Path(ARTIFACT_TMP.name) / str(id(self)) / name
+            folder_path = file_path.parent
+            if not folder_path.exists():
                 os.makedirs(folder_path)
-            with open(file_path, "w") as tmp_f:
+            with file_path.open("w") as tmp_f:
                 do_write(tmp_f)
         else:
             with self.new_file(name) as f:
-                file_path = f.name
+                file_path = Path(f.name)
                 do_write(f)
 
         # Note, we add the file from our temp directory.
@@ -589,8 +590,8 @@ class Artifact(ArtifactInterface):
             obj._set_artifact_target(self, entry.path)
 
         if is_tmp_name:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            if file_path.exists():
+                file_path.unlink()
 
         return entry
 
@@ -607,20 +608,20 @@ class Artifact(ArtifactInterface):
         raise ArtifactNotLoggedError(self, "get")
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
-    ) -> FilePathStr:
+        self, root: Optional[StrPath] = None, recursive: bool = False
+    ) -> StrPath:
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 
         raise ArtifactNotLoggedError(self, "download")
 
-    def checkout(self, root: Optional[str] = None) -> str:
+    def checkout(self, root: Optional[StrPath] = None) -> StrPath:
         if self._logged_artifact:
             return self._logged_artifact.checkout(root=root)
 
         raise ArtifactNotLoggedError(self, "checkout")
 
-    def verify(self, root: Optional[str] = None) -> bool:
+    def verify(self, root: Optional[StrPath] = None) -> bool:
         if self._logged_artifact:
             return self._logged_artifact.verify(root=root)
 
@@ -684,11 +685,11 @@ class Artifact(ArtifactInterface):
 
         raise ArtifactNotLoggedError(self, "wait")
 
-    def get_added_local_path_name(self, local_path: str) -> Optional[str]:
+    def get_added_local_path_name(self, local_path: StrPath) -> Optional[str]:
         """Get the artifact relative name of a file added by a local filesystem path.
 
         Arguments:
-            local_path: (str) The local path to resolve into an artifact relative name.
+            local_path: (Union[str, os.PathLike]) The local path to resolve into an artifact relative name.
 
         Returns:
             str: The artifact relative name.
@@ -703,7 +704,7 @@ class Artifact(ArtifactInterface):
             name = artifact.get_added_local_path_name('path/to/file.txt')
             ```
         """
-        entry = self._added_local_paths.get(local_path, None)
+        entry = self._added_local_paths.get(str(local_path), None)
         if entry is None:
             return None
         return entry.path
@@ -736,7 +737,7 @@ class Artifact(ArtifactInterface):
         self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
         with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
-            staging_path = f.name
+            staging_path = FilePathStr(f.name)
             shutil.copyfile(path, staging_path)
             os.chmod(staging_path, 0o400)
 
@@ -1320,8 +1321,8 @@ class LocalFileHandler(StorageHandler):
     ) -> Union[URIStr, FilePathStr]:
         if manifest_entry.ref is None:
             raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
-        local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
-        if not os.path.exists(local_path):
+        local_path = Path(util.local_file_uri_to_path(str(manifest_entry.ref)))
+        if not local_path.is_file():
             raise ValueError(
                 "Local file reference: Failed to find file at path %s" % local_path
             )
@@ -1353,13 +1354,13 @@ class LocalFileHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        local_path = util.local_file_uri_to_path(path)
+        local_path = FilePathStr(util.local_file_uri_to_path(path))
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
 
-        def md5(path: str) -> B64MD5:
+        def md5(path: StrPath) -> B64MD5:
             return (
                 md5_file_b64(path)
                 if checksum
@@ -1383,18 +1384,18 @@ class LocalFileHandler(StorageHandler):
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
                         )
-                    physical_path = os.path.join(root, sub_path)
+                    physical_path = Path(root) / sub_path
                     # TODO(spencerpearson): this is not a "logical path" in the sense that
                     # `LogicalPath` returns a "logical path"; it's a relative path
                     # **on the local filesystem**.
-                    logical_path = os.path.relpath(physical_path, start=local_path)
+                    logical_path = physical_path.relative_to(local_path)
                     if name is not None:
-                        logical_path = os.path.join(name, logical_path)
+                        logical_path = Path(name) / logical_path
 
                     entry = ArtifactManifestEntry(
                         path=logical_path,
                         ref=FilePathStr(os.path.join(path, logical_path)),
-                        size=os.path.getsize(physical_path),
+                        size=physical_path.stat().st_size,
                         digest=md5(physical_path),
                     )
                     entries.append(entry)

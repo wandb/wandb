@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import wandb
@@ -340,7 +341,7 @@ class LaunchProject:
                         source_run_name,
                         internal_api,
                         program_name,
-                        self.project_dir,
+                        Path(self.project_dir),
                     )
 
                     if not downloaded_entrypoint:
@@ -363,7 +364,7 @@ class LaunchProject:
                 source_project,
                 source_run_name,
                 internal_api,
-                self.project_dir,
+                Path(self.project_dir),
             )
 
             if not self._entry_points:

@@ -6,6 +6,7 @@ import json
 import logging
 import numbers
 import os
+import pathlib
 import re
 import sys
 import threading
@@ -691,7 +692,7 @@ class Run:
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
-            self._save(self._settings.launch_config_path)
+            self._save(FilePathStr(self._settings.launch_config_path))
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -1753,16 +1754,16 @@ class Run:
     @_run_decorator._attach
     def save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
+        glob_str: Optional[StrPath] = None,
+        base_path: Optional[StrPath] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
-            glob_str: (string) a relative or absolute path to a unix glob or regular
-                path.  If this isn't specified the method is a noop.
-            base_path: (string) the base path to run the glob relative to
+            glob_str: (string, pathlib.Path) a relative or absolute path to a unix glob or regular
+                path. If this isn't specified the method is a noop.
+            base_path: (string, pathlib.Path) the base path to run the glob relative to
             policy: (string) on of `live`, `now`, or `end`
                 - live: upload the file as it changes, overwriting the previous version
                 - now: upload the file once now
@@ -1783,8 +1784,8 @@ class Run:
 
     def _save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
+        glob_str: Optional[StrPath] = None,
+        base_path: Optional[StrPath] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         if policy not in ("live", "end", "now"):
@@ -1793,12 +1794,16 @@ class Run:
             )
         if isinstance(glob_str, bytes):
             glob_str = glob_str.decode("utf-8")
+        elif isinstance(glob_str, pathlib.Path):
+            glob_str = FilePathStr(str(glob_str))
         if not isinstance(glob_str, str):
-            raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+            raise ValueError(
+                "Must call wandb.save(glob_str) with glob_str as str or pathlib.Path object"
+            )
 
         if base_path is None:
             if os.path.isabs(glob_str):
-                base_path = os.path.dirname(glob_str)
+                base_path = FilePathStr(os.path.dirname(glob_str))
                 wandb.termwarn(
                     "Saving files without folders. If you want to preserve "
                     "sub directories pass base_path to wandb.save, i.e. "
@@ -1806,7 +1811,7 @@ class Run:
                     repeat=False,
                 )
             else:
-                base_path = "."
+                base_path = FilePathStr(".")
         wandb_glob_str = GlobStr(os.path.relpath(glob_str, base_path))
         if ".." + os.sep in wandb_glob_str:
             raise ValueError("globs can't walk above base_path")
@@ -3844,14 +3849,14 @@ class _LazyArtifact(ArtifactInterface):
         return self._instance.get(name)
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
+        self, root: Optional[StrPath] = None, recursive: bool = False
     ) -> FilePathStr:
         return self._instance.download(root, recursive)
 
-    def checkout(self, root: Optional[str] = None) -> str:
+    def checkout(self, root: Optional[StrPath] = None) -> StrPath:
         return self._instance.checkout(root)
 
-    def verify(self, root: Optional[str] = None) -> Any:
+    def verify(self, root: Optional[StrPath] = None) -> Any:
         return self._instance.verify(root)
 
     def save(self) -> None:

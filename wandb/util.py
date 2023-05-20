@@ -1244,12 +1244,12 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 
 
 def download_file_from_url(
-    dest_path: str, source_url: str, api_key: Optional[str] = None
+    dest_path: StrPath, source_url: str, api_key: Optional[str] = None
 ) -> None:
     response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
     response.raise_for_status()
 
-    if os.sep in dest_path:
+    if os.sep in str(dest_path):
         filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
     with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):

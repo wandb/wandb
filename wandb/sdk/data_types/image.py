@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 from io import BytesIO
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 from urllib import parse
 
@@ -30,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
-    ImageDataOrPathType = Union[str, "Image", ImageDataType]
+    ImageDataOrPathType = Union[util.StrPath, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
@@ -153,11 +154,11 @@ class Image(BatchableMedia):
         # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
-        elif isinstance(data_or_path, str):
-            if self.path_is_reference(data_or_path):
-                self._initialize_from_reference(data_or_path)
+        elif isinstance(data_or_path, (str, Path)):
+            if self.path_is_reference(str(data_or_path)):
+                self._initialize_from_reference(str(data_or_path))
             else:
-                self._initialize_from_path(data_or_path)
+                self._initialize_from_path(str(data_or_path))
         else:
             self._initialize_from_data(data_or_path, mode)
 

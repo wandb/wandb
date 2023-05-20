@@ -2,7 +2,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, 
 
 import wandb
 from wandb.data_types import WBValue
-from wandb.sdk.lib.paths import FilePathStr, StrPath
+from wandb.sdk.lib.paths import StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -237,14 +237,14 @@ class Artifact:
 
     def add_file(
         self,
-        local_path: str,
+        local_path: StrPath,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
     ) -> "ArtifactManifestEntry":
         """Add a local file to the artifact.
 
         Arguments:
-            local_path: (str) The path to the file being added.
+            local_path: (Union[str, os.PathLike]) The path to the file being added.
             name: (str, optional) The path within the artifact to use for the file being
                 added. Defaults to the basename of the file.
             is_tmp: (bool, optional) If true, then the file is renamed deterministically
@@ -272,7 +272,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    def add_dir(self, local_path: StrPath, name: Optional[str] = None) -> None:
         """Add a local directory to the artifact.
 
         Arguments:
@@ -467,8 +467,8 @@ class Artifact:
         raise NotImplementedError
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
-    ) -> FilePathStr:
+        self, root: Optional[StrPath] = None, recursive: bool = False
+    ) -> StrPath:
         """Download the contents of the artifact to the specified root directory.
 
         NOTE: Any existing files at `root` are left untouched. Explicitly delete
@@ -476,30 +476,30 @@ class Artifact:
         match the artifact.
 
         Arguments:
-            root: (str, optional) The directory in which to download this artifact's files.
+            root: (Union[str, os.PathLike], optional) The directory in which to download this artifact's files.
             recursive: (bool, optional) If true, then all dependent artifacts are eagerly
                 downloaded. Otherwise, the dependent artifacts are downloaded as needed.
 
         Returns:
-            (str): The path to the downloaded contents.
+            (Union[str, os.PathLike]): The path to the downloaded contents.
         """
         raise NotImplementedError
 
-    def checkout(self, root: Optional[str] = None) -> str:
+    def checkout(self, root: Optional[StrPath] = None) -> StrPath:
         """Replace the specified root directory with the contents of the artifact.
 
         WARNING: This will DELETE all files in `root` that are not included in the
         artifact.
 
         Arguments:
-            root: (str, optional) The directory to replace with this artifact's files.
+            root: (Union[str, os.PathLike], optional) The directory to replace with this artifact's files.
 
         Returns:
-           (str): The path to the checked out contents.
+           (Union[str, os.PathLike]): The path to the checked out contents.
         """
         raise NotImplementedError
 
-    def verify(self, root: Optional[str] = None) -> bool:
+    def verify(self, root: Optional[StrPath] = None) -> bool:
         """Verify that the actual contents of an artifact match the manifest.
 
         All files in the directory are checksummed and the checksums are then
@@ -508,7 +508,7 @@ class Artifact:
         NOTE: References are not verified.
 
         Arguments:
-            root: (str, optional) The directory to verify. If None
+            root: (Union[str, os.PathLike], optional) The directory to verify. If None
                 artifact will be downloaded to './artifacts/self.name/'
 
         Raises:

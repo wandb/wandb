@@ -122,8 +122,10 @@ class ArtifactsCache:
                 raise ValueError("Appending to cache files is not supported")
 
             dirname = os.path.dirname(path)
-            tmp_file = os.path.join(
-                dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
+            tmp_file = FilePathStr(
+                os.path.join(
+                    dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
+                )
             )
             with util.fsync_open(tmp_file, mode=mode) as f:
                 yield f

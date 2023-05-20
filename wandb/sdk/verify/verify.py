@@ -279,7 +279,7 @@ def log_use_download_artifact(
             with open("verify_2.txt", "w") as f:
                 f.write("2")
                 f.close()
-                artifact.add_file(f.name)
+                artifact.add_file(Path(f.name))
 
         try:
             log_art_run.log_artifact(artifact, aliases=alias)
