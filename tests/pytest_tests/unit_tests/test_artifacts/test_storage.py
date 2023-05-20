@@ -3,38 +3,33 @@ import base64
 import os
 import random
 from multiprocessing import Pool
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
+from wandb.sdk.interface.artifacts import ArtifactNotLoggedError
 from wandb.sdk.internal.artifact_saver import get_staging_dir
+from wandb.sdk.lib import filesystem
+from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
 
 
-def test_opener_rejects_append_mode(cache):
-    _, _, opener = cache.check_md5_obj_path(base64.b64encode(b"abcdef"), 10)
-
-    with pytest.raises(ValueError):
-        with opener("a"):
-            pass
-
-    # make sure that the ValueError goes away if we use a valid mode
-    with opener("w"):
-        pass
-
-
-def test_check_md5_obj_path(cache):
+def test_locate_md5_obj_path(cache):
     md5 = base64.b64encode(b"abcdef")
-    path, exists, opener = cache.check_md5_obj_path(md5, 10)
-    expected_path = os.path.join(cache._cache_dir, "obj", "md5", "61", "6263646566")
-    with opener() as f:
-        f.write("hi")
-    with open(path) as f:
-        contents = f.read()
+    expected_path = Path(cache._cache_dir) / "obj" / "md5" / "61" / "6263646566"
 
-    assert path == expected_path
-    assert exists is False
-    assert contents == "hi"
+    manifest_entry = ArtifactManifestEntry(path="foo", digest=md5, size=10)
+    cache_path = cache.locate(manifest_entry)
+
+    assert cache_path == expected_path
+    assert not cache_path.exists()
+
+    with filesystem.safe_open(cache_path, "w") as f:
+        f.write("hi")
+
+    assert cache_path.exists()
+    assert cache_path.read_text() == "hi"
 
 
 def test_check_etag_obj_path_points_to_opener_dst(cache):
@@ -176,29 +171,64 @@ def test_artifacts_cache_cleanup_tmp_files(cache):
     assert reclaimed_bytes == 1000
 
 
+def test_cache_refuses_unlogged_artifact(cache):
+    artifact = wandb_artifacts.Artifact("test", type="test")
+    with pytest.raises(ArtifactNotLoggedError):
+        cache.store_artifact(artifact)
+
+
+def test_cache_refuses_missing_client_id(cache):
+    artifact = wandb_artifacts.Artifact("test", type="test")
+    del artifact._client_id
+    with pytest.raises(ValueError, match="Only wandb.Artifacts have a client id"):
+        cache.store_client_artifact(artifact)
+
+
+def test_storing_a_file_without_a_location():
+    storage_policy = wandb_artifacts.wandb_artifacts.StoragePolicy()
+    manifest_entry = ArtifactManifestEntry(path="foo/bar", digest="XUFAK", size=0)
+    storage_policy.store_file_sync("artifact_id", "manifest_id", manifest_entry, None)
+
+
+def test_load_file_reference_caches_files(tmp_path):
+    file = tmp_path / "file.txt"
+    file.write_text("hello")
+    digest = "XUFAKrxLKna5cZ2REBfFkg=="
+    handler = wandb_artifacts.LocalFileHandler()
+    cache = wandb.sdk.interface.artifacts.artifact_cache.get_artifacts_cache()
+    entry = ArtifactManifestEntry(
+        path="foo/bar", digest=digest, ref=file.as_uri(), size=123
+    )
+    path = handler.load_path(entry)
+
+    assert Path(path).relative_to(cache._cache_dir)
+
+
 def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, opener = cache.check_md5_obj_path(b64_md5=digest, size=123)
-    with opener() as f:
+    manifest_entry = ArtifactManifestEntry(
+        path="foo/bar",
+        digest=digest,
+        ref=uri,
+        size=123,
+    )
+
+    cache_path = cache.locate(manifest_entry)
+    with filesystem.safe_open(cache_path, "w") as f:
         f.write(123 * "a")
 
     handler = wandb_artifacts.LocalFileHandler()
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
-            path="foo/bar",
-            ref=uri,
-            digest=digest,
-            size=123,
-        ),
+        manifest_entry,
         local=True,
     )
-    assert local_path == path
+    assert local_path == str(cache_path)
 
 
 def test_s3_storage_handler_load_path_uses_cache(cache):
@@ -242,26 +272,22 @@ def test_gcs_storage_handler_load_path_nonlocal():
 
 
 def test_gcs_storage_handler_load_path_uses_cache(cache):
-    uri = "gs://some-bucket/path/to/file.json"
-    etag = "some etag"
+    manifest_entry = wandb_artifacts.ArtifactManifestEntry(
+        path="foo/bar",
+        ref="gs://some-bucket/path/to/file.json",
+        digest="some etag",
+        size=123,
+    )
 
-    path, _, opener = cache.check_md5_obj_path(etag, 123)
-    with opener() as f:
+    cache_path = cache.locate(manifest_entry)
+    with filesystem.safe_open(cache_path, "w") as f:
         f.write(123 * "a")
 
     handler = wandb_artifacts.GCSHandler()
     handler._cache = cache
 
-    local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
-            path="foo/bar",
-            ref=uri,
-            digest=etag,
-            size=123,
-        ),
-        local=True,
-    )
-    assert local_path == path
+    local_path = handler.load_path(manifest_entry, local=True)
+    assert local_path == str(cache_path)
 
 
 def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
