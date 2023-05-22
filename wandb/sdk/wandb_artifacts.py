@@ -892,7 +892,7 @@ class WandbStoragePolicy(StoragePolicy):
         artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
     ) -> str:
-        path, hit, _ = self._cache.check_md5_obj_path(
+        path, hit = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -1142,7 +1142,7 @@ class WandbStoragePolicy(StoragePolicy):
             return
 
         # Cache upon successful upload.
-        path, hit, _ = self._cache.check_md5_obj_path(
+        path, hit = self._cache.check_md5_obj_path(
             B64MD5(entry.digest),
             entry.size if entry.size is not None else 0,
         )
@@ -1325,7 +1325,7 @@ class LocalFileHandler(StorageHandler):
                 "Local file reference: Failed to find file at path %s" % local_path
             )
 
-        path, hit, _ = self._cache.check_md5_obj_path(
+        path, hit = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -1471,7 +1471,7 @@ class S3Handler(StorageHandler):
 
         assert manifest_entry.ref is not None
 
-        path, hit, _ = self._cache.check_etag_obj_path(
+        path, hit = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
@@ -1728,7 +1728,7 @@ class GCSHandler(StorageHandler):
             assert manifest_entry.ref is not None
             return manifest_entry.ref
 
-        path, hit, _ = self._cache.check_md5_obj_path(
+        path, hit = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -2070,7 +2070,7 @@ class HTTPHandler(StorageHandler):
 
         assert manifest_entry.ref is not None
 
-        path, hit, _ = self._cache.check_etag_obj_path(
+        path, hit = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,

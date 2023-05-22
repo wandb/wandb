@@ -14,7 +14,7 @@ from wandb.sdk.lib import filesystem
 
 def test_check_md5_obj_path(cache):
     md5 = base64.b64encode(b"abcdef")
-    path, exists, _ = cache.check_md5_obj_path(md5, 10)
+    path, exists = cache.check_md5_obj_path(md5, 10)
     expected_path = os.path.join(cache._cache_dir, "obj", "md5", "61", "6263646566")
 
     with filesystem.safe_open(path, "w") as f:
@@ -29,36 +29,36 @@ def test_check_md5_obj_path(cache):
 
 def test_check_etag_obj_path_returns_exists_if_exists(cache):
     size = 123
-    path, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
+    path, exists = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
 
     with filesystem.safe_open(path, "w") as f:
         f.write(size * "a")
 
-    _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert exists
 
 
 def test_check_etag_obj_path_returns_not_exists_if_incomplete(cache):
     size = 123
-    path, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
+    path, exists = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
 
     with filesystem.safe_open(path, "w") as f:
         f.write((size - 1) * "a")
 
-    _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
 
     with filesystem.safe_open(path, "w") as f:
         f.write(size * "a")
 
-    _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert exists
 
 
 def test_check_etag_obj_path_does_not_include_etag(cache):
-    path, _, _ = cache.check_etag_obj_path("http://url/1", "abcdef", 10)
+    path, _ = cache.check_etag_obj_path("http://url/1", "abcdef", 10)
     assert "abcdef" not in path
 
 
@@ -73,8 +73,8 @@ def test_check_etag_obj_path_does_not_include_etag(cache):
 def test_check_etag_obj_path_hashes_url_and_etag(
     url1, url2, etag1, etag2, path_equal, cache
 ):
-    path_1, _, _ = cache.check_etag_obj_path(url1, etag1, 10)
-    path_2, _, _ = cache.check_etag_obj_path(url2, etag2, 10)
+    path_1, _ = cache.check_etag_obj_path(url1, etag1, 10)
+    path_2, _ = cache.check_etag_obj_path(url2, etag2, 10)
 
     if path_equal:
         assert path_1 == path_2
@@ -161,7 +161,7 @@ def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, _ = cache.check_md5_obj_path(b64_md5=digest, size=123)
+    path, _ = cache.check_md5_obj_path(b64_md5=digest, size=123)
     with filesystem.safe_open(path, "w") as f:
         f.write(123 * "a")
 
@@ -184,7 +184,7 @@ def test_s3_storage_handler_load_path_uses_cache(cache):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    path, _, _ = cache.check_etag_obj_path(uri, etag, 123)
+    path, _ = cache.check_etag_obj_path(uri, etag, 123)
     with filesystem.safe_open(path, "w") as f:
         f.write(123 * "a")
 
@@ -224,7 +224,7 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     uri = "gs://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    path, _, _ = cache.check_md5_obj_path(etag, 123)
+    path, _ = cache.check_md5_obj_path(etag, 123)
     with filesystem.safe_open(path, "w") as f:
         f.write(123 * "a")
 

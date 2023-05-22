@@ -1295,7 +1295,7 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     etag = "some etag"
 
     cache = wandb_artifacts.ArtifactsCache(tmp_path)
-    path, _, _ = cache.check_etag_obj_path(uri, etag, 123)
+    path, _ = cache.check_etag_obj_path(uri, etag, 123)
     with filesystem.safe_open(path, "w") as f:
         f.write(123 * "a")
 
@@ -1383,7 +1383,7 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
         artifact.wait()
 
     manifest_entry = artifact.manifest.entries["test-file"]
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
+    _, found = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
 
     # Now the file should be in the cache.
     # Even though this works in production, the test often fails. I don't know why :(.

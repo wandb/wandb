@@ -1,28 +1,15 @@
-import contextlib
 import hashlib
 import os
-import secrets
-from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
-from wandb import env, util
+from wandb import env
 from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
-    import sys
-
     from wandb.sdk import wandb_artifacts
-
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
-
-    class Opener(Protocol):
-        def __call__(self, mode: str = ...) -> ContextManager[IO]:
-            pass
 
 
 class ArtifactsCache:
@@ -38,14 +25,13 @@ class ArtifactsCache:
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
+    ) -> Tuple[FilePathStr, bool]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
+            return FilePathStr(path), True
         mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        return FilePathStr(path), False
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -54,17 +40,16 @@ class ArtifactsCache:
         url: URIStr,
         etag: ETag,
         size: int,
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
+    ) -> Tuple[FilePathStr, bool]:
         hexhash = hashlib.sha256(
             hashlib.sha256(url.encode("utf-8")).digest()
             + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
-        opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
+            return FilePathStr(path), True
         mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        return FilePathStr(path), False
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
@@ -114,42 +99,6 @@ class ArtifactsCache:
             total_size -= stat.st_size
             bytes_reclaimed += stat.st_size
         return bytes_reclaimed
-
-    def _cache_opener(self, path: StrPath) -> "Opener":
-        @contextlib.contextmanager
-        def helper(mode: str = "w") -> Generator[IO, None, None]:
-            if "a" in mode:
-                raise ValueError("Appending to cache files is not supported")
-
-            dirname = os.path.dirname(path)
-            tmp_file = os.path.join(
-                dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
-            )
-            with util.fsync_open(tmp_file, mode=mode) as f:
-                yield f
-
-            try:
-                # Use replace where we can, as it implements an atomic
-                # move on most platforms. If it doesn't exist, we have
-                # to use rename which isn't atomic in all cases but there
-                # isn't a better option.
-                #
-                # The atomic replace is important in the event multiple processes
-                # attempt to write to / read from the cache at the same time. Each
-                # writer firsts stages its writes to a temporary file in the cache.
-                # Once it is finished, we issue an atomic replace operation to update
-                # the cache. Although this can result in redundant downloads, this
-                # guarantees that readers can NEVER read incomplete files from the
-                # cache.
-                #
-                # IMPORTANT: Replace is NOT atomic across different filesystems. This why
-                # it is critical that the temporary files sit directly in the cache --
-                # they need to be on the same filesystem!
-                os.replace(tmp_file, path)
-            except AttributeError:
-                os.rename(tmp_file, path)
-
-        return helper
 
 
 _artifacts_cache = None
