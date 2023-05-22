@@ -28,10 +28,8 @@ class ArtifactsCache:
     ) -> Tuple[FilePathStr, bool]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False
+        hit = os.path.isfile(path) and os.path.getsize(path) == size
+        return FilePathStr(path), hit
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -46,10 +44,8 @@ class ArtifactsCache:
             + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False
+        hit = os.path.isfile(path) and os.path.getsize(path) == size
+        return FilePathStr(path), hit
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
