@@ -892,7 +892,7 @@ class WandbStoragePolicy(StoragePolicy):
         artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
     ) -> str:
-        path, hit, cache_open = self._cache.check_md5_obj_path(
+        path, hit, _ = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -906,7 +906,7 @@ class WandbStoragePolicy(StoragePolicy):
         )
         response.raise_for_status()
 
-        with cache_open(mode="wb") as file:
+        with filesystem.safe_open(path, mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
@@ -1142,13 +1142,12 @@ class WandbStoragePolicy(StoragePolicy):
             return
 
         # Cache upon successful upload.
-        _, hit, cache_open = self._cache.check_md5_obj_path(
+        path, hit, _ = self._cache.check_md5_obj_path(
             B64MD5(entry.digest),
             entry.size if entry.size is not None else 0,
         )
         if not hit:
-            with cache_open() as f:
-                shutil.copyfile(entry.local_path, f.name)
+            filesystem.safe_copy(entry.local_path, path)
 
 
 # Don't use this yet!
@@ -1326,7 +1325,7 @@ class LocalFileHandler(StorageHandler):
                 "Local file reference: Failed to find file at path %s" % local_path
             )
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
+        path, hit, _ = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -1339,10 +1338,7 @@ class LocalFileHandler(StorageHandler):
                 f"Local file reference: Digest mismatch for path {local_path}: expected {manifest_entry.digest} but found {md5}"
             )
 
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
-
-        with cache_open() as f:
-            shutil.copy(local_path, f.name)
+        filesystem.safe_copy(local_path, path)
         return path
 
     def store_path(
@@ -1475,7 +1471,7 @@ class S3Handler(StorageHandler):
 
         assert manifest_entry.ref is not None
 
-        path, hit, cache_open = self._cache.check_etag_obj_path(
+        path, hit, _ = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
@@ -1523,7 +1519,7 @@ class S3Handler(StorageHandler):
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args["VersionId"] = version
 
-        with cache_open(mode="wb") as f:
+        with filesystem.safe_open(path, "wb") as f:
             obj.download_fileobj(f, ExtraArgs=extra_args)
         return path
 
@@ -1732,7 +1728,7 @@ class GCSHandler(StorageHandler):
             assert manifest_entry.ref is not None
             return manifest_entry.ref
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
+        path, hit, _ = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -1764,7 +1760,7 @@ class GCSHandler(StorageHandler):
                     f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {md5}"
                 )
 
-        with cache_open(mode="wb") as f:
+        with filesystem.safe_open(path, "wb") as f:
             obj.download_to_file(f)
         return path
 
@@ -1903,7 +1899,7 @@ class AzureHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit, cache_open = get_artifacts_cache().check_etag_obj_path(
+        path, hit, _ = get_artifacts_cache().check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
             manifest_entry.size or 0,
@@ -1954,7 +1950,8 @@ class AzureHandler(StorageHandler):
                     )
         else:
             downloader = blob_client.download_blob(version_id=version_id)
-        with cache_open(mode="wb") as f:
+
+        with filesystem.safe_open(path, "wb") as f:
             downloader.readinto(f)
         return path
 
@@ -2073,7 +2070,7 @@ class HTTPHandler(StorageHandler):
 
         assert manifest_entry.ref is not None
 
-        path, hit, cache_open = self._cache.check_etag_obj_path(
+        path, hit, _ = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
@@ -2092,7 +2089,7 @@ class HTTPHandler(StorageHandler):
                 f"Digest mismatch for url {manifest_entry.ref}: expected {manifest_entry.digest} but found {digest}"
             )
 
-        with cache_open(mode="wb") as file:
+        with filesystem.safe_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
