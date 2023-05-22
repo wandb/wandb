@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -118,16 +118,16 @@ def load_launch_sweep_config(config: Optional[str]) -> Any:
     return parsed_config
 
 
-def construct_scheduler_entrypoint(
+def construct_scheduler_args(
     sweep_config: Dict[str, Any],
     queue: str,
     project: str,
-    num_workers: Union[str, int],
     author: Optional[str] = None,
+    sweep_type: Optional[str] = "sweep",
 ) -> Optional[List[str]]:
-    """Construct a sweep scheduler run spec.
+    """Construct a sweep scheduler entrypoing and args.
 
-    logs error and returns None if misconfigured, otherwise returns entrypoint
+    logs error and returns None if misconfigured, otherwise returns entrypoint and args
     """
     job = sweep_config.get("job")
     image_uri = sweep_config.get("image_uri")
@@ -135,47 +135,30 @@ def construct_scheduler_entrypoint(
         wandb.termerror(
             "No 'job' nor 'image_uri' top-level key found in sweep config, exactly one is required for a launch-sweep"
         )
-        return []
+        return None
     elif job and image_uri:
         wandb.termerror(
             "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
         )
-        return []
+        return None
 
-    if type(num_workers) is str:
-        if num_workers.isdigit():
-            num_workers = int(num_workers)
-        else:
-            wandb.termerror(
-                "'num_workers' must be an integer or a string that can be parsed as an integer"
-            )
-            return []
-
-    entrypoint = [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    args = [
         "--queue",
         f"{queue!r}",
         "--project",
         project,
-        "--num_workers",
-        f"{num_workers}",
+        "--sweep_type",
+        f"{sweep_type}",
     ]
 
-    if job:
-        if ":" not in job:
-            wandb.termwarn("No alias specified for job, defaulting to 'latest'")
-            job += ":latest"
-
-        entrypoint += ["--job", job]
-    elif image_uri:
-        entrypoint += ["--image_uri", image_uri]
-
     if author:
-        entrypoint += ["--author", author]
+        args += ["--author", author]
+    if job:
+        args += ["--job", job]
+    elif image_uri:
+        args += ["--image_uri", image_uri]
 
-    return entrypoint
+    return args
 
 
 def create_sweep_command(command: Optional[List] = None) -> List:

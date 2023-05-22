@@ -8,7 +8,13 @@ from wandb.apis.importers import MlflowImporter
 @pytest.mark.timeout(60)
 @pytest.mark.skipif(sys.version_info < (3, 8), reason="MLFlow requires python>=3.8")
 def test_mlflow(prelogged_mlflow_server, user):
-    mlflow_server, exps, runs_per_exp, steps = prelogged_mlflow_server
+    (
+        mlflow_server,
+        exps,
+        runs_per_exp,
+        steps,
+        n_artifacts_per_run,
+    ) = prelogged_mlflow_server
 
     project = "mlflow-import-testing"
     overrides = {
@@ -23,3 +29,6 @@ def test_mlflow(prelogged_mlflow_server, user):
     for run in runs:
         # https://stackoverflow.com/a/50645935
         assert len(list(run.scan_history())) == steps
+
+        art = list(run.logged_artifacts())[0]
+        assert len(list(art.files())) == n_artifacts_per_run

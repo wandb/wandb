@@ -37,6 +37,7 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.wandb_config import Config
@@ -449,6 +450,7 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _aws_lambda: bool
     _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
@@ -530,6 +532,7 @@ class Settings:
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
+    job_source: str
     label_disable: bool
     launch: bool
     launch_config_path: str
@@ -599,6 +602,10 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
+            _aws_lambda={
+                "hook": lambda _: is_aws_lambda(),
+                "auto_hook": True,
+            },
             _async_upload_concurrency_limit={
                 "preprocessor": int,
                 "validator": self._validate__async_upload_concurrency_limit,
@@ -731,6 +738,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            job_source={"validator": self._validate_job_source},
             label_disable={"preprocessor": _str_as_bool},
             launch={"preprocessor": _str_as_bool},
             log_dir={
@@ -1111,6 +1119,15 @@ class Settings:
                     repeat=False,
                 )
 
+        return True
+
+    @staticmethod
+    def _validate_job_source(value: str) -> bool:
+        valid_sources = ["repo", "artifact", "image"]
+        if value not in valid_sources:
+            raise UsageError(
+                f"Settings field `job_source`: {value!r} not in {valid_sources}"
+            )
         return True
 
     # other helper methods
@@ -1511,6 +1528,7 @@ class Settings:
 
     def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
         if _logger is not None:
+            _logger.info(f"Current SDK version is {wandb.__version__}")
             _logger.info(f"Configure stats pid to {pid}")
         self.update({"_stats_pid": pid}, source=Source.SETUP)
 
