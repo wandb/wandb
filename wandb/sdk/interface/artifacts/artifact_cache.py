@@ -82,7 +82,7 @@ class ArtifactsCache:
     def store_client_artifact(self, artifact: "wandb_artifacts.Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
-    def cleanup(self, target_size: int, remove_temp=False) -> int:
+    def cleanup(self, target_size: int, remove_temp: bool = False) -> int:
         bytes_reclaimed = 0
         paths = {}
         total_size = 0
