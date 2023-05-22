@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import queue
+import shutil
 import unittest.mock as mock
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Optional
@@ -459,3 +460,25 @@ class TestStoreFile:
 def test_invalid_artifact_type(type):
     with pytest.raises(ValueError, match="reserved for internal use"):
         Artifact("foo", type=type)
+
+
+def test_cache_write_failure_is_ignored(api, monkeypatch, capsys):
+    def bad_write(*args, **kwargs):
+        raise FileNotFoundError("unable to copy from source file")
+
+    monkeypatch.setattr(shutil, "copyfile", bad_write)
+    policy = WandbStoragePolicy(api=api)
+    path = Path("foo.txt")
+    path.write_text("hello")
+
+    entry = ArtifactManifestEntry(
+        path=str(path),
+        digest="abc123",
+        local_path=str(path),
+        size=path.stat().st_size,
+    )
+
+    policy._write_cache(entry)
+
+    captured = capsys.readouterr()
+    assert "Failed to cache" in captured.err
