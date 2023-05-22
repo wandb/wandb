@@ -462,12 +462,12 @@ def test_invalid_artifact_type(type):
         Artifact("foo", type=type)
 
 
-def test_cache_write_failure_is_ignored(api, monkeypatch, capsys):
+def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     def bad_write(*args, **kwargs):
         raise FileNotFoundError("unable to copy from source file")
 
     monkeypatch.setattr(shutil, "copyfile", bad_write)
-    policy = WandbStoragePolicy(api=api)
+    policy = WandbStoragePolicy()
     path = Path("foo.txt")
     path.write_text("hello")
 
