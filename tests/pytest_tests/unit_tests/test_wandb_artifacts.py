@@ -473,7 +473,7 @@ def test_cache_write_failure_is_ignored(monkeypatch, capsys):
 
     entry = ArtifactManifestEntry(
         path=str(path),
-        digest="abc123",
+        digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
         local_path=str(path),
         size=path.stat().st_size,
     )
