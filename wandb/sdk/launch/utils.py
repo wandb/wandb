@@ -193,7 +193,7 @@ def construct_launch_spec(
         launch_spec["docker"] = {}
     if docker_image:
         launch_spec["docker"]["docker_image"] = docker_image
-    if sweep_id:
+    if sweep_id:  # all runs in a sweep have this set
         launch_spec["sweep_id"] = sweep_id
 
     if "resource" not in launch_spec:

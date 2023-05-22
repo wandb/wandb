@@ -1028,7 +1028,7 @@ def launch_sweep(
 
     entrypoint = Scheduler.ENTRYPOINT if not scheduler_job else None
     args = sweep_utils.construct_scheduler_args(
-        is_job=scheduler_job is not None,
+        return_job=scheduler_job is not None,
         sweep_config=sweep_config,
         queue=queue,
         project=project,
