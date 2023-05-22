@@ -112,13 +112,9 @@ def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
         return False
 
     if run_spec.get("resource") == "local-process":
-        # If a scheduler is a job, and run in local-process, check
-        # whitelist of supported wandb jobs
-        job = run_spec.get("job")
-        if job and job.split(":")[0].split("/")[-1] in [
-            "job-WandbScheduler",
-            "job-OptunaScheduler",
-        ]:
+        # Any job pushed to a run queue that has a scheduler uri is
+        # allowed to use local-process
+        if run_spec.get("job"):
             return True
 
         # If a scheduler is local-process and run through CLI, also
