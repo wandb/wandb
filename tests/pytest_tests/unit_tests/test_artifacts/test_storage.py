@@ -163,7 +163,7 @@ def test_artifacts_cache_cleanup(cache):
     assert reclaimed_bytes == 5000
 
 
-def test_artifacts_cache_cleanup_tmp_files(cache):
+def test_artifacts_cache_cleanup_tmp_files_when_asked(cache):
     path = os.path.join(cache._cache_dir, "obj", "md5", "aa")
     os.makedirs(path)
     with open(os.path.join(path, "tmp_abc"), "w") as f:
@@ -171,9 +171,24 @@ def test_artifacts_cache_cleanup_tmp_files(cache):
 
     # Even if we are above our target size, the cleanup
     # should reclaim tmp files.
-    reclaimed_bytes = cache.cleanup(10000)
+    reclaimed_bytes = cache.cleanup(10000, remove_temp=True)
 
     assert reclaimed_bytes == 1000
+
+
+def test_artifacts_cache_cleanup_leaves_tmp_files_by_default(cache, capsys):
+    path = os.path.join(cache._cache_dir, "obj", "md5", "aa")
+    os.makedirs(path)
+    with open(os.path.join(path, "tmp_abc"), "w") as f:
+        f.truncate(1000)
+
+    # The cleanup should leave temp files alone, even if we haven't reached our target.
+    reclaimed_bytes = cache.cleanup(0)
+    assert reclaimed_bytes == 0
+
+    # However, it should issue a warning.
+    _, stderr = capsys.readouterr()
+    assert "Cache contains 1000.0B of temporary files" in stderr
 
 
 def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
