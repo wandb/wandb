@@ -61,14 +61,14 @@ def test_sweep_construct_scheduler_args():
         "queue",
         "project",
         sweep_type="wandb",
-        is_job=False,
+        return_job=False,
     )
 
     args = utils.construct_scheduler_args(
         {"job": "job:12315"},
         "queue",
         "project",
-        is_job=False,
+        return_job=False,
     )
     assert args == [
         "--queue",
@@ -87,7 +87,7 @@ def test_sweep_construct_scheduler_args():
         "project",
         author="author",
         sweep_type="wandb",
-        is_job=False,
+        return_job=False,
     )
     assert args == [
         "--queue",
@@ -106,7 +106,7 @@ def test_sweep_construct_scheduler_args():
         {"image_uri": "image_uri"},
         "queue",
         "project",
-        is_job=False,
+        return_job=False,
     )
     assert args == [
         "--queue",
@@ -125,6 +125,6 @@ def test_sweep_construct_scheduler_args():
             {"job": "job:111", "image_uri": "image_uri"},
             "queue",
             "project",
-            is_job=False,
+            return_job=False,
         )
     )
