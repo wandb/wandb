@@ -103,10 +103,10 @@ def _max_from_config(
     return max_from_config
 
 
-def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
+def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
     """Determine whether a job/runSpec is a sweep scheduler."""
     if not run_spec:
-        _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
+        _logger.debug("Recieved runSpec in _is_scheduler_job that was empty")
 
     if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
         return False
@@ -118,7 +118,6 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
         if job and job.split(":")[0].split("/")[-1] in [
             "job-WandbScheduler",
             "job-OptunaScheduler",
-            "job-HyperoptScheduler",
         ]:
             return True
 
@@ -403,7 +402,7 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
-                            if _job_is_scheduler(job.get("runSpec")):
+                            if _is_scheduler_job(job.get("runSpec")):
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
                                 if self.num_running_schedulers >= self._max_schedulers:
@@ -509,7 +508,7 @@ class LaunchAgent:
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         run = backend.run(project, builder)
 
-        if _job_is_scheduler(launch_spec):
+        if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
             wandb.termlog(
