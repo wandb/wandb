@@ -15,6 +15,7 @@ import wandb.data_types as data_types
 import wandb.sdk.interface as wandb_interface
 from wandb import util, wandb_sdk
 from wandb.sdk import wandb_artifacts
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import md5_string
 from wandb.sdk.wandb_artifacts import (
     ArtifactFinalizedError,
@@ -1294,8 +1295,8 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     etag = "some etag"
 
     cache = wandb_artifacts.ArtifactsCache(tmp_path)
-    path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
-    with opener() as f:
+    path, _, _ = cache.check_etag_obj_path(uri, etag, 123)
+    with filesystem.safe_open(path, "w") as f:
         f.write(123 * "a")
 
     handler = wandb_artifacts.S3Handler()

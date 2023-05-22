@@ -9,25 +9,15 @@ import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
 from wandb.sdk.internal.artifact_saver import get_staging_dir
-
-
-def test_opener_rejects_append_mode(cache):
-    _, _, opener = cache.check_md5_obj_path(base64.b64encode(b"abcdef"), 10)
-
-    with pytest.raises(ValueError):
-        with opener("a"):
-            pass
-
-    # make sure that the ValueError goes away if we use a valid mode
-    with opener("w"):
-        pass
+from wandb.sdk.lib import filesystem
 
 
 def test_check_md5_obj_path(cache):
     md5 = base64.b64encode(b"abcdef")
-    path, exists, opener = cache.check_md5_obj_path(md5, 10)
+    path, exists, _ = cache.check_md5_obj_path(md5, 10)
     expected_path = os.path.join(cache._cache_dir, "obj", "md5", "61", "6263646566")
-    with opener() as f:
+
+    with filesystem.safe_open(path, "w") as f:
         f.write("hi")
     with open(path) as f:
         contents = f.read()
@@ -37,23 +27,12 @@ def test_check_md5_obj_path(cache):
     assert contents == "hi"
 
 
-def test_check_etag_obj_path_points_to_opener_dst(cache):
-    path, _, opener = cache.check_etag_obj_path("http://my/url", "abc", 10)
-
-    with opener() as f:
-        f.write("hi")
-    with open(path) as f:
-        contents = f.read()
-
-    assert contents == "hi"
-
-
 def test_check_etag_obj_path_returns_exists_if_exists(cache):
     size = 123
-    _, exists, opener = cache.check_etag_obj_path("http://my/url", "abc", size)
+    path, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
 
-    with opener() as f:
+    with filesystem.safe_open(path, "w") as f:
         f.write(size * "a")
 
     _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
@@ -62,16 +41,16 @@ def test_check_etag_obj_path_returns_exists_if_exists(cache):
 
 def test_check_etag_obj_path_returns_not_exists_if_incomplete(cache):
     size = 123
-    _, exists, opener = cache.check_etag_obj_path("http://my/url", "abc", size)
+    path, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
 
-    with opener() as f:
+    with filesystem.safe_open(path, "w") as f:
         f.write((size - 1) * "a")
 
     _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
 
-    with opener() as f:
+    with filesystem.safe_open(path, "w") as f:
         f.write(size * "a")
 
     _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
@@ -107,8 +86,8 @@ def test_check_etag_obj_path_hashes_url_and_etag(
 # but it needs to be a global function for multiprocessing.
 def _cache_writer(artifact_cache):
     etag = "abcdef"
-    _, _, opener = artifact_cache.check_etag_obj_path("http://wandb.ex/foo", etag, 10)
-    with opener() as f:
+    path, _, _ = artifact_cache.check_etag_obj_path("http://wandb.ex/foo", etag, 10)
+    with filesystem.safe_open(path, "w") as f:
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
 
@@ -182,8 +161,8 @@ def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, opener = cache.check_md5_obj_path(b64_md5=digest, size=123)
-    with opener() as f:
+    path, _, _ = cache.check_md5_obj_path(b64_md5=digest, size=123)
+    with filesystem.safe_open(path, "w") as f:
         f.write(123 * "a")
 
     handler = wandb_artifacts.LocalFileHandler()
@@ -205,8 +184,8 @@ def test_s3_storage_handler_load_path_uses_cache(cache):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
-    with opener() as f:
+    path, _, _ = cache.check_etag_obj_path(uri, etag, 123)
+    with filesystem.safe_open(path, "w") as f:
         f.write(123 * "a")
 
     handler = wandb_artifacts.S3Handler()
@@ -245,8 +224,8 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     uri = "gs://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    path, _, opener = cache.check_md5_obj_path(etag, 123)
-    with opener() as f:
+    path, _, _ = cache.check_md5_obj_path(etag, 123)
+    with filesystem.safe_open(path, "w") as f:
         f.write(123 * "a")
 
     handler = wandb_artifacts.GCSHandler()
