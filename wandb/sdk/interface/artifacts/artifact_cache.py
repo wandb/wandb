@@ -107,7 +107,7 @@ class ArtifactsCache:
 
         if temp_size:
             termwarn(
-                f"Cache contains {util.to_human_size(temp_size)} of temporary files."
+                f"Cache contains {util.to_human_size(temp_size)} of temporary files. "
                 "Run `wandb artifact cleanup --remove-temp` to remove them."
             )
 
