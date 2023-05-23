@@ -400,7 +400,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
+        builder: AbstractBuilder,
         namespace: str,
         core_api: "CoreV1Api",
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
@@ -449,7 +449,9 @@ class KubernetesRunner(AbstractRunner):
         secret = None
         entry_point = launch_project.get_single_entry_point()
         if launch_project.docker_image:
-            secret = maybe_create_imagepull_secret(core_api, builder.registry, launch_project.run_id, namespace)
+            secret = maybe_create_imagepull_secret(
+                core_api, builder.registry, launch_project.run_id, namespace
+            )
             if secret is not None:
                 pod_spec["imagePullSecrets"] = [
                     {"name": f"regcred-{launch_project.run_id}"}
