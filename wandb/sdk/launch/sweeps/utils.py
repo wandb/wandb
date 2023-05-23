@@ -144,7 +144,7 @@ def construct_scheduler_args(
 
     args = [
         "--queue",
-        f"{queue!r}",
+        f"{queue}",
         "--project",
         project,
         "--sweep_type",
