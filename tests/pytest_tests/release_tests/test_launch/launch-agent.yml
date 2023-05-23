@@ -36,6 +36,21 @@ spec:
                 secretKeyRef:
                   name: wandb-api-key
                   key: password
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-access-key-id
+                  key: password
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secret-access-key
+                  key: password
+            - name: AWS_SESSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aws-session-token
+                  key: password
           volumeMounts:
             - name: wandb-launch-config
               mountPath: /home/launch_agent/.config/wandb

@@ -61,7 +61,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: wandb-launch-cluster-role-binding
-  namespace: wandb # Optional: Set to desired namespace to launch runs into
+  namespace: default # Optional: Set to desired namespace to launch runs into
 subjects:
   - kind: ServiceAccount
     name: wandb-launch-serviceaccount
@@ -87,7 +87,7 @@ data:
       type: noop
     registry:
       type: ecr
-      repository: 305054156030.dkr.ecr.us-east-2.amazonaws.com/release-testing
+      repository: release-testing
     environment:
       type: aws
       region: us-east-2

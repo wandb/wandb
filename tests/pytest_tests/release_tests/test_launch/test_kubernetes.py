@@ -7,21 +7,22 @@ from time import sleep
 from wandb.sdk.launch.launch_add import launch_add
 from utils import get_wandb_api_key
 
-ENTITY = "launch-release-testing"
-PROJECT = "release-testing"
-QUEUE = "kubernetes-queue"
-JOB_NAME = "job-305054156030.dkr.ecr.us-east-2.amazonaws.com_release-testing_latest:v0"
-
 
 def test_kubernetes_successful_run():
+    entity = "launch-release-testing"
+    project = "release-testing"
+    queue = "kubernetes-queue"
+    job_name = (
+        "job-305054156030.dkr.ecr.us-east-2.amazonaws.com_release-testing_latest:v0"
+    )
     try:
         # Start launch agent
-        agent_cmd = ["wandb", "launch-agent", "-q", QUEUE, "-e", ENTITY]
+        agent_cmd = ["wandb", "launch-agent", "-q", queue, "-e", entity]
         agent_process = subprocess.Popen(agent_cmd)
 
         # Start run
         queued_run = launch_add(
-            job=f"{ENTITY}/{PROJECT}/{JOB_NAME}", queue_name=QUEUE, entity=ENTITY
+            job=f"{entity}/{project}/{job_name}", queue_name=queue, entity=entity
         )
 
         # Assert successful
@@ -33,27 +34,46 @@ def test_kubernetes_successful_run():
 
 
 def test_agent_run_in_cluster():
-    # get user's wandb API key
-    wandb_api_key = get_wandb_api_key()
+    entity = "launch-release-testing"
+    project = "release-testing"
+    queue = "kubernetes-queue"
+    job_name = (
+        "job-305054156030.dkr.ecr.us-east-2.amazonaws.com_release-testing_latest:v0"
+    )
     # api = client.CoreV1Api()
     # md = client.V1ObjectMeta(name="wandb")
     # ns = client.V1Namespace(metadata=md)
     # resp = api.create_namespace(ns)
     # pprint(resp)
 
+    # Create an agent using EKS
+
     subprocess.Popen(["kubectl", "create", "namespace", "wandb"]).wait()
-    subprocess.Popen(
-        [
-            "kubectl",
-            "-n",
-            "wandb",
-            "create",
-            "secret",
-            "generic",
-            "wandb-api-key",
-            f"--from-literal=password={wandb_api_key}",
-        ]
-    ).wait()
+
+    # get user's wandb API key and AWS creds
+    wandb_api_key = get_wandb_api_key()
+    aws_id = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_token = os.getenv("AWS_SESSION_TOKEN")
+    secrets = [
+        ("wandb-api-key", wandb_api_key),
+        ("aws-access-key-id", aws_id),
+        ("aws-secret-access-key", aws_secret),
+        ("aws-session-token", aws_token),
+    ]
+    for key, password in secrets:
+        subprocess.Popen(
+            [
+                "kubectl",
+                "-n",
+                "wandb",
+                "create",
+                "secret",
+                "generic",
+                key,
+                f"--from-literal=password={password}",
+            ]
+        ).wait()
     subprocess.Popen(["kubectl", "apply", "-f", "launch-config.yml"]).wait()
     subprocess.Popen(["kubectl", "apply", "-f", "launch-agent.yml"]).wait()
 
@@ -78,9 +98,6 @@ def test_agent_run_in_cluster():
 
     try:
         # Start run
-        aws_id = os.getenv("AWS_ACCESS_KEY_ID")
-        aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
-        aws_token = os.getenv("AWS_SESSION_TOKEN")
         config = {
             "resource_args": {
                 "kubernetes": {
@@ -112,9 +129,9 @@ def test_agent_run_in_cluster():
             }
         }
         queued_run = launch_add(
-            job=f"{ENTITY}/{PROJECT}/{JOB_NAME}",
-            queue_name=QUEUE,
-            entity=ENTITY,
+            job=f"{entity}/{project}/{job_name}",
+            queue_name=queue,
+            entity=entity,
             config=config,
         )
 
