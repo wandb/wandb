@@ -141,10 +141,11 @@ def construct_scheduler_args(
             "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
         )
         return None
-
+    has_space = len(queue.split(" ")) > 1
+    queue_arg = f"{queue}" if not has_space else f"{queue!r}"
     args = [
         "--queue",
-        f"{queue}",
+        f"{queue_arg}",
         "--project",
         project,
         "--sweep_type",
