@@ -968,6 +968,10 @@ class Api:
     def job(self, name, path=None):
         if name is None:
             raise ValueError("You must specify name= to fetch a job.")
+        elif name.count("/") != 2 or ":" not in name:
+            raise ValueError(
+                f"Invalid job specification. A job must be of the form: <entity>/<project>/<job-name>:<alias-or-version>"
+            )
         return Job(self, name, path)
 
 

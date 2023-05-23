@@ -991,7 +991,7 @@ def launch_sweep(
 
         try:
             public_api = PublicApi()
-            public_api.artifact(parsed_sweep_config["job"], type="job")
+            public_api.job(parsed_sweep_config["job"])
         except Exception as e:
             wandb.termerror(f"Failed to load job. Error: {e}")
             return False
