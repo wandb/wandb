@@ -412,7 +412,6 @@ class Artifact:
         """
         raise NotImplementedError
 
-
     def remove(self, item: Union[str, "os.PathLike", "ArtifactManifestEntry"]) -> None:
         """Remove an item from the artifact.
 
@@ -429,7 +428,6 @@ class Artifact:
             None
         """
         raise NotImplementedError
-
 
     def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
