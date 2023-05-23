@@ -985,15 +985,11 @@ def launch_sweep(
     # validate job existence, add :latest alias if not specified
     job = parsed_sweep_config.get("job")
     if job:
-        if not isinstance(job, str) or ":" not in job:
-            wandb.termerror("Job must be a string of format <job_string>:<alias>")
-            return False
-
         try:
             public_api = PublicApi()
-            public_api.job(parsed_sweep_config["job"])
+            public_api.job(job)
         except Exception as e:
-            wandb.termerror(f"Failed to load job. Error: {e}")
+            wandb.termerror(f"Failed to load job. {e}")
             return False
 
     args = sweep_utils.construct_scheduler_args(
