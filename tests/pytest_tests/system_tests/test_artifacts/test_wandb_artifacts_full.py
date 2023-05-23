@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.sdk.interface.artifacts.artifact import ArtifactFinalizedError
 from wandb.sdk.wandb_artifacts import Artifact
 from wandb.sdk.wandb_run import Run, WaitTimeoutError
 
@@ -234,7 +233,7 @@ def test_remove_after_log(wandb_init):
     with wandb_init() as run:
         retrieved = run.use_artifact("hi-art:latest")
 
-        with pytest.raises(ArtifactFinalizedError):
+        with pytest.raises(ValueError):
             retrieved.remove("file1.txt")
 
 
