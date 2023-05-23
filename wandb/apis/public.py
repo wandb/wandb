@@ -65,6 +65,7 @@ from wandb.sdk.lib.paths import LogicalPath
 if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util
+    from wandb import Artifact as LocalArtifact
 
 logger = logging.getLogger(__name__)
 
@@ -4307,25 +4308,14 @@ class Artifact(artifacts.Artifact):
             variable_values={"id": artifact_id},
         )
 
-        name = None
         if response.get("artifact") is not None:
-            if response["artifact"].get("aliases") is not None:
-                aliases = response["artifact"]["aliases"]
-                name = ":".join(
-                    [aliases[0]["artifactCollectionName"], aliases[0]["alias"]]
-                )
-                if len(aliases) > 1:
-                    for alias in aliases:
-                        if alias["alias"] != "latest":
-                            name = ":".join(
-                                [alias["artifactCollectionName"], alias["alias"]]
-                            )
-                            break
-
             p = response.get("artifact", {}).get("artifactType", {}).get("project", {})
             project = p.get("name")  # defaults to None
             entity = p.get("entity", {}).get("name")
-
+            name = "{}:v{}".format(
+                response["artifact"]["artifactSequence"]["name"],
+                response["artifact"]["versionIndex"],
+            )
             artifact = cls(
                 client=client,
                 entity=entity,
@@ -4478,9 +4468,7 @@ class Artifact(artifacts.Artifact):
 
     @property
     def name(self):
-        if self._sequence_version_index is None:
-            return self.digest
-        return f"{self._sequence_name}:v{self._sequence_version_index}"
+        return self._artifact_name
 
     @property
     def aliases(self):
@@ -5244,6 +5232,19 @@ class Artifact(artifacts.Artifact):
                 run_obj["project"]["name"],
                 run_obj["name"],
             )
+
+    def new_draft(self) -> "LocalArtifact":
+        """Create a new draft artifact with the same content as this committed artifact.
+
+        The artifact returned can be extended or modified and logged as a new version.
+        """
+        artifact = wandb.Artifact(self.name.split(":")[0], self.type)
+        artifact._description = self.description
+        artifact._metadata = self.metadata
+        artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
+            self.manifest.to_manifest_json()
+        )
+        return artifact
 
 
 class ArtifactVersions(Paginator):

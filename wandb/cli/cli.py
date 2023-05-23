@@ -1370,6 +1370,7 @@ def launch_agent(
 
     from wandb.sdk.launch import launch as wandb_launch
 
+    api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
         entity, project, max_jobs, queues, config
@@ -1948,11 +1949,12 @@ def cache():
     help="Clean up less frequently used files from the artifacts cache",
 )
 @click.argument("target_size")
+@click.option("--remove-temp/--no-remove-temp", default=False, help="Remove temp files")
 @display_error
-def cleanup(target_size):
+def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
     cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
-    reclaimed_bytes = cache.cleanup(target_size)
+    reclaimed_bytes = cache.cleanup(target_size, remove_temp)
     print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 

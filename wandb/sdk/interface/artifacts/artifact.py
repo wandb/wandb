@@ -82,8 +82,8 @@ class Artifact:
         raise NotImplementedError
 
     @property
-    def full_name(self) -> str:
-        """The artifact's full name."""
+    def qualified_name(self) -> str:
+        """The artifact's qualified name."""
         return f"{self.entity}/{self.project}/{self.name}"
 
     @property

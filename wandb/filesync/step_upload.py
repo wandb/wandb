@@ -70,9 +70,12 @@ class RequestFinish(NamedTuple):
     callback: Optional[OnRequestFinishFn]
 
 
-Event = Union[
-    RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone
-]
+class EventJobDone(NamedTuple):
+    job: RequestUpload
+    exc: Optional[BaseException]
+
+
+Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone]
 
 
 class AsyncExecutor:
@@ -190,7 +193,7 @@ class StepUpload:
                 break
 
     def _handle_event(self, event: Event) -> None:
-        if isinstance(event, upload_job.EventJobDone):
+        if isinstance(event, EventJobDone):
             job = event.job
 
             if event.exc is not None:
@@ -284,9 +287,7 @@ class StepUpload:
             try:
                 self._do_upload_sync(event)
             finally:
-                self._event_queue.put(
-                    upload_job.EventJobDone(event, exc=sys.exc_info()[1])
-                )
+                self._event_queue.put(EventJobDone(event, exc=sys.exc_info()[1]))
 
         self._pool.submit(run_and_notify)
 
@@ -308,9 +309,7 @@ class StepUpload:
             try:
                 await self._do_upload_async(event)
             finally:
-                self._event_queue.put(
-                    upload_job.EventJobDone(event, exc=sys.exc_info()[1])
-                )
+                self._event_queue.put(EventJobDone(event, exc=sys.exc_info()[1]))
 
         async_executor.submit(run_and_notify())
 

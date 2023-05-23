@@ -1,3 +1,16 @@
+## 0.15.3 (May 17, 2023)
+
+### :hammer: Fixes
+* fix(sdk): allow SDK to work if SA token can't be read by @wandb-zacharyblasczyk in https://github.com/wandb/wandb/pull/5472
+* fix(sdk): clean up the k8s token discovery logic in util.py::image_id_from_k8s by @dmitryduev in https://github.com/wandb/wandb/pull/5518
+* fix(integrations): Update `WandbTracer` to work with new langchain version by @parambharat in https://github.com/wandb/wandb/pull/5558
+* revert(sdk): update summary for changed keys only by @dmitryduev in https://github.com/wandb/wandb/pull/5562
+
+## New Contributors
+* @wandb-zacharyblasczyk made their first contribution in https://github.com/wandb/wandb/pull/5472
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.2...v0.15.3
+
 ## 0.15.2 (May 5, 2023)
 
 ### :hammer: Fixes
