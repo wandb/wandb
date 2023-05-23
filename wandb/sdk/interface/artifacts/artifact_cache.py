@@ -4,11 +4,11 @@ import os
 import secrets
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
-from wandb import env, util
+from wandb import env, termwarn, util
 from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError
-from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
-from wandb.util import FilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     import sys
@@ -82,24 +82,34 @@ class ArtifactsCache:
     def store_client_artifact(self, artifact: "wandb_artifacts.Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
-    def cleanup(self, target_size: int) -> int:
+    def cleanup(self, target_size: int, remove_temp: bool = False) -> int:
         bytes_reclaimed = 0
         paths = {}
         total_size = 0
+        temp_size = 0
         for root, _, files in os.walk(self._cache_dir):
             for file in files:
                 try:
-                    path = str(os.path.join(root, file))
+                    path = os.path.join(root, file)
                     stat = os.stat(path)
 
                     if file.startswith(ArtifactsCache._TMP_PREFIX):
-                        os.remove(path)
-                        bytes_reclaimed += stat.st_size
+                        if remove_temp:
+                            os.remove(path)
+                            bytes_reclaimed += stat.st_size
+                        else:
+                            temp_size += stat.st_size
                         continue
                 except OSError:
                     continue
                 paths[path] = stat
                 total_size += stat.st_size
+
+        if temp_size:
+            termwarn(
+                f"Cache contains {util.to_human_size(temp_size)} of temporary files. "
+                "Run `wandb artifact cleanup --remove-temp` to remove them."
+            )
 
         sorted_paths = sorted(paths.items(), key=lambda x: x[1].st_atime)
         for path, stat in sorted_paths:

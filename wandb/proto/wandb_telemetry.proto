@@ -114,6 +114,8 @@ message Imports {
   bool langchain = 86;
   bool llama_index = 87;
   bool stability_sdk = 88;
+  bool prefect = 89;
+  bool prefect_ray = 90;
 }
 
 message Feature {
@@ -169,6 +171,7 @@ message Feature {
   bool async_uploads = 50; // Async file uploads enabled by user
   bool openai_autolog = 51; // OpenAI autolog used
   bool langchain_tracer = 52; // Langchain wandb tracer callback used
+  bool cohere_autolog = 53; // Cohere autolog used
 }
 
 message Env {
@@ -183,6 +186,9 @@ message Env {
   bool maybe_mp = 9; // maybe user running multiprocessing
   bool trainium = 10; // AWS Trainium env detected
   bool pex = 11; // pex env detected
+  bool colab = 12; // colab env detected
+  bool ipython = 13; // ipython env detected
+  bool aws_lambda = 14; // running in AWS Lambda
 }
 
 message Labels {

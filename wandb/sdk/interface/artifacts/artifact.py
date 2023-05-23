@@ -2,7 +2,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, 
 
 import wandb
 from wandb.data_types import WBValue
-from wandb.util import FilePathStr
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -82,8 +82,8 @@ class Artifact:
         raise NotImplementedError
 
     @property
-    def full_name(self) -> str:
-        """The artifact's full name."""
+    def qualified_name(self) -> str:
+        """The artifact's qualified name."""
         return f"{self.entity}/{self.project}/{self.name}"
 
     @property
@@ -410,7 +410,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> "ArtifactManifestEntry":
+    def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
 
         Arguments:

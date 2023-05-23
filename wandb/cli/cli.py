@@ -33,8 +33,8 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.sweeps import utils as sweep_utils
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
@@ -921,12 +921,6 @@ def sweep(
     default=None,
     help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
 )
-@click.option(
-    "--num_workers",
-    "-n",
-    default=1,
-    help="Number of concurrent jobs a scheduler can run",
-)
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
 @display_error
@@ -937,7 +931,6 @@ def launch_sweep(
     queue,
     config,
     resume_id,
-    num_workers,
 ):
     api = _get_cling_api()
     if api.api_key is None:
@@ -951,13 +944,9 @@ def launch_sweep(
         return
 
     parsed_config = sweep_utils.load_launch_sweep_config(config)
-    # Rip special keys out of config
-    scheduler_args: Dict[str, Any] = parsed_config.get("scheduler", {})
-    launch_args: Dict[str, Any] = parsed_config.get("launch", {})
-    if scheduler_args:
-        del parsed_config["scheduler"]
-    if launch_args:
-        del parsed_config["launch"]
+    # Rip special keys out of config, store in scheduler run_config
+    scheduler_args: Dict[str, Any] = parsed_config.pop("scheduler", {})
+    launch_args: Dict[str, Any] = parsed_config.pop("launch", {})
 
     queue = queue or launch_args.get("queue")
     if not queue:
@@ -993,35 +982,57 @@ def launch_sweep(
     else:
         parsed_sweep_config = parsed_config
 
-    num_workers = num_workers or scheduler_args.get("num_workers", 8)
-    scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
+    # validate job existence, add :latest alias if not specified
+    job = parsed_sweep_config.get("job")
+    if job:
+        if not isinstance(job, str) or ":" not in job:
+            wandb.termerror("Job must be a string of format <job_string>:<alias>")
+            return False
+
+        try:
+            public_api = PublicApi()
+            public_api.artifact(parsed_sweep_config["job"], type="job")
+        except Exception as e:
+            wandb.termerror(f"Failed to load job. Error: {e}")
+            return False
+
+    args = sweep_utils.construct_scheduler_args(
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
-        num_workers=num_workers,
         author=entity,
     )
-    if not scheduler_entrypoint:
+    if not args:
         # error already logged
         return
 
+    overrides = {
+        "overrides": {
+            "run_config": {
+                "scheduler": scheduler_args,
+                "launch": launch_args,
+            },
+            "args": args,
+        }
+    }
+
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
-        uri=SCHEDULER_URI,
+        uri=Scheduler.PLACEHOLDER_URI,
         api=api,
         name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=scheduler_entrypoint,
+        entry_point=Scheduler.ENTRYPOINT,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        launch_config=None,
+        launch_config=overrides,
         run_id=None,
-        author=None,  # author gets passed into scheduler command
+        author=None,  # author gets passed into scheduler override args
     )
     launch_scheduler_with_queue = json.dumps(
         {
@@ -1245,7 +1256,6 @@ def launch(
     if queue is None:
         # direct launch
         try:
-
             wandb_launch.run(
                 api,
                 uri,
@@ -1363,7 +1373,7 @@ def launch_agent(
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
-        api, entity, project, max_jobs, queues, config
+        entity, project, max_jobs, queues, config
     )
     if agent_config.get("project") is None:
         raise LaunchError(
@@ -1939,11 +1949,12 @@ def cache():
     help="Clean up less frequently used files from the artifacts cache",
 )
 @click.argument("target_size")
+@click.option("--remove-temp/--no-remove-temp", default=False, help="Remove temp files")
 @display_error
-def cleanup(target_size):
+def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
     cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
-    reclaimed_bytes = cache.cleanup(target_size)
+    reclaimed_bytes = cache.cleanup(target_size, remove_temp)
     print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
