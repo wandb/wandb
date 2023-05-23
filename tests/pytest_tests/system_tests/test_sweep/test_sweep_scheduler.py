@@ -829,6 +829,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
     _image_uri = "some-image-wow"
     config = VALID_SWEEP_CONFIGS_MINIMAL[0]
     config["run_cap"] = 5
+    config["name"] = "different-sweep-34"
     sweep_id = wandb.sweep(config, entity=user, project=_project)
 
     # new sweep scheduler
