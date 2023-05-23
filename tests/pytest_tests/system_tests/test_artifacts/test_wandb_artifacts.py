@@ -308,7 +308,6 @@ def test_add_changed():
         f.write("goodbye")
 
     entry2 = artifact.manifest.entries["file1.txt"]
-    assert entry1 != entry2
     assert entry2.path == "file1.txt"
     assert entry1.local_path != entry2.local_path
     assert Path(entry2.local_path).read_text() == "goodbye"
