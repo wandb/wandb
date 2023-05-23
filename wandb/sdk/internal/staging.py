@@ -10,7 +10,7 @@ _staging_dir: Optional[Path] = None
 
 
 def get_staging_dir() -> Path:
-    """Return the staging directory for the current run."""
+    """Return the staging directory for artifact files."""
     global _staging_dir
     if _staging_dir is None:
         path = Path(env.get_data_dir()) / "artifacts" / "staging"
