@@ -2389,6 +2389,6 @@ def mlflow(mlflow_tracking_uri, target_entity, target_project):
 def magic(fname, execute):
     from wandb.apis.magic import auto_wandb
 
-    code = auto_wandb(fname)
+    auto_wandb(fname)
     if execute:
-        exec(code)
+        subprocess.Popen([sys.executable, fname.replace(".py", "_wandb_logging.py")])
