@@ -17,20 +17,19 @@ class AzureEnvironment(AbstractEnvironment):
         verify: bool = True,
     ):
         """Initialize an AzureEnvironment."""
-        credentials = AzureEnvironment.get_credentials()
-        url = f"https://{storage_account}.blob.core.windows.net"
-        client = BlobClient(url, storage_container, "test.txt", credential=credentials)
-        client.upload_blob("~/repos/wandb/README.md")
+        self.storage_account = storage_account
+        self.storage_container = storage_container
+        self.verify()
 
     @classmethod
     def from_config(cls, config: dict, verify: bool = True) -> "AzureEnvironment":
         """Create an AzureEnvironment from a config dict."""
-        storage_account = config.get("storage_account")
+        storage_account = config.get("storage-account")
         if storage_account is None:
             raise LaunchError(
                 "Please specify a storage account to use under the environment.storage_account key."
             )
-        storage_container = config.get("storage_container")
+        storage_container = config.get("storage-container")
         if storage_container is None:
             raise LaunchError(
                 "Please specify a storage container to use under the "
@@ -63,7 +62,28 @@ class AzureEnvironment(AbstractEnvironment):
         raise NotImplementedError()
 
     def verify_storage_uri(self, uri: str) -> None:
-        pass
+        """Verify that the given blob storage prefix exists.
+
+        Args:
+            uri (str): The URI to verify.
+        """
+        creds = self.get_credentials()
+        client = BlobClient(
+            f"https://{self.storage_account}.blob.core.windows.net",
+            self.storage_container,
+            uri,
+            credential=creds,
+        )
+        client.get_blob_properties()
 
     def verify(self) -> None:
-        pass
+        """Verify that the AzureEnvironment is valid."""
+        creds = self.get_credentials()
+        client = BlobClient(
+            f"https://{self.storage_account}.blob.core.windows.net",
+            self.storage_container,
+            "test",
+            credential=creds,
+        )
+        client.upload_blob("test")
+        client.delete_blob()
