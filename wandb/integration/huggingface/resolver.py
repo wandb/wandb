@@ -1,9 +1,13 @@
 import logging
-import time
+import os
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+import pytz
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
+from wandb.sdk.lib.runid import generate_id
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +19,7 @@ SUPPORTED_PIPELINE_TASKS = [
     "translation",
     "text2text-generation",
     "text-generation",
-    "conversational",
+    # "conversational",
 ]
 
 
@@ -52,7 +56,7 @@ class HuggingFacePipelineRequestResponseResolver:
                 if model is None:
                     return None
                 model_alias = model.name_or_path
-                timestamp = time.time()
+                timestamp = datetime.now(pytz.utc)
 
                 input_data, response = self._transform_task_specific_data(
                     task, input_data, response
@@ -61,10 +65,13 @@ class HuggingFacePipelineRequestResponseResolver:
                 packed_data = self._create_table(
                     formatted_data, model_alias, timestamp, time_elapsed
                 )
+                table_name = os.environ.get("WANDB_AUTOLOG_TABLE_NAME", f"{task}")
+                # TODO: Let users decide the name in a way that does not use an environment variable
 
-                # TODO: Let users decide the name of the key for the task
                 return {
-                    f"{task}": wandb.Table(columns=packed_data[0], data=packed_data[1:])
+                    table_name: wandb.Table(
+                        columns=packed_data[0], data=packed_data[1:]
+                    )
                 }
 
             logger.warning(
@@ -159,6 +166,7 @@ class HuggingFacePipelineRequestResponseResolver:
         :returns: list of lists, representing a table of data. [0]th element = columns. [1]st element = data
         """
         header = [
+            "ID",
             "Model Alias",
             "Timestamp",
             "Elapsed Time",
@@ -170,6 +178,7 @@ class HuggingFacePipelineRequestResponseResolver:
 
         for data in formatted_data:
             row = [
+                generate_id(length=16),
                 model_alias,
                 timestamp,
                 time_elapsed,
