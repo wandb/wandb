@@ -114,17 +114,19 @@ message Imports {
   bool langchain = 86;
   bool llama_index = 87;
   bool stability_sdk = 88;
-  bool pinecone = 89;
-  bool chromadb = 90;
-  bool weaviate = 91;
-  bool promptlayer = 92;
-  bool openai = 93;
-  bool cohere = 94;
-  bool anthropic = 95;
-  bool peft = 96;
-  bool optimum = 97;
-  bool evaluate = 98;
-  bool langflow = 99;
+  bool prefect = 89;
+  bool prefect_ray = 90;
+  bool pinecone = 91;
+  bool chromadb = 92;
+  bool weaviate = 93;
+  bool promptlayer = 94;
+  bool openai = 95;
+  bool cohere = 96;
+  bool anthropic = 97;
+  bool peft = 98;
+  bool optimum = 99;
+  bool evaluate = 100;
+  bool langflow = 101;
 }
 
 message Feature {
