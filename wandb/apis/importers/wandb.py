@@ -89,20 +89,16 @@ class WandbImporter(Importer):
 
 class WandbParquetRun(WandbRun):
     def metrics(self):
-        return get_history_rows(self.run)
+        for art in self.run.logged_artifacts():
+            if art.type == "wandb-history":
+                break
+        path = art.download()
+        dfs = [pl.read_parquet(p) for p in Path(path).glob("*.parquet")]
+        rows = [df.iter_rows(named=True) for df in dfs]
+        return itertools.chain(*rows)
 
 
 class WandbParquetImporter(WandbImporter):
     def download_all_runs(self):
         for run in self.api.runs("parquet-testing"):
             yield WandbParquetRun(run)
-
-
-def get_history_rows(run):
-    for art in run.logged_artifacts():
-        if art.type == "wandb-history":
-            break
-    path = art.download()
-    dfs = [pl.read_parquet(p) for p in Path(path).glob("*.parquet")]
-    rows = [df.iter_rows(named=True) for df in dfs]
-    return itertools.chain(*rows)
