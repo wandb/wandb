@@ -172,6 +172,7 @@ message Feature {
   bool openai_autolog = 51; // OpenAI autolog used
   bool langchain_tracer = 52; // Langchain wandb tracer callback used
   bool cohere_autolog = 53; // Cohere autolog used
+  bool hf_pipeline_autolog = 54; // HuggingFace Autologging
 }
 
 message Env {
