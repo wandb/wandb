@@ -2697,6 +2697,11 @@ class Run:
                 artifact.id,
                 use_as=use_as or artifact_or_name,
             )
+            if aliases is None:
+                aliases = []
+            elif isinstance(aliases, str):
+                aliases = [aliases]
+            artifact.aliases+=aliases
         else:
             artifact = artifact_or_name
             if aliases is None:
