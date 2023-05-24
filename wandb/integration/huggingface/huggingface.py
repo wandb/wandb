@@ -6,9 +6,13 @@ from .resolver import HuggingFacePipelineRequestResponseResolver
 
 logger = logging.getLogger(__name__)
 
+resolver = HuggingFacePipelineRequestResponseResolver()
+
 autolog = AutologAPI(
     name="transformers",
     symbols=("Pipeline.__call__",),
-    resolver=HuggingFacePipelineRequestResponseResolver(),
+    resolver=resolver,
     # telemetry_feature="transformers_autolog", #TODO: Add telemetry
 )
+
+autolog.get_latest_id = resolver.get_latest_id

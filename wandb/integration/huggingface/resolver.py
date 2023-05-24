@@ -29,6 +29,8 @@ class HuggingFacePipelineRequestResponseResolver:
     This is based off (from wandb.sdk.integration_utils.auto_logging import RequestResponseResolver)
     """
 
+    autolog_id = None
+
     def __call__(
         self,
         args: Sequence[Any],
@@ -175,10 +177,11 @@ class HuggingFacePipelineRequestResponseResolver:
             "Kwargs",
         ]
         table = [header]
+        autolog_id = generate_id(length=16)
 
         for data in formatted_data:
             row = [
-                generate_id(length=16),
+                autolog_id,
                 model_alias,
                 timestamp,
                 time_elapsed,
@@ -188,4 +191,9 @@ class HuggingFacePipelineRequestResponseResolver:
             ]
             table.append(row)
 
+        self.autolog_id = autolog_id
+
         return table
+
+    def get_latest_id(self):
+        return self.autolog_id
