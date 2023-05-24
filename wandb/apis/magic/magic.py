@@ -51,12 +51,12 @@ class WandbImportAdder(cst.CSTTransformer):
             value=cst.Call(func=cst.Attribute(cst.Name("wandb"), cst.Name("init")))
         )
         return updated_node.with_changes(
-            body=(
+            body=[
                 cst.SimpleStatementLine(body=[wandb_import]),
                 cst.EmptyLine(),
                 cst.SimpleStatementLine(body=[wandb_init]),
                 cst.EmptyLine(),
-            )
+            ]
             + original_node.body
         )
 
