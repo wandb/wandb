@@ -460,7 +460,13 @@ class Scheduler(ABC):
         runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
             run.state = self._get_run_state(run_id, run.state)
-            rqi_state = run.queued_run.state if run.queued_run else None
+
+            try:
+                rqi_state = run.queued_run.state if run.queued_run else None
+            except CommError as e:
+                _logger.debug(f"Failed to get queued_run.state: {e}")
+                rqi_state = None
+
             if not run.state.is_alive or rqi_state == "failed":
                 _logger.debug(f"({run_id}) states: ({run.state}, {rqi_state})")
                 runs_to_remove.append(run_id)
