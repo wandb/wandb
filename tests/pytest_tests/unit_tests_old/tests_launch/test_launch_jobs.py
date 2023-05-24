@@ -77,7 +77,10 @@ def test_fetch_job_fail(api):
     launch_project = _project_spec.LaunchProject(**kwargs)
     with pytest.raises(LaunchError) as e_info:
         launch_project._fetch_job()
-    assert "Job mock_server_entity/test/test:v0 not found" in str(e_info.value)
+    assert (
+        "Job mock_server_entity/Test_project/test:v0 not found. Jobs have the format: <entity>/<project>/<name>:<alias>"
+        in str(e_info.value)
+    )
 
 
 def test_launch_job_artifact(
