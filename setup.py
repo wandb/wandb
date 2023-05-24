@@ -31,19 +31,21 @@ media_requirements = [
 ]
 launch_requirements = [
     "awscli",
-    "nbconvert",
-    "nbformat",
-    "chardet",
-    "iso8601",
-    "typing_extensions",
+    "azure-identity",
+    "azure-storage-blob",
     "boto3",
     "botocore",
+    "chardet",
     "google-auth",
+    "google-cloud-artifact-registry",
     "google-cloud-compute",
     "google-cloud-storage",
-    "google-cloud-artifact-registry",
+    "iso8601",
     "kubernetes",
     "optuna",
+    "nbconvert",
+    "nbformat",
+    "typing_extensions",
 ]
 
 models_requirements = ["cloudpickle"]
