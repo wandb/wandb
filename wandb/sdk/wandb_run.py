@@ -1098,12 +1098,15 @@ class Run:
         if name is None:
             if self.settings._jupyter:
                 if self.settings.notebook_name:
+                    print("notebook name1", self.settings.notebook_name)
                     notebook_name = self.settings.notebook_name
                 elif self.settings._jupyter_path:
                     if self.settings._jupyter_path.startswith("fileId="):
                         notebook_name = self.settings._jupyter_name
+                        print("notebook name2", self.settings.notebook_name)
                     else:
                         notebook_name = self.settings._jupyter_path
+                        print("jupyter_path", self.settings._jupyter_path)
                 name_string = f"{self._project}-{notebook_name}"
             else:
                 name_string = f"{self._project}-{self._settings.program_relpath}"
