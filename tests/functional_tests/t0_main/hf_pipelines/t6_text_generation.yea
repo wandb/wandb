@@ -14,5 +14,5 @@ assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
     - :wandb:runs[0][summary][text-generation][_type]: table-file
-    - :wandb:runs[0][summary][text-classification][ncols]: 7
-    - :wandb:runs[0][summary][text-classification][nrows]: 2
+    - :wandb:runs[0][summary][text-generation][ncols]: 7
+    - :wandb:runs[0][summary][text-generation][nrows]: 2
