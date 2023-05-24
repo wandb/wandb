@@ -278,11 +278,11 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def finish_thread_id(self, thread_id: int) -> None:
+    def finish_thread_id(self, thread_id: int, exception: str) -> None:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
-        if not job_and_run_status.run_id or not job_and_run_status.project:
-            self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
+        if exception is not None:
+            self.fail_run_queue_item(job_and_run_status.run_queue_item_id, exception, self._jobs[thread_id]._phase.phase)
         elif job_and_run_status.entity != self._entity:
             _logger.info(
                 "Skipping check for completed run status because run is on a different entity than agent"
@@ -458,6 +458,8 @@ class LaunchAgent:
         thread_id = threading.current_thread().ident
         job_phase_tracker = JobPhaseTracker()
         job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], job_phase_tracker)
+        with self._jobs_lock:
+            self._jobs[thread_id] = job_tracker
         assert thread_id is not None
         try:
             self._thread_run_job(launch_spec, job, default_config, api, thread_id, job_tracker)
@@ -481,8 +483,6 @@ class LaunchAgent:
         thread_id: int,
         job_tracker: JobAndRunStatusTracker
     ) -> None:
-        with self._jobs_lock:
-            self._jobs[thread_id] = job_tracker
         project = create_project_from_spec(launch_spec, api)
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
@@ -507,7 +507,7 @@ class LaunchAgent:
         backend = loader.runner_from_config(resource, api, backend_config, environment)
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
-        run = backend.run(project, builder, job_tracker)
+        run = backend.run(project, builder, job_tracker._phase)
 
         if _job_is_scheduler(launch_spec):
             with self._jobs_lock:

@@ -7,7 +7,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
-from wandb.sdk.launch.agent import JobAndRunStatusTracker
+from wandb.sdk.launch.agent.job_phase_tracker import JobPhaseTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
@@ -78,13 +78,7 @@ class LocalContainerRunner(AbstractRunner):
         super().__init__(api, backend_config)
         self.environment = environment
 
-    def run(
-        self,
-        launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
-        job_tracker: Optional["JobAndRunStatusTracker"]
-    ) -> Optional[AbstractRun]:
-        synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
+    def populate_docker_args(self, launch_project):
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
             "local-container", {}
         )
@@ -97,6 +91,10 @@ class LocalContainerRunner(AbstractRunner):
             if sys.platform == "linux" or sys.platform == "linux2":
                 docker_args["add-host"] = "host.docker.internal:host-gateway"
 
+        return docker_args
+
+    def initialize(self, launch_project):
+        docker_args = self.populate_docker_args(launch_project)
         entry_point = launch_project.get_single_entry_point()
         env_vars = get_env_vars_dict(launch_project, self._api)
 
@@ -109,6 +107,16 @@ class LocalContainerRunner(AbstractRunner):
             env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9002"
+        return entry_point, env_vars, docker_args
+
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: Optional[AbstractBuilder],
+        job_phase: Optional[JobPhaseTracker]
+    ) -> Optional[AbstractRun]:
+        synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
+        entry_point, env_vars, docker_args = self.initialize(launch_project)
 
         if launch_project.docker_image:
             # user has provided their own docker image
@@ -129,11 +137,15 @@ class LocalContainerRunner(AbstractRunner):
         else:
             assert entry_point is not None
             _logger.info("Building docker image...")
+            if job_phase is not None:
+                job_phase._transition_phase_build()
             assert builder is not None
             image_uri = builder.build_image(
                 launch_project,
                 entry_point,
             )
+            if job_phase is not None:
+                job_phase._transition_phase_submit()
             _logger.info(f"Docker image built with uri {image_uri}")
             # entry_cmd and additional_args are empty here because
             # if launch built the container they've been accounted
@@ -145,6 +157,9 @@ class LocalContainerRunner(AbstractRunner):
                     docker_args=docker_args,
                 )
             ).strip()
+
+        if job_phase is not None:
+            job_phase._transition_phase_submit()
 
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"

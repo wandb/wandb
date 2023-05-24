@@ -8,6 +8,7 @@ if False:
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.launch.agent.job_phase_tracker import JobPhaseTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.utils import LaunchError
@@ -89,6 +90,7 @@ class SageMakerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: Optional[AbstractBuilder],
+        job_phase: Optional[JobPhaseTracker],
     ) -> Optional[AbstractRun]:
         """Run a project on Amazon Sagemaker.
 
@@ -146,6 +148,8 @@ class SageMakerRunner(AbstractRunner):
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
+            if job_phase is not None:
+                job_phase._transition_phase_submit()
             run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
             if self.backend_config[PROJECT_SYNCHRONOUS]:
                 run.wait()
@@ -158,13 +162,16 @@ class SageMakerRunner(AbstractRunner):
             assert builder is not None
             # build our own image
             _logger.info("Building docker image...")
+            if job_phase is not None:
+                job_phase._transition_phase_build()
             image = builder.build_image(
                 launch_project,
                 entry_point,
             )
             _logger.info(f"Docker image built with uri {image}")
 
-        _logger.info("Connecting to sagemaker client")
+        if job_phase is not None:
+            job_phase._transition_phase_submit()
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
         )
