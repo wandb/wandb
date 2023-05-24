@@ -1147,8 +1147,11 @@ class WandbStoragePolicy(StoragePolicy):
             entry.size if entry.size is not None else 0,
         )
         if not hit:
-            with cache_open() as f:
-                shutil.copyfile(entry.local_path, f.name)
+            try:
+                with cache_open() as f:
+                    shutil.copyfile(entry.local_path, f.name)
+            except OSError as e:
+                termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
 
 
 # Don't use this yet!
