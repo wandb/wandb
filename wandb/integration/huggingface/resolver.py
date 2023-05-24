@@ -22,6 +22,11 @@ SUPPORTED_PIPELINE_TASKS = [
     # "conversational",
 ]
 
+PIPELINES_WITH_TOP_K = [
+    "text-classification",
+    "sentiment-analysis",
+    "question-answering",
+]
 
 class HuggingFacePipelineRequestResponseResolver:
     """Resolver for HuggingFace's pipeline request and responses, providing necessary data transformations and formatting.
@@ -63,7 +68,7 @@ class HuggingFacePipelineRequestResponseResolver:
                 input_data, response = self._transform_task_specific_data(
                     task, input_data, response
                 )
-                formatted_data = self._format_data(input_data, response, kwargs)
+                formatted_data = self._format_data(task, input_data, response, kwargs)
                 packed_data = self._create_table(
                     formatted_data, model_alias, timestamp, time_elapsed
                 )
@@ -128,12 +133,14 @@ class HuggingFacePipelineRequestResponseResolver:
 
     def _format_data(
         self,
+        task: str,
         input_data: Union[List[Any], Any],
         response: Union[List[Any], Any],
         kwargs: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Formats input data, response, and kwargs into a list of dictionaries.
 
+        :param task: the task name
         :param input_data: the input data
         :param response: the response data
         :param kwargs: dictionary of keyword arguments
@@ -144,8 +151,10 @@ class HuggingFacePipelineRequestResponseResolver:
 
         formatted_data = []
         for i_text, r_text in zip(input_data, response):
-            # Unpack single element responses for better rendering in wandb UI
-            if isinstance(r_text, list) and len(r_text) == 1:
+            # Unpack single element responses for better rendering in wandb UI when it is a task without top_k
+            # top_k = 1 would unpack the response into a single element while top_k > 1 would be a list
+            # this would cause the UI to not properly concatenate the tables of the same task by omitting the elements past the first
+            if (isinstance(r_text, list)) and (len(r_text) == 1) and task not in PIPELINES_WITH_TOP_K:
                 r_text = r_text[0]
             formatted_data.append(
                 {"input": i_text, "response": r_text, "kwargs": kwargs}
