@@ -163,7 +163,9 @@ class Scheduler(ABC):
             "num_workers"
         )
         self._num_workers = int(num_workers) if str(num_workers).isdigit() else 8
-        self._custom_config: Dict[str, Any] = self._wandb_run.config.get("custom", {})
+        self._settings_config: Dict[str, Any] = self._wandb_run.config.get(
+            "settings", {}
+        )
 
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
