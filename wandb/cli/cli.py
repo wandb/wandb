@@ -45,6 +45,7 @@ from wandb.sdk.launch.utils import (
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
+from trogon import tui
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
@@ -174,6 +175,7 @@ class RunGroup(click.Group):
         return None
 
 
+@tui()
 @click.command(cls=RunGroup, invoke_without_command=True)
 @click.version_option(version=wandb.__version__)
 @click.pass_context
@@ -2379,3 +2381,14 @@ def mlflow(mlflow_tracking_uri, target_entity, target_project):
     }
 
     importer.import_all_parallel(overrides=overrides)
+
+
+@cli.command("magic", help="Integrate with zero lines of code")
+@click.option("--fname", required=True)
+@click.option("--execute", default=False)
+def magic(fname, execute):
+    from wandb.apis.magic import auto_wandb
+
+    code = auto_wandb(fname)
+    if execute:
+        exec(code)
