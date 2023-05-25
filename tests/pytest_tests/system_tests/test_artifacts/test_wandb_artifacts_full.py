@@ -223,6 +223,20 @@ def test_edit_after_add(wandb_init):
     assert open(filename).read() == "goodbye."
 
 
+def test_remove_after_log(wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact(name="hi-art", type="dataset")
+        artifact.add_reference(Path(__file__).as_uri())
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    with wandb_init() as run:
+        retrieved = run.use_artifact("hi-art:latest")
+
+        with pytest.raises(ValueError):
+            retrieved.remove("file1.txt")
+
+
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
