@@ -122,8 +122,10 @@ class JobBuilder:
         commit = git_info.get("commit")
         assert remote is not None
         assert commit is not None
-        # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run():
+            if not os.path.exists(os.path.join(os.getcwd(), os.path.basename(program_relpath))):
+                return None, None
+
             if root is None or self._settings._jupyter_root is None:
                 _logger.info("target path does not exist, exiting")
                 return None, None
@@ -258,6 +260,10 @@ class JobBuilder:
                 _logger.info("is image sourced job")
                 source_type = "image"
 
+        if not source_type:
+            _logger.info("no source found")
+            return None
+
         artifact = None
         source: Optional[
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
@@ -273,6 +279,7 @@ class JobBuilder:
             artifact, source = self._build_image_job(metadata)
 
         if artifact is None or source_type is None or source is None:
+
             return None
 
         input_types = TypeRegistry.type_of(self._config).to_json()

@@ -1104,8 +1104,7 @@ class Run:
                 name_string = f"{self._project}-{notebook_name}"
             else:
                 name_string = f"{self._project}-{self._settings.program_relpath}"
-            safe_name = wandb.util.make_artifact_name_safe(name_string)
-            name = f"source-{safe_name}"
+            name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
