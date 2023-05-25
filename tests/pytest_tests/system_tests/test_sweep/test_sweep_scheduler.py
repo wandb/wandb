@@ -779,7 +779,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
             [
                 {
                     "type": "run",
-                    "run_id": "mock-run-id-1",
+                    "run_id": "mock-run-id-199",
                     "args": {"foo_arg": {"value": 1}},
                     "program": "train.py",
                 }
@@ -860,7 +860,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
             [
                 {
                     "type": "run",
-                    "run_id": "mock-run-id-1",
+                    "run_id": "mock-run-id-199",
                     "args": {"foo_arg": {"value": 1}},
                     "program": "train.py",
                 }
