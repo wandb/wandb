@@ -113,19 +113,28 @@ class JobBuilder:
             )
 
     def _build_repo_job(
-        self, metadata: Dict[str, Any], program_relpath: Optional[str]
+        self, metadata: Dict[str, Any], program_relpath: str, root: str
     ) -> Tuple[Artifact, GitSourceDict]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
         assert remote is not None
         assert commit is not None
-
+        if self._is_notebook_run():
+            # git notebooks set the root to the git root,
+            # jupyter_root contains the path where the jupyter notebook was started
+            # program_relpath contains the path from jupyter_root to the file
+            full_program_path = os.path.join(
+                os.path.relpath(self._settings._jupyter_root, root),
+                program_relpath
+            )
+        else:
+            full_program_path = program_relpath
         # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
             "entrypoint": [
                 os.path.basename(sys.executable),
-                program_relpath,
+                full_program_path,
             ],
             "notebook": self._is_notebook_run(),
             "git": {
@@ -145,10 +154,9 @@ class JobBuilder:
         return artifact, source
 
     def _build_artifact_job(
-        self, program_relpath: Optional[str]
+        self, program_relpath: str
     ) -> Tuple[Artifact, ArtifactSourceDict]:
         assert isinstance(self._logged_code_artifact, dict)
-        assert program_relpath is not None
         entrypoint = [
             os.path.basename(sys.executable),
             program_relpath,
@@ -205,6 +213,7 @@ class JobBuilder:
         if self._is_notebook_run():
             self._notebook_job = True
             program_relpath = metadata.get("program")
+            print(program_relpath)
 
         if not source_type:
             if self._has_git_job_ingredients(metadata, program_relpath):
@@ -221,7 +230,7 @@ class JobBuilder:
         print(source_type)
         if source_type == "repo":
             assert program_relpath is not None or self._notebook_job
-            artifact, source = self._build_repo_job(metadata, program_relpath)
+            artifact, source = self._build_repo_job(metadata, program_relpath, metadata.get("root"))
         elif source_type == "artifact":
             assert program_relpath is not None or self._notebook_job
             artifact, source = self._build_artifact_job(program_relpath)
