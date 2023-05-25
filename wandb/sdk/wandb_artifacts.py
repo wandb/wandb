@@ -234,20 +234,6 @@ class Artifact(ArtifactInterface):
         return None
 
     @property
-    def source_version(self) -> Optional[str]:
-        if self._logged_artifact:
-            return self._logged_artifact.source_version
-
-        return None
-
-    @property
-    def version(self) -> str:
-        if self._logged_artifact:
-            return self._logged_artifact.version
-
-        raise ArtifactNotLoggedError(self, "version")
-
-    @property
     def entity(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.entity
@@ -258,6 +244,34 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.project
         raise ArtifactNotLoggedError(self, "project")
+
+    @property
+    def name(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.name
+        return self._name
+
+    @property
+    def version(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.version
+        raise ArtifactNotLoggedError(self, "version")
+
+    @property
+    def source_entity(self) -> str:
+        return self.entity
+
+    @property
+    def source_project(self) -> str:
+        return self.project
+
+    @property
+    def source_name(self) -> str:
+        return self.name
+
+    @property
+    def source_version(self) -> str:
+        return self.version
 
     @property
     def manifest(self) -> ArtifactManifest:
@@ -282,20 +296,6 @@ class Artifact(ArtifactInterface):
             return self._logged_artifact.type
 
         return self._type
-
-    @property
-    def name(self) -> str:
-        if self._logged_artifact:
-            return self._logged_artifact.name
-
-        return self._name
-
-    @property
-    def qualified_name(self) -> str:
-        if self._logged_artifact:
-            return self._logged_artifact.qualified_name
-
-        return super().qualified_name
 
     @property
     def state(self) -> str:
