@@ -76,14 +76,10 @@ def resolve_agent_config(  # noqa: C901
         user_set_project = True
     if os.environ.get("WANDB_ENTITY") is not None:
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
-    if os.environ.get("WANDB_API_KEY") is not None:
-        resolved_config.update({"api_key": os.environ.get("WANDB_API_KEY")})
     if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
         resolved_config.update(
             {"max_jobs": int(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))}
         )
-    if os.environ.get("WANDB_BASE_URL") is not None:
-        resolved_config.update({"base_url": os.environ.get("WANDB_BASE_URL")})
 
     if project is not None:
         resolved_config.update({"project": project})
@@ -104,7 +100,7 @@ def resolve_agent_config(  # noqa: C901
                 + " (expected str). Specify multiple queues with the 'queues' key"
             )
 
-    keys = ["api_key", "base_url", "project", "entity"]
+    keys = ["project", "entity"]
     settings = {
         k: resolved_config.get(k) for k in keys if resolved_config.get(k) is not None
     }
