@@ -540,7 +540,6 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
     with open(os.path.join(project_dir, new_name), "w+") as fh:
         fh.writelines(source)
-    print(source)
     return new_name
 
 
