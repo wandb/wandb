@@ -165,7 +165,7 @@ class JobBuilder:
     ) -> Tuple[Optional[LocalArtifact], Optional[ArtifactSourceDict]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
-        if self._is_notebook_run() and metadata.get("colab") is None:
+        if self._is_notebook_run() and not self._is_colab_run():
             full_program_relpath = os.path.relpath(program_relpath, os.getcwd())
             # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
             if not os.path.exists(full_program_relpath):
@@ -208,6 +208,9 @@ class JobBuilder:
 
     def _is_notebook_run(self) -> bool:
         return hasattr(self._settings, "_jupyter") and bool(self._settings._jupyter)
+    
+    def _is_colab_run(self) -> bool:
+        return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
     def build(self) -> Optional[LocalArtifact]:
         if not os.path.exists(
@@ -227,7 +230,7 @@ class JobBuilder:
 
         source_type = self._source_type
 
-        if self._is_notebook_run():
+        if self._is_notebook_run() or self._is_colab_run():
             self._notebook_job = True
             program_relpath = metadata.get("program")
 
