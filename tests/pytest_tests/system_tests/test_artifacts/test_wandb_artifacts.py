@@ -3,7 +3,7 @@ import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
 
 import numpy as np
@@ -300,7 +300,7 @@ def test_add_after_finalize():
     artifact.finalize()
     with pytest.raises(ArtifactFinalizedError) as e:
         artifact.add_file("file1.txt")
-    assert "Can't add to finalized artifact" in str(e.value)
+    assert "Can't modify finalized artifact" in str(e.value)
 
 
 def test_add_new_file_encode_error(capsys):
@@ -886,6 +886,69 @@ def test_add_reference_unknown_handler():
         "digest": "ref://example.com/somefile.txt",
         "ref": "ref://example.com/somefile.txt",
     }
+
+
+@pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
+def test_remove_file(name_type):
+    file1 = Path("file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
+    file1.write_text("hello")
+    file2 = Path("file2.txt")
+    file2.write_text("hello")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_file(file1)
+    artifact.add_file(file2, name="renamed.txt")
+
+    artifact.remove(name_type(file1))
+    artifact.remove(name_type("renamed.txt"))
+
+    assert artifact.manifest.entries == {}
+
+
+@pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
+def test_remove_directory(name_type):
+    file1 = Path("bar/foo/file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
+    file1.write_text("hello")
+    file2 = Path("bar/foo/file2.txt")
+    file2.write_text("hello2")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_dir("bar")
+
+    print(artifact.manifest.entries)
+
+    assert len(artifact.manifest.entries) == 2
+
+    artifact.remove(name_type("foo"))
+
+    assert artifact.manifest.entries == {}
+
+
+def test_remove_non_existent():
+    file1 = Path("baz/foo/file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
+    file1.write_text("hello")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_dir("baz")
+
+    with pytest.raises(FileNotFoundError):
+        artifact.remove("file1.txt")
+    with pytest.raises(FileNotFoundError):
+        artifact.remove("bar/")
+
+    assert len(artifact.manifest.entries) == 1
+
+
+def test_remove_manifest_entry():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    entry = artifact.add_reference(Path(__file__).as_uri())[0]
+
+    artifact.remove(entry)
+
+    assert artifact.manifest.entries == {}
 
 
 def test_artifact_table_deserialize_timestamp_column():
