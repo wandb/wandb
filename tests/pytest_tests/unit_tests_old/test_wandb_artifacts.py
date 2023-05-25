@@ -5,7 +5,7 @@ import pytest
 import wandb
 from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.wandb_artifacts import ArtifactNotLoggedError
+from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
