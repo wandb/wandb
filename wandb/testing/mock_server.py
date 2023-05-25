@@ -1,4 +1,4 @@
-"""Mock Server for simple calls the cli and public api make"""
+"""Mock Server for simple calls the cli and public api make."""
 
 import functools
 import gzip
@@ -21,7 +21,7 @@ from werkzeug.exceptions import BadRequest
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
-import wandb
+import wandb  # noqa: E402
 
 sys.path[0:0] = save_path
 
@@ -30,18 +30,10 @@ InjectRequestsParse = None
 ArtifactEmulator = None
 
 
-def load_modules(use_yea=False):
+def load_modules():
     global RequestsMock, InjectRequestsParse, ArtifactEmulator
-    if use_yea:
-        from yea_wandb.artifact_emu import ArtifactEmulator
-        from yea_wandb.mock_requests import InjectRequestsParse, RequestsMock
-    else:
-        try:
-            from .artifact_emu import ArtifactEmulator
-            from .mock_requests import InjectRequestsParse, RequestsMock
-        except ImportError:
-            from artifact_emu import ArtifactEmulator
-            from mock_requests import InjectRequestsParse, RequestsMock
+    from wandb.testing.artifact_emu import ArtifactEmulator
+    from wandb.testing.mock_requests import InjectRequestsParse, RequestsMock
 
 
 # global (is this safe?)
@@ -2546,7 +2538,7 @@ def mock_socket_socket(*args, **kwargs):
 
 if __name__ == "__main__":
     use_yea = "--yea" in sys.argv[1:]
-    load_modules(use_yea=use_yea)
+    load_modules()
 
     app = create_app()
     app.logger.setLevel(logging.INFO)

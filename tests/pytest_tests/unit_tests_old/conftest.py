@@ -3,7 +3,6 @@ import logging
 import os
 import platform
 import queue
-import random
 import shutil
 import subprocess
 import sys
@@ -20,7 +19,6 @@ from unittest.mock import MagicMock
 
 import click
 import git
-import nbformat
 import psutil
 import pytest
 import requests
