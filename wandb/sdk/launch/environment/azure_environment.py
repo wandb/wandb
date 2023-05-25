@@ -14,12 +14,15 @@ class AzureEnvironment(AbstractEnvironment):
         self,
         storage_account: str,
         storage_container: str,
+        subscription_id: str,
         verify: bool = True,
     ):
         """Initialize an AzureEnvironment."""
         self.storage_account = storage_account
         self.storage_container = storage_container
-        self.verify()
+        self.subscription_id = subscription_id
+        if verify:
+            self.verify()
 
     @classmethod
     def from_config(cls, config: dict, verify: bool = True) -> "AzureEnvironment":
@@ -27,18 +30,25 @@ class AzureEnvironment(AbstractEnvironment):
         storage_account = config.get("storage-account")
         if storage_account is None:
             raise LaunchError(
-                "Please specify a storage account to use under the environment.storage_account key."
+                "Please specify a storage account to use under the environment.storage-account key."
             )
         storage_container = config.get("storage-container")
         if storage_container is None:
             raise LaunchError(
                 "Please specify a storage container to use under the "
-                "environment.storage_container key."
+                "environment.storage-container key."
+            )
+        subscription_id = config.get("subscription-id")
+        if subscription_id is None:
+            raise LaunchError(
+                "Please specify a subscription ID to use under the "
+                "environment.subscription-id key."
             )
         return cls(
             storage_account=storage_account,
             storage_container=storage_container,
-            verify=True,
+            subscription_id=subscription_id,
+            verify=verify,
         )
 
     @classmethod

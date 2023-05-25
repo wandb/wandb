@@ -32,6 +32,7 @@ media_requirements = [
 launch_requirements = [
     "awscli",
     "azure-identity",
+    "azure-containerregistry",
     "azure-storage-blob",
     "boto3",
     "botocore",
