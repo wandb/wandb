@@ -703,14 +703,14 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         "--queue",
         f"{queue!r}",
         "--project",
-        project,
+        f"{project!r}",
         "--sweep_type",
         "wandb",
         "--author",
-        "author",
+        "'author'",
     ]
     if sweep_config.get("job"):
-        gold_args += ["--job", "job:v9"]
+        gold_args += ["--job", "'job:v9'"]
     else:
         gold_args += ["--image_uri", "image:latest"]
 
