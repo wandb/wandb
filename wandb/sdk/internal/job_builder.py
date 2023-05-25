@@ -17,7 +17,7 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal, TypedDict
 
-_logger = logging.getLogger(__file__)
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import ArtifactRecord
