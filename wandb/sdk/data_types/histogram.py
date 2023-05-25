@@ -8,7 +8,8 @@ from .base_types.wb_value import WBValue
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+
     from ..wandb_run import Run as LocalRun
 
     NumpyHistogram = Tuple[np.ndarray, np.ndarray]

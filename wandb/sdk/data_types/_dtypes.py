@@ -13,8 +13,8 @@ from wandb.util import (
 np = get_module("numpy")  # intentionally not required
 
 if t.TYPE_CHECKING:
-    from wandb.apis.public import Artifact as DownloadedArtifact
-    from wandb.sdk.wandb_artifacts import Artifact as ArtifactInCreation
+    from wandb.sdk.artifacts.local_artifact import Artifact as ArtifactInCreation
+    from wandb.sdk.artifacts.public_artifact import Artifact as DownloadedArtifact
 
 _TYPES_STRIPPED = not (sys.version_info.major == 3 and sys.version_info.minor >= 6)
 if not _TYPES_STRIPPED:

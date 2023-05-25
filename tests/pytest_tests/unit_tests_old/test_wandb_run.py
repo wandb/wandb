@@ -102,21 +102,21 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         run.config.nested_dataset = {"nested": artifact}
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
 
     with pytest.raises(ValueError) as e_info:
         run.config.dict_nested = {"one_nest": {"two_nest": artifact}}
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
 
     with pytest.raises(ValueError) as e_info:
         run.config.update({"one_nest": {"two_nest": artifact}})
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
