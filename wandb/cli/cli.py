@@ -33,8 +33,8 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.sweeps import utils as sweep_utils
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
@@ -944,13 +944,9 @@ def launch_sweep(
         return
 
     parsed_config = sweep_utils.load_launch_sweep_config(config)
-    # Rip special keys out of config
-    scheduler_args: Dict[str, Any] = parsed_config.get("scheduler", {})
-    launch_args: Dict[str, Any] = parsed_config.get("launch", {})
-    if scheduler_args:
-        del parsed_config["scheduler"]
-    if launch_args:
-        del parsed_config["launch"]
+    # Rip special keys out of config, store in scheduler run_config
+    scheduler_args: Dict[str, Any] = parsed_config.pop("scheduler", {})
+    launch_args: Dict[str, Any] = parsed_config.pop("launch", {})
 
     queue = queue or launch_args.get("queue")
     if not queue:
@@ -1000,34 +996,43 @@ def launch_sweep(
             wandb.termerror(f"Failed to load job. Error: {e}")
             return False
 
-    entrypoint, args = sweep_utils.construct_scheduler_entrypoint(
+    args = sweep_utils.construct_scheduler_args(
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
-        num_workers=scheduler_args.get("num_workers", 8),
         author=entity,
     )
-    if not entrypoint:
+    if not args:
         # error already logged
         return
 
+    overrides = {
+        "overrides": {
+            "run_config": {
+                "scheduler": scheduler_args,
+                "launch": launch_args,
+            },
+            "args": args,
+        }
+    }
+
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
-        uri=SCHEDULER_URI,
+        uri=Scheduler.PLACEHOLDER_URI,
         api=api,
         name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=entrypoint,
+        entry_point=Scheduler.ENTRYPOINT,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        launch_config={"overrides": {"args": args}},
+        launch_config=overrides,
         run_id=None,
-        author=None,  # author gets passed into scheduler command
+        author=None,  # author gets passed into scheduler override args
     )
     launch_scheduler_with_queue = json.dumps(
         {
@@ -1365,6 +1370,7 @@ def launch_agent(
 
     from wandb.sdk.launch import launch as wandb_launch
 
+    api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
         entity, project, max_jobs, queues, config
@@ -1943,11 +1949,12 @@ def cache():
     help="Clean up less frequently used files from the artifacts cache",
 )
 @click.argument("target_size")
+@click.option("--remove-temp/--no-remove-temp", default=False, help="Remove temp files")
 @display_error
-def cleanup(target_size):
+def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
     cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
-    reclaimed_bytes = cache.cleanup(target_size)
+    reclaimed_bytes = cache.cleanup(target_size, remove_temp)
     print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
