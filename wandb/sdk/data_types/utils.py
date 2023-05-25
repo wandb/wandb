@@ -145,12 +145,10 @@ def val_to_json(
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
-                # we sanitize the key to meet the constraints defined in wandb_artifacts.py
+                # we sanitize the key to meet the constraints
                 # in this case, leaving only alpha numerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
-                art = wandb.wandb_sdk.wandb_artifacts.Artifact(
-                    f"run-{run.id}-{sanitized_key}", "run_table"
-                )
+                art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
                 art.add(val, key)
                 run.log_artifact(art)
 

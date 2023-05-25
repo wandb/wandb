@@ -3,7 +3,8 @@ import platform
 
 import pytest
 import wandb
-from wandb.apis.public import Artifact, _DownloadedArtifactEntry
+from wandb.sdk.artifacts.downloaded_artifact_entry import DownloadedArtifactEntry
+from wandb.sdk.artifacts.public_artifact import Artifact
 from wandb.sdk.data_types import saved_model
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 
@@ -71,7 +72,7 @@ def test_tensorflow_keras_saved_model():
 # These classes are used to patch the API
 # so we can simulate downloading an artifact without
 # actually making a network round trip (using the local filesystem)
-class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
+class DownloadedArtifactEntryPatch(DownloadedArtifactEntry):
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
         dest = os.path.join(root, self.path)
@@ -80,7 +81,8 @@ class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
 
 def make_local_artifact_public(art, mocker):
     mocker.patch(
-        "wandb.apis.public._DownloadedArtifactEntry", DownloadedArtifactEntryPatch
+        "wandb.sdk.artifacts.public_artifact.DownloadedArtifactEntry",
+        DownloadedArtifactEntryPatch,
     )
 
     pub = Artifact(

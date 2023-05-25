@@ -22,9 +22,9 @@ if TYPE_CHECKING:  # pragma: no cover
     import torch  # type: ignore
     from PIL.Image import Image as PILImage
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
     ImageDataType = Union[
@@ -400,7 +400,7 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
             if (
                 self._masks is not None or self._boxes is not None

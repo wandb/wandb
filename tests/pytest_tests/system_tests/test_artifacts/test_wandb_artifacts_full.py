@@ -9,9 +9,10 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 import wandb
-from wandb import wandb_sdk
-from wandb.sdk.wandb_artifacts import Artifact
-from wandb.sdk.wandb_run import Run, WaitTimeoutError
+from wandb.sdk.artifacts.artifact_saver import get_staging_dir
+from wandb.sdk.artifacts.exceptions import WaitTimeoutError
+from wandb.sdk.artifacts.local_artifact import Artifact
+from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -240,7 +241,7 @@ def test_remove_after_log(wandb_init):
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
-    staging_dir = Path(wandb_sdk.internal.artifact_saver.get_staging_dir())
+    staging_dir = Path(get_staging_dir())
 
     def dir_size():
         return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())

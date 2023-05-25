@@ -30,16 +30,10 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.sdk.artifacts import artifact_saver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import (
-    artifact_saver,
-    context,
-    datastore,
-    file_stream,
-    internal_api,
-    update,
-)
+from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
