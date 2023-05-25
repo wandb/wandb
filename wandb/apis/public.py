@@ -5452,7 +5452,7 @@ class Job:
     _output_types: Type
     _entity: str
     _project: str
-    _entrypoint: Optional[List[str]]
+    _entrypoint: List[str]
     _notebook_job: bool
 
     def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
@@ -5473,10 +5473,7 @@ class Job:
             self._job_info: Mapping[str, Any] = json.load(f)
         source_info = self._job_info.get("source", {})
         # only use notebook job if entrypoint not set and notebook is set
-        self._notebook_job = (
-            source_info.get("notebook") is not None
-            and source_info.get("entrypoint") is None
-        )
+        self._notebook_job = source_info.get("notebook", False)
         self._entrypoint = source_info.get("entrypoint")
         self._args = source_info.get("args")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
@@ -5511,26 +5508,13 @@ class Job:
             raise LaunchError("No code artifact found")
         return code_artifact
 
-    def _configure_launch_project_notebook(
-        self, launch_project, sourced_from_artifact=False
-    ):
-        notebook_info = self._job_info.get("source", {}).get("notebook")
-        assert notebook_info is not None
-        if not sourced_from_artifact:
-            artifact_string = notebook_info.get("notebook_artifact")
-            if artifact_string is None:
-                raise LaunchError(
-                    f"Job {self.name} notebook info missing source artifact"
-                )
-            code_artifact = self._get_code_artifact(artifact_string)
-            code_artifact.download(launch_project.project_dir)
-
+    def _configure_launch_project_notebook(self, launch_project):
         new_fname = convert_jupyter_notebook_to_script(
-            "_session_history.ipynb", launch_project.project_dir
+            self._entrypoint[-1], launch_project.project_dir
         )
-        executable = notebook_info.get("executable")
-        self._entrypoint = [executable, new_fname]
-        launch_project.add_entry_point(self._entrypoint)
+        new_entrypoint = self._entrypoint
+        new_entrypoint[-1] = new_fname
+        launch_project.add_entry_point(new_entrypoint)
 
     def _configure_launch_project_repo(self, launch_project):
         git_info = self._job_info.get("source", {}).get("git", {})
@@ -5560,7 +5544,7 @@ class Job:
         code_artifact.download(launch_project.project_dir)
 
         if self._notebook_job:
-            self._configure_launch_project_notebook(launch_project, True)
+            self._configure_launch_project_notebook(launch_project)
         else:
             launch_project.add_entry_point(self._entrypoint)
 
