@@ -62,45 +62,72 @@ class Artifact:
         raise NotImplementedError
 
     @property
-    def version(self) -> str:
-        """The version of this artifact.
+    def entity(self) -> str:
+        """The name of the entity of the secondary (portfolio) artifact collection."""
+        raise NotImplementedError
 
-        For example, if this is the first version of an artifact, its `version` will be
-        'v0'.
+    @property
+    def project(self) -> str:
+        """The name of the project of the secondary (portfolio) artifact collection."""
+        raise NotImplementedError
+
+    @property
+    def name(self) -> str:
+        """The artifact name and version in its secondary (portfolio) collection.
+
+        A string with the format {collection}:{alias}. Before the artifact is saved,
+        contains only the name since the version is not yet known.
         """
         raise NotImplementedError
 
     @property
-    def source_version(self) -> Optional[str]:
-        """The artifact's version index under its parent artifact collection.
+    def qualified_name(self) -> str:
+        """The entity/project/name of the secondary (portfolio) collection."""
+        return f"{self.entity}/{self.project}/{self.name}"
+
+    @property
+    def version(self) -> str:
+        """The artifact's version in its secondary (portfolio) collection.
 
         A string with the format "v{number}".
         """
         raise NotImplementedError
 
     @property
-    def name(self) -> str:
-        """The artifact's name."""
+    def source_entity(self) -> str:
+        """The name of the entity of the primary (sequence) artifact collection."""
         raise NotImplementedError
 
     @property
-    def qualified_name(self) -> str:
-        """The artifact's qualified name."""
+    def source_project(self) -> str:
+        """The name of the project of the primary (sequence) artifact collection."""
+        raise NotImplementedError
+
+    @property
+    def source_name(self) -> str:
+        """The artifact name and version in its primary (sequence) collection.
+
+        A string with the format {collection}:{alias}. Before the artifact is saved,
+        contains only the name since the version is not yet known.
+        """
+        raise NotImplementedError
+
+    @property
+    def source_qualified_name(self) -> str:
+        """The entity/project/name of the primary (sequence) collection."""
         return f"{self.entity}/{self.project}/{self.name}"
+
+    @property
+    def source_version(self) -> str:
+        """The artifact's version in its primary (sequence) collection.
+
+        A string with the format "v{number}".
+        """
+        raise NotImplementedError
 
     @property
     def type(self) -> str:
         """The artifact's type."""
-        raise NotImplementedError
-
-    @property
-    def entity(self) -> str:
-        """The name of the entity this artifact belongs to."""
-        raise NotImplementedError
-
-    @property
-    def project(self) -> str:
-        """The name of the project this artifact belongs to."""
         raise NotImplementedError
 
     @property

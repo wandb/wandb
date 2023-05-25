@@ -4340,7 +4340,7 @@ class Artifact(artifacts.Artifact):
         self.client = client
         self._entity = entity
         self._project = project
-        self._artifact_name = name
+        self._name = name
         self._artifact_collection_name = name.split(":")[0]
         self._attrs = attrs
         if self._attrs is None:
@@ -4349,10 +4349,10 @@ class Artifact(artifacts.Artifact):
         # The entity and project above are taken from the passed-in artifact version path
         # so if the user is pulling an artifact version from an artifact portfolio, the entity/project
         # of that portfolio may be different than the birth entity/project of the artifact version.
-        self._birth_project = (
+        self._source_project = (
             self._attrs.get("artifactType", {}).get("project", {}).get("name")
         )
-        self._birth_entity = (
+        self._source_entity = (
             self._attrs.get("artifactType", {})
             .get("project", {})
             .get("entity", {})
@@ -4360,8 +4360,10 @@ class Artifact(artifacts.Artifact):
         )
         self._metadata = json.loads(self._attrs.get("metadata") or "{}")
         self._description = self._attrs.get("description", None)
-        self._sequence_name = self._attrs["artifactSequence"]["name"]
-        self._sequence_version_index = self._attrs.get("versionIndex", None)
+        self._source_name = "{}:v{}".format(
+            self._attrs["artifactSequence"]["name"], self._attrs.get("versionIndex")
+        )
+        self._source_version = "v{}".format(self._attrs.get("versionIndex"))
         # We will only show aliases under the Collection this artifact version is fetched from
         # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
@@ -4382,16 +4384,16 @@ class Artifact(artifacts.Artifact):
         return self._attrs["id"]
 
     @property
-    def file_count(self):
-        return self._attrs["fileCount"]
+    def entity(self):
+        return self._entity
 
     @property
-    def source_version(self):
-        """The artifact's version index under its parent artifact collection.
+    def project(self):
+        return self._project
 
-        A string with the format "v{number}".
-        """
-        return f"v{self._sequence_version_index}"
+    @property
+    def name(self):
+        return self._name
 
     @property
     def version(self):
@@ -4409,12 +4411,28 @@ class Artifact(artifacts.Artifact):
         return None
 
     @property
-    def entity(self):
-        return self._entity
+    def source_entity(self):
+        return self._source_entity
 
     @property
-    def project(self):
-        return self._project
+    def source_project(self):
+        return self._source_project
+
+    @property
+    def source_name(self):
+        return self._source_name
+
+    @property
+    def source_version(self):
+        """The artifact's version index under its parent artifact collection.
+
+        A string with the format "v{number}".
+        """
+        return self._source_version
+
+    @property
+    def file_count(self):
+        return self._attrs["fileCount"]
 
     @property
     def metadata(self):
@@ -4465,10 +4483,6 @@ class Artifact(artifacts.Artifact):
     @property
     def commit_hash(self):
         return self._attrs.get("commitHash", "")
-
-    @property
-    def name(self):
-        return self._artifact_name
 
     @property
     def aliases(self):
@@ -4729,7 +4743,7 @@ class Artifact(artifacts.Artifact):
             log = True
             termlog(
                 "Downloading large artifact {}, {:.2f}MB. {} files... ".format(
-                    self._artifact_name, size / (1024 * 1024), nfiles
+                    self.name, size / (1024 * 1024), nfiles
                 ),
             )
             start_time = datetime.datetime.now()
@@ -4838,7 +4852,7 @@ class Artifact(artifacts.Artifact):
         return downloaded_path
 
     def _default_root(self, include_version=True):
-        name = self.name if include_version else self._sequence_name
+        name = self.source_name if include_version else self.source_name.split(":")[0]
         root = os.path.join(get_artifact_dir(), name)
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)
@@ -5048,13 +5062,13 @@ class Artifact(artifacts.Artifact):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self._artifact_name,
+                    "name": self.name,
                 },
             )
         except Exception:
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":" and are 32 characters long
-            if ":" not in self._artifact_name and len(self._artifact_name) != 32:
+            if ":" not in self.name and len(self.name) != 32:
                 raise ValueError(
                     'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")'
                 )
@@ -5064,7 +5078,7 @@ class Artifact(artifacts.Artifact):
             or response["project"].get("artifact") is None
         ):
             raise ValueError(
-                f'Project {self.entity}/{self.project} does not contain artifact: "{self._artifact_name}"'
+                f'Project {self.entity}/{self.project} does not contain artifact: "{self.name}"'
             )
         self._attrs = response["project"]["artifact"]
         return self._attrs
@@ -5110,7 +5124,7 @@ class Artifact(artifacts.Artifact):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self._artifact_name,
+                    "name": self.name,
                 },
             )
 
@@ -5394,10 +5408,10 @@ class ArtifactFiles(Paginator):
     ):
         self.artifact = artifact
         variables = {
-            "entityName": artifact._birth_entity,
-            "projectName": artifact._birth_project,
+            "entityName": artifact.source_entity,
+            "projectName": artifact.source_project,
             "artifactTypeName": artifact.type,
-            "artifactName": artifact.name,
+            "artifactName": artifact.source_name,
             "fileNames": names,
         }
         # The server must advertise at least SDK 0.12.21
