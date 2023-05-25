@@ -166,13 +166,21 @@ class JobBuilder:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run():
+            full_program_relpath = os.path.relpath(program_relpath, os.getcwd())
             # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
-            if not os.path.exists(program_relpath):
-                return None, None
-
+            if not os.path.exists(full_program_relpath):
+                # when users call log code in a notebook the code artifact starts
+                # at the directory the notebook is in instead of the jupyter
+                # core
+                if os.path.exists(os.path.basename(program_relpath)):
+                    full_program_relpath = os.path.basename(program_relpath)
+                else:
+                    return None, None
+        else:
+            full_program_relpath = program_relpath
         entrypoint = [
             os.path.basename(sys.executable),
-            program_relpath,
+            full_program_relpath,
         ]
         # TODO: update executable to a method that supports pex
         source: ArtifactSourceDict = {
