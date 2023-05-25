@@ -12,7 +12,7 @@ autolog = AutologAPI(
     name="transformers",
     symbols=("Pipeline.__call__",),
     resolver=resolver,
-    # telemetry_feature="transformers_autolog", #TODO: Add telemetry
+    telemetry_feature="hf_pipeline_autolog",
 )
 
 autolog.get_latest_id = resolver.get_latest_id

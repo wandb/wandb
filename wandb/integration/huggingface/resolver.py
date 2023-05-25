@@ -28,6 +28,7 @@ PIPELINES_WITH_TOP_K = [
     "question-answering",
 ]
 
+
 class HuggingFacePipelineRequestResponseResolver:
     """Resolver for HuggingFace's pipeline request and responses, providing necessary data transformations and formatting.
 
@@ -154,7 +155,11 @@ class HuggingFacePipelineRequestResponseResolver:
             # Unpack single element responses for better rendering in wandb UI when it is a task without top_k
             # top_k = 1 would unpack the response into a single element while top_k > 1 would be a list
             # this would cause the UI to not properly concatenate the tables of the same task by omitting the elements past the first
-            if (isinstance(r_text, list)) and (len(r_text) == 1) and task not in PIPELINES_WITH_TOP_K:
+            if (
+                (isinstance(r_text, list))
+                and (len(r_text) == 1)
+                and task not in PIPELINES_WITH_TOP_K
+            ):
                 r_text = r_text[0]
             formatted_data.append(
                 {"input": i_text, "response": r_text, "kwargs": kwargs}
