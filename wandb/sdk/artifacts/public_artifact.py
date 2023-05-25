@@ -1,20 +1,35 @@
 """Public (saved) artifact."""
+import contextlib
 import datetime
 import json
 import os
 import platform
 import re
 import urllib
-from collections import namedtuple
 from functools import partial
-from typing import TYPE_CHECKING, Any, Mapping, Optional
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 
 import requests
 
 import wandb
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactFiles, Run
+from wandb.apis.public import ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.env import get_artifact_dir
 from wandb.errors.term import termlog
@@ -24,14 +39,15 @@ from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.downloaded_artifact_entry import DownloadedArtifactEntry
 from wandb.sdk.lib.hashutil import hex_to_b64_id, md5_file_b64
-from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
 
 if TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
     from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
 
 reset_path = util.vendor_setup()
 
-from wandb_gql import Client, gql  # noqa: E402
+from wandb_gql import gql  # noqa: E402
 
 reset_path()
 
@@ -156,52 +172,57 @@ class Artifact(ArtifactInterface):
     )
 
     @classmethod
-    def from_id(cls, artifact_id: str, client: Client):
+    def from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
         artifact = get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
+            assert isinstance(artifact, Artifact)
             return artifact
         response: Mapping[str, Any] = client.execute(
             Artifact.QUERY,
             variable_values={"id": artifact_id},
         )
 
-        if response.get("artifact") is not None:
-            p = response.get("artifact", {}).get("artifactType", {}).get("project", {})
-            project = p.get("name")  # defaults to None
-            entity = p.get("entity", {}).get("name")
-            name = "{}:v{}".format(
-                response["artifact"]["artifactSequence"]["name"],
-                response["artifact"]["versionIndex"],
+        if response.get("artifact") is None:
+            return None
+        p = response.get("artifact", {}).get("artifactType", {}).get("project", {})
+        project = p.get("name")  # defaults to None
+        entity = p.get("entity", {}).get("name")
+        name = "{}:v{}".format(
+            response["artifact"]["artifactSequence"]["name"],
+            response["artifact"]["versionIndex"],
+        )
+        artifact = cls(
+            client=client,
+            entity=entity,
+            project=project,
+            name=name,
+            attrs=response["artifact"],
+        )
+        index_file_url = response["artifact"]["currentManifest"]["file"]["directUrl"]
+        with requests.get(index_file_url) as req:
+            req.raise_for_status()
+            artifact._manifest = ArtifactManifest.from_manifest_json(
+                json.loads(util.ensure_text(req.content))
             )
-            artifact = cls(
-                client=client,
-                entity=entity,
-                project=project,
-                name=name,
-                attrs=response["artifact"],
-            )
-            index_file_url = response["artifact"]["currentManifest"]["file"][
-                "directUrl"
-            ]
-            with requests.get(index_file_url) as req:
-                req.raise_for_status()
-                artifact._manifest = ArtifactManifest.from_manifest_json(
-                    json.loads(util.ensure_text(req.content))
-                )
 
-            artifact._load_dependent_manifests()
+        artifact._load_dependent_manifests()
 
-            return artifact
+        return artifact
 
-    def __init__(self, client, entity, project, name, attrs=None):
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        name: str,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> None:
         self.client = client
         self._entity = entity
         self._project = project
         self._name = name
         self._artifact_collection_name = name.split(":")[0]
-        self._attrs = attrs
-        if self._attrs is None:
-            self._load()
+        self._attrs = attrs or self._load()
 
         # The entity and project above are taken from the passed-in artifact version path
         # so if the user is pulling an artifact version from an artifact portfolio, the entity/project
@@ -223,37 +244,37 @@ class Artifact(ArtifactInterface):
         self._source_version = "v{}".format(self._attrs.get("versionIndex"))
         # We will only show aliases under the Collection this artifact version is fetched from
         # _aliases will be a mutable copy on which the user can append or remove aliases
-        self._aliases = [
+        self._aliases: List[str] = [
             a["alias"]
             for a in self._attrs["aliases"]
             if not re.match(r"^v\d+$", a["alias"])
             and a["artifactCollectionName"] == self._artifact_collection_name
         ]
-        self._frozen_aliases = [a for a in self._aliases]
-        self._manifest = None
-        self._is_downloaded = False
-        self._dependent_artifacts = []
-        self._download_roots = set()
+        self._frozen_aliases: List[str] = [a for a in self._aliases]
+        self._manifest: Optional[ArtifactManifest] = None
+        self._is_downloaded: bool = False
+        self._dependent_artifacts: List["Artifact"] = []
+        self._download_roots: Set[str] = set()
         get_artifacts_cache().store_artifact(self)
 
     @property
-    def id(self):
+    def id(self) -> Optional[str]:
         return self._attrs["id"]
 
     @property
-    def entity(self):
+    def entity(self) -> str:
         return self._entity
 
     @property
-    def project(self):
+    def project(self) -> str:
         return self._project
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @property
-    def version(self):
+    def version(self) -> str:
         """The artifact's version index under the given artifact collection.
 
         A string with the format "v{number}".
@@ -265,22 +286,22 @@ class Artifact(ArtifactInterface):
                 a["alias"]
             ):
                 return a["alias"]
-        return None
+        raise NotImplementedError
 
     @property
-    def source_entity(self):
+    def source_entity(self) -> str:
         return self._source_entity
 
     @property
-    def source_project(self):
+    def source_project(self) -> str:
         return self._source_project
 
     @property
-    def source_name(self):
+    def source_name(self) -> str:
         return self._source_name
 
     @property
-    def source_version(self):
+    def source_version(self) -> str:
         """The artifact's version index under its parent artifact collection.
 
         A string with the format "v{number}".
@@ -288,61 +309,61 @@ class Artifact(ArtifactInterface):
         return self._source_version
 
     @property
-    def file_count(self):
+    def file_count(self) -> int:
         return self._attrs["fileCount"]
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict:
         return self._metadata
 
     @metadata.setter
-    def metadata(self, metadata):
+    def metadata(self, metadata: dict) -> None:
         self._metadata = metadata
 
     @property
-    def manifest(self):
+    def manifest(self) -> ArtifactManifest:
         return self._load_manifest()
 
     @property
-    def digest(self):
+    def digest(self) -> str:
         return self._attrs["digest"]
 
     @property
-    def state(self):
+    def state(self) -> str:
         return self._attrs["state"]
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self._attrs["size"]
 
     @property
-    def created_at(self):
+    def created_at(self) -> str:
         """The time at which the artifact was created."""
         return self._attrs["createdAt"]
 
     @property
-    def updated_at(self):
+    def updated_at(self) -> str:
         """The time at which the artifact was last updated."""
         return self._attrs["updatedAt"] or self._attrs["createdAt"]
 
     @property
-    def description(self):
+    def description(self) -> Optional[str]:
         return self._description
 
     @description.setter
-    def description(self, desc):
+    def description(self, desc: Optional[str]) -> None:
         self._description = desc
 
     @property
-    def type(self):
+    def type(self) -> str:
         return self._attrs["artifactType"]["name"]
 
     @property
-    def commit_hash(self):
+    def commit_hash(self) -> str:
         return self._attrs.get("commitHash", "")
 
     @property
-    def aliases(self):
+    def aliases(self) -> List[str]:
         """The aliases associated with this artifact.
 
         Returns:
@@ -352,7 +373,7 @@ class Artifact(ArtifactInterface):
         return self._aliases
 
     @aliases.setter
-    def aliases(self, aliases):
+    def aliases(self, aliases: List[str]) -> None:
         for alias in aliases:
             if any(char in alias for char in ["/", ":"]):
                 raise ValueError(
@@ -361,7 +382,9 @@ class Artifact(ArtifactInterface):
         self._aliases = aliases
 
     @staticmethod
-    def expected_type(client, name, entity_name, project_name):
+    def expected_type(
+        client: RetryingClient, name: str, entity_name: str, project_name: str
+    ) -> Optional[str]:
         """Returns the expected type for a given artifact name and project."""
         query = gql(
             """
@@ -403,16 +426,15 @@ class Artifact(ArtifactInterface):
         return None
 
     @property
-    def _use_as(self):
+    def _use_as(self) -> Optional[str]:
         return self._attrs.get("_use_as")
 
     @_use_as.setter
-    def _use_as(self, use_as):
+    def _use_as(self, use_as: Optional[str]) -> None:
         self._attrs["_use_as"] = use_as
-        return use_as
 
     @normalize_exceptions
-    def link(self, target_path: str, aliases=None):
+    def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
         if ":" in target_path:
             raise ValueError(
                 f"target_path {target_path} cannot contain `:` because it is not an alias."
@@ -421,10 +443,10 @@ class Artifact(ArtifactInterface):
         portfolio, project, entity = util._parse_entity_project_item(target_path)
         aliases = util._resolve_aliases(aliases)
 
-        EmptyRunProps = namedtuple("Empty", "entity project")
-        r = wandb.run if wandb.run else EmptyRunProps(entity=None, project=None)
-        entity = entity or r.entity or self.entity
-        project = project or r.project or self.project
+        run_entity = wandb.run.entity if wandb.run else None
+        run_project = wandb.run.project if wandb.run else None
+        entity = entity or run_entity or self.entity
+        project = project or run_project or self.project
 
         mutation = gql(
             """
@@ -452,10 +474,9 @@ class Artifact(ArtifactInterface):
                 ],
             },
         )
-        return True
 
     @normalize_exceptions
-    def delete(self, delete_aliases=False):
+    def delete(self, delete_aliases: bool = False) -> None:
         """Delete an artifact and its files.
 
         Examples:
@@ -493,35 +514,48 @@ class Artifact(ArtifactInterface):
                 "deleteAliases": delete_aliases,
             },
         )
-        return True
 
-    def new_file(self, name, mode=None):
+    @contextlib.contextmanager
+    def new_file(
+        self, name: str, mode: str = "w", encoding: Optional[str] = None
+    ) -> Generator[IO, None, None]:
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_file(self, local_path, name=None, is_tmp=False):
+    def add_file(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        is_tmp: Optional[bool] = False,
+    ) -> "ArtifactManifestEntry":
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_dir(self, path, name=None):
+    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_reference(self, uri, name=None, checksum=True, max_objects=None):
+    def add_reference(
+        self,
+        uri: Union["ArtifactManifestEntry", str],
+        name: Optional[StrPath] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ) -> Sequence["ArtifactManifestEntry"]:
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add(self, obj, name):
+    def add(self, obj: WBValue, name: StrPath) -> "ArtifactManifestEntry":
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def remove(self, item):
+    def remove(self, item: Union[str, "os.PathLike", "ArtifactManifestEntry"]) -> None:
         raise ValueError("Cannot remove files from an artifact once it has been saved")
 
-    def _add_download_root(self, dir_path):
+    def _add_download_root(self, dir_path: str) -> None:
         """Make `dir_path` a root directory for this artifact."""
         self._download_roots.add(os.path.abspath(dir_path))
 
-    def _is_download_root(self, dir_path):
+    def _is_download_root(self, dir_path: str) -> bool:
         """Determine if `dir_path` is a root directory for this artifact."""
         return dir_path in self._download_roots
 
-    def _local_path_to_name(self, file_path):
+    def _local_path_to_name(self, file_path: str) -> Optional[str]:
         """Convert a local file path to a path entry in the artifact."""
         abs_file_path = os.path.abspath(file_path)
         abs_file_parts = abs_file_path.split(os.sep)
@@ -530,7 +564,9 @@ class Artifact(ArtifactInterface):
                 return os.path.join(*abs_file_parts[i:])
         return None
 
-    def _get_obj_entry(self, name):
+    def _get_obj_entry(
+        self, name: str
+    ) -> Tuple[Optional["ArtifactManifestEntry"], Optional[Type[WBValue]]]:
         """Return an object entry by name, handling any type suffixes.
 
         When objects are added with `.add(obj, name)`, the name is typically changed to
@@ -547,12 +583,12 @@ class Artifact(ArtifactInterface):
         for artifact_type_str in type_mapping:
             wb_class = type_mapping[artifact_type_str]
             wandb_file_name = wb_class.with_suffix(name)
-            entry = self._manifest.entries.get(wandb_file_name)
+            entry = self.manifest.entries.get(wandb_file_name)
             if entry is not None:
                 return entry, wb_class
         return None, None
 
-    def get_path(self, name):
+    def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         name = LogicalPath(name)
         manifest = self._load_manifest()
         entry = manifest.entries.get(name) or self._get_obj_entry(name)[0]
@@ -561,40 +597,43 @@ class Artifact(ArtifactInterface):
 
         return DownloadedArtifactEntry(entry, self)
 
-    def get(self, name):
+    def get(self, name: str) -> Optional[WBValue]:
         entry, wb_class = self._get_obj_entry(name)
-        if entry is not None:
-            # If the entry is a reference from another artifact, then get it directly from that artifact
-            if self._manifest_entry_is_artifact_reference(entry):
-                artifact = self._get_ref_artifact_from_entry(entry)
-                return artifact.get(util.uri_from_path(entry.ref))
+        if entry is None or wb_class is None:
+            return None
+        # If the entry is a reference from another artifact, then get it directly from that artifact
+        if self._manifest_entry_is_artifact_reference(entry):
+            artifact = self._get_ref_artifact_from_entry(entry)
+            return artifact.get(util.uri_from_path(entry.ref))
 
-            # Special case for wandb.Table. This is intended to be a short term optimization.
-            # Since tables are likely to download many other assets in artifact(s), we eagerly download
-            # the artifact using the parallelized `artifact.download`. In the future, we should refactor
-            # the deserialization pattern such that this special case is not needed.
-            if wb_class == wandb.Table:
-                self.download(recursive=True)
+        # Special case for wandb.Table. This is intended to be a short term optimization.
+        # Since tables are likely to download many other assets in artifact(s), we eagerly download
+        # the artifact using the parallelized `artifact.download`. In the future, we should refactor
+        # the deserialization pattern such that this special case is not needed.
+        if wb_class == wandb.Table:
+            self.download(recursive=True)
 
-            # Get the ArtifactManifestEntry
-            item = self.get_path(entry.path)
-            item_path = item.download()
+        # Get the ArtifactManifestEntry
+        item = self.get_path(entry.path)
+        item_path = item.download()
 
-            # Load the object from the JSON blob
-            result = None
-            json_obj = {}
-            with open(item_path) as file:
-                json_obj = json.load(file)
-            result = wb_class.from_json(json_obj, self)
-            result._set_artifact_source(self, name)
-            return result
+        # Load the object from the JSON blob
+        result = None
+        json_obj = {}
+        with open(item_path) as file:
+            json_obj = json.load(file)
+        result = wb_class.from_json(json_obj, self)
+        result._set_artifact_source(self, name)
+        return result
 
-    def download(self, root=None, recursive=False):
+    def download(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> FilePathStr:
         dirpath = root or self._default_root()
         self._add_download_root(dirpath)
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
-        size = sum(e.size for e in manifest.entries.values())
+        size = sum(e.size or 0 for e in manifest.entries.values())
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
@@ -633,9 +672,9 @@ class Artifact(ArtifactInterface):
                 f"Done. {hours}:{minutes}:{seconds:.1f}",
                 prefix=False,
             )
-        return dirpath
+        return FilePathStr(dirpath)
 
-    def checkout(self, root=None):
+    def checkout(self, root: Optional[str] = None) -> str:
         dirpath = root or self._default_root(include_version=False)
 
         for root, _, files in os.walk(dirpath):
@@ -650,7 +689,7 @@ class Artifact(ArtifactInterface):
 
         return self.download(root=dirpath)
 
-    def verify(self, root=None):
+    def verify(self, root: Optional[str] = None) -> None:
         dirpath = root or self._default_root()
         manifest = self._load_manifest()
         ref_count = 0
@@ -677,7 +716,7 @@ class Artifact(ArtifactInterface):
         if ref_count > 0:
             print("Warning: skipped verification of %s refs" % ref_count)
 
-    def file(self, root=None):
+    def file(self, root: Optional[str] = None) -> StrPath:
         """Download a single file artifact to dir specified by the root.
 
         Arguments:
@@ -700,15 +739,18 @@ class Artifact(ArtifactInterface):
         return self._download_file(list(manifest.entries)[0], root=root)
 
     def _download_file(
-        self, name, root, download_logger: Optional[ArtifactDownloadLogger] = None
-    ):
+        self,
+        name: str,
+        root: str,
+        download_logger: Optional[ArtifactDownloadLogger] = None,
+    ) -> StrPath:
         # download file into cache and copy to target dir
         downloaded_path = self.get_path(name).download(root)
         if download_logger is not None:
             download_logger.notify_downloaded()
         return downloaded_path
 
-    def _default_root(self, include_version=True):
+    def _default_root(self, include_version: bool = True) -> str:
         name = self.source_name if include_version else self.source_name.split(":")[0]
         root = os.path.join(get_artifact_dir(), name)
         if platform.system() == "Windows":
@@ -716,11 +758,11 @@ class Artifact(ArtifactInterface):
             root = head + tail.replace(":", "-")
         return root
 
-    def json_encode(self):
+    def json_encode(self) -> Dict[str, Any]:
         return util.artifact_to_json(self)
 
     @normalize_exceptions
-    def save(self):
+    def save(self) -> None:
         """Persists artifact changes to the wandb backend."""
         mutation = gql(
             """
@@ -782,13 +824,12 @@ class Artifact(ArtifactInterface):
         )
         # Save locally modified aliases
         self._save_alias_changes()
-        return True
 
-    def wait(self):
+    def wait(self) -> "Artifact":
         return self
 
     @normalize_exceptions
-    def _save_alias_changes(self):
+    def _save_alias_changes(self) -> None:
         """Persist alias changes on this artifact to the wandb backend.
 
         Called by artifact.save().
@@ -884,17 +925,16 @@ class Artifact(ArtifactInterface):
 
         # reset local state
         self._frozen_aliases = self._aliases
-        return True
 
     # TODO: not yet public, but we probably want something like this.
-    def _list(self):
+    def _list(self) -> Iterable[str]:
         manifest = self._load_manifest()
         return manifest.entries.keys()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Artifact {self.id}>"
 
-    def _load(self):
+    def _load(self) -> Dict[str, Any]:
         query = gql(
             """
         query Artifact(
@@ -937,10 +977,11 @@ class Artifact(ArtifactInterface):
             raise ValueError(
                 f'Project {self.entity}/{self.project} does not contain artifact: "{self.name}"'
             )
-        self._attrs = response["project"]["artifact"]
-        return self._attrs
+        return response["project"]["artifact"]
 
-    def files(self, names=None, per_page=50):
+    def files(
+        self, names: Optional[List[str]] = None, per_page: int = 50
+    ) -> ArtifactFiles:
         """Iterate over all files stored in this artifact.
 
         Arguments:
@@ -953,7 +994,7 @@ class Artifact(ArtifactInterface):
         """
         return ArtifactFiles(self.client, self, names, per_page)
 
-    def _load_manifest(self):
+    def _load_manifest(self) -> ArtifactManifest:
         if self._manifest is None:
             query = gql(
                 """
@@ -998,11 +1039,11 @@ class Artifact(ArtifactInterface):
 
         return self._manifest
 
-    def _load_dependent_manifests(self):
+    def _load_dependent_manifests(self) -> None:
         """Interrogate entries and ensure we have loaded their manifests."""
         # Make sure dependencies are avail
-        for entry_key in self._manifest.entries:
-            entry = self._manifest.entries[entry_key]
+        for entry_key in self.manifest.entries:
+            entry = self.manifest.entries[entry_key]
             if self._manifest_entry_is_artifact_reference(entry):
                 dep_artifact = self._get_ref_artifact_from_entry(entry)
                 if dep_artifact not in self._dependent_artifacts:
@@ -1010,19 +1051,23 @@ class Artifact(ArtifactInterface):
                     self._dependent_artifacts.append(dep_artifact)
 
     @staticmethod
-    def _manifest_entry_is_artifact_reference(entry):
+    def _manifest_entry_is_artifact_reference(entry: "ArtifactManifestEntry") -> bool:
         """Determine if an ArtifactManifestEntry is an artifact reference."""
         return (
             entry.ref is not None
             and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"
         )
 
-    def _get_ref_artifact_from_entry(self, entry):
+    def _get_ref_artifact_from_entry(
+        self, entry: "ArtifactManifestEntry"
+    ) -> "Artifact":
         """Helper function returns the referenced artifact from an entry."""
         artifact_id = util.host_from_path(entry.ref)
-        return Artifact.from_id(hex_to_b64_id(artifact_id), self.client)
+        artifact = Artifact.from_id(hex_to_b64_id(artifact_id), self.client)
+        assert artifact is not None
+        return artifact
 
-    def used_by(self):
+    def used_by(self) -> List[Run]:
         """Retrieve the runs which use this artifact directly.
 
         Returns:
@@ -1069,7 +1114,7 @@ class Artifact(ArtifactInterface):
         ]
         return runs
 
-    def logged_by(self):
+    def logged_by(self) -> Optional[Run]:
         """Retrieve the run which logged this artifact.
 
         Returns:
@@ -1099,13 +1144,14 @@ class Artifact(ArtifactInterface):
             variable_values={"id": self.id},
         )
         run_obj = response.get("artifact", {}).get("createdBy", {})
-        if run_obj is not None:
-            return Run(
-                self.client,
-                run_obj["project"]["entityName"],
-                run_obj["project"]["name"],
-                run_obj["name"],
-            )
+        if run_obj is None:
+            return None
+        return Run(
+            self.client,
+            run_obj["project"]["entityName"],
+            run_obj["project"]["name"],
+            run_obj["name"],
+        )
 
     def new_draft(self) -> "LocalArtifact":
         """Create a new draft artifact with the same content as this committed artifact.
