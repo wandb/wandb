@@ -17,6 +17,8 @@ import yaml
 import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
+from wandb.apis.public import Api as PublicApi
+from wandb.apis.public import QueuedRun, Run
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
@@ -24,11 +26,14 @@ from wandb.sdk.launch.sweeps.utils import (
     create_sweep_command_args,
     make_launch_sweep_entrypoint,
 )
+from wandb.sdk.launch.utils import LaunchError
 from wandb.sdk.lib.runid import generate_id
 from wandb.sdk.wandb_run import Run as SdkRun
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
+
+DEFAULT_POLLING_SLEEP = 5.0
 
 
 class SchedulerState(Enum):
@@ -95,7 +100,7 @@ class Scheduler(ABC):
         self,
         api: Api,
         *args: Optional[Any],
-        polling_sleep: float = 5.0,
+        polling_sleep: Optional[float] = None,
         sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
@@ -104,7 +109,7 @@ class Scheduler(ABC):
         **kwargs: Optional[Any],
     ):
         self._api = api
-        self._public_api = public.Api()
+        self._public_api = PublicApi()
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -142,7 +147,7 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
-        self._polling_sleep = polling_sleep
+        self._polling_sleep = polling_sleep or DEFAULT_POLLING_SLEEP
         self._project_queue = project_queue
         # Optionally run multiple workers in (pseudo-)parallel. Workers do not
         # actually run training workloads, they simply send heartbeat messages
@@ -153,11 +158,14 @@ class Scheduler(ABC):
         # Init wandb scheduler run
         self._wandb_run = self._init_wandb_run()
 
-        # Grab param from scheduler wandb run config
+        # Grab params from scheduler wandb run config
         num_workers = num_workers or self._wandb_run.config.get("scheduler", {}).get(
             "num_workers"
         )
         self._num_workers = int(num_workers) if str(num_workers).isdigit() else 8
+        self._settings_config: Dict[str, Any] = self._wandb_run.config.get(
+            "settings", {}
+        )
 
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
@@ -238,13 +246,13 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> SdkRun:
         """Controls resume or init logic for a scheduler wandb run."""
-        _type = self._kwargs.get("sweep_type")
+        _type = self._kwargs.get("sweep_type", "sweep")
         run: SdkRun = wandb.init(
             name=f"{_type}-scheduler-{self._sweep_id}",
             job_type=self.SWEEP_JOB_TYPE,
-            # use the sweep ID as the run ID, if the sweep already exists then
-            #   the run is resumed, else init a new run
-            resume=self._sweep_id,
+            # WANDB_RUN_ID = sweep_id for scheduler
+            resume="allow",
+            config=self._kwargs,  # when run as a job, this sets config
         )
         return run
 
@@ -334,7 +342,14 @@ class Scheduler(ABC):
 
     def exit(self) -> None:
         self._exit()
-        self._save_state()
+        # _save_state isn't controlled, possibly fails
+        try:
+            self._save_state()
+        except Exception:
+            wandb.termerror(
+                f"{LOG_PREFIX}Failed to save state: {traceback.format_exc()}"
+            )
+
         if self.state not in [
             SchedulerState.COMPLETED,
             SchedulerState.STOPPED,
@@ -349,9 +364,10 @@ class Scheduler(ABC):
         logs and returns False when job is unreachable
         """
         if self._kwargs.get("job"):
-            _public_api = public.Api()
             try:
-                _job_artifact = _public_api.artifact(self._kwargs["job"], type="job")
+                _job_artifact = self._public_api.artifact(
+                    self._kwargs["job"], type="job"
+                )
                 wandb.termlog(
                     f"{LOG_PREFIX}Successfully loaded job ({_job_artifact.name}) in scheduler"
                 )
@@ -429,11 +445,15 @@ class Scheduler(ABC):
             f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
         ).decode("utf-8")
 
-        success: bool = self._api.stop_run(run_id=encoded_run_id)
-        if success:
-            wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
+        try:
+            success: bool = self._api.stop_run(run_id=encoded_run_id)
+            if success:
+                wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
+                return True
+        except Exception as e:
+            _logger.debug(f"error stopping run ({run_id}): {e}")
 
-        return success
+        return False
 
     def _update_run_states(self) -> None:
         """Iterate through runs.
@@ -442,30 +462,100 @@ class Scheduler(ABC):
         """
         runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
-            try:
-                state = self._api.get_run_state(self._entity, self._project, run_id)
-                run.state = RunState(state)
-            except CommError as e:
-                _logger.debug(f"error getting state for run ({run_id}): {e}")
-                if run.state == RunState.UNKNOWN:
-                    # triggers when we get an unknown state for the second time
-                    wandb.termwarn(
-                        f"Failed to get runstate for run ({run_id}). Error: {traceback.format_exc()}"
-                    )
-                    run.state = RunState.FAILED
-                else:  # first time we get unknwon state
-                    run.state = RunState.UNKNOWN
-            except (AttributeError, ValueError):
-                wandb.termwarn(
-                    f"Bad state ({state}) for run ({run_id}). Error: {traceback.format_exc()}"
-                )
-                run.state = RunState.UNKNOWN
+            run.state = self._get_run_state(run_id, run.state)
 
-            rqi_state = run.queued_run.state if run.queued_run else None
+            try:
+                rqi_state = run.queued_run.state if run.queued_run else None
+            except (CommError, LaunchError) as e:
+                _logger.debug(f"Failed to get queued_run.state: {e}")
+                rqi_state = None
+
             if not run.state.is_alive or rqi_state == "failed":
                 _logger.debug(f"({run_id}) states: ({run.state}, {rqi_state})")
                 runs_to_remove.append(run_id)
         self._cleanup_runs(runs_to_remove)
+
+    def _get_metrics_from_run(self, run_id: str) -> List[Any]:
+        """Use the public api to get metrics from a run.
+
+        Uses the metric name found in the sweep config, any
+        misspellings will result in an empty list.
+        """
+        try:
+            queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
+            if not queued_run:
+                return []
+
+            api_run: Run = self._public_api.run(
+                f"{queued_run.entity}/{queued_run.project}/{run_id}"
+            )
+            metric_name = self._sweep_config["metric"]["name"]
+            history = api_run.scan_history(keys=["_step", metric_name])
+            metrics = [x[metric_name] for x in history]
+
+            return metrics
+        except Exception as e:
+            _logger.debug(f"[_get_metrics_from_run] {e}")
+        return []
+
+    def _get_run_info(self, run_id: str) -> Dict[str, Any]:
+        """Use the public api to get info about a run."""
+        try:
+            info: Dict[str, Any] = self._api.get_run_info(
+                self._entity, self._project, run_id
+            )
+            if info:
+                return info
+        except Exception as e:
+            _logger.debug(f"[_get_run_info] {e}")
+        return {}
+
+    def _get_run_state(
+        self, run_id: str, prev_run_state: RunState = RunState.UNKNOWN
+    ) -> RunState:
+        """Use the public api to get state of a run."""
+        run_state = None
+        try:
+            state = self._api.get_run_state(self._entity, self._project, run_id)
+            run_state = RunState(state)
+        except CommError as e:
+            _logger.debug(f"error getting state for run ({run_id}): {e}")
+            if prev_run_state == RunState.UNKNOWN:
+                # triggers when we get an unknown state for the second time
+                wandb.termwarn(
+                    f"Failed to get runstate for run ({run_id}). Error: {traceback.format_exc()}"
+                )
+                run_state = RunState.FAILED
+            else:  # first time we get unknwon state
+                run_state = RunState.UNKNOWN
+        except (AttributeError, ValueError):
+            wandb.termwarn(
+                f"Bad state ({state}) for run ({run_id}). Error: {traceback.format_exc()}"
+            )
+            run_state = RunState.UNKNOWN
+        return run_state
+
+    def _create_run(self) -> Dict[str, Any]:
+        """Use the public api to create a blank run."""
+        try:
+            run: List[Dict[str, Any]] = self._api.upsert_run(
+                project=self._project,
+                entity=self._entity,
+                sweep_name=self._sweep_id,
+            )
+            if run:
+                return run[0]
+        except Exception as e:
+            _logger.debug(f"[_create_run] {e}")
+            raise SchedulerError(
+                "Error creating run from scheduler, check API connection and CLI version."
+            )
+        return {}
+
+    def _encode(self, _id: str) -> str:
+        return (
+            base64.b64decode(bytes(_id.encode("utf-8"))).decode("utf-8").split(":")[2]
+        )
 
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
@@ -512,6 +602,7 @@ class Scheduler(ABC):
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
             author=self._kwargs.get("author"),
+            sweep_id=self._sweep_id,
         )
         run.queued_run = queued_run
         # TODO(gst): unify run and queued_run state
