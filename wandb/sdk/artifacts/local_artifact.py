@@ -436,7 +436,7 @@ class Artifact(ArtifactInterface):
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactManifestEntry which is a private class returned by Artifact.get_path in
         # wandb/apis/public.py. If so, then recover the reference URL.
-        if isinstance(uri, ArtifactManifestEntry) and uri.parent_artifact() != self:
+        if isinstance(uri, ArtifactManifestEntry):
             ref_url_fn = uri.ref_url
             uri_str = ref_url_fn()
         elif isinstance(uri, str):
