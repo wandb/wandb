@@ -38,7 +38,9 @@ class LazyArtifact(ArtifactInterface):
             resp = future_get.response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
-            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+            instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+            assert instance is not None
+            self._instance = instance
         assert isinstance(
             self._instance, ArtifactInterface
         ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
@@ -133,13 +135,13 @@ class LazyArtifact(ArtifactInterface):
     def used_by(self) -> List["wandb.apis.public.Run"]:
         return self._instance.used_by()
 
-    def logged_by(self) -> "wandb.apis.public.Run":
+    def logged_by(self) -> Optional["wandb.apis.public.Run"]:
         return self._instance.logged_by()
 
     def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         return self._instance.get_path(name)
 
-    def get(self, name: str) -> "WBValue":
+    def get(self, name: str) -> Optional["WBValue"]:
         return self._instance.get(name)
 
     def download(
@@ -150,11 +152,11 @@ class LazyArtifact(ArtifactInterface):
     def checkout(self, root: Optional[str] = None) -> str:
         return self._instance.checkout(root)
 
-    def verify(self, root: Optional[str] = None) -> Any:
-        return self._instance.verify(root)
+    def verify(self, root: Optional[str] = None) -> None:
+        self._instance.verify(root)
 
     def save(self) -> None:
         self._instance.save()
 
-    def delete(self) -> None:
-        self._instance.delete()
+    def delete(self, delete_aliases: bool = False) -> None:
+        self._instance.delete(delete_aliases=delete_aliases)

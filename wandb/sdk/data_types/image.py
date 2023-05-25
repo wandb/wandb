@@ -311,9 +311,11 @@ class Image(BatchableMedia):
     def from_json(
         cls: Type["Image"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "Image":
-        classes = None
+        classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
-            classes = source_artifact.get(json_obj["classes"]["path"])
+            value = source_artifact.get(json_obj["classes"]["path"])
+            assert isinstance(value, (type(None), Classes))
+            classes = value
 
         masks = json_obj.get("masks")
         _masks: Optional[Dict[str, ImageMask]] = None

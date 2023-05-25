@@ -9,7 +9,7 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
+from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -62,8 +62,11 @@ class WBArtifactHandler(StorageHandler):
         artifact_id = util.host_from_path(manifest_entry.ref)
         artifact_file_path = util.uri_from_path(manifest_entry.ref)
 
-        dep_artifact = PublicArtifact.from_id(hex_to_b64_id(artifact_id), self.client)
-        link_target_path: FilePathStr
+        dep_artifact = PublicArtifact.from_id(
+            hex_to_b64_id(artifact_id), self.client.client
+        )
+        assert dep_artifact is not None
+        link_target_path: Union[URIStr, FilePathStr]
         if local:
             link_target_path = dep_artifact.get_path(artifact_file_path).download()
         else:
@@ -93,30 +96,36 @@ class WBArtifactHandler(StorageHandler):
         """
         # Recursively resolve the reference until a concrete asset is found
         # TODO: Consider resolving server-side for performance improvements.
-        while path is not None and urlparse(path).scheme == self._scheme:
-            artifact_id = util.host_from_path(path)
-            artifact_file_path = util.uri_from_path(path)
+        iter_path: Union[URIStr, FilePathStr, None] = path
+        while iter_path is not None and urlparse(iter_path).scheme == self._scheme:
+            artifact_id = util.host_from_path(iter_path)
+            artifact_file_path = util.uri_from_path(iter_path)
             target_artifact = PublicArtifact.from_id(
-                hex_to_b64_id(artifact_id), self.client
+                hex_to_b64_id(artifact_id), self.client.client
             )
+            assert target_artifact is not None
 
             # this should only have an effect if the user added the reference by url
             # string directly (in other words they did not already load the artifact into ram.)
             target_artifact._load_manifest()
 
-            entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
-            path = entry.ref
+            entry = target_artifact.manifest.get_entry_by_path(artifact_file_path)
+            assert entry is not None
+            iter_path = entry.ref
 
         # Create the path reference
+        assert target_artifact is not None
+        assert target_artifact.id is not None
         path = URIStr(
             "{}://{}/{}".format(
                 self._scheme,
-                b64_to_hex_id(target_artifact.id),
+                b64_to_hex_id(B64MD5(target_artifact.id)),
                 artifact_file_path,
             )
         )
 
         # Return the new entry
+        assert entry is not None
         return [
             ArtifactManifestEntry(
                 path=name or os.path.basename(path),

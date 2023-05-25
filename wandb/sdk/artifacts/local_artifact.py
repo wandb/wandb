@@ -340,7 +340,7 @@ class Artifact(ArtifactInterface):
 
         raise ArtifactNotLoggedError(self, "used_by")
 
-    def logged_by(self) -> "wandb.apis.public.Run":
+    def logged_by(self) -> Optional["wandb.apis.public.Run"]:
         if self._logged_artifact:
             return self._logged_artifact.logged_by()
 
@@ -568,7 +568,7 @@ class Artifact(ArtifactInterface):
 
         raise ArtifactNotLoggedError(self, "get_path")
 
-    def get(self, name: str) -> data_types.WBValue:
+    def get(self, name: str) -> Optional[data_types.WBValue]:
         if self._logged_artifact:
             return self._logged_artifact.get(name)
 
@@ -588,7 +588,7 @@ class Artifact(ArtifactInterface):
 
         raise ArtifactNotLoggedError(self, "checkout")
 
-    def verify(self, root: Optional[str] = None) -> bool:
+    def verify(self, root: Optional[str] = None) -> None:
         if self._logged_artifact:
             return self._logged_artifact.verify(root=root)
 
@@ -635,9 +635,9 @@ class Artifact(ArtifactInterface):
             else:
                 wandb.run.log_artifact(self)
 
-    def delete(self) -> None:
+    def delete(self, delete_aliases: bool = False) -> None:
         if self._logged_artifact:
-            return self._logged_artifact.delete()
+            return self._logged_artifact.delete(delete_aliases=delete_aliases)
 
         raise ArtifactNotLoggedError(self, "delete")
 

@@ -286,6 +286,12 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     assert local_path == path
 
 
+class FakePublicApi:
+    @property
+    def client(self):
+        return None
+
+
 def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
@@ -298,7 +304,7 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     )
 
     handler = WBArtifactHandler()
-    handler._client = lambda: None
+    handler._client = FakePublicApi()
     monkeypatch.setattr(PublicArtifact, "from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.ref_target = lambda: uri
@@ -319,7 +325,7 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     )
 
     handler = WBArtifactHandler()
-    handler._client = lambda: None
+    handler._client = FakePublicApi()
     monkeypatch.setattr(PublicArtifact, "from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.download = lambda: path

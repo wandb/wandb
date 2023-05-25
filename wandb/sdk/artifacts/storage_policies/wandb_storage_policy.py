@@ -106,7 +106,7 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         artifact: "ArtifactInterface",
         manifest_entry: "ArtifactManifestEntry",
-    ) -> str:
+    ) -> FilePathStr:
         path, hit, cache_open = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
@@ -142,7 +142,7 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
-    ) -> str:
+    ) -> Union[FilePathStr, URIStr]:
         return self._handler.load_path(manifest_entry, local)
 
     def _file_url(
