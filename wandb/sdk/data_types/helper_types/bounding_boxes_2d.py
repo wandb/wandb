@@ -8,9 +8,9 @@ from wandb.util import has_num
 from ..base_types.json_metadata import JSONMetadata
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
 
 
@@ -277,7 +277,7 @@ class BoundingBoxes2D(JSONMetadata):
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             return super().to_json(run_or_artifact)
-        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.Artifact):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
             # want to mess with the visualizations that are currently available in the UI. This really should output
             # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat

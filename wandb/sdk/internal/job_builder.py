@@ -4,9 +4,9 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
+from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
-from wandb.sdk.wandb_artifacts import Artifact
 from wandb.util import make_artifact_name_safe
 
 from .settings_static import SettingsStatic
@@ -57,7 +57,7 @@ class ArtifactInfoForJob(TypedDict):
     name: str
 
 
-class JobArtifact(Artifact):
+class JobArtifact(LocalArtifact):
     def __init__(self, name: str, *args: Any, **kwargs: Any):
         super().__init__(name, "placeholder", *args, **kwargs)
         self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
@@ -111,7 +111,7 @@ class JobBuilder:
 
     def _build_repo_job(
         self, metadata: Dict[str, Any], program_relpath: str
-    ) -> Tuple[Artifact, GitSourceDict]:
+    ) -> Tuple[LocalArtifact, GitSourceDict]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
@@ -141,7 +141,7 @@ class JobBuilder:
 
     def _build_artifact_job(
         self, program_relpath: str
-    ) -> Tuple[Artifact, ArtifactSourceDict]:
+    ) -> Tuple[LocalArtifact, ArtifactSourceDict]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: update executable to a method that supports pex
         source: ArtifactSourceDict = {
@@ -158,7 +158,7 @@ class JobBuilder:
 
     def _build_image_job(
         self, metadata: Dict[str, Any]
-    ) -> Tuple[Artifact, ImageSourceDict]:
+    ) -> Tuple[LocalArtifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
         name = make_artifact_name_safe(f"job-{image_name}")
@@ -168,7 +168,7 @@ class JobBuilder:
         }
         return artifact, source
 
-    def build(self) -> Optional[Artifact]:
+    def build(self) -> Optional[LocalArtifact]:
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
         ):

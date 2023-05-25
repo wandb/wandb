@@ -9,7 +9,8 @@ from .._private import MEDIA_TMP
 from .media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ...wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+
     from ...wandb_run import Run as LocalRun
 
 
