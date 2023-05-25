@@ -167,15 +167,20 @@ def construct_scheduler_args(
         "--queue",
         f"{queue!r}",
         "--project",
-        project,
-        # sweep type only used when scheduler is NOT a job
+        f"{project!r}",
         "--sweep_type",
         f"{sweep_type}",
     ]
     if author:
-        args += ["--author", author]
+        args += [
+            "--author",
+            f"{author!r}",
+        ]
     if job:
-        args += ["--job", job]
+        args += [
+            "--job",
+            f"{job!r}",
+        ]
     elif image_uri:
         args += ["--image_uri", image_uri]
 

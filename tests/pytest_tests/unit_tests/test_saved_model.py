@@ -3,7 +3,8 @@ import platform
 
 import pytest
 import wandb
-from wandb.apis.public import Artifact, _DownloadedArtifactEntry
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.public_artifact import Artifact
 from wandb.sdk.data_types import saved_model
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 
@@ -71,18 +72,14 @@ def test_tensorflow_keras_saved_model():
 # These classes are used to patch the API
 # so we can simulate downloading an artifact without
 # actually making a network round trip (using the local filesystem)
-class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
+class ArtifactManifestEntryPatch(ArtifactManifestEntry):
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
         dest = os.path.join(root, self.path)
         return copy_or_overwrite_changed(self.local_path, dest)
 
 
-def make_local_artifact_public(art, mocker):
-    mocker.patch(
-        "wandb.apis.public._DownloadedArtifactEntry", DownloadedArtifactEntryPatch
-    )
-
+def make_local_artifact_public(art):
     pub = Artifact(
         None,
         "FAKE_ENTITY",
@@ -116,10 +113,15 @@ def saved_model_test(mocker, model, py_deps=None):
     if py_deps:
         kwargs["dep_py_files"] = py_deps
     sm = saved_model._SavedModel.init(model, **kwargs)
+
+    mocker.patch(
+        "wandb.sdk.artifacts.local_artifact.ArtifactManifestEntry",
+        ArtifactManifestEntryPatch,
+    )
     art = wandb.Artifact("name", "type")
     art.add(sm, "model")
     assert art.manifest.entries[f"model.{sm._log_type}.json"] is not None
-    pub_art = make_local_artifact_public(art, mocker)
+    pub_art = make_local_artifact_public(art)
     sm2 = pub_art.get("model")
     assert sm2 is not None
 

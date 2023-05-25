@@ -276,10 +276,18 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def finish_thread_id(self, thread_id: int) -> None:
+    def finish_thread_id(
+        self,
+        thread_id: int,
+        exception: Optional[Union[Exception, LaunchDockerError]] = None,
+    ) -> None:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
-        if not job_and_run_status.run_id or not job_and_run_status.project:
+        if (
+            not job_and_run_status.run_id
+            or not job_and_run_status.project
+            or exception is not None
+        ):
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         elif job_and_run_status.entity != self._entity:
             _logger.info(
@@ -460,11 +468,11 @@ class LaunchAgent:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
-            self.finish_thread_id(thread_id)
+            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
-            self.finish_thread_id(thread_id)
+            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
 
     def _thread_run_job(
