@@ -161,21 +161,23 @@ class JobBuilder:
         return artifact, source
 
     def _build_artifact_job(
-        self, program_relpath: str
+        self, metadata: Dict[str, Any], program_relpath: str
     ) -> Tuple[Optional[LocalArtifact], Optional[ArtifactSourceDict]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run():
             full_program_relpath = os.path.relpath(program_relpath, os.getcwd())
-            # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
-            if not os.path.exists(full_program_relpath):
-                # when users call log code in a notebook the code artifact starts
-                # at the directory the notebook is in instead of the jupyter
-                # core
-                if os.path.exists(os.path.basename(program_relpath)):
-                    full_program_relpath = os.path.basename(program_relpath)
-                else:
-                    return None, None
+            # colab doesn't know the files exists, but we format the artifact correctly
+            if metadata.get("colab") is None:
+                # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
+                if not os.path.exists(full_program_relpath):
+                    # when users call log code in a notebook the code artifact starts
+                    # at the directory the notebook is in instead of the jupyter
+                    # core
+                    if os.path.exists(os.path.basename(program_relpath)):
+                        full_program_relpath = os.path.basename(program_relpath)
+                    else:
+                        return None, None
         else:
             full_program_relpath = program_relpath
         entrypoint = [
@@ -249,7 +251,7 @@ class JobBuilder:
             artifact, source = self._build_repo_job(metadata, program_relpath, root)
         elif source_type == "artifact":
             assert program_relpath is not None
-            artifact, source = self._build_artifact_job(program_relpath)
+            artifact, source = self._build_artifact_job(metadata, program_relpath)
         elif source_type == "image":
             artifact, source = self._build_image_job(metadata)
 
