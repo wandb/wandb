@@ -65,7 +65,7 @@ def test_sweep_construct_scheduler_args():
         "--project",
         "'project'",
         "--sweep_type",
-        "sweep",
+        "wandb",
         "--job",
         "'job:12315'",
     ]
