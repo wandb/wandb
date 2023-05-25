@@ -15,7 +15,7 @@ from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
-from wandb.sdk.launch.agent import JobAndRunStatusTracker
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.lib import runid
 

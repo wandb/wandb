@@ -576,12 +576,41 @@ class Api:
     def fail_run_queue_item_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "failRunQueueItem" in mutations
+    
+    @normalize_exceptions
+    def update_run_queue_item_warning(self, run_queue_item_id: str, message: str, phase: str):
+        mutation = gql(
+            """
+        mutation updateRunQueueItemWarning($runQueueItemId: ID!, $message: String!, $phase: String!) {
+            updateRunQueueItemWarning(
+                input: {
+                    runQueueItemId: $runQueueItemId
+                    message: $message
+                    phase: $phase
+                }
+            ) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "runQueueItemId": run_queue_item_id,
+                "message": message,
+                "phase": phase,
+            },
+        )
+        result: bool = response["updateRunQueueItemWarning"]["success"]
+        return result        
+
 
     @normalize_exceptions
     def fail_run_queue_item(self, run_queue_item_id: str, message: str, phase: str) -> bool:
         mutation = gql(
             """
-        mutation failRunQueueItem($runQueueItemId: ID!) {
+        mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $phase: String!) {
             failRunQueueItem(
                 input: {
                     runQueueItemId: $runQueueItemId

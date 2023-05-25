@@ -14,7 +14,7 @@ from wandb.apis.internal import Api
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
-from ..agent.job_phase_tracker import JobPhaseTracker
+from ..agent.job_status_tracker import JobAndRunStatusTracker
 from ..builder.abstract import AbstractBuilder
 from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
@@ -89,7 +89,7 @@ class VertexRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: Optional[AbstractBuilder],
-        job_phase: Optional[JobPhaseTracker],
+        job_tracker: Optional[JobAndRunStatusTracker],
 
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
@@ -136,14 +136,11 @@ class VertexRunner(AbstractRunner):
         else:
             assert entry_point is not None
             assert builder is not None
-            if job_phase is not None:
-                job_phase._transition_phase_build()
             image_uri = builder.build_image(
                 launch_project,
                 entry_point,
+                job_tracker
             )
-        if job_phase is not None:
-            job_phase._transition_phase_submit()
 
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)

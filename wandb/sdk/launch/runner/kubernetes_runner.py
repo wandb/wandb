@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.agent.job_phase_tracker import JobPhaseTracker
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -404,7 +404,7 @@ class KubernetesRunner(AbstractRunner):
         builder: Optional[AbstractBuilder],
         namespace: str,
         core_api: "CoreV1Api",
-        job_phase: Optional[JobPhaseTracker]
+        job_tracker: Optional[JobAndRunStatusTracker]
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
         """Apply our default values, return job dict and secret.
 
@@ -465,9 +465,7 @@ class KubernetesRunner(AbstractRunner):
                 )
             assert entry_point is not None
             assert builder is not None
-            if job_phase is not None:
-                job_phase._transition_phase_build()
-            image_uri = builder.build_image(launch_project, entry_point)
+            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             if not builder.registry:
@@ -483,9 +481,7 @@ class KubernetesRunner(AbstractRunner):
                 ]
 
             containers[0]["image"] = image_uri
-        if job_phase is not None:
-            job_phase._transition_phase_submit()
-        # TODO: can this be moved earlier
+
         inject_entrypoint_and_args(
             containers,
             entry_point,
@@ -514,7 +510,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
-        job_phase: Optional[JobPhaseTracker]
+        job_tracker: Optional[JobAndRunStatusTracker]
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -546,6 +542,12 @@ class KubernetesRunner(AbstractRunner):
         api_version = resource_args.get("apiVersion", "batch/v1")
         if api_version not in ["batch/v1", "batch/v1beta1"]:
             entrypoint = launch_project.get_single_entry_point()
+            if launch_project.docker_image:
+                image_uri = launch_project.docker_image
+            else:
+                assert entrypoint is not None
+                image_uri = builder.build_image(launch_project, entrypoint, job_tracker)
+            launch_project.fill_macros(image_uri)
             env_vars = get_env_vars_dict(launch_project, self._api)
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(launch_project.resource_args, env_vars)
@@ -554,16 +556,6 @@ class KubernetesRunner(AbstractRunner):
             add_label_to_pods(
                 launch_project.resource_args, "wandb/run-id", launch_project.run_id
             )
-            if launch_project.docker_image:
-                image_uri = launch_project.docker_image
-            else:
-                assert entrypoint is not None
-                if job_phase is not None:
-                    job_phase._transition_phase_build()
-                image_uri = builder.build_image(launch_project, entrypoint)
-            launch_project.fill_macros(image_uri)
-            if job_phase is not None:
-                job_phase._transition_phase_submit()
             api = client.CustomObjectsApi(api_client)
             # Infer the attributes of a custom object from the apiVersion and/or
             # a kind: attribute in the resource args.
@@ -612,7 +604,7 @@ class KubernetesRunner(AbstractRunner):
             builder,
             namespace,
             core_api,
-            job_phase=job_phase
+            job_tracker
         )
 
         msg = "Creating Kubernetes job"
