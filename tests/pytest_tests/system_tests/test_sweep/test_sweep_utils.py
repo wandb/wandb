@@ -56,13 +56,19 @@ def test_load_launch_sweep_config():
 
 
 def test_sweep_construct_scheduler_args():
-    assert not utils.construct_scheduler_args(
-        {},
-        "queue",
-        "project",
-        sweep_type="wandb",
-        return_job=False,
-    )
+    assert not utils.construct_scheduler_args({}, "queue", "project")
+
+    args = utils.construct_scheduler_args({"job": "job:12315"}, "queue", "project")
+    assert args == [
+        "--queue",
+        "'queue'",
+        "--project",
+        "'project'",
+        "--sweep_type",
+        "sweep",
+        "--job",
+        "'job:12315'",
+    ]
 
     args = utils.construct_scheduler_args(
         {"job": "job:12315"},
