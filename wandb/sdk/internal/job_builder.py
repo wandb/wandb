@@ -120,6 +120,7 @@ class JobBuilder:
         commit = git_info.get("commit")
         assert remote is not None
         assert commit is not None
+        # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run():
             if root is None or self._settings._jupyter_root is None:
                 return None, None
@@ -163,6 +164,7 @@ class JobBuilder:
         self, program_relpath: str
     ) -> Tuple[Optional[Artifact], Optional[ArtifactSourceDict]]:
         assert isinstance(self._logged_code_artifact, dict)
+        # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run():
             # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
             if not os.path.exists(program_relpath):
