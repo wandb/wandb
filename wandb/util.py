@@ -1490,19 +1490,12 @@ def check_windows_valid_filename(path: Union[int, str]) -> bool:
 def artifact_to_json(
     artifact: Union["wandb.sdk.wandb_artifacts.Artifact", "wandb.apis.public.Artifact"]
 ) -> Dict[str, Any]:
-    # public.Artifact has the _sequence name, instances of wandb.Artifact
-    # just have the name
-    if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name
-    else:
-        sequence_name = artifact.name.split(":")[0]
-
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
-        "sequenceName": sequence_name,
+        "sequenceName": artifact.source_name.split(":")[0],
         "usedAs": artifact._use_as,
     }
 
