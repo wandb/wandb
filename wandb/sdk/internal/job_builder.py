@@ -131,6 +131,9 @@ class JobBuilder:
                 os.path.relpath(str(self._settings._jupyter_root), root),
                 program_relpath,
             )
+            # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
+            if not os.path.exists(full_program_path):
+                return None, None
         else:
             full_program_path = program_relpath
         # TODO: update executable to a method that supports pex
@@ -158,8 +161,12 @@ class JobBuilder:
 
     def _build_artifact_job(
         self, program_relpath: str
-    ) -> Tuple[Artifact, ArtifactSourceDict]:
+    ) -> Tuple[Optional[Artifact], Optional[ArtifactSourceDict]]:
         assert isinstance(self._logged_code_artifact, dict)
+        if self._is_notebook_run():
+            # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
+            if not os.path.exists(program_relpath):
+                return None, None
 
         entrypoint = [
             os.path.basename(sys.executable),
