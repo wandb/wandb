@@ -1,12 +1,15 @@
 """Artifact manifest entry."""
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
-from wandb.sdk.lib.hashutil import B64MD5, ETag
+from wandb.errors.term import termwarn
+from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
 
 class ArtifactManifestEntry:
@@ -19,6 +22,8 @@ class ArtifactManifestEntry:
     size: Optional[int]
     extra: Dict
     local_path: Optional[str]
+
+    _parent_artifact: Optional["PublicArtifact"] = None
 
     def __init__(
         self,
@@ -40,13 +45,21 @@ class ArtifactManifestEntry:
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
 
-    def parent_artifact(self) -> "ArtifactInterface":
+    @property
+    def name(self) -> LogicalPath:
+        # TODO(hugh): add telemetry to see if anyone is still using this.
+        termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
+        return self.path
+
+    def parent_artifact(self) -> "PublicArtifact":
         """Get the artifact to which this artifact entry belongs.
 
         Returns:
-            (Artifact): The parent artifact
+            (PublicArtifact): The parent artifact
         """
-        raise NotImplementedError
+        if self._parent_artifact is None:
+            raise NotImplementedError
+        return self._parent_artifact
 
     def download(self, root: Optional[str] = None) -> FilePathStr:
         """Download this artifact entry to the specified root path.
@@ -58,7 +71,29 @@ class ArtifactManifestEntry:
         Returns:
             (str): The path of the downloaded artifact entry.
         """
-        raise NotImplementedError
+        if self._parent_artifact is None:
+            raise NotImplementedError
+
+        root = root or self._parent_artifact._default_root()
+        self._parent_artifact._add_download_root(root)
+        dest_path = os.path.join(root, self.path)
+
+        # Skip checking the cache (and possibly downloading) if the file already exists
+        # and has the digest we're expecting.
+        if os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
+            return FilePathStr(dest_path)
+
+        if self.ref is not None:
+            cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
+                self, local=True
+            )
+        else:
+            cache_path = self._parent_artifact.manifest.storage_policy.load_file(
+                self._parent_artifact, self
+            )
+        return FilePathStr(
+            str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
+        )
 
     def ref_target(self) -> Union[FilePathStr, URIStr]:
         """Get the reference URL that is targeted by this artifact entry.
@@ -71,7 +106,12 @@ class ArtifactManifestEntry:
         """
         if self.ref is None:
             raise ValueError("Only reference entries support ref_target().")
-        return self.ref
+        if self._parent_artifact is None:
+            return self.ref
+        return self._parent_artifact.manifest.storage_policy.load_reference(
+            self._parent_artifact.manifest.entries[self.path],
+            local=False,
+        )
 
     def ref_url(self) -> str:
         """Get a URL to this artifact entry.
@@ -88,4 +128,12 @@ class ArtifactManifestEntry:
             derived_artifact.add_reference(ref_url)
             ```
         """
-        raise NotImplementedError
+        if self._parent_artifact is None:
+            raise NotImplementedError
+        assert self._parent_artifact.id is not None
+        return (
+            "wandb-artifact://"
+            + b64_to_hex_id(B64MD5(self._parent_artifact.id))
+            + "/"
+            + self.path
+        )
