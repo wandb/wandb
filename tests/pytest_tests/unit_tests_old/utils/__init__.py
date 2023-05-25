@@ -3,8 +3,8 @@ from .dummy_data import (
     matplotlib_with_image,
     matplotlib_without_image,
 )
-from .mock_requests import InjectRequests
-from .mock_server import ParseCTX, create_app, default_ctx, mock_server
+from wandb.testing.mock_requests import InjectRequests
+from wandb.testing.mock_server import ParseCTX, create_app, default_ctx, mock_server
 from .notebook_client import WandbNotebookClient
 from .records import RecordsUtil
 from .utils import (
