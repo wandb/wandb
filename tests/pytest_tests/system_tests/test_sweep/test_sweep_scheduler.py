@@ -627,6 +627,7 @@ def test_launch_sweep_scheduler_try_executable_works(
         entity=user,
         project=_project,
         num_workers=4,
+        polling_sleep=0,
         job=job_name,
     )
 
@@ -839,7 +840,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
         sweep_type="wandb",
         entity=user,
         project=_project,
-        polling_sleep=0,
+        polling_sleep=0.1,
         image_uri=_image_uri,
         num_workers=1,
     )
@@ -877,7 +878,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
         sweep_type="wandb",
         entity=user,
         project=_project,
-        polling_sleep=0,
+        polling_sleep=0.1,
         image_uri=_image_uri,
         num_workers=1,
     )
