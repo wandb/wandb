@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Optional
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
-from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
+from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.launch import utils
 from wandb.sdk.lib.runid import generate_id
 

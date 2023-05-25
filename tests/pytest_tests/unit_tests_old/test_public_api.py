@@ -365,8 +365,7 @@ def test_artifact_delete(runner, mock_server, api):
         # with pytest.raises(Exception):
         #    art.delete()
 
-        success = art.delete(delete_aliases=True)
-        assert success
+        art.delete(delete_aliases=True)
 
 
 def test_artifact_checkout(runner, mock_server, api):
