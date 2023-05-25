@@ -15,7 +15,7 @@ def test_build_repo_job(runner):
     remote_name = str_of_length(129)
     metadata = {
         "git": {"remote": remote_name, "commit": "testtestcommit"},
-        "codePath": "blah/test.py",
+        "program": "blah/test.py",
         "args": ["--test", "test"],
         "python": "3.7",
     }
@@ -54,7 +54,12 @@ def test_build_repo_notebook_job(runner, tmp_path):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
         settings = SettingsStatic(
-            {"files_dir": "./", "disable_job_creation": False, "_jupyter": True, "_jupyter_root": tmp_path}
+            {
+                "files_dir": "./",
+                "disable_job_creation": False,
+                "_jupyter": True,
+                "_jupyter_root": tmp_path,
+            }
         )
         job_builder = JobBuilder(settings)
         artifact_name = str_of_length(15)
@@ -104,7 +109,7 @@ def test_build_artifact_job(runner):
 
 def test_build_artifact_notebook_job(runner, tmp_path):
     metadata = {
-        "codePath": "blah/test.py",
+        "program": "blah/test.py",
         "args": ["--test", "test"],
         "python": "3.7",
     }
@@ -116,7 +121,12 @@ def test_build_artifact_notebook_job(runner, tmp_path):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
         settings = SettingsStatic(
-            {"files_dir": "./", "disable_job_creation": False, "_jupyter": True, "_jupyter_root": tmp_path}
+            {
+                "files_dir": "./",
+                "disable_job_creation": False,
+                "_jupyter": True,
+                "_jupyter_root": tmp_path,
+            }
         )
         job_builder = JobBuilder(settings)
         job_builder._logged_code_artifact = {
@@ -135,7 +145,7 @@ def test_build_artifact_notebook_job(runner, tmp_path):
 def test_build_image_job(runner):
     image_name = str_of_length(129)
     metadata = {
-        "codePath": "blah/test.py",
+        "program": "blah/test.py",
         "args": ["--test", "test"],
         "python": "3.7",
         "docker": image_name,

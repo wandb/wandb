@@ -129,7 +129,7 @@ class JobBuilder:
             # program_relpath contains the path from jupyter_root to the file
             full_program_path = os.path.join(
                 os.path.relpath(str(self._settings._jupyter_root), root),
-                program_relpath
+                program_relpath,
             )
         else:
             full_program_path = program_relpath
@@ -160,7 +160,7 @@ class JobBuilder:
         self, program_relpath: str
     ) -> Tuple[Artifact, ArtifactSourceDict]:
         assert isinstance(self._logged_code_artifact, dict)
-        
+
         entrypoint = [
             os.path.basename(sys.executable),
             program_relpath,
@@ -190,10 +190,7 @@ class JobBuilder:
         return artifact, source
 
     def _is_notebook_run(self) -> bool:
-        return (
-            hasattr(self._settings, "_jupyter")
-            and bool(self._settings._jupyter)
-        )
+        return hasattr(self._settings, "_jupyter") and bool(self._settings._jupyter)
 
     def build(self) -> Optional[Artifact]:
         if not os.path.exists(
