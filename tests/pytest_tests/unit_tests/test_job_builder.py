@@ -15,7 +15,7 @@ def test_build_repo_job(runner):
     remote_name = str_of_length(129)
     metadata = {
         "git": {"remote": remote_name, "commit": "testtestcommit"},
-        "program": "blah/test.py",
+        "codePath": "blah/test.py",
         "args": ["--test", "test"],
         "python": "3.7",
     }
@@ -43,9 +43,10 @@ def test_build_repo_notebook_job(runner, tmp_path):
     remote_name = str_of_length(129)
     metadata = {
         "git": {"remote": remote_name, "commit": "testtestcommit"},
-        "codePath": "blah/test.py",
+        "program": "blah/test.ipynb",
         "args": ["--test", "test"],
         "python": "3.7",
+        "root": "test",
     }
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
@@ -62,15 +63,10 @@ def test_build_repo_notebook_job(runner, tmp_path):
             }
         )
         job_builder = JobBuilder(settings)
-        artifact_name = str_of_length(15)
-        job_builder._logged_code_artifact = {
-            "id": "testtest",
-            "name": artifact_name,
-        }
         artifact = job_builder.build()
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(
-            f"job-{remote_name}_{artifact_name}"
+            f"job-{remote_name}_blah_test.ipynb"
         )
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
