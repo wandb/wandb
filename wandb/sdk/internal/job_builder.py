@@ -121,9 +121,9 @@ class JobBuilder:
         assert remote is not None
         assert commit is not None
         if self._is_notebook_run():
-            if root is None or self._settings._jupyter_path is None:
+            if root is None or self._settings._jupyter_root is None:
                 return None, None
-            assert self._settings._jupyter_path is not None
+            assert self._settings._jupyter_root is not None
             # git notebooks set the root to the git root,
             # jupyter_root contains the path where the jupyter notebook was started
             # program_relpath contains the path from jupyter_root to the file
