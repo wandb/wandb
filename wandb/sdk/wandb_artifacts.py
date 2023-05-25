@@ -594,6 +594,26 @@ class Artifact(ArtifactInterface):
 
         return entry
 
+    def remove(self, item: Union[StrPath, "ArtifactManifestEntry"]) -> None:
+        if self._logged_artifact:
+            raise ArtifactFinalizedError(self, "remove")
+
+        if isinstance(item, ArtifactManifestEntry):
+            self._manifest.remove_entry(item)
+            return
+
+        path = str(PurePosixPath(item))
+        entry = self._manifest.get_entry_by_path(path)
+        if entry:
+            self._manifest.remove_entry(entry)
+            return
+
+        entries = self._manifest.get_entries_in_directory(path)
+        if not entries:
+            raise FileNotFoundError(f"No such file or directory: {path}")
+        for entry in entries:
+            self._manifest.remove_entry(entry)
+
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
         if self._logged_artifact:
             return self._logged_artifact.get_path(name)
