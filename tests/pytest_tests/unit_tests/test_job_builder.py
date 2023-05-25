@@ -39,7 +39,7 @@ def test_build_repo_job(runner):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
-def test_build_repo_notebook_job(runner):
+def test_build_repo_notebook_job(runner, tmp_path):
     remote_name = str_of_length(129)
     metadata = {
         "git": {"remote": remote_name, "commit": "testtestcommit"},
@@ -54,7 +54,7 @@ def test_build_repo_notebook_job(runner):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
         settings = SettingsStatic(
-            {"files_dir": "./", "disable_job_creation": False, "_jupyter": True}
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": True, "_jupyter_root": tmp_path}
         )
         job_builder = JobBuilder(settings)
         artifact_name = str_of_length(15)
@@ -102,7 +102,7 @@ def test_build_artifact_job(runner):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
-def test_build_artifact_notebook_job(runner):
+def test_build_artifact_notebook_job(runner, tmp_path):
     metadata = {
         "codePath": "blah/test.py",
         "args": ["--test", "test"],
@@ -116,7 +116,7 @@ def test_build_artifact_notebook_job(runner):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
         settings = SettingsStatic(
-            {"files_dir": "./", "disable_job_creation": False, "_jupyter": True}
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": True, "_jupyter_root": tmp_path}
         )
         job_builder = JobBuilder(settings)
         job_builder._logged_code_artifact = {
