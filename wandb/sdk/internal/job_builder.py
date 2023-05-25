@@ -125,7 +125,7 @@ class JobBuilder:
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run():
             if root is None or self._settings._jupyter_root is None:
-                _logger.log("target path does not exist, exiting")
+                _logger.info("target path does not exist, exiting")
                 return None, None
             assert self._settings._jupyter_root is not None
             # git notebooks set the root to the git root,
@@ -137,7 +137,7 @@ class JobBuilder:
             )
             # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
             if not os.path.exists(full_program_path):
-                _logger.log("target path does not exist, exiting")
+                _logger.info("target path does not exist, exiting")
                 return None, None
         else:
             full_program_path = program_relpath
@@ -168,7 +168,6 @@ class JobBuilder:
         self, metadata: Dict[str, Any], program_relpath: str
     ) -> Tuple[Optional[LocalArtifact], Optional[ArtifactSourceDict]]:
         assert isinstance(self._logged_code_artifact, dict)
-        raise Exception("IN HERE", self._is_colab_run(), self._is_notebook_run())
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run() and not self._is_colab_run():
             full_program_relpath = os.path.relpath(program_relpath, os.getcwd())
@@ -180,7 +179,7 @@ class JobBuilder:
                 if os.path.exists(os.path.basename(program_relpath)):
                     full_program_relpath = os.path.basename(program_relpath)
                 else:
-                    _logger.log("target path does not exist, exiting")
+                    _logger.info("target path does not exist, exiting")
                     return None, None
         else:
             full_program_relpath = program_relpath
@@ -219,7 +218,7 @@ class JobBuilder:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
     def build(self) -> Optional[LocalArtifact]:
-        _logger.log("Attempting to build job artifact")
+        _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
         ):
@@ -238,18 +237,18 @@ class JobBuilder:
         source_type = self._source_type
 
         if self._is_notebook_run():
-            _logger.log("run is notebook based run")
+            _logger.info("run is notebook based run")
             program_relpath = metadata.get("program")
 
         if not source_type:
             if self._has_git_job_ingredients(metadata, program_relpath):
-                _logger.log("is repo sourced job")
+                _logger.info("is repo sourced job")
                 source_type = "repo"
             elif self._has_artifact_job_ingredients(program_relpath):
-                _logger.log("is artifact sourced job")
+                _logger.info("is artifact sourced job")
                 source_type = "artifact"
             elif self._has_image_job_ingredients(metadata):
-                _logger.log("is image sourced job")
+                _logger.info("is image sourced job")
                 source_type = "image"
 
         artifact = None
@@ -280,7 +279,7 @@ class JobBuilder:
             "output_types": output_types,
             "runtime": runtime,
         }
-        _logger.log("adding wandb-job metadata file")
+        _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:
             f.write(json.dumps(source_info, indent=4))
 
