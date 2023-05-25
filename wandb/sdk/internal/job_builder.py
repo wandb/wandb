@@ -278,16 +278,16 @@ class JobBuilder:
         self, metadata: Dict[str, Any], program_relpath: Optional[str]
     ) -> bool:
         git_info: Dict[str, str] = metadata.get("git", {})
+        if program_relpath is None:
+            return False
         return (
-            (git_info.get("remote") is not None
-            and git_info.get("commit") is not None)
-            or (hasattr(self._settings, "_jupyter_path") and self._settings._jupyter_path is not None and self._notebook_job)
+            (git_info.get("remote") is not None 
+             and git_info.get("commit") is not None)
+             or (hasattr(self._settings, "_jupyter_path") and self._settings._jupyter_path is not None and self._notebook_job)
         )
 
     def _has_artifact_job_ingredients(self, program_relpath: Optional[str]) -> bool:
-        return self._logged_code_artifact is not None and (
-            program_relpath is not None or self._notebook_job
-        )
+        return self._logged_code_artifact is not None and program_relpath is not None
 
     def _has_image_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
         return metadata.get("docker") is not None
