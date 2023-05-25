@@ -32,6 +32,7 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
+from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -2003,7 +2004,7 @@ def cache():
 @display_error
 def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
-    cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    cache = get_artifacts_cache()
     reclaimed_bytes = cache.cleanup(target_size, remove_temp)
     print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
