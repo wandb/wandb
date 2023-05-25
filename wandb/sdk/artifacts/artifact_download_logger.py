@@ -11,7 +11,7 @@ class ArtifactDownloadLogger:
         self,
         nfiles: int,
         clock_for_testing: Callable[[], float] = time.monotonic,
-        termlog_for_testing=termlog,
+        termlog_for_testing: Callable[..., None] = termlog,
     ) -> None:
         self._nfiles = nfiles
         self._clock = clock_for_testing

@@ -133,7 +133,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # First, if the entry is a file, the download it.
         entry = source_artifact.manifest.entries.get(path)
         if entry is not None:
-            dl_path = source_artifact.get_path(path).download()
+            dl_path = str(source_artifact.get_path(path).download())
         else:
             # If not, assume it is directory.
             # FUTURE: Add this functionality to the artifact loader
