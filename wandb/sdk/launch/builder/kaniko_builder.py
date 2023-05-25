@@ -47,6 +47,13 @@ _logger = logging.getLogger(__name__)
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
+try:
+    SERVICE_ACCOUNT_NAME = (
+        open("/var/run/secrets/kubernetes.io/serviceaccount/token").read().split('"')[3]
+    )
+except Exception:
+    SERVICE_ACCOUNT_NAME = "default"
+
 
 def _wait_for_completion(
     batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
@@ -398,7 +405,9 @@ class KanikoBuilder(AbstractBuilder):
         )
         # Create and configure a spec section
         template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels={"wandb": "launch"}),
+            metadata=client.V1ObjectMeta(
+                labels={"wandb": "launch"}, namespace=SERVICE_ACCOUNT_NAME
+            ),
             spec=client.V1PodSpec(
                 restart_policy="Never",
                 active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,
