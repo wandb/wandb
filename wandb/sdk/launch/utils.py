@@ -26,7 +26,7 @@ FAILED_PACKAGES_REGEX = re.compile(
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
 
 class LaunchError(Error):

@@ -5,9 +5,9 @@ from .. import _dtypes
 from ..base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
 
 
@@ -148,6 +148,7 @@ class _ClassesIdType(_dtypes.Type):
                 classes_obj = artifact.get(
                     json_dict.get("params", {}).get("classes_obj", {}).get("path")
                 )
+                assert classes_obj is None or isinstance(classes_obj, Classes)
             else:
                 raise RuntimeError("Expected artifact to be non-null.")
         else:

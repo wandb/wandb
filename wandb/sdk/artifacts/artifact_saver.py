@@ -1,3 +1,4 @@
+"""Artifact saver."""
 import concurrent.futures
 import json
 import os
@@ -8,16 +9,16 @@ from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 import wandb
 import wandb.filesync.step_prepare
 from wandb import env, util
-from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+    from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
-
-    from .file_pusher import FilePusher
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -26,13 +27,13 @@ if TYPE_CHECKING:
 
     class SaveFn(Protocol):
         def __call__(
-            self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
+            self, entry: "ArtifactManifestEntry", progress_callback: "ProgressFn"
         ) -> bool:
             pass
 
     class SaveFnAsync(Protocol):
         def __call__(
-            self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
+            self, entry: "ArtifactManifestEntry", progress_callback: "ProgressFn"
         ) -> Awaitable[bool]:
             pass
 
