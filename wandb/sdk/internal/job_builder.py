@@ -131,14 +131,21 @@ class JobBuilder:
             # git notebooks set the root to the git root,
             # jupyter_root contains the path where the jupyter notebook was started
             # program_relpath contains the path from jupyter_root to the file
+            # full program path here is actually the relpath from the program to the git root
             full_program_path = os.path.join(
                 os.path.relpath(str(self._settings._jupyter_root), root),
                 program_relpath,
             )
-            # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
-            if not os.path.exists(full_program_path):
-                _logger.info("target path does not exist, exiting")
-                return None, None
+            full_program_path = os.path.normpath(full_program_path)
+            # if the notebook server is started above the git repo need to clear all the ..s
+            if full_program_path.startswith(".."):
+                split_path = full_program_path.split("/")
+                count_dots = 0
+                for p in split_path:
+                    if p == "..":
+                        count_dots += 1
+                full_program_path = "/".join(split_path[2 * count_dots :])
+
         else:
             full_program_path = program_relpath
         # TODO: update executable to a method that supports pex
@@ -213,7 +220,7 @@ class JobBuilder:
 
     def _is_notebook_run(self) -> bool:
         return hasattr(self._settings, "_jupyter") and bool(self._settings._jupyter)
-    
+
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
