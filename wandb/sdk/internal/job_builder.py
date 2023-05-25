@@ -31,13 +31,13 @@ class GitInfo(TypedDict):
 
 class GitSourceDict(TypedDict):
     git: GitInfo
-    entrypoint: Optional[List[str]]
+    entrypoint: List[str]
     notebook: bool
 
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
-    entrypoint: Optional[List[str]]
+    entrypoint: List[str]
     notebook: bool
 
 
@@ -113,19 +113,22 @@ class JobBuilder:
             )
 
     def _build_repo_job(
-        self, metadata: Dict[str, Any], program_relpath: str, root: str
-    ) -> Tuple[Artifact, GitSourceDict]:
+        self, metadata: Dict[str, Any], program_relpath: str, root: Optional[str]
+    ) -> Tuple[Optional[Artifact], Optional[GitSourceDict]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
         assert remote is not None
         assert commit is not None
         if self._is_notebook_run():
+            if root is None or self._settings._jupyter_path is None:
+                return None, None
+            assert self._settings._jupyter_path is not None
             # git notebooks set the root to the git root,
             # jupyter_root contains the path where the jupyter notebook was started
             # program_relpath contains the path from jupyter_root to the file
             full_program_path = os.path.join(
-                os.path.relpath(self._settings._jupyter_root, root),
+                os.path.relpath(str(self._settings._jupyter_root), root),
                 program_relpath
             )
         else:
@@ -157,11 +160,11 @@ class JobBuilder:
         self, program_relpath: str
     ) -> Tuple[Artifact, ArtifactSourceDict]:
         assert isinstance(self._logged_code_artifact, dict)
+        
         entrypoint = [
             os.path.basename(sys.executable),
             program_relpath,
         ]
-
         # TODO: update executable to a method that supports pex
         source: ArtifactSourceDict = {
             "entrypoint": entrypoint,
@@ -213,7 +216,6 @@ class JobBuilder:
         if self._is_notebook_run():
             self._notebook_job = True
             program_relpath = metadata.get("program")
-            print(program_relpath)
 
         if not source_type:
             if self._has_git_job_ingredients(metadata, program_relpath):
@@ -227,12 +229,12 @@ class JobBuilder:
         source: Optional[
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
-        print(source_type)
         if source_type == "repo":
-            assert program_relpath is not None or self._notebook_job
-            artifact, source = self._build_repo_job(metadata, program_relpath, metadata.get("root"))
+            assert program_relpath is not None
+            root: Optional[str] = metadata.get("root")
+            artifact, source = self._build_repo_job(metadata, program_relpath, root)
         elif source_type == "artifact":
-            assert program_relpath is not None or self._notebook_job
+            assert program_relpath is not None
             artifact, source = self._build_artifact_job(program_relpath)
         elif source_type == "image":
             artifact, source = self._build_image_job(metadata)
@@ -277,9 +279,9 @@ class JobBuilder:
     ) -> bool:
         git_info: Dict[str, str] = metadata.get("git", {})
         return (
-            git_info.get("remote") is not None
-            and git_info.get("commit") is not None
-            and (program_relpath is not None or self._notebook_job)
+            (git_info.get("remote") is not None
+            and git_info.get("commit") is not None)
+            or (hasattr(self._settings, "_jupyter_path") and self._settings._jupyter_path is not None and self._notebook_job)
         )
 
     def _has_artifact_job_ingredients(self, program_relpath: Optional[str]) -> bool:
