@@ -614,7 +614,7 @@ def test_launch_sweep_scheduler_try_executable_works(
     settings = test_settings({"project": _project})
     run = wandb_init(settings=settings)
     job_artifact = run._log_job_artifact_with_image("lala-docker-123", args=[])
-    job_name = job_artifact.wait().name
+    job_name = f"{user}/{_project}/{job_artifact.wait().name}"
 
     run.finish()
     sweep_id = wandb.sweep(
