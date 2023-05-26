@@ -274,8 +274,10 @@ class Imports(google.protobuf.message.Message):
     prefect: builtins.bool
     prefect_ray: builtins.bool
     pinecone: builtins.bool
+    """pinecone-client"""
     chromadb: builtins.bool
     weaviate: builtins.bool
+    """weaviate-client"""
     promptlayer: builtins.bool
     openai: builtins.bool
     cohere: builtins.bool
