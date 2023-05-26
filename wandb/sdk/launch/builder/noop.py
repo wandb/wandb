@@ -21,7 +21,8 @@ class NoOpBuilder(AbstractBuilder):
         registry: AbstractRegistry,
     ) -> None:
         """Initialize a NoOpBuilder."""
-        pass
+        self.environment = environment
+        self.registry = registry
 
     @classmethod
     def from_config(

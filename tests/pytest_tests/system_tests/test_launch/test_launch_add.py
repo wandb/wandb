@@ -241,7 +241,7 @@ def test_launch_build_push_job(
         job = public_api.job(rqi["runSpec"]["job"])
         run.finish()
 
-        assert job._source_info["source"]["image"] == release_image
+        assert job._job_info["source"]["image"] == release_image
 
 
 def test_launch_add_default_specify(
