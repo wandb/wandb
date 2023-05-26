@@ -1,3 +1,4 @@
+import datetime
 import io
 import logging
 import uuid
@@ -285,11 +286,14 @@ class OpenAIRequestResponseResolver:
                 "response": result.outputs["response"],
                 "model_alias": model_alias,
                 "model": model,
-                "start_time": response["created"],
-                "end_time": response["created"] + time_elapsed,
+                "start_time": datetime.datetime.fromtimestamp(response["created"]),
+                "end_time": datetime.datetime.fromtimestamp(
+                    response["created"] + time_elapsed
+                ),
                 "request_id": response["id"]
                 if response.get("id")
                 else str(uuid.uuid4()),
+                "api_type": response.api_type if response.api_type else "openai",
                 "session_id": wandb.run.id,
             }
             row.update(asdict(usage_metrics))
