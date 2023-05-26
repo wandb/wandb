@@ -977,10 +977,15 @@ def launch_sweep(
         if scheduler_job and not method:
             sweep_config["method"] = "custom"
         elif scheduler_job and method != "custom":
-            wandb.termwarn(
-                "Using a scheduler job for launch sweeps is only supported with the 'custom' method, "
-                "except for scheduler jobs inheriting from the WandbScheduler class"
+            wandb.termerror(
+                "Use 'method': 'custom' in the sweep config when using scheduler jobs, "
+                "or omit it entirely. For jobs using the wandb optimization engine (WandbScheduler), "
+                "set the method in scheduler.settings.method "
             )
+            return
+
+        if settings.get('method'):
+            sweep_config['method'] = settings['method']
 
     else:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
