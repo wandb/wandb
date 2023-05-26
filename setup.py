@@ -43,6 +43,7 @@ launch_requirements = [
     "google-cloud-storage",
     "google-cloud-artifact-registry",
     "kubernetes",
+    "optuna",
 ]
 
 models_requirements = ["cloudpickle"]

@@ -165,6 +165,7 @@ def construct_launch_spec(
     run_id: Optional[str],
     repository: Optional[str],
     author: Optional[str],
+    sweep_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -192,6 +193,8 @@ def construct_launch_spec(
         launch_spec["docker"] = {}
     if docker_image:
         launch_spec["docker"]["docker_image"] = docker_image
+    if sweep_id:  # all runs in a sweep have this set
+        launch_spec["sweep_id"] = sweep_id
 
     if "resource" not in launch_spec:
         launch_spec["resource"] = resource if resource else None
@@ -523,9 +526,17 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
     )
 
     _logger.info("Converting notebook to script")
-    new_name = fname.rstrip(".ipynb") + ".py"
+    new_name = fname.replace(".ipynb", ".py")
     with open(os.path.join(project_dir, fname)) as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
+        for cell in nb.cells:
+            if cell.cell_type == "code":
+                source_lines = cell.source.split("\n")
+                modified_lines = []
+                for line in source_lines:
+                    if not line.startswith("!"):
+                        modified_lines.append(line)
+                cell.source = "\n".join(modified_lines)
 
     exporter = nbconvert.PythonExporter()
     source, meta = exporter.from_notebook_node(nb)
