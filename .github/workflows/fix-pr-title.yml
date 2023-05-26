@@ -19,7 +19,7 @@ on:
 jobs:
   handle_pr_title:
     runs-on: ubuntu-latest
-    #if: github.event.issue.pull_request && (contains(github.event.comment.body, '/suggest-title') || contains(github.event.comment.body, '/fix-title'))
+    if: github.event.issue.pull_request && (contains(github.event.comment.body, '/suggest-title') || contains(github.event.comment.body, '/fix-title'))
     steps:
     - name: Print GitHub Event
       run: echo "${{ toJson(github.event) }}"
