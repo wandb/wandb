@@ -116,9 +116,9 @@ message Imports {
   bool stability_sdk = 88;
   bool prefect = 89;
   bool prefect_ray = 90;
-  bool pinecone = 91;
+  bool pinecone = 91; // pinecone-client
   bool chromadb = 92;
-  bool weaviate = 93;
+  bool weaviate = 93; // weaviate-client
   bool promptlayer = 94;
   bool openai = 95;
   bool cohere = 96;
