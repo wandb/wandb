@@ -31,20 +31,13 @@ jobs:
       with:
         python-version: "3.9"
 
-    - name: test it out
-      run: |
-        issue_url=https://api.github.com/repos/wandb/wandb/issues/5617
-        pr_number="${issue_url##*/}"
-        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py $(pr_number))
-        echo "title=$title"
-
     - name: Install dependencies
       run: pip install pygithub openai
 
     - name: Run script to get new title
       id: get_new_title
       run: |
-        issue_url="${{ github.event.comment.issue_url }}"
+        issue_url=https://api.github.com/repos/wandb/wandb/issues/5617
         pr_number="${issue_url##*/}"
         title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py $(pr_number))
         echo "title=$title" >> $GITHUB_OUTPUT
@@ -54,7 +47,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        issue_url="${{ github.event.comment.issue_url }}"
+        issue_url=https://api.github.com/repos/wandb/wandb/issues/5617
         pr_number="${issue_url##*/}"
         curl -L \
           -X POST \
