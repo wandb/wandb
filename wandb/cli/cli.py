@@ -15,7 +15,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import click
 import yaml
@@ -934,29 +934,12 @@ def launch_sweep(
     resume_id,
 ):
     api = _get_cling_api()
+    env = os.environ
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    # if not sweep_config XOR resume_id
-    if not (config or resume_id):
-        wandb.termerror("'config' and/or 'resume_id' required")
-        return
-
-    parsed_config = sweep_utils.load_launch_sweep_config(config)
-    # Rip special keys out of config, store in scheduler run_config
-    scheduler_args: Dict[str, Any] = parsed_config.pop("scheduler", {})
-    launch_args: Dict[str, Any] = parsed_config.pop("launch", {})
-
-    queue = queue or launch_args.get("queue")
-    if not queue:
-        wandb.termerror(
-            "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in the config"
-        )
-        return
-
-    env = os.environ
     entity = entity or env.get("WANDB_ENTITY") or api.settings("entity")
     if entity is None:
         wandb.termerror("Must specify entity when using launch")
@@ -967,72 +950,138 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
-    parsed_sweep_config, sweep_obj_id = None, None
-    if resume_id:  # Resuming an existing sweep
+    # if not sweep_config XOR resume_id
+    if not (config or resume_id):
+        wandb.termerror("'config' and/or 'resume_id' required")
+        return
+
+    parsed_user_config = sweep_utils.load_launch_sweep_config(config)
+    # Rip special keys out of config, store in scheduler run_config
+    launch_args: Dict[str, Any] = parsed_user_config.pop("launch", {})
+    scheduler_args: Dict[str, Any] = parsed_user_config.pop("scheduler", {})
+    settings: Dict[str, Any] = scheduler_args.pop("settings", {})
+
+    scheduler_job: Optional[str] = scheduler_args.get("job")
+    if scheduler_job:
+        wandb.termwarn(
+            "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
+        )
+    queue: Optional[str] = queue or launch_args.get("queue")
+
+    sweep_config, sweep_obj_id = None, None
+    if not resume_id:
+        sweep_config = parsed_user_config
+
+        # check method
+        method = sweep_config.get("method")
+        if scheduler_job and not method:
+            sweep_config["method"] = "custom"
+        elif scheduler_job and method != "custom":
+            wandb.termerror(
+                "Using a scheduler job for launch sweeps is only supported with the 'custom' method"
+            )
+            return
+
+    else:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{resume_id}")
             return
         sweep_obj_id = found["id"]
-        parsed_sweep_config = yaml.safe_load(found["config"])
+        sweep_config = yaml.safe_load(found["config"])
         wandb.termlog(f"Resuming from existing sweep {entity}/{project}/{resume_id}")
-        if len(parsed_config.keys()) > 0:
+        if len(parsed_user_config.keys()) > 0:
             wandb.termwarn(
-                "Sweep params loaded from resumed sweep, ignoring provided keys"
+                "Sweep params loaded from resumed sweep, ignoring provided config"
             )
-    else:
-        parsed_sweep_config = parsed_config
 
-    # validate job existence, add :latest alias if not specified
-    job = parsed_sweep_config.get("job")
-    if job:
-        if not isinstance(job, str) or ":" not in job:
-            wandb.termerror("Job must be a string of format <job_string>:<alias>")
-            return False
+        # Is the resuming scheduler executing from a job? grab it to confirm
+        # the inputted scheduler job matches the resumed scheduler job
+        raw_scheduler_args = found.get("scheduler") or "{}"
+        prev_sweep_scheduler = json.loads(raw_scheduler_args)
+        prev_sweep_run_spec = json.loads(prev_sweep_scheduler.get("run_spec", "{}"))
+        if prev_sweep_run_spec.get("job"):
+            if scheduler_args and not scheduler_job:
+                wandb.termwarn(
+                    f"Resuming a launch sweep that was previously run from a scheduler job, but no scheduler job found in config. Defaulting to previous scheduler job: {prev_sweep_run_spec['job']}"
+                )
+                scheduler_job = prev_sweep_run_spec["job"]
 
-        try:
-            public_api = PublicApi()
-            public_api.artifact(parsed_sweep_config["job"], type="job")
-        except Exception as e:
-            wandb.termerror(f"Failed to load job. Error: {e}")
-            return False
+            if scheduler_job and scheduler_job != prev_sweep_run_spec["job"]:
+                wandb.termerror(
+                    f"Resuming a launch sweep with a different scheduler job is not supported. Loaded from sweep: {prev_sweep_run_spec['job']}, Provided in config: {scheduler_job}"
+                )
+                return False
 
+        # grab the queue from previously run scheduler if not specified
+        if not queue and prev_sweep_run_spec.get("overrides", {}).get(
+            "run_config", {}
+        ).get("sweep_args", {}).get("queue"):
+            queue = prev_sweep_run_spec["overrides"]["run_config"]["sweep_args"][
+                "queue"
+            ]
+
+    if not queue:
+        wandb.termerror(
+            "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in the config"
+        )
+        return
+
+    entrypoint = Scheduler.ENTRYPOINT if not scheduler_job else None
     args = sweep_utils.construct_scheduler_args(
-        sweep_config=parsed_sweep_config,
+        return_job=scheduler_job is not None,
+        sweep_config=sweep_config,
         queue=queue,
         project=project,
         author=entity,
     )
     if not args:
-        # error already logged
         return
 
-    overrides = {
-        "overrides": {
-            "run_config": {
-                "scheduler": scheduler_args,
-                "launch": launch_args,
-            },
-            "args": args,
-        }
-    }
+    # validate training job existence
+    if not sweep_utils.check_job_exists(PublicApi(), sweep_config.get("job")):
+        return False
+
+    # validate scheduler job existence, if present
+    if not sweep_utils.check_job_exists(PublicApi(), scheduler_job):
+        return False
+
+    # Set run overrides for the Scheduler
+    overrides = {"run_config": {}}
+    if launch_args:
+        overrides["run_config"]["launch"] = launch_args
+    if scheduler_args:
+        overrides["run_config"]["scheduler"] = scheduler_args
+    if settings:
+        overrides["run_config"]["settings"] = settings
+
+    if scheduler_job:
+        overrides["run_config"]["sweep_args"] = args
+    else:
+        overrides["args"] = args
+
+    # set name of scheduler
+    prefix = "sweep" if scheduler_job else "wandb"
+    name = f"{prefix}-scheduler-WANDB_SWEEP_ID"
+    if scheduler_args.get("name"):
+        name = scheduler_args["name"]
 
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
         api=api,
-        name="Scheduler.WANDB_SWEEP_ID",
+        name=name,
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
         resource=scheduler_args.get("resource", "local-process"),
-        entry_point=Scheduler.ENTRYPOINT,
+        entry_point=entrypoint,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
-        job=None,
+        job=scheduler_job,
         version=None,
-        launch_config=overrides,
-        run_id=None,
+        launch_config={"overrides": overrides},
+        run_id="WANDB_SWEEP_ID",  # scheduler inits run with sweep_id=run_id
         author=None,  # author gets passed into scheduler override args
     )
     launch_scheduler_with_queue = json.dumps(
@@ -1044,7 +1093,7 @@ def launch_sweep(
     )
 
     sweep_id, warnings = api.upsert_sweep(
-        parsed_sweep_config,
+        sweep_config,
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,  # if resuming
@@ -1052,7 +1101,6 @@ def launch_sweep(
         state="PENDING",
     )
     sweep_utils.handle_sweep_config_violations(warnings)
-
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{'Resumed' if resume_id else 'Created'} sweep with ID: {styled_id}")
@@ -1181,6 +1229,7 @@ def launch_sweep(
     "--project-queue",
     "-pq",
     default=None,
+    hidden=True,
     help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
 )
 @display_error
@@ -1452,7 +1501,8 @@ def scheduler(
                 _args = int(_args)
             kwargs[_key] = _args
     try:
-        _scheduler = load_scheduler("sweep")(
+        sweep_type = kwargs.get("sweep_type", "wandb")
+        _scheduler = load_scheduler(scheduler_type=sweep_type)(
             api,
             sweep_id=sweep_id,
             **kwargs,
