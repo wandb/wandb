@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import string
 
@@ -39,7 +40,7 @@ def test_build_repo_job(runner):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
-def test_build_repo_notebook_job(runner, tmp_path):
+def test_build_repo_notebook_job(runner, tmp_path, mocker):
     remote_name = str_of_length(129)
     metadata = {
         "git": {"remote": remote_name, "commit": "testtestcommit"},
@@ -48,6 +49,15 @@ def test_build_repo_notebook_job(runner, tmp_path):
         "python": "3.7",
         "root": "test",
     }
+
+    orig_os_path_exists = os.path.exists
+
+    def exists(path):
+        if "test.ipynb" in path:
+            return True
+        return orig_os_path_exists(path)
+
+    mocker.patch("os.path.exists", side_effect=exists)
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
             f.write("numpy==1.19.0")
@@ -103,13 +113,21 @@ def test_build_artifact_job(runner):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
-def test_build_artifact_notebook_job(runner, tmp_path):
+def test_build_artifact_notebook_job(runner, tmp_path, mocker):
     metadata = {
-        "program": "blah/test.py",
+        "program": "blah/test.ipynb",
         "args": ["--test", "test"],
         "python": "3.7",
     }
     artifact_name = str_of_length(129)
+    orig_os_path_exists = os.path.exists
+
+    def exists(path):
+        if "test.ipynb" in path:
+            return True
+        return orig_os_path_exists(path)
+
+    mocker.patch("os.path.exists", side_effect=exists)
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
             f.write("numpy==1.19.0")
