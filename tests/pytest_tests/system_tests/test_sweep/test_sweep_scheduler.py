@@ -20,7 +20,7 @@ from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
 
 
 def test_sweep_scheduler_load():
-    _scheduler = load_scheduler("sweep")
+    _scheduler = load_scheduler("wandb")
     assert _scheduler == SweepScheduler
     with pytest.raises(SchedulerError):
         load_scheduler("unknown")
@@ -627,6 +627,7 @@ def test_launch_sweep_scheduler_try_executable_works(
         entity=user,
         project=_project,
         num_workers=4,
+        polling_sleep=0,
         job=job_name,
     )
 
@@ -692,6 +693,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
     project = "test"
 
     args = construct_scheduler_args(
+        return_job=False,
         sweep_config=sweep_config,
         queue=queue,
         project=project,
@@ -702,14 +704,14 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         "--queue",
         f"{queue!r}",
         "--project",
-        project,
+        f"{project!r}",
         "--sweep_type",
-        "sweep",
+        "wandb",
         "--author",
-        "author",
+        "'author'",
     ]
     if sweep_config.get("job"):
-        gold_args += ["--job", "job:v9"]
+        gold_args += ["--job", "'job:v9'"]
     else:
         gold_args += ["--image_uri", "image:latest"]
 
@@ -731,7 +733,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
 def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish"]),
+        lambda _x: Mock(["finish", "config"]),
     )
 
     def mock_launch_add(*args, **kwargs):
@@ -778,7 +780,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
             [
                 {
                     "type": "run",
-                    "run_id": "mock-run-id-1",
+                    "run_id": "mock-run-id-199",
                     "args": {"foo_arg": {"value": 1}},
                     "program": "train.py",
                 }
@@ -826,18 +828,19 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
     )
     _project = "test-project"
     _image_uri = "some-image-wow"
-    config = VALID_SWEEP_CONFIGS_MINIMAL[0]
+    config = VALID_SWEEP_CONFIGS_MINIMAL[1]
     config["run_cap"] = 5
+    config["name"] = "different-sweep-34"
     sweep_id = wandb.sweep(config, entity=user, project=_project)
 
     # new sweep scheduler
     _scheduler = SweepScheduler(
         api,
         sweep_id=sweep_id,
-        sweep_type="sweep",
+        sweep_type="wandb",
         entity=user,
         project=_project,
-        polling_sleep=0,
+        polling_sleep=0.1,
         image_uri=_image_uri,
         num_workers=1,
     )
@@ -858,7 +861,7 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
             [
                 {
                     "type": "run",
-                    "run_id": "mock-run-id-1",
+                    "run_id": "mock-run-id-199",
                     "args": {"foo_arg": {"value": 1}},
                     "program": "train.py",
                 }
@@ -872,10 +875,10 @@ def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
         api,
         sweep_id=sweep_id,
         run_id=sweep_id,  # resuming from previous sweep
-        sweep_type="sweep",
+        sweep_type="wandb",
         entity=user,
         project=_project,
-        polling_sleep=0,
+        polling_sleep=0.1,
         image_uri=_image_uri,
         num_workers=1,
     )
