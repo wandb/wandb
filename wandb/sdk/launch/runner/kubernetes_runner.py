@@ -453,6 +453,7 @@ class KubernetesRunner(AbstractRunner):
                 raise LaunchError(
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
+            launch_project.fill_macros(launch_project.docker_image)
             # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = launch_project.docker_image
             # TODO: handle secret pulling image from registry
@@ -464,6 +465,7 @@ class KubernetesRunner(AbstractRunner):
             assert entry_point is not None
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
+            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             if not builder.registry:
