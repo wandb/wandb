@@ -8,7 +8,7 @@ import time
 import traceback
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -250,11 +250,19 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def finish_thread_id(self, thread_id: int, exception: Union[Exception, LaunchDockerError]) -> None:
+    def finish_thread_id(
+        self,
+        thread_id: int,
+        exception: Optional[Union[Exception, LaunchDockerError]] = None,
+    ) -> None:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
-        if exception is not None:
-            self.fail_run_queue_item(job_and_run_status.run_queue_item_id, exception.message, job_and_run_status.err_stage)
+        if (
+            not job_and_run_status.run_id
+            or not job_and_run_status.project
+            or exception is not None
+        ):
+            self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         elif job_and_run_status.entity != self._entity:
             _logger.info(
                 "Skipping check for completed run status because run is on a different entity than agent"

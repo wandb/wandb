@@ -633,7 +633,7 @@ class Table(Media):
                 }
             )
 
-        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]

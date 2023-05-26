@@ -6,6 +6,7 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
     CrdSubmittedRun,
     KubernetesRunner,
+    add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
 )
@@ -68,6 +69,26 @@ def test_add_label(manifest):
         "app": "wandb",
         "test_label": "test_value",
     }
+
+
+def test_add_entrypoint_args_overrides(manifest):
+    """Test that we add entrypoint args to pod specs correctly."""
+    overrides = {"args": ["--test_arg", "test_value"], "command": ["test_entry"]}
+    add_entrypoint_args_overrides(manifest, overrides)
+    assert manifest["spec"]["template"]["spec"]["containers"][0]["args"] == [
+        "--test_arg",
+        "test_value",
+    ]
+    assert manifest["spec"]["template"]["spec"]["containers"][1]["args"] == [
+        "--test_arg",
+        "test_value",
+    ]
+    assert manifest["spec"]["template"]["spec"]["containers"][0]["command"] == [
+        "test_entry"
+    ]
+    assert manifest["spec"]["template"]["spec"]["containers"][1]["command"] == [
+        "test_entry"
+    ]
 
 
 @pytest.fixture
@@ -153,7 +174,10 @@ def test_launch_custom(mocker, test_settings, volcano_spec):
         target_project="test_project",
         resource_args={"kubernetes": volcano_spec},
         launch_spec={},
-        overrides={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
         resource="kubernetes",
         api=None,
         git_info={},

@@ -47,6 +47,9 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
+from wandb.sdk.artifacts.lazy_artifact import LazyArtifact
+from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -64,10 +67,8 @@ from wandb.util import (
 )
 from wandb.viz import CustomChart, Visualize, custom_chart
 
-from . import wandb_artifacts, wandb_config, wandb_metric, wandb_summary
+from . import wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry
-from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.artifacts import ArtifactNotLoggedError
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
@@ -88,7 +89,6 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
@@ -108,8 +108,6 @@ if TYPE_CHECKING:
         SampledHistoryResponse,
     )
 
-    from .data_types.base_types.wb_value import WBValue
-    from .interface.artifacts import ArtifactManifest, ArtifactManifestEntry
     from .interface.interface import FilesDict, PolicyName
     from .lib.printer import PrinterJupyter, PrinterTerm
     from .wandb_alerts import AlertLevel
@@ -1062,7 +1060,7 @@ class Run:
         name: Optional[str] = None,
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
-    ) -> Optional[Artifact]:
+    ) -> Optional[LocalArtifact]:
         """Save the current state of your code to a W&B Artifact.
 
         By default, it walks the current directory and logs all files that end with `.py`.
@@ -1287,15 +1285,15 @@ class Run:
             self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
-        self, key: str, val: Union[str, Artifact, dict]
-    ) -> Union[Artifact, public.Artifact]:
+        self, key: str, val: Union[str, LocalArtifact, dict]
+    ) -> Union[LocalArtifact, PublicArtifact]:
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
         # in wandb.util.artifact_to_json
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = public.Artifact.from_id(val["id"], public_api.client)
+            artifact = PublicArtifact.from_id(val["id"], public_api.client)
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
@@ -1308,12 +1306,12 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = public.Artifact.from_id(artifact_string, public_api._client)
+                artifact = PublicArtifact.from_id(artifact_string, public_api._client)
             else:
                 artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
             # different instances of wandb. simplest way to do that is
-            # likely to convert the retrieved public.Artifact to a wandb.Artifact
+            # likely to convert the retrieved PublicArtifact to a LocalArtifact
 
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_object(val):
@@ -2272,7 +2270,7 @@ class Run:
         source_dict: "JobSourceDict",
         installed_packages_list: List[str],
         patch_path: Optional[os.PathLike] = None,
-    ) -> "Artifact":
+    ) -> "LocalArtifact":
         job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
@@ -2290,7 +2288,7 @@ class Run:
         installed_packages_list: List[str],
         docker_image_name: Optional[str] = None,
         args: Optional[List[str]] = None,
-    ) -> Optional["Artifact"]:
+    ) -> Optional["LocalArtifact"]:
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
         if not docker_image_name:
@@ -2314,7 +2312,7 @@ class Run:
 
     def _log_job_artifact_with_image(
         self, docker_image_name: str, args: Optional[List[str]] = None
-    ) -> Artifact:
+    ) -> LocalArtifact:
         packages, in_types, out_types = self._make_job_source_reqs()
         job_artifact = self._create_image_job(
             in_types,
@@ -2590,7 +2588,7 @@ class Run:
     @_run_decorator._attach
     def link_artifact(
         self,
-        artifact: Union[public.Artifact, Artifact],
+        artifact: Union[PublicArtifact, LocalArtifact],
         target_path: str,
         aliases: Optional[List[str]] = None,
     ) -> None:
@@ -2615,7 +2613,7 @@ class Run:
             aliases = []
 
         if self._backend and self._backend.interface:
-            if isinstance(artifact, Artifact) and not artifact._logged_artifact:
+            if isinstance(artifact, LocalArtifact) and not artifact._logged_artifact:
                 artifact = self._log_artifact(artifact)
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
@@ -2634,11 +2632,11 @@ class Run:
     @_run_decorator._attach
     def use_artifact(
         self,
-        artifact_or_name: Union[str, public.Artifact, Artifact],
+        artifact_or_name: Union[str, PublicArtifact, LocalArtifact],
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
         use_as: Optional[str] = None,
-    ) -> Union[public.Artifact, Artifact]:
+    ) -> Union[PublicArtifact, LocalArtifact]:
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2716,13 +2714,13 @@ class Run:
                 )
                 artifact.wait()
                 artifact._use_as = use_as or artifact.name
-            elif isinstance(artifact, public.Artifact):
+            elif isinstance(artifact, PublicArtifact):
                 if (
                     self._launch_artifact_mapping
                     and artifact.name in self._launch_artifact_mapping.keys()
                 ):
                     wandb.termwarn(
-                        "Swapping artifacts is not supported when using an instance of `public.Artifact`. "
+                        "Swapping artifacts is not supported when using an instance of `PublicArtifact`. "
                         f"Using {artifact.name}."
                     )
                 artifact._use_as = use_as or artifact.name
@@ -2742,11 +2740,11 @@ class Run:
     @_run_decorator._attach
     def log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
+        artifact_or_path: Union[LocalArtifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-    ) -> wandb_artifacts.Artifact:
+    ) -> LocalArtifact:
         """Declare an artifact as an output of a run.
 
         Arguments:
@@ -2779,12 +2777,12 @@ class Run:
     @_run_decorator._attach
     def upsert_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[LocalArtifact, str],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
-    ) -> wandb_artifacts.Artifact:
+    ) -> LocalArtifact:
         """Declare (or append to) a non-finalized artifact as output of a run.
 
         Note that you must call run.finish_artifact() to finalize the artifact.
@@ -2833,12 +2831,12 @@ class Run:
     @_run_decorator._attach
     def finish_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[LocalArtifact, str],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
-    ) -> wandb_artifacts.Artifact:
+    ) -> LocalArtifact:
         """Finishes a non-finalized artifact as output of a run.
 
         Subsequent "upserts" with the same distributed ID will result in a new version.
@@ -2885,7 +2883,7 @@ class Run:
 
     def _log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
+        artifact_or_path: Union[LocalArtifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
@@ -2893,7 +2891,7 @@ class Run:
         finalize: bool = True,
         is_user_created: bool = False,
         use_after_commit: bool = False,
-    ) -> wandb_artifacts.Artifact:
+    ) -> LocalArtifact:
         api = internal.Api()
         if api.settings().get("anonymous") == "true":
             wandb.termwarn(
@@ -2922,7 +2920,7 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
+                artifact._logged_artifact = LazyArtifact(self._public_api(), future)
             else:
                 self._backend.interface.publish_artifact(
                     self,
@@ -2956,7 +2954,7 @@ class Run:
         if not self._settings._offline:
             try:
                 public_api = self._public_api()
-                expected_type = public.Artifact.expected_type(
+                expected_type = PublicArtifact.expected_type(
                     public_api.client,
                     artifact.name,
                     public_api.settings["entity"],
@@ -2975,11 +2973,11 @@ class Run:
 
     def _prepare_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
+        artifact_or_path: Union[LocalArtifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-    ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
+    ) -> Tuple[LocalArtifact, List[str]]:
         if isinstance(artifact_or_path, (str, os.PathLike)):
             name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
             artifact = wandb.Artifact(name, type or "unspecified")
@@ -3702,160 +3700,3 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
-
-
-class InvalidArtifact:
-    """An "artifact" that raises an error when any properties are accessed."""
-
-    def __init__(self, base_artifact: "ArtifactInterface"):
-        super().__setattr__("base_artifact", base_artifact)
-
-    def __getattr__(self, __name: str) -> Any:
-        raise ArtifactNotLoggedError(artifact=self.base_artifact, attr=__name)
-
-    def __setattr__(self, __name: str, __value: Any) -> None:
-        raise ArtifactNotLoggedError(artifact=self.base_artifact, attr=__name)
-
-    def __bool__(self) -> bool:
-        return False
-
-
-class WaitTimeoutError(errors.Error):
-    """Raised when wait() timeout occurs before process is finished."""
-
-
-class _LazyArtifact(ArtifactInterface):
-    _api: PublicApi
-    _instance: Union[ArtifactInterface, InvalidArtifact]
-    _future: Any
-
-    def __init__(self, api: PublicApi, future: Any):
-        self._api = api
-        self._instance = InvalidArtifact(self)
-        self._future = future
-
-    def __getattr__(self, item: str) -> Any:
-        return getattr(self._instance, item)
-
-    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
-        if not self._instance:
-            future_get = self._future.get(timeout)
-            if not future_get:
-                raise WaitTimeoutError(
-                    "Artifact upload wait timed out, failed to fetch Artifact response"
-                )
-            resp = future_get.response.log_artifact_response
-            if resp.error_message:
-                raise ValueError(resp.error_message)
-            self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
-        assert isinstance(
-            self._instance, ArtifactInterface
-        ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
-            resp.artifact_id, self._api.client.app_url
-        )
-        return self._instance
-
-    @property
-    def id(self) -> Optional[str]:
-        return self._instance.id
-
-    @property
-    def source_version(self) -> Optional[str]:
-        return self._instance.source_version
-
-    @property
-    def version(self) -> str:
-        return self._instance.version
-
-    @property
-    def name(self) -> str:
-        return self._instance.name
-
-    @property
-    def full_name(self) -> str:
-        return self._instance.full_name
-
-    @property
-    def type(self) -> str:
-        return self._instance.type
-
-    @property
-    def entity(self) -> str:
-        return self._instance.entity
-
-    @property
-    def project(self) -> str:
-        return self._instance.project
-
-    @property
-    def manifest(self) -> "ArtifactManifest":
-        return self._instance.manifest
-
-    @property
-    def digest(self) -> str:
-        return self._instance.digest
-
-    @property
-    def state(self) -> str:
-        return self._instance.state
-
-    @property
-    def size(self) -> int:
-        return self._instance.size
-
-    @property
-    def commit_hash(self) -> str:
-        return self._instance.commit_hash
-
-    @property
-    def description(self) -> Optional[str]:
-        return self._instance.description
-
-    @description.setter
-    def description(self, desc: Optional[str]) -> None:
-        self._instance.description = desc
-
-    @property
-    def metadata(self) -> dict:
-        return self._instance.metadata
-
-    @metadata.setter
-    def metadata(self, metadata: dict) -> None:
-        self._instance.metadata = metadata
-
-    @property
-    def aliases(self) -> List[str]:
-        return self._instance.aliases
-
-    @aliases.setter
-    def aliases(self, aliases: List[str]) -> None:
-        self._instance.aliases = aliases
-
-    def used_by(self) -> List["wandb.apis.public.Run"]:
-        return self._instance.used_by()
-
-    def logged_by(self) -> "wandb.apis.public.Run":
-        return self._instance.logged_by()
-
-    def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
-        return self._instance.get_path(name)
-
-    def get(self, name: str) -> "WBValue":
-        return self._instance.get(name)
-
-    def download(
-        self, root: Optional[str] = None, recursive: bool = False
-    ) -> FilePathStr:
-        return self._instance.download(root, recursive)
-
-    def checkout(self, root: Optional[str] = None) -> str:
-        return self._instance.checkout(root)
-
-    def verify(self, root: Optional[str] = None) -> Any:
-        return self._instance.verify(root)
-
-    def save(self) -> None:
-        self._instance.save()
-
-    def delete(self) -> None:
-        self._instance.delete()

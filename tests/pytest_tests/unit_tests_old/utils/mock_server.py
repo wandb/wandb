@@ -117,6 +117,10 @@ def mock_server(mocker):
     # From previous wandb_gql transport library.
     mocker.patch("wandb_gql.transport.requests.requests", mock)
 
+    mocker.patch("wandb.sdk.artifacts.public_artifact.requests", mock)
+    mocker.patch(
+        "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.requests", mock
+    )
     mocker.patch("wandb.wandb_sdk.lib.gql_request.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
@@ -124,7 +128,6 @@ def mock_server(mocker):
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
-    mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
     mocker.patch("azure.core.pipeline.transport._requests_basic.requests", mock)
     print("Patched requests everywhere", os.getpid())
     return mock
