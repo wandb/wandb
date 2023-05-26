@@ -33,7 +33,7 @@ jobs:
     - name: Run script to get new title
       id: get_new_title
       run: |
-        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py ${{ github.event.number }})
+        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py ${{ github.event.issue.number }})
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
@@ -56,7 +56,7 @@ jobs:
       run: |
         curl -L \
           -X POST \
-          https://api.github.com/repos/wandb/wandb/pulls/${{ github.event.number }} \
+          https://api.github.com/repos/wandb/wandb/pulls/${{ github.event.issue.number }} \
           -H "Accept: application/vnd.github+json" \
           -H "Authorization: Bearer $GITHUB_TOKEN"\
           -H "X-GitHub-Api-Version: 2022-11-28" \
