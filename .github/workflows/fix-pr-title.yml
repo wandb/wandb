@@ -3,26 +3,12 @@ name: PR Title Bot
 on:
   issue_comment:
     types: [created]
-  workflow_dispatch:
-    inputs:
-      suggest-title:
-        description: 'Trigger the bot to suggest a new title'
-        required: true
-        type: boolean
-        default: false
-      fix-title:
-        description: 'Trigger the bot to fix the title'
-        required: true
-        type: boolean
-        default: false
 
 jobs:
   handle_pr_title:
     runs-on: ubuntu-latest
-#    if: github.event.issue.pull_request && (contains(github.event.comment.body, '/suggest-title') || contains(github.event.comment.body, '/fix-title'))
+    if: github.event.issue.pull_request && (contains(github.event.comment.body, '/suggest-title') || contains(github.event.comment.body, '/fix-title'))
     steps:
-#    - name: Print GitHub Event
-#      run: echo "${{ toJson(github.event) }}"
     - name: Checkout repository
       uses: actions/checkout@v3
 
@@ -37,7 +23,7 @@ jobs:
     - name: Get PR number
       id: get_pr_number
       run: |
-        issue_url=https://api.github.com/repos/wandb/wandb/issues/5617
+        issue_url="${{ github.event.comment.issue_url }}"
         pr_number="${issue_url##*/}"
         echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
 
