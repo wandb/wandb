@@ -1,7 +1,6 @@
 import json
 import multiprocessing
 import os
-import platform
 import sys
 from unittest import mock
 from unittest.mock import MagicMock
@@ -604,7 +603,7 @@ def test_run_in_launch_context_with_artifacts_api(
         assert arti_info["used_name"] == "old_name:v0"
         _, err = capsys.readouterr()
         assert (
-            "Swapping artifacts is not supported when using an instance of `public.Artifact`."
+            "Swapping artifacts is not supported when using an instance of `PublicArtifact`."
             in err
         )
 
