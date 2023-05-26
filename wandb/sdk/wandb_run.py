@@ -1094,6 +1094,7 @@ class Run:
         """
         if name is None:
             if self.settings._jupyter:
+                notebook_name = None
                 if self.settings.notebook_name:
                     notebook_name = self.settings.notebook_name
                 elif self.settings._jupyter_path:
