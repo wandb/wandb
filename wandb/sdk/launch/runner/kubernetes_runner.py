@@ -400,7 +400,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
+        builder: AbstractBuilder,
         namespace: str,
         core_api: "CoreV1Api",
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
@@ -449,6 +449,13 @@ class KubernetesRunner(AbstractRunner):
         secret = None
         entry_point = launch_project.get_single_entry_point()
         if launch_project.docker_image:
+            secret = maybe_create_imagepull_secret(
+                core_api, builder.registry, launch_project.run_id, namespace
+            )
+            if secret is not None:
+                pod_spec["imagePullSecrets"] = [
+                    {"name": f"regcred-{launch_project.run_id}"}
+                ]
             if len(containers) > 1:
                 raise LaunchError(
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
@@ -548,7 +555,7 @@ class KubernetesRunner(AbstractRunner):
             env_vars = get_env_vars_dict(launch_project, self._api)
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(launch_project.resource_args, env_vars)
-            # Crawl the resource arsg and add our labels to the pods. This is
+            # Crawl the resource args and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
             add_label_to_pods(
                 launch_project.resource_args, "wandb/run-id", launch_project.run_id
