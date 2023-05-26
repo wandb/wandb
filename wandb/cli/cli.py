@@ -977,12 +977,17 @@ def launch_sweep(
         if scheduler_job and not method:
             sweep_config["method"] = "custom"
         elif scheduler_job and method != "custom":
+            # TODO(gst): Check if using Anaconda2
             wandb.termwarn(
                 "Use 'method': 'custom' in the sweep config when using scheduler jobs, "
                 "or omit it entirely. For jobs using the wandb optimization engine (WandbScheduler), "
                 "set the method in the sweep config under scheduler.settings.method "
             )
-            settings['method'] = method
+            settings["method"] = method
+
+        if settings.get("method"):
+            # assume WandbScheduler, and user is using this right
+            sweep_config["method"] = method
 
     else:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
