@@ -34,12 +34,17 @@ jobs:
     - name: Install dependencies
       run: pip install pygithub openai
 
-    - name: Run script to get new title
-      id: get_new_title
+    - name: Get PR number
+      id: get_pr_number
       run: |
         issue_url=https://api.github.com/repos/wandb/wandb/issues/5617
         pr_number="${issue_url##*/}"
-        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py $(pr_number))
+        echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+
+    - name: Run script to get new title
+      id: get_new_title
+      run: |
+        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py ${{ steps.get_pr_number.outputs.pr_number }})
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
@@ -47,11 +52,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        issue_url=https://api.github.com/repos/wandb/wandb/issues/5617
-        pr_number="${issue_url##*/}"
         curl -L \
           -X POST \
-          https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/$(pr_number)/comments \
+          https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/${{ steps.get_pr_number.outputs.pr_number }}/comments \
           -H "Accept: application/vnd.github+json" \
           -H "Authorization: Bearer $GITHUB_TOKEN"\
           -H "X-GitHub-Api-Version: 2022-11-28" \
@@ -62,11 +65,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        issue_url="${{ github.event.comment.issue_url }}"
-        pr_number="${issue_url##*/}"
         curl -L \
           -X POST \
-          https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls/${{ github.event.number }} \
+          https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls/${{ steps.get_pr_number.outputs.pr_number }} \
           -H "Accept: application/vnd.github+json" \
           -H "Authorization: Bearer $GITHUB_TOKEN"\
           -H "X-GitHub-Api-Version: 2022-11-28" \
