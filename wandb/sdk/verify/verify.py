@@ -12,11 +12,11 @@ from pkg_resources import parse_version
 from wandb_gql import gql
 
 import wandb
+from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.lib import runid
 
 from ...apis.internal import Api
-from ...apis.public import Artifact as ArtifactAPI
-from ..wandb_artifacts import Artifact
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
@@ -224,7 +224,7 @@ def verify_manifest(
 
 
 def verify_digest(
-    downloaded: "ArtifactAPI", computed: "ArtifactAPI", fails_list: List[str]
+    downloaded: "PublicArtifact", computed: "PublicArtifact", fails_list: List[str]
 ) -> None:
     if downloaded.digest != computed.digest:
         fails_list.append(
@@ -234,7 +234,7 @@ def verify_digest(
 
 def artifact_with_path_or_paths(
     name: str, verify_dir: Optional[str] = None, singular: bool = False
-) -> "Artifact":
+) -> "LocalArtifact":
     art = wandb.Artifact(type="artsy", name=name)
     # internal file
     with open("verify_int_test.txt", "w") as f:
@@ -262,13 +262,13 @@ def artifact_with_path_or_paths(
 
 
 def log_use_download_artifact(
-    artifact: "Artifact",
+    artifact: "LocalArtifact",
     alias: str,
     name: str,
     download_dir: str,
     failed_test_strings: List[str],
     add_extra_file: bool,
-) -> Tuple[bool, Optional["ArtifactAPI"], List[str]]:
+) -> Tuple[bool, Optional["PublicArtifact"], List[str]]:
     with wandb.init(
         id=nice_id("log_artifact"),
         reinit=True,
