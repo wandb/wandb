@@ -1093,10 +1093,19 @@ class Run:
             An `Artifact` object if code was logged
         """
         if name is None:
-            name_string = wandb.util.make_artifact_name_safe(
-                f"{self._project}-{self._settings.program_relpath}"
-            )
-            name = f"source-{name_string}"
+            if self.settings._jupyter:
+                notebook_name = None
+                if self.settings.notebook_name:
+                    notebook_name = self.settings.notebook_name
+                elif self.settings._jupyter_path:
+                    if self.settings._jupyter_path.startswith("fileId="):
+                        notebook_name = self.settings._jupyter_name
+                    else:
+                        notebook_name = self.settings._jupyter_path
+                name_string = f"{self._project}-{notebook_name}"
+            else:
+                name_string = f"{self._project}-{self._settings.program_relpath}"
+            name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
