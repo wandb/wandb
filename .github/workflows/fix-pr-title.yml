@@ -35,7 +35,7 @@ jobs:
       run: |
         issue_url=https://api.github.com/repos/wandb/wandb/issues/5617
         pr_number="${issue_url##*/}"
-        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py ${{ pr_number }})
+        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py $(pr_number))
         echo "title=$title"
 
     - name: Install dependencies
@@ -46,7 +46,7 @@ jobs:
       run: |
         issue_url="${{ github.event.comment.issue_url }}"
         pr_number="${issue_url##*/}"
-        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py ${{ pr_number }})
+        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py $(pr_number))
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title
@@ -58,7 +58,7 @@ jobs:
         pr_number="${issue_url##*/}"
         curl -L \
           -X POST \
-          https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/${{ pr_number }}/comments \
+          https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/$(pr_number)/comments \
           -H "Accept: application/vnd.github+json" \
           -H "Authorization: Bearer $GITHUB_TOKEN"\
           -H "X-GitHub-Api-Version: 2022-11-28" \
