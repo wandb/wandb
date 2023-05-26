@@ -18,7 +18,8 @@ from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+
     from ..wandb_run import Run as LocalRun
 
 
