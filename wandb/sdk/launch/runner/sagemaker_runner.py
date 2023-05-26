@@ -153,7 +153,6 @@ class SageMakerRunner(AbstractRunner):
 
         if launch_project.docker_image:
             image = launch_project.docker_image
-            launch_project.fill_macros(image)
         else:
             assert entry_point is not None
             assert builder is not None
@@ -163,9 +162,8 @@ class SageMakerRunner(AbstractRunner):
                 launch_project,
                 entry_point,
             )
-            launch_project.fill_macros(image)
             _logger.info(f"Docker image built with uri {image}")
-
+        launch_project.fill_macros(image)
         _logger.info("Connecting to sagemaker client")
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
