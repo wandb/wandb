@@ -1188,7 +1188,7 @@ def test_launch_url_and_job(
         launch.run(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
-            job="test-job:v0",
+            job="test/test/test-job:v0",
             project="new-test",
         )
     assert "Must specify exactly one of uri, job or image" in str(e_info)
