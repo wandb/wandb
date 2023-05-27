@@ -163,7 +163,7 @@ class SageMakerRunner(AbstractRunner):
                 entry_point,
             )
             _logger.info(f"Docker image built with uri {image}")
-
+        launch_project.fill_macros(image)
         _logger.info("Connecting to sagemaker client")
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args

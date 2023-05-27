@@ -137,7 +137,7 @@ class VertexRunner(AbstractRunner):
                 launch_project,
                 entry_point,
             )
-
+        launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 
