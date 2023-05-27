@@ -15,7 +15,6 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
@@ -28,6 +27,7 @@ FAILED_PACKAGES_REGEX = re.compile(
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 class LaunchError(Error):
@@ -666,7 +666,7 @@ def make_name_dns_safe(name: str) -> str:
 
 
 def warn_failed_packages_from_build_logs(
-    log: str, image_uri: str, api: Api, job_tracker: Optional[JobAndRunStatusTracker]
+    log: str, image_uri: str, api: Api, job_tracker: Optional["JobAndRunStatusTracker"]
 ) -> None:
     match = FAILED_PACKAGES_REGEX.search(log)
     if True:
