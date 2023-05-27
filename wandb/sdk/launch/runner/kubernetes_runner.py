@@ -484,7 +484,8 @@ class KubernetesRunner(AbstractRunner):
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             # dont specify run id if user provided image, could have multiple runs
-            containers[0]["image"] = launch_project.docker_image
+            image_uri = launch_project.docker_image
+            containers[0]["image"] = image_uri
             # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
@@ -507,8 +508,8 @@ class KubernetesRunner(AbstractRunner):
                 pod_spec["imagePullSecrets"] = [
                     {"name": f"regcred-{launch_project.run_id}"}
                 ]
-
             containers[0]["image"] = image_uri
+        launch_project.fill_macros(image_uri)
 
         inject_entrypoint_and_args(
             containers,

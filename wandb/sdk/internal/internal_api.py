@@ -2519,7 +2519,8 @@ class Api:
         config = dict(config)
 
         if "parameters" not in config:
-            raise ValueError("sweep config must have a parameters section")
+            # still shows an anaconda warning, but doesn't error
+            return config
 
         for parameter_name in config["parameters"]:
             parameter = config["parameters"][parameter_name]

@@ -141,6 +141,7 @@ class VertexRunner(AbstractRunner):
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point, job_tracker)
 
+        launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 

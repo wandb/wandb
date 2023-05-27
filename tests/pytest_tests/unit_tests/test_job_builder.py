@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import string
 
@@ -25,7 +26,9 @@ def test_build_repo_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False})
+        settings = SettingsStatic(
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+        )
         job_builder = JobBuilder(settings)
         artifact = job_builder.build()
         assert artifact is not None
@@ -35,6 +38,50 @@ def test_build_repo_job(runner):
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
+
+
+def test_build_repo_notebook_job(runner, tmp_path, mocker):
+    remote_name = str_of_length(129)
+    metadata = {
+        "git": {"remote": remote_name, "commit": "testtestcommit"},
+        "program": "blah/test.ipynb",
+        "args": ["--test", "test"],
+        "python": "3.7",
+        "root": "test",
+    }
+
+    orig_os_path_exists = os.path.exists
+
+    def exists(path):
+        if "test.ipynb" in path:
+            return True
+        return orig_os_path_exists(path)
+
+    mocker.patch("os.path.exists", side_effect=exists)
+    with runner.isolated_filesystem():
+        with open("requirements.txt", "w") as f:
+            f.write("numpy==1.19.0")
+            f.write("wandb")
+        with open("wandb-metadata.json", "w") as f:
+            f.write(json.dumps(metadata))
+        settings = SettingsStatic(
+            {
+                "files_dir": "./",
+                "disable_job_creation": False,
+                "_jupyter": True,
+                "_jupyter_root": tmp_path,
+            }
+        )
+        job_builder = JobBuilder(settings)
+        artifact = job_builder.build()
+        assert artifact is not None
+        assert artifact.name == make_artifact_name_safe(
+            f"job-{remote_name}_blah_test.ipynb"
+        )
+        assert artifact.type == "job"
+        assert artifact._manifest.entries["wandb-job.json"]
+        assert artifact._manifest.entries["requirements.frozen.txt"]
+        assert job_builder._is_notebook_run() is True
 
 
 def test_build_artifact_job(runner):
@@ -50,7 +97,9 @@ def test_build_artifact_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False})
+        settings = SettingsStatic(
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+        )
         job_builder = JobBuilder(settings)
         job_builder._logged_code_artifact = {
             "id": "testtest",
@@ -64,10 +113,53 @@ def test_build_artifact_job(runner):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
+def test_build_artifact_notebook_job(runner, tmp_path, mocker):
+    metadata = {
+        "program": "blah/test.ipynb",
+        "args": ["--test", "test"],
+        "python": "3.7",
+    }
+    artifact_name = str_of_length(129)
+    orig_os_path_exists = os.path.exists
+
+    def exists(path):
+        if "test.ipynb" in path:
+            return True
+        return orig_os_path_exists(path)
+
+    mocker.patch("os.path.exists", side_effect=exists)
+    with runner.isolated_filesystem():
+        with open("requirements.txt", "w") as f:
+            f.write("numpy==1.19.0")
+            f.write("wandb")
+        with open("wandb-metadata.json", "w") as f:
+            f.write(json.dumps(metadata))
+        settings = SettingsStatic(
+            {
+                "files_dir": "./",
+                "disable_job_creation": False,
+                "_jupyter": True,
+                "_jupyter_root": tmp_path,
+            }
+        )
+        job_builder = JobBuilder(settings)
+        job_builder._logged_code_artifact = {
+            "id": "testtest",
+            "name": artifact_name,
+        }
+        artifact = job_builder.build()
+        assert artifact is not None
+        assert artifact.name == make_artifact_name_safe(f"job-{artifact_name}")
+        assert artifact.type == "job"
+        assert artifact._manifest.entries["wandb-job.json"]
+        assert artifact._manifest.entries["requirements.frozen.txt"]
+        assert job_builder._is_notebook_run() is True
+
+
 def test_build_image_job(runner):
     image_name = str_of_length(129)
     metadata = {
-        "codePath": "blah/test.py",
+        "program": "blah/test.py",
         "args": ["--test", "test"],
         "python": "3.7",
         "docker": image_name,
@@ -78,7 +170,9 @@ def test_build_image_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False})
+        settings = SettingsStatic(
+            {"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+        )
         job_builder = JobBuilder(settings)
         artifact = job_builder.build()
         assert artifact is not None

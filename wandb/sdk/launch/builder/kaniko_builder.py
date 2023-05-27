@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import os
 import tarfile
 import tempfile
 import time
@@ -47,6 +48,8 @@ from kubernetes import client  # noqa: E402
 _logger = logging.getLogger(__name__)
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
+
+SERVICE_ACCOUNT_NAME = os.environ.get("WANDB_LAUNCH_SERVICE_ACCOUNT_NAME", "default")
 
 
 def _wait_for_completion(
@@ -410,6 +413,7 @@ class KanikoBuilder(AbstractBuilder):
                 active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,
                 containers=[container],
                 volumes=volumes,
+                service_account_name=SERVICE_ACCOUNT_NAME,
             ),
         )
         # Create the specification of job
