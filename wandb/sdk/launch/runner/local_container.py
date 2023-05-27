@@ -105,7 +105,7 @@ class LocalContainerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: Optional[AbstractBuilder],
-        job_tracker: Optional[JobAndRunStatusTracker],
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:
         docker_args = self._populate_docker_args(launch_project)
         entry_point = launch_project.get_single_entry_point()

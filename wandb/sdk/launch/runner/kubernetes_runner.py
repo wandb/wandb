@@ -539,7 +539,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
-        job_tracker: Optional[JobAndRunStatusTracker],
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 

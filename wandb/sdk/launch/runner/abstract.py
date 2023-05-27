@@ -159,7 +159,7 @@ class AbstractRunner(ABC):
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
-        job_tracker: Optional["JobAndRunStatusTracker"],
+        job_tracker: Optional["JobAndRunStatusTracker"] = None,
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 
