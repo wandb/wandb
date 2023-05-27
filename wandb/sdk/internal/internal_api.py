@@ -228,6 +228,7 @@ class Api:
         ) or wandb.sdk.wandb_settings._str_as_json(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
         )
+        auth_override = extra_http_headers.get("Authorization")
 
         self.client = Client(
             transport=GraphQLSession(
@@ -241,7 +242,7 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key or ""),
+                auth=("api", self.api_key or "") if auth_override is None else None,
                 url=f"{self.settings('base_url')}/graphql",
             )
         )
