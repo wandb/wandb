@@ -4,7 +4,7 @@ import (
 	"C"
 	// "os"
 	// "strings"
-	"github.com/wandb/wandb/nexus/server"
+	"github.com/wandb/wandb/nexus/pkg/server"
 )
 
 //export nexus_recv

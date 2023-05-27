@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall/js"
 
-	"github.com/wandb/wandb/nexus/server"
+	"github.com/wandb/wandb/nexus/pkg/server"
 )
 
 var globApiKey string

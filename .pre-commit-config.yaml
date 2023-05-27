@@ -1,3 +1,5 @@
+default_stages:
+  - pre-push
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
@@ -6,3 +8,31 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: 'go fmt'
+        entry: nexus/scripts/pre-commit-hooks/run-go-fmt.sh
+        files: '\.go$'
+        language: 'script'
+        description: "Runs `gofmt`, requires golang"
+      - id: go-imports
+        name: 'go imports'
+        entry: nexus/scripts/pre-commit-hooks/run-go-imports.sh
+        files: '\.go$'
+        language: 'script'
+        description: "Runs `goimports`, requires golang"
+      - id: go-unit-tests
+        name: 'go-unit-tests'
+        entry: nexus/scripts/pre-commit-hooks/run-go-unit-tests.sh
+        files: '\.go$'
+        language: 'script'
+        description: "Runs `go test`"
+        require_serial: true
+      - id: go-vet
+        name: 'go vet'
+        entry: nexus/scripts/pre-commit-hooks/run-go-vet.sh
+        files: '\.go$'
+        language: 'script'
+        description: "Runs `go vet`, requires golang"
+        require_serial: true
