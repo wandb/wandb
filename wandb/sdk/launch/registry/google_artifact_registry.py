@@ -99,7 +99,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Arguments:
             config: A dictionary containing the following keys:
                 repository: The repository name.
-                image_name: The image name.
+                image-name: The image name.
             environment: A GcpEnvironment configured for access to this registry.
 
         Returns:
@@ -110,7 +110,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
             raise LaunchError(
                 "The Google Artifact Registry repository must be specified."
             )
-        image_name = config.get("image_name")
+        image_name = config.get("image-name")
         if not image_name:
             raise LaunchError("The image name must be specified.")
         return cls(repository, image_name, environment, verify=verify)
@@ -182,22 +182,19 @@ class GoogleArtifactRegistry(AbstractRegistry):
         _logger.info(
             f"Checking if image {image_uri} exists. In Google Artifact Registry {self.uri}."
         )
-
-        return False
-        # TODO: Test GCP Artifact Registry image exists to get working
-        # repo_uri, _ = image_uri.split(":")
-        # if repo_uri != self.get_repo_uri():
-        #     raise LaunchError(
-        #         f"The image {image_uri} does not belong to the Google Artifact "
-        #         f"Repository {self.get_repo_uri()}."
-        #     )
-        # credentials = self.environment.get_credentials()
-        # request = google.cloud.artifactregistry.GetTagRequest(parent=image_uri)
-        # client = google.cloud.artifactregistry.ArtifactRegistryClient(
-        #     credentials=credentials
-        # )
-        # try:
-        #     client.get_tag(request=request)
-        #     return True
-        # except google.api_core.exceptions.NotFound:
-        #     return False
+        repo_uri, _ = image_uri.split(":")
+        if repo_uri != self.get_repo_uri():
+            raise LaunchError(
+                f"The image {image_uri} does not belong to the Google Artifact "
+                f"Repository {self.get_repo_uri()}."
+            )
+        credentials = self.environment.get_credentials()
+        request = google.cloud.artifactregistry.GetTagRequest(parent=image_uri)
+        client = google.cloud.artifactregistry.ArtifactRegistryClient(
+            credentials=credentials
+        )
+        try:
+            client.get_tag(request=request)
+            return True
+        except google.api_core.exceptions.NotFound:
+            return False

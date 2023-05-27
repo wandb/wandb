@@ -202,7 +202,7 @@ class GcpEnvironment(AbstractEnvironment):
             storage_client = google.cloud.storage.Client(
                 credentials=self.get_credentials()
             )
-            bucket = storage_client.post_bucket(bucket)
+            bucket = storage_client.get_bucket(bucket)
         except google.api_core.exceptions.NotFound as e:
             raise LaunchError(f"Bucket {bucket} does not exist.") from e
 
@@ -266,6 +266,4 @@ class GcpEnvironment(AbstractEnvironment):
                     blob = bucket.blob(gcs_path)
                     blob.upload_from_filename(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
-            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
             raise LaunchError(f"Could not upload directory to GCS: {e}") from e
