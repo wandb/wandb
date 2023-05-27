@@ -1,5 +1,4 @@
 """Implementation of launch agent."""
-import json
 import logging
 import os
 import pprint
@@ -20,8 +19,6 @@ from wandb.sdk.lib import runid
 from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.build import construct_builder_args
-from .job_status_tracker import JobAndRunStatusTracker
-from .run_queue_item_file_saver import RunQueueItemFileSaver
 from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
@@ -29,7 +26,8 @@ from ..utils import (
     LaunchDockerError,
     LaunchError,
 )
-
+from .job_status_tracker import JobAndRunStatusTracker
+from .run_queue_item_file_saver import RunQueueItemFileSaver
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs

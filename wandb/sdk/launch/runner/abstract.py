@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
@@ -64,8 +64,9 @@ class AbstractRun(ABC):
     def status(self) -> Status:
         return self._status
 
+    @abstractmethod
     def get_logs(self) -> Optional[str]:
-        """Returns the logs associated with the run"""
+        """Returns the logs associated with the run."""
         pass
 
     def _run_cmd(
