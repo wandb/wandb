@@ -285,13 +285,9 @@ def check_job_exists(public_api: PublicApi, job: Optional[str]) -> bool:
     if not job:
         return True
 
-    if not isinstance(job, str) or ":" not in job:
-        wandb.termerror("Job must be a string of format <job_string>:<alias>")
-        return False
-
     try:
-        public_api.artifact(job, type="job")
+        public_api.job(job)
     except Exception as e:
-        wandb.termerror(f"Failed to load job. Error: {e}")
+        wandb.termerror(f"Failed to load job. {e}")
         return False
     return True
