@@ -218,7 +218,7 @@ class KanikoBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
-        job_tracker: Optional[JobAndRunStatusTracker],
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         # TODO: this should probably throw an error if the registry is a local registry
         if not self.registry:
@@ -279,11 +279,14 @@ class KanikoBuilder(AbstractBuilder):
             if not _wait_for_completion(
                 batch_v1, build_job_name, 3 * _DEFAULT_BUILD_TIMEOUT_SECS
             ):
-                job_tracker.set_err_stage("build")
+                if job_tracker:
+                    job_tracker.set_err_stage("build")
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
             try:
                 logs = batch_v1.read_namespaced_job_log(build_job_name, "wandb")
-                warn_failed_packages_from_build_logs(logs, image_uri, launch_project._api, job_tracker.run_queue_item_id)
+                warn_failed_packages_from_build_logs(
+                    logs, image_uri, launch_project.api, job_tracker
+                )
             except Exception as e:
                 wandb.termwarn(
                     f"{LOG_PREFIX}Failed to get logs for kaniko job {build_job_name}: {e}"

@@ -105,6 +105,18 @@ class KubernetesSubmittedRun(AbstractRun):
         """Return the run id."""
         return self.name
 
+    def get_logs(self) -> Optional[str]:
+        try:
+            logs = self.batch_api.read_namespaced_pod_log(
+                name=self.pod_names[0], namespace=self.namespace
+            )
+            if logs:
+                return str(logs)
+            return None
+        except Exception as e:
+            wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
+            return None
+
     def get_job(self) -> "V1Job":
         """Return the job object."""
         return self.batch_api.read_namespaced_job(
@@ -262,6 +274,22 @@ class CrdSubmittedRun(AbstractRun):
         """Get the name of the custom object."""
         return self.name
 
+    def get_logs(self) -> Optional[str]:
+        """Get logs for custom object."""
+        logs = {}
+        try:
+            for pod_name in self.pod_names:
+                logs[pod_name] = self.core_api.read_namespaced_pod_log(
+                    name=pod_name, namespace=self.namespace
+                )
+        except ApiException as e:
+            wandb.termwarn(f"Failed to get logs for {self.name}: {str(e)}")
+            return None
+        if not logs:
+            return None
+        logs_as_array = [f"Pod {pod_name}:\n{log}" for pod_name, log in logs.items()]
+        return "\n".join(logs_as_array)
+
     def get_status(self) -> Status:
         """Get status of custom object."""
         try:
@@ -404,7 +432,7 @@ class KubernetesRunner(AbstractRunner):
         builder: Optional[AbstractBuilder],
         namespace: str,
         core_api: "CoreV1Api",
-        job_tracker: Optional[JobAndRunStatusTracker]
+        job_tracker: Optional[JobAndRunStatusTracker],
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
         """Apply our default values, return job dict and secret.
 
@@ -510,7 +538,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
-        job_tracker: Optional[JobAndRunStatusTracker]
+        job_tracker: Optional[JobAndRunStatusTracker],
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -608,12 +636,7 @@ class KubernetesRunner(AbstractRunner):
         namespace = self.get_namespace(resource_args, context)
 
         job, secret = self._inject_defaults(
-            resource_args,
-            launch_project,
-            builder,
-            namespace,
-            core_api,
-            job_tracker
+            resource_args, launch_project, builder, namespace, core_api, job_tracker
         )
 
         msg = "Creating Kubernetes job"

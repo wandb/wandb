@@ -35,6 +35,10 @@ class VertexSubmittedRun(AbstractRun):
         # numeric ID of the custom training job
         return self._job.name  # type: ignore
 
+    def get_logs(self) -> Optional[str]:
+        # TODO: implement
+        return None
+
     @property
     def name(self) -> str:
         return self._job.display_name  # type: ignore
@@ -90,7 +94,6 @@ class VertexRunner(AbstractRunner):
         launch_project: LaunchProject,
         builder: Optional[AbstractBuilder],
         job_tracker: Optional[JobAndRunStatusTracker],
-
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
         aiplatform = get_module(  # noqa: F811
@@ -136,11 +139,7 @@ class VertexRunner(AbstractRunner):
         else:
             assert entry_point is not None
             assert builder is not None
-            image_uri = builder.build_image(
-                launch_project,
-                entry_point,
-                job_tracker
-            )
+            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
 
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)

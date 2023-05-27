@@ -114,7 +114,7 @@ class DockerBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
-        job_tracker: Optional[JobAndRunStatusTracker],
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         """Build the image for the given project.
 
@@ -163,11 +163,14 @@ class DockerBuilder(AbstractBuilder):
                 context_path=build_ctx_path,
                 platform=self.config.get("platform"),
             )
-            run_queue_item_id = job_tracker.run_queue_item_id if job_tracker is not None else None
-            warn_failed_packages_from_build_logs(output, image_uri, launch_project._api, run_queue_item_id)
+
+            warn_failed_packages_from_build_logs(
+                output, image_uri, launch_project.api, job_tracker
+            )
 
         except docker.DockerError as e:
-            job_tracker.set_err_stage("build")
+            if job_tracker is not None:
+                job_tracker.set_err_stage("build")
             raise LaunchDockerError(f"Error communicating with docker client: {e}")
 
         try:

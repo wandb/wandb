@@ -1,12 +1,14 @@
 """Abstract plugin class defining the interface needed to build container images for W&B Launch."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 class AbstractBuilder(ABC):
@@ -64,7 +66,7 @@ class AbstractBuilder(ABC):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
-        job_tracker: Optional[JobAndRunStatusTracker]
+        job_tracker: Optional["JobAndRunStatusTracker"] = None,
     ) -> str:
         """Build the image for the given project.
 

@@ -205,7 +205,7 @@ class Api:
 
     def fail_run_queue_item(self, *args, **kwargs):
         return self.api.fail_run_queue_item(*args, **kwargs)
-    
+
     def update_run_queue_item_warning(self, *args, **kwargs):
         return self.api.update_run_queue_item_warning(*args, **kwargs)
 

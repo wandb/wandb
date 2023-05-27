@@ -40,6 +40,14 @@ class LocalSubmittedRun(AbstractRun):
     def wait(self) -> bool:
         return self.command_proc.wait() == 0
 
+    def get_logs(self) -> Optional[str]:
+        # print(self.command_proc.stdout.read().decode("utf-8"))
+        # print("ERR")
+        # print(self.command_proc.stderr.read().decode("utf-8"))
+        if self.command_proc.stdout is not None:
+            return self.command_proc.stdout.read().decode("utf-8")
+        return None
+
     def cancel(self) -> None:
         # Interrupt child process if it hasn't already exited
         if self.command_proc.poll() is None:
@@ -78,7 +86,7 @@ class LocalContainerRunner(AbstractRunner):
         super().__init__(api, backend_config)
         self.environment = environment
 
-    def _populate_docker_args(self, launch_project):
+    def _populate_docker_args(self, launch_project: LaunchProject) -> Dict[str, Any]:
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
             "local-container", {}
         )
@@ -93,7 +101,12 @@ class LocalContainerRunner(AbstractRunner):
 
         return docker_args
 
-    def initialize(self, launch_project):
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: Optional[AbstractBuilder],
+        job_tracker: Optional[JobAndRunStatusTracker],
+    ) -> Optional[AbstractRun]:
         docker_args = self._populate_docker_args(launch_project)
         entry_point = launch_project.get_single_entry_point()
         env_vars = get_env_vars_dict(launch_project, self._api)
@@ -106,16 +119,7 @@ class LocalContainerRunner(AbstractRunner):
             _, _, port = self._api.settings("base_url").split(":")
             env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
-            env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9002"
-        return entry_point, env_vars, docker_args
-
-    def run(
-        self,
-        launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
-        job_tracker: Optional[JobAndRunStatusTracker]
-    ) -> Optional[AbstractRun]:
-        entry_point, env_vars, docker_args = self.initialize(launch_project)
+            env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9001"
 
         if launch_project.docker_image:
             # user has provided their own docker image
@@ -137,11 +141,7 @@ class LocalContainerRunner(AbstractRunner):
             assert entry_point is not None
             _logger.info("Building docker image...")
             assert builder is not None
-            image_uri = builder.build_image(
-                launch_project,
-                entry_point,
-                job_tracker
-            )
+            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
             _logger.info(f"Docker image built with uri {image_uri}")
             # entry_cmd and additional_args are empty here because
             # if launch built the container they've been accounted
@@ -186,6 +186,8 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
         process = subprocess.Popen(
             ["bash", "-c", command],
             close_fds=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             cwd=work_dir,
             env=env,
         )

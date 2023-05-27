@@ -15,6 +15,7 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
@@ -664,12 +665,20 @@ def make_name_dns_safe(name: str) -> str:
     return resp
 
 
-def warn_failed_packages_from_build_logs(log: str, image_uri: str, api: Api, runQueueItemId: Optional[str]) -> None:
+def warn_failed_packages_from_build_logs(
+    log: str, image_uri: str, api: Api, job_tracker: Optional[JobAndRunStatusTracker]
+) -> None:
     match = FAILED_PACKAGES_REGEX.search(log)
-    if match:
-        wandb.termwarn(f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them.")
-        if runQueueItemId is not None:
-            api.update_run_queue_item_warning(runQueueItemId, "failed to install some packages during build", "build")
+    if True:
+        _msg = f"Failed to install the following packages: asdasd for image: {image_uri}. Will attempt to launch image without them."
+        wandb.termwarn(_msg)
+        if job_tracker is not None:
+            job_tracker.saver.save_contents(_msg, "build.log", "warn")
+            api.update_run_queue_item_warning(
+                job_tracker.run_queue_item_id,
+                "failed to install some packages during build",
+                "build",
+            )
 
 
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:

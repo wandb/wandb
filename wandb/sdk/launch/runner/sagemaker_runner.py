@@ -24,15 +24,43 @@ _logger = logging.getLogger(__name__)
 class SagemakerSubmittedRun(AbstractRun):
     """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command on aws sagemaker."""
 
-    def __init__(self, training_job_name: str, client: "boto3.Client") -> None:
+    def __init__(
+        self,
+        training_job_name: str,
+        client: "boto3.Client",
+        log_client: Optional["boto3.Client"] = None,
+    ) -> None:
         super().__init__()
         self.client = client
+        self.log_client = log_client
         self.training_job_name = training_job_name
         self._status = Status("running")
 
     @property
     def id(self) -> str:
         return f"sagemaker-{self.training_job_name}"
+
+    def get_logs(self) -> Optional[str]:
+        if self.log_client is None:
+            return None
+        try:
+            res = self.log_client.get_log_events(
+                logGroupName="/aws/sagemaker/TrainingJobs",
+                logStreamName=self.training_job_name,
+            )
+            return "\n".join(
+                [f'{event["timestamp"]}:{event["message"]}' for event in res["events"]]
+            )
+        except self.log_client.exceptions.ResourceNotFoundException:
+            wandb.termwarn(
+                f"Failed to get logs for training job: {self.training_job_name}"
+            )
+            return None
+        except Exception:
+            wandb.termwarn(
+                f"Failed to handle logs for training job: {self.training_job_name}"
+            )
+            return None
 
     def wait(self) -> bool:
         while True:
@@ -160,11 +188,7 @@ class SageMakerRunner(AbstractRunner):
             assert builder is not None
             # build our own image
             _logger.info("Building docker image...")
-            image = builder.build_image(
-                launch_project,
-                entry_point,
-                job_tracker
-            )
+            image = builder.build_image(launch_project, entry_point, job_tracker)
             _logger.info(f"Docker image built with uri {image}")
 
         command_args = get_entry_point_command(
@@ -298,6 +322,7 @@ def launch_sagemaker_job(
     launch_project: LaunchProject,
     sagemaker_args: Dict[str, Any],
     sagemaker_client: "boto3.Client",
+    log_client: Optional["boto3.Client"] = None,
 ) -> SagemakerSubmittedRun:
     training_job_name = sagemaker_args.get("TrainingJobName") or launch_project.run_id
     resp = sagemaker_client.create_training_job(**sagemaker_args)
@@ -305,7 +330,7 @@ def launch_sagemaker_job(
     if resp.get("TrainingJobArn") is None:
         raise LaunchError("Failed to created training job when submitting to SageMaker")
 
-    run = SagemakerSubmittedRun(training_job_name, sagemaker_client)
+    run = SagemakerSubmittedRun(training_job_name, sagemaker_client, log_client)
     wandb.termlog(
         f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}"
     )

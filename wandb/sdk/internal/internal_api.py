@@ -281,6 +281,7 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
+        self.fail_run_queue_item_input_info: Optional[List[str]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -576,17 +577,101 @@ class Api:
     def fail_run_queue_item_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "failRunQueueItem" in mutations
-    
+
     @normalize_exceptions
-    def update_run_queue_item_warning(self, run_queue_item_id: str, message: str, phase: str):
+    def fail_run_queue_item_fields_introspection(self) -> List:
+        if self.fail_run_queue_item_input_info:
+            return self.fail_run_queue_item_input_info
+        query_string = """
+           query ProbeServerFailRunQueueItemInput {
+                FailRunQueueItemInputInfoType: __type(name:"FailRunQueueItemInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+
+        self.fail_run_queue_item_input_info = [
+            field.get("name", "")
+            for field in res.get("FailRunQueueItemInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+        ]
+        return self.fail_run_queue_item_input_info
+
+    @normalize_exceptions
+    def fail_run_queue_item(
+        self,
+        run_queue_item_id: str,
+        message: str,
+        phase: str,
+        file_paths: Optional[List[str]] = None,
+    ) -> bool:
+        if not self.fail_run_queue_item_introspection():
+            return False
+
+        mutation_string = """
+        mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $phase: String!, $filePaths: [String!]) {
+            failRunQueueItem(
+                input: {
+                    runQueueItemId: $runQueueItemId
+                    __FRAGMENT__
+                }
+            ) {
+                success
+            }
+        }
+        """
+
+        variable_values: Dict[str, Union[str, Optional[List[str]]]] = {
+            "runQueueItemId": run_queue_item_id,
+        }
+        if "message" in self.fail_run_queue_item_fields_introspection():
+            variable_values.update({"message": message, "phase": phase})
+            if file_paths is not None:
+                variable_values["filePaths"] = file_paths
+            fail_info_string = """
+            message: $message
+            phase: $phase
+            filePaths: $filePaths
+            """
+            mutation_string = mutation_string.replace("__FRAGMENT__", fail_info_string)
+        else:
+            mutation_string = mutation_string.replace("__FRAGMENT__", "")
+
+        mutation = gql(mutation_string)
+        response = self.gql(mutation, variable_values=variable_values)
+        result: bool = response["failRunQueueItem"]["success"]
+        return result
+
+    @normalize_exceptions
+    def update_run_queue_item_warning_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "updateRunQueueItemWarning" in mutations
+
+    @normalize_exceptions
+    def update_run_queue_item_warning(
+        self,
+        run_queue_item_id: str,
+        message: str,
+        stage: str,
+        file_paths: Optional[List[str]] = None,
+    ) -> bool:
+        if not self.update_run_queue_item_warning_introspection():
+            return False
         mutation = gql(
             """
-        mutation updateRunQueueItemWarning($runQueueItemId: ID!, $message: String!, $phase: String!) {
+        mutation updateRunQueueItemWarning($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
             updateRunQueueItemWarning(
                 input: {
                     runQueueItemId: $runQueueItemId
                     message: $message
-                    phase: $phase
+                    stage: $stage
+                    filePaths: $filePaths
                 }
             ) {
                 success
@@ -599,39 +684,11 @@ class Api:
             variable_values={
                 "runQueueItemId": run_queue_item_id,
                 "message": message,
-                "phase": phase,
+                "stage": stage,
+                "file_paths": file_paths,
             },
         )
         result: bool = response["updateRunQueueItemWarning"]["success"]
-        return result        
-
-
-    @normalize_exceptions
-    def fail_run_queue_item(self, run_queue_item_id: str, message: str, phase: str) -> bool:
-        mutation = gql(
-            """
-        mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $phase: String!) {
-            failRunQueueItem(
-                input: {
-                    runQueueItemId: $runQueueItemId
-                    message: $message
-                    phase: $phase
-                }
-            ) {
-                success
-            }
-        }
-        """
-        )
-        response = self.gql(
-            mutation,
-            variable_values={
-                "runQueueItemId": run_queue_item_id,
-                "message": message,
-                "phase": phase,
-            },
-        )
-        result: bool = response["failRunQueueItem"]["success"]
         return result
 
     @normalize_exceptions
