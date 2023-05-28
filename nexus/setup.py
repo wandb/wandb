@@ -44,14 +44,24 @@ class NexusBase:
         env["CGO_ENABLED"] = "0"
         os.makedirs(nexus_path.parent, exist_ok=True)
         ldflags = "-s -w"
-        cmd = ("go", "build", f"-ldflags={ldflags}", "-o", str(nexus_path), "cmd/nexus/main.go")
+        cmd = (
+            "go",
+            "build",
+            f"-ldflags={ldflags}",
+            "-o",
+            str(nexus_path),
+            "cmd/nexus/main.go",
+        )
         subprocess.check_call(cmd, cwd=src_dir, env=dict(os.environ, **env))
 
 
 class WrapInstall(install, NexusBase):
-
     user_options = [
-        ("nexus-build=", None, "nexus binaries to build comma separated (eg darwin-arm64,linux-amd64)"),
+        (
+            "nexus-build=",
+            None,
+            "nexus binaries to build comma separated (eg darwin-arm64,linux-amd64)",
+        ),
     ] + install.user_options
 
     def initialize_options(self):
@@ -81,9 +91,12 @@ class WrapDevelop(develop, NexusBase):
 
 
 class WrapBdistWheel(bdist_wheel, NexusBase):
-
     user_options = [
-        ("nexus-build=", None, "nexus binaries to build comma separated (eg darwin-arm64,linux-amd64)"),
+        (
+            "nexus-build=",
+            None,
+            "nexus binaries to build comma separated (eg darwin-arm64,linux-amd64)",
+        ),
     ] + bdist_wheel.user_options
 
     def initialize_options(self):

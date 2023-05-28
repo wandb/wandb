@@ -5,9 +5,30 @@ repos:
     rev: v4.4.0
     hooks:
       - id: trailing-whitespace
+        name: trailing-whitespace
       - id: end-of-file-fixer
+        name: end-of-file-fixer
       - id: check-yaml
+        name: check-yaml
       - id: check-added-large-files
+        name: check-added-large-files
+      - id: check-shebang-scripts-are-executable
+        name: check-shebang-scripts-are-executable
+      - id: check-executables-have-shebangs
+        name: check-executables-have-shebangs
+      - id: check-symlinks
+        name: check-symlinks
+      - id: check-toml
+        name: check-toml
+      - id: debug-statements
+        name: debug-statements
+      - id: forbid-submodules
+        name: forbid-submodules
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        files: '^nexus/'
   - repo: local
     hooks:
       - id: go-fmt
