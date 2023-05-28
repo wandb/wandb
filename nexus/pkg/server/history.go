@@ -26,12 +26,12 @@ func (h *Handler) handlePartialHistory(rec *service.Record, req *service.Partial
 			runTime = val - h.startTime
 		}
 	}
-	items2 := append(items,
+	items = append(items,
 		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
 		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", step_num)},
 	)
 
-	hrecord := service.HistoryRecord{Step: &s, Item: items2}
+	hrecord := service.HistoryRecord{Step: &s, Item: items}
 
 	// TODO: add _runtime and _step
 

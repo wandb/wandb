@@ -42,3 +42,10 @@ repos:
         types: [go]
         language: 'script'
         pass_filenames: false
+      - id: go-critic
+        name: 'go-critic'
+        entry: nexus/scripts/pre-commit-hooks/run-go-critic.sh
+        files: '\.go$'
+        language: 'script'
+        pass_filenames: false
+        description: "Runs `go-critic`, requires https://github.com/go-critic/go-critic"

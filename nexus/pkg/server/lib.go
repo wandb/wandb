@@ -32,8 +32,7 @@ func ResultCallback(run *service.RunRecord, settings *Settings, result *service.
 }
 
 func ResultFromServerResponse(serverResponse *service.ServerResponse) *service.Result {
-	switch x := serverResponse.ServerResponseType.(type) {
-	case *service.ServerResponse_ResultCommunicate:
+	if x, ok := serverResponse.ServerResponseType.(*service.ServerResponse_ResultCommunicate); ok {
 		r := x.ResultCommunicate
 		return r
 	}

@@ -1,7 +1,7 @@
 package server
 
 import (
-	//"context"
+	// "context"
 	"fmt"
 	"strings"
 
@@ -69,7 +69,7 @@ func handleInformFinish(nc *NexusConn, msg *service.ServerInformFinishRequest) {
 }
 
 func getStream(nc *NexusConn, streamId string) *Stream {
-	//streamId := "thing"
+	// streamId := "thing"
 	return nc.mux[streamId]
 }
 
@@ -93,10 +93,10 @@ func handleInformTeardown(nc *NexusConn, msg *service.ServerInformTeardownReques
 	// _, cancelCtx := context.WithCancel(nc.ctx)
 
 	log.Debug("PROCESS: TEARDOWN *****1")
-	//cancelCtx()
+	// cancelCtx()
 	log.Debug("PROCESS: TEARDOWN *****2")
 	// TODO: remove this?
-	//os.Exit(1)
+	// os.Exit(1)
 
 	nc.server.shutdown = true
 	nc.server.listen.Close()

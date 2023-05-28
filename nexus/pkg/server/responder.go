@@ -25,7 +25,7 @@ func (resp *Responder) RespondResult(rec *service.Result) {
 func (resp *Responder) responderGo(respondServerResponse func(result *service.ServerResponse)) {
 	for result := range resp.responderChan {
 		// fmt.Println("GOT", result)
-		//respondServerResponse(nc, &msg)
+		// respondServerResponse(nc, &msg)
 		resp := &service.ServerResponse{
 			ServerResponseType: &service.ServerResponse_ResultCommunicate{ResultCommunicate: result},
 		}
