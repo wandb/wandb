@@ -7,15 +7,15 @@ import (
 )
 
 type NexusStream struct {
-	Send     chan service.Record
-	Recv     chan service.Result
+	Send     chan *service.Record
+	Recv     chan *service.Result
 	Run      *service.RunRecord
 	Settings *Settings
 	Callback func(run *service.RunRecord, settings *Settings, result *service.Result)
 }
 
 func (ns *NexusStream) SendRecord(r *service.Record) {
-	ns.Send <- *r
+	ns.Send <- r
 }
 
 // func ResultCallback(ns *server.NexusStream, result *service.Result) {
@@ -31,7 +31,7 @@ func (ns *NexusStream) Start(s *Stream) {
 		for {
 			select {
 			case record := <-ns.Send:
-				s.ProcessRecord(&record)
+				s.ProcessRecord(record)
 			}
 		}
 	}()

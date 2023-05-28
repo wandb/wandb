@@ -29,7 +29,7 @@ func (resp *Responder) responderGo(respondServerResponse func(result *service.Se
 			// fmt.Println("GOT", result)
 			//respondServerResponse(nc, &msg)
 			resp := &service.ServerResponse{
-				ServerResponseType: &service.ServerResponse_ResultCommunicate{result},
+				ServerResponseType: &service.ServerResponse_ResultCommunicate{ResultCommunicate: result},
 			}
 			respondServerResponse(resp)
 			/*

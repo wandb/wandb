@@ -186,7 +186,6 @@ func (nc *NexusConn) wait() {
 			return
 		}
 	}
-	log.Debug("WAIT2")
 }
 
 func handleConnection(serverState *NexusServer, conn net.Conn) {

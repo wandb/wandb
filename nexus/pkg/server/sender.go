@@ -20,6 +20,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"google.golang.org/protobuf/proto"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -268,10 +269,10 @@ func (sender *Sender) doSendFile(msg *service.Record, fileItem *service.FilesIte
 func (sender *Sender) doSendDefer() {
 	deferRequest := service.DeferRequest{}
 	req := service.Request{
-		RequestType: &service.Request_Defer{&deferRequest},
+		RequestType: &service.Request_Defer{Defer: &deferRequest},
 	}
 	r := service.Record{
-		RecordType: &service.Record_Request{&req},
+		RecordType: &service.Record_Request{Request: &req},
 		Control:    &service.Control{AlwaysSend: true},
 	}
 	sender.handler.HandleRecord(&r)
@@ -281,7 +282,7 @@ func (sender *Sender) sendRunExit(msg *service.Record, record *service.RunExitRe
 	// TODO: need to flush stuff before responding with exit
 	runExitResult := &service.RunExitResult{}
 	result := &service.Result{
-		ResultType: &service.Result_ExitResult{runExitResult},
+		ResultType: &service.Result_ExitResult{ExitResult: runExitResult},
 		Control:    msg.Control,
 		Uuid:       msg.Uuid,
 	}
@@ -294,7 +295,10 @@ func (sender *Sender) sendRunExit(msg *service.Record, record *service.RunExitRe
 
 func (sender *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 
-	keepRun := *record
+	keepRun, ok := proto.Clone(record).(*service.RunRecord)
+	if !ok {
+		log.Fatal("error")
+	}
 
 	// fmt.Println("SEND", record)
 	ctx := context.Background()
@@ -332,7 +336,7 @@ func (sender *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 	keepRun.Project = projectName
 	keepRun.Entity = entityName
 
-	sender.run = &keepRun
+	sender.run = keepRun
 
 	// fmt.Println("RESP::", keepRun)
 
@@ -359,9 +363,9 @@ func (sender *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 		summaryMetrics *string,
 	*/
 
-	runResult := &service.RunUpdateResult{Run: &keepRun}
+	runResult := &service.RunUpdateResult{Run: keepRun}
 	result := &service.Result{
-		ResultType: &service.Result_RunResult{runResult},
+		ResultType: &service.Result_RunResult{RunResult: runResult},
 		Control:    msg.Control,
 		Uuid:       msg.Uuid,
 	}

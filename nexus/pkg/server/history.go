@@ -39,7 +39,7 @@ func (h *Handler) handlePartialHistory(rec *service.Record, req *service.Partial
 	//    self._run_start_time = run_start.run.start_time.ToMicroseconds() / 1e6
 
 	r := service.Record{
-		RecordType: &service.Record_History{&hrecord},
+		RecordType: &service.Record_History{History: &hrecord},
 	}
 	h.storeRecord(&r)
 	h.updateSummary(&hrecord)
