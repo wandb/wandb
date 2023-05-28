@@ -32,10 +32,11 @@ while (( "$#" )); do
       ;;
     install)
       pre-commit install -t pre-push
-      # go install golang.org/x/tools/cmd/goimports@latest
+      # go install -v golang.org/x/tools/cmd/goimports@latest
       # not recommended, see https://golangci-lint.run/usage/install/#local-installation
-      # go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      # go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@latest
       # go install -v github.com/go-critic/go-critic/cmd/gocritic@latest
+      # go install -v github.com/fzipp/gocyclo/cmd/gocyclo@latest
       NOCOMMAND=false
       shift
       ;;

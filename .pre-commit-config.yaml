@@ -49,3 +49,12 @@ repos:
         language: 'script'
         pass_filenames: false
         description: "Runs `go-critic`, requires https://github.com/go-critic/go-critic"
+      - id: go-cyclo
+        name: 'go-cyclo'
+        entry: nexus/scripts/pre-commit-hooks/run-go-cyclo.sh
+        files: '\.go$'
+        exclude: 'nexus/pkg/service/'
+        language: 'script'
+        description: "Runs `gocyclo`, requires https://github.com/fzipp/gocyclo"
+        args:
+          - -over=15
