@@ -20,6 +20,7 @@ repos:
         name: 'go-imports'
         entry: nexus/scripts/pre-commit-hooks/run-go-imports.sh
         files: '\.go$'
+        exclude: 'nexus/pkg/service/'
         language: 'script'
         description: "Runs `goimports`, requires golang"
       - id: go-unit-tests
@@ -58,3 +59,10 @@ repos:
         description: "Runs `gocyclo`, requires https://github.com/fzipp/gocyclo"
         args:
           - -over=15
+      - id: go-generate
+        name: 'go-generate'
+        entry: nexus/scripts/pre-commit-hooks/run-go-generate.sh
+        files: '\.(proto|graphql)$'
+        pass_filenames: false
+        language: 'script'
+        description: "Runs `go generate`, requires golang"
