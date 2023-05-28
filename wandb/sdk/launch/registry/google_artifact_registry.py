@@ -182,19 +182,25 @@ class GoogleArtifactRegistry(AbstractRegistry):
         _logger.info(
             f"Checking if image {image_uri} exists. In Google Artifact Registry {self.uri}."
         )
-        repo_uri, _ = image_uri.split(":")
+        repo_uri, tag = image_uri.split(":")
         if repo_uri != self.get_repo_uri():
             raise LaunchError(
                 f"The image {image_uri} does not belong to the Google Artifact "
                 f"Repository {self.get_repo_uri()}."
             )
         credentials = self.environment.get_credentials()
-        request = google.cloud.artifactregistry.GetTagRequest(parent=image_uri)
+
+        # request = google.cloud.artifactregistry.GetTagRequest(name=image_uri)
+        parent = f"projects/{self.environment.project}/locations/{self.environment.region}/repositories/{self.repository}"
         client = google.cloud.artifactregistry.ArtifactRegistryClient(
             credentials=credentials
         )
         try:
-            client.get_tag(request=request)
-            return True
-        except google.api_core.exceptions.NotFound:
-            return False
+            for image in client.list_docker_images(request={"parent": parent}):
+                if tag in image.tags:
+                    return True
+        except google.api_core.exceptions.NotFound as e:
+            raise LaunchError(
+                f"The Google Artifact Registry repository {self.repository} does not exist."
+            ) from e
+        return False
