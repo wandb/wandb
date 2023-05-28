@@ -24,7 +24,7 @@ type Header struct {
 }
 
 type Tokenizer struct {
-	data         []byte
+	// data         []byte
 	header       Header
 	headerLength int
 	headerValid  bool

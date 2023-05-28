@@ -23,20 +23,17 @@ func (resp *Responder) RespondResult(rec *service.Result) {
 }
 
 func (resp *Responder) responderGo(respondServerResponse func(result *service.ServerResponse)) {
-	for {
-		select {
-		case result := <-resp.responderChan:
-			// fmt.Println("GOT", result)
-			//respondServerResponse(nc, &msg)
-			resp := &service.ServerResponse{
-				ServerResponseType: &service.ServerResponse_ResultCommunicate{ResultCommunicate: result},
-			}
-			respondServerResponse(resp)
-			/*
-			   case <-ns.done:
-			       log.Debug("PROCESS: DONE")
-			       return
-			*/
+	for result := range resp.responderChan {
+		// fmt.Println("GOT", result)
+		//respondServerResponse(nc, &msg)
+		resp := &service.ServerResponse{
+			ServerResponseType: &service.ServerResponse_ResultCommunicate{ResultCommunicate: result},
 		}
+		respondServerResponse(resp)
+		/*
+		   case <-ns.done:
+		       log.Debug("PROCESS: DONE")
+		       return
+		*/
 	}
 }

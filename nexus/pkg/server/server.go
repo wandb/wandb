@@ -69,7 +69,8 @@ func writePortfile(portfile string, port int) {
 	check(err)
 	_, err = f.WriteString("EOF")
 	check(err)
-	f.Sync()
+	err = f.Sync()
+	check(err)
 	f.Close()
 
 	err = os.Rename(tmpfile, portfile)

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
+	// "sync"
 )
 
 type netrcLine struct {
@@ -21,9 +21,9 @@ type netrcLine struct {
 }
 
 var (
-	netrcOnce sync.Once
-	netrc     []netrcLine
-	netrcErr  error
+	// netrcOnce sync.Once
+	netrc []netrcLine
+	// netrcErr  error
 )
 
 func parseNetrc(data string) []netrcLine {
@@ -96,15 +96,15 @@ func netrcPath() (string, error) {
 func ReadNetrc() ([]netrcLine, error) {
 	path, err := netrcPath()
 	if err != nil {
-		netrcErr = err
+		// netrcErr = err
 		return []netrcLine{}, err
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			netrcErr = err
-		}
+		// if !os.IsNotExist(err) {
+		// 	netrcErr = err
+		// }
 		return []netrcLine{}, err
 	}
 

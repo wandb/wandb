@@ -66,6 +66,9 @@ func (fs *FileStream) fstreamInit() {
 
 func (fs *FileStream) send(fsdata interface{}) {
 	json_data, err := json.Marshal(fsdata)
+	if err != nil {
+		log.Fatalln("json marshal error", err)
+	}
 	// fmt.Println("ABOUT TO", string(json_data))
 
 	buffer := bytes.NewBuffer(json_data)
@@ -82,7 +85,10 @@ func (fs *FileStream) send(fsdata interface{}) {
 	}
 
 	var res map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&res)
+	err = json.NewDecoder(resp.Body).Decode(&res)
+	if err != nil {
+		log.Fatalln("json decode error", err)
+	}
 	log.WithFields(log.Fields{"res": res}).Debug("FSTREAM: post response")
 }
 
@@ -132,6 +138,9 @@ func jsonify(msg *service.HistoryRecord) string {
 		val := items[i].ValueJson
 		b := []byte(val)
 		err = json.Unmarshal(b, &val2)
+		if err != nil {
+			log.Fatalln("json unmarshal error", err)
+		}
 		data[items[i].Key] = val2
 	}
 	json_data, err := json.Marshal(data)
@@ -179,9 +188,6 @@ func (fs *FileStream) streamRecord(msg *service.Record) {
 	}
 }
 
-func (fs *FileStream) fstreamPush(fname string, data string) {
-}
-
 func (fs *FileStream) fstreamGo() {
 	defer fs.wg.Done()
 
@@ -192,18 +198,15 @@ func (fs *FileStream) fstreamGo() {
 	}
 
 	fs.fstreamInit()
-	for done := false; !done; {
-		select {
-		case msg, ok := <-fs.fstreamChan:
-			if !ok {
-				log.Debug("FSTREAM: NOMORE")
-				done = true
-				break
-			}
-			log.Debug("FSTREAM *******")
-			log.WithFields(log.Fields{"record": msg}).Debug("FSTREAM: got msg")
-			fs.streamRecord(msg)
+	for {
+		msg, ok := <-fs.fstreamChan
+		if !ok {
+			log.Debug("FSTREAM: NOMORE")
+			break
 		}
+		log.Debug("FSTREAM *******")
+		log.WithFields(log.Fields{"record": msg}).Debug("FSTREAM: got msg")
+		fs.streamRecord(msg)
 	}
 	fs.sendFinish()
 	log.Debug("FSTREAM: FIN")

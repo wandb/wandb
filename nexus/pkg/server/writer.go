@@ -49,7 +49,8 @@ func logHeader(f *os.File) {
 	head := logHeader{ident: ident, magic: 0xBEE1, version: 1}
 	err := binary.Write(buf, binary.LittleEndian, &head)
 	check(err)
-	f.Write(buf.Bytes())
+	_, err = f.Write(buf.Bytes())
+	check(err)
 }
 
 func (w *Writer) writerGo() {
@@ -63,26 +64,23 @@ func (w *Writer) writerGo() {
 	records := record.NewWriter(f)
 
 	log.Debug("WRITER: OPEN")
-	for done := false; !done; {
-		select {
-		case msg, ok := <-w.writerChan:
-			if !ok {
-				log.Debug("NOMORE")
-				done = true
-				break
-			}
-			log.Debug("WRITE *******")
-			// handleLogWriter(w, msg)
-
-			rec, err := records.Next()
-			check(err)
-
-			out, err := proto.Marshal(msg)
-			check(err)
-
-			_, err = rec.Write(out)
-			check(err)
+	for {
+		msg, ok := <-w.writerChan
+		if !ok {
+			log.Debug("NOMORE")
+			break
 		}
+		log.Debug("WRITE *******")
+		// handleLogWriter(w, msg)
+
+		rec, err := records.Next()
+		check(err)
+
+		out, err := proto.Marshal(msg)
+		check(err)
+
+		_, err = rec.Write(out)
+		check(err)
 	}
 	log.Debug("WRITER: CLOSE")
 	records.Close()

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"bytes"
-	"io/ioutil"
+	"os"
 
 	"context"
 	"encoding/base64"
@@ -174,7 +174,7 @@ func sendData(fname, urlPath string) error {
 		Timeout: time.Second * 10,
 	}
 
-	b, err := ioutil.ReadFile(fname)
+	b, err := os.ReadFile(fname)
 	if err != nil {
 		return err
 	}
@@ -377,19 +377,16 @@ func (sender *Sender) senderGo() {
 
 	log.Debug("SENDER: OPEN")
 	sender.senderInit()
-	for done := false; !done; {
-		select {
-		case msg, ok := <-sender.senderChan:
-			if !ok {
-				log.Debug("SENDER: NOMORE")
-				done = true
-				break
-			}
-			log.Debug("SENDER *******")
-			log.WithFields(log.Fields{"record": msg}).Debug("SENDER: got msg")
-			sender.networkSendRecord(msg)
-			// handleLogWriter(sender, msg)
+	for {
+		msg, ok := <-sender.senderChan
+		if !ok {
+			log.Debug("SENDER: NOMORE")
+			break
 		}
+		log.Debug("SENDER *******")
+		log.WithFields(log.Fields{"record": msg}).Debug("SENDER: got msg")
+		sender.networkSendRecord(msg)
+		// handleLogWriter(sender, msg)
 	}
 	log.Debug("SENDER: FIN")
 }

@@ -32,7 +32,7 @@ type Handler struct {
 func NewHandler(respondResult func(result *service.Result), settings *Settings) *Handler {
 	var writer *Writer
 	wg := sync.WaitGroup{}
-	if settings.NoWrite == false {
+	if !settings.NoWrite {
 		writer = NewWriter(&wg, settings)
 	}
 	sender := NewSender(&wg, respondResult, settings)
@@ -238,12 +238,9 @@ func (h *Handler) storeRecord(msg *service.Record) {
 
 func (handler *Handler) handlerGo() {
 	log.Debug("HANDLER")
-	for {
-		select {
-		case record := <-handler.handlerChan:
-			log.WithFields(log.Fields{"rec": record}).Debug("HANDLER")
-			handler.storeRecord(record)
-			handler.handleRecord(record)
-		}
+	for record := range handler.handlerChan {
+		log.WithFields(log.Fields{"rec": record}).Debug("HANDLER")
+		handler.storeRecord(record)
+		handler.handleRecord(record)
 	}
 }

@@ -11,13 +11,13 @@ repos:
   - repo: local
     hooks:
       - id: go-fmt
-        name: 'go fmt'
+        name: 'go-fmt'
         entry: nexus/scripts/pre-commit-hooks/run-go-fmt.sh
         files: '\.go$'
         language: 'script'
         description: "Runs `gofmt`, requires golang"
       - id: go-imports
-        name: 'go imports'
+        name: 'go-imports'
         entry: nexus/scripts/pre-commit-hooks/run-go-imports.sh
         files: '\.go$'
         language: 'script'
@@ -30,9 +30,15 @@ repos:
         description: "Runs `go test`"
         require_serial: true
       - id: go-vet
-        name: 'go vet'
+        name: 'go-vet'
         entry: nexus/scripts/pre-commit-hooks/run-go-vet.sh
         files: '\.go$'
         language: 'script'
         description: "Runs `go vet`, requires golang"
         require_serial: true
+      - id: golangci-lint
+        name: 'golangci-lint'
+        entry: nexus/scripts/pre-commit-hooks/run-golangci-lint.sh
+        types: [go]
+        language: 'script'
+        pass_filenames: false
