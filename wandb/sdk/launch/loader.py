@@ -80,7 +80,7 @@ def registry_from_config(
 
         return LocalRegistry()  # This is the default, dummy registry.
     registry_type = config.get("type")
-    if registry_type is None:
+    if registry_type is None or registry_type == "local":
         from .registry.local_registry import LocalRegistry
 
         return LocalRegistry()  # This is the default, dummy registry.
