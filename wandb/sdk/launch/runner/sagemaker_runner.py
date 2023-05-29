@@ -330,7 +330,7 @@ def launch_sagemaker_job(
     resp = sagemaker_client.create_training_job(**sagemaker_args)
 
     if resp.get("TrainingJobArn") is None:
-        raise LaunchError("Failed to created training job when submitting to SageMaker")
+        raise LaunchError("Failed to create training job when submitting to SageMaker")
 
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client, log_client)
     wandb.termlog(

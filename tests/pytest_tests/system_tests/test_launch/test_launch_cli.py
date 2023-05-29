@@ -361,7 +361,7 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.fail_run_queue_item",
-        lambda c, r: print_then_exit(),
+        lambda c, r, e: print_then_exit(),
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.run_job",

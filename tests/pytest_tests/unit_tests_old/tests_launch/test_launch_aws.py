@@ -220,6 +220,7 @@ def test_launch_aws_sagemaker_launch_fail(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
+    monkeypatch.setattr(wandb.sdk.launch.agent.Agent.fail_run_queue_item, lambda x: "")
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -230,7 +231,7 @@ def test_launch_aws_sagemaker_launch_fail(
 
     with pytest.raises(LaunchError) as e_info:
         launch.run(**kwargs)
-    assert "Unable to create training job" in str(e_info.value)
+    assert "Failed to create training job when submitting to SageMaker" in str(e_info.value)
 
 
 @pytest.mark.skipif(
