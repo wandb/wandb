@@ -1249,7 +1249,7 @@ def download_file_from_url(
 ) -> None:
     auth = None
     if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key)
+        auth = ("api", api_key or "")
     response = requests.get(
         source_url,
         auth=auth,
@@ -1257,7 +1257,7 @@ def download_file_from_url(
         cookies=_thread_local_api_settings.cookies,
         stream=True,
         timeout=5,
-    )  # type: ignore
+    )
     response.raise_for_status()
 
     if os.sep in dest_path:

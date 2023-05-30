@@ -105,12 +105,12 @@ def mock_preparer(**kwargs):
     return Mock(**kwargs)
 
 
-def test_capped_cache(artifact_cache):
+def test_capped_cache(artifacts_cache):
     for i in range(51):
         art = Artifact(f"foo-{i}", type="test")
         art._logged_artifact = Mock(id=f"foo-{i}")
-        artifact_cache.store_artifact(art)
-    assert len(artifact_cache._artifacts_by_id) == 50
+        artifacts_cache.store_artifact(art)
+    assert len(artifacts_cache._artifacts_by_id) == 50
 
 
 class TestStoreFile:

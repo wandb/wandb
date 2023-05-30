@@ -651,13 +651,13 @@ class Artifact(ArtifactInterface):
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
         def _download_file_with_thread_local_api_settings(
-            name,
-            root,
+            name: str,
+            root: str,
             download_logger: ArtifactDownloadLogger,
             tlas_api_key: Optional[str],
             tlas_cookies: Optional[Dict],
             tlas_headers: Optional[Dict],
-        ):
+        ) -> StrPath:
             _thread_local_api_settings.api_key = tlas_api_key
             _thread_local_api_settings.cookies = tlas_cookies
             _thread_local_api_settings.headers = tlas_headers

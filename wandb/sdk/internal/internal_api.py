@@ -232,7 +232,7 @@ class Api:
 
         auth = None
         if _thread_local_api_settings.cookies is None:
-            auth = ("api", self.api_key)
+            auth = ("api", self.api_key or "")
         extra_http_headers.update(_thread_local_api_settings.headers or {})
         self.client = Client(
             transport=GraphQLSession(
@@ -2031,7 +2031,7 @@ class Api:
         """
         auth = None
         if _thread_local_api_settings.cookies is None:
-            auth = ("user", self.api_key)
+            auth = ("user", self.api_key or "")
         response = requests.get(
             url,
             auth=auth,

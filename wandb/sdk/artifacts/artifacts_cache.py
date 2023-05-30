@@ -3,7 +3,7 @@ import contextlib
 import hashlib
 import os
 import secrets
-from typing import IO, TYPE_CHECKING, ContextManager, Generator, Optional, Tuple
+from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 from wandb import env, termwarn, util
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
@@ -36,8 +36,8 @@ class ArtifactsCache:
         mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-        self._artifacts_by_id: CappedDict[str, "ArtifactInterface"] = CappedDict()
-        self._artifacts_by_client_id: CappedDict[str, "LocalArtifact"] = CappedDict()
+        self._artifacts_by_id: Dict[str, "ArtifactInterface"] = CappedDict()
+        self._artifacts_by_client_id: Dict[str, "LocalArtifact"] = CappedDict()
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int

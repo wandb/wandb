@@ -338,7 +338,7 @@ class FileStreamApi:
         # self._client.post = functools.partial(self._client.post, timeout=self.HTTP_TIMEOUT)
         self._client.auth = api.client.transport.session.auth
         self._client.headers.update(api.client.transport.headers or {})
-        self._client.cookies.update(api.client.transport.cookies or {})
+        self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
         self._file_policies: Dict[str, "DefaultFilePolicy"] = {}
         self._dropped_chunks: int = 0
         self._queue: queue.Queue = queue.Queue()
