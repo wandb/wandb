@@ -308,7 +308,7 @@ class Api:
 
     def reauth(self) -> None:
         """Ensure the current api key is set in the transport."""
-        self.client.transport.auth = ("api", self.api_key or "")
+        self.client.transport.session.auth = ("api", self.api_key or "")
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""

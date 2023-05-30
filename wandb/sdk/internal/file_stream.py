@@ -336,7 +336,7 @@ class FileStreamApi:
         self._client = requests.Session()
         # todo: actually use the timeout once more thorough error injection in testing covers it
         # self._client.post = functools.partial(self._client.post, timeout=self.HTTP_TIMEOUT)
-        self._client.auth = api.client.transport.auth
+        self._client.auth = api.client.transport.session.auth
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})
         self._file_policies: Dict[str, "DefaultFilePolicy"] = {}
