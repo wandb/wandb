@@ -144,7 +144,7 @@ func jsonify(msg *service.HistoryRecord) string {
 		data[items[i].Key] = val2
 	}
 	json_data, err := json.Marshal(data)
-	check(err)
+	checkError(err)
 	// fmt.Println("GOT", string(json_data))
 	return string(json_data)
 }

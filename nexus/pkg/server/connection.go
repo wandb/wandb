@@ -1,22 +1,16 @@
 package server
 
 import (
-	// "flag"
-	"context"
-	// "io"
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"net"
 
-	"google.golang.org/protobuf/proto"
-
-	// "google.golang.org/protobuf/reflect/protoreflect"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"google.golang.org/protobuf/proto"
 )
-
-// import "wandb.ai/wandb/wbserver/wandb_internal":
 
 type Header struct {
 	Magic      uint8
@@ -24,7 +18,6 @@ type Header struct {
 }
 
 type Tokenizer struct {
-	// data         []byte
 	header       Header
 	headerLength int
 	headerValid  bool
@@ -41,23 +34,19 @@ type NexusConn struct {
 	respondChan chan *service.ServerResponse
 }
 
-func (nc *NexusConn) init() {
+func (nc *NexusConn) init(ctx context.Context) {
 	process := make(chan *service.ServerRequest)
 	respond := make(chan *service.ServerResponse)
 	nc.processChan = process
 	nc.respondChan = respond
 	nc.done = make(chan bool)
-	nc.ctx = context.Background()
+	nc.ctx = ctx
 	nc.mux = make(map[string]*Stream)
-	// writer := make(chan service.Record)
-	// stream := Stream{exit: exit, done: done, process: process, respond: respond, writer: writer, ctx: ctx, server: nc.server}
-	// stream := Stream{exit: exit, done: done, process: process, respond: respond, ctx: ctx, server: nc.server}
-	// nc.stream = stream
 }
 
-func check(e error) {
+func checkError(e error) {
 	if e != nil {
-		panic(e)
+		logrus.Error(e)
 	}
 }
 
@@ -68,7 +57,6 @@ func (x *Tokenizer) split(data []byte, atEOF bool) (retAdvance int, retToken []b
 
 	retAdvance = 0
 
-	// parse header
 	if !x.headerValid {
 		if len(data) < x.headerLength {
 			return
@@ -76,19 +64,17 @@ func (x *Tokenizer) split(data []byte, atEOF bool) (retAdvance int, retToken []b
 		buf := bytes.NewReader(data)
 		err := binary.Read(buf, binary.LittleEndian, &x.header)
 		if err != nil {
-			log.Fatal(err)
+			logrus.Error(err)
+			return 0, nil, err
 		}
-		// fmt.Println("head", x.header, x.headerLength)
 		if x.header.Magic != uint8('W') {
-			log.Fatal("badness")
+			logrus.Error("Invalid magic byte in header")
 		}
 		x.headerValid = true
 		retAdvance += x.headerLength
 		data = data[retAdvance:]
 	}
 
-	// fmt.Println("gotdata", len(data))
-	// check if we have the full amount of data
 	if len(data) < int(x.header.DataLength) {
 		return
 	}
@@ -99,17 +85,9 @@ func (x *Tokenizer) split(data []byte, atEOF bool) (retAdvance int, retToken []b
 	return
 }
 
-/*
-   resp := &service.ServerResponse{
-       ServerResponseType: &service.ServerResponse_ResultCommunicate{result},
-   }
-*/
-
-func respondServerResponse(nc *NexusConn, msg *service.ServerResponse) {
-	// fmt.Println("respond")
+func respondServerResponse(ctx context.Context, nc *NexusConn, msg *service.ServerResponse) {
 	out, err := proto.Marshal(msg)
-	check(err)
-	// fmt.Println("respond", len(out), out)
+	checkError(err)
 
 	writer := bufio.NewWriter(nc.conn)
 
@@ -117,89 +95,91 @@ func respondServerResponse(nc *NexusConn, msg *service.ServerResponse) {
 	header.DataLength = uint32(len(out))
 
 	err = binary.Write(writer, binary.LittleEndian, &header)
-	check(err)
+	checkError(err)
 
 	_, err = writer.Write(out)
-	check(err)
+	checkError(err)
 
 	err = writer.Flush()
-	check(err)
+	checkError(err)
 }
 
-func (nc *NexusConn) reader() {
+func (nc *NexusConn) receive(ctx context.Context) {
 	scanner := bufio.NewScanner(nc.conn)
 	tokenizer := Tokenizer{}
 
 	scanner.Split(tokenizer.split)
 	for scanner.Scan() {
-		// fmt.Printf("%q ", scanner.Text())
 		msg := &service.ServerRequest{}
 		err := proto.Unmarshal(scanner.Bytes(), msg)
 		if err != nil {
-			log.Fatal("unmarshaling error: ", err)
+			logrus.Error("Unmarshaling error: ", err)
+			break
 		}
-		// fmt.Println("gotmsg")
 		nc.processChan <- msg
-		// fmt.Println("data2 ", msg)
 	}
-	log.Debug("SOCKETREADER: DONE")
+	logrus.Debugf("SOCKETREADER: DONE")
 	nc.done <- true
 }
 
-func (nc *NexusConn) writer() {
+func (nc *NexusConn) transmit(ctx context.Context) {
 	for {
 		select {
 		case msg := <-nc.respondChan:
-			respondServerResponse(nc, msg)
+			respondServerResponse(ctx, nc, msg)
 		case <-nc.done:
-			log.Debug("PROCESS: DONE")
+			logrus.Debug("PROCESS: DONE")
 			return
 		}
 	}
 }
 
-func (nc *NexusConn) process() {
+func (nc *NexusConn) process(ctx context.Context) {
 	for {
 		select {
 		case msg := <-nc.processChan:
 			handleServerRequest(nc, msg)
 		case <-nc.done:
-			log.Debug("PROCESS: DONE")
+			logrus.Debug("PROCESS: DONE")
+			return
+		case <-ctx.Done():
+			logrus.Debug("PROCESS: Context canceled")
+			nc.done <- true
 			return
 		}
 	}
 }
 
-func (nc *NexusConn) RespondServerResponse(serverResponse *service.ServerResponse) {
+func (nc *NexusConn) RespondServerResponse(ctx context.Context, serverResponse *service.ServerResponse) {
 	nc.respondChan <- serverResponse
 }
 
-func (nc *NexusConn) wait() {
-	log.Debug("WAIT1")
+func (nc *NexusConn) wait(ctx context.Context) {
+	logrus.Debug("WAIT1")
 	for {
 		select {
 		case <-nc.done:
-			log.Debug("WAIT done")
+			logrus.Debug("WAIT done")
 			return
-		case <-nc.ctx.Done():
-			log.Debug("WAIT ctx done")
+		case <-ctx.Done():
+			logrus.Debug("WAIT ctx done")
 			return
 		}
 	}
 }
 
-func handleConnection(serverState *NexusServer, conn net.Conn) {
+func handleConnection(ctx context.Context, serverState *NexusServer, conn net.Conn) {
 	defer func() {
 		conn.Close()
 	}()
 
 	connection := NexusConn{conn: conn, server: serverState}
 
-	connection.init()
-	go connection.reader()
-	go connection.writer()
-	go connection.process()
-	connection.wait()
+	connection.init(ctx)
+	go connection.receive(ctx)
+	go connection.transmit(ctx)
+	go connection.process(ctx)
+	connection.wait(ctx)
 
-	log.Debug("WAIT3 done handle con")
+	logrus.Debug("WAIT3 done handle con")
 }

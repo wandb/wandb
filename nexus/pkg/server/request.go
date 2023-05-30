@@ -28,7 +28,9 @@ func (s *Settings) parseNetrc() {
 	host = strings.TrimPrefix(host, "http://")
 
 	netlist, err := auth.ReadNetrc()
-	check(err)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for i := 0; i < len(netlist); i++ {
 		if netlist[i].Machine == host {

@@ -48,14 +48,14 @@ func logHeader(f *os.File) {
 	ident := [4]byte{byte(':'), byte('W'), byte('&'), byte('B')}
 	head := logHeader{ident: ident, magic: 0xBEE1, version: 1}
 	err := binary.Write(buf, binary.LittleEndian, &head)
-	check(err)
+	checkError(err)
 	_, err = f.Write(buf.Bytes())
-	check(err)
+	checkError(err)
 }
 
 func (w *Writer) writerGo() {
 	f, err := os.Create(w.settings.SyncFile)
-	check(err)
+	checkError(err)
 	defer w.wg.Done()
 	defer f.Close()
 
@@ -74,13 +74,13 @@ func (w *Writer) writerGo() {
 		// handleLogWriter(w, msg)
 
 		rec, err := records.Next()
-		check(err)
+		checkError(err)
 
 		out, err := proto.Marshal(msg)
-		check(err)
+		checkError(err)
 
 		_, err = rec.Write(out)
-		check(err)
+		checkError(err)
 	}
 	log.Debug("WRITER: CLOSE")
 	records.Close()

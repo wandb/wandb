@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -39,8 +40,8 @@ func ResultFromServerResponse(serverResponse *service.ServerResponse) *service.R
 	return nil
 }
 
-func FuncRespondServerResponse(num int) func(serverResponse *service.ServerResponse) {
-	return func(serverResponse *service.ServerResponse) {
+func FuncRespondServerResponse(num int) func(ctx context.Context, serverResponse *service.ServerResponse) {
+	return func(ctx context.Context, serverResponse *service.ServerResponse) {
 		// fmt.Println("GOT", num, serverResponse)
 		ns := m[num]
 

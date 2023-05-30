@@ -22,7 +22,7 @@ func (h *Handler) handlePartialHistory(rec *service.Record, req *service.Partial
 	for i := 0; i < len(items); i++ {
 		if items[i].Key == "_timestamp" {
 			val, err := strconv.ParseFloat(items[i].ValueJson, 64)
-			check(err)
+			checkError(err)
 			runTime = val - h.startTime
 		}
 	}

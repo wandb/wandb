@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -9,7 +11,7 @@ type Stream struct {
 	responder *Responder
 }
 
-func NewStream(respondServerResponse func(*service.ServerResponse),
+func NewStream(respondServerResponse func(context.Context, *service.ServerResponse),
 	settings *Settings) *Stream {
 	responder := NewResponder(respondServerResponse)
 	handler := NewHandler(responder.RespondResult, settings)
