@@ -392,6 +392,9 @@ class KubernetesRunner(AbstractRunner):
         )
         return (  # type: ignore[no-any-return]
             self.backend_config.get("runner", {}).get("namespace")
+            or resource_args.get(
+                "namespace"
+            )  # continue support for malformed namespace
             or resource_args.get("metadata", {}).get("namespace")
             or default_namespace
         )
