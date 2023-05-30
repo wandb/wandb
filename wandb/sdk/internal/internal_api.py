@@ -39,6 +39,7 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
@@ -229,6 +230,10 @@ class Api:
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
         )
 
+        auth = None
+        if _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key)
+        extra_http_headers.update(_thread_local_api_settings.headers or {})
         self.client = Client(
             transport=GraphQLSession(
                 headers={
@@ -241,8 +246,9 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key or ""),
+                auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
+                cookies=_thread_local_api_settings.cookies,
             )
         )
 
@@ -336,6 +342,8 @@ class Api:
 
     @property
     def api_key(self) -> Optional[str]:
+        if _thread_local_api_settings.api_key:
+            return _thread_local_api_settings.api_key
         auth = requests.utils.get_netrc_auth(self.api_url)
         key = None
         if auth:
@@ -2021,7 +2029,16 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)  # type: ignore
+        auth = None
+        if _thread_local_api_settings.cookies is None:
+            auth = ("user", self.api_key)
+        response = requests.get(
+            url,
+            auth=auth,
+            cookies=_thread_local_api_settings.cookies or {},
+            headers=_thread_local_api_settings.headers or {},
+            stream=True,
+        )
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 

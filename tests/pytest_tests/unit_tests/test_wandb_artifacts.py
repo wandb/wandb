@@ -105,6 +105,14 @@ def mock_preparer(**kwargs):
     return Mock(**kwargs)
 
 
+def test_capped_cache(artifact_cache):
+    for i in range(51):
+        art = Artifact(f"foo-{i}", type="test")
+        art._logged_artifact = Mock(id=f"foo-{i}")
+        artifact_cache.store_artifact(art)
+    assert len(artifact_cache._artifacts_by_id) == 50
+
+
 class TestStoreFile:
     @staticmethod
     def _fixture_kwargs_to_kwargs(
