@@ -1077,6 +1077,8 @@ class WandbStoragePolicy(StoragePolicy):
         # https://<bucket-name>.s3.amazonaws.com/<object-key>?<query-string-parameters>
         # vcp = "https://<vpc-endpoint-id>.s3.<region>.amazonaws.com/<bucket-name>/<object-key>?<query-string-parameters>"
         vpce_id = os.getenv("AWS_VPC_ENDPOINT_ID")
+        export AWS_VPC_ENDPOINT_ID="vpce-01eb1ad13fc2d9583"
+        export AWS_VPC_REGION="us-east-1"
         region = os.getenv("AWS_VPC_REGION")
         s3_url_parsed = urlparse(upload_url)
         bucket = s3_url_parsed.netloc.split(".", 1)[0]
