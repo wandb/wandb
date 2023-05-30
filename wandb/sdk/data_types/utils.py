@@ -124,7 +124,7 @@ def val_to_json(
             # the array index?
             # There is a bug here: if this array contains two arrays of the same type of
             # anonymous media objects, their eventual names will collide.
-            # This used to happen. The frontend doesn't handle heterogenous arrays
+            # This used to happen. The frontend doesn't handle heterogeneous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
             return [
