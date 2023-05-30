@@ -54,10 +54,10 @@ from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import wandb.apis.public
     import wandb.sdk.internal.settings_static
-    import wandb.sdk.wandb_artifacts
     import wandb.sdk.wandb_settings
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -1050,31 +1050,53 @@ def image_id_from_k8s() -> Optional[str]:
           fieldPath: metadata.namespace
     """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-    if os.path.exists(token_path):
-        k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
-            os.getenv("KUBERNETES_SERVICE_HOST"),
-            os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
-            os.getenv("KUBERNETES_NAMESPACE", "default"),
-            os.getenv("HOSTNAME"),
+
+    if not os.path.exists(token_path):
+        return None
+
+    try:
+        with open(token_path) as token_file:
+            token = token_file.read()
+    except FileNotFoundError:
+        logger.warning(f"Token file not found at {token_path}.")
+        return None
+    except PermissionError as e:
+        current_uid = os.getuid()
+        warning = (
+            f"Unable to read the token file at {token_path} due to permission error ({e})."
+            f"The current user id is {current_uid}. "
+            "Consider changing the securityContext to run the container as the current user."
         )
-        try:
-            res = requests.get(
-                k8s_server,
-                verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-                timeout=3,
-                headers={"Authorization": f"Bearer {open(token_path).read()}"},
-            )
-            res.raise_for_status()
-        except requests.RequestException:
-            return None
-        try:
-            return str(  # noqa: B005
-                res.json()["status"]["containerStatuses"][0]["imageID"]
-            ).strip("docker-pullable://")
-        except (ValueError, KeyError, IndexError):
-            logger.exception("Error checking kubernetes for image id")
-            return None
-    return None
+        logger.warning(warning)
+        wandb.termwarn(warning)
+        return None
+
+    if not token:
+        return None
+
+    k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
+        os.getenv("KUBERNETES_SERVICE_HOST"),
+        os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
+        os.getenv("KUBERNETES_NAMESPACE", "default"),
+        os.getenv("HOSTNAME"),
+    )
+    try:
+        res = requests.get(
+            k8s_server,
+            verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+            timeout=3,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        res.raise_for_status()
+    except requests.RequestException:
+        return None
+    try:
+        return str(  # noqa: B005
+            res.json()["status"]["containerStatuses"][0]["imageID"]
+        ).strip("docker-pullable://")
+    except (ValueError, KeyError, IndexError):
+        logger.exception("Error checking kubernetes for image id")
+        return None
 
 
 def async_call(
@@ -1466,21 +1488,14 @@ def check_windows_valid_filename(path: Union[int, str]) -> bool:
 
 
 def artifact_to_json(
-    artifact: Union["wandb.sdk.wandb_artifacts.Artifact", "wandb.apis.public.Artifact"]
+    artifact: Union["LocalArtifact", "PublicArtifact"]
 ) -> Dict[str, Any]:
-    # public.Artifact has the _sequence name, instances of wandb.Artifact
-    # just have the name
-    if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name
-    else:
-        sequence_name = artifact.name.split(":")[0]
-
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
-        "sequenceName": sequence_name,
+        "sequenceName": artifact.source_name.split(":")[0],
         "usedAs": artifact._use_as,
     }
 
@@ -1493,7 +1508,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
                 return True
         elif (
             isinstance(item, wandb.Artifact)
-            or isinstance(item, wandb.apis.public.Artifact)
+            or isinstance(item, wandb.sdk.PublicArtifact)
             or _is_artifact_string(item)
         ) and nested:
             return True
@@ -1575,7 +1590,7 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
 
 
 def _is_artifact_object(v: Any) -> bool:
-    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
+    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.sdk.PublicArtifact)
 
 
 def _is_artifact_string(v: Any) -> bool:

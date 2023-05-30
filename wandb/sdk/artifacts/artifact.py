@@ -1,56 +1,17 @@
-from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, Union
+"""Artifact interface."""
+import contextlib
+from typing import IO, TYPE_CHECKING, Generator, List, Optional, Sequence, Union
 
 import wandb
 from wandb.data_types import WBValue
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
+    import os
+
     import wandb.apis.public
-    from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
-
-
-class ArtifactStatusError(AttributeError):
-    """Raised when an artifact is in an invalid state for the requested operation."""
-
-    def __init__(
-        self,
-        artifact: Optional["Artifact"] = None,
-        attr: Optional[str] = None,
-        msg: str = "Artifact is in an invalid state for the requested operation.",
-    ):
-        object_name = artifact.__class__.__name__ if artifact else "Artifact"
-        method_id = f"{object_name}.{attr}" if attr else object_name
-        super().__init__(msg.format(artifact=artifact, attr=attr, method_id=method_id))
-        # Follow the same pattern as AttributeError.
-        self.obj = artifact
-        self.name = attr or ""
-
-
-class ArtifactNotLoggedError(ArtifactStatusError):
-    """Raised for Artifact methods or attributes only available after logging."""
-
-    def __init__(
-        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
-    ):
-        super().__init__(
-            artifact,
-            attr,
-            "'{method_id}' used prior to logging artifact or while in offline mode. "
-            "Call wait() before accessing logged artifact properties.",
-        )
-
-
-class ArtifactFinalizedError(ArtifactStatusError):
-    """Raised for Artifact methods or attributes that can't be changed after logging."""
-
-    def __init__(
-        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
-    ):
-        super().__init__(
-            artifact,
-            attr,
-            "'{method_id}' used on logged artifact. Can't add to finalized artifact.",
-        )
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+    from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 
 class Artifact:
@@ -60,45 +21,72 @@ class Artifact:
         raise NotImplementedError
 
     @property
-    def version(self) -> str:
-        """The version of this artifact.
+    def entity(self) -> str:
+        """The name of the entity of the secondary (portfolio) artifact collection."""
+        raise NotImplementedError
 
-        For example, if this is the first version of an artifact, its `version` will be
-        'v0'.
+    @property
+    def project(self) -> str:
+        """The name of the project of the secondary (portfolio) artifact collection."""
+        raise NotImplementedError
+
+    @property
+    def name(self) -> str:
+        """The artifact name and version in its secondary (portfolio) collection.
+
+        A string with the format {collection}:{alias}. Before the artifact is saved,
+        contains only the name since the version is not yet known.
         """
         raise NotImplementedError
 
     @property
-    def source_version(self) -> Optional[str]:
-        """The artifact's version index under its parent artifact collection.
+    def qualified_name(self) -> str:
+        """The entity/project/name of the secondary (portfolio) collection."""
+        return f"{self.entity}/{self.project}/{self.name}"
+
+    @property
+    def version(self) -> str:
+        """The artifact's version in its secondary (portfolio) collection.
 
         A string with the format "v{number}".
         """
         raise NotImplementedError
 
     @property
-    def name(self) -> str:
-        """The artifact's name."""
+    def source_entity(self) -> str:
+        """The name of the entity of the primary (sequence) artifact collection."""
         raise NotImplementedError
 
     @property
-    def full_name(self) -> str:
-        """The artifact's full name."""
+    def source_project(self) -> str:
+        """The name of the project of the primary (sequence) artifact collection."""
+        raise NotImplementedError
+
+    @property
+    def source_name(self) -> str:
+        """The artifact name and version in its primary (sequence) collection.
+
+        A string with the format {collection}:{alias}. Before the artifact is saved,
+        contains only the name since the version is not yet known.
+        """
+        raise NotImplementedError
+
+    @property
+    def source_qualified_name(self) -> str:
+        """The entity/project/name of the primary (sequence) collection."""
         return f"{self.entity}/{self.project}/{self.name}"
+
+    @property
+    def source_version(self) -> str:
+        """The artifact's version in its primary (sequence) collection.
+
+        A string with the format "v{number}".
+        """
+        raise NotImplementedError
 
     @property
     def type(self) -> str:
         """The artifact's type."""
-        raise NotImplementedError
-
-    @property
-    def entity(self) -> str:
-        """The name of the entity this artifact belongs to."""
-        raise NotImplementedError
-
-    @property
-    def project(self) -> str:
-        """The name of the project this artifact belongs to."""
         raise NotImplementedError
 
     @property
@@ -204,13 +192,14 @@ class Artifact:
         """Get a list of the runs that have used this artifact."""
         raise NotImplementedError
 
-    def logged_by(self) -> "wandb.apis.public.Run":
+    def logged_by(self) -> Optional["wandb.apis.public.Run"]:
         """Get the run that first logged this artifact."""
         raise NotImplementedError
 
+    @contextlib.contextmanager
     def new_file(
         self, name: str, mode: str = "w", encoding: Optional[str] = None
-    ) -> ContextManager[IO]:
+    ) -> Generator[IO, None, None]:
         """Open a new temporary file that will be automatically added to the artifact.
 
         Arguments:
@@ -304,7 +293,7 @@ class Artifact:
     def add_reference(
         self,
         uri: Union["ArtifactManifestEntry", str],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence["ArtifactManifestEntry"]:
@@ -373,7 +362,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add(self, obj: WBValue, name: str) -> "ArtifactManifestEntry":
+    def add(self, obj: WBValue, name: StrPath) -> "ArtifactManifestEntry":
         """Add wandb.WBValue `obj` to the artifact.
 
         ```
@@ -410,6 +399,23 @@ class Artifact:
         """
         raise NotImplementedError
 
+    def remove(self, item: Union[str, "os.PathLike", "ArtifactManifestEntry"]) -> None:
+        """Remove an item from the artifact.
+
+        Arguments:
+            item: (str, os.PathLike, ArtifactManifestEntry) the item to remove. Can be a
+                specific manifest entry or the name of an artifact-relative path. If the
+                item matches a directory all items in that directory will be removed.
+
+        Raises:
+            ArtifactFinalizedError: if the artifact has already been finalized.
+            FileNotFoundError: if the item isn't found in the artifact.
+
+        Returns:
+            None
+        """
+        raise NotImplementedError
+
     def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
 
@@ -439,7 +445,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get(self, name: str) -> WBValue:
+    def get(self, name: str) -> Optional[WBValue]:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
@@ -499,7 +505,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def verify(self, root: Optional[str] = None) -> bool:
+    def verify(self, root: Optional[str] = None) -> None:
         """Verify that the actual contents of an artifact match the manifest.
 
         All files in the directory are checksummed and the checksums are then
@@ -538,7 +544,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def delete(self) -> None:
+    def delete(self, delete_aliases: bool = False) -> None:
         """Delete this artifact, cleaning up all files associated with it.
 
         NOTE: Deletion is permanent and CANNOT be undone.

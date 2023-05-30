@@ -14,8 +14,6 @@ integration will not break user code. The one exception to the rule is at import
 LangChain is not installed, or the symbols are not in the same place, the appropriate error
 will be raised when importing this module.
 """
-
-
 import sys
 
 if sys.version_info >= (3, 8):
@@ -39,10 +37,10 @@ langchain = wandb.util.get_module(
     "package installed. Please install it with `pip install langchain`.",
 )
 
-if version.parse(langchain.__version__) < version.parse("0.0.154"):
+if version.parse(langchain.__version__) < version.parse("0.0.170"):
     raise ValueError(
-        "The Weights & Biases Langchain integration does not support versions 0.0.153 and lower. "
-        "To ensure proper functionality, please use version 0.0.154 or higher."
+        "The Weights & Biases Langchain integration does not support versions 0.0.169 and lower. "
+        "To ensure proper functionality, please use version 0.0.170 or higher."
     )
 
 # We want these imports after the import_langchain() call, so that we can
@@ -50,7 +48,6 @@ if version.parse(langchain.__version__) < version.parse("0.0.154"):
 
 # isort: off
 from langchain.callbacks.tracers.base import BaseTracer  # noqa: E402, I001
-from langchain.callbacks.tracers.schemas import TracerSession  # noqa: E402, I001
 
 from .util import (  # noqa: E402
     print_wandb_init_message,
@@ -61,7 +58,7 @@ from .util import (  # noqa: E402
 
 if TYPE_CHECKING:
     from langchain.callbacks.base import BaseCallbackHandler
-    from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
+    from langchain.callbacks.tracers.schemas import Run
 
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
@@ -137,7 +134,6 @@ WandbTracer.finish()"""
         """
         super().__init__(**kwargs)
         self._run_args = run_args
-        self.session = self.load_session("")
         self._ensure_run(should_print_url=(wandb.run is None))
 
     @staticmethod
@@ -148,7 +144,7 @@ WandbTracer.finish()"""
         """
         wandb.finish()
 
-    def _log_trace_from_run(self, run: "BaseRun") -> None:
+    def _log_trace_from_run(self, run: "Run") -> None:
         """Logs a LangChain Run to W*B as a W&B Trace."""
         self._ensure_run()
 
@@ -203,31 +199,12 @@ WandbTracer.finish()"""
         """Generate an id for a run."""
         return None
 
-    def _persist_run(self, run: "BaseRun") -> None:
+    def _persist_run(self, run: "Run") -> None:
         """Persist a run."""
         try:
             self._log_trace_from_run(run)
         except Exception:
             # Silently ignore errors to not break user code
             pass
-
-    def _persist_session(
-        self, session_create: "TracerSessionCreate"
-    ) -> "TracerSession":
-        """Persist a session."""
-        try:
-            return TracerSession(id=1, **session_create.dict())
-        except Exception:
-            return TracerSession(id=1)
-
-    def load_session(self, session_name: str) -> "TracerSession":
-        """Load a session from the tracer."""
-        self._session = TracerSession(id=1)
-        return self._session
-
-    def load_default_session(self) -> "TracerSession":
-        """Load the default tracing session and set it as the Tracer's session."""
-        self._session = TracerSession(id=1)
-        return self._session
 
     # End of required methods

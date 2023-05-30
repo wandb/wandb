@@ -43,6 +43,7 @@ launch_requirements = [
     "google-cloud-storage",
     "google-cloud-artifact-registry",
     "kubernetes",
+    "optuna",
 ]
 
 models_requirements = ["cloudpickle"]
@@ -58,7 +59,7 @@ async_requirements = [
 
 setup(
     name="wandb",
-    version="0.15.3.dev1",
+    version="0.15.4.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

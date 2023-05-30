@@ -114,6 +114,19 @@ message Imports {
   bool langchain = 86;
   bool llama_index = 87;
   bool stability_sdk = 88;
+  bool prefect = 89;
+  bool prefect_ray = 90;
+  bool pinecone = 91; // pinecone-client
+  bool chromadb = 92;
+  bool weaviate = 93; // weaviate-client
+  bool promptlayer = 94;
+  bool openai = 95;
+  bool cohere = 96;
+  bool anthropic = 97;
+  bool peft = 98;
+  bool optimum = 99;
+  bool evaluate = 100;
+  bool langflow = 101;
 }
 
 message Feature {
