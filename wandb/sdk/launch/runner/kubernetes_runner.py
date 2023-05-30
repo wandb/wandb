@@ -456,6 +456,7 @@ class KubernetesRunner(AbstractRunner):
             # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = launch_project.docker_image
             # TODO: handle secret pulling image from registry
+            launch_project.fill_macros(launch_project.docker_image)
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
@@ -464,6 +465,7 @@ class KubernetesRunner(AbstractRunner):
             assert entry_point is not None
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
+            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             if not builder.registry:
@@ -477,8 +479,8 @@ class KubernetesRunner(AbstractRunner):
                 pod_spec["imagePullSecrets"] = [
                     {"name": f"regcred-{launch_project.run_id}"}
                 ]
-
             containers[0]["image"] = image_uri
+            launch_project.fill_macros(image_uri)
 
         inject_entrypoint_and_args(
             containers,

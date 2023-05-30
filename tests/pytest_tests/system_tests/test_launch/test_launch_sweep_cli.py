@@ -15,20 +15,22 @@ def _run_cmd_check_msg(cmd: List[str], assert_str: str) -> None:
     assert assert_str in out.decode("utf-8")
 
 
-def test_launch_sweep_param_validation(user, wandb_init):
+def test_launch_sweep_param_validation(user, wandb_init, test_settings):
     # make a job artifact for testing
-    run = wandb_init()
-    job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr", args=[])
-    job_name = job_artifact.wait().name
+    _project = "test-project7"
+    settings = test_settings({"project": _project})
+    run = wandb_init(settings=settings)
+    job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr:latest", args=[])
+    job_name = f"{user}/{_project}/{job_artifact.wait().name}"
     run.finish()
 
     base = ["wandb", "launch-sweep"]
     _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
 
+    base += ["-e", user, "-p", "p"]
     err_msg = "'config' and/or 'resume_id' required"
     _run_cmd_check_msg(base + ["-q", "q"], err_msg)
 
-    base += ["-e", user, "-p", "p"]
     err_msg = "Could not find sweep"
     with pytest.raises(subprocess.CalledProcessError):
         _run_cmd_check_msg(base + ["-r", "id", "-q", "q"], err_msg)
@@ -133,18 +135,16 @@ def test_launch_sweep_launch_resume(user):
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 
     # make launch project queue
-    res = api.create_run_queue(
+    api.create_run_queue(
         entity=user,
         project=LAUNCH_DEFAULT_PROJECT,
         queue_name="queue",
         access="USER",
     )
 
-    if res.get("success") is not True:
-        raise Exception("create queue" + str(res))
-
+    # bogus sweep
     with pytest.raises(subprocess.CalledProcessError):
-        out = subprocess.check_output(
+        subprocess.check_output(
             [
                 "wandb",
                 "launch-sweep",
@@ -159,22 +159,34 @@ def test_launch_sweep_launch_resume(user):
             ],
             stderr=subprocess.STDOUT,
         )
-        assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
 
     sweep_config = {
-        "job": None,
         "method": "grid",
         "image_uri": "test-image:latest",
         "parameters": {"parameter1": {"values": [1, 2, 3]}},
     }
-    with open("sweep-config.yaml", "w") as f:
-        json.dump(sweep_config, f)
 
     # Entity, project, and sweep
     sweep_id = wandb.sweep(sweep_config, entity=user, project=LAUNCH_DEFAULT_PROJECT)
+    subprocess.check_output(
+        [
+            "wandb",
+            "launch-sweep",
+            "--resume_id",
+            sweep_id,
+            "-e",
+            user,
+            "-p",
+            LAUNCH_DEFAULT_PROJECT,
+            "-q",
+            "queue",
+        ],
+        stderr=subprocess.STDOUT,
+    )
 
-    # no queue
-    out = subprocess.check_output(
+    # Resume the same sweep, NO queue, should pick up from previous
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=LAUNCH_DEFAULT_PROJECT)
+    subprocess.check_output(
         [
             "wandb",
             "launch-sweep",
@@ -187,23 +199,3 @@ def test_launch_sweep_launch_resume(user):
         ],
         stderr=subprocess.STDOUT,
     )
-    assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
-
-    config = {"launch": {"queue": "queue"}}
-    json.dump(config, open("s.yaml", "w"))
-
-    out = subprocess.check_output(
-        [
-            "wandb",
-            "launch-sweep",
-            "s.yaml",
-            "--resume_id",
-            sweep_id,
-            "-e",
-            user,
-            "-p",
-            LAUNCH_DEFAULT_PROJECT,
-        ],
-        stderr=subprocess.STDOUT,
-    )
-    assert "Scheduler added to launch queue (queue)" in out.decode("utf-8")

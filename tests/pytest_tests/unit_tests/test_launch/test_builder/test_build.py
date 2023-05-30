@@ -22,6 +22,7 @@ def test_get_env_vars_dict(mocker):
         "WANDB_PROJECT": "test-project",
         "WANDB_RUN_ID": "test-run-id",
         "WANDB_USERNAME": "test-author",
+        "WANDB_SWEEP_ID": "test-sweep-id",
     }
 
 
@@ -43,6 +44,7 @@ def test_get_env_vars_dict_api_key_override(mocker):
         "WANDB_NAME": "test-name",
         "WANDB_PROJECT": "test-project",
         "WANDB_RUN_ID": "test-run-id",
+        "WANDB_SWEEP_ID": "test-sweep-id",
     }
 
 
@@ -62,6 +64,7 @@ def _setup(mocker):
     launch_project.target_project = "test-project"
     launch_project.target_entity = "test-entity"
     launch_project.run_id = "test-run-id"
+    launch_project.sweep_id = "test-sweep-id"
     launch_project.docker_image = "test-docker-image"
     launch_project.name = "test-name"
     launch_project.launch_spec = {"author": "test-author"}

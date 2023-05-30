@@ -3,6 +3,7 @@ from unittest import mock
 import pytest
 import wandb
 from wandb import Api
+from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 
 
 def test_api_auto_login_no_tty():
@@ -121,7 +122,7 @@ def test_artifact_download_logger():
     termlog = mock.Mock()
 
     nfiles = 10
-    logger = wandb.apis.public._ArtifactDownloadLogger(
+    logger = ArtifactDownloadLogger(
         nfiles=nfiles,
         clock_for_testing=lambda: now,
         termlog_for_testing=termlog,

@@ -43,6 +43,7 @@ def launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    sweep_id: Optional[str] = None,
     author: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
@@ -111,6 +112,7 @@ def launch_add(
         run_id=run_id,
         build=build,
         repository=repository,
+        sweep_id=sweep_id,
         author=author,
     )
 
@@ -133,6 +135,7 @@ def _launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    sweep_id: Optional[str] = None,
     author: Optional[str] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
@@ -151,6 +154,7 @@ def _launch_add(
         run_id,
         repository,
         author,
+        sweep_id,
     )
 
     if build:
@@ -207,7 +211,7 @@ def _launch_add(
     container_job = False
     if job:
         job_artifact = public_api.job(job)
-        if job_artifact._source_info.get("source_type") == "image":
+        if job_artifact._job_info.get("source_type") == "image":
             container_job = True
 
     queued_run = public_api.queued_run(
