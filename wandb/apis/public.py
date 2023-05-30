@@ -42,7 +42,7 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError
 from wandb.sdk import artifacts
-from wandb.sdk.data_types._ dtypes import InvalidType, Type, TypeRegistry
+from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
