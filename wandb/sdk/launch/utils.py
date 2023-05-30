@@ -13,7 +13,8 @@ import wandb
 import wandb.docker as docker
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, Error
+from wandb.errors import CommError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.wandb_reference import WandbReference
 from wandb.sdk.launch.github_reference import GitHubReference
 
@@ -28,30 +29,6 @@ FAILED_PACKAGES_REGEX = re.compile(
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
-
-
-class LaunchError(Error):
-    """Raised when a known error occurs in wandb launch."""
-
-    pass
-
-
-class LaunchDockerError(Error):
-    """Raised when Docker daemon is not running."""
-
-    pass
-
-
-class ExecutionError(Error):
-    """Generic execution exception."""
-
-    pass
-
-
-class SweepError(Error):
-    """Raised when a known error occurs with wandb sweeps."""
-
-    pass
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -466,7 +443,6 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git  # type: ignore
 
     _logger.info("Fetching git repo")
     ref = GitHubReference.parse(uri)

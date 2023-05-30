@@ -26,7 +26,7 @@ from wandb.sdk.launch.sweeps.utils import (
     create_sweep_command_args,
     make_launch_sweep_entrypoint,
 )
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.lib.runid import generate_id
 from wandb.sdk.wandb_run import Run as SdkRun
 

@@ -20,14 +20,13 @@ from wandb.sdk.lib import runid
 
 from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from ..errors import LaunchDockerError, LaunchError
 from ..builder.build import construct_builder_args
 from ..runner.abstract import AbstractRun
 from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    LaunchDockerError,
-    LaunchError,
 )
 
 AGENT_POLLING_INTERVAL = 10

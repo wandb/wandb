@@ -13,10 +13,10 @@ import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.docker_builder import DockerBuilder
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     pull_docker_image,
 )
 from wandb.sdk.lib import runid

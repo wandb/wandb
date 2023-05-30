@@ -16,10 +16,9 @@ from .._project_spec import (
     get_entry_point_command,
 )
 from ..registry.local_registry import LocalRegistry
+from ..errors import LaunchDockerError, LaunchError
 from ..utils import (
     LOG_PREFIX,
-    LaunchDockerError,
-    LaunchError,
     sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
