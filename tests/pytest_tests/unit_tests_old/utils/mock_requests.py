@@ -92,6 +92,10 @@ class RequestsMock:
         return {}
 
     @property
+    def cookies(self):
+        return {}
+
+    @property
     def __version__(self):
         return requests.__version__
 
