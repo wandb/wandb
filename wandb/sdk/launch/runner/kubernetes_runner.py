@@ -732,8 +732,7 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
             for k, v in root.items():
                 if k == "containers":
                     if isinstance(v, list):
-                        for cont in v:
-                            yield cont
+                        yield from v
                 elif isinstance(v, (dict, list)):
                     yield from yield_containers(v)
         elif isinstance(root, list):
