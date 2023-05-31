@@ -3,7 +3,7 @@
 import os
 import sys
 import tempfile
-from typing import List, Optional, TYPE_CHECKING, Union
+from typing import List, Optional, Union
 
 from wandb.sdk.lib import RunDisabled
 from wandb.sdk.wandb_run import Run
