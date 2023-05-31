@@ -7,7 +7,6 @@ from typing import List, Literal, Optional, Union
 from wandb.sdk.lib import RunDisabled
 from wandb.sdk.wandb_run import Run
 
-
 FileSubtypes = Literal["warning", "error"]
 
 
