@@ -39,8 +39,7 @@ def mocked_fetchable_git_repo():
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "master"
+        reference = MockBranch("master")
         repo.references = [reference]
 
         def create_remote(o, r):
@@ -59,8 +58,6 @@ def mocked_fetchable_git_repo():
         return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    mock_branch = MockBranch("master")
-    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -70,17 +67,18 @@ def mocked_fetchable_git_repo_conda():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "environment.yml"), "w") as f:
             f.write(fixture_open("environment.yml").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    mock_branch = MockBranch("master")
-    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -90,17 +88,18 @@ def mocked_fetchable_git_repo_ipython():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
         with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
             f.write(open(notebook_path("one_cell.ipynb")).read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    mock_branch = MockBranch("master")
-    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -110,15 +109,16 @@ def mocked_fetchable_git_repo_nodeps():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    mock_branch = MockBranch("master")
-    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -128,6 +128,9 @@ def mocked_fetchable_git_repo_shell():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
@@ -138,11 +141,9 @@ def mocked_fetchable_git_repo_shell():
             f.write("python train.py")
         with open(os.path.join(dst_dir, "unknown.unk"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    mock_branch = MockBranch("master")
-    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -1238,8 +1239,7 @@ def mocked_fetchable_git_repo_main():
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "main"
+        reference = MockBranch("main")
         repo.references = [reference]
 
         def create_remote(o, r):
@@ -1259,8 +1259,6 @@ def mocked_fetchable_git_repo_main():
         return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    mock_branch = MockBranch("main")
-    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 

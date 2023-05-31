@@ -194,6 +194,7 @@ class GitHubReference:
         # TODO: Is there a better way to do this?
         default_branch = None
         if not commit and not branch:
+            print(repo, repo.references)
             for ref in repo.references:
                 if hasattr(ref, "tag"):  # Skip tag references
                     continue

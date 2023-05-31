@@ -47,8 +47,7 @@ def mocked_fetchable_git_repo():
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "master"
+        reference = MockBranch("master")
         repo.references = [reference]
 
         def create_remote(o, r):
