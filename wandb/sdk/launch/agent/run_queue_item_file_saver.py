@@ -1,4 +1,4 @@
-"""Implementation of the agent file saver class."""
+"""Implementation of the run queue item file saver class."""
 
 import os
 import tempfile

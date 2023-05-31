@@ -193,7 +193,9 @@ class SageMakerRunner(AbstractRunner):
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
-            run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client, log_client)
+            run = launch_sagemaker_job(
+                launch_project, sagemaker_args, sagemaker_client, log_client
+            )
             if self.backend_config[PROJECT_SYNCHRONOUS]:
                 run.wait()
             return run
@@ -226,7 +228,9 @@ class SageMakerRunner(AbstractRunner):
             launch_project, self._api, role_arn, image, default_output_path
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
-        run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client, log_client)
+        run = launch_sagemaker_job(
+            launch_project, sagemaker_args, sagemaker_client, log_client
+        )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             run.wait()
         return run
