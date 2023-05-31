@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from wandb.errors import CommError
 from wandb.sdk.launch.agent.agent import JobAndRunStatusTracker, LaunchAgent
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 
 def _setup(mocker):

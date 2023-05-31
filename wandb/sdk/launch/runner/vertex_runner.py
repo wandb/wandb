@@ -18,7 +18,8 @@ from ..agent.job_status_tracker import JobAndRunStatusTracker
 from ..builder.abstract import AbstractBuilder
 from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError, run_shell
+from ..errors import LaunchError
+from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
