@@ -24,6 +24,7 @@ from wandb.sdk.artifacts.storage_handlers.wb_local_artifact_handler import (
 )
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
@@ -114,9 +115,14 @@ class WandbStoragePolicy(StoragePolicy):
         if hit:
             return path
 
+        auth = None
+        if not _thread_local_api_settings.cookies:
+            auth = ("api", self._api.api_key)
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
-            auth=("api", self._api.api_key),
+            auth=auth,
+            cookies=_thread_local_api_settings.cookies,
+            headers=_thread_local_api_settings.headers,
             stream=True,
         )
         response.raise_for_status()

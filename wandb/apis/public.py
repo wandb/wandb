@@ -43,6 +43,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError
 from wandb.sdk import artifacts
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     LaunchError,
@@ -365,7 +366,7 @@ class Api:
         self.settings = InternalApi().settings()
         _overrides = overrides or {}
         self._api_key = api_key
-        if self.api_key is None:
+        if self.api_key is None and _thread_local_api_settings.cookies is None:
             wandb.login(host=_overrides.get("base_url"))
         self.settings.update(_overrides)
         if "username" in _overrides and "entity" not in _overrides:
@@ -382,15 +383,23 @@ class Api:
         self._reports = {}
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
+        auth = None
+        if not _thread_local_api_settings.cookies:
+            auth = ("api", self.api_key)
         self._base_client = Client(
             transport=GraphQLSession(
-                headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
+                headers={
+                    "User-Agent": self.user_agent,
+                    "Use-Admin-Privileges": "true",
+                    **(_thread_local_api_settings.headers or {}),
+                },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=("api", self.api_key),
+                auth=auth,
                 url="%s/graphql" % self.settings["base_url"],
+                cookies=_thread_local_api_settings.cookies,
             )
         )
         self._client = RetryingClient(self._base_client)
@@ -483,6 +492,9 @@ class Api:
 
     @property
     def api_key(self):
+        # just use thread local api key if it's set
+        if _thread_local_api_settings.api_key:
+            return _thread_local_api_settings.api_key
         if self._api_key is not None:
             return self._api_key
         auth = requests.utils.get_netrc_auth(self.settings["base_url"])
