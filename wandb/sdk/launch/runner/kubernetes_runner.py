@@ -4,7 +4,7 @@ import base64
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -727,7 +727,7 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
     Returns: None.
     """
 
-    def yield_containers(root):
+    def yield_containers(root: Any) -> Iterator[dict]:
         if isinstance(root, dict):
             for k, v in root.items():
                 if k == "containers":
@@ -766,7 +766,7 @@ def add_label_to_pods(
     Returns: None.
     """
 
-    def yield_pods(manifest):
+    def yield_pods(manifest: Any) -> Iterator[dict]:
         if isinstance(manifest, list):
             for item in manifest:
                 yield from yield_pods(item)
