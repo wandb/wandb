@@ -44,9 +44,19 @@ class SagemakerSubmittedRun(AbstractRun):
         if self.log_client is None:
             return None
         try:
+            describe_res = self.log_client.describe_log_streams(
+                logGroupName="/aws/sagemaker/TrainingJobs",
+                logStreamNamePrefix=self.training_job_name,
+            )
+            if len(describe_res["logStreams"]) == 0:
+                wandb.termwarn(
+                    f"Failed to get logs for training job: {self.training_job_name}"
+                )
+                return None
+            log_name = describe_res["logStreams"][0]["logStreamName"]
             res = self.log_client.get_log_events(
                 logGroupName="/aws/sagemaker/TrainingJobs",
-                logStreamName=self.training_job_name,
+                logStreamName=log_name,
             )
             return "\n".join(
                 [f'{event["timestamp"]}:{event["message"]}' for event in res["events"]]
@@ -158,6 +168,13 @@ class SageMakerRunner(AbstractRunner):
 
         # Create a sagemaker client to launch the job.
         sagemaker_client = session.client("sagemaker")
+        log_client = None
+        try:
+            log_client = session.client("logs")
+        except Exception:
+            wandb.termwarn(
+                "Failed to connect to cloudwatch logs, logs will not be available"
+            )
 
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
@@ -176,7 +193,7 @@ class SageMakerRunner(AbstractRunner):
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
-            run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
+            run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client, log_client)
             if self.backend_config[PROJECT_SYNCHRONOUS]:
                 run.wait()
             return run
@@ -209,7 +226,7 @@ class SageMakerRunner(AbstractRunner):
             launch_project, self._api, role_arn, image, default_output_path
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
-        run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
+        run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client, log_client)
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             run.wait()
         return run

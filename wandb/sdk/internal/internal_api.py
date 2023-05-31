@@ -613,20 +613,6 @@ class Api:
     ) -> bool:
         if not self.fail_run_queue_item_introspection():
             return False
-
-        mutation_string = """
-        mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $phase: String!, $filePaths: [String!]) {
-            failRunQueueItem(
-                input: {
-                    runQueueItemId: $runQueueItemId
-                    __FRAGMENT__
-                }
-            ) {
-                success
-            }
-        }
-        """
-
         variable_values: Dict[str, Union[str, Optional[List[str]]]] = {
             "runQueueItemId": run_queue_item_id,
         }
@@ -634,14 +620,32 @@ class Api:
             variable_values.update({"message": message, "phase": phase})
             if file_paths is not None:
                 variable_values["filePaths"] = file_paths
-            fail_info_string = """
-            message: $message
-            phase: $phase
-            filePaths: $filePaths
+            mutation_string = """
+            mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $phase: String!, $filePaths: [String!]) {
+                failRunQueueItem(
+                    input: {
+                        runQueueItemId: $runQueueItemId
+                        message: $message
+                        phase: $phase
+                        filePaths: $filePaths
+                    }
+                ) {
+                    success
+                }
+            }
             """
-            mutation_string = mutation_string.replace("__FRAGMENT__", fail_info_string)
         else:
-            mutation_string = mutation_string.replace("__FRAGMENT__", "")
+            mutation_string = """
+            mutation failRunQueueItem($runQueueItemId: ID!) {
+                failRunQueueItem(
+                    input: {
+                        runQueueItemId: $runQueueItemId
+                    }
+                ) {
+                    success
+                }
+            }
+            """
 
         mutation = gql(mutation_string)
         response = self.gql(mutation, variable_values=variable_values)

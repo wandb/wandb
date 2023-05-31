@@ -310,6 +310,7 @@ class LaunchAgent:
                 fnames = None
 
                 logs = job_and_run_status.run.get_logs()
+                print(logs)
                 if logs:
                     fnames = job_and_run_status.saver.save_contents(
                         logs, "error.log", "error"
