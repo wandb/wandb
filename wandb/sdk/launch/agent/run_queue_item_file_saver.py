@@ -1,11 +1,17 @@
 """Implementation of the run queue item file saver class."""
 
 import os
+import sys
 import tempfile
-from typing import List, Literal, Optional, Union
+from typing import List, Optional, TYPE_CHECKING, Union
 
 from wandb.sdk.lib import RunDisabled
 from wandb.sdk.wandb_run import Run
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 FileSubtypes = Literal["warning", "error"]
 

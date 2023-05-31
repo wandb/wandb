@@ -1,6 +1,7 @@
 import os
 from unittest.mock import MagicMock
 
+from wandb.sdk.wandb_run import Run
 from wandb.sdk.launch.agent.run_queue_item_file_saver import RunQueueItemFileSaver
 
 
@@ -15,7 +16,7 @@ def test_no_run():
 
 
 def test_run():
-    run = MagicMock()
+    run = MagicMock(spec=Run)
     run.save = MagicMock(return_value=["test_path"])
     saver = RunQueueItemFileSaver(run, "test_run_queue_item_id")
     assert saver.save_contents("contents", "fname", "error") == ["test_path"]
