@@ -4356,7 +4356,7 @@ class Job:
         git_info = self._job_info.get("source", {}).get("git", {})
         _fetch_git_repo(
             launch_project.project_dir,
-            "git@github.com:wandb/launch-jobs.git",  # git_info["remote"],
+            git_info["remote"],
             git_info["commit"],
         )
         if os.path.exists(os.path.join(self._fpath, "diff.patch")):

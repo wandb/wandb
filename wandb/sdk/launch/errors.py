@@ -17,9 +17,3 @@ class ExecutionError(Error):
     """Generic execution exception."""
 
     pass
-
-
-class SweepError(Error):
-    """Raised when a known error occurs with wandb sweeps."""
-
-    pass
