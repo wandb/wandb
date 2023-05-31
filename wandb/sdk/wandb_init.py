@@ -663,6 +663,9 @@ class _WandbInit:
             if os.environ.get("PEX"):
                 tel.env.pex = True
 
+            if self.settings._aws_lambda:
+                tel.env.aws_lambda = True
+
             if os.environ.get(wandb.env._DISABLE_SERVICE):
                 tel.feature.service_disabled = True
 
@@ -772,7 +775,8 @@ class _WandbInit:
 
             if not run_result.HasField("run"):
                 raise Error(
-                    "It appears that something have gone wrong during the program execution as an unexpected missing field was encountered. "
+                    "It appears that something have gone wrong during the program "
+                    "execution as an unexpected missing field was encountered. "
                     "(run_result is missing the 'run' field)"
                 )
 

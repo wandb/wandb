@@ -39,7 +39,7 @@ def test_one_cell(notebook, run_id):
         assert run_id in output
 
 
-def test_magic(mocker, notebook):
+def test_magic(notebook):
     with notebook("magic.ipynb") as nb:
         nb.execute_all()
         iframes = 0
@@ -66,39 +66,39 @@ def test_notebook_exits(user, assets_path):
     subprocess.check_call(cmd)
 
 
-def test_notebook_metadata_jupyter(mocker, mocked_module, notebook):
-    ipyconnect = mocker.patch("ipykernel.connect")
-    ipyconnect.get_connection_file.return_value = "kernel-12345.json"
-    serverapp = mocked_module("jupyter_server.serverapp")
-    serverapp.list_running_servers.return_value = [
-        {"url": notebook.base_url, "notebook_dir": "/test"}
-    ]
-    with mock.patch.object(
-        wandb.jupyter.requests,
-        "get",
-        lambda *args, **kwargs: mocker.MagicMock(
-            json=lambda: [
-                {
-                    "kernel": {"id": "12345"},
-                    "notebook": {
-                        "name": "test.ipynb",
-                        "path": "test.ipynb",
-                    },
-                }
-            ]
-        ),
-    ):
+def test_notebook_metadata_jupyter(mocked_module, notebook):
+    with mock.patch("ipykernel.connect.get_connection_file") as ipyconnect:
+        ipyconnect.return_value = "kernel-12345.json"
+        serverapp = mocked_module("jupyter_server.serverapp")
+        serverapp.list_running_servers.return_value = [
+            {"url": notebook.base_url, "notebook_dir": "/test"}
+        ]
+        with mock.patch.object(
+            wandb.jupyter.requests,
+            "get",
+            lambda *args, **kwargs: mock.MagicMock(
+                json=lambda: [
+                    {
+                        "kernel": {"id": "12345"},
+                        "notebook": {
+                            "name": "test.ipynb",
+                            "path": "test.ipynb",
+                        },
+                    }
+                ]
+            ),
+        ):
+            meta = wandb.jupyter.notebook_metadata(False)
+            assert meta == {"path": "test.ipynb", "root": "/test", "name": "test.ipynb"}
+
+
+def test_notebook_metadata_no_servers(mocked_module):
+    with mock.patch("ipykernel.connect.get_connection_file") as ipyconnect:
+        ipyconnect.return_value = "kernel-12345.json"
+        serverapp = mocked_module("jupyter_server.serverapp")
+        serverapp.list_running_servers.return_value = []
         meta = wandb.jupyter.notebook_metadata(False)
-        assert meta == {"path": "test.ipynb", "root": "/test", "name": "test.ipynb"}
-
-
-def test_notebook_metadata_no_servers(mocker, mocked_module):
-    ipyconnect = mocker.patch("ipykernel.connect")
-    ipyconnect.get_connection_file.return_value = "kernel-12345.json"
-    serverapp = mocked_module("jupyter_server.serverapp")
-    serverapp.list_running_servers.return_value = []
-    meta = wandb.jupyter.notebook_metadata(False)
-    assert meta == {}
+        assert meta == {}
 
 
 def test_notebook_metadata_colab(mocked_module):
@@ -125,10 +125,10 @@ def test_notebook_metadata_colab(mocked_module):
         }
 
 
-def test_notebook_metadata_kaggle(mocker, mocked_module):
+def test_notebook_metadata_kaggle(mocked_module):
     os.environ["KAGGLE_KERNEL_RUN_TYPE"] = "test"
     kaggle = mocked_module("kaggle_session")
-    kaggle_client = mocker.MagicMock()
+    kaggle_client = mock.MagicMock()
     kaggle_client.get_exportable_ipynb.return_value = {
         "source": json.dumps({"metadata": {}, "cells": []})
     }
@@ -270,3 +270,21 @@ def test_code_saving(notebook):
         os.remove("code_saving.ipynb")
         nb.execute_all()
         assert "WANDB_NOTEBOOK_NAME should be a path" in nb.all_output_text()
+
+
+def test_notebook_creates_artifact_job(notebook):
+    with notebook("one_cell_disable_git.ipynb") as nb:
+        nb.execute_all()
+        output = nb.cell_output_html(2)
+        # 3 artifact files if code, 5 if also job
+        # TODO: test contents of artifact, requires relay server context for artifacts
+        assert "5 artifact file(s)" in output
+
+
+def test_notebook_creates_repo_job(notebook):
+    with notebook("one_cell_set_git.ipynb") as nb:
+        nb.execute_all()
+        output = nb.cell_output_html(2)
+        # 3 artifact files if code, 5 if also job
+        # TODO: test contents of artifact, requires relay server context for artifacts
+        assert "5 artifact file(s)" in output

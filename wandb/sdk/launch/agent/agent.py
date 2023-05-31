@@ -15,20 +15,15 @@ from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
-from wandb.sdk.launch.sweeps import SCHEDULER_URI
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
 
 from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.build import construct_builder_args
+from ..errors import LaunchDockerError, LaunchError
 from ..runner.abstract import AbstractRun
-from ..utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    LOG_PREFIX,
-    PROJECT_SYNCHRONOUS,
-    LaunchDockerError,
-    LaunchError,
-)
+from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -36,6 +31,8 @@ ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
+
+HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_THREADS = 64
 
@@ -101,16 +98,21 @@ def _max_from_config(
     return max_from_config
 
 
-def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
+def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
     """Determine whether a job/runSpec is a sweep scheduler."""
     if not run_spec:
-        _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
+        _logger.debug("Recieved runSpec in _is_scheduler_job that was empty")
 
-    if run_spec.get("uri") != SCHEDULER_URI:
+    if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
         return False
 
     if run_spec.get("resource") == "local-process":
-        # If a scheduler is a local-process (100%), also
+        # Any job pushed to a run queue that has a scheduler uri is
+        # allowed to use local-process
+        if run_spec.get("job"):
+            return True
+
+        # If a scheduler is local-process and run through CLI, also
         #    confirm command is in format: [wandb scheduler <sweep>]
         cmd = run_spec.get("overrides", {}).get("entry_point", [])
         if len(cmd) < 3:
@@ -169,15 +171,31 @@ class LaunchAgent:
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
-        self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
         if self._api.entity_is_team(self._entity):
             wandb.termwarn(
                 f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
             )
 
+        agent_response = self._api.get_launch_agent(
+            self._id, self.gorilla_supports_agents
+        )
+        self._name = agent_response["name"]
+        if self.gorilla_supports_agents:
+            self._init_agent_run()
+
     def fail_run_queue_item(self, run_queue_item_id: str) -> None:
         if self._gorilla_supports_fail_run_queue_items:
             self._api.fail_run_queue_item(run_queue_item_id)
+
+    def _init_agent_run(self) -> None:
+        settings = wandb.Settings(silent=True, disable_git=True)
+        wandb.init(
+            project=self._project,
+            entity=self._entity,
+            settings=settings,
+            id=self._name,
+            job_type=HIDDEN_AGENT_RUN_TYPE,
+        )
 
     @property
     def thread_ids(self) -> List[int]:
@@ -253,10 +271,18 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def finish_thread_id(self, thread_id: int) -> None:
+    def finish_thread_id(
+        self,
+        thread_id: int,
+        exception: Optional[Union[Exception, LaunchDockerError]] = None,
+    ) -> None:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
-        if not job_and_run_status.run_id or not job_and_run_status.project:
+        if (
+            not job_and_run_status.run_id
+            or not job_and_run_status.project
+            or exception is not None
+        ):
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         elif job_and_run_status.entity != self._entity:
             _logger.info(
@@ -367,7 +393,6 @@ class LaunchAgent:
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
                 )
-                self._name = agent_response["name"]  # hack: first time we get name
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
@@ -376,7 +401,7 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
-                            if _job_is_scheduler(job.get("runSpec")):
+                            if _is_scheduler_job(job.get("runSpec")):
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
                                 if self.num_running_schedulers >= self._max_schedulers:
@@ -438,11 +463,11 @@ class LaunchAgent:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
-            self.finish_thread_id(thread_id)
+            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
-            self.finish_thread_id(thread_id)
+            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
 
     def _thread_run_job(
@@ -482,7 +507,7 @@ class LaunchAgent:
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         run = backend.run(project, builder)
 
-        if _job_is_scheduler(launch_spec):
+        if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
             wandb.termlog(
