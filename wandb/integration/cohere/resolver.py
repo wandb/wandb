@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 def subset_dict(
     original_dict: Dict[str, Any], keys_subset: Sequence[str]
 ) -> Dict[str, Any]:
-    """
-    Create a subset of a dictionary using a subset of keys.
+    """Create a subset of a dictionary using a subset of keys.
 
     :param original_dict: The original dictionary.
     :param keys_subset: The subset of keys to extract.
@@ -25,8 +24,7 @@ def subset_dict(
 def reorder_and_convert_dict_list_to_table(
     data: List[Dict[str, Any]], order: List[str]
 ) -> Tuple[List[str], List[List[Any]]]:
-    """
-    Convert a list of dictionaries to a pair of column names and corresponding values, with the option to order specific dictionaries.
+    """Convert a list of dictionaries to a pair of column names and corresponding values, with the option to order specific dictionaries.
 
     :param data: A list of dictionaries.
     :param order: A list of keys specifying the desired order for specific dictionaries. The remaining dictionaries will be ordered based on their original order.
@@ -62,8 +60,7 @@ def reorder_and_convert_dict_list_to_table(
 def flatten_dict(
     dictionary: Dict[str, Any], parent_key: str = "", sep: str = "-"
 ) -> Dict[str, Any]:
-    """
-    Flatten a nested dictionary, joining keys using a specified separator.
+    """Flatten a nested dictionary, joining keys using a specified separator.
 
     :param dictionary: The dictionary to flatten.
     :param parent_key: The base key to prepend to each key.
@@ -81,9 +78,7 @@ def flatten_dict(
 
 
 def collect_common_keys(list_of_dicts: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
-    """
-    Collect the common keys of a list of dictionaries. For each common key, put
-    its values into a list in the order they appear in the original dictionaries.
+    """Collect the common keys of a list of dictionaries. For each common key, put its values into a list in the order they appear in the original dictionaries.
 
     :param list_of_dicts: The list of dictionaries to inspect.
     :return: A dictionary with each common key and its corresponding list of values.
@@ -97,9 +92,7 @@ def collect_common_keys(list_of_dicts: List[Dict[str, Any]]) -> Dict[str, List[A
 
 
 class CohereRequestResponseResolver:
-    """
-    Class to resolve the request/response from the Cohere API and convert it to a dictionary that can be logged.
-    """
+    """Class to resolve the request/response from the Cohere API and convert it to a dictionary that can be logged."""
 
     def __call__(
         self,
@@ -109,8 +102,7 @@ class CohereRequestResponseResolver:
         start_time: float,
         time_elapsed: float,
     ) -> Optional[Dict[str, Any]]:
-        """
-        Process the response from the Cohere API and convert it to a dictionary that can be logged.
+        """Process the response from the Cohere API and convert it to a dictionary that can be logged.
 
         :param args: The arguments of the original function.
         :param kwargs: The keyword arguments of the original function.
@@ -305,8 +297,7 @@ class CohereRequestResponseResolver:
         table_column_order: List[str],
         default_model: str,
     ) -> Dict[str, Any]:
-        """
-        Convert a list of dictionaries to a pair of column names and corresponding values, with the option to order specific dictionaries.
+        """Convert a list of dictionaries to a pair of column names and corresponding values, with the option to order specific dictionaries.
 
         :param args: The arguments passed to the API client.
         :param kwargs: The keyword arguments passed to the API client.
