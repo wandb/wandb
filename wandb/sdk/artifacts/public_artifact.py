@@ -37,6 +37,7 @@ from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import hex_to_b64_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
 
@@ -649,9 +650,30 @@ class Artifact(ArtifactInterface):
 
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
+        def _download_file_with_thread_local_api_settings(
+            name: str,
+            root: str,
+            download_logger: ArtifactDownloadLogger,
+            tlas_api_key: Optional[str],
+            tlas_cookies: Optional[Dict],
+            tlas_headers: Optional[Dict],
+        ) -> StrPath:
+            _thread_local_api_settings.api_key = tlas_api_key
+            _thread_local_api_settings.cookies = tlas_cookies
+            _thread_local_api_settings.headers = tlas_headers
+
+            return self._download_file(name, root, download_logger)
+
         pool = multiprocessing.dummy.Pool(32)
         pool.map(
-            partial(self._download_file, root=dirpath, download_logger=download_logger),
+            partial(
+                _download_file_with_thread_local_api_settings,
+                root=dirpath,
+                download_logger=download_logger,
+                tlas_api_key=_thread_local_api_settings.api_key,
+                tlas_headers={**(_thread_local_api_settings.headers or {})},
+                tlas_cookies={**(_thread_local_api_settings.cookies or {})},
+            ),
             manifest.entries,
         )
         if recursive:

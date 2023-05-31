@@ -10,7 +10,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
