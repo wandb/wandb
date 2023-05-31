@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
@@ -78,6 +78,22 @@ def flatten_dict(
         else:
             flattened_dict[new_key] = value
     return flattened_dict
+
+
+def collect_common_keys(list_of_dicts: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
+    """
+    Collect the common keys of a list of dictionaries. For each common key, put
+    its values into a list in the order they appear in the original dictionaries.
+
+    :param list_of_dicts: The list of dictionaries to inspect.
+    :return: A dictionary with each common key and its corresponding list of values.
+    """
+    common_keys = set.intersection(*map(set, list_of_dicts))
+    common_dict = {key: [] for key in common_keys}
+    for d in list_of_dicts:
+        for key in common_keys:
+            common_dict[key].append(d[key])
+    return common_dict
 
 
 class CohereRequestResponseResolver:
@@ -269,7 +285,14 @@ class CohereRequestResponseResolver:
     def _resolve_rerank_response(self, response: Response) -> List[Dict[str, Any]]:
         # The documents key contains a dict containing the content of the document which is at least "text"
         # We flatten this nested dict for ease of consumption in the wandb UI
-        return [flatten_dict(_response.__dict__) for _response in response]
+        flattened_response_dicts = [
+            flatten_dict(_response.__dict__) for _response in response
+        ]
+        # ReRank returns each document provided a top_n value so we aggregate into one view so users can paginate a row
+        # As opposed to each row being one of the top_n responses
+        return_dict = collect_common_keys(flattened_response_dicts)
+        return_dict["id"] = response.id
+        return [return_dict]
 
     def _resolve(
         self,
