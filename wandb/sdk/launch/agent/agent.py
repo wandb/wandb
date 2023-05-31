@@ -180,7 +180,7 @@ class LaunchAgent:
                 entity=self._entity,
                 settings=settings,
                 id=self._name,
-                # job_type=HIDDEN_AGENT_RUN_TYPE,
+                job_type=HIDDEN_AGENT_RUN_TYPE,
             )
         else:
             self._wandb_run = None
