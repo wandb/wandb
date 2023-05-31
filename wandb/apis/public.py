@@ -44,9 +44,9 @@ from wandb.errors import CommError
 from wandb.sdk import artifacts
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
-    LaunchError,
     _fetch_git_repo,
     apply_patch,
     convert_jupyter_notebook_to_script,
