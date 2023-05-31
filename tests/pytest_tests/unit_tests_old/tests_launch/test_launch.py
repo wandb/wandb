@@ -41,6 +41,7 @@ def mocked_fetchable_git_repo():
         repo = mock.Mock()
         reference = MockBranch("master")
         repo.references = [reference]
+        repo.refs = {"master": mock.Mock()}
 
         def create_remote(o, r):
             origin = mock.Mock()
@@ -70,6 +71,7 @@ def mocked_fetchable_git_repo_conda():
         repo = mock.Mock()
         reference = MockBranch("master")
         repo.references = [reference]
+        repo.refs = {"master": mock.Mock()}
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "environment.yml"), "w") as f:
@@ -91,6 +93,7 @@ def mocked_fetchable_git_repo_ipython():
         repo = mock.Mock()
         reference = MockBranch("master")
         repo.references = [reference]
+        repo.refs = {"master": mock.Mock()}
         with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
             f.write(open(notebook_path("one_cell.ipynb")).read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
@@ -112,6 +115,7 @@ def mocked_fetchable_git_repo_nodeps():
         repo = mock.Mock()
         reference = MockBranch("master")
         repo.references = [reference]
+        repo.refs = {"master": mock.Mock()}
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
@@ -131,6 +135,8 @@ def mocked_fetchable_git_repo_shell():
         repo = mock.Mock()
         reference = MockBranch("master")
         repo.references = [reference]
+        repo.refs = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
@@ -1241,6 +1247,7 @@ def mocked_fetchable_git_repo_main():
         repo = mock.Mock()
         reference = MockBranch("main")
         repo.references = [reference]
+        repo.refs = {"main": mock.Mock()}
 
         def create_remote(o, r):
             origin = mock.Mock()
