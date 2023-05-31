@@ -54,6 +54,9 @@ def mocked_fetchable_git_repo():
         return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    mock_branch = mock.Mock()
+    mock_branch.name = "master"
+    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -72,6 +75,9 @@ def mocked_fetchable_git_repo_conda():
         return mock.Mock()
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    mock_branch = mock.Mock()
+    mock_branch.name = "master"
+    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -90,6 +96,9 @@ def mocked_fetchable_git_repo_ipython():
         return mock.Mock()
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    mock_branch = mock.Mock()
+    mock_branch.name = "master"
+    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -106,6 +115,9 @@ def mocked_fetchable_git_repo_nodeps():
         return mock.Mock()
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    mock_branch = mock.Mock()
+    mock_branch.name = "master"
+    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -128,6 +140,9 @@ def mocked_fetchable_git_repo_shell():
         return mock.Mock()
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    mock_branch = mock.Mock()
+    mock_branch.name = "master"
+    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
@@ -1244,6 +1259,9 @@ def mocked_fetchable_git_repo_main():
         return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    mock_branch = mock.Mock()
+    mock_branch.name = "main"
+    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 

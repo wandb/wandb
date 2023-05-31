@@ -62,6 +62,9 @@ def mocked_fetchable_git_repo():
         return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    mock_branch = mock.Mock()
+    mock_branch.name = "master"
+    m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
 
