@@ -42,6 +42,10 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
         raise LaunchError(
             "Could not create environment from config. Environment type not specified!"
         )
+    if env_type == "local":
+        from .environment.local_environment import LocalEnvironment
+
+        return LocalEnvironment.from_config(config)
     if env_type == "aws":
         from .environment.aws_environment import AwsEnvironment
 
@@ -80,7 +84,7 @@ def registry_from_config(
 
         return LocalRegistry()  # This is the default, dummy registry.
     registry_type = config.get("type")
-    if registry_type is None:
+    if registry_type is None or registry_type == "local":
         from .registry.local_registry import LocalRegistry
 
         return LocalRegistry()  # This is the default, dummy registry.
