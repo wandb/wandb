@@ -10,6 +10,11 @@ from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
+class MockBranch:
+    def __init__(self, name):
+        self.name = name
+
+
 @pytest.fixture
 def mocked_fetchable_git_repo():
     m = mock.Mock()
@@ -62,8 +67,7 @@ def mocked_fetchable_git_repo():
         return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    mock_branch = mock.Mock()
-    mock_branch.name = "master"
+    mock_branch = MockBranch("master")
     m.Repo.references = [mock_branch]
     with mock.patch.dict("sys.modules", git=m):
         yield m
