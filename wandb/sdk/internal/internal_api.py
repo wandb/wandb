@@ -171,7 +171,7 @@ class Api:
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = env.get_http_timeout(10)
+    HTTP_TIMEOUT = env.get_http_timeout(60)
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
