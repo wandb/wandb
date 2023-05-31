@@ -572,6 +572,9 @@ class KubernetesRunner(AbstractRunner):
             version = api_version.split("/")[1]
             kind = resource_args.get("kind", version)
             plural = f"{kind.lower()}s"
+            import pprint
+
+            pprint.pprint(launch_project.resource_args.get("kubernetes"))
             try:
                 response = api.create_namespaced_custom_object(
                     group=group,
@@ -715,30 +718,37 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
     Recursively walks the spec and injects the environment variables into
     every container spec. Containers are identified by the "containers" key.
 
+    This function treats the WANDB_RUN_ID and WANDB_GROUP_ID environment variables
+    specially. If they are present in the spec, they will be overwritten. If a setting
+    for WANDB_RUN_ID is provided in env_vars, then that environment variable will only be
+    set in the first container modified by this function.
+
     Arguments:
         root: The spec to modify.
         env_vars: The environment variables to inject.
 
     Returns: None.
     """
-    if isinstance(root, dict):
-        for k, v in root.items():
-            if k == "containers":
-                if isinstance(v, list):
-                    for cont in v:
-                        env = cont.get("env", [])
-                        env.extend(
-                            [
-                                {"name": key, "value": value}
-                                for key, value in env_vars.items()
-                            ]
-                        )
-                        cont["env"] = env
-            elif isinstance(v, (dict, list)):
-                add_wandb_env(v, env_vars)
-    elif isinstance(root, list):
-        for item in root:
-            add_wandb_env(item, env_vars)
+
+    def yield_containers(root):
+        if isinstance(root, dict):
+            for k, v in root.items():
+                if k == "containers":
+                    if isinstance(v, list):
+                        for cont in v:
+                            yield cont
+                elif isinstance(v, (dict, list)):
+                    yield from yield_containers(v)
+        elif isinstance(root, list):
+            for item in root:
+                yield from yield_containers(item)
+
+    for cont in yield_containers(root):
+        env = cont.setdefault("env", [])
+        env.extend([{"name": key, "value": value} for key, value in env_vars.items()])
+        cont["env"] = env
+        if "WANDB_RUN_ID" in env_vars:
+            env_vars.pop("WANDB_RUN_ID")
 
 
 def add_label_to_pods(
@@ -757,16 +767,22 @@ def add_label_to_pods(
 
     Returns: None.
     """
-    if isinstance(manifest, list):
-        for item in manifest:
-            add_label_to_pods(item, label_key, label_value)
-    elif isinstance(manifest, dict):
-        if "spec" in manifest and "containers" in manifest["spec"]:
-            metadata = manifest.setdefault("metadata", {})
-            labels = metadata.setdefault("labels", {})
-            labels[label_key] = label_value
-        for value in manifest.values():
-            add_label_to_pods(value, label_key, label_value)
+
+    def yield_pods(manifest):
+        if isinstance(manifest, list):
+            for item in manifest:
+                yield from yield_pods(item)
+        elif isinstance(manifest, dict):
+            if "spec" in manifest and "containers" in manifest["spec"]:
+                yield manifest
+            for value in manifest.values():
+                if isinstance(value, (dict, list)):
+                    yield from yield_pods(value)
+
+    for pod in yield_pods(manifest):
+        metadata = pod.setdefault("metadata", {})
+        labels = metadata.setdefault("labels", {})
+        labels[label_key] = label_value
 
 
 def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) -> None:
