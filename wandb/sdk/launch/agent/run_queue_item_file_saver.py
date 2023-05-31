@@ -2,10 +2,13 @@
 
 import os
 import tempfile
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 from wandb.sdk.lib import RunDisabled
 from wandb.sdk.wandb_run import Run
+
+
+FileSubtypes = Literal["warning", "error"]
 
 
 class RunQueueItemFileSaver:
@@ -21,7 +24,7 @@ class RunQueueItemFileSaver:
         return os.path.join(self.root_dir, self.run_queue_item_id)
 
     def save_contents(
-        self, contents: str, fname: str, file_sub_type: str
+        self, contents: str, fname: str, file_sub_type: FileSubtypes
     ) -> Optional[List[str]]:
         if not isinstance(self.run, Run):
             return None

@@ -107,7 +107,7 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def get_logs(self) -> Optional[str]:
         try:
-            logs = self.batch_api.read_namespaced_pod_log(
+            logs = self.core_api.read_namespaced_pod_log(
                 name=self.pod_names[0], namespace=self.namespace
             )
             if logs:
@@ -276,6 +276,7 @@ class CrdSubmittedRun(AbstractRun):
 
     def get_logs(self) -> Optional[str]:
         """Get logs for custom object."""
+        # TODO: test more carefully once we release multi-node support
         logs = {}
         try:
             for pod_name in self.pod_names:
