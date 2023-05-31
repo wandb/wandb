@@ -744,6 +744,7 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
         env = cont.setdefault("env", [])
         env.extend([{"name": key, "value": value} for key, value in env_vars.items()])
         cont["env"] = env
+        # After we have set WANDB_RUN_ID once, we don't want to set it again
         if "WANDB_RUN_ID" in env_vars:
             env_vars.pop("WANDB_RUN_ID")
 
