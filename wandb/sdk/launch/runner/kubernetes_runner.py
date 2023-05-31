@@ -572,9 +572,6 @@ class KubernetesRunner(AbstractRunner):
             version = api_version.split("/")[1]
             kind = resource_args.get("kind", version)
             plural = f"{kind.lower()}s"
-            import pprint
-
-            pprint.pprint(launch_project.resource_args.get("kubernetes"))
             try:
                 response = api.create_namespaced_custom_object(
                     group=group,
