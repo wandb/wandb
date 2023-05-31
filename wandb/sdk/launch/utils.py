@@ -15,8 +15,8 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.wandb_reference import WandbReference
 from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.wandb_reference import WandbReference
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
@@ -446,11 +446,13 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
 
     _logger.info("Fetching git repo")
     ref = GitHubReference.parse(uri)
+    if ref is None:
+        raise LaunchError(f"Unable to parse git uri: {uri}")
     if version:
         ref.update_ref(version)
-    # repo = git.Repo.init(dst_dir)
     ref.fetch(dst_dir)
-    return version
+    assert version is not None or ref.ref is not None or ref.default_branch is not None
+    return version or ref.ref or ref.default_branch  # type: ignore
 
 
 def merge_parameters(

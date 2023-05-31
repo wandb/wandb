@@ -33,10 +33,10 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     check_logged_in,

@@ -1,6 +1,7 @@
 """Local registry implementation."""
 import logging
 from typing import Tuple
+
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import docker_image_exists
 

@@ -15,8 +15,8 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
-from ..registry.local_registry import LocalRegistry
 from ..errors import LaunchDockerError, LaunchError
+from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
     sanitize_wandb_api_key,

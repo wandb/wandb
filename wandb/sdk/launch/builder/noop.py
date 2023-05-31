@@ -3,8 +3,8 @@ from typing import Any, Dict
 
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
-from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
 
