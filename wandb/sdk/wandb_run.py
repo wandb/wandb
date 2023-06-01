@@ -83,7 +83,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .lib.git import GitRepo
+from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
