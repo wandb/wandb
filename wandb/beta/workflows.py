@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 import wandb.data_types as data_types
 from wandb.data_types import _SavedModel
-from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
-from wandb.sdk.interface.artifacts import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 
 def _add_any(

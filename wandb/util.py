@@ -50,14 +50,15 @@ import yaml
 import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import wandb.apis.public
     import wandb.sdk.internal.settings_static
-    import wandb.sdk.wandb_artifacts
     import wandb.sdk.wandb_settings
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -1246,7 +1247,17 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
-    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
+    auth = None
+    if not _thread_local_api_settings.cookies:
+        auth = ("api", api_key or "")
+    response = requests.get(
+        source_url,
+        auth=auth,
+        headers=_thread_local_api_settings.headers,
+        cookies=_thread_local_api_settings.cookies,
+        stream=True,
+        timeout=5,
+    )
     response.raise_for_status()
 
     if os.sep in dest_path:
@@ -1289,7 +1300,9 @@ def from_human_size(size: str, units: Optional[List[Tuple[str, Any]]] = None) ->
 
 def auto_project_name(program: Optional[str]) -> str:
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = wandb.wandb_sdk.lib.git.GitRepo().root_dir
+    from wandb.sdk.lib.gitlib import GitRepo
+
+    root_dir = GitRepo().root_dir
     if root_dir is None:
         return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows
@@ -1488,21 +1501,14 @@ def check_windows_valid_filename(path: Union[int, str]) -> bool:
 
 
 def artifact_to_json(
-    artifact: Union["wandb.sdk.wandb_artifacts.Artifact", "wandb.apis.public.Artifact"]
+    artifact: Union["LocalArtifact", "PublicArtifact"]
 ) -> Dict[str, Any]:
-    # public.Artifact has the _sequence name, instances of wandb.Artifact
-    # just have the name
-    if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name
-    else:
-        sequence_name = artifact.name.split(":")[0]
-
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
-        "sequenceName": sequence_name,
+        "sequenceName": artifact.source_name.split(":")[0],
         "usedAs": artifact._use_as,
     }
 
@@ -1515,7 +1521,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
                 return True
         elif (
             isinstance(item, wandb.Artifact)
-            or isinstance(item, wandb.apis.public.Artifact)
+            or isinstance(item, wandb.sdk.PublicArtifact)
             or _is_artifact_string(item)
         ) and nested:
             return True
@@ -1597,7 +1603,7 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
 
 
 def _is_artifact_object(v: Any) -> bool:
-    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
+    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.sdk.PublicArtifact)
 
 
 def _is_artifact_string(v: Any) -> bool:

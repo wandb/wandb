@@ -132,6 +132,7 @@ class LocalContainerRunner(AbstractRunner):
                 launch_project,
                 entry_point,
             )
+
             _logger.info(f"Docker image built with uri {image_uri}")
             # entry_cmd and additional_args are empty here because
             # if launch built the container they've been accounted
@@ -143,7 +144,7 @@ class LocalContainerRunner(AbstractRunner):
                     docker_args=docker_args,
                 )
             ).strip()
-
+        launch_project.fill_macros(image_uri)
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)

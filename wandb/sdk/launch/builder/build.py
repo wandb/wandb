@@ -28,13 +28,8 @@ from .._project_spec import (
     LaunchProject,
     fetch_and_validate_project,
 )
-from ..utils import (
-    LAUNCH_CONFIG_FILE,
-    LOG_PREFIX,
-    ExecutionError,
-    LaunchError,
-    resolve_build_and_registry_config,
-)
+from ..errors import ExecutionError, LaunchError
+from ..utils import LAUNCH_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
 from .abstract import AbstractBuilder
 
 _logger = logging.getLogger(__name__)
@@ -246,6 +241,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         env_vars["WANDB_NAME"] = launch_project.name
     if "author" in launch_project.launch_spec and not override_api_key:
         env_vars["WANDB_USERNAME"] = launch_project.launch_spec["author"]
+    if launch_project.sweep_id:
+        env_vars["WANDB_SWEEP_ID"] = launch_project.sweep_id
 
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)

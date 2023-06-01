@@ -37,6 +37,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.target_project = project_name
         project.name = None
         project.run_id = "asdasd"
+        project.sweep_id = "sweeeeep"
         project.override_config = {}
         project.override_entrypoint = entrypoint
         project.get_single_entry_point.return_value = entrypoint
