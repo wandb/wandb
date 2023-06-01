@@ -480,24 +480,6 @@ class SendManager:
                 result.response.check_version_response.delete_message = delete_message
         self._respond_result(result)
 
-    def _send_request_attach(
-        self,
-        req: wandb_internal_pb2.AttachRequest,
-        resp: wandb_internal_pb2.AttachResponse,
-    ) -> None:
-        attach_id = req.attach_id
-        assert attach_id
-        assert self._run
-        resp.run.CopyFrom(self._run)
-
-    def send_request_attach(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
-        result = proto_util._result_from_record(record)
-        self._send_request_attach(
-            record.request.attach, result.response.attach_response
-        )
-        self._respond_result(result)
-
     def send_request_stop_status(self, record: "Record") -> None:
         result = proto_util._result_from_record(record)
         status_resp = result.response.stop_status_response
