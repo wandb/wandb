@@ -13,7 +13,9 @@ import wandb
 import wandb.docker as docker
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, Error
+from wandb.errors import CommError
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.github_reference import GitHubReference
 from wandb.sdk.launch.wandb_reference import WandbReference
 
 from .builder.templates._wandb_bootstrap import (
@@ -27,30 +29,6 @@ FAILED_PACKAGES_REGEX = re.compile(
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
-
-
-class LaunchError(Error):
-    """Raised when a known error occurs in wandb launch."""
-
-    pass
-
-
-class LaunchDockerError(Error):
-    """Raised when Docker daemon is not running."""
-
-    pass
-
-
-class ExecutionError(Error):
-    """Generic execution exception."""
-
-    pass
-
-
-class SweepError(Error):
-    """Raised when a known error occurs with wandb sweeps."""
-
-    pass
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -465,49 +443,16 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git  # type: ignore
 
     _logger.info("Fetching git repo")
-    repo = git.Repo.init(dst_dir)
-    origin = repo.create_remote("origin", uri)
-    refspec = _make_refspec_from_version(version)
-    origin.fetch(refspec=refspec, depth=1)
-
-    if version is not None:
-        try:
-            repo.git.checkout(version)
-        except git.exc.GitCommandError as e:
-            raise LaunchError(
-                f"Unable to checkout version '{version}' of git repo {uri}"
-                "- please ensure that the version exists in the repo. "
-                f"Error: {e}"
-            ) from e
-    else:
-        if getattr(repo, "references", None) is not None:
-            branches = [ref.name for ref in repo.references]
-        else:
-            branches = []
-        # Check if main is in origin, else set branch to master
-        if "main" in branches or "origin/main" in branches:
-            version = "main"
-        else:
-            version = "master"
-
-        try:
-            repo.create_head(version, origin.refs[version])
-            repo.heads[version].checkout()
-            wandb.termlog(
-                f"{LOG_PREFIX}No git branch passed, defaulted to branch: {version}"
-            )
-        except (AttributeError, IndexError) as e:
-            raise LaunchError(
-                f"Unable to checkout default version '{version}' of git repo {uri} "
-                "- to specify a git version use: --git-version \n"
-                f"Error: {e}"
-            ) from e
-
-    repo.submodule_update(init=True, recursive=True)
-    return version
+    ref = GitHubReference.parse(uri)
+    if ref is None:
+        raise LaunchError(f"Unable to parse git uri: {uri}")
+    if version:
+        ref.update_ref(version)
+    ref.fetch(dst_dir)
+    assert version is not None or ref.ref is not None or ref.default_branch is not None
+    return version or ref.ref or ref.default_branch  # type: ignore
 
 
 def merge_parameters(

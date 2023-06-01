@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Tuple
 
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
 from .abstract import AbstractRegistry

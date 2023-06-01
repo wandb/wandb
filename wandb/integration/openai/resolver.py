@@ -12,81 +12,6 @@ from wandb.sdk.integration_utils.auto_logging import Response
 logger = logging.getLogger(__name__)
 
 
-def get_model_alias(model_name: str, is_completion: bool = False) -> Dict[str, str]:
-    alias_cost_mapping = {
-        "gpt-4": {
-            "alias": "gpt-4",
-        },
-        "gpt-4-0314": {
-            "alias": "gpt-4",
-        },
-        "gpt-4-completion": {
-            "alias": "gpt-4",
-        },
-        "gpt-4-0314-completion": {
-            "alias": "gpt-4",
-        },
-        "gpt-4-32k": {
-            "alias": "gpt-4",
-        },
-        "gpt-4-32k-0314": {
-            "alias": "gpt-4",
-        },
-        "gpt-4-32k-completion": {
-            "alias": "gpt-4",
-        },
-        "gpt-4-32k-0314-completion": {
-            "alias": "gpt-4",
-        },
-        "gpt-3.5-turbo": {
-            "alias": "gpt-3.5",
-        },
-        "gpt-3.5-turbo-0301": {
-            "alias": "gpt-3.5",
-        },
-        "text-ada-001": {
-            "alias": "gpt-3",
-        },
-        "ada": {
-            "alias": "gpt-3",
-        },
-        "text-babbage-001": {
-            "alias": "gpt-3",
-        },
-        "babbage": {
-            "alias": "gpt-3",
-        },
-        "text-curie-001": {
-            "alias": "gpt-3",
-        },
-        "curie": {
-            "alias": "gpt-3",
-        },
-        "text-davinci-003": {
-            "alias": "gpt-3",
-        },
-        "text-davinci-edit-001": {
-            "alias": "gpt-3",
-        },
-        "code-davinci-edit-001": {
-            "alias": "gpt-3",
-        },
-        "text-davinci-002": {
-            "alias": "gpt-3",
-        },
-        "code-davinci-002": {
-            "alias": "gpt-3",
-        },
-    }
-
-    alias_cost = alias_cost_mapping.get(
-        model_name.lower()
-        + ("-completion" if is_completion and model_name.startswith("gpt-4") else ""),
-        None,
-    )
-    return alias_cost
-
-
 @dataclass
 class UsageMetrics:
     elapsed_time: float = None
@@ -114,11 +39,17 @@ class OpenAIRequestResponseResolver:
         request = kwargs
         try:
             if response.get("object") == "edit":
-                return self._resolve_edit(request, response, time_elapsed)
+                return {"trace": self._resolve_edit(request, response, time_elapsed)}
             elif response.get("object") == "text_completion":
-                return self._resolve_completion(request, response, time_elapsed)
+                return {
+                    "trace": self._resolve_completion(request, response, time_elapsed)
+                }
             elif response.get("object") == "chat.completion":
-                return self._resolve_chat_completion(request, response, time_elapsed)
+                return {
+                    "trace": self._resolve_chat_completion(
+                        request, response, time_elapsed
+                    )
+                }
             else:
                 logger.info(
                     f"Unsupported OpenAI response object: {response.get('object')}"
@@ -242,14 +173,10 @@ class OpenAIRequestResponseResolver:
             for choice in choices
         ]
         metrics = self._get_metrics_to_log(request, response, results, time_elapsed)
-        metrics = self._convert_metrics_to_dict(metrics)
-        return metrics
+        return self._convert_metrics_to_dict(metrics)
 
-    def _get_usage_metrics(
-        self,
-        response: Response,
-        time_elapsed: float,
-    ) -> UsageMetrics:
+    @staticmethod
+    def _get_usage_metrics(response: Response, time_elapsed: float) -> UsageMetrics:
         """Gets the usage stats from the response object."""
         if response.get("usage"):
             usage_stats = UsageMetrics(**response["usage"])
@@ -265,26 +192,14 @@ class OpenAIRequestResponseResolver:
         results: List[Any],
         time_elapsed: float,
     ) -> Metrics:
-        if response["object"] in ("text_completion", "chat.completion"):
-            is_completion = True
-        else:
-            is_completion = False
         model = response.get("model") or request.get("model")
-        if model:
-            model_alias = get_model_alias(model.lower(), is_completion=is_completion)
-        else:
-            model_alias = None
-
-        model_alias = model_alias["alias"] if model_alias else None
-
         usage_metrics = self._get_usage_metrics(response, time_elapsed)
 
-        usage_table = []
+        usage = []
         for result in results:
             row = {
                 "request": result.inputs["request"],
                 "response": result.outputs["response"],
-                "model_alias": model_alias,
                 "model": model,
                 "start_time": datetime.datetime.fromtimestamp(response["created"]),
                 "end_time": datetime.datetime.fromtimestamp(
@@ -297,23 +212,24 @@ class OpenAIRequestResponseResolver:
                 "session_id": wandb.run.id,
             }
             row.update(asdict(usage_metrics))
-            usage_table.append(row)
+            usage.append(row)
         usage_table = wandb.Table(
-            columns=list(usage_table[0].keys()),
-            data=[(item.values()) for item in usage_table],
+            columns=list(usage[0].keys()),
+            data=[(item.values()) for item in usage],
         )
 
         trace = self.results_to_trace_tree(request, response, results, time_elapsed)
 
-        stats = usage_table
-        metrics = Metrics(stats=stats, trace=trace, usage=usage_metrics)
+        metrics = Metrics(stats=usage_table, trace=trace, usage=usage_metrics)
         return metrics
 
-    def _convert_metrics_to_dict(self, metrics: Metrics):
+    @staticmethod
+    def _convert_metrics_to_dict(metrics: Metrics):
         """Converts metrics to a dict."""
-        metrics_dict = {}
-        metrics_dict["stats"] = metrics.stats
-        metrics_dict["trace"] = metrics.trace
+        metrics_dict = {
+            "stats": metrics.stats,
+            "trace": metrics.trace,
+        }
         usage_stats = {f"usage/{k}": v for k, v in asdict(metrics.usage).items()}
         for key in usage_stats:
             wandb.define_metric(key, step_metric="_timestamp")
