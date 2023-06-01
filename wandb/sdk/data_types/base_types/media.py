@@ -9,15 +9,16 @@ import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.paths import LogicalPath
 
 from .wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
 
 
@@ -193,11 +194,11 @@ class Media(WBValue):
                 # by definition is_bound, but are needed for
                 # mypy to understand that these are strings below.
                 assert isinstance(self._path, str)
-                json_obj["path"] = util.to_forward_slash_path(
+                json_obj["path"] = LogicalPath(
                     os.path.relpath(self._path, self._run.dir)
                 )
 
-        elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run, wandb.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for

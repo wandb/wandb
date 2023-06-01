@@ -8,6 +8,7 @@ from urllib import parse
 import wandb
 from wandb import util
 from wandb.sdk.lib import hashutil, runid
+from wandb.sdk.lib.paths import LogicalPath
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -21,9 +22,9 @@ if TYPE_CHECKING:  # pragma: no cover
     import torch  # type: ignore
     from PIL.Image import Image as PILImage
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
     ImageDataType = Union[
@@ -310,9 +311,11 @@ class Image(BatchableMedia):
     def from_json(
         cls: Type["Image"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "Image":
-        classes = None
+        classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
-            classes = source_artifact.get(json_obj["classes"]["path"])
+            value = source_artifact.get(json_obj["classes"]["path"])
+            assert isinstance(value, (type(None), Classes))
+            classes = value
 
         masks = json_obj.get("masks")
         _masks: Optional[Dict[str, ImageMask]] = None
@@ -399,7 +402,7 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
             if (
                 self._masks is not None or self._boxes is not None
@@ -493,7 +496,7 @@ class Image(BatchableMedia):
         media_dir = cls.get_media_subdir()
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(media_dir)
+            expected = LogicalPath(media_dir)
             if "path" in obj and not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(

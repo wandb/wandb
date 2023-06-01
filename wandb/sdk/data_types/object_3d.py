@@ -23,6 +23,7 @@ else:
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
+from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -31,7 +32,8 @@ from .base_types.media import BatchableMedia
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+
     from ..wandb_run import Run as LocalRun
 
     numeric = Union[int, float, np.integer, np.float_]
@@ -314,7 +316,7 @@ class Object3D(BatchableMedia):
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, wandb.Artifact):
             if self._path is None or not self._path.endswith(".pts.json"):
                 raise ValueError(
                     "Non-point cloud 3D objects are not yet supported with Artifacts"
@@ -335,7 +337,7 @@ class Object3D(BatchableMedia):
         jsons = [obj.to_json(run) for obj in seq]
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            expected = LogicalPath(cls.get_media_subdir())
             if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Object3D's must be in the {} directory, not {}".format(
