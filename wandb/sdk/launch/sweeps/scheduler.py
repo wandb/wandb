@@ -284,6 +284,7 @@ class Scheduler(ABC):
             self.exit()
             return
 
+        # For resuming sweeps
         self._load_state()
         self._register_agents()
         self.run()
@@ -356,6 +357,7 @@ class Scheduler(ABC):
         ]:
             self.state = SchedulerState.FAILED
         self._stop_runs()
+        self._set_sweep_state("FINISHED")
         self._wandb_run.finish()
 
     def _try_load_executable(self) -> bool:
@@ -549,6 +551,13 @@ class Scheduler(ABC):
                 "Error creating run from scheduler, check API connection and CLI version."
             )
         return {}
+
+    def _set_sweep_state(self, state: str) -> None:
+        wandb.termlog(f"{LOG_PREFIX}Updating sweep state to: {state.lower()}")
+        try:
+            self._api.set_sweep_state(sweep=self._sweep_id, state=state)
+        except Exception as e:
+            _logger.debug(f"[set_sweep_state] {e}")
 
     def _encode(self, _id: str) -> str:
         return (
