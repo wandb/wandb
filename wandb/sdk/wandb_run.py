@@ -83,7 +83,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .lib.git import GitRepo
+from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
@@ -478,7 +478,6 @@ class Run:
     _notes: Optional[str]
 
     _run_obj: Optional[RunRecord]
-    _run_obj_offline: Optional[RunRecord]
     # Use string literal annotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
     _internal_run_interface: Optional[
@@ -601,7 +600,6 @@ class Run:
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
-        self._run_obj_offline = None
 
         # Created when the run "starts".
         self._run_status_checker = None
@@ -880,8 +878,7 @@ class Run:
             tel.feature.set_run_name = True
         self._name = name
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
@@ -902,8 +899,7 @@ class Run:
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
@@ -911,9 +907,8 @@ class Run:
         """Tags associated with the run, if there are any."""
         if self._tags:
             return self._tags
-        run_obj = self._run_obj or self._run_obj_offline
-        if run_obj:
-            return tuple(run_obj.tags)
+        if self._run_obj:
+            return tuple(self._run_obj.tags)
         return None
 
     @tags.setter
@@ -923,8 +918,7 @@ class Run:
             tel.feature.set_run_tags = True
         self._tags = tuple(tags)
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
@@ -996,8 +990,7 @@ class Run:
         return self._step
 
     def project_name(self) -> str:
-        run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.project if run_obj else ""
+        return self._run_obj.project if self._run_obj else ""
 
     @property
     @_run_decorator._attach
@@ -1023,8 +1016,7 @@ class Run:
         return self._settings._noop
 
     def _get_group(self) -> str:
-        run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.run_group if run_obj else ""
+        return self._run_obj.run_group if self._run_obj else ""
 
     @property
     @_run_decorator._attach
@@ -1035,7 +1027,7 @@ class Run:
 
         If you are doing a distributed training you should give all of the
             runs in the training the same group.
-        If you are doing crossvalidation you should give all the crossvalidation
+        If you are doing cross-validation you should give all the cross-validation
             folds the same group.
         """
         return self._get_group()
@@ -1043,8 +1035,7 @@ class Run:
     @property
     @_run_decorator._attach
     def job_type(self) -> str:
-        run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.job_type if run_obj else ""
+        return self._run_obj.job_type if self._run_obj else ""
 
     @property
     @_run_decorator._attach
@@ -1093,10 +1084,19 @@ class Run:
             An `Artifact` object if code was logged
         """
         if name is None:
-            name_string = wandb.util.make_artifact_name_safe(
-                f"{self._project}-{self._settings.program_relpath}"
-            )
-            name = f"source-{name_string}"
+            if self.settings._jupyter:
+                notebook_name = None
+                if self.settings.notebook_name:
+                    notebook_name = self.settings.notebook_name
+                elif self.settings._jupyter_path:
+                    if self.settings._jupyter_path.startswith("fileId="):
+                        notebook_name = self.settings._jupyter_name
+                    else:
+                        notebook_name = self.settings._jupyter_path
+                name_string = f"{self._project}-{notebook_name}"
+            else:
+                name_string = f"{self._project}-{self._settings.program_relpath}"
+            name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -1454,6 +1454,9 @@ class Run:
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
         self._run_obj = run_obj
+        if self.settings._offline:
+            return
+
         self._entity = run_obj.entity
         self._project = run_obj.project
 
@@ -1481,9 +1484,6 @@ class Run:
             process_context="user",
             settings=self._settings,
         )
-
-    def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
-        self._run_obj_offline = run_obj
 
     def _add_singleton(
         self, data_type: str, key: str, value: Dict[Union[int, str], str]
@@ -2170,6 +2170,8 @@ class Run:
             self._output_writer = None
 
     def _on_init(self) -> None:
+        if self._settings._offline:
+            return
         if self._backend and self._backend.interface:
             logger.info("communicating current version")
             version_handle = self._backend.interface.deliver_check_version(
@@ -2943,10 +2945,9 @@ class Run:
 
     def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:
         overrides = {"run": self._run_id}
-        run_obj = self._run_obj
-        if run_obj is not None:
-            overrides["entity"] = run_obj.entity
-            overrides["project"] = run_obj.project
+        if not (self._settings._offline or self._run_obj is None):
+            overrides["entity"] = self._run_obj.entity
+            overrides["project"] = self._run_obj.project
         return public.Api(overrides)
 
     # TODO(jhr): annotate this
