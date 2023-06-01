@@ -14,13 +14,11 @@ class AzureEnvironment(AbstractEnvironment):
         self,
         storage_account: str,
         storage_container: str,
-        subscription_id: str,
         verify: bool = True,
     ):
         """Initialize an AzureEnvironment."""
         self.storage_account = storage_account
         self.storage_container = storage_container
-        self.subscription_id = subscription_id
         if verify:
             self.verify()
 
@@ -47,14 +45,19 @@ class AzureEnvironment(AbstractEnvironment):
         return cls(
             storage_account=storage_account,
             storage_container=storage_container,
-            subscription_id=subscription_id,
             verify=verify,
         )
 
     @classmethod
     def get_credentials(cls):
         """Get Azure credentials."""
-        return DefaultAzureCredential()
+        try:
+            return DefaultAzureCredential()
+        except Exception as e:
+            raise LaunchError(
+                "Could not get Azure credentials. Please make sure you have "
+                "configured your Azure CLI correctly."
+            ) from e
 
     def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to Azure blob storage."""
@@ -78,22 +81,33 @@ class AzureEnvironment(AbstractEnvironment):
             uri (str): The URI to verify.
         """
         creds = self.get_credentials()
-        client = BlobClient(
-            f"https://{self.storage_account}.blob.core.windows.net",
-            self.storage_container,
-            uri,
-            credential=creds,
-        )
-        client.get_blob_properties()
+        try:
+            client = BlobClient(
+                f"https://{self.storage_account}.blob.core.windows.net",
+                self.storage_container,
+                uri,
+                credential=creds,
+            )
+            client.get_blob_properties()
+        except Exception as e:
+            raise LaunchError(
+                f"Could not verify storage URI {uri} in container {self.storage_container}."
+            ) from e
 
     def verify(self) -> None:
         """Verify that the AzureEnvironment is valid."""
         creds = self.get_credentials()
-        client = BlobClient(
-            f"https://{self.storage_account}.blob.core.windows.net",
-            self.storage_container,
-            "test",
-            credential=creds,
-        )
-        client.upload_blob("test")
-        client.delete_blob()
+        try:
+            # verify that the storage account exists and we have access
+            client = BlobClient(
+                f"https://{self.storage_account}.blob.core.windows.net",
+                self.storage_container,
+                "wandb_test",
+                credential=creds,
+            )
+            client.upload_blob("test")
+            client.delete_blob()
+        except Exception as e:
+            raise LaunchError(
+                f"Could not verify storage account {self.storage_account}."
+            ) from e

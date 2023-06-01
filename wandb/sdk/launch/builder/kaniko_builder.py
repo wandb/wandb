@@ -11,6 +11,7 @@ import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
@@ -271,6 +272,14 @@ class KanikoBuilder(AbstractBuilder):
         core_v1 = client.CoreV1Api(api_client)
 
         try:
+            if isinstance(self.registry, AzureContainerRegistry):
+                dockerfile_config_map = client.V1ConfigMap(
+                    metadata=client.V1ObjectMeta(
+                        name=f"docker-config-{build_job_name}"
+                    ),
+                    data={"config.json": json.dumps({"credsStore": "acr"})},
+                )
+                core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             # core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             if self.secret_name:
                 self._create_docker_ecr_config_map(build_job_name, core_v1, repo_uri)
@@ -298,6 +307,10 @@ class KanikoBuilder(AbstractBuilder):
             try:
                 # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
                 # core_v1.delete_namespaced_config_map(config_map_name, "wandb")
+                if isinstance(self.registry, AzureContainerRegistry):
+                    core_v1.delete_namespaced_config_map(
+                        f"docker-config-{build_job_name}", "wandb"
+                    )
                 if self.secret_name:
                     self._delete_docker_ecr_config_map(build_job_name, core_v1)
                 batch_v1.delete_namespaced_job(build_job_name, "wandb")
