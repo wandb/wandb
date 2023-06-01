@@ -395,6 +395,21 @@ class KanikoBuilder(AbstractBuilder):
                     ),
                 )
             ]
+        if isinstance(self.registry, AzureContainerRegistry):
+            # ADd the docker config map
+            volume_mounts += [
+                client.V1VolumeMount(
+                    name="docker-config", mount_path="/kaniko/.docker/"
+                ),
+            ]
+            volumes += [
+                client.V1Volume(
+                    name="docker-config",
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name=f"docker-config-{job_name}",
+                    ),
+                ),
+            ]
 
         args = [
             f"--context={build_context_path}",
