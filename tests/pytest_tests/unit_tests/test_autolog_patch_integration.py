@@ -1,25 +1,12 @@
-import unittest
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
 import wandb
-from wandb.sdk.integration_utils.auto_logging import (
-    ArgumentResponseResolver,
-    AutologAPI,
-    PatchAPI,
-)
+from wandb.sdk.integration_utils.auto_logging import AutologAPI, PatchAPI
 
 
-def sample_method(x, y):
-    return x + y
-
-
-class SampleClass:
-    def sample_class_method(self, x, y):
-        return x * y
-
-
-class TestPatchAPI(PatchAPI):
+class PatchAPITest(PatchAPI):
     def __init__(self, *args, **kwargs):
         self._test_api = kwargs.pop("test_api")
         super().__init__(*args, **kwargs)
@@ -29,94 +16,89 @@ class TestPatchAPI(PatchAPI):
         return self._test_api
 
 
-class TestAutologAPIAndPatchAPI(unittest.TestCase):
-    def setUp(self):
-        # Setting up the necessary resources for the test
-        self.mock_run = MagicMock(spec=wandb.sdk.wandb_run.Run)
-        wandb.run = self.mock_run
+# mock API and resolver for testing purposes
+class MockAPI:
+    def generate(self):
+        assert self
+        return {"text": "Hello World!"}
 
-        def sample_resolver(args, kwargs, response, start_time, time_elapsed):
-            return {
-                "arg_sum": sum(args),
-                "kwarg_sum": sum(kwargs.values()),
-                "elapsed": time_elapsed,
-            }
-
-        patch_api = TestPatchAPI(
-            name="Sample",
-            symbols=["sample_method", "SampleClass.sample_class_method"],
-            resolver=sample_resolver,
-            test_api=self,  # Pass the test class instance as the API object
-        )
-
-        self.sample_autolog_api = AutologAPI(
-            name="Sample",
-            symbols=["sample_method", "SampleClass.sample_class_method"],
-            resolver=sample_resolver,
-            telemetry_feature=None,
-        )
-        self.sample_autolog_api._patch_api = patch_api  # Set the _patch_api attribute of AutologAPI to the configured TestPatchAPI instance
-        self.sample_method = sample_method
-        self.sample_class_module = SampleClass()
-
-    sample_method = sample_method
-    SampleClass = SampleClass()
-
-    def test_autolog_api_and_patch_api(self):
-        # Test enabling, patching, and logging
-        wandb.run = self.mock_run
-        self.sample_autolog_api.enable()
-        assert self.sample_autolog_api._is_enabled
-
-        # Test method patching and logging for sample_method
-        assert self.sample_method != sample_method
-        _ = self.sample_method(2, 3)
-
-        # Use assertAlmostEqual for 'elapsed' value comparison
-        log_call = self.mock_run.log.call_args[0][0]
-        self.assertAlmostEqual(log_call["elapsed"], 0, delta=0.1)
-        log_call[
-            "elapsed"
-        ] = 0  # Set "elapsed" to the expected value for the next assertion
-        self.mock_run.log.assert_called_with(
-            {"arg_sum": 5, "kwarg_sum": 0, "elapsed": 0}
-        )
-
-        # Test method patching and logging for SampleClass.sample_class_method
-        assert (
-            self.sample_class_module.sample_class_method
-            != SampleClass().sample_class_method
-        )
-        _ = self.sample_class_module.sample_class_method(2, 3)
-
-        # Use assertAlmostEqual for 'elapsed' value comparison
-        log_call = self.mock_run.log.call_args[0][0]
-        self.assertAlmostEqual(log_call["elapsed"], 0, delta=0.1)
-        log_call[
-            "elapsed"
-        ] = 0  # Set "elapsed" to the expected value for the next assertion
-        self.mock_run.log.assert_called_with(
-            {"arg_sum": 5, "kwarg_sum": 0, "elapsed": 0}
-        )
-
-        # Test disabling and unpatching
-        self.sample_autolog_api.disable()
-        assert not self.sample_autolog_api._is_enabled
-        assert self.sample_method == sample_method
-        # TODO: Fix this assertion
-        # assert self.sample_class_module.sample_class_method == SampleClass().sample_class_method
+    class Chat:
+        @staticmethod
+        def complete():
+            return {"text": "YES!"}
 
 
-class TestArgumentResponseResolver(unittest.TestCase):
-    def test_argument_response_resolver(self):
-        class SampleResolver(ArgumentResponseResolver):
-            def __call__(self, args, kwargs, response, start_time, time_elapsed):
-                return {"arg_sum": sum(args), "kwarg_sum": sum(kwargs.values())}
-
-        resolver = SampleResolver()
-        loggable_dict = resolver([1, 2, 3], {"a": 4, "b": 5}, None, 0, 0)
-        assert loggable_dict == {"arg_sum": 6, "kwarg_sum": 9}
+def mock_resolver(args, kwargs, response, start_time, time_elapsed):
+    return {"generated_text": response["text"]}
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.fixture
+def patch_api():
+    api = PatchAPITest(
+        name="MockAPI",
+        symbols=["generate", "Chat.complete"],
+        resolver=mock_resolver,
+        test_api=MockAPI(),
+    )
+
+    return api
+
+
+@pytest.fixture
+def mock_autolog_api(patch_api):
+    autolog_api = AutologAPI(
+        name="MockAPI",
+        symbols=["generate", "Chat.complete"],
+        resolver=mock_resolver,
+    )
+    autolog_api._patch_api = patch_api
+    return autolog_api
+
+
+# Tests for PatchAPI functionality
+def test_patch_and_unpatch(patch_api):
+    # Store the original generate method
+    original_generate = patch_api.set_api.generate
+
+    # Test patching
+    assert patch_api.set_api.generate == original_generate
+    patch_api.patch(MagicMock())
+    assert patch_api.set_api.generate != original_generate
+
+    # Test unpatching
+    patch_api.unpatch()
+    assert patch_api.set_api.generate == original_generate
+
+
+# Test case for AutologAPI
+def test_autolog_api(mock_autolog_api):
+    wandb.run = MagicMock()
+    # Test enabling AutologAPI
+    mock_autolog_api.enable()
+
+    # Check if AutologAPI is enabled
+    assert mock_autolog_api._is_enabled
+
+    # Test AutologAPI features
+    original_generate = mock_autolog_api._patch_api.set_api.generate
+    patched_result = original_generate()
+    wandb.run.log.assert_called_with({"generated_text": "Hello World!"})
+
+    # this call should not be logged
+    unlogged_result = mock_autolog_api._patch_api.original_methods["generate"]()
+
+    assert unlogged_result == patched_result
+    assert unlogged_result["text"] == "Hello World!"
+
+    # Ensure metrics are logged
+    logged_text = mock_resolver([], {}, unlogged_result, 0.0, 0.0)["generated_text"]
+
+    assert logged_text == unlogged_result["text"]
+    assert logged_text == "Hello World!"
+
+    # call the dotted method
+    mock_autolog_api._patch_api.set_api.Chat.complete()
+
+    # check that wandb.run.log was called twice and with the correct arguments
+    assert wandb.run.log.call_count == 2
+    wandb.run.log.assert_called_with({"generated_text": "YES!"})

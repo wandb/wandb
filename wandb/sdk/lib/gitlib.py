@@ -1,10 +1,24 @@
 import configparser
 import logging
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse, urlunparse
 
 import wandb
+
+try:
+    from git import (  # type: ignore
+        GitCommandError,
+        InvalidGitRepositoryError,
+        NoSuchPathError,
+        Repo,
+    )
+except ImportError:
+    Repo = None
+
+if TYPE_CHECKING:
+    from git import Repo
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,69 +37,78 @@ class GitRepo:
         self._remote_url = remote_url
         self._commit = commit
         self._repo = None
+        self._repo_initialized = False
         if not lazy:
-            self.repo  # noqa: B018
+            self._repo = self._init_repo()
+
+    def _init_repo(self) -> Optional[Repo]:
+        self._repo_initialized = True
+        if Repo is None:
+            return None
+        if self.remote_name is None:
+            return None
+        try:
+            return Repo(self._root or os.getcwd(), search_parent_directories=True)
+        except InvalidGitRepositoryError:
+            logger.debug("git repository is invalid")
+        except NoSuchPathError:
+            wandb.termwarn(f"git root {self._root} does not exist")
+            logger.warn(f"git root {self._root} does not exist")
+        return None
 
     @property
-    def repo(self):
-        if self._repo is None:
-            if self.remote_name is None:
-                self._repo = False
-            else:
-                try:
-                    self._repo = Repo(
-                        self._root or os.getcwd(), search_parent_directories=True
-                    )
-                except exc.InvalidGitRepositoryError:
-                    logger.debug("git repository is invalid")
-                    self._repo = False
-                except exc.NoSuchPathError:
-                    wandb.termwarn(f"git root {self._root} does not exist")
-                    logger.warn(f"git root {self._root} does not exist")
-                    self._repo = False
+    def repo(self) -> Optional[Repo]:
+        if not self._repo_initialized:
+            self._repo = self._init_repo()
         return self._repo
 
     @property
-    def auto(self):
+    def auto(self) -> bool:
         return self._remote_url is None
 
-    def is_untracked(self, file_name: str) -> bool:
+    def is_untracked(self, file_name: str) -> Optional[bool]:
         if not self.repo:
             return True
-        return file_name in self.repo.untracked_files
+        try:
+            return file_name in self.repo.untracked_files
+        except GitCommandError:
+            return None
 
     @property
     def enabled(self) -> bool:
         return bool(self.repo)
 
     @property
-    def root(self) -> Optional[str]:
+    def root(self) -> Any:
         if not self.repo:
             return None
         try:
             return self.repo.git.rev_parse("--show-toplevel")
-        except exc.GitCommandError as e:
+        except GitCommandError as e:
             # todo: collect telemetry on this
             logger.error(f"git root error: {e}")
             return None
 
     @property
-    def dirty(self) -> bool:
+    def dirty(self) -> Any:
         if not self.repo:
             return False
-        return self.repo.is_dirty()
+        try:
+            return self.repo.is_dirty()
+        except GitCommandError:
+            return False
 
     @property
     def email(self) -> Optional[str]:
         if not self.repo:
             return None
         try:
-            return self.repo.config_reader().get_value("user", "email")
+            return self.repo.config_reader().get_value("user", "email")  # type: ignore
         except configparser.Error:
             return None
 
     @property
-    def last_commit(self):
+    def last_commit(self) -> Any:
         if self._commit:
             return self._commit
         if not self.repo:
@@ -104,13 +127,13 @@ class GitRepo:
             return None
 
     @property
-    def branch(self) -> Optional[str]:
+    def branch(self) -> Any:
         if not self.repo:
             return None
         return self.repo.head.ref.name
 
     @property
-    def remote(self):
+    def remote(self) -> Any:
         if not self.repo:
             return None
         try:
@@ -124,10 +147,10 @@ class GitRepo:
     def has_submodule_diff(self) -> bool:
         if not self.repo:
             return False
-        return self.repo.git.version_info >= (2, 11, 0)
+        return bool(self.repo.git.version_info >= (2, 11, 0))
 
     @property
-    def remote_url(self):
+    def remote_url(self) -> Any:
         if self._remote_url:
             return self._remote_url
         if not self.remote:
@@ -135,18 +158,21 @@ class GitRepo:
         parsed = urlparse(self.remote.url)
         hostname = parsed.hostname
         if parsed.port is not None:
-            hostname += ":" + str(parsed.port)
+            hostname = f"{hostname}:{parsed.port}"
         if parsed.password is not None:
             return urlunparse(parsed._replace(netloc=f"{parsed.username}:@{hostname}"))
         return urlunparse(parsed._replace(netloc=hostname))
 
     @property
-    def root_dir(self):
+    def root_dir(self) -> Any:
         if not self.repo:
             return None
-        return self.repo.git.rev_parse("--show-toplevel")
+        try:
+            return self.repo.git.rev_parse("--show-toplevel")
+        except GitCommandError:
+            return None
 
-    def get_upstream_fork_point(self):
+    def get_upstream_fork_point(self) -> Any:
         """Get the most recent ancestor of HEAD that occurs on an upstream branch.
 
         First looks at the current branch's tracking branch, if applicable. If
@@ -183,37 +209,28 @@ class GitRepo:
                 for ancestor in self.repo.merge_base(head, possible_relative):
                     if most_recent_ancestor is None:
                         most_recent_ancestor = ancestor
-                    elif self.repo.is_ancestor(most_recent_ancestor, ancestor):
+                    elif self.repo.is_ancestor(most_recent_ancestor, ancestor):  # type: ignore
                         most_recent_ancestor = ancestor
             return most_recent_ancestor
-        except exc.GitCommandError as e:
+        except GitCommandError as e:
             logger.debug("git remote upstream fork point could not be found")
             logger.debug(str(e))
             return None
 
-    def tag(self, name, message):
+    def tag(self, name: str, message: Optional[str]) -> Any:
+        if not self.repo:
+            return None
         try:
-            return self.repo.create_tag("wandb/" + name, message=message, force=True)
-        except exc.GitCommandError:
+            return self.repo.create_tag(f"wandb/{name}", message=message, force=True)
+        except GitCommandError:
             print("Failed to tag repository.")
             return None
 
-    def push(self, name):
-        if self.remote:
-            try:
-                return self.remote.push("wandb/" + name, force=True)
-            except exc.GitCommandError:
-                logger.debug("failed to push git")
-                return None
-
-
-class FakeGitRepo(GitRepo):
-    @property
-    def repo(self):
-        return None
-
-
-try:
-    from git import Repo, exc  # type: ignore
-except ImportError:  # import fails if user doesn't have git
-    GitRepo = FakeGitRepo  # type: ignore
+    def push(self, name: str) -> Any:
+        if not self.remote:
+            return None
+        try:
+            return self.remote.push(f"wandb/{name}", force=True)
+        except GitCommandError:
+            logger.debug("failed to push git")
+            return None

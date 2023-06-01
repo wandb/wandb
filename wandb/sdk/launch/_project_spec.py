@@ -17,7 +17,8 @@ from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.launch import utils
 from wandb.sdk.lib.runid import generate_id
 
-from .utils import LOG_PREFIX, LaunchError, recursive_macro_sub
+from .errors import LaunchError
+from .utils import LOG_PREFIX, recursive_macro_sub
 
 _logger = logging.getLogger(__name__)
 

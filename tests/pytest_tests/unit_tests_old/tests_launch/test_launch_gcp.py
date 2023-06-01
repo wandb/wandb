@@ -6,8 +6,8 @@ import wandb
 import wandb.sdk.launch.launch as launch
 from google.cloud import aiplatform
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.vertex_runner import get_gcp_config, run_shell
-from wandb.sdk.launch.utils import LaunchError
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 

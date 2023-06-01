@@ -6,10 +6,10 @@ import wandb
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     _is_wandb_uri,
     download_wandb_python_deps,
     parse_wandb_uri,
