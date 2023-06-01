@@ -3,7 +3,6 @@ plugin:
   - wandb
 tag:
   shard: llm
-#  skip: true  # todo: fix
   skips:
     - platform: win
 depend:
