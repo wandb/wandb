@@ -208,7 +208,7 @@ class OpenAIRequestResponseResolver:
                 "request_id": response["id"]
                 if response.get("id")
                 else str(uuid.uuid4()),
-                "api_type": response.api_type if response.api_type else "openai",
+                "api_type": response.get("api_type", "openai"),
                 "session_id": wandb.run.id,
             }
             row.update(asdict(usage_metrics))
@@ -224,7 +224,7 @@ class OpenAIRequestResponseResolver:
         return metrics
 
     @staticmethod
-    def _convert_metrics_to_dict(metrics: Metrics):
+    def _convert_metrics_to_dict(metrics: Metrics) -> Dict[str, Any]:
         """Converts metrics to a dict."""
         metrics_dict = {
             "stats": metrics.stats,
