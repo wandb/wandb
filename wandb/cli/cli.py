@@ -2427,7 +2427,10 @@ def importer():
     help="Override default project to import data into",
 )
 def mlflow(mlflow_tracking_uri, target_entity, target_project):
-    from wandb.apis.importers import MlflowImporter
+    from wandb.util import get_module
+
+    if get_module("mlflow"):
+        from wandb.apis.importers import MlflowImporter
 
     importer = MlflowImporter(mlflow_tracking_uri=mlflow_tracking_uri)
     overrides = {
