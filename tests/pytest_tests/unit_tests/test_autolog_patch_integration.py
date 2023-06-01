@@ -19,7 +19,13 @@ class PatchAPITest(PatchAPI):
 # mock API and resolver for testing purposes
 class MockAPI:
     def generate(self):
+        assert self
         return {"text": "Hello World!"}
+
+    class Chat:
+        @staticmethod
+        def complete():
+            return {"text": "YES!"}
 
 
 def mock_resolver(args, kwargs, response, start_time, time_elapsed):
@@ -29,7 +35,10 @@ def mock_resolver(args, kwargs, response, start_time, time_elapsed):
 @pytest.fixture
 def patch_api():
     api = PatchAPITest(
-        name="MockAPI", symbols=["generate"], resolver=mock_resolver, test_api=MockAPI()
+        name="MockAPI",
+        symbols=["generate", "Chat.complete"],
+        resolver=mock_resolver,
+        test_api=MockAPI(),
     )
 
     return api
@@ -39,7 +48,7 @@ def patch_api():
 def mock_autolog_api(patch_api):
     autolog_api = AutologAPI(
         name="MockAPI",
-        symbols=["generate"],
+        symbols=["generate", "Chat.complete"],
         resolver=mock_resolver,
     )
     autolog_api._patch_api = patch_api
@@ -73,6 +82,9 @@ def test_autolog_api(mock_autolog_api):
     # Test AutologAPI features
     original_generate = mock_autolog_api._patch_api.set_api.generate
     patched_result = original_generate()
+    wandb.run.log.assert_called_with({"generated_text": "Hello World!"})
+
+    # this call should not be logged
     unlogged_result = mock_autolog_api._patch_api.original_methods["generate"]()
 
     assert unlogged_result == patched_result
@@ -84,6 +96,9 @@ def test_autolog_api(mock_autolog_api):
     assert logged_text == unlogged_result["text"]
     assert logged_text == "Hello World!"
 
-    # check that wandb.run.log was called only once and with the correct arguments
-    wandb.run.log.assert_called_once()
-    wandb.run.log.assert_called_with({"generated_text": "Hello World!"})
+    # call the dotted method
+    mock_autolog_api._patch_api.set_api.Chat.complete()
+
+    # check that wandb.run.log was called twice and with the correct arguments
+    assert wandb.run.log.call_count == 2
+    wandb.run.log.assert_called_with({"generated_text": "YES!"})
