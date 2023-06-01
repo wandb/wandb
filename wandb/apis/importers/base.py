@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
@@ -269,6 +269,20 @@ class Importer(ABC):
     @abstractmethod
     def download_all_runs(self) -> Iterable[ImporterRun]:
         ...
+
+    # @abstractmethod
+    # def download_all_reports(self):
+    #     ...
+
+    @abstractmethod
+    def import_one_report(self, report):
+        ...
+
+    def import_all_reports(self, limit=10):
+        for i, report in enumerate(self.download_all_reports()):
+            if i > limit:
+                break
+            self.import_one_report(report)
 
     def import_all(self, overrides: Optional[Dict[str, Any]] = None) -> None:
         for run in tqdm(self.download_all_runs(), desc="Sending runs"):

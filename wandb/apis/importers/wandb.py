@@ -1,9 +1,19 @@
-import wandb
-import polars as pl
-from pathlib import Path
 import itertools
-from .base import Importer, ImporterRun
+from contextlib import contextmanager
+from pathlib import Path
+
+import polars as pl
+from tqdm import tqdm
+
+import wandb
+import wandb.apis.reports as wr
 from wandb.sdk.lib import runid
+import os
+from .base import Importer, ImporterRun
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+old_api_key = os.getenv("WANDB_API_KEY")
+new_api_key = os.getenv("WANDB_API_KEY2")
 
 
 class WandbRun(ImporterRun):
@@ -86,6 +96,79 @@ class WandbImporter(Importer):
         for run in self.api.runs("parquet-testing"):
             yield WandbRun(run)
 
+    def download_all_reports(self):
+        # for p in self.api.projects():
+        #     for r in self.api.reports(p.name):
+        #         try:
+        #             yield wr.Report.from_url(r.url)
+        #         except Exception as e:
+        #             print(e)
+        with tqdm(
+            [p for p in self.api.projects()], "Collecting reports..."
+        ) as projects:
+            for p in projects:
+                with tqdm(
+                    [r for r in self.api.reports(p.name)], "Subtask", leave=False
+                ) as reports:
+                    for _report in reports:
+                        try:
+                            report = wr.Report.from_url(_report.url)
+                        except Exception as e:
+                            wandb.termerror(str(e))
+                            wandb.termerror(
+                                f"project: {p.name}, report_id: {_report.id}"
+                            )
+                            with open("failed.txt", "a") as f:
+                                f.write(f"{report.id}\n")
+                        # projects.set_postfix(
+                        #     {"Project": p.name, "Report": report.title, "ID": report.id}
+                        # )
+                        yield report
+
+    def import_all_reports_parallel(self, reports=None, overrides=None, **pool_kwargs):
+        if reports is None:
+            reports = list(self.download_all_reports())
+
+        with ThreadPoolExecutor(**pool_kwargs) as exc:
+            futures = {
+                exc.submit(self.import_one_report, report, overrides=overrides): report
+                for report in reports
+            }
+            with tqdm(total=len(futures)) as pbar:
+                for future in as_completed(futures):
+                    report = futures[future]
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        wandb.termerror(
+                            f"Failed to import {report.title} {report.id}: {exc}"
+                        )
+                        with open("failed.txt", "a") as f:
+                            f.write(f"{report.id}\n")
+                    else:
+                        pbar.set_postfix(
+                            {
+                                "Project": report.project,
+                                "Report": report.title,
+                                "ID": report.id,
+                            }
+                        )
+                        with open("success.txt", "a") as f:
+                            f.write(f"{report.id}\n")
+                    finally:
+                        pbar.update(1)
+
+    def import_one_report(self, report, overrides=None):
+        with login_wrapper(old_api_key, new_api_key):
+            report2 = wr.Report(
+                entity="andrewtruong",
+                project=report.project,
+                description=report.description,
+                width=report.width,
+                blocks=report.blocks,
+            )
+            report2.save()
+
 
 class WandbParquetRun(WandbRun):
     def metrics(self):
@@ -102,3 +185,19 @@ class WandbParquetImporter(WandbImporter):
     def download_all_runs(self):
         for run in self.api.runs("parquet-testing"):
             yield WandbParquetRun(run)
+
+
+@contextmanager
+def login_wrapper(old_api_key, new_api_key):
+    """
+    A very sketchy function
+    """
+    # wandb.login(key=new_api_key)
+    wandb.api.api._environ["WANDB_API_KEY"] = new_api_key
+    try:
+        yield
+    except Exception as e:
+        raise e
+    finally:
+        # wandb.login(key=old_api_key)
+        wandb.api.api._environ["WANDB_API_KEY"] = old_api_key

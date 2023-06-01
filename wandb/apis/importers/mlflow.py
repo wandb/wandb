@@ -123,3 +123,6 @@ class MlflowImporter(Importer):
         for exp in self.mlflow_client.search_experiments():
             for run in self.mlflow_client.search_runs(exp.experiment_id):
                 yield MlflowRun(run, self.mlflow_client)
+
+    def import_one_report(self):
+        raise NotImplementedError("MlflowImporter does not support import_one_report")
