@@ -114,14 +114,20 @@ def mock_server(mocker):
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
     sdk_path = "wandb.sdk"
+    # From previous wandb_gql transport library.
     mocker.patch("wandb_gql.transport.requests.requests", mock)
+
+    mocker.patch("wandb.sdk.artifacts.public_artifact.requests", mock)
+    mocker.patch(
+        "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.requests", mock
+    )
+    mocker.patch("wandb.wandb_sdk.lib.gql_request.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
-    mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
     mocker.patch("azure.core.pipeline.transport._requests_basic.requests", mock)
     print("Patched requests everywhere", os.getpid())
     return mock
@@ -372,7 +378,6 @@ class HttpException(Exception):
 
 
 class SnoopRelay:
-
     _inject_count: int
     _inject_time: float
 
@@ -383,7 +388,6 @@ class SnoopRelay:
     def relay(self, func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-
             # Normal mockserver mode, disable live relay and call next function
             if not os.environ.get("MOCKSERVER_RELAY"):
                 return func(*args, **kwargs)
@@ -1209,6 +1213,24 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "query ProbeServerCreateArtifactFileSpecInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "CreateArtifactFileSpecInputInfoType": {
+                            "inputFields": [
+                                {"name": "artifactID"},
+                                {"name": "name"},
+                                {"name": "md5"},
+                                {"name": "mimetype"},
+                                {"name": "artifactManifestID"},
+                                {"name": "uploadPartsInput"},
+                            ]
+                        },
+                    }
+                }
+            )
+
         if "mutation CreateArtifactFiles" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create_files(variables=body["variables"])
@@ -1659,7 +1681,6 @@ def create_app(user_ctx=None):
                 c["alerts"].append(adict)
             return {"data": {"notifyScriptableRunAlert": {"success": True}}}
         if "query SearchUsers" in body["query"]:
-
             return {
                 "data": {
                     "users": {

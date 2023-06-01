@@ -5,9 +5,9 @@ from .. import _dtypes
 from ..base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
 
 
@@ -17,7 +17,7 @@ class Classes(Media):
     _class_set: Sequence[dict]
 
     def __init__(self, class_set: Sequence[dict]) -> None:
-        """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
+        """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts.
 
         Args:
             class_set (list): list of dicts in the form of {"id":int|str, "name":str}
@@ -148,6 +148,7 @@ class _ClassesIdType(_dtypes.Type):
                 classes_obj = artifact.get(
                     json_dict.get("params", {}).get("classes_obj", {}).get("path")
                 )
+                assert classes_obj is None or isinstance(classes_obj, Classes)
             else:
                 raise RuntimeError("Expected artifact to be non-null.")
         else:

@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
@@ -20,9 +20,7 @@ if TYPE_CHECKING:
 
 
 class ProcessCpuPercent:
-    """
-    CPU usage of the process in percent normalized by the number of CPUs.
-    """
+    """CPU usage of the process in percent normalized by the number of CPUs."""
 
     # name = "process_cpu_percent"
     name = "cpu"
@@ -58,9 +56,7 @@ class ProcessCpuPercent:
 
 
 class CpuPercent:
-    """
-    CPU usage of the system in percent per core.
-    """
+    """CPU usage of the system in percent per core."""
 
     name = "cpu.{i}.cpu_percent"
 
@@ -87,9 +83,7 @@ class CpuPercent:
 
 
 class ProcessCpuThreads:
-    """
-    Number of threads used by the process.
-    """
+    """Number of threads used by the process."""
 
     name = "proc.cpu.threads"
 
@@ -119,7 +113,7 @@ class CPU:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name: str = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [

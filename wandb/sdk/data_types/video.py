@@ -15,7 +15,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
     import numpy as np  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+
     from ..wandb_run import Run as LocalRun
 
 
@@ -183,7 +184,7 @@ class Video(BatchableMedia):
         return json_dict
 
     def _prepare_video(self, video: "np.ndarray") -> "np.ndarray":
-        """This logic was mostly taken from tensorboardX"""
+        """This logic was mostly taken from tensorboardX."""
         np = util.get_module(
             "numpy",
             required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".',

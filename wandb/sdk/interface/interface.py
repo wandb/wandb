@@ -1,4 +1,4 @@
-"""Interface base class - Used to send messages to the internal process
+"""Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
 InterfaceGrpc: Use gRPC to send and receive messages
@@ -17,9 +17,11 @@ import time
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
 
-from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -32,9 +34,7 @@ from wandb.util import (
 
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
-from ..wandb_artifacts import Artifact
 from . import summary_record as sr
-from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
 
 GlobStr = NewType("GlobStr", str)
@@ -180,8 +180,9 @@ class InterfaceBase:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
-    def publish_run(self, run: "pb.RunRecord") -> None:
-        self._publish_run(run)
+    def publish_run(self, run: "Run") -> None:
+        run_record = self._make_run(run)
+        self._publish_run(run_record)
 
     @abstractmethod
     def _publish_run(self, run: pb.RunRecord) -> None:
@@ -267,7 +268,6 @@ class InterfaceBase:
             A new tree of dict's with large objects replaced with dictionaries
             with "_type" entries that say which type the original data was.
         """
-
         # Constructs a new `dict` tree in `json_value` that discards and/or
         # encodes objects that aren't JSON serializable.
 
@@ -373,7 +373,7 @@ class InterfaceBase:
     def _publish_files(self, files: pb.FilesRecord) -> None:
         raise NotImplementedError
 
-    def _make_artifact(self, artifact: Artifact) -> pb.ArtifactRecord:
+    def _make_artifact(self, artifact: LocalArtifact) -> pb.ArtifactRecord:
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
@@ -396,7 +396,7 @@ class InterfaceBase:
         obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
-        proto_manifest.version = artifact_manifest.version()  # type: ignore
+        proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
@@ -425,14 +425,14 @@ class InterfaceBase:
     def publish_link_artifact(
         self,
         run: "Run",
-        artifact: Union[Artifact, PublicArtifact],
+        artifact: Union[LocalArtifact, PublicArtifact],
         portfolio_name: str,
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
         link_artifact = pb.LinkArtifactRecord()
-        if isinstance(artifact, Artifact):
+        if isinstance(artifact, LocalArtifact):
             link_artifact.client_id = artifact._client_id
         else:
             link_artifact.server_id = artifact.id if artifact.id else ""
@@ -449,7 +449,7 @@ class InterfaceBase:
 
     def publish_use_artifact(
         self,
-        artifact: Artifact,
+        artifact: LocalArtifact,
     ) -> None:
         # use_artifact is either a public.Artifact or a wandb.Artifact that has been
         # waited on and has an id
@@ -467,7 +467,7 @@ class InterfaceBase:
     def communicate_artifact(
         self,
         run: "Run",
-        artifact: Artifact,
+        artifact: LocalArtifact,
         aliases: Iterable[str],
         history_step: Optional[int] = None,
         is_user_created: bool = False,
@@ -517,7 +517,7 @@ class InterfaceBase:
     def publish_artifact(
         self,
         run: "Run",
-        artifact: Artifact,
+        artifact: LocalArtifact,
         aliases: Iterable[str],
         is_user_created: bool = False,
         use_after_commit: bool = False,
@@ -745,8 +745,9 @@ class InterfaceBase:
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
-    def deliver_run(self, run: "pb.RunRecord") -> MailboxHandle:
-        return self._deliver_run(run)
+    def deliver_run(self, run: "Run") -> MailboxHandle:
+        run_record = self._make_run(run)
+        return self._deliver_run(run_record)
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
@@ -759,6 +760,28 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_attach(self, attach_id: str) -> MailboxHandle:
+        attach = pb.AttachRequest(attach_id=attach_id)
+        return self._deliver_attach(attach)
+
+    @abstractmethod
+    def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_check_version(
+        self, current_version: Optional[str] = None
+    ) -> MailboxHandle:
+        check_version = pb.CheckVersionRequest()
+        if current_version:
+            check_version.current_version = current_version
+        return self._deliver_check_version(check_version)
+
+    @abstractmethod
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_stop_status(self) -> MailboxHandle:

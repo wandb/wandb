@@ -1,6 +1,4 @@
-"""
-telemetry lib tests.
-"""
+"""telemetry lib tests."""
 
 import wandb
 

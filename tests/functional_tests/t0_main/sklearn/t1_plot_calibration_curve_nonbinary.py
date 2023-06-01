@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Demonstrate non-binary plot calibration curve failure
+"""Demonstrate non-binary plot calibration curve failure.
 
 Reproduction for WB-6749.
 
@@ -14,9 +14,9 @@ depend:
     - numpy
     - pandas
     - scikit-learn
-  files:
-    - file: wine.csv
-      source: https://raw.githubusercontent.com/wandb/examples/master/examples/data/wine.csv
+#  files:
+#    - file: wine.csv
+#      source: https://raw.githubusercontent.com/wandb/examples/master/examples/data/wine.csv
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0
@@ -61,13 +61,13 @@ y_probas = model.predict_proba(X_test)
 importances = model.feature_importances_
 indices = np.argsort(importances)[::-1]
 
-print(model.n_features_)
+print(model.n_features_in_)
 
 run = wandb.init(project="my-scikit-integration")
 
 wandb.sklearn.plot_calibration_curve(model, X_train, y_train, "RandomForestClassifier")
 
-print(model.n_features_)
+print(model.n_features_in_)
 
 outs = model.predict(X_train)
 

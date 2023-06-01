@@ -3,7 +3,7 @@ import sys
 import pytest
 import wandb
 import wandb.sdk.launch.launch as launch
-from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
+from wandb.sdk.launch.utils import PROJECT_SYNCHRONOUS
 
 from .test_launch import (
     mock_download_url,
@@ -23,7 +23,6 @@ def test_launch_local_process_base_case(
     monkeypatch,
     capsys,
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )

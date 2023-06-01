@@ -1,3 +1,8 @@
+"""Implementation of the abstract runner class.
+
+This class defines the interface that the W&B launch runner uses to manage the lifecycle
+of runs launched in different environments (e.g. runs launched locally or in a cluster).
+"""
 import logging
 import os
 import subprocess
@@ -10,7 +15,6 @@ from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
-from wandb.errors import CommError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.lib import runid
 
@@ -60,7 +64,7 @@ class AbstractRun(ABC):
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
     ) -> Optional[Union["subprocess.Popen[bytes]", bytes]]:
-        """Runs the command and returns a popen object or the stdout of the command.
+        """Run the command and returns a popen object or the stdout of the command.
 
         Arguments:
         cmd: The command to run
@@ -143,25 +147,11 @@ class AbstractRunner(ABC):
             sys.exit(1)
         return True
 
-    def ack_run_queue_item(self, launch_project: LaunchProject) -> bool:
-        if self.backend_config.get("runQueueItemId"):
-            try:
-                self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
-                )
-            except CommError:
-                wandb.termerror(
-                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
-                )
-                return False
-        return True
-
     @abstractmethod
     def run(
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
-        registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 

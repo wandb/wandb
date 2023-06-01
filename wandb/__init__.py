@@ -5,13 +5,13 @@ The most commonly used functions/objects are:
   - wandb.config — track hyperparameters and metadata
   - wandb.log — log metrics and media over time within your training loop
 
-For guides and examples, see https://docs.wandb.com/guides.
+For guides and examples, see https://docs.wandb.ai.
 
 For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.13.10.dev1"
+__version__ = "0.15.4.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -188,14 +188,19 @@ def load_ipython_extension(ipython):
     ipython.register_magics(wandb.jupyter.WandBMagics)
 
 
-if wandb_sdk.lib.ipython.in_jupyter():
+if wandb_sdk.lib.ipython.in_notebook():
     from IPython import get_ipython
 
     load_ipython_extension(get_ipython())
 
-wandb.require("service")
 
-__all__ = [
+from .analytics import Sentry as _Sentry
+
+_sentry = _Sentry()
+_sentry.setup()
+
+
+__all__ = (
     "__version__",
     "init",
     "setup",
@@ -218,4 +223,4 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
-]
+)

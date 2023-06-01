@@ -1,11 +1,10 @@
-"""
-config.
-"""
+"""config."""
 
 import logging
 from typing import Optional
 
 import wandb
+from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.util import (
     _is_artifact_representation,
     check_dict_contains_nested_artifact,
@@ -22,8 +21,7 @@ logger = logging.getLogger("wandb")
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
 class Config:
-    """
-    Config object
+    """Config object.
 
     Config objects are intended to hold all of the hyperparameters associated with
     a wandb run and are saved with the run object when `wandb.init` is called.
@@ -32,11 +30,11 @@ class Config:
     setting the config as a parameter to init, ie. `wandb.init(config=my_config_dict)`
 
     You can create a file called `config-defaults.yaml`, and it will automatically be
-    loaded into `wandb.config`. See https://docs.wandb.com/library/config#file-based-configs.
+    loaded into `wandb.config`. See https://docs.wandb.com/guides/track/config#file-based-configs.
 
     You can also load a config YAML file with your custom name and pass the filename
     into `wandb.init(config="special_config.yaml")`.
-    See https://docs.wandb.com/library/config#file-based-configs.
+    See https://docs.wandb.com/guides/track/config#file-based-configs.
 
     Examples:
         Basic usage
@@ -138,8 +136,7 @@ class Config:
             locked_user = self._users_inv[locked]
             if not ignore_locked:
                 wandb.termwarn(
-                    "Config item '%s' was locked by '%s' (ignored update)."
-                    % (key, locked_user)
+                    f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
                 )
             return True
         return False
@@ -193,7 +190,7 @@ class Config:
         return self._items.get(*args)
 
     def persist(self):
-        """Calls the callback if it's set"""
+        """Call the callback if it's set."""
         if self._callback:
             self._callback(data=self._as_dict())
 
@@ -255,10 +252,7 @@ class Config:
         if _is_artifact_representation(val):
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
-        if not (
-            isinstance(val, wandb.Artifact)
-            or isinstance(val, wandb.apis.public.Artifact)
-        ):
+        if not (isinstance(val, wandb.Artifact) or isinstance(val, PublicArtifact)):
             val = json_friendly_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
@@ -277,7 +271,7 @@ class Config:
         # best if we don't allow nested artifacts until we can lock nested keys in the config
         if isinstance(v, dict) and check_dict_contains_nested_artifact(v, nested):
             raise ValueError(
-                "Instances of wandb.Artifact and wandb.apis.public.Artifact"
+                "Instances of wandb.Artifact and PublicArtifact"
                 " can only be top level keys in wandb.config"
             )
 

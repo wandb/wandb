@@ -18,6 +18,7 @@ import wandb
 from wandb import util
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.hashutil import md5_file_hex
+from wandb.sdk.lib.paths import LogicalPath
 
 from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
@@ -28,9 +29,9 @@ if TYPE_CHECKING:  # pragma: no cover
     import tensorflow  # type: ignore
     import torch  # type: ignore
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
 
@@ -45,7 +46,7 @@ def _add_deterministic_dir_to_artifact(
         for fn in filenames:
             file_paths.append(os.path.join(dirpath, fn))
     dirname = md5_file_hex(*file_paths)[:20]
-    target_path = util.to_forward_slash_path(os.path.join(target_dir_root, dirname))
+    target_path = LogicalPath(os.path.join(target_dir_root, dirname))
     artifact.add_dir(dir_name, target_path)
     return target_path
 
@@ -71,8 +72,7 @@ SavedModelObjType = TypeVar("SavedModelObjType")
 
 
 class _SavedModel(WBValue, Generic[SavedModelObjType]):
-    """SavedModel is a private data type that can be used to store a model object
-    inside of a W&B Artifact.
+    """Internal W&B Artifact model storage.
 
     _model_type_id: (str) The id of the SavedModel subclass used to serialize the model.
     """
@@ -133,7 +133,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # First, if the entry is a file, the download it.
         entry = source_artifact.manifest.entries.get(path)
         if entry is not None:
-            dl_path = source_artifact.get_path(path).download()
+            dl_path = str(source_artifact.get_path(path).download())
         else:
             # If not, assume it is directory.
             # FUTURE: Add this functionality to the artifact loader
@@ -184,7 +184,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         return json_obj
 
     def model_obj(self) -> SavedModelObjType:
-        """Returns the model object."""
+        """Return the model object."""
         if self._model_obj is None:
             assert self._path is not None, "Cannot load model object without path"
             self._set_obj(self._deserialize(self._path))
@@ -195,19 +195,22 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     # Methods to be implemented by subclasses
     @staticmethod
     def _deserialize(path: str) -> SavedModelObjType:
-        """Returns the model object from a path. Allowed to throw errors"""
+        """Return the model object from a path. Allowed to throw errors."""
         raise NotImplementedError
 
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
-        """Validates the model object. Allowed to throw errors"""
+        """Validate the model object. Allowed to throw errors."""
         raise NotImplementedError
 
     @staticmethod
     def _serialize(obj: SavedModelObjType, dir_or_file_path: str) -> None:
-        """Save the model to disk. The method will receive a directory path which all
-        files needed for deserialization should be saved. A directory will always be passed if
-        _path_extension is an empty string, else a single file will be passed. Allowed to throw errors
+        """Save the model to disk.
+
+        The method will receive a directory path which all files needed for
+        deserialization should be saved. A directory will always be passed if
+        _path_extension is an empty string, else a single file will be passed. Allowed
+        to throw errors.
         """
         raise NotImplementedError
 
@@ -336,7 +339,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_obj = super().to_json(run_or_artifact)
-        assert isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact)
+        assert isinstance(run_or_artifact, wandb.Artifact)
         if self._dep_py_files_path is not None:
             json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(
                 run_or_artifact,

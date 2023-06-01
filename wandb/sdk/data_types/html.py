@@ -10,15 +10,14 @@ from .base_types.media import BatchableMedia
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
 
 class Html(BatchableMedia):
-    """
-    Wandb class for arbitrary html
+    """Wandb class for arbitrary html.
 
     Arguments:
         data: (string or io object) HTML to display in wandb
@@ -51,7 +50,7 @@ class Html(BatchableMedia):
 
         if inject or not data_is_path:
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".html")
-            with open(tmp_path, "w") as out:
+            with open(tmp_path, "w", encoding="utf-8") as out:
                 out.write(self.html)
 
             self._set_file(tmp_path, is_tmp=True)

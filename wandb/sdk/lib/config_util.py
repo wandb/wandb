@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -86,6 +87,7 @@ def save_config_file_from_dict(config_filename, config_dict):
             default_flow_style=False,
             allow_unicode=True,
             encoding="utf-8",
+            sort_keys=False,
         )
     data = s.decode("utf-8")
     filesystem.mkdir_exists_ok(os.path.dirname(config_filename))
@@ -93,7 +95,9 @@ def save_config_file_from_dict(config_filename, config_dict):
         conf_file.write(data)
 
 
-def dict_from_config_file(filename, must_exist=False):
+def dict_from_config_file(
+    filename: str, must_exist: bool = False
+) -> Optional[Dict[str, Any]]:
     if not os.path.exists(filename):
         if must_exist:
             raise ConfigError("config file %s doesn't exist" % filename)

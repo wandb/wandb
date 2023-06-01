@@ -1,11 +1,12 @@
 [paths]
 canonicalsrc =
     wandb/
-    .tox/func-s_base-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_docs-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_grpc-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_default-py39/lib/python3.9/site-packages/wandb/
+    .tox/func-s_docs-py39/lib/python3.9/site-packages/wandb/
+    .tox/func-s_grpc-py39/lib/python3.9/site-packages/wandb/
+    .tox/func-s_llm-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_metaflow-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_noml-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_noml-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_ray112-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_ray2-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_service-py37/lib/python3.7/site-packages/wandb/
@@ -25,8 +26,8 @@ source =
     wandb/
 
 omit =
-    wandb/vendor/*
-    wandb/proto/*
+    **/wandb/vendor/**
+    **/wandb/proto/**
 
 [report]
 exclude_lines =
@@ -35,5 +36,7 @@ exclude_lines =
     @abstractmethod
 
 omit =
-    wandb/vendor/*
-    wandb/proto/*
+    **/wandb/vendor/**
+    **/wandb/proto/**
+
+ignore_errors = True

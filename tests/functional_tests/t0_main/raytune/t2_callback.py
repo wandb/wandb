@@ -18,7 +18,7 @@ def objective(config, checkpoint_dir=None):
 
 
 def tune_function(api_key_file):
-    """Example for using a WandbLoggerCallback with the function API"""
+    """Example for using a WandbLoggerCallback with the function API."""
     tuner = tune.Tuner(
         objective,
         tune_config=tune.TuneConfig(

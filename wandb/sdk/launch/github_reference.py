@@ -1,6 +1,4 @@
-"""
-Support for parsing GitHub URLs (which might be user provided) into constituent parts.
-"""
+"""Support for parsing GitHub URLs (which might be user provided) into constituent parts."""
 
 import re
 from dataclasses import dataclass
@@ -9,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from wandb.errors import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 PREFIX_HTTPS = "https://"
 PREFIX_SSH = "git@"
@@ -43,7 +41,6 @@ def _parse_netloc(netloc: str) -> Tuple[Optional[str], Optional[str], str]:
 
 @dataclass
 class GitHubReference:
-
     username: Optional[str] = None
     password: Optional[str] = None
     host: Optional[str] = None
@@ -107,9 +104,7 @@ class GitHubReference:
 
     @staticmethod
     def parse(uri: str) -> Optional["GitHubReference"]:
-        """
-        Attempt to parse a string as a GitHub URL.
-        """
+        """Attempt to parse a string as a GitHub URL."""
         # Special case: git@github.com:wandb/wandb.git
         ref = GitHubReference()
         if uri.startswith(PREFIX_SSH):
@@ -219,6 +214,7 @@ class GitHubReference:
             self.default_branch = default_branch
             head = repo.create_head(default_branch, origin.refs[default_branch])
             head.checkout()
+        repo.submodule_update(init=True, recursive=True)
 
         # Now that we've checked something out, try to extract directory and file from what remains
         self._update_path(dst_dir)

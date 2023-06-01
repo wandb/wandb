@@ -1,6 +1,4 @@
-"""
-tensorboard watcher.
-"""
+"""tensorboard watcher."""
 
 import glob
 import logging
@@ -16,6 +14,7 @@ import wandb
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.paths import LogicalPath
 from wandb.viz import CustomChart
 
 from . import run as internal_run
@@ -61,7 +60,7 @@ def _link_and_save_file(
 
 
 def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
-    """Checks if a path is a tfevents file created by hostname.
+    """Check if a path is a tfevents file created by hostname.
 
     tensorboard tfevents filename format:
         https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
@@ -95,7 +94,7 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     # TODO: we should also check the PID (also contained in the tfevents
     #     filename). Can we assume that our parent pid is the user process
     #     that wrote these files?
-    return created_time >= int(start_time)  # noqa: W503
+    return created_time >= int(start_time)
 
 
 class TBWatcher:
@@ -128,10 +127,8 @@ class TBWatcher:
         else:
             filename = ""
 
-        if rootdir == "":
-            rootdir = util.to_forward_slash_path(
-                os.path.dirname(os.path.commonprefix(dirs))
-            )
+        if rootdir == ".":
+            rootdir = LogicalPath(os.path.dirname(os.path.commonprefix(dirs)))
             # Tensorboard loads all tfevents files in a directory and prepends
             # their values with the path. Passing namespace to log allows us
             # to nest the values in wandb
@@ -148,8 +145,8 @@ class TBWatcher:
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:
-        logdir = util.to_forward_slash_path(logdir)
-        root_dir = util.to_forward_slash_path(root_dir)
+        logdir = LogicalPath(logdir)
+        root_dir = LogicalPath(root_dir)
         if logdir in self._logdirs:
             return
         namespace = self._calculate_namespace(logdir, root_dir)
@@ -216,7 +213,7 @@ class TBDirWatcher:
         self._thread.start()
 
     def _is_our_tfevents_file(self, path: str) -> bool:
-        """Checks if a path has been modified since launch and contains tfevents"""
+        """Check if a path has been modified since launch and contains tfevents."""
         if not path:
             raise ValueError("Path must be a nonempty string")
         if self._force:
@@ -229,7 +226,7 @@ class TBDirWatcher:
     def _loader(
         self, save: bool = True, namespace: Optional[str] = None
     ) -> "EventFileLoader":
-        """Incredibly hacky class generator to optionally save / prefix tfevent files"""
+        """Incredibly hacky class generator to optionally save / prefix tfevent files."""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
         try:
@@ -285,7 +282,7 @@ class TBDirWatcher:
             raise e
 
     def _thread_body(self) -> None:
-        """Check for new events every second"""
+        """Check for new events every second."""
         shutdown_time: Optional[float] = None
         while True:
             self._process_events()
@@ -318,7 +315,7 @@ class TBDirWatcher:
 
 
 class Event:
-    """An event wrapper to enable priority queueing"""
+    """An event wrapper to enable priority queueing."""
 
     def __init__(self, event: "ProtoEvent", namespace: Optional[str]):
         self.event = event
@@ -332,10 +329,11 @@ class Event:
 
 
 class TBEventConsumer:
-    """Consumes tfevents from a priority queue.  There should always
-    only be one of these per run_manager.  We wait for 10 seconds of queued
-    events to reduce the chance of multiple tfevent files triggering
-    out of order steps.
+    """Consume tfevents from a priority queue.
+
+    There should always only be one of these per run_manager.  We wait for 10 seconds of
+    queued events to reduce the chance of multiple tfevent files triggering out of order
+    steps.
     """
 
     def __init__(

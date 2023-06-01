@@ -1,4 +1,4 @@
-"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock
+"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock.
 
 See interface.py for how interface classes relate to each other.
 
@@ -380,7 +380,6 @@ class InterfaceShared(InterfaceBase):
         Returns:
             RunRecord object
         """
-
         req = self._make_record(run=run)
         resp = self._communicate(req, timeout=timeout)
         if resp is None:
@@ -583,6 +582,16 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_stop_status(self, stop_status: pb.StopStatusRequest) -> MailboxHandle:
         record = self._make_request(stop_status=stop_status)
+        return self._deliver_record(record)
+
+    def _deliver_attach(self, attach: pb.AttachRequest) -> MailboxHandle:
+        record = self._make_request(attach=attach)
+        return self._deliver_record(record)
+
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
+        record = self._make_request(check_version=check_version)
         return self._deliver_record(record)
 
     def _deliver_network_status(

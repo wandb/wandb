@@ -18,7 +18,6 @@ from tests.pytest_tests.unit_tests_old import utils
 
 
 def test_from_path(mock_server, api):
-
     run = api.from_path("test/test/test")
     assert isinstance(run, wandb.apis.public.Run)
     run = api.from_path("test/test/runs/test")
@@ -366,8 +365,7 @@ def test_artifact_delete(runner, mock_server, api):
         # with pytest.raises(Exception):
         #    art.delete()
 
-        success = art.delete(delete_aliases=True)
-        assert success
+        art.delete(delete_aliases=True)
 
 
 def test_artifact_checkout(runner, mock_server, api):

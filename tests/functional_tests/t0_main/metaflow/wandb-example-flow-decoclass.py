@@ -13,6 +13,7 @@ from wandb.integration.metaflow import wandb_log
 
 os.environ["WANDB_SILENT"] = "true"
 os.environ["METAFLOW_USER"] = "test_user"
+os.environ["USER"] = os.environ["METAFLOW_USER"]
 
 
 @wandb_log(datasets=True, models=True, others=True)

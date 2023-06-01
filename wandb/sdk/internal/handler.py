@@ -191,6 +191,11 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_run(self, record: Record) -> None:
+        if self._settings._offline:
+            self._run_proto = record.run
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(record.run)
+            self._respond_result(result)
         self._dispatch_record(record)
 
     def handle_stats(self, record: Record) -> None:
@@ -413,7 +418,7 @@ class HandleManager:
             self._step += 1
 
     def _history_define_metric(self, hkey: str) -> Optional[MetricRecord]:
-        """check for hkey match in glob metrics, return defined metric."""
+        """Check for hkey match in glob metrics and return the defined metric."""
         # Dont define metric for internal metrics
         if hkey.startswith("_"):
             return None
@@ -478,7 +483,6 @@ class HandleManager:
         history: HistoryRecord,
         history_dict: Dict[str, Any],
     ) -> None:
-
         #  if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
             self._history_assign_step(history, history_dict)
@@ -625,7 +629,12 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_attach(self, record: Record) -> None:
-        self._dispatch_record(record)
+        result = proto_util._result_from_record(record)
+        attach_id = record.request.attach.attach_id
+        assert attach_id
+        assert self._run_proto
+        result.response.attach_response.run.CopyFrom(self._run_proto)
+        self._respond_result(result)
 
     def handle_request_log_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
@@ -675,6 +684,8 @@ class HandleManager:
         run_start = record.request.run_start
         assert run_start
         assert run_start.run
+
+        self._run_proto = run_start.run
 
         self._run_start_time = run_start.run.start_time.ToMicroseconds() / 1e6
 
@@ -825,8 +836,10 @@ class HandleManager:
         self._dispatch_record(record, always_send=True)
 
     def handle_request_keepalive(self, record: Record) -> None:
-        """keepalive is a noop, we just want to verify transport is alive."""
-        pass
+        """Handle a keepalive request.
+
+        Keepalive is a noop, we just want to verify transport is alive.
+        """
 
     def handle_request_run_status(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
@@ -839,6 +852,8 @@ class HandleManager:
 
     def finish(self) -> None:
         logger.info("shutting down handler")
+        if self._system_monitor is not None:
+            self._system_monitor.finish()
         if self._tb_watcher:
             self._tb_watcher.finish()
         # self._context_keeper._debug_print_orphans()

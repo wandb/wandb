@@ -3,10 +3,10 @@ import shlex
 from typing import Any, List, Optional
 
 import wandb
-from wandb.errors import LaunchError
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
@@ -80,9 +80,6 @@ class LocalProcessRunner(AbstractRunner):
         env_vars = get_env_vars_dict(launch_project, self._api)
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
-
-        if not self.ack_run_queue_item(launch_project):
-            return None
 
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
         cmd += entry_cmd

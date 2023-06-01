@@ -8,15 +8,16 @@ from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
-from .._project_spec import LaunchProject, get_entry_point_command
-from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
+from .._project_spec import LaunchProject
+from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
-    PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
+    pull_docker_image,
     sanitize_wandb_api_key,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -67,16 +68,24 @@ class LocalSubmittedRun(AbstractRun):
 class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
+    def __init__(
+        self,
+        api: wandb.apis.internal.Api,
+        backend_config: Dict[str, Any],
+        environment: AbstractEnvironment,
+    ) -> None:
+        super().__init__(api, backend_config)
+        self.environment = environment
+
     def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
-        registry_config: Dict[str, Any],
+        builder: Optional[AbstractBuilder],
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        if launch_project.cuda:
-            docker_args["gpus"] = "all"
+        docker_args: Dict[str, Any] = launch_project.resource_args.get(
+            "local-container", {}
+        )
 
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":
@@ -102,31 +111,40 @@ class LocalContainerRunner(AbstractRunner):
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.image_name
-            if not docker_image_exists(image_uri):
-                pull_docker_image(image_uri)
-            env_vars.pop("WANDB_RUN_ID")
-            # if they've given an override to the entrypoint
-            entry_cmd = get_entry_point_command(
-                entry_point, launch_project.override_args
-            )
+            pull_docker_image(image_uri)
+            entry_cmd = []
+            if entry_point is not None:
+                entry_cmd = entry_point.command
             command_str = " ".join(
-                get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+                get_docker_command(
+                    image_uri,
+                    env_vars,
+                    entry_cmd=entry_cmd,
+                    docker_args=docker_args,
+                    additional_args=launch_project.override_args,
+                )
             ).strip()
         else:
             assert entry_point is not None
-            repository: Optional[str] = registry_config.get("url")
+            _logger.info("Building docker image...")
+            assert builder is not None
             image_uri = builder.build_image(
                 launch_project,
-                repository,
                 entry_point,
-                docker_args,
             )
-            command_str = " ".join(
-                get_docker_command(image_uri, env_vars, [""], docker_args)
-            ).strip()
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
+            _logger.info(f"Docker image built with uri {image_uri}")
+            # entry_cmd and additional_args are empty here because
+            # if launch built the container they've been accounted
+            # in the dockerfile and env vars respectively
+            command_str = " ".join(
+                get_docker_command(
+                    image_uri,
+                    env_vars,
+                    docker_args=docker_args,
+                )
+            ).strip()
+        launch_project.fill_macros(image_uri)
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)
@@ -168,10 +186,11 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
 def get_docker_command(
     image: str,
     env_vars: Dict[str, str],
-    entry_cmd: List[str],
+    entry_cmd: Optional[List[str]] = None,
     docker_args: Optional[Dict[str, Any]] = None,
+    additional_args: Optional[List[str]] = None,
 ) -> List[str]:
-    """Constructs the docker command using the image and docker args.
+    """Construct the docker command using the image and docker args.
 
     Arguments:
     image: a Docker image to be run
@@ -188,21 +207,25 @@ def get_docker_command(
 
     if docker_args:
         for name, value in docker_args.items():
-            # Passed just the name as boolean flag
-            if isinstance(value, bool) and value:
-                if len(name) == 1:
-                    cmd += ["-" + shlex.quote(name)]
-                else:
-                    cmd += ["--" + shlex.quote(name)]
+            if len(name) == 1:
+                prefix = "-" + shlex.quote(name)
             else:
-                # Passed name=value
-                if len(name) == 1:
-                    cmd += ["-" + shlex.quote(name), shlex.quote(str(value))]
-                else:
-                    cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
+                prefix = "--" + shlex.quote(name)
+            if isinstance(value, list):
+                for v in value:
+                    cmd += [prefix, shlex.quote(str(v))]
+            elif isinstance(value, bool) and value:
+                cmd += [prefix]
+            else:
+                cmd += [prefix, shlex.quote(str(value))]
 
+    if entry_cmd:
+        cmd += ["--entrypoint", entry_cmd[0]]
     cmd += [shlex.quote(image)]
-    cmd += entry_cmd
+    if entry_cmd and len(entry_cmd) > 1:
+        cmd += entry_cmd[1:]
+    if additional_args:
+        cmd += additional_args
     return cmd
 
 

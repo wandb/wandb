@@ -17,9 +17,8 @@ test_requirements = ["mock>=2.0.0", "tox-pyenv>=1.0.3"]
 
 gcp_requirements = ["google-cloud-storage"]
 aws_requirements = ["boto3"]
-azure_requirements = ["azure-storage-blob"]
+azure_requirements = ["azure-identity", "azure-storage-blob"]
 grpc_requirements = ["grpcio>=1.27.2"]
-service_requirements = []
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = [
     "numpy",
@@ -31,6 +30,7 @@ media_requirements = [
     "rdkit-pypi",
 ]
 launch_requirements = [
+    "awscli",
     "nbconvert",
     "nbformat",
     "chardet",
@@ -38,16 +38,24 @@ launch_requirements = [
     "typing_extensions",
     "boto3",
     "botocore",
+    "google-auth",
+    "google-cloud-compute",
     "google-cloud-storage",
+    "google-cloud-artifact-registry",
     "kubernetes",
+    "optuna",
 ]
 
 models_requirements = ["cloudpickle"]
 
+async_requirements = [
+    "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
+]
+
 
 setup(
     name="wandb",
-    version="0.13.10.dev1",
+    version="0.15.4.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -92,12 +100,12 @@ setup(
         "gcp": gcp_requirements,
         "aws": aws_requirements,
         "azure": azure_requirements,
-        "service": service_requirements,
         "grpc": grpc_requirements,
         "media": media_requirements,
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
         "models": models_requirements,
+        "async": async_requirements,
     },
 )
 

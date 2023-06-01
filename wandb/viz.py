@@ -16,8 +16,8 @@ class Visualize:
         }
 
     @staticmethod
-    def get_config_key(key: str) -> Tuple[str]:
-        return ("_wandb", "viz", key)
+    def get_config_key(key: str) -> Tuple[str, str, str]:
+        return "_wandb", "viz", key
 
     @property
     def value(self) -> Table:
@@ -54,8 +54,8 @@ class CustomChart:
         }
 
     @staticmethod
-    def get_config_key(key: str) -> Tuple[str]:
-        return ("_wandb", "visualize", key)
+    def get_config_key(key: str) -> Tuple[str, str, str]:
+        return "_wandb", "visualize", key
 
     @staticmethod
     def user_query(table_key: str) -> Dict[str, Any]:

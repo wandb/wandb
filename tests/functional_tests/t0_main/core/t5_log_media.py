@@ -1,11 +1,14 @@
 #!/usr/bin/env python
-"""Base case - logging sequence of media types multiple times
+"""Base case - logging sequence of media types multiple times.
 
 ---
 id: 0.core.05-log-media
 plugin:
     - wandb
     - numpy
+depend:
+  requirements:
+    - pillow
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config]: {}
