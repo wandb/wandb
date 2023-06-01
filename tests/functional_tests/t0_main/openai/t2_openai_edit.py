@@ -1,9 +1,10 @@
 import openai
 from wandb.integration.openai import autolog as openai_autolog
 
+openai_autolog(init=dict(project="openai_logging"))
+
 
 def main():
-    openai_autolog(init=dict(project="openai_logging"))
     request_kwargs = dict(
         model="text-davinci-edit-001",
         input="To bee or not to bee?",
