@@ -285,7 +285,6 @@ class Scheduler(ABC):
             return
 
         # For resuming sweeps
-        self._set_sweep_state("RUNNING")
         self._load_state()
         self._register_agents()
         self.run()
