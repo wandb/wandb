@@ -729,7 +729,6 @@ class _WandbInit:
                     "`resume` will be ignored since W&B syncing is set to `offline`. "
                     f"Starting a new run with run id {run.id}."
                 )
-        # else:
         error: Optional["wandb.errors.Error"] = None
 
         timeout = self.settings.init_timeout
@@ -877,7 +876,12 @@ def _attach(
 
     settings: Settings = copy.copy(_wl._settings)
     settings.update(
-        {"run_id": attach_id, **response},
+        {
+            "run_id": attach_id,
+            "_start_time": response["_start_time"],
+            "_start_datetime": response["_start_datetime"],
+            "_offline": response["_offline"],
+        },
         source=Source.INIT,
     )
 
