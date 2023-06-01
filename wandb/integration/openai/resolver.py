@@ -1,7 +1,6 @@
 import datetime
 import io
 import logging
-import uuid
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -27,7 +26,13 @@ class Metrics:
     trace: trace_tree.WBTraceTree = None
 
 
+usage_metric_keys = {f"usage/{k}" for k in asdict(UsageMetrics())}
+
+
 class OpenAIRequestResponseResolver:
+    def __init__(self):
+        self.define_metrics_called = False
+
     def __call__(
         self,
         args: Sequence[Any],
@@ -37,20 +42,22 @@ class OpenAIRequestResponseResolver:
         time_elapsed: float,
     ) -> Optional[Dict[str, Any]]:
         request = kwargs
+
+        if not self.define_metrics_called:
+            # define metrics on first call
+            for key in usage_metric_keys:
+                wandb.define_metric(key, step_metric="_timestamp")
+            self.define_metrics_called = True
+
         try:
             if response.get("object") == "edit":
-                return {"trace": self._resolve_edit(request, response, time_elapsed)}
+                return self._resolve_edit(request, response, time_elapsed)
             elif response.get("object") == "text_completion":
-                return {
-                    "trace": self._resolve_completion(request, response, time_elapsed)
-                }
+                return self._resolve_completion(request, response, time_elapsed)
             elif response.get("object") == "chat.completion":
-                return {
-                    "trace": self._resolve_chat_completion(
-                        request, response, time_elapsed
-                    )
-                }
+                return self._resolve_chat_completion(request, response, time_elapsed)
             else:
+                # todo: properly treat failed requests
                 logger.info(
                     f"Unsupported OpenAI response object: {response.get('object')}"
                 )
@@ -205,9 +212,7 @@ class OpenAIRequestResponseResolver:
                 "end_time": datetime.datetime.fromtimestamp(
                     response["created"] + time_elapsed
                 ),
-                "request_id": response["id"]
-                if response.get("id")
-                else str(uuid.uuid4()),
+                "request_id": response.get("id", None),
                 "api_type": response.get("api_type", "openai"),
                 "session_id": wandb.run.id,
             }
@@ -231,7 +236,5 @@ class OpenAIRequestResponseResolver:
             "trace": metrics.trace,
         }
         usage_stats = {f"usage/{k}": v for k, v in asdict(metrics.usage).items()}
-        for key in usage_stats:
-            wandb.define_metric(key, step_metric="_timestamp")
         metrics_dict.update(usage_stats)
         return metrics_dict

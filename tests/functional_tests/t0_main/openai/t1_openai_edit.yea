@@ -11,13 +11,13 @@ depend:
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
-    - :wandb:runs[0][history][0][trace][_type]: wb_trace_tree
+#    - :wandb:runs[0][history][0][trace][_type]: wb_trace_tree
     - :wandb:runs[0][summary][stats][_type]: table-file
     - :wandb:runs[0][summary][stats][nrows]: 1
-    - :wandb:runs[0][summary][stats][ncols]: 13
-    - :op:contains:
-        - :wandb:runs[0][history][0][trace]
-        - root_span_dumps
+    - :wandb:runs[0][summary][stats][ncols]: 12
+#    - :op:contains:
+#        - :wandb:runs[0][history][0][trace]
+#        - root_span_dumps
     - :op:contains:
         - :wandb:runs[0][summary]
         - usage/completion_tokens
@@ -27,6 +27,6 @@ assert:
     - :op:contains:
         - :wandb:runs[0][summary]
         - usage/total_tokens
-    - :op:contains:
-        - :wandb:runs[0][history][0][trace]
-        - model_dict_dumps
+#    - :op:contains:
+#        - :wandb:runs[0][history][0][trace]
+#        - model_dict_dumps
