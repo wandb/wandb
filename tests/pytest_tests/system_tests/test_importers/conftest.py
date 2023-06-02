@@ -100,15 +100,31 @@ def make_tags():
 
 
 def make_params():
+    # Older versions have trouble handling certain kinds of strings and larger dicts
+    if mlflow_version < Version("2.0.0"):
+        param_str = st.text(
+            max_size=20, alphabet="abcdefghijklmnopqrstuvwxyz1234567890_- "
+        ).example()
+        param_dict = st.dictionaries(
+            st.text(max_size=4, alphabet="abcdefghijklmnopqrstuvwxyz1234567890_- "),
+            st.integers(),
+            max_size=2,
+        ).example()
+    else:
+        param_str = st.text(max_size=20).example()
+        param_dict = st.dictionaries(
+            st.text(max_size=20),
+            st.integers(),
+            max_size=10,
+        ).example()
+
     return {
         "param_int": st.integers().example(),
         "param_float": st.floats().example(),
-        # "param_str": st.text(max_size=20).example(),
+        "param_str": param_str,
         "param_bool": st.booleans().example(),
         "param_list": st.lists(st.integers()).example(),
-        # "param_dict": st.dictionaries(
-        #     st.text(max_size=20), st.integers(), max_size=10
-        # ).example(),
+        "param_dict": param_dict,
         "param_tuple": st.tuples(st.integers(), st.integers()).example(),
         "param_set": st.sets(st.integers()).example(),
         "param_none": None,

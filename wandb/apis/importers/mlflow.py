@@ -89,7 +89,6 @@ class MlflowRun(ImporterRun):
 
     def artifacts(self):
         for f in self.mlflow_client.list_artifacts(self.run.info.run_id):
-            wandb.termlog(f"Downloading {f.path}")
             if mlflow_version < Version("2.0.0"):
                 dir_path = self.mlflow_client.download_artifacts(
                     run_id=self.run.info.run_id, path=""
