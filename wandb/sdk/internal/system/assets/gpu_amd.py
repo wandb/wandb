@@ -66,27 +66,27 @@ class GPUAMDStats:
         parsed_stats: _Stats = {}
 
         try:
-            parsed_stats["gpu"] = float(stats.get("GPU use (%)"))
+            parsed_stats["gpu"] = float(stats.get("GPU use (%)"))  # type: ignore
         except (TypeError, ValueError):
             logger.warning("Could not parse GPU usage as float")
         try:
-            parsed_stats["memoryAllocated"] = float(stats.get("GPU memory use (%)"))
+            parsed_stats["memoryAllocated"] = float(stats.get("GPU memory use (%)"))  # type: ignore
         except (TypeError, ValueError):
             logger.warning("Could not parse GPU memory allocation as float")
         try:
-            parsed_stats["temp"] = float(stats.get("Temperature (Sensor memory) (C)"))
+            parsed_stats["temp"] = float(stats.get("Temperature (Sensor memory) (C)"))  # type: ignore
         except (TypeError, ValueError):
             logger.warning("Could not parse GPU temperature as float")
         try:
             parsed_stats["powerWatts"] = float(
-                stats.get("Average Graphics Package Power (W)")
+                stats.get("Average Graphics Package Power (W)")  # type: ignore
             )
         except (TypeError, ValueError):
             logger.warning("Could not parse GPU power as float")
         try:
             parsed_stats["powerPercent"] = (
-                float(stats.get("Average Graphics Package Power (W)"))
-                / float(stats.get("Max Graphics Package Power (W)"))
+                float(stats.get("Average Graphics Package Power (W)"))  # type: ignore
+                / float(stats.get("Max Graphics Package Power (W)"))  # type: ignore
                 * 100
             )
         except (TypeError, ValueError):
@@ -128,7 +128,7 @@ class GPUAMDStats:
             samples = [sample[i] for sample in self.samples]
 
             for key in samples[0].keys():
-                samples_key = [s[key] for s in samples]  # type: ignore
+                samples_key = [s[key] for s in samples]
                 aggregate = aggregate_mean(samples_key)
                 stats[self.name.format(gpu_id=i, key=key)] = aggregate
 
