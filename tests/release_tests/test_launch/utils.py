@@ -1,5 +1,6 @@
-from netrc import netrc
 import os
+from netrc import netrc
+
 import wandb
 
 

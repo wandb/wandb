@@ -4,8 +4,8 @@ import subprocess
 import sys
 
 from kubernetes import client, config, watch
-from wandb.sdk.launch.launch_add import launch_add
 from utils import get_wandb_api_key
+from wandb.sdk.launch.launch_add import launch_add
 
 
 def _create_wandb_and_aws_secrets(aws_id, aws_secret, aws_token, namespace):
