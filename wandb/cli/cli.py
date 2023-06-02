@@ -1519,6 +1519,58 @@ def scheduler(
         raise e
 
 
+@cli.group("job")
+def job() -> None:
+    pass
+
+
+@job.command()
+@click.option(
+    "--project",
+    "-p",
+    envvar=env.PROJECT,
+    help="The project you want to list jobs from.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    default="models",
+    envvar=env.ENTITY,
+    help="The entity the jobs belong to",
+)
+def list(project, entity):
+    wandb.termlog(f"Listing jobs in {entity}/{project}")
+
+    public_api = PublicApi()
+    jobs = public_api.jobs(entity=entity, project=project)
+
+    for job in jobs:
+        for version in job["edges"]:
+            name = version["node"]["artifactSequence"]["name"]
+            full_name = f"{entity}/{project}/{name}"
+            aliases = [x["alias"] for x in version["node"]["aliases"]]
+            if len(aliases) == 1:
+                # no custom alias, just verison, skip
+                continue
+            print(full_name, aliases)
+
+
+@job.command()
+@click.argument("job")
+def describe(job):
+    wandb.termlog(f"Describing job: {job}")
+
+    public_api = PublicApi()
+    job = public_api.job(name=job)
+
+    wandb.termlog(f"{job._job_info}")
+
+
+@job.command()
+def create():
+    wandb.termlog("Creating job")
+
+
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
 @click.argument("sweep_id")
