@@ -16,8 +16,8 @@ spec:
       serviceAccountName: wandb-launch-serviceaccount
       containers:
         - name: launch-agent
-          image: wandb/launch-agent-dev:88dd2149
-          imagePullPolicy: Always
+          image: wandb-launch-agent:latest
+          imagePullPolicy: Never
           resources:
             limits:
               memory: "2Gi"

@@ -61,7 +61,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: wandb-launch-cluster-role-binding
-  namespace: default # Optional: Set to desired namespace to launch runs into
+  namespace: wandb # Optional: Set to desired namespace to launch runs into
 subjects:
   - kind: ServiceAccount
     name: wandb-launch-serviceaccount

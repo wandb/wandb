@@ -1,7 +1,7 @@
 from netrc import netrc
 import os
-import subprocess
 import wandb
+
 
 def get_wandb_api_key():
     if os.getenv("WANDB_API_KEY"):
@@ -12,6 +12,3 @@ def get_wandb_api_key():
     api_key = n.authenticators("api.wandb.ai")[2]
     os.environ["WANDB_API_KEY"] = api_key
     return api_key
-
-if __name__ == "__main__":
-    get_wandb_api_key()

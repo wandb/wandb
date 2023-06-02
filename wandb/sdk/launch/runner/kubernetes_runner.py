@@ -472,15 +472,15 @@ class KubernetesRunner(AbstractRunner):
                 raise LaunchError(
                     "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
                 )
-            secret = maybe_create_imagepull_secret(
-                core_api, builder.registry, launch_project.run_id, namespace
-            )
-            if secret is not None:
-                pod_spec["imagePullSecrets"] = [
-                    {"name": f"regcred-{launch_project.run_id}"}
-                ]
             containers[0]["image"] = image_uri
             launch_project.fill_macros(image_uri)
+        secret = maybe_create_imagepull_secret(
+            core_api, builder.registry, launch_project.run_id, namespace
+        )
+        if secret is not None:
+            pod_spec["imagePullSecrets"] = [
+                {"name": f"regcred-{launch_project.run_id}"}
+            ]
 
         inject_entrypoint_and_args(
             containers,
