@@ -942,6 +942,62 @@ class Api:
             )
         return Job(self, name, path)
 
+    @normalize_exceptions
+    def jobs(self, entity, project):
+        if entity is None:
+            raise ValueError("Specify an entity when listing jobs")
+        if project is None:
+            raise ValueError("Specify a project when listing jobs")
+
+        query = gql(
+            """
+        query ArtifactOfType(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactCollections {
+                        edges {
+                            node {
+                                artifacts {
+                                    edges {
+                                        node {
+                                            id
+                                            state
+                                            aliases {
+                                                alias
+                                            }
+                                            artifactSequence {
+                                                name
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+
+        try:
+            artifacts = self._client.execute(
+                query,
+                {
+                    "projectName": project,
+                    "entityName": entity,
+                    "artifactTypeName": "job",
+                },
+            )["project"]["artifactType"]["artifactCollections"]["edges"]
+
+            return [x["node"]["artifacts"] for x in artifacts]
+        except requests.exceptions.HTTPError:
+            return False
+
 
 class Attrs:
     def __init__(self, attrs: MutableMapping[str, Any]):
