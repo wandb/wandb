@@ -101,7 +101,7 @@ class ImporterRun:
     def tags(self) -> Optional[List[str]]:
         ...
 
-    def artifacts(self) -> Optional[Iterable[Tuple[Name, Path]]]:
+    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
         ...
 
     def os_version(self) -> Optional[str]:
@@ -193,14 +193,8 @@ class ImporterRun:
             {"files": [[f"{self.run_dir}/files/wandb-metadata.json", "end"]]}
         )
 
-    def _make_artifact_record(self) -> pb.Record:
-        artifact_name = self._handle_incompatible_strings(self.display_name())
-        art = wandb.Artifact(artifact_name, "imported-artifacts")
-        artifacts = self.artifacts()
-        if artifacts is not None:
-            for name, path in artifacts:
-                art.add_file(path, name)
-        proto = self.interface._make_artifact(art)
+    def _make_artifact_record(self, artifact) -> pb.Record:
+        proto = self.interface._make_artifact(artifact)
         proto.run_id = self.run_id()
         proto.project = self.project()
         proto.entity = self.entity()
@@ -323,5 +317,6 @@ class Importer(ABC):
             for history_record in run._make_history_records():
                 sm.send(history_record)
             if run.artifacts() is not None:
-                sm.send(run._make_artifact_record())
+                for artifact in run.artifacts():
+                    sm.send(run._make_artifact_record(artifact))
             sm.send(run._make_telem_record())

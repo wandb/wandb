@@ -10,10 +10,9 @@ from wandb.apis.importers import MlflowImporter
 def test_mlflow(prelogged_mlflow_server, user):
     (
         mlflow_server,
-        exps,
-        runs_per_exp,
+        total_runs,
+        total_files,
         steps,
-        n_artifacts_per_run,
     ) = prelogged_mlflow_server
 
     project = "mlflow-import-testing"
@@ -25,10 +24,11 @@ def test_mlflow(prelogged_mlflow_server, user):
     importer.import_all_parallel(overrides=overrides)
 
     runs = list(wandb.Api().runs(f"{user}/{project}"))
-    assert len(runs) == exps * runs_per_exp
+    assert len(runs) == total_runs
     for run in runs:
         # https://stackoverflow.com/a/50645935
         assert len(list(run.scan_history())) == steps
 
+        # only one artifact containing everything in mlflow
         art = list(run.logged_artifacts())[0]
-        assert len(list(art.files())) == n_artifacts_per_run
+        assert len(art.files()) == total_files
