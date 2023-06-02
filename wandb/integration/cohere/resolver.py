@@ -230,7 +230,7 @@ class CohereRequestResponseResolver:
                 _response_dict["token_likelihoods"] = wandb.Html(
                     _response_dict["token_likelihoods"]
                 )
-            except KeyError:
+            except (KeyError, ValueError):
                 pass
             return_list.append(_response_dict)
 
