@@ -18,7 +18,7 @@ jobs:
         python-version: "3.9"
 
     - name: Install dependencies
-      run: pip install pygithub openai
+      run: pip install pygithub openai tenacity
 
     - name: Get PR number
       id: get_pr_number
