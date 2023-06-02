@@ -1,11 +1,19 @@
+import copy
 import json
+import sys
 import threading
 import time
 from unittest import mock
 
+if sys.version_info >= (3, 8):
+    from typing import get_args
+else:
+    from typing_extensions import get_args
+
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import GPUAMD
+from wandb.sdk.internal.system.assets.gpu_amd import _StatsKeys
 from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 STATS_AMD = {
@@ -120,3 +128,51 @@ def test_gpu_amd(test_settings):
         gpu.finish()
 
         assert not interface.metrics_queue.empty()
+
+        metrics = interface.metrics_queue.get()
+
+        known_metric_keys = list(get_args(_StatsKeys))
+        assert all(f"gpu.0.{key}" in metrics for key in known_metric_keys)
+
+
+def test_gpu_amd_missing_keys(test_settings):
+    stats_amd_missing_keys = copy.deepcopy(STATS_AMD)
+    stats_amd_missing_keys["card0"].pop("GPU use (%)")
+
+    with mock.patch.object(
+        wandb.sdk.internal.system.assets.gpu_amd.subprocess,
+        "check_output",
+        return_value=json.dumps(stats_amd_missing_keys),
+    ), mock.patch.object(
+        wandb.sdk.internal.system.assets.gpu_amd.shutil,
+        "which",
+        return_value=True,
+    ):
+        interface = AssetInterface()
+        settings = SettingsStatic(
+            test_settings(
+                dict(
+                    _stats_sample_rate_seconds=0.1,
+                    _stats_samples_to_average=2,
+                )
+            ).make_static()
+        )
+        shutdown_event = threading.Event()
+
+        gpu = GPUAMD(
+            interface=interface,
+            settings=settings,
+            shutdown_event=shutdown_event,
+        )
+        gpu.start()
+        time.sleep(1)
+        shutdown_event.set()
+        gpu.finish()
+
+        assert not interface.metrics_queue.empty()
+        metrics = interface.metrics_queue.get()
+
+        assert "gpu.0.gpu" not in metrics
+
+        known_metric_keys = [k for k in get_args(_StatsKeys) if k != "gpu"]
+        assert all(f"gpu.0.{key}" in metrics for key in known_metric_keys)

@@ -8,9 +8,9 @@ from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Union
 
 if sys.version_info >= (3, 8):
-    from typing import Final, TypedDict
+    from typing import Final, Literal
 else:
-    from typing_extensions import Final, TypedDict
+    from typing_extensions import Final, Literal
 
 from wandb.sdk.lib import telemetry
 
@@ -38,12 +38,14 @@ def get_rocm_smi_stats() -> Dict[str, Any]:
     return json.loads(output)  # type: ignore
 
 
-class _Stats(TypedDict):
-    gpu: float
-    memoryAllocated: float  # noqa: N815
-    temp: float
-    powerWatts: float  # noqa: N815
-    powerPercent: float  # noqa: N815
+_StatsKeys = Literal[
+    "gpu",
+    "memoryAllocated",
+    "temp",
+    "powerWatts",
+    "powerPercent",
+]
+_Stats = Dict[_StatsKeys, float]
 
 
 _InfoDict = Dict[str, Union[int, List[Dict[str, Any]]]]
@@ -58,33 +60,52 @@ class GPUAMDStats:
     def __init__(self) -> None:
         self.samples = deque()
 
+    @staticmethod
+    def parse_stats(stats: Dict[str, str]) -> _Stats:
+        """Parse stats from rocm-smi output."""
+        parsed_stats: _Stats = {}
+
+        gpu = stats.get("GPU use (%)")
+        memory_allocated = stats.get("GPU memory use (%)")
+        temp = stats.get("Temperature (Sensor memory) (C)")
+        power_watts = stats.get("Average Graphics Package Power (W)")
+        average_graphics_package_power = stats.get("Average Graphics Package Power (W)")
+        max_graphics_package_power = stats.get("Max Graphics Package Power (W)")
+
+        if gpu:
+            parsed_stats["gpu"] = float(gpu)
+        if memory_allocated:
+            parsed_stats["memoryAllocated"] = float(memory_allocated)
+        if temp:
+            parsed_stats["temp"] = float(temp)
+        if power_watts:
+            parsed_stats["powerWatts"] = float(power_watts)
+        if average_graphics_package_power and max_graphics_package_power:
+            parsed_stats["powerPercent"] = (
+                float(average_graphics_package_power)
+                / float(max_graphics_package_power)
+                * 100
+            )
+
+        return parsed_stats
+
     def sample(self) -> None:
         try:
             raw_stats = get_rocm_smi_stats()
             cards = []
 
-            for key in sorted(raw_stats.keys()):
-                if not key.startswith("card"):
-                    continue
-                card_stats = raw_stats[key]
+            card_keys = [
+                key for key in sorted(raw_stats.keys()) if key.startswith("card")
+            ]
 
-                stats: _Stats = {
-                    "gpu": float(card_stats["GPU use (%)"]),
-                    "memoryAllocated": float(card_stats["GPU memory use (%)"]),
-                    "temp": float(card_stats["Temperature (Sensor memory) (C)"]),
-                    "powerWatts": float(
-                        card_stats["Average Graphics Package Power (W)"]
-                    ),
-                    "powerPercent": (
-                        float(card_stats["Average Graphics Package Power (W)"])
-                        / float(card_stats["Max Graphics Package Power (W)"])
-                        * 100
-                    ),
-                }
+            for card_key in card_keys:
+                card_stats = raw_stats[card_key]
+                stats = self.parse_stats(card_stats)
+                if stats:
+                    cards.append(stats)
 
-                cards.append(stats)
-
-            self.samples.append(cards)
+            if cards:
+                self.samples.append(cards)
 
         except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
             logger.exception(f"GPU stats error: {e}")
