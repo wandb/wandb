@@ -16,9 +16,9 @@ from .wb_value import WBValue
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
-    from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
 
 
@@ -198,7 +198,7 @@ class Media(WBValue):
                     os.path.relpath(self._path, self._run.dir)
                 )
 
-        elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run, wandb.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for

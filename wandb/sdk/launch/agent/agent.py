@@ -21,14 +21,9 @@ from wandb.sdk.lib import runid
 from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.build import construct_builder_args
+from ..errors import LaunchDockerError, LaunchError
 from ..runner.abstract import AbstractRun
-from ..utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    LOG_PREFIX,
-    PROJECT_SYNCHRONOUS,
-    LaunchDockerError,
-    LaunchError,
-)
+from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -103,16 +98,21 @@ def _max_from_config(
     return max_from_config
 
 
-def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
+def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
     """Determine whether a job/runSpec is a sweep scheduler."""
     if not run_spec:
-        _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
+        _logger.debug("Recieved runSpec in _is_scheduler_job that was empty")
 
     if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
         return False
 
     if run_spec.get("resource") == "local-process":
-        # If a scheduler is a local-process (100%), also
+        # Any job pushed to a run queue that has a scheduler uri is
+        # allowed to use local-process
+        if run_spec.get("job"):
+            return True
+
+        # If a scheduler is local-process and run through CLI, also
         #    confirm command is in format: [wandb scheduler <sweep>]
         cmd = run_spec.get("overrides", {}).get("entry_point", [])
         if len(cmd) < 3:
@@ -271,10 +271,18 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def finish_thread_id(self, thread_id: int) -> None:
+    def finish_thread_id(
+        self,
+        thread_id: int,
+        exception: Optional[Union[Exception, LaunchDockerError]] = None,
+    ) -> None:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
-        if not job_and_run_status.run_id or not job_and_run_status.project:
+        if (
+            not job_and_run_status.run_id
+            or not job_and_run_status.project
+            or exception is not None
+        ):
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         elif job_and_run_status.entity != self._entity:
             _logger.info(
@@ -393,7 +401,7 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
-                            if _job_is_scheduler(job.get("runSpec")):
+                            if _is_scheduler_job(job.get("runSpec")):
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
                                 if self.num_running_schedulers >= self._max_schedulers:
@@ -455,11 +463,11 @@ class LaunchAgent:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
-            self.finish_thread_id(thread_id)
+            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
-            self.finish_thread_id(thread_id)
+            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
 
     def _thread_run_job(
@@ -499,7 +507,7 @@ class LaunchAgent:
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         run = backend.run(project, builder)
 
-        if _job_is_scheduler(launch_spec):
+        if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
             wandb.termlog(

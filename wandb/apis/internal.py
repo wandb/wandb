@@ -91,6 +91,9 @@ class Api:
             project, id=id, description=description, entity=entity
         )
 
+    def upsert_run(self, *args, **kwargs):
+        return self.api.upsert_run(*args, **kwargs)
+
     def settings(self, *args, **kwargs):
         return self.api.settings(*args, **kwargs)
 
@@ -155,11 +158,17 @@ class Api:
     def create_artifact(self, *args, **kwargs):
         return self.api.create_artifact(*args, **kwargs)
 
+    def complete_multipart_upload_artifact(self, *args, **kwargs):
+        return self.api.complete_multipart_upload_artifact(*args, **kwargs)
+
     def run_config(self, *args, **kwargs):
         return self.api.run_config(*args, **kwargs)
 
     def upload_file_retry(self, *args, **kwargs):
         return self.api.upload_file_retry(*args, **kwargs)
+
+    def upload_multipart_file_chunk_retry(self, *args, **kwargs):
+        return self.api.upload_multipart_file_chunk_retry(*args, **kwargs)
 
     async def upload_file_retry_async(self, *args, **kwargs):
         return await self.api.upload_file_retry_async(*args, **kwargs)

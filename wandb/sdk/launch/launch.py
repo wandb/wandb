@@ -11,13 +11,12 @@ from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder.build import construct_builder_args
+from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
-    ExecutionError,
-    LaunchError,
     construct_launch_spec,
     validate_launch_spec_source,
 )
@@ -76,14 +75,10 @@ def resolve_agent_config(  # noqa: C901
         user_set_project = True
     if os.environ.get("WANDB_ENTITY") is not None:
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
-    if os.environ.get("WANDB_API_KEY") is not None:
-        resolved_config.update({"api_key": os.environ.get("WANDB_API_KEY")})
     if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
         resolved_config.update(
             {"max_jobs": int(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))}
         )
-    if os.environ.get("WANDB_BASE_URL") is not None:
-        resolved_config.update({"base_url": os.environ.get("WANDB_BASE_URL")})
 
     if project is not None:
         resolved_config.update({"project": project})
@@ -104,7 +99,7 @@ def resolve_agent_config(  # noqa: C901
                 + " (expected str). Specify multiple queues with the 'queues' key"
             )
 
-    keys = ["api_key", "base_url", "project", "entity"]
+    keys = ["project", "entity"]
     settings = {
         k: resolved_config.get(k) for k in keys if resolved_config.get(k) is not None
     }

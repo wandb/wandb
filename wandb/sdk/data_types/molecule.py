@@ -15,7 +15,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
     import rdkit.Chem  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+
     from ..wandb_run import Run as LocalRun
 
     RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
