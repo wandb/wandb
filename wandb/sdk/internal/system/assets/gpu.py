@@ -355,6 +355,7 @@ class GPU:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
             GPUMemoryAllocated(settings._stats_pid),
+            GPUMemoryAllocatedBytes(settings._stats_pid),
             GPUMemoryUtilization(settings._stats_pid),
             GPUUtilization(settings._stats_pid),
             GPUTemperature(settings._stats_pid),
