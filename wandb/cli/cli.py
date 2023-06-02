@@ -33,13 +33,12 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
-    ExecutionError,
-    LaunchError,
     check_logged_in,
     construct_launch_spec,
 )
@@ -977,10 +976,17 @@ def launch_sweep(
         if scheduler_job and not method:
             sweep_config["method"] = "custom"
         elif scheduler_job and method != "custom":
-            wandb.termerror(
-                "Using a scheduler job for launch sweeps is only supported with the 'custom' method"
+            # TODO(gst): Check if using Anaconda2
+            wandb.termwarn(
+                "Use 'method': 'custom' in the sweep config when using scheduler jobs, "
+                "or omit it entirely. For jobs using the wandb optimization engine (WandbScheduler), "
+                "set the method in the sweep config under scheduler.settings.method "
             )
-            return
+            settings["method"] = method
+
+        if settings.get("method"):
+            # assume WandbScheduler, and user is using this right
+            sweep_config["method"] = method
 
     else:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)

@@ -17,10 +17,10 @@ from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )
@@ -400,7 +400,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
+        builder: Optional[AbstractBuilder],
         namespace: str,
         core_api: "CoreV1Api",
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
@@ -449,13 +449,6 @@ class KubernetesRunner(AbstractRunner):
         secret = None
         entry_point = launch_project.get_single_entry_point()
         if launch_project.docker_image:
-            secret = maybe_create_imagepull_secret(
-                core_api, builder.registry, launch_project.run_id, namespace
-            )
-            if secret is not None:
-                pod_spec["imagePullSecrets"] = [
-                    {"name": f"regcred-{launch_project.run_id}"}
-                ]
             if len(containers) > 1:
                 raise LaunchError(
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
@@ -463,6 +456,7 @@ class KubernetesRunner(AbstractRunner):
             # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = launch_project.docker_image
             # TODO: handle secret pulling image from registry
+            launch_project.fill_macros(launch_project.docker_image)
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
@@ -471,6 +465,7 @@ class KubernetesRunner(AbstractRunner):
             assert entry_point is not None
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
+            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             if not builder.registry:
@@ -484,8 +479,8 @@ class KubernetesRunner(AbstractRunner):
                 pod_spec["imagePullSecrets"] = [
                     {"name": f"regcred-{launch_project.run_id}"}
                 ]
-
             containers[0]["image"] = image_uri
+            launch_project.fill_macros(image_uri)
 
         inject_entrypoint_and_args(
             containers,
@@ -555,7 +550,7 @@ class KubernetesRunner(AbstractRunner):
             env_vars = get_env_vars_dict(launch_project, self._api)
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(launch_project.resource_args, env_vars)
-            # Crawl the resource args and add our labels to the pods. This is
+            # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
             add_label_to_pods(
                 launch_project.resource_args, "wandb/run-id", launch_project.run_id

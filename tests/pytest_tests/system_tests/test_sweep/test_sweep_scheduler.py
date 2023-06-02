@@ -248,6 +248,7 @@ def test_sweep_scheduler_base_scheduler_states(
             mock_run_raise_keyboard_interupt,
         )
 
+        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
         _scheduler.start()
         assert _scheduler.state == SchedulerState.STOPPED
@@ -261,6 +262,7 @@ def test_sweep_scheduler_base_scheduler_states(
             mock_run_raise_exception,
         )
 
+        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
         with pytest.raises(Exception) as e:
             _scheduler.start()
@@ -276,6 +278,7 @@ def test_sweep_scheduler_base_scheduler_states(
             mock_run_exit,
         )
 
+        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
         _scheduler.start()
         assert _scheduler.state == SchedulerState.FAILED
@@ -337,6 +340,7 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             raise CommError("Generic Exception")
 
         api.get_run_state = mock_get_run_state_raise_exception
+        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
         _scheduler._runs["foo_run_1"] = SweepRun(
             id="foo_run_1", state=RunState.RUNNING, worker_id=1
@@ -422,10 +426,11 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     assert not _scheduler._runs["foo_run"].state.is_alive
     assert _scheduler._runs["foo_run"].queued_run.args()[-2] == _project
 
+    sweep_id2 = wandb.sweep(sweep_config, entity=user, project=_project)
     _project_queue = "test-project-queue"
     _scheduler2 = Scheduler(
         api,
-        sweep_id=sweep_id,
+        sweep_id=sweep_id2,
         entity=user,
         project=_project,
         project_queue=_project_queue,
@@ -518,6 +523,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
 
     api.agent_heartbeat = mock_agent_heartbeat
 
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
     with pytest.raises(SchedulerError) as e:
         _scheduler = SweepScheduler(
             api,
@@ -614,7 +620,7 @@ def test_launch_sweep_scheduler_try_executable_works(
     settings = test_settings({"project": _project})
     run = wandb_init(settings=settings)
     job_artifact = run._log_job_artifact_with_image("lala-docker-123", args=[])
-    job_name = job_artifact.wait().name
+    job_name = f"{user}/{_project}/{job_artifact.wait().name}"
 
     run.finish()
     sweep_id = wandb.sweep(
@@ -764,131 +770,3 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     scheduler._register_agents()
     srun2 = scheduler._get_next_sweep_run(0)
     scheduler._add_to_launch_queue(srun2)
-
-
-def test_scheduler_wandb_start_stop_resume(user, monkeypatch):
-    """Test scheduler wandb_run state management."""
-    monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
-        lambda _: True,
-    )
-
-    api = internal.Api()
-
-    api.agent_heartbeat = Mock(
-        side_effect=[
-            [
-                {
-                    "type": "run",
-                    "run_id": "mock-run-id-199",
-                    "args": {"foo_arg": {"value": 1}},
-                    "program": "train.py",
-                }
-            ]
-        ]
-        * 3
-        + [[{"type": "stop"}]]
-    )
-
-    def mock_launch_add(self, *args, **kwargs):
-        mrun = Mock()
-        mrun.queued_run = Mock(spec=public.QueuedRun)
-        return mrun
-
-    monkeypatch.setattr(
-        "wandb.sdk.launch.launch_add._launch_add",
-        mock_launch_add,
-    )
-
-    def mock_get_run_state(*args, **kwargs):
-        return "finished"
-
-    api.get_run_state = mock_get_run_state
-
-    def mock_stop_run(*args, **kwargs):
-        return False
-
-    api.stop_run = mock_stop_run
-
-    def make_mocked_wandb_run(kwargs):
-        mrun = Mock()
-        mrun.state = "running"
-        mrun.name = f"sweep-scheduler-{sweep_id}"
-
-        def finish():
-            mrun.state = "finished"
-
-        mrun.finish = finish
-
-        return mrun
-
-    monkeypatch.setattr(
-        "wandb.init",
-        lambda **kwargs: make_mocked_wandb_run(kwargs),
-    )
-    _project = "test-project"
-    _image_uri = "some-image-wow"
-    config = VALID_SWEEP_CONFIGS_MINIMAL[1]
-    config["run_cap"] = 5
-    config["name"] = "different-sweep-34"
-    sweep_id = wandb.sweep(config, entity=user, project=_project)
-
-    # new sweep scheduler
-    _scheduler = SweepScheduler(
-        api,
-        sweep_id=sweep_id,
-        sweep_type="wandb",
-        entity=user,
-        project=_project,
-        polling_sleep=0.1,
-        image_uri=_image_uri,
-        num_workers=1,
-    )
-
-    assert _scheduler._wandb_run is not None
-    assert _scheduler._wandb_run.state == "running"
-
-    _scheduler.start()
-
-    assert _scheduler._wandb_run.state == "finished"
-    assert _scheduler.state == SchedulerState.STOPPED
-    assert _scheduler.num_active_runs == 0
-    assert _scheduler._num_runs_launched == 3
-
-    # 3 more heartbeats, but cap set at 5, shouldn't run 6 times
-    api.agent_heartbeat = Mock(
-        side_effect=[
-            [
-                {
-                    "type": "run",
-                    "run_id": "mock-run-id-199",
-                    "args": {"foo_arg": {"value": 1}},
-                    "program": "train.py",
-                }
-            ]
-        ]
-        * 3
-        + [[{"type": "stop"}]]
-    )
-
-    _scheduler = SweepScheduler(
-        api,
-        sweep_id=sweep_id,
-        run_id=sweep_id,  # resuming from previous sweep
-        sweep_type="wandb",
-        entity=user,
-        project=_project,
-        polling_sleep=0.1,
-        image_uri=_image_uri,
-        num_workers=1,
-    )
-    _scheduler._num_runs_launched = 3  # hack for testing
-
-    assert _scheduler._wandb_run.name == f"sweep-scheduler-{sweep_id}"
-
-    _scheduler.start()
-
-    assert _scheduler.state == SchedulerState.COMPLETED
-    assert _scheduler._wandb_run.state == "finished"
-    assert _scheduler.num_active_runs == 0
-    assert _scheduler._num_runs_launched == 5

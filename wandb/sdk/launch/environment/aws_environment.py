@@ -5,7 +5,7 @@ import os
 import re
 from typing import Dict
 
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
 from .abstract import AbstractEnvironment

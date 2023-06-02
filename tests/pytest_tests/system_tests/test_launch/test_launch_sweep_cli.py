@@ -15,11 +15,13 @@ def _run_cmd_check_msg(cmd: List[str], assert_str: str) -> None:
     assert assert_str in out.decode("utf-8")
 
 
-def test_launch_sweep_param_validation(user, wandb_init):
+def test_launch_sweep_param_validation(user, wandb_init, test_settings):
     # make a job artifact for testing
-    run = wandb_init()
-    job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr", args=[])
-    job_name = job_artifact.wait().name
+    _project = "test-project7"
+    settings = test_settings({"project": _project})
+    run = wandb_init(settings=settings)
+    job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr:latest", args=[])
+    job_name = f"{user}/{_project}/{job_artifact.wait().name}"
     run.finish()
 
     base = ["wandb", "launch-sweep"]
