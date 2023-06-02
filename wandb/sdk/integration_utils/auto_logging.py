@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional, Sequence, TypeVar
 
 import wandb.sdk
 import wandb.util
-from wandb.sdk.data_types import trace_tree
 from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.timer import Timer
 
@@ -33,57 +32,58 @@ class Response(Protocol[K, V]):
         ...  # pragma: no cover
 
 
-class RequestResponseResolver(Protocol):
+class ArgumentResponseResolver(Protocol):
     def __call__(
         self,
-        request: Dict[str, Any],
+        args: Sequence[Any],
+        kwargs: Dict[str, Any],
         response: Response,
         start_time: float,
         time_elapsed: float,
-    ) -> Optional[trace_tree.WBTraceTree]:
+    ) -> Optional[Dict[str, Any]]:
         ...  # pragma: no cover
 
 
-class PatchLLMAPI:
+class PatchAPI:
     def __init__(
         self,
         name: str,
         symbols: Sequence[str],
-        resolver: RequestResponseResolver,
+        resolver: ArgumentResponseResolver,
     ) -> None:
-        """Patches the LLM API to log traces."""
-        # name of the LLM provider, e.g. "Cohere" or "OpenAI"
+        """Patches the API to log wandb Media or metrics."""
+        # name of the LLM provider, e.g. "Cohere" or "OpenAI" or package name like "Transformers"
         self.name = name
-        # api library name, e.g. "cohere" or "openai"
-        self._llm_api = None
+        # api library name, e.g. "cohere" or "openai" or "transformers"
+        self._api = None
         # dictionary of original methods
         self.original_methods: Dict[str, Any] = {}
-        # list of symbols to patch, e.g. ["Client.generate", "Edit.create"]
+        # list of symbols to patch, e.g. ["Client.generate", "Edit.create"] or ["Pipeline.__call__"]
         self.symbols = symbols
-        # resolver callable to convert request/response into a trace tree
+        # resolver callable to convert args/response into a dictionary of wandb media objects or metrics
         self.resolver = resolver
 
     @property
-    def llm_api(self) -> Any:
-        """Returns the LLM API module."""
+    def set_api(self) -> Any:
+        """Returns the API module."""
         lib_name = self.name.lower()
-        if self._llm_api is None:
-            self._llm_api = wandb.util.get_module(
+        if self._api is None:
+            self._api = wandb.util.get_module(
                 name=lib_name,
                 required=f"To use the W&B {self.name} Autolog, "
                 f"you need to have the `{lib_name}` python "
                 f"package installed. Please install it with `pip install {lib_name}`.",
                 lazy=False,
             )
-        return self._llm_api
+        return self._api
 
     def patch(self, run: "wandb.sdk.wandb_run.Run") -> None:
-        """Patches the LLM API to log traces to W&B."""
+        """Patches the API to log media or metrics to W&B."""
         for symbol in self.symbols:
             # split on dots, e.g. "Client.generate" -> ["Client", "generate"]
             symbol_parts = symbol.split(".")
             # and get the attribute from the module
-            original = functools.reduce(getattr, symbol_parts, self.llm_api)
+            original = functools.reduce(getattr, symbol_parts, self.set_api)
 
             def method_factory(original_method: Any):
                 @functools.wraps(original_method)
@@ -91,11 +91,11 @@ class PatchLLMAPI:
                     with Timer() as timer:
                         result = original_method(*args, **kwargs)
                     try:
-                        trace = self.resolver(
-                            kwargs, result, timer.start_time, timer.elapsed
+                        loggable_dict = self.resolver(
+                            args, kwargs, result, timer.start_time, timer.elapsed
                         )
-                        if trace is not None:
-                            run.log({"trace": trace})
+                        if loggable_dict is not None:
+                            run.log(loggable_dict)
                     except Exception as e:
                         logger.warning(e)
                     return result
@@ -106,46 +106,46 @@ class PatchLLMAPI:
             self.original_methods[symbol] = original
             # monkey patch the method
             if len(symbol_parts) == 1:
-                setattr(self.llm_api, symbol_parts[0], method_factory(original))
+                setattr(self.set_api, symbol_parts[0], method_factory(original))
             else:
                 setattr(
-                    functools.reduce(getattr, symbol_parts[:-1], self.llm_api),
+                    functools.reduce(getattr, symbol_parts[:-1], self.set_api),
                     symbol_parts[-1],
                     method_factory(original),
                 )
 
     def unpatch(self) -> None:
-        """Unpatches the LLM API."""
+        """Unpatches the API."""
         for symbol, original in self.original_methods.items():
             # split on dots, e.g. "Client.generate" -> ["Client", "generate"]
             symbol_parts = symbol.split(".")
             # unpatch the method
             if len(symbol_parts) == 1:
-                setattr(self.llm_api, symbol_parts[0], original)
+                setattr(self.set_api, symbol_parts[0], original)
             else:
                 setattr(
-                    functools.reduce(getattr, symbol_parts[:-1], self.llm_api),
+                    functools.reduce(getattr, symbol_parts[:-1], self.set_api),
                     symbol_parts[-1],
                     original,
                 )
 
 
-class AutologLLMAPI:
+class AutologAPI:
     def __init__(
         self,
         name: str,
         symbols: Sequence[str],
-        resolver: RequestResponseResolver,
+        resolver: ArgumentResponseResolver,
         telemetry_feature: Optional[str] = None,
     ) -> None:
-        """Autolog LLM API calls to W&B."""
+        """Autolog API calls to W&B."""
         self._telemetry_feature = telemetry_feature
-        self._patch_llm_api = PatchLLMAPI(
+        self._patch_api = PatchAPI(
             name=name,
             symbols=symbols,
             resolver=resolver,
         )
-        self._name = self._patch_llm_api.name
+        self._name = self._patch_api.name
         self._run: Optional["wandb.sdk.wandb_run.Run"] = None
         self.__run_created_by_autolog: bool = False
 
@@ -155,7 +155,7 @@ class AutologLLMAPI:
         return self._run is not None
 
     def __call__(self, init: AutologInitArgs = None) -> None:
-        """Enable Cohere autologging."""
+        """Enable autologging."""
         self.enable(init=init)
 
     def _run_init(self, init: AutologInitArgs = None) -> None:
@@ -193,7 +193,7 @@ class AutologLLMAPI:
         logger.info(f"Enabling {self._name} autologging.")
         self._run_init(init=init)
 
-        self._patch_llm_api.patch(self._run)
+        self._patch_api.patch(self._run)
 
         if self._telemetry_feature:
             with wb_telemetry.context(self._run) as tel:
@@ -212,4 +212,4 @@ class AutologLLMAPI:
 
         self._run = None
 
-        self._patch_llm_api.unpatch()
+        self._patch_api.unpatch()

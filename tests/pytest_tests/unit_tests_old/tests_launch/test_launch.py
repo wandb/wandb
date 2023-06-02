@@ -13,10 +13,10 @@ import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.docker_builder import DockerBuilder
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     pull_docker_image,
 )
 from wandb.sdk.lib import runid
@@ -28,15 +28,20 @@ EMPTY_BACKEND_CONFIG = {
 }
 
 
+class MockBranch:
+    def __init__(self, name):
+        self.name = name
+
+
 @pytest.fixture
 def mocked_fetchable_git_repo():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "master"
+        reference = MockBranch("master")
         repo.references = [reference]
+        repo.refs = {"master": mock.Mock()}
 
         def create_remote(o, r):
             origin = mock.Mock()
@@ -63,13 +68,25 @@ def mocked_fetchable_git_repo_conda():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "environment.yml"), "w") as f:
             f.write(fixture_open("environment.yml").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -81,13 +98,25 @@ def mocked_fetchable_git_repo_ipython():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
             f.write(open(notebook_path("one_cell.ipynb")).read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -99,11 +128,23 @@ def mocked_fetchable_git_repo_nodeps():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -115,6 +156,18 @@ def mocked_fetchable_git_repo_shell():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
@@ -125,7 +178,7 @@ def mocked_fetchable_git_repo_shell():
             f.write("python train.py")
         with open(os.path.join(dst_dir, "unknown.unk"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -1188,7 +1241,7 @@ def test_launch_url_and_job(
         launch.run(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
-            job="test-job:v0",
+            job="test/test/test-job:v0",
             project="new-test",
         )
     assert "Must specify exactly one of uri, job or image" in str(e_info)
@@ -1223,8 +1276,7 @@ def mocked_fetchable_git_repo_main():
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "main"
+        reference = MockBranch("main")
         repo.references = [reference]
 
         def create_remote(o, r):

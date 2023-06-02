@@ -3,7 +3,7 @@ import json
 import pytest
 import wandb
 from wandb.cli import cli
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"

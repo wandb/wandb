@@ -28,13 +28,8 @@ from .._project_spec import (
     LaunchProject,
     fetch_and_validate_project,
 )
-from ..utils import (
-    LAUNCH_CONFIG_FILE,
-    LOG_PREFIX,
-    ExecutionError,
-    LaunchError,
-    resolve_build_and_registry_config,
-)
+from ..errors import ExecutionError, LaunchError
+from ..utils import LAUNCH_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
 from .abstract import AbstractBuilder
 
 _logger = logging.getLogger(__name__)
