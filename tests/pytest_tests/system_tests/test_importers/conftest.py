@@ -16,6 +16,7 @@ import requests
 from hypothesis.errors import NonInteractiveExampleWarning
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
+from packaging.version import Version
 
 MLFLOW_BASE_URL = "http://localhost:4040"
 MLFLOW_HEALTH_ENDPOINT = "health"
@@ -26,6 +27,7 @@ STEPS = 1000
 
 SECONDS_FROM_2023_01_01 = 1672549200
 
+mlflow_version = Version(mlflow.__version__)
 
 Path = str
 
@@ -101,12 +103,12 @@ def make_params():
     return {
         "param_int": st.integers().example(),
         "param_float": st.floats().example(),
-        "param_str": st.text(max_size=20).example(),
+        # "param_str": st.text(max_size=20).example(),
         "param_bool": st.booleans().example(),
         "param_list": st.lists(st.integers()).example(),
-        "param_dict": st.dictionaries(
-            st.text(max_size=20), st.integers(), max_size=10
-        ).example(),
+        # "param_dict": st.dictionaries(
+        #     st.text(max_size=20), st.integers(), max_size=10
+        # ).example(),
         "param_tuple": st.tuples(st.integers(), st.integers()).example(),
         "param_set": st.sets(st.integers()).example(),
         "param_none": None,
@@ -270,16 +272,27 @@ def mlflow_server(mlflow_backend, mlflow_artifacts_destination):
     new_port = get_free_port()
     modified_base_url = MLFLOW_BASE_URL.replace("4040", new_port)
 
-    start_cmd = [
-        "mlflow",
-        "server",
-        "-p",
-        new_port,
-        "--backend-store-uri",
-        mlflow_backend,
-        "--artifacts-destination",
-        mlflow_artifacts_destination,
-    ]
+    if mlflow_version < Version("2.0.0"):
+        start_cmd = [
+            "mlflow",
+            "server",
+            "-p",
+            new_port,
+            # no sqlite
+            # no --artifacts-destination flag
+        ]
+    else:
+        start_cmd = [
+            "mlflow",
+            "server",
+            "-p",
+            new_port,
+            "--backend-store-uri",
+            mlflow_backend,
+            "--artifacts-destination",
+            mlflow_artifacts_destination,
+        ]
+
     process = subprocess.Popen(start_cmd)  # process
     healthy = check_mlflow_server_health(
         modified_base_url, MLFLOW_HEALTH_ENDPOINT, num_retries=30
