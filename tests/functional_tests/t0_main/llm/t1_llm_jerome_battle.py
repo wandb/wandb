@@ -11,28 +11,30 @@ def main():
     # The API Key is stored in the environment variable CO_API_KEY
     co = cohere.Client()
 
-    # generate a prediction for a prompt
-    prediction = co.generate(
-        prompt=(
-            "There were four of us. George, and William Samuel Harris, and myself, and Montmorency."
-        ),
-        max_tokens=30,
-    )
+    prompt = "There were four of us. George, and William Samuel Harris, and myself, and Montmorency."
+    print("Prompt: ", prompt)
 
-    print(prediction[0].text)
-
-    request_kwargs = dict(
+    prediction = openai.Completion.create(
         engine="text-davinci-003",
-        prompt=prediction[0].text,
+        prompt=prompt,
         max_tokens=25,
         temperature=0.1,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
     )
+    response = prediction.choices[0].text
+    print("OpenAI: ", response)
 
-    prediction = openai.Completion.create(**request_kwargs)
-    print(prediction.choices[0].text)
+    # generate a prediction for a prompt
+    prediction = co.generate(
+        prompt=response,
+        max_tokens=50,
+    )
+
+    response = prediction[0].text
+
+    print("Cohere: ", response)
 
 
 if __name__ == "__main__":

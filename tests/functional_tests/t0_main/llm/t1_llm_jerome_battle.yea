@@ -1,9 +1,8 @@
-id: 0.llm.07-cohere-openai-jerome-battle
+id: 0.llm.01-cohere-openai-jerome-battle
 plugin:
   - wandb
 tag:
   shard: llm
-#  skip: true  # todo: fix
   skips:
     - platform: win
 depend:
@@ -13,12 +12,12 @@ depend:
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
-    - :wandb:runs[0][summary][trace][_type]: wb_trace_tree
+    - :wandb:runs[0][history][0][trace][_type]: wb_trace_tree
     - :op:contains:
-        - :wandb:runs[0][summary][trace]
+        - :wandb:runs[0][history][0][trace]
         - root_span_dumps
     - :op:contains:
-        - :wandb:runs[0][summary][trace]
+        - :wandb:runs[0][history][0][trace]
         - model_dict_dumps
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # features
@@ -26,3 +25,6 @@ assert:
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # features
         - 53  # cohere autolog
+    - :op:contains:
+        - :wandb:runs[0][history][1]
+        - Generations

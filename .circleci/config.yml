@@ -1355,7 +1355,7 @@ workflows:
       #
       - tox-base:
           name: "code-check"
-          python_version_minor: 8
+          python_version_minor: 9
           toxenv: "proto3-check,proto4-check,black-check,isort-check,ruff-check,pyupgrade-check,mypy,mypy-report,flake8-base,flake8-docstrings,flake8-darglint,codecov-check,auto-codegen-check"
 
       #
