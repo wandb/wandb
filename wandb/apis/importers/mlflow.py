@@ -95,15 +95,6 @@ class MlflowRun(ImporterRun):
         else:
             dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
 
-        # import os
-
-        # everything = list(os.walk(dir_path))
-        # all_files = []
-        # for root, dirs, files in everything:
-        #     for file in files:
-        #         all_files.append(file)
-        # wandb.termlog(f"len: {len(all_files)} **** all files in dir: {all_files}")
-
         artifact_name = self._handle_incompatible_strings(self.display_name())
         art = wandb.Artifact(artifact_name, "imported-artifacts")
         art.add_dir(dir_path)
