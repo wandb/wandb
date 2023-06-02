@@ -14,7 +14,7 @@ assert:
 #  - :wandb:runs[0][history][0][trace][_type]: wb_trace_tree
   - :wandb:runs[0][summary][stats][_type]: table-file
   - :wandb:runs[0][summary][stats][nrows]: 1
-  - :wandb:runs[0][summary][stats][ncols]: 13
+  - :wandb:runs[0][summary][stats][ncols]: 12
 #  - :op:contains:
 #      - :wandb:runs[0][history][0][trace]
 #      - root_span_dumps
