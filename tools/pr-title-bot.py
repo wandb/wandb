@@ -54,8 +54,8 @@ CC_SCOPES = os.environ.get(
 
 
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
-def completion_with_backoff(**kwargs):
-    return openai.Completion.create(**kwargs)
+def chat_completion_with_backoff(**kwargs):
+    return openai.ChatCompletion.create(**kwargs)
 
 
 def generate_pr_title(
@@ -116,7 +116,7 @@ def generate_pr_title(
     messages[-1]["content"] = messages[-1]["content"].replace("{{TITLE}}", pr_title)
     messages[-1]["content"] = messages[-1]["content"].replace("{{DIFF}}", diff)
 
-    completion = completion_with_backoff(
+    completion = chat_completion_with_backoff(
         model=model,
         messages=messages,
     )
