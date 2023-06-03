@@ -59,7 +59,7 @@ class MlflowRun(ImporterRun):
         return f"User {self.run.info.user_id}"
 
     def display_name(self):
-        if mlflow_version < Version("2.0.0"):
+        if mlflow_version < Version("1.30.0"):
             return self.run.data.tags["mlflow.runName"]
 
         return self.run.info.run_name
@@ -123,7 +123,7 @@ class MlflowImporter(Importer):
         super().import_one(run, overrides)
 
     def download_all_runs(self) -> Iterable[MlflowRun]:
-        if mlflow_version < Version("2.0.0"):
+        if mlflow_version < Version("1.28.0"):
             experiments = self.mlflow_client.list_experiments()
         else:
             experiments = self.mlflow_client.search_experiments()
