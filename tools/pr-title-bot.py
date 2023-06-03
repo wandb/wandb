@@ -9,6 +9,7 @@ else:
 
 import openai
 from github import Github
+from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 GITHUB_TOKEN = os.environ.get("GITHUB_API_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -50,6 +51,11 @@ CC_SCOPES = os.environ.get(
         ]
     ),
 )
+
+
+@retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+def chat_completion_with_backoff(**kwargs):
+    return openai.ChatCompletion.create(**kwargs)
 
 
 def generate_pr_title(
@@ -102,13 +108,15 @@ def generate_pr_title(
     )
     pr_title = pr.title
 
+    # todo: check context limit, strip diff if too long
+
     # get the title
     # print("Original title:", pr.title)
 
     messages[-1]["content"] = messages[-1]["content"].replace("{{TITLE}}", pr_title)
     messages[-1]["content"] = messages[-1]["content"].replace("{{DIFF}}", diff)
 
-    completion = openai.ChatCompletion.create(
+    completion = chat_completion_with_backoff(
         model=model,
         messages=messages,
     )
