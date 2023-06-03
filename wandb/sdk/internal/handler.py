@@ -105,7 +105,7 @@ class HandleManager:
         self._tb_watcher = None
         self._system_monitor = None
         self._global_step = 0
-        self._user_step = None
+        self._user_step: Optional[int] = None
 
         self._track_time = None
         self._accumulate_time = 0
@@ -181,7 +181,7 @@ class HandleManager:
                 self._tb_watcher.finish()
                 self._tb_watcher = None
         elif state == defer.FLUSH_PARTIAL_HISTORY:
-            self._flush_partial_history()
+            self._flush_partial_history(self._user_step)
         elif state == defer.FLUSH_SUM:
             self._save_summary(self._consolidated_summary, flush=True)
 
