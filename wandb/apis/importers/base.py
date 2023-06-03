@@ -4,7 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
 from tqdm.auto import tqdm
 
@@ -316,7 +316,8 @@ class Importer(ABC):
             sm.send(run._make_metadata_files_record())
             for history_record in run._make_history_records():
                 sm.send(history_record)
-            if run.artifacts() is not None:
-                for artifact in run.artifacts():
+            artifacts = run.artifacts()
+            if artifacts is not None:
+                for artifact in artifacts:
                     sm.send(run._make_artifact_record(artifact))
             sm.send(run._make_telem_record())
