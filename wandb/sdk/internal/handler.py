@@ -104,7 +104,8 @@ class HandleManager:
 
         self._tb_watcher = None
         self._system_monitor = None
-        self._step = 0
+        self._global_step = 0
+        self._user_step = None
 
         self._track_time = None
         self._accumulate_time = 0
@@ -411,11 +412,11 @@ class HandleManager:
             step = history.step.num
             history_dict["_step"] = step
             item.value_json = json.dumps(step)
-            self._step = step + 1
+            self._global_step = max(step + 1, self._global_step)
         else:
-            history_dict["_step"] = self._step
-            item.value_json = json.dumps(self._step)
-            self._step += 1
+            history_dict["_step"] = self._global_step
+            item.value_json = json.dumps(self._global_step)
+            self._global_step += 1
 
     def _history_define_metric(self, hkey: str) -> Optional[MetricRecord]:
         """Check for hkey match in glob metrics and return the defined metric."""
@@ -529,6 +530,7 @@ class HandleManager:
                 history.step.num = step
             self.handle_history(Record(history=history))
             self._partial_history = {}
+            self._user_step = None
 
     def handle_request_sender_mark_report(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
@@ -539,6 +541,8 @@ class HandleManager:
     def handle_request_partial_history(self, record: Record) -> None:
         partial_history = record.request.partial_history
 
+        history_dict = proto_util.dict_from_proto_list(partial_history.item)
+
         flush = None
         if partial_history.HasField("action"):
             flush = partial_history.action.flush
@@ -547,23 +551,12 @@ class HandleManager:
         if partial_history.HasField("step"):
             step = partial_history.step.num
 
-        history_dict = proto_util.dict_from_proto_list(partial_history.item)
-        if step is not None:
-            if step < self._step:
-                logger.warning(
-                    f"Step {step} < {self._step}. Dropping entry: {history_dict}."
-                )
-                return
-            elif step > self._step:
-                self._flush_partial_history()
-                self._step = step
-        elif flush is None:
-            flush = True
-
+        if step != self._user_step:
+            self._flush_partial_history(self._user_step)
         self._partial_history.update(history_dict)
-
-        if flush:
-            self._flush_partial_history(self._step)
+        self._user_step = step or self._global_step
+        if flush or (step is None and flush is None):
+            self._flush_partial_history(self._user_step)
 
     def handle_summary(self, record: Record) -> None:
         summary = record.summary
@@ -710,7 +703,7 @@ class HandleManager:
         )
 
         if run_start.run.resumed:
-            self._step = run_start.run.starting_step
+            self._global_step = run_start.run.starting_step
         result = proto_util._result_from_record(record)
         self._respond_result(result)
 
