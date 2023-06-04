@@ -1,9 +1,9 @@
 # Default genqlient config; for full documentation see:
 # https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
-schema: schema.graphql
+schema: schemas/schema-latest.graphql
 operations:
-- genqlient.graphql
-generated: ../../pkg/server/generated.go
+- "*.graphql"
+generated: ../../pkg/server/schema_gen.go
 package: server
 # optional: value
 optional: pointer

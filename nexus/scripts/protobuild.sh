@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
 # Run this in the root directory like:
 # ./scripts/protobuild.sh
 
@@ -11,7 +12,12 @@
 # mkdir -p proto
 #cp ~/work/wb/wandb/wandb/proto/*.proto proto/
 
-SRC_DIR=.
+set -e
+
+# make sure we are running from the nexus dir
+BASE=$(dirname $(dirname $(readlink -f $0)))
+cd $BASE
+
 MOD=pkg/service/
 INC=api/proto/
 

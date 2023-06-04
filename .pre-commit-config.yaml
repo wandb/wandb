@@ -31,6 +31,24 @@ repos:
         files: '^nexus/'
   - repo: local
     hooks:
+      - id: go-generate-proto
+        name: 'go-generate-proto'
+        entry: nexus/scripts/pre-commit-hooks/run-go-generate.sh
+        files: '\.proto$'
+        args:
+          - ./api/proto
+        pass_filenames: false
+        language: 'script'
+        description: "Runs `go generate`, requires golang"
+      - id: go-generate-graphql
+        name: 'go-generate-graphql'
+        entry: nexus/scripts/pre-commit-hooks/run-go-generate.sh
+        files: '\.graphql$'
+        args:
+          - ./api/graphql
+        pass_filenames: false
+        language: 'script'
+        description: "Runs `go generate`, requires golang"
       - id: go-fmt
         name: 'go-fmt'
         entry: nexus/scripts/pre-commit-hooks/run-go-fmt.sh
@@ -86,13 +104,6 @@ repos:
         pass_filenames: false
         language: 'script'
         description: "Runs `go mod tidy -v`, requires golang"
-      - id: go-generate
-        name: 'go-generate'
-        entry: nexus/scripts/pre-commit-hooks/run-go-generate.sh
-        files: '\.(proto|graphql)$'
-        pass_filenames: false
-        language: 'script'
-        description: "Runs `go generate`, requires golang"
       - id: go-build
         name: 'go-build'
         entry: nexus/scripts/pre-commit-hooks/run-go-build.sh

@@ -347,7 +347,6 @@ func (v *__UpsertBucketInput) GetTags() []string { return v.Tags }
 // GetSummaryMetrics returns __UpsertBucketInput.SummaryMetrics, and is useful for accessing the field via an interface.
 func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetrics }
 
-// UploadUrls
 func RunUploadUrls(
 	ctx context.Context,
 	client graphql.Client,
@@ -400,7 +399,6 @@ query RunUploadUrls ($name: String!, $files: [String]!, $entity: String, $run: S
 	return &data, err
 }
 
-// Run
 func UpsertBucket(
 	ctx context.Context,
 	client graphql.Client,
@@ -485,7 +483,6 @@ mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: St
 	return &data, err
 }
 
-// Viewer
 func Viewer(
 	ctx context.Context,
 	client graphql.Client,

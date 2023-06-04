@@ -1,0 +1,17 @@
+query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
+    model(name: $name, entityName: $entity) {
+        bucket(name: $run, desc: $description) {
+            id
+            files(names: $files) {
+                uploadHeaders
+                edges {
+                    node {
+                        name
+                        url(upload: true)
+                        updatedAt
+                    }
+                }
+            }
+        }
+    }
+}

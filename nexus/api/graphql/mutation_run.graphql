@@ -1,4 +1,3 @@
-# Run
 mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -60,37 +59,3 @@ mutation UpsertBucket(
                 inserted
             }
         }
-# Viewer
-# @genqlient(omitempty: true)
-query Viewer{
-            viewer {
-                id
-                entity
-                flags
-                teams {
-                    edges {
-                        node {
-                            name
-                        }
-                    }
-                }
-            }
-        }
-# UploadUrls
-query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
-    model(name: $name, entityName: $entity) {
-        bucket(name: $run, desc: $description) {
-            id
-            files(names: $files) {
-                uploadHeaders
-                edges {
-                    node {
-                        name
-                        url(upload: true)
-                        updatedAt
-                    }
-                }
-            }
-        }
-    }
-}

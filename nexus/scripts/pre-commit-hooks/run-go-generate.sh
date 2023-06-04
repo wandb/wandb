@@ -3,5 +3,8 @@
 
 set -eu -o pipefail
 
+# Use passed in directory from arg1, or default to full tree
+DIR=${1:-./...}
+
 cd nexus
-go generate ./...
+go generate $DIR
