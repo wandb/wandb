@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Run this in the root directory like:
-# ./scripts/protobuild.sh
+# ./scripts/proto-build.sh
 
 # NOTE: this needs to be reworked.
 # proto files should be unmodified from wandb/wandb repo

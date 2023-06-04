@@ -1,3 +1,3 @@
 package nexus
 
-//go:generate ../../scripts/protobuild.sh
+//go:generate ../../scripts/proto-build.sh
