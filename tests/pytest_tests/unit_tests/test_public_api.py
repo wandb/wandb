@@ -4,11 +4,30 @@ import pytest
 import wandb
 from wandb import Api
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 
 
 def test_api_auto_login_no_tty():
     with pytest.raises(wandb.UsageError):
         Api()
+
+
+def test_thread_local_cookies():
+    try:
+        _thread_local_api_settings.cookies = {"foo": "bar"}
+        api = Api()
+        assert api._base_client.transport.cookies == {"foo": "bar"}
+    finally:
+        _thread_local_api_settings.cookies = None
+
+
+def test_thread_local_api_key():
+    try:
+        _thread_local_api_settings.api_key = "XXXX"
+        api = Api()
+        assert api.api_key == "XXXX"
+    finally:
+        _thread_local_api_settings.api_key = None
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")

@@ -6,6 +6,7 @@ from urllib.parse import ParseResult
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -45,7 +46,12 @@ class HTTPHandler(StorageHandler):
         if hit:
             return path
 
-        response = self._session.get(manifest_entry.ref, stream=True)
+        response = self._session.get(
+            manifest_entry.ref,
+            stream=True,
+            cookies=_thread_local_api_settings.cookies,
+            headers=_thread_local_api_settings.headers,
+        )
         response.raise_for_status()
 
         digest: Optional[Union[ETag, FilePathStr, URIStr]]
@@ -73,7 +79,12 @@ class HTTPHandler(StorageHandler):
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 
-        with self._session.get(path, stream=True) as response:
+        with self._session.get(
+            path,
+            stream=True,
+            cookies=_thread_local_api_settings.cookies,
+            headers=_thread_local_api_settings.headers,
+        ) as response:
             response.raise_for_status()
             digest: Optional[Union[ETag, FilePathStr, URIStr]]
             digest, size, extra = self._entry_from_headers(response.headers)
