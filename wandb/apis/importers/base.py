@@ -4,7 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
 from tqdm import tqdm
 
@@ -101,7 +101,7 @@ class ImporterRun:
     def tags(self) -> Optional[List[str]]:
         ...
 
-    def artifacts(self) -> Optional[Iterable[Tuple[Name, Path]]]:
+    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
         ...
 
     def os_version(self) -> Optional[str]:
@@ -194,8 +194,8 @@ class ImporterRun:
             {"files": [[f"{self.run_dir}/files/wandb-metadata.json", "end"]]}
         )
 
-    def _make_artifact_record(self, art) -> pb.Record:
-        proto = self.interface._make_artifact(art)
+    def _make_artifact_record(self, artifact) -> pb.Record:
+        proto = self.interface._make_artifact(artifact)
         proto.run_id = self.run_id()
         proto.project = self.project()
         proto.entity = self.entity()
@@ -331,8 +331,10 @@ class Importer(ABC):
             sm.send(run._make_metadata_files_record())
             for history_record in run._make_history_records():
                 sm.send(history_record)
-            for art in run.artifacts():
-                sm.send(run._make_artifact_record(art))
+            artifacts = run.artifacts()
+            if artifacts is not None:
+                for artifact in artifacts:
+                    sm.send(run._make_artifact_record(artifact))
             sm.send(run._make_telem_record())
 
 

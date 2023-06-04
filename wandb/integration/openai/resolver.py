@@ -1,9 +1,9 @@
 import io
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from wandb.sdk.data_types import trace_tree
-from wandb.sdk.integration_utils.llm import Response
+from wandb.sdk.integration_utils.auto_logging import Response
 
 logger = logging.getLogger(__name__)
 
@@ -11,18 +11,26 @@ logger = logging.getLogger(__name__)
 class OpenAIRequestResponseResolver:
     def __call__(
         self,
-        request: Dict[str, Any],
+        args: Sequence[Any],
+        kwargs: Dict[str, Any],
         response: Response,
         start_time: float,  # pass to comply with the protocol, but use response["created"] instead
         time_elapsed: float,
-    ) -> Optional[trace_tree.WBTraceTree]:
+    ) -> Optional[Dict[str, Any]]:
+        request = kwargs
         try:
             if response.get("object") == "edit":
-                return self._resolve_edit(request, response, time_elapsed)
+                return {"trace": self._resolve_edit(request, response, time_elapsed)}
             elif response.get("object") == "text_completion":
-                return self._resolve_completion(request, response, time_elapsed)
+                return {
+                    "trace": self._resolve_completion(request, response, time_elapsed)
+                }
             elif response.get("object") == "chat.completion":
-                return self._resolve_chat_completion(request, response, time_elapsed)
+                return {
+                    "trace": self._resolve_chat_completion(
+                        request, response, time_elapsed
+                    )
+                }
             else:
                 logger.info(
                     f"Unsupported OpenAI response object: {response.get('object')}"

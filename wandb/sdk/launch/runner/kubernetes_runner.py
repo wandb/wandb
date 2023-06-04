@@ -17,10 +17,10 @@ from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )
@@ -456,6 +456,7 @@ class KubernetesRunner(AbstractRunner):
             # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = launch_project.docker_image
             # TODO: handle secret pulling image from registry
+            launch_project.fill_macros(launch_project.docker_image)
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
@@ -464,6 +465,7 @@ class KubernetesRunner(AbstractRunner):
             assert entry_point is not None
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
+            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             if not builder.registry:
@@ -477,8 +479,8 @@ class KubernetesRunner(AbstractRunner):
                 pod_spec["imagePullSecrets"] = [
                     {"name": f"regcred-{launch_project.run_id}"}
                 ]
-
             containers[0]["image"] = image_uri
+            launch_project.fill_macros(image_uri)
 
         inject_entrypoint_and_args(
             containers,
@@ -552,6 +554,15 @@ class KubernetesRunner(AbstractRunner):
             # necessary for the agent to find the pods later on.
             add_label_to_pods(
                 launch_project.resource_args, "wandb/run-id", launch_project.run_id
+            )
+            overrides = {}
+            if launch_project.override_args:
+                overrides["args"] = launch_project.override_args
+            if launch_project.override_entrypoint:
+                overrides["command"] = launch_project.override_entrypoint.command
+            add_entrypoint_args_overrides(
+                launch_project.resource_args,
+                overrides,
             )
             api = client.CustomObjectsApi(api_client)
             # Infer the attributes of a custom object from the apiVersion and/or
@@ -756,3 +767,31 @@ def add_label_to_pods(
             labels[label_key] = label_value
         for value in manifest.values():
             add_label_to_pods(value, label_key, label_value)
+
+
+def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) -> None:
+    """Add entrypoint and args overrides to all containers in a manifest.
+
+    Recursively traverses the manifest and adds the entrypoint and args overrides
+    to all containers. Containers are identified by the presence of a "spec" key
+    with a "containers" key in the value.
+
+    Arguments:
+        manifest: The manifest to modify.
+        overrides: Dictionary with args and entrypoint keys.
+
+    Returns: None.
+    """
+    if isinstance(manifest, list):
+        for item in manifest:
+            add_entrypoint_args_overrides(item, overrides)
+    elif isinstance(manifest, dict):
+        if "spec" in manifest and "containers" in manifest["spec"]:
+            containers = manifest["spec"]["containers"]
+            for container in containers:
+                if "command" in overrides:
+                    container["command"] = overrides["command"]
+                if "args" in overrides:
+                    container["args"] = overrides["args"]
+        for value in manifest.values():
+            add_entrypoint_args_overrides(value, overrides)

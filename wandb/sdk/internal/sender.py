@@ -30,16 +30,10 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.sdk.artifacts import artifact_saver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import (
-    artifact_saver,
-    context,
-    datastore,
-    file_stream,
-    internal_api,
-    update,
-)
+from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
@@ -484,24 +478,6 @@ class SendManager:
             delete_message = messages.get("delete_message")
             if delete_message:
                 result.response.check_version_response.delete_message = delete_message
-        self._respond_result(result)
-
-    def _send_request_attach(
-        self,
-        req: wandb_internal_pb2.AttachRequest,
-        resp: wandb_internal_pb2.AttachResponse,
-    ) -> None:
-        attach_id = req.attach_id
-        assert attach_id
-        assert self._run
-        resp.run.CopyFrom(self._run)
-
-    def send_request_attach(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
-        result = proto_util._result_from_record(record)
-        self._send_request_attach(
-            record.request.attach, result.response.attach_response
-        )
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:

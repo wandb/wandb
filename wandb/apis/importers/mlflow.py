@@ -1,5 +1,9 @@
+from collections import defaultdict
 from typing import Any, Dict, Iterable, Optional
 
+from packaging.version import Version
+
+import wandb
 from wandb.util import get_module
 import wandb
 
@@ -9,6 +13,8 @@ mlflow = get_module(
     "mlflow",
     required="To use the MlflowImporter, please install mlflow: `pip install mlflow`",
 )
+
+mlflow_version = Version(mlflow.__version__)
 
 
 class MlflowRun(ImporterRun):
@@ -33,25 +39,17 @@ class MlflowRun(ImporterRun):
         return self.run.data.metrics
 
     def metrics(self):
-        def wandbify(metrics):
-            for step, t in enumerate(metrics):
-                d = {m.key: m.value for m in t}
-                d["_step"] = step
-                yield d
-
-        metrics = [
+        d = defaultdict(dict)
+        metrics = (
             self.mlflow_client.get_metric_history(self.run.info.run_id, k)
             for k in self.run.data.metrics.keys()
-        ]
-        metrics = zip(*metrics)  # transpose
-        return wandbify(metrics)
+        )
+        for metric in metrics:
+            for item in metric:
+                d[item.step][item.key] = item.value
 
-        # Alternate: Might be slower but use less mem
-        # Can't make this a generator.  See mlflow get_metric_history internals
-        # https://github.com/mlflow/mlflow/blob/master/mlflow/tracking/_tracking_service/client.py#L74-L93
-        # for k in self.run.data.metrics.keys():
-        #     history = self.mlflow_client.get_metric_history(self.run.info.run_id, k)
-        #     yield wandbify(history)
+        flattened = ({"_step": k, **v} for k, v in d.items())
+        return flattened
 
     def run_group(self):
         # this is nesting?  Parent at `run.info.tags.get("mlflow.parentRunId")`
@@ -62,6 +60,9 @@ class MlflowRun(ImporterRun):
         return f"User {self.run.info.user_id}"
 
     def display_name(self):
+        if mlflow_version < Version("1.30.0"):
+            return self.run.data.tags["mlflow.runName"]
+
         return self.run.info.run_name
 
     def notes(self):
@@ -88,15 +89,18 @@ class MlflowRun(ImporterRun):
         ...
 
     def artifacts(self):
-        # Mlflow only has one artifact
+        if mlflow_version < Version("2.0.0"):
+            dir_path = self.mlflow_client.download_artifacts(
+                run_id=self.run.info.run_id, path=""
+            )
+        else:
+            dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
+
         artifact_name = self._handle_incompatible_strings(self.display_name())
         art = wandb.Artifact(artifact_name, "imported-artifacts")
-        for f in self.mlflow_client.list_artifacts(self.run.info.run_id):
-            dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
-            name = f.path
-            full_path = dir_path + name
-            art.add_file(full_path, name)
-        yield art
+        art.add_dir(dir_path)
+
+        return [art]
 
 
 class MlflowImporter(Importer):
@@ -120,7 +124,12 @@ class MlflowImporter(Importer):
         super().import_one(run, overrides)
 
     def download_all_runs(self) -> Iterable[MlflowRun]:
-        for exp in self.mlflow_client.search_experiments():
+        if mlflow_version < Version("1.28.0"):
+            experiments = self.mlflow_client.list_experiments()
+        else:
+            experiments = self.mlflow_client.search_experiments()
+
+        for exp in experiments:
             for run in self.mlflow_client.search_runs(exp.experiment_id):
                 yield MlflowRun(run, self.mlflow_client)
 
