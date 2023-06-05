@@ -1,10 +1,9 @@
 import openai
-from wandb.integration.openai import autolog
-
-autolog()
+from wandb.integration.openai import autolog as openai_autolog
 
 
 def main():
+    openai_autolog(init=dict(project="openai_logging"))
     request_kwargs = dict(
         model="gpt-3.5-turbo",
         messages=[
