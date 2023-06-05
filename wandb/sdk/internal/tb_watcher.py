@@ -59,16 +59,12 @@ def _link_and_save_file(
     interface.publish_files(dict(files=[(GlobStr(glob.escape(file_name)), "live")]))
 
 
-def is_tfevents_file_created_by(
-    path: str, hostname: Optional[str], start_time: Optional[float]
-) -> bool:
-    """Check if a path is a tfevents file.
-
-    Optionally checks that it was created by [hostname] after [start_time].
+def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
+    """Check if a path is a tfevents file created by hostname.
 
     tensorboard tfevents filename format:
         https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
-    tensorflow tfevents filename format:
+    tensorflow tfevents fielname format:
         https://github.com/tensorflow/tensorflow/blob/8f597046dc30c14b5413813d02c0e0aed399c177/tensorflow/core/util/events_writer.cc#L68
     """
     if not path:
@@ -82,27 +78,23 @@ def is_tfevents_file_created_by(
     except ValueError:
         return False
     # check the hostname, which may have dots
-    if hostname is not None:
-        for i, part in enumerate(hostname.split(".")):
-            try:
-                fname_component_part = fname_components[tfevents_idx + 2 + i]
-            except IndexError:
-                return False
-            if part != fname_component_part:
-                return False
-    if start_time is not None:
+    for i, part in enumerate(hostname.split(".")):
         try:
-            created_time = int(fname_components[tfevents_idx + 1])
-        except (ValueError, IndexError):
+            fname_component_part = fname_components[tfevents_idx + 2 + i]
+        except IndexError:
             return False
-        # Ensure that the file is newer then our start time, and that it was
-        # created from the same hostname.
-        # TODO: we should also check the PID (also contained in the tfevents
-        #     filename). Can we assume that our parent pid is the user process
-        #     that wrote these files?
-        if created_time < int(start_time):
+        if part != fname_component_part:
             return False
-    return True
+    try:
+        created_time = int(fname_components[tfevents_idx + 1])
+    except (ValueError, IndexError):
+        return False
+    # Ensure that the file is newer then our start time, and that it was
+    # created from the same hostname.
+    # TODO: we should also check the PID (also contained in the tfevents
+    #     filename). Can we assume that our parent pid is the user process
+    #     that wrote these files?
+    return created_time >= int(start_time)
 
 
 class TBWatcher:
@@ -224,13 +216,12 @@ class TBDirWatcher:
         """Check if a path has been modified since launch and contains tfevents."""
         if not path:
             raise ValueError("Path must be a nonempty string")
-        path = self.tf_compat.tf.compat.as_str_any(path)
         if self._force:
-            return is_tfevents_file_created_by(path, None, None)
-        else:
-            return is_tfevents_file_created_by(
-                path, self._hostname, self._tbwatcher._settings._start_time
-            )
+            return True
+        path = self.tf_compat.tf.compat.as_str_any(path)
+        return is_tfevents_file_created_by(
+            path, self._hostname, self._tbwatcher._settings._start_time
+        )
 
     def _loader(
         self, save: bool = True, namespace: Optional[str] = None
