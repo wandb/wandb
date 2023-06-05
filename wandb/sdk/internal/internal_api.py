@@ -616,7 +616,7 @@ class Api:
         self,
         run_queue_item_id: str,
         message: str,
-        phase: str,
+        stage: str,
         file_paths: Optional[List[str]] = None,
     ) -> bool:
         if not self.fail_run_queue_item_introspection():
@@ -625,16 +625,16 @@ class Api:
             "runQueueItemId": run_queue_item_id,
         }
         if "message" in self.fail_run_queue_item_fields_introspection():
-            variable_values.update({"message": message, "phase": phase})
+            variable_values.update({"message": message, "stage": stage})
             if file_paths is not None:
                 variable_values["filePaths"] = file_paths
             mutation_string = """
-            mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $phase: String!, $filePaths: [String!]) {
+            mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
                 failRunQueueItem(
                     input: {
                         runQueueItemId: $runQueueItemId
                         message: $message
-                        phase: $phase
+                        stage: $stage
                         filePaths: $filePaths
                     }
                 ) {

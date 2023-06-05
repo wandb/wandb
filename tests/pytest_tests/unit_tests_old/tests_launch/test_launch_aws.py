@@ -221,7 +221,7 @@ def test_launch_aws_sagemaker_launch_fail(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.LaunchAgent, "fail_run_queue_item", lambda x: ""
+        wandb.sdk.launch.agent.LaunchAgent, "fail_run_queue_item", lambda c, m, s, f: ""
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False

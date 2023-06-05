@@ -168,7 +168,6 @@ class LaunchAgent:
         files: Optional[List[str]] = None,
     ) -> None:
         if self._gorilla_supports_fail_run_queue_items:
-            print("Calling fail run queue item", message)
             self._api.fail_run_queue_item(run_queue_item_id, message, phase, files)
 
     def _init_agent_run(self) -> None:
@@ -265,7 +264,6 @@ class LaunchAgent:
         exception: Optional[Union[Exception, LaunchDockerError]] = None,
     ) -> None:
         """Removes the job from our list for now."""
-        print("calling finish_thread_id", exception)
         job_and_run_status = self._jobs[thread_id]
         if exception is not None:
             tb_str = traceback.format_exception(
