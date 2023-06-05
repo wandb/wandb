@@ -1,20 +1,14 @@
 import asyncio
 import logging
 import os
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, Optional
 
 import wandb
-import wandb.util
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
-
     from wandb.filesync import dir_watcher, stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
-
-
-class EventJobDone(NamedTuple):
-    job: "step_upload.RequestUpload"
-    exc: Optional[BaseException]
 
 
 logger = logging.getLogger(__name__)
@@ -27,7 +21,7 @@ class UploadJob:
         api: "internal_api.Api",
         file_stream: "file_stream.FileStreamApi",
         silent: bool,
-        save_name: "dir_watcher.SaveName",
+        save_name: LogicalPath,
         path: "dir_watcher.PathStr",
         artifact_id: Optional[str],
         md5: Optional[str],
@@ -49,7 +43,7 @@ class UploadJob:
         self._file_stream = file_stream
         self.silent = silent
         self.save_name = save_name
-        self.save_path = self.path = path
+        self.save_path = path
         self.artifact_id = artifact_id
         self.md5 = md5
         self.copied = copied
@@ -78,7 +72,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                wandb.util.sentry_exc(e)
+                wandb._sentry.exception(e)
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
                 if hasattr(e, "response"):
@@ -140,7 +134,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                wandb.util.sentry_exc(e)
+                wandb._sentry.exception(e)
                 if not self.silent:
                     wandb.termerror(
                         'Error uploading "{}": {}, {}'.format(
@@ -187,7 +181,7 @@ class UploadJobAsync:
             # Fall back to the "normal" synchronous upload.
             loop = asyncio.get_event_loop()
             logger.exception("async upload failed", exc_info=e)
-            loop.run_in_executor(None, wandb.util.sentry_exc, e)
+            loop.run_in_executor(None, wandb._sentry.exception, e)
             wandb.termwarn(
                 "Async file upload failed; falling back to sync", repeat=False
             )

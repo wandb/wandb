@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 from botocore.exceptions import ClientError
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 
 def _get_environment():
@@ -26,7 +26,6 @@ def test_from_default(mocker) -> None:
     credentials.secret_key = "secret_key"
     credentials.token = "token"
     session.get_credentials.return_value = credentials
-    session.get_credentials
     boto3.Session.return_value = session
     mocker.patch("wandb.sdk.launch.environment.aws_environment.boto3", boto3)
     mocker.patch(

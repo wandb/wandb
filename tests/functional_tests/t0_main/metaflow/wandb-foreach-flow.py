@@ -16,6 +16,7 @@ from wandb.integration.metaflow import wandb_log
 
 os.environ["WANDB_SILENT"] = "true"
 os.environ["METAFLOW_USER"] = "test_user"
+os.environ["USER"] = os.environ["METAFLOW_USER"]
 
 
 def setup_model(name, *args, **kwargs):

@@ -58,7 +58,6 @@ def calibration_curves(clf, X, y, clf_name):
     names = ["Logistic", f"{clf_name} Isotonic", f"{clf_name} Sigmoid"]
 
     for model, name in zip(models, names):
-
         model.fit(X_train, y_train)
         if hasattr(model, "predict_proba"):
             prob_pos = model.predict_proba(X_test)[:, 1]

@@ -4,9 +4,8 @@ import sys
 import threading
 from collections import defaultdict, deque
 from functools import lru_cache
-from hashlib import md5
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, List, Mapping, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Mapping, Sequence, Tuple, Union
 
 if sys.version_info >= (3, 8):
     from typing import Final
@@ -18,7 +17,7 @@ import requests.adapters
 import urllib3
 
 import wandb
-from wandb.sdk.lib import telemetry
+from wandb.sdk.lib import hashutil, telemetry
 
 from .aggregators import aggregate_last, aggregate_mean
 from .interfaces import Interface, Metric, MetricsMonitor
@@ -79,6 +78,7 @@ def _tuple_to_nested_dict(
 
 @lru_cache(maxsize=128)
 def _should_capture_metric(
+    endpoint_name: str,
     metric_name: str,
     metric_labels: Tuple[str, ...],
     filters: Tuple[Tuple[str, Tuple[str, str]], ...],
@@ -97,7 +97,7 @@ def _should_capture_metric(
     metric_labels_dict = {t[0]: t[1] for t in metric_labels}
     filters_dict = _tuple_to_nested_dict(filters)
     for metric_name_regex, label_filters in filters_dict.items():
-        if not re.match(metric_name_regex, metric_name):
+        if not re.match(metric_name_regex, f"{endpoint_name}.{metric_name}"):
             continue
 
         should_capture = True
@@ -115,12 +115,27 @@ class OpenMetricsMetric:
     """Container for all the COUNTER and GAUGE metrics extracted from an OpenMetrics endpoint."""
 
     def __init__(
-        self, name: str, url: str, filters: Mapping[str, Mapping[str, str]]
+        self,
+        name: str,
+        url: str,
+        filters: Union[Mapping[str, Mapping[str, str]], Sequence[str], None],
     ) -> None:
-        self.name = name
-        self.url = url
-        self.filters = filters
-        self.filters_tuple = _nested_dict_to_tuple(filters)
+        self.name = name  # user-defined name for the endpoint
+        self.url = url  # full URL
+
+        # - filters can be a dict {"<metric regex>": {"<label>": "<filter regex>"}}
+        #   or a sequence of metric regexes. we convert the latter to a dict
+        #   to make it easier to work with.
+        # - the metric regexes are matched against the full metric name,
+        #   i.e. "<endpoint name>.<metric name>".
+        # - by default, all metrics are captured.
+        self.filters = (
+            filters
+            if isinstance(filters, Mapping)
+            else {k: {} for k in filters or [".*"]}
+        )
+        self.filters_tuple = _nested_dict_to_tuple(self.filters) if self.filters else ()
+
         self._session: Optional["requests.Session"] = None
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
@@ -159,6 +174,7 @@ class OpenMetricsMetric:
                 name, labels, value = sample.name, sample.labels, sample.value
 
                 if not _should_capture_metric(
+                    self.name,
                     name,
                     tuple(labels.items()),
                     self.filters_tuple,
@@ -166,7 +182,7 @@ class OpenMetricsMetric:
                     continue
 
                 # md5 hash of the labels
-                label_hash = md5(str(labels).encode("utf-8")).hexdigest()
+                label_hash = hashutil._md5(str(labels).encode("utf-8")).hexdigest()
                 if label_hash not in self.label_map[name]:
                     # store the index of the label hash in the label map
                     self.label_map[name][label_hash] = len(self.label_map[name])

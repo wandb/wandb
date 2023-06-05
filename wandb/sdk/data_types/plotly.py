@@ -12,10 +12,11 @@ from .image import Image
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import pandas as pd  # type: ignore
+    import pandas as pd
     import plotly  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+
     from ..wandb_run import Run as LocalRun
 
     ValToJsonType = Union[
