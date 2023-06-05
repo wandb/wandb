@@ -1,0 +1,37 @@
+name: Nexus Integration Tests
+
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      local_testcontainer:
+        image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer
+        env:
+          CI: '1'
+          WANDB_ENABLE_TEST_CONTAINER: 'true'
+        credentials:
+          username: _json_key
+          password: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Checkout wandb/wandb repository
+        uses: actions/checkout@v3
+        with:
+          repository: wandb/nexus-golang
+          path: ./wandb
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Run tests
+        run: |
+          docker ps -a
+          echo "Success!"
