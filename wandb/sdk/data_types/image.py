@@ -18,7 +18,7 @@ from .helper_types.image_mask import ImageMask
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import numpy as np  # type: ignore
+    import numpy as np
     import torch  # type: ignore
     from PIL.Image import Image as PILImage
 

@@ -14,7 +14,7 @@ from wandb.sdk.lib.paths import LogicalPath
 from .wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np  # type: ignore
+    import numpy as np
 
     from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
     from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
@@ -316,4 +316,4 @@ def _numpy_arrays_to_lists(
     # Protects against logging non serializable objects
     elif isinstance(payload, Media):
         return str(payload.__class__.__name__)
-    return payload
+    return payload  # type: ignore
