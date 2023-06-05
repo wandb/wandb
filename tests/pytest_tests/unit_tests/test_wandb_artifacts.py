@@ -10,9 +10,9 @@ from unittest.mock import Mock
 import pytest
 import requests
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache
-from wandb.sdk.artifacts.local_artifact import Artifact
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
@@ -108,7 +108,8 @@ def mock_preparer(**kwargs):
 def test_capped_cache(artifacts_cache):
     for i in range(51):
         art = Artifact(f"foo-{i}", type="test")
-        art._logged_artifact = Mock(id=f"foo-{i}")
+        art._id = f"foo-{i}"
+        art._state = "COMMITTED"
         artifacts_cache.store_artifact(art)
     assert len(artifacts_cache._artifacts_by_id) == 50
 
