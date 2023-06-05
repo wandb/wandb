@@ -13,7 +13,7 @@ from .base_types.media import BatchableMedia
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
-    import numpy as np  # type: ignore
+    import numpy as np
 
     from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
 
@@ -133,7 +133,7 @@ class Video(BatchableMedia):
             required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"',
         )
         tensor = self._prepare_video(self.data)
-        _, self._height, self._width, self._channels = tensor.shape
+        _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
         # encode sequence of images into gif string
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)

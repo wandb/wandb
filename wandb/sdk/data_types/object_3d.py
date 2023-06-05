@@ -30,7 +30,7 @@ from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np  # type: ignore
+    import numpy as np
 
     from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
 
