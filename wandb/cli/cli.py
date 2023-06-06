@@ -1567,8 +1567,135 @@ def describe(job):
 
 
 @job.command()
-def create():
+@click.option("entrypoint", "--entrypoint", "-en", default="train.py")
+@click.option(
+    "--project",
+    "-p",
+    envvar=env.PROJECT,
+    help="The project you want to list jobs from.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    default="models",
+    envvar=env.ENTITY,
+    help="The entity the jobs belong to",
+)
+@click.argument("path")
+def create(path, entrypoint, project, entity):
     wandb.termlog("Creating job")
+
+    api = _get_cling_api()
+    TMPDIR = tempfile.TemporaryDirectory()
+    settings = wandb.Settings(
+        root_dir=TMPDIR.name,
+        _start_datetime=datetime.datetime.now(),
+        _start_time=time.time(),
+    )
+
+    """
+    Requirements for creating an image job:
+    1. requirements file
+    2. wandb-metadata.json file -- we should make this?
+    3. valid docker path
+    
+    """
+
+    from wandb.sdk.lib import filesystem
+
+    test = {"python": "3.11", "docker": path}
+
+    filesystem.mkdir_exists_ok(settings.files_dir)
+
+    with open(os.path.join(settings.files_dir, "wandb-metadata.json"), "w") as f:
+        json.dump(test, f)
+
+    with open(os.path.join(settings.files_dir, "requirements.txt"), "w") as f:
+        f.write("wandb\n")
+
+    import queue
+    from wandb.sdk.internal import context, handler, sender
+    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.internal.job_builder import JobBuilder
+
+    _job_builder = JobBuilder(settings)
+    _job_builder._source_type = "image"
+
+    if settings.get("_offline", False):
+        wandb.termlog("cant create jobs offline")
+        return
+
+    _config_items = {}
+    _job_builder.set_config({k: v for k, v in _config_items.items() if k != "_wandb"})
+    _summary_dict = {}
+    _job_builder.set_summary(_summary_dict)
+    artifact = _job_builder.build()
+    if not artifact:
+        wandb.termlog("job build failed")
+        return
+
+    record_q = queue.Queue()
+    sender_record_q = queue.Queue()
+    new_interface = InterfaceQueue(record_q)
+    context_keeper = context.ContextKeeper()
+    send_manager = sender.SendManager(
+        settings=settings,
+        record_q=sender_record_q,
+        result_q=queue.Queue(),
+        interface=new_interface,
+        context_keeper=context_keeper,
+    )
+
+    proto_artifact = send_manager._interface._make_artifact(artifact)
+    proto_artifact.project = api.settings("project") or project
+    proto_artifact.entity = api.settings("entity") or entity
+    proto_artifact.aliases.append("latest")
+    proto_artifact.user_created = True
+    proto_artifact.finalize = True
+
+    send_manager._interface._publish_artifact(proto_artifact)
+    # record = send_manager._interface._make_record(artifact=proto_artifact)
+    # send_manager.send_artifact(record)
+
+    settings = wandb.Settings(
+        root_dir=TMPDIR.name,
+        _start_datetime=datetime.datetime.now(),
+        _start_time=time.time(),
+    )
+
+    handle_manager = handler.HandleManager(
+        settings=settings,
+        record_q=record_q,
+        result_q=None,
+        stopped=False,
+        writer_q=sender_record_q,
+        interface=new_interface,
+        context_keeper=context_keeper,
+    )
+
+    # send all of our records like a boss
+    progress_step = 0
+    spinner_states = ["-", "\\", "|", "/"]
+    line = " Uploading data to wandb\r"
+    while len(handle_manager) > 0:
+        data = next(handle_manager)
+        handle_manager.handle(data)
+        while len(send_manager) > 0:
+            data = next(send_manager)
+            send_manager.send(data)
+
+        print_line = spinner_states[progress_step % 4] + line
+        wandb.termlog(print_line, newline=False, prefix=True)
+        progress_step += 1
+
+    # finish sending any data
+    while len(send_manager) > 0:
+        data = next(send_manager)
+        send_manager.send(data)
+    sys.stdout.flush()
+    handle_manager.finish()
+
+    print("done.")
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
