@@ -138,6 +138,7 @@ class TBWatcher:
         if rootdir == "":
             # rootdir = LogicalPath(os.path.dirname(os.path.commonprefix(dirs)))
             rootdir = os.path.dirname(os.path.commonprefix(dirs))
+            print("NEWROOT:", rootdir, LogicalPath(rootdir))
             # Tensorboard loads all tfevents files in a directory and prepends
             # their values with the path. Passing namespace to log allows us
             # to nest the values in wandb
