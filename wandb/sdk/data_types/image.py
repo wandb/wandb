@@ -18,12 +18,11 @@ from .helper_types.image_mask import ImageMask
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import numpy as np  # type: ignore
+    import numpy as np
     import torch  # type: ignore
     from PIL.Image import Image as PILImage
 
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
-    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
     from ..wandb_run import Run as LocalRun
 
@@ -309,7 +308,7 @@ class Image(BatchableMedia):
 
     @classmethod
     def from_json(
-        cls: Type["Image"], json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
         classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
@@ -388,7 +387,7 @@ class Image(BatchableMedia):
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format

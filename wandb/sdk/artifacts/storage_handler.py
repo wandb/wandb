@@ -6,7 +6,7 @@ from wandb.sdk.lib.paths import FilePathStr, URIStr
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
 
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 DEFAULT_MAX_OBJECTS = 10000
@@ -39,7 +39,7 @@ class StorageHandler:
 
     def store_path(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[str] = None,
         checksum: bool = True,
