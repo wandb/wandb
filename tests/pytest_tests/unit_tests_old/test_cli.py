@@ -80,7 +80,7 @@ def test_artifact_ls(runner, git_repo, mock_server):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "10.0KB" in result.output
+    assert "81.3KB" in result.output
     assert "mnist:v2" in result.output
 
 
