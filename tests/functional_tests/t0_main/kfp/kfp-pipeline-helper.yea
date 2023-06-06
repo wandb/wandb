@@ -6,6 +6,8 @@ plugin:
 depend:
   requirements:
     - kfp==1.8.11
+    - urllib3==1.26.15
+    - requests-toolbelt==0.10.1
 assert:
     - :wandb:runs_len: 3
     - :wandb:runs[0][summary]: {}
