@@ -135,7 +135,7 @@ class TBWatcher:
         else:
             filename = ""
 
-        if rootdir == "":
+        if rootdir == ".":
             rootdir = LogicalPath(os.path.dirname(os.path.commonprefix(dirs)))
             # Tensorboard loads all tfevents files in a directory and prepends
             # their values with the path. Passing namespace to log allows us
@@ -153,8 +153,6 @@ class TBWatcher:
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:
-        print(logdir, LogicalPath(logdir))
-        print(root_dir, LogicalPath(root_dir))
         logdir = LogicalPath(logdir)
         root_dir = LogicalPath(root_dir)
         if logdir in self._logdirs:
