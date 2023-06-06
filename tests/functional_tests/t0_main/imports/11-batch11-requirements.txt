@@ -1,7 +1,0 @@
-git+https://github.com/RangiLyu/nanodet
-segmentation-models-pytorch
-sentence-transformers
-dgl
-jina
-kornia
-albumentations
