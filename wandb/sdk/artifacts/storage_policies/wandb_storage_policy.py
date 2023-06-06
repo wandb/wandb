@@ -30,7 +30,7 @@ from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
     from wandb.sdk.internal import progress
 
@@ -105,7 +105,7 @@ class WandbStoragePolicy(StoragePolicy):
 
     def load_file(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         manifest_entry: "ArtifactManifestEntry",
     ) -> FilePathStr:
         path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -134,7 +134,7 @@ class WandbStoragePolicy(StoragePolicy):
 
     def store_reference(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[str] = None,
         checksum: bool = True,
