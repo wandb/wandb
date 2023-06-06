@@ -2,10 +2,10 @@ version: 2.1
 
 orbs:
   win: circleci/windows@5.0.0
-  slack: circleci/slack@4.10.1
-  go: circleci/go@1.7.1
-  gcloud: circleci/gcp-cli@3.0.1
-  gke: circleci/gcp-gke@2.0.0
+  slack: circleci/slack@4.12.5
+  go: circleci/go@1.7.3
+  gcloud: circleci/gcp-cli@3.1.0
+  gke: circleci/gcp-gke@2.1.0
 
 parameters:
   manual:
@@ -121,9 +121,9 @@ commands:
     steps:
       - run:
           name: "Setup gcloud and kubectl"
+          # gcloud --quiet components update
           command: |
             echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-            gcloud --quiet components update
             gcloud --quiet components install gke-gcloud-auth-plugin
             gcloud --quiet components install kubectl
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
