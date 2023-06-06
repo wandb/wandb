@@ -55,7 +55,7 @@ from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
-from wandb.sdk.lib.paths import FilePathStr, StrPath
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -636,8 +636,8 @@ class Run:
         self._launch_artifact_mapping: Dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if self._settings.save_code and self._settings.program_relpath:
-            config[wandb_key]["code_path"] = os.path.join(
-                "code", self._settings.program_relpath
+            config[wandb_key]["code_path"] = LogicalPath(
+                os.path.join("code", self._settings.program_relpath)
             )
         if sweep_config:
             self._config.update_locked(
