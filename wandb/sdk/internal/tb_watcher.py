@@ -153,6 +153,8 @@ class TBWatcher:
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:
+        print(logdir, LogicalPath(logdir))
+        print(root_dir, LogicalPath(root_dir))
         logdir = LogicalPath(logdir)
         root_dir = LogicalPath(root_dir)
         if logdir in self._logdirs:
