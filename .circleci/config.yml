@@ -77,9 +77,6 @@ parameters:
   nightly_execute_standalone_gpu_win:
     type: boolean
     default: true
-  nightly_execute_imports:
-    type: boolean
-    default: false
   nightly_execute_regression:
     type: boolean
     default: true
@@ -1201,36 +1198,6 @@ workflows:
           requires:
             - "slack-notify-on-start"
       #
-      # import tests
-      #
-      - tox-base:
-          execute: << pipeline.parameters.nightly_execute_imports >>
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [8]
-              shard:
-                - "imports1"
-                - "imports2"
-                - "imports3"
-                - "imports4"
-                - "imports5"
-                - "imports6"
-                - "imports7"
-                - "imports8"
-                - "imports9"
-                - "imports10"
-                - "imports11"
-                - "imports12"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/functional_tests"
-          context: slack-secrets
-          requires:
-            - "slack-notify-on-start"
-          notify_on_failure: true
-          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
-      #
       # protobuf compatibility tests
       #
       - protobuf-compatability:
@@ -1355,7 +1322,7 @@ workflows:
       #
       - tox-base:
           name: "code-check"
-          python_version_minor: 8
+          python_version_minor: 9
           toxenv: "proto3-check,proto4-check,black-check,isort-check,ruff-check,pyupgrade-check,mypy,mypy-report,flake8-base,flake8-docstrings,flake8-darglint,codecov-check,auto-codegen-check"
 
       #

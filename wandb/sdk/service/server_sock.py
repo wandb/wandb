@@ -269,7 +269,7 @@ class SocketServer:
                 # TODO(jhr): consider a more graceful shutdown in the future
                 # socket.shutdown() is a more heavy handed approach to interrupting socket.accept()
                 # in the future we might want to consider a more graceful shutdown which would involve setting
-                # a threading Event and then intiating one last connection just to close down the thread
+                # a threading Event and then initiating one last connection just to close down the thread
                 # The advantage of the heavy handed approach is that it doesnt depend on the threads functioning
                 # properly, that is, if something has gone wrong, we probably want to use this hammer to shut things down
                 self._sock.shutdown(socket.SHUT_RDWR)

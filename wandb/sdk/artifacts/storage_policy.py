@@ -5,7 +5,7 @@ from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
     from wandb.sdk.internal.progress import ProgressFn
 
@@ -30,7 +30,7 @@ class StoragePolicy:
         raise NotImplementedError
 
     def load_file(
-        self, artifact: "ArtifactInterface", manifest_entry: "ArtifactManifestEntry"
+        self, artifact: "Artifact", manifest_entry: "ArtifactManifestEntry"
     ) -> FilePathStr:
         raise NotImplementedError
 
@@ -57,7 +57,7 @@ class StoragePolicy:
 
     def store_reference(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[str] = None,
         checksum: bool = True,
