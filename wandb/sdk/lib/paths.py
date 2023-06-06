@@ -1,6 +1,5 @@
 import os
 import platform
-import re
 from functools import wraps
 from pathlib import PurePath, PurePosixPath
 from typing import Any, NewType, Union
@@ -14,9 +13,6 @@ StrPath = Union[str, "os.PathLike[str]"]
 FilePathStr = NewType("FilePathStr", str)
 
 URIStr = NewType("URIStr", str)
-
-
-URI_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://.*$")
 
 
 class LogicalPath(str):
@@ -68,9 +64,6 @@ class LogicalPath(str):
             path = path.__fspath__()  # Can be str or bytes.
         if isinstance(path, bytes):
             path = os.fsdecode(path)
-        # If the input path is a URI with a scheme, avoid modifying it.
-        if URI_PATTERN.match(path):
-            return super().__new__(cls, path)
         # For historical reasons we have to convert backslashes to forward slashes, but
         # only on Windows, and need to do it before any pathlib operations.
         if platform.system() == "Windows":
