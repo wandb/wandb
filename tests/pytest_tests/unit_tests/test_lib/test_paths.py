@@ -176,3 +176,16 @@ def test_logical_path_joins_like_pathlib():
         lp1 = LogicalPath(path1)
         lp2 = LogicalPath(path2)
         assert lp1.joinpath(lp2) == lp1 / path2
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        "s3://bucket",
+        "s3://bucket/my",
+        "file://wandb/",
+        "wandb-artifact://my-artifact",
+    ),
+)
+def test_logical_path_handles_uri_schemes(path):
+    assert LogicalPath(path) == path
