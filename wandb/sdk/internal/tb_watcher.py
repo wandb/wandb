@@ -14,7 +14,6 @@ import wandb
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.paths import LogicalPath
 from wandb.viz import CustomChart
 
 from . import run as internal_run
@@ -136,23 +135,16 @@ class TBWatcher:
             filename = ""
 
         if rootdir == "":
-            # rootdir = LogicalPath(os.path.dirname(os.path.commonprefix(dirs)))
-            rootdir = os.path.dirname(os.path.commonprefix(dirs))
-            print("NEWROOT:", rootdir, LogicalPath(rootdir))
+            rootdir = util.to_forward_slash_path(
+                os.path.dirname(os.path.commonprefix(dirs))
+            )
             # Tensorboard loads all tfevents files in a directory and prepends
             # their values with the path. Passing namespace to log allows us
             # to nest the values in wandb
             # Note that we strip '/' instead of os.sep, because elsewhere we've
             # converted paths to forward slash.
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
-            print("NAMESPACE:", namespace)
-            print(
-                "NAMESPACE H:",
-                LogicalPath(logdir)
-                .replace(filename, "")
-                .replace(rootdir, "")
-                .strip("/"),
-            )
+
             # TODO: revisit this heuristic, it exists because we don't know the
             # root log directory until more than one tfevents file is written to
             if len(dirs) == 1 and namespace not in ["train", "validation"]:
@@ -163,17 +155,8 @@ class TBWatcher:
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:
-        # logdir = LogicalPath(logdir)
-        # root_dir = LogicalPath(root_dir)
-        print(
-            "LOGDIR:", logdir, util.to_forward_slash_path(logdir), LogicalPath(logdir)
-        )
-        print(
-            "ROOTDIR:",
-            root_dir,
-            util.to_forward_slash_path(root_dir),
-            LogicalPath(root_dir),
-        )
+        logdir = util.to_forward_slash_path(logdir)
+        root_dir = util.to_forward_slash_path(root_dir)
         if logdir in self._logdirs:
             return
         namespace = self._calculate_namespace(logdir, root_dir)
