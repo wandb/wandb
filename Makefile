@@ -16,15 +16,13 @@ setup-clean:
 	rm -fr build/
 	rm -fr dist/
 
-test-clean:
-	setup-clean
+test-clean: setup-clean
 	find . -name '*.pyc' -delete
 	find . -name '__pycache__' -delete
 	rm -rf .tox/
 	rm -rf .pytest_cache/
 
-clean-build: ## remove build artifacts
-	setup-clean
+clean-build: setup-clean ## remove build artifacts
 	rm -fr .eggs/
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
@@ -40,22 +38,16 @@ clean-test: ## remove test and coverage artifacts
 	rm -f .coverage
 	rm -fr htmlcov/
 
-clean:	## remove all build, test, coverage and Python artifacts
-	clean-build 
-	clean-pyc
-	clean-test 
+clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
-build: ## builds source and wheel package
-	clean 
+build: clean ## builds source and wheel package
 	python setup.py sdist bdist_wheel
 	ls -l dist
 
-release-test: ## package and upload test release
-	dist 
+release-test: build ## package and upload test release
 	twine upload --repository testpypi dist/*
 
-release: ## package and upload release
-	dist
+release: build ## package and upload release
 	twine upload dist/*
 
 bumpversion-to-dev:
