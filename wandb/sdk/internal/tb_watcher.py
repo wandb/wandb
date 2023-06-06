@@ -145,6 +145,14 @@ class TBWatcher:
             # Note that we strip '/' instead of os.sep, because elsewhere we've
             # converted paths to forward slash.
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
+            print("NAMESPACE:", namespace)
+            print(
+                "NAMESPACE H:",
+                LogicalPath(logdir)
+                .replace(filename, "")
+                .replace(rootdir, "")
+                .strip("/"),
+            )
             # TODO: revisit this heuristic, it exists because we don't know the
             # root log directory until more than one tfevents file is written to
             if len(dirs) == 1 and namespace not in ["train", "validation"]:
