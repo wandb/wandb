@@ -1570,20 +1570,6 @@ def describe(job):
     wandb.termlog(f"{job._job_info}")
 
 
-def _make_metadata(path, settings):
-    from wandb.sdk.lib import filesystem
-
-    test = {"python": "3.11", "docker": path}
-
-    # Job requirements
-    filesystem.mkdir_exists_ok(settings.files_dir)
-    with open(os.path.join(settings.files_dir, "wandb-metadata.json"), "w") as f:
-        json.dump(test, f)
-
-    with open(os.path.join(settings.files_dir, "requirements.txt"), "w") as f:
-        f.write("wandb\n")
-
-
 @job.command()
 @click.option(
     "--project",
@@ -1612,6 +1598,7 @@ def _make_metadata(path, settings):
     "--type",
     "-t",
     "_type",
+    type=click.Choice(("repo", "artifact", "image")),
     help="Type of job, one of ['repo', 'code', 'image']",
 )
 @click.option(
@@ -1634,14 +1621,6 @@ def create(path, project, entity, name, _type, description, aliases):
     """
 
     TMPDIR = tempfile.TemporaryDirectory()
-    # settings = wandb.Settings(
-    #     root_dir=path,
-    #     _start_datetime=datetime.datetime.now(),
-    #     _start_time=time.time(),
-    #     silent=True,
-    # )
-
-    # _make_metadata(path, settings)
 
     if not entity:
         wandb.termerror("No entity provided")
@@ -1651,32 +1630,84 @@ def create(path, project, entity, name, _type, description, aliases):
         wandb.termerror("No project provided")
         return
 
-    api = InternalApi()
-    artifact = wandb.Artifact(name=name, type="_job", description=description)
-    full_name = f"{entity}/{project}/{name}:latest"
+    # refactor
+    def _make_metadata(path, _type, fp=None):
+        from wandb.sdk.lib import filesystem
 
-    if os.path.islink(path):
-        wandb.termlog(f"?? {path=}")
+        test = {}
+        if _type == "image":
+            test = {"python": "3.11", "docker": path}
+        elif _type == "repo":
+            test = {
+                "git": path,
+                "commit": "1234",
+            }
+        else:
+            test = {
+                "python": "3.11",
+                "path": path,
+            }
+
+        # Job requirements
+        if fp:
+            path = fp
+        filesystem.mkdir_exists_ok(path)
+        with open(os.path.join(path, "wandb-metadata.json"), "w") as f:
+            json.dump(test, f)
+
+        # Job requires requirements, even if image job??
+        with open(os.path.join(path, "requirements.txt"), "w") as f:
+            json.dump("wandb", f)
+
+
 
     if _type == "image":
+        # dump specific metadata here?
+        _make_metadata(path, "image", fp=TMPDIR.name)
         pass
-    else:
+    elif _type == "repo":
+        if not os.path.islink(path):
+            wandb.termerror(f"?? {path=}")
+        # do git metadata stuff
+        pass
+    elif _type == "artifact":
         if not os.path.isdir(path):
             raise ClickException("Path must be a directory to a job source")
 
-    artifact.add_dir(path)
+        # HOW TO
+        # artifact.add_dir(path)
+        _make_metadata(path)
 
+    # init hidden wandb run
     run = wandb.init(
         dir=TMPDIR.name,
         settings={"silent": True},
         entity=entity,
         project=project,
-        config={"path": path},
         job_type="cli_put_job",
     )
 
+    # gross, fix
+    aliases = list(aliases)
+    if "latest" not in aliases:
+        aliases.append("latest")
+
+    settings = wandb.Settings()
+    settings.update({"files_dir": TMPDIR.name})
+    _job_builder = wandb.sdk.internal.job_builder.JobBuilder(
+        settings=settings,
+    )
+    _job_builder.source_type = _type
+
+    # THIS IS THE CRUX
+    _job_builder._config = {}
+    _job_builder._summary = {}
+
+    artifact = _job_builder.build()
+
     # We create the artifact manually to get the current version
     # TODO(gst): how to tell if this is a no-op?
+    # TODO(gst): aliases have inconsistent response, v0 after first try
     res, _ = api.create_artifact(
         "job",
         name,
@@ -1687,16 +1718,12 @@ def create(path, project, entity, name, _type, description, aliases):
         project_name=project,
         run_name=run.id,
         description=description,
-        aliases=[{"artifactCollectionName": full_name, "alias": a} for a in aliases],
+        aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
     artifact_path = full_name.split(":")[0] + ":" + res.get("version", "latest")
     # Re-create the artifact and actually upload any files needed
     run.log_artifact(artifact, aliases=aliases)
     artifact.wait()
-
-    aliases = list(aliases)
-    if "latest" not in aliases:
-        aliases.append("latest")
 
     wandb.termlog(
         f"Job created with aliases: {aliases}, use this job with: '{artifact_path}'\n"
