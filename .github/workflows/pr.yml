@@ -45,6 +45,9 @@ jobs:
           validateSingleCommit: false
           validateSingleCommitMatchesPrTitle: false
 
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       # check the PR title against the conventional commit format
       - name: Set up Python
         uses: actions/setup-python@v4
