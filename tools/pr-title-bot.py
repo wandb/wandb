@@ -58,6 +58,7 @@ CC_SCOPES = os.environ.get(
 
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
 def chat_completion_with_backoff(**kwargs):
+    """Call OpenAI's chat completion API with exponential backoff."""
     return openai.ChatCompletion.create(**kwargs)
 
 
@@ -67,6 +68,7 @@ def get_pr_info(
     repo_name: str = "wandb/wandb",
     get_diff: bool = True,
 ) -> Tuple[str, Optional[str]]:
+    """Get the title and diff of a PR."""
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(repo_name)
 
@@ -96,6 +98,7 @@ def check_pr_title(
     model: Model = "gpt-4",
     repo_name: str = "wandb/wandb",
 ) -> bool:
+    """Check whether a PR title follows the conventional commit format."""
     pr_title, _ = get_pr_info(pr_number, repo_name=repo_name, get_diff=False)
 
     messages = [
@@ -159,9 +162,6 @@ def generate_pr_title(
 
     # todo: check context limit, strip diff if too long
 
-    # get the title
-    # print("Original title:", pr.title)
-
     messages[-1]["content"] = messages[-1]["content"].replace("{{TITLE}}", pr_title)
     messages[-1]["content"] = messages[-1]["content"].replace("{{DIFF}}", diff)
 
@@ -170,8 +170,6 @@ def generate_pr_title(
         messages=messages,
     )
     suggested_title = completion.choices[0]["message"]["content"]
-
-    # print("Suggested title:", suggested_title)
 
     return suggested_title
 
