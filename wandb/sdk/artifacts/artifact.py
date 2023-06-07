@@ -1435,7 +1435,9 @@ class Artifact:
         entry._parent_artifact = self
         return entry
 
-    def get(self, name: str) -> Optional[data_types.WBValue]:
+    def get(
+        self, name: str, root: Optional[str] = None
+    ) -> Optional[data_types.WBValue]:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
@@ -1480,11 +1482,11 @@ class Artifact:
         # `artifact.download`. In the future, we should refactor the deserialization
         # pattern such that this special case is not needed.
         if wb_class == wandb.Table:
-            self.download(recursive=True)
+            self.download(root=root, recursive=True)
 
         # Get the ArtifactManifestEntry
         item = self.get_path(entry.path)
-        item_path = item.download()
+        item_path = item.download(root=root)
 
         # Load the object from the JSON blob
         result = None
