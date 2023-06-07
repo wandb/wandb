@@ -198,7 +198,7 @@ if __name__ == "__main__":
             raise ValueError(
                 "PR title is not compliant with the conventional commit recommendations. \n"
                 "Comment on your PR with `/suggest-title` to get a suggestion or "
-                "`\fix-title` to ask the pr-title-bot to fix it for you."
+                "`/fix-title` to ask the pr-title-bot to fix it for you."
             )
     else:
         print("Invalid command. Use 'generate' or 'check'")
