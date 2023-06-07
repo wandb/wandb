@@ -1524,7 +1524,7 @@ def job() -> None:
     pass
 
 
-@job.command()
+@job.command("list")
 @click.option(
     "--project",
     "-p",
@@ -1538,11 +1538,15 @@ def job() -> None:
     envvar=env.ENTITY,
     help="The entity the jobs belong to",
 )
-def list(project, entity):
+def _list(project, entity):
     wandb.termlog(f"Listing jobs in {entity}/{project}")
 
     public_api = PublicApi()
-    jobs = public_api.jobs(entity=entity, project=project)
+    try:
+        jobs = public_api.jobs(entity=entity, project=project)
+    except wandb.errors.CommError as e:
+        wandb.termerror(f"Error listing jobs for entity/project: {entity}/{project}")
+        return
 
     for job in jobs:
         for version in job["edges"]:
@@ -1566,8 +1570,21 @@ def describe(job):
     wandb.termlog(f"{job._job_info}")
 
 
+def _make_metadata(path, settings):
+    from wandb.sdk.lib import filesystem
+
+    test = {"python": "3.11", "docker": path}
+
+    # Job requirements
+    filesystem.mkdir_exists_ok(settings.files_dir)
+    with open(os.path.join(settings.files_dir, "wandb-metadata.json"), "w") as f:
+        json.dump(test, f)
+
+    with open(os.path.join(settings.files_dir, "requirements.txt"), "w") as f:
+        f.write("wandb\n")
+
+
 @job.command()
-@click.option("entrypoint", "--entrypoint", "-en", default="train.py")
 @click.option(
     "--project",
     "-p",
@@ -1581,17 +1598,32 @@ def describe(job):
     envvar=env.ENTITY,
     help="The entity the jobs belong to",
 )
+@click.option(
+    "--name",
+    "-n",
+    help="Name for the job",
+)
+@click.option(
+    "--description",
+    "-d",
+    help="Description for the job",
+)
+@click.option(
+    "--type",
+    "-t",
+    "_type",
+    help="Type of job, one of ['repo', 'code', 'image']",
+)
+@click.option(
+    "--alias",
+    "-a",
+    "aliases",
+    help="Alias for the job",
+    multiple=True,
+)
 @click.argument("path")
-def create(path, entrypoint, project, entity):
+def create(path, project, entity, name, _type, description, aliases):
     wandb.termlog("Creating job")
-
-    api = _get_cling_api()
-    TMPDIR = tempfile.TemporaryDirectory()
-    settings = wandb.Settings(
-        root_dir=TMPDIR.name,
-        _start_datetime=datetime.datetime.now(),
-        _start_time=time.time(),
-    )
 
     """
     Requirements for creating an image job:
@@ -1601,101 +1633,79 @@ def create(path, entrypoint, project, entity):
     
     """
 
-    from wandb.sdk.lib import filesystem
+    TMPDIR = tempfile.TemporaryDirectory()
+    # settings = wandb.Settings(
+    #     root_dir=path,
+    #     _start_datetime=datetime.datetime.now(),
+    #     _start_time=time.time(),
+    #     silent=True,
+    # )
 
-    test = {"python": "3.11", "docker": path}
+    # _make_metadata(path, settings)
 
-    filesystem.mkdir_exists_ok(settings.files_dir)
-
-    with open(os.path.join(settings.files_dir, "wandb-metadata.json"), "w") as f:
-        json.dump(test, f)
-
-    with open(os.path.join(settings.files_dir, "requirements.txt"), "w") as f:
-        f.write("wandb\n")
-
-    import queue
-    from wandb.sdk.internal import context, handler, sender
-    from wandb.sdk.interface.interface_queue import InterfaceQueue
-    from wandb.sdk.internal.job_builder import JobBuilder
-
-    _job_builder = JobBuilder(settings)
-    _job_builder._source_type = "image"
-
-    if settings.get("_offline", False):
-        wandb.termlog("cant create jobs offline")
+    if not entity:
+        wandb.termerror("No entity provided")
         return
 
-    _config_items = {}
-    _job_builder.set_config({k: v for k, v in _config_items.items() if k != "_wandb"})
-    _summary_dict = {}
-    _job_builder.set_summary(_summary_dict)
-    artifact = _job_builder.build()
-    if not artifact:
-        wandb.termlog("job build failed")
+    if not project:
+        wandb.termerror("No project provided")
         return
 
-    record_q = queue.Queue()
-    sender_record_q = queue.Queue()
-    new_interface = InterfaceQueue(record_q)
-    context_keeper = context.ContextKeeper()
-    send_manager = sender.SendManager(
-        settings=settings,
-        record_q=sender_record_q,
-        result_q=queue.Queue(),
-        interface=new_interface,
-        context_keeper=context_keeper,
+    api = InternalApi()
+    artifact = wandb.Artifact(name=name, type="_job", description=description)
+    full_name = f"{entity}/{project}/{name}:latest"
+
+    if os.path.islink(path):
+        wandb.termlog(f"?? {path=}")
+
+    if _type == "image":
+        pass
+    else:
+        if not os.path.isdir(path):
+            raise ClickException("Path must be a directory to a job source")
+
+    artifact.add_dir(path)
+
+    run = wandb.init(
+        dir=TMPDIR.name,
+        settings={"silent": True},
+        entity=entity,
+        project=project,
+        config={"path": path},
+        job_type="cli_put_job",
     )
 
-    proto_artifact = send_manager._interface._make_artifact(artifact)
-    proto_artifact.project = api.settings("project") or project
-    proto_artifact.entity = api.settings("entity") or entity
-    proto_artifact.aliases.append("latest")
-    proto_artifact.user_created = True
-    proto_artifact.finalize = True
-
-    send_manager._interface._publish_artifact(proto_artifact)
-    # record = send_manager._interface._make_record(artifact=proto_artifact)
-    # send_manager.send_artifact(record)
-
-    settings = wandb.Settings(
-        root_dir=TMPDIR.name,
-        _start_datetime=datetime.datetime.now(),
-        _start_time=time.time(),
+    # We create the artifact manually to get the current version
+    # TODO(gst): how to tell if this is a no-op?
+    res, _ = api.create_artifact(
+        "job",
+        name,
+        artifact.digest,
+        client_id=artifact._client_id,
+        sequence_client_id=artifact._sequence_client_id,
+        entity_name=entity,
+        project_name=project,
+        run_name=run.id,
+        description=description,
+        aliases=[{"artifactCollectionName": full_name, "alias": a} for a in aliases],
     )
+    artifact_path = full_name.split(":")[0] + ":" + res.get("version", "latest")
+    # Re-create the artifact and actually upload any files needed
+    run.log_artifact(artifact, aliases=aliases)
+    artifact.wait()
 
-    handle_manager = handler.HandleManager(
-        settings=settings,
-        record_q=record_q,
-        result_q=None,
-        stopped=False,
-        writer_q=sender_record_q,
-        interface=new_interface,
-        context_keeper=context_keeper,
+    aliases = list(aliases)
+    if "latest" not in aliases:
+        aliases.append("latest")
+
+    wandb.termlog(
+        f"Job created with aliases: {aliases}, use this job with: '{artifact_path}'\n"
     )
+    run.finish()
 
-    # send all of our records like a boss
-    progress_step = 0
-    spinner_states = ["-", "\\", "|", "/"]
-    line = " Uploading data to wandb\r"
-    while len(handle_manager) > 0:
-        data = next(handle_manager)
-        handle_manager.handle(data)
-        while len(send_manager) > 0:
-            data = next(send_manager)
-            send_manager.send(data)
-
-        print_line = spinner_states[progress_step % 4] + line
-        wandb.termlog(print_line, newline=False, prefix=True)
-        progress_step += 1
-
-    # finish sending any data
-    while len(send_manager) > 0:
-        data = next(send_manager)
-        send_manager.send(data)
-    sys.stdout.flush()
-    handle_manager.finish()
-
-    print("done.")
+    # now delete the run
+    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
+    _run.delete()
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
