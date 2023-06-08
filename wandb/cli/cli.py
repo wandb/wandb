@@ -1652,7 +1652,7 @@ def describe(job):
 )
 @click.option(
     "--entry-point",
-    "-en",
+    "-E",
     "entrypoint",
     help="Codepath to the main script, required for repo jobs",
 )
@@ -1672,7 +1672,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         wandb.termerror("No entity provided")
         return
 
-    project or os.getenv("WANDB_PROJECT")
+    project = project or os.getenv("WANDB_PROJECT")
     if not project:
         wandb.termerror("No project provided")
         return
@@ -1811,6 +1811,9 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     if not name:
         name = artifact.name
         wandb.termlog(f"No name provided, using default: {name}")
+
+    if "latest" not in aliases:
+        aliases = list(aliases) + ["latest"]
 
     res, _ = api.create_artifact(
         artifact_type_name="job",
