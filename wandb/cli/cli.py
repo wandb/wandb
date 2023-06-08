@@ -15,7 +15,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import click
 import yaml
@@ -1559,6 +1559,15 @@ def _list(project, entity):
             print(full_name, aliases)
 
 
+def _make_git_data(path):
+    """mock, to be replaced"""
+    remote = path
+    commit = "bdb06b4b5b6449d891ca7d019f7885394d57fcfb"
+    requirements = ["wandb"]
+    python = "3.11.4"
+    return remote, commit, requirements, python
+
+
 @job.command()
 @click.argument("job")
 def describe(job):
@@ -1570,7 +1579,9 @@ def describe(job):
     wandb.termlog(f"{job._job_info}")
 
 
-@job.command()
+@job.command(
+    no_args_is_help=True,
+)
 @click.option(
     "--project",
     "-p",
@@ -1599,7 +1610,8 @@ def describe(job):
     "-t",
     "_type",
     type=click.Choice(("repo", "artifact", "image")),
-    help="Type of job, one of ['repo', 'code', 'image']",
+    default="artifact",
+    help="Type of job to create",
 )
 @click.option(
     "--alias",
@@ -1608,75 +1620,92 @@ def describe(job):
     help="Alias for the job",
     multiple=True,
 )
+@click.option(
+    "--entry-point",
+    "-en",
+    "entrypoint",
+    help="Codepath to the main script, required for repo jobs",
+)
 @click.argument("path")
-def create(path, project, entity, name, _type, description, aliases):
-    wandb.termlog("Creating job")
+def create(path, project, entity, name, _type, description, aliases, entrypoint):
+    """Create a job from a source, without a wandb run.
 
+    Jobs can be of three types, repo, artifact, or image.
+
+    repo: A git source, with an entrypoint pointing to the main python executable.
+    artifact: A code path, containing a requirements.txt file.
+    image: A docker image.
     """
-    Requirements for creating an image job:
-    1. requirements file
-    2. wandb-metadata.json file -- we should make this?
-    3. valid docker path
-    
-    """
-
-    TMPDIR = tempfile.TemporaryDirectory()
-
+    api = _get_cling_api()
+    entity = entity or os.getenv("WANDB_ENTITY")
     if not entity:
         wandb.termerror("No entity provided")
         return
 
+    project or os.getenv("WANDB_PROJECT")
     if not project:
         wandb.termerror("No project provided")
         return
 
-    # refactor
-    def _make_metadata(path, _type, fp=None):
-        from wandb.sdk.lib import filesystem
+    # Use temp dir to create metadata (+ requirements) for job
+    TMPDIR = tempfile.TemporaryDirectory()
 
-        test = {}
-        if _type == "image":
-            test = {"python": "3.11", "docker": path}
-        elif _type == "repo":
-            test = {
-                "git": path,
-                "commit": "1234",
-            }
-        else:
-            test = {
-                "python": "3.11",
-                "path": path,
-            }
-
-        # Job requirements
-        if fp:
-            path = fp
+    # TODO(gst): refactor
+    def _dump_metadata_and_requirements(
+        path, metadata: Dict[str, Any], requirements: Optional[List[str]]
+    ):
+        """Dump manufactured metadata and requirements.txt"""
         filesystem.mkdir_exists_ok(path)
         with open(os.path.join(path, "wandb-metadata.json"), "w") as f:
-            json.dump(test, f)
+            json.dump(metadata, f)
 
-        # Job requires requirements, even if image job??
-        with open(os.path.join(path, "requirements.txt"), "w") as f:
-            json.dump("wandb", f)
+        if requirements:
+            with open(os.path.join(path, "requirements.txt"), "w") as f:
+                f.write("\n".join(requirements))
 
-
-
+    metadata = {}
     if _type == "image":
-        # dump specific metadata here?
-        _make_metadata(path, "image", fp=TMPDIR.name)
-        pass
-    elif _type == "repo":
-        if not os.path.islink(path):
-            wandb.termerror(f"?? {path=}")
-        # do git metadata stuff
-        pass
-    elif _type == "artifact":
-        if not os.path.isdir(path):
-            raise ClickException("Path must be a directory to a job source")
+        # TODO(gst): How to find these out from a docker image? Do we need to?
+        python_version, requirements = "3.11.4", ["wandb"]
 
-        # HOW TO
-        # artifact.add_dir(path)
-        _make_metadata(path)
+        metadata = {"python": python_version, "docker": path}
+        _dump_metadata_and_requirements(
+            metadata=metadata,
+            path=TMPDIR.name,
+            requirements=requirements,
+        )
+    elif _type == "repo":
+        if not wandb.sdk.launch.utils._is_git_uri(path):
+            wandb.termerror(f"Repo jobs must originate from git links, not {path=}")
+            return
+        if not entrypoint:
+            wandb.termerror("Manually created repo jobs must have an entrypoint")
+            return
+
+        # _parse_git_string
+        remote, commit, requirements, python_version = _make_git_data(path)
+        metadata = {
+            "git": {"remote": remote, "commit": commit},
+            "codePath": entrypoint,
+            "python": python_version,
+        }
+        _dump_metadata_and_requirements(
+            metadata=metadata,
+            path=TMPDIR.name,
+            requirements=requirements,
+        )
+    elif _type == "artifact":
+        metadata = {
+            "python": "3.9",
+            "codePath": path,
+        }
+        if not os.path.isdir(path):
+            wandb.termerror(
+                f"Building a job of type: {_type} requires path to be a directory for job source. Use the -t param to specify a different job type."
+            )
+            return
+
+        _dump_metadata_and_requirements(path, metadata=metadata)
 
     # init hidden wandb run
     run = wandb.init(
@@ -1687,27 +1716,33 @@ def create(path, project, entity, name, _type, description, aliases):
         job_type="cli_put_job",
     )
 
-    # gross, fix
-    aliases = list(aliases)
-    if "latest" not in aliases:
-        aliases.append("latest")
-
+    # configure job builder with temp dir and job source
     settings = wandb.Settings()
-    settings.update({"files_dir": TMPDIR.name})
+    settings.update({"files_dir": TMPDIR.name, "job_source": _type})
     _job_builder = wandb.sdk.internal.job_builder.JobBuilder(
         settings=settings,
     )
-    _job_builder.source_type = _type
 
-    # THIS IS THE CRUX
-    _job_builder._config = {}
-    _job_builder._summary = {}
+    # THIS IS THE CRUX, set run inputs and outputs to empty dicts
+    _job_builder.set_config({})
+    _job_builder.set_summary({})
 
     artifact = _job_builder.build()
+    if not artifact:
+        wandb.termerror("Failed to build job")
+        return
+
+    if not name:
+        name = artifact.name
+        wandb.termlog(f"No name provided, using default: {name}")
+
+    aliases = list(aliases) + ["latest"]
 
     # We create the artifact manually to get the current version
     # TODO(gst): how to tell if this is a no-op?
     # TODO(gst): aliases have inconsistent response, v0 after first try
+    # TODO(gst): I think this uses the Job builder again, but we don't set the source
+    #      so it does nothing...
     res, _ = api.create_artifact(
         "job",
         name,
@@ -1716,21 +1751,36 @@ def create(path, project, entity, name, _type, description, aliases):
         sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
         project_name=project,
-        run_name=run.id,
+        run_name=run.id,  # run will be deleted after creation
         description=description,
+        metadata=metadata,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
-    artifact_path = full_name.split(":")[0] + ":" + res.get("version", "latest")
-    # Re-create the artifact and actually upload any files needed
+    artifact_path = f"{entity}/{project}/{name}" + ":" + res.get("version", "latest")
+
+    if _type == "artifact":
+        # Upload any files needed
+        artifact.add_dir(path)
+
     run.log_artifact(artifact, aliases=aliases)
     artifact.wait()
-
-    wandb.termlog(
-        f"Job created with aliases: {aliases}, use this job with: '{artifact_path}'\n"
-    )
     run.finish()
 
-    # now delete the run
+    msg = f"Created job: '{click.style(artifact_path, fg='yellow')}'"
+    if len(aliases) > 1:
+        alias_str = click.style(", ".join(aliases), fg="yellow")
+        msg += f", with aliases: {alias_str}"
+    elif len(aliases) > 0:
+        alias_str = click.style(aliases[0], fg="yellow")
+        msg += f", with alias: {alias_str}"
+
+    wandb.termlog(msg)
+    # TODO(gst): confirm this works for local server release
+    web_url = api.settings().get("base_url").replace("api.", "")
+    url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
+    wandb.termlog(f"View all project jobs here: {url}\n")
+
+    # now delete the hidden run
     _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
     _run.delete()
 
