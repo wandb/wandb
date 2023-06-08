@@ -1585,6 +1585,19 @@ def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
     return generated_name
 
 
+def _dump_metadata_and_requirements(
+    tmp_path, metadata: Dict[str, Any], requirements: Optional[List[str]]
+):
+    """Dump manufactured metadata and requirements.txt"""
+    filesystem.mkdir_exists_ok(tmp_path)
+    with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
+        json.dump(metadata, f)
+
+    if requirements:
+        with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
+            f.write("\n".join(requirements))
+
+
 @job.command()
 @click.argument("job")
 def describe(job):
@@ -1666,18 +1679,6 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
     # Use temp dir to create metadata (+ requirements) for job
     TMPDIR = tempfile.TemporaryDirectory()
-
-    def _dump_metadata_and_requirements(
-        tmp_path, metadata: Dict[str, Any], requirements: Optional[List[str]]
-    ):
-        """Dump manufactured metadata and requirements.txt"""
-        filesystem.mkdir_exists_ok(tmp_path)
-        with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
-            json.dump(metadata, f)
-
-        if requirements:
-            with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
-                f.write("\n".join(requirements))
 
     metadata = {}
     if _type == "image":
@@ -1770,7 +1771,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     _job_builder.set_config({})
     _job_builder.set_summary({})
 
-    # have to log code artifact first for artifact jobs
+    # log code artifact first for artifact jobs
     if _type == "artifact":
         # TODO(gst): better naming scheme?
         artifact_name = _make_code_artifact_name(path, name)
@@ -1801,6 +1802,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         _job_builder._set_logged_code_artifact(res, code_artifact)
         name = code_artifact.name.replace("code", "job").split(":")[0]
 
+    # build job artifact, creates wandb-job.json here
     artifact = _job_builder.build()
     if not artifact:
         wandb.termerror("Failed to build job")
@@ -1810,13 +1812,6 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         name = artifact.name
         wandb.termlog(f"No name provided, using default: {name}")
 
-    # aliases = list(aliases) + ["latest"]
-
-    # We create the artifact manually to get the current version
-    # TODO(gst): how to tell if this is a no-op? warn to user?
-    # TODO(gst): aliases have inconsistent response, v0 after first try
-
-    print(f'{name=}, {artifact.name=}, {code_artifact.name=}, {code_artifact.name.replace("code", "job").split(":")[0]=}')
     res, _ = api.create_artifact(
         artifact_type_name="job",
         artifact_collection_name=name,
@@ -1830,21 +1825,15 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         metadata=metadata,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
-    # Below gets around a strange bug where we always return "latest" as the version
-    # when the artifact is new...
-    version = (
-        res.get("artifactSequence", {}).get("latestArtifact", {}).get("versionIndex")
-    )
-    if version:
-        version = f"v{version}"
-    else:
-        version = res.get("latest", "latest")
+    if not res:
+        wandb.termerror("Failed to create job")
+        return
 
-    artifact_path = f"{entity}/{project}/{name}" + ":" + version
     run.log_artifact(artifact, aliases=aliases)
     artifact.wait()
     run.finish()
 
+    artifact_path = f"{project}/{entity}/{artifact.name}"
     msg = f"Created job: {click.style(artifact_path, fg='yellow')}"
     if len(aliases) > 1:
         alias_str = click.style(", ".join(aliases), fg="yellow")
@@ -1859,7 +1848,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
     wandb.termlog(f"View all project jobs here: {url}\n")
 
-    # now delete the hidden run
+    # delete hidden run
     _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
     _run.delete()
 
