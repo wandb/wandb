@@ -1692,26 +1692,27 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             tmp_path=TMPDIR.name,
             requirements=requirements,
         )
-    elif _type == "repo":
-        if not wandb.sdk.launch.utils._is_git_uri(path):
-            wandb.termerror(f"Repo jobs must originate from git paths, got: {path}")
-            return
-
+    else:  # repo and artifact
         # TODO(gst): support other entrypoint types for git?
         if path.endswith("Dockerfile"):
-            wandb.termerror("Dockerfile git entrypoints are not yet supported")
+            wandb.termerror("Dockerfile entrypoints are not yet supported")
             return
         if path.endswith(".py"):
             # If user provides a git path to a file, set entrypoint to that file
             if entrypoint:
                 wandb.termwarn(
-                    "Ignoring entrypoint, since git path is a file, not a directory"
+                    "Ignoring entrypoint, since path is a file, not a directory"
                 )
             entrypoint = path.split("/")[-1]
             path = "/".join(path.split("/")[:-1])
 
         if not entrypoint:
-            wandb.termerror("Manually created repo jobs must have an entrypoint")
+            wandb.termerror(f"Manually created {_type} jobs must have an entrypoint")
+            return
+
+    if _type == "repo":
+        if not wandb.sdk.launch.utils._is_git_uri(path):
+            wandb.termerror(f"Repo jobs must originate from git paths, got: {path}")
             return
 
         remote, commit, requirements, python_version = _make_git_data(path)
