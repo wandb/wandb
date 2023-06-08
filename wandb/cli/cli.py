@@ -1686,10 +1686,8 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         #            Maybe we can use a default python version?
         # TODO(gst): Check for existence? Might not exist in current context, should
         #            we let users create jobs from images without checking?
-        (
-            python_version,
-            requirements,
-        ) = f"{sys.version_info.major}.{sys.version_info.minor}", ["wandb"]
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        requirements = ["wandb"]
         metadata = {"python": python_version, "docker": path}
         _dump_metadata_and_requirements(
             metadata=metadata,
@@ -1705,7 +1703,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             # If user provides a path to a file, set entrypoint to that file
             if entrypoint:
                 wandb.termwarn(
-                    "Ignoring entrypoint, since path is a file, not a directory"
+                    "Ignoring entrypoint as path targets file, not directory"
                 )
             entrypoint = path.split("/")[-1]
             path = "/".join(path.split("/")[:-1])
@@ -1740,12 +1738,12 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         }
         if not os.path.isdir(path):
             wandb.termerror(
-                f"Building a job of type: {_type} requires path to be a directory for job source. Use the -t param to specify a different job type."
+                f"Building a job of type: {_type} requires path to be a directory for job source. Use the -t param to specify a different job type"
             )
             return
         if not os.path.exists(os.path.join(path, "requirements.txt")):
             wandb.termerror(
-                f"Building a job of type: {_type} requires a requirements.txt file in the job source. Use the -t param to specify a different job type."
+                f"Building a job of type: {_type} requires a requirements.txt file in the job source. Use the -t param to specify a different job type"
             )
             return
         # read local requirements.txt and dump to temp dir for builder
@@ -1835,22 +1833,18 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
-    if not res:
-        wandb.termerror("Failed to create job")
-        return
-
     run.log_artifact(artifact, aliases=aliases)
     artifact.wait()
     run.finish()
 
     artifact_path = f"{project}/{entity}/{artifact.name}"
     msg = f"Created job: {click.style(artifact_path, fg='yellow')}"
-    if len(aliases) > 1:
-        alias_str = click.style(", ".join(aliases), fg="yellow")
-        msg += f", with aliases: {alias_str}"
-    elif len(aliases) > 0:
+    if len(aliases) == 1:
         alias_str = click.style(aliases[0], fg="yellow")
         msg += f", with alias: {alias_str}"
+    elif len(aliases) > 1:
+        alias_str = click.style(", ".join(aliases), fg="yellow")
+        msg += f", with aliases: {alias_str}"
 
     wandb.termlog(msg)
     # TODO(gst): confirm this works for local server release
