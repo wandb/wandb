@@ -1568,6 +1568,23 @@ def _make_git_data(path):
     return remote, commit, requirements, python
 
 
+def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
+    """Make a code artifact name from a path and user provided name"""
+    if name:
+        return name
+
+    if len(path) > 7:
+        if path[-1] == "/":
+            path = path[:-1]
+        path_name = f"code-{path.replace('/', '-')}"
+        wandb.termlog(f"No name provided, using path for name: {path_name}")
+        return path_name
+
+    generated_name = f"code-{wandb.util.generate_id()}"
+    wandb.termlog(f"No name provided, generating name: {generated_name}")
+    return generated_name
+
+
 @job.command()
 @click.argument("job")
 def describe(job):
@@ -1611,7 +1628,7 @@ def describe(job):
     "_type",
     type=click.Choice(("repo", "artifact", "image")),
     default="artifact",
-    help="Type of job to create",
+    help="Type of job to create, defaults to artifact",
 )
 @click.option(
     "--alias",
@@ -1650,7 +1667,6 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     # Use temp dir to create metadata (+ requirements) for job
     TMPDIR = tempfile.TemporaryDirectory()
 
-    # TODO(gst): refactor
     def _dump_metadata_and_requirements(
         tmp_path, metadata: Dict[str, Any], requirements: Optional[List[str]]
     ):
@@ -1666,8 +1682,10 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     metadata = {}
     if _type == "image":
         # TODO(gst): How to find these out from a docker image? Do we need to?
+        #            Maybe we can use a default python version?
+        # TODO(gst): Check for existence? Might not exist in current context, should
+        #            we let users create jobs from images without checking?
         python_version, requirements = "3.11.4", ["wandb"]
-
         metadata = {"python": python_version, "docker": path}
         _dump_metadata_and_requirements(
             metadata=metadata,
@@ -1676,13 +1694,26 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         )
     elif _type == "repo":
         if not wandb.sdk.launch.utils._is_git_uri(path):
-            wandb.termerror(f"Repo jobs must originate from git links, not {path=}")
+            wandb.termerror(f"Repo jobs must originate from git paths, got: {path}")
             return
+
+        # TODO(gst): support other entrypoint types for git?
+        if path.endswith("Dockerfile"):
+            wandb.termerror("Dockerfile git entrypoints are not yet supported")
+            return
+        if path.endswith(".py"):
+            # If user provides a git path to a file, set entrypoint to that file
+            if entrypoint:
+                wandb.termwarn(
+                    "Ignoring entrypoint, since git path is a file, not a directory"
+                )
+            entrypoint = path.split("/")[-1]
+            path = "/".join(path.split("/")[:-1])
+
         if not entrypoint:
             wandb.termerror("Manually created repo jobs must have an entrypoint")
             return
 
-        # _parse_git_string
         remote, commit, requirements, python_version = _make_git_data(path)
         metadata = {
             "git": {"remote": remote, "commit": commit},
@@ -1695,8 +1726,9 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             requirements=requirements,
         )
     elif _type == "artifact":
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
         metadata = {
-            "python": "3.9",
+            "python": python_version,
             "codePath": path,
         }
         if not os.path.isdir(path):
@@ -1709,6 +1741,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
                 f"Building a job of type: {_type} requires a requirements.txt file in the job source. Use the -t param to specify a different job type."
             )
             return
+        # read local requirements.txt and dump to our temp dir
         requirements = []
         with open(os.path.join(path, "requirements.txt"), "r") as f:
             requirements = f.read().splitlines()
@@ -1719,10 +1752,11 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     # init hidden wandb run
     run = wandb.init(
         dir=TMPDIR.name,
-        settings={"silent": True},
+        # job building handled manually, disable auto job creation
+        settings={"silent": True, "disable_job_creation": True},
         entity=entity,
         project=project,
-        job_type="cli_put_job",
+        job_type="cli_create_job",
     )
 
     # configure job builder with temp dir and job source
@@ -1731,19 +1765,24 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     _job_builder = wandb.sdk.internal.job_builder.JobBuilder(
         settings=settings,
     )
+    # set run inputs and outputs to empty dicts
+    _job_builder.set_config({})
+    _job_builder.set_summary({})
 
+    # have to log code artifact first for artifact jobs
     if _type == "artifact":
-        # have to log code artifact first for artifact jobs
+        # TODO(gst): better naming scheme?
+        artifact_name = _make_code_artifact_name(path, name)
         code_artifact = wandb.Artifact(
-            name="code",
+            name=artifact_name,
             type="code",
-            description="Code for job",
+            description="Code artifact for job",
         )
         code_artifact.add_dir(path)
         res, _ = api.create_artifact(
-            "code",
-            f"code-{name or wandb.util.generate_id()}",
-            code_artifact.digest,
+            artifact_type_name="code",
+            artifact_collection_name=artifact_name,
+            digest=code_artifact.digest,
             client_id=code_artifact._client_id,
             sequence_client_id=code_artifact._sequence_client_id,
             entity_name=entity,
@@ -1752,16 +1791,16 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             description=description,
             metadata=metadata,
             aliases=[
-                {"artifactCollectionName": f"code-{name}", "alias": a} for a in aliases
+                {"artifactCollectionName": artifact_name, "alias": a} for a in aliases
             ],
         )
         run.log_artifact(code_artifact)
         code_artifact.wait()
         _job_builder._set_logged_code_artifact(res, code_artifact)
 
-    # THIS IS THE CRUX, set run inputs and outputs to empty dicts
-    _job_builder.set_config({})
-    _job_builder.set_summary({})
+        # Set the name to the code artifact name if not provided
+        if not name:
+            name = code_artifact.name.replace("code", "job").split(":")[0]
 
     artifact = _job_builder.build()
     if not artifact:
@@ -1775,14 +1814,12 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     aliases = list(aliases) + ["latest"]
 
     # We create the artifact manually to get the current version
-    # TODO(gst): how to tell if this is a no-op?
+    # TODO(gst): how to tell if this is a no-op? warn to user?
     # TODO(gst): aliases have inconsistent response, v0 after first try
-    # TODO(gst): I think this uses the Job builder again, but we don't set the source
-    #      so it does nothing...
     res, _ = api.create_artifact(
-        "job",
-        name,
-        artifact.digest,
+        artifact_type_name="job",
+        artifact_collection_name=name,
+        digest=artifact.digest,
         client_id=artifact._client_id,
         sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
