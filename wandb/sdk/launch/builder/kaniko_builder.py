@@ -422,14 +422,17 @@ class KanikoBuilder(AbstractBuilder):
         ]
         container = client.V1Container(
             name="wandb-container-build",
-            image="gcr.io/kaniko-project/executor:v1.8.0",
+            image="gcr.io/kaniko-project/executor:latest",
             args=args,
             volume_mounts=volume_mounts,
             env=env if env else None,
         )
         # Create and configure a spec section
+        labels = {"wandb": "launch"}
+        if isinstance(self.registry, AzureContainerRegistry):
+            labels["azure.workload.identity/use"] = "true"
         template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels={"wandb": "launch"}),
+            metadata=client.V1ObjectMeta(labels=labels),
             spec=client.V1PodSpec(
                 restart_policy="Never",
                 active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,

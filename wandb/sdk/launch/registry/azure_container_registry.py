@@ -58,7 +58,7 @@ class AzureContainerRegistry(AbstractRegistry):
         return False
 
     def get_repo_uri(self) -> str:
-        return super().get_repo_uri()
+        return self.uri
 
     def verify(self) -> None:
         try:
