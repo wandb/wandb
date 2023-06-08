@@ -1652,15 +1652,15 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
     # TODO(gst): refactor
     def _dump_metadata_and_requirements(
-        path, metadata: Dict[str, Any], requirements: Optional[List[str]]
+        tmp_path, metadata: Dict[str, Any], requirements: Optional[List[str]]
     ):
         """Dump manufactured metadata and requirements.txt"""
-        filesystem.mkdir_exists_ok(path)
-        with open(os.path.join(path, "wandb-metadata.json"), "w") as f:
+        filesystem.mkdir_exists_ok(tmp_path)
+        with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
             json.dump(metadata, f)
 
         if requirements:
-            with open(os.path.join(path, "requirements.txt"), "w") as f:
+            with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
                 f.write("\n".join(requirements))
 
     metadata = {}
@@ -1671,7 +1671,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         metadata = {"python": python_version, "docker": path}
         _dump_metadata_and_requirements(
             metadata=metadata,
-            path=TMPDIR.name,
+            tmp_path=TMPDIR.name,
             requirements=requirements,
         )
     elif _type == "repo":
@@ -1691,7 +1691,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         }
         _dump_metadata_and_requirements(
             metadata=metadata,
-            path=TMPDIR.name,
+            tmp_path=TMPDIR.name,
             requirements=requirements,
         )
     elif _type == "artifact":
@@ -1704,8 +1704,17 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
                 f"Building a job of type: {_type} requires path to be a directory for job source. Use the -t param to specify a different job type."
             )
             return
-
-        _dump_metadata_and_requirements(path, metadata=metadata)
+        if not os.path.exists(os.path.join(path, "requirements.txt")):
+            wandb.termerror(
+                f"Building a job of type: {_type} requires a requirements.txt file in the job source. Use the -t param to specify a different job type."
+            )
+            return
+        requirements = []
+        with open(os.path.join(path, "requirements.txt"), "r") as f:
+            requirements = f.read().splitlines()
+        _dump_metadata_and_requirements(
+            tmp_path=TMPDIR.name, metadata=metadata, requirements=requirements
+        )
 
     # init hidden wandb run
     run = wandb.init(
@@ -1722,6 +1731,33 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     _job_builder = wandb.sdk.internal.job_builder.JobBuilder(
         settings=settings,
     )
+
+    if _type == "artifact":
+        # have to log code artifact first for artifact jobs
+        code_artifact = wandb.Artifact(
+            name="code",
+            type="code",
+            description="Code for job",
+        )
+        code_artifact.add_dir(path)
+        res, _ = api.create_artifact(
+            "code",
+            f"code-{name or wandb.util.generate_id()}",
+            code_artifact.digest,
+            client_id=code_artifact._client_id,
+            sequence_client_id=code_artifact._sequence_client_id,
+            entity_name=entity,
+            project_name=project,
+            run_name=run.id,  # run will be deleted after creation
+            description=description,
+            metadata=metadata,
+            aliases=[
+                {"artifactCollectionName": f"code-{name}", "alias": a} for a in aliases
+            ],
+        )
+        run.log_artifact(code_artifact)
+        code_artifact.wait()
+        _job_builder._set_logged_code_artifact(res, code_artifact)
 
     # THIS IS THE CRUX, set run inputs and outputs to empty dicts
     _job_builder.set_config({})
@@ -1757,11 +1793,6 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
     artifact_path = f"{entity}/{project}/{name}" + ":" + res.get("version", "latest")
-
-    if _type == "artifact":
-        # Upload any files needed
-        artifact.add_dir(path)
-
     run.log_artifact(artifact, aliases=aliases)
     artifact.wait()
     run.finish()
