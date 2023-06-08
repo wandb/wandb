@@ -1686,7 +1686,10 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         #            Maybe we can use a default python version?
         # TODO(gst): Check for existence? Might not exist in current context, should
         #            we let users create jobs from images without checking?
-        python_version, requirements = "3.11.4", ["wandb"]
+        (
+            python_version,
+            requirements,
+        ) = f"{sys.version_info.major}.{sys.version_info.minor}", ["wandb"]
         metadata = {"python": python_version, "docker": path}
         _dump_metadata_and_requirements(
             metadata=metadata,
@@ -1699,7 +1702,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             wandb.termerror("Dockerfile entrypoints are not yet supported")
             return
         if path.endswith(".py"):
-            # If user provides a git path to a file, set entrypoint to that file
+            # If user provides a path to a file, set entrypoint to that file
             if entrypoint:
                 wandb.termwarn(
                     "Ignoring entrypoint, since path is a file, not a directory"
@@ -1708,7 +1711,9 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             path = "/".join(path.split("/")[:-1])
 
         if not entrypoint:
-            wandb.termerror(f"Manually created {_type} jobs must have an entrypoint")
+            wandb.termerror(
+                f"Manually created {_type} jobs must have an entrypoint, specify one with -E"
+            )
             return
 
     if _type == "repo":
@@ -1743,7 +1748,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
                 f"Building a job of type: {_type} requires a requirements.txt file in the job source. Use the -t param to specify a different job type."
             )
             return
-        # read local requirements.txt and dump to our temp dir
+        # read local requirements.txt and dump to temp dir for builder
         requirements = []
         with open(os.path.join(path, "requirements.txt"), "r") as f:
             requirements = f.read().splitlines()
@@ -1751,10 +1756,9 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             tmp_path=TMPDIR.name, metadata=metadata, requirements=requirements
         )
 
-    # init hidden wandb run
+    # init hidden wandb run with job building disabled (handled manually)
     run = wandb.init(
         dir=TMPDIR.name,
-        # job building handled manually, disable auto job creation
         settings={"silent": True, "disable_job_creation": True},
         entity=entity,
         project=project,
@@ -1792,6 +1796,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             run_name=run.id,  # run will be deleted after creation
             description="Code artifact for job",
             metadata={"codePath": path, "entrypoint": entrypoint},
+            is_user_created=True,
             aliases=[
                 {"artifactCollectionName": artifact_name, "alias": a} for a in aliases
             ],
@@ -1806,6 +1811,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     artifact = _job_builder.build()
     if not artifact:
         wandb.termerror("Failed to build job")
+        logger.debug("Failed to build job, check job source and metadata")
         return
 
     if not name:
@@ -1826,6 +1832,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         run_name=run.id,  # run will be deleted after creation
         description=description,
         metadata=metadata,
+        is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
     if not res:
@@ -1851,7 +1858,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
     wandb.termlog(f"View all project jobs here: {url}\n")
 
-    # delete hidden run
+    # fetch, then delete hidden run
     _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
     _run.delete()
 
