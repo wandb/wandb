@@ -1571,7 +1571,7 @@ def _make_git_data(path):
 def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
     """Make a code artifact name from a path and user provided name"""
     if name:
-        return name
+        return f"code-{name}"
 
     if len(path) > 7:
         if path[-1] == "/":
@@ -1730,7 +1730,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
         metadata = {
             "python": python_version,
-            "codePath": path,
+            "codePath": os.path.join(path, entrypoint),
         }
         if not os.path.isdir(path):
             wandb.termerror(
@@ -1789,19 +1789,17 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             entity_name=entity,
             project_name=project,
             run_name=run.id,  # run will be deleted after creation
-            description=description,
-            metadata=metadata,
+            description="Code artifact for job",
+            metadata={"codePath": path, "entrypoint": entrypoint},
             aliases=[
                 {"artifactCollectionName": artifact_name, "alias": a} for a in aliases
             ],
         )
+
         run.log_artifact(code_artifact)
         code_artifact.wait()
         _job_builder._set_logged_code_artifact(res, code_artifact)
-
-        # Set the name to the code artifact name if not provided
-        if not name:
-            name = code_artifact.name.replace("code", "job").split(":")[0]
+        name = code_artifact.name.replace("code", "job").split(":")[0]
 
     artifact = _job_builder.build()
     if not artifact:
@@ -1812,11 +1810,13 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         name = artifact.name
         wandb.termlog(f"No name provided, using default: {name}")
 
-    aliases = list(aliases) + ["latest"]
+    # aliases = list(aliases) + ["latest"]
 
     # We create the artifact manually to get the current version
     # TODO(gst): how to tell if this is a no-op? warn to user?
     # TODO(gst): aliases have inconsistent response, v0 after first try
+
+    print(f'{name=}, {artifact.name=}, {code_artifact.name=}, {code_artifact.name.replace("code", "job").split(":")[0]=}')
     res, _ = api.create_artifact(
         artifact_type_name="job",
         artifact_collection_name=name,
@@ -1830,12 +1830,22 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         metadata=metadata,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
-    artifact_path = f"{entity}/{project}/{name}" + ":" + res.get("version", "latest")
+    # Below gets around a strange bug where we always return "latest" as the version
+    # when the artifact is new...
+    version = (
+        res.get("artifactSequence", {}).get("latestArtifact", {}).get("versionIndex")
+    )
+    if version:
+        version = f"v{version}"
+    else:
+        version = res.get("latest", "latest")
+
+    artifact_path = f"{entity}/{project}/{name}" + ":" + version
     run.log_artifact(artifact, aliases=aliases)
     artifact.wait()
     run.finish()
 
-    msg = f"Created job: '{click.style(artifact_path, fg='yellow')}'"
+    msg = f"Created job: {click.style(artifact_path, fg='yellow')}"
     if len(aliases) > 1:
         alias_str = click.style(", ".join(aliases), fg="yellow")
         msg += f", with aliases: {alias_str}"
