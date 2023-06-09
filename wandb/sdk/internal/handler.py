@@ -279,29 +279,6 @@ class HandleManager:
                 updated = True
         if s.best:
             best_key = tuple(kl + ["best"])
-        if s.max or best_key and goal_max:
-            max_key = tuple(kl + ["max"])
-            old_max = self._metric_track.get(max_key)
-            if old_max is None or float_v > old_max:
-                self._metric_track[max_key] = float_v
-                if s.max:
-                    _dict_nested_set(self._consolidated_summary, max_key, v)
-                    updated = True
-                if best_key:
-                    _dict_nested_set(self._consolidated_summary, best_key, v)
-                    updated = True
-        # defaulting to minimize if goal is not supecified
-        if s.min or best_key and not goal_max:
-            min_key = tuple(kl + ["min"])
-            old_min = self._metric_track.get(min_key)
-            if old_min is None or float_v < old_min:
-                self._metric_track[min_key] = float_v
-                if s.min:
-                    _dict_nested_set(self._consolidated_summary, min_key, v)
-                    updated = True
-                if best_key:
-                    _dict_nested_set(self._consolidated_summary, best_key, v)
-                    updated = True
         if s.mean:
             tot_key = tuple(kl + ["tot"])
             num_key = tuple(kl + ["num"])
@@ -314,6 +291,28 @@ class HandleManager:
             self._metric_track[num_key] = num
             _dict_nested_set(self._consolidated_summary, avg_key, tot / num)
             updated = True
+
+        # always keep track of min and max
+        max_key = tuple(kl + ["max"])
+        old_max = self._metric_track.get(max_key)
+        if old_max is None or float_v > old_max:
+            self._metric_track[max_key] = float_v
+            if s.max:
+                _dict_nested_set(self._consolidated_summary, max_key, v)
+                updated = True
+            if best_key:
+                _dict_nested_set(self._consolidated_summary, best_key, v)
+                updated = True
+        min_key = tuple(kl + ["min"])
+        old_min = self._metric_track.get(min_key)
+        if old_min is None or float_v < old_min:
+            self._metric_track[min_key] = float_v
+            if s.min:
+                _dict_nested_set(self._consolidated_summary, min_key, v)
+                updated = True
+            if best_key:
+                _dict_nested_set(self._consolidated_summary, best_key, v)
+                updated = True
         return updated
 
     def _update_summary_leaf(
@@ -789,7 +788,7 @@ class HandleManager:
         else:
             self._metric_globs[metric.glob_name].MergeFrom(metric)
         self._dispatch_record(record)
-
+    # documentation
     def handle_metric(self, record: Record) -> None:
         """Handle MetricRecord.
 

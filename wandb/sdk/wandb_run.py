@@ -2512,6 +2512,7 @@ class Run:
             valid_goal = {"min", "max"}
             if goal_cleaned not in valid_goal:
                 raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
+        # could also always define min/max as hidden here
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
