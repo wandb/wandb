@@ -1925,7 +1925,7 @@ class Run(Attrs):
             config[k] = {"value": self._parse_value(v), "desc": None}
         return json.dumps(config)
 
-    def _parse_value(value):
+    def _parse_value(self, value):
         """
         If needed, parse a config value into a format that will be more usable downstream after being
         dumped to JSON.
