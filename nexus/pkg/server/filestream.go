@@ -29,22 +29,15 @@ type FileStream struct {
 	httpClient http.Client
 }
 
-func NewFileStream(wg *sync.WaitGroup, fstreamPath string, settings *Settings) *FileStream {
+func NewFileStream(fstreamPath string, settings *Settings) *FileStream {
 	fs := FileStream{
-		wg:          wg,
+		wg:          &sync.WaitGroup{},
 		fstreamPath: fstreamPath,
 		settings:    settings,
 		fstreamChan: make(chan *service.Record)}
-	wg.Add(1)
+	fs.wg.Add(1)
 	go fs.fstreamGo()
 	return &fs
-}
-
-func (fs *FileStream) Stop() {
-	// Must be called from handler
-	log.Debug("FSTREAM: STOP")
-	close(fs.fstreamChan)
-	log.Debug("FSTREAM: STOP DONE")
 }
 
 func (fs *FileStream) StreamRecord(rec *service.Record) {
@@ -114,7 +107,7 @@ func (fs *FileStream) send(fsdata interface{}) {
     "uploaded": list(uploaded),
 */
 
-func (fs *FileStream) sendFinish() {
+func (fs *FileStream) streamFinish() {
 	type FsFinishedData struct {
 		Complete bool `json:"complete"`
 		Exitcode int  `json:"exitcode"`
@@ -171,7 +164,6 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 		fname: chunk,
 	}
 	fsdata := FsFilesData{Files: files}
-	// fmt.Println("WOULD SEND", fsdata)
 	fs.send(fsdata)
 }
 
@@ -179,6 +171,8 @@ func (fs *FileStream) streamRecord(msg *service.Record) {
 	switch x := msg.RecordType.(type) {
 	case *service.Record_History:
 		fs.streamHistory(x.History)
+	case *service.Record_Exit:
+		fs.streamFinish()
 	case nil:
 		// The field is not set.
 		panic("bad2rec")
@@ -186,6 +180,12 @@ func (fs *FileStream) streamRecord(msg *service.Record) {
 		bad := fmt.Sprintf("REC UNKNOWN type %T", x)
 		panic(bad)
 	}
+}
+
+func (fs *FileStream) flush() {
+	log.Debug("FSTREAM: flush")
+	close(fs.fstreamChan)
+	fs.wg.Wait()
 }
 
 func (fs *FileStream) fstreamGo() {
@@ -208,6 +208,5 @@ func (fs *FileStream) fstreamGo() {
 		log.WithFields(log.Fields{"record": msg}).Debug("FSTREAM: got msg")
 		fs.streamRecord(msg)
 	}
-	fs.sendFinish()
 	log.Debug("FSTREAM: FIN")
 }

@@ -64,10 +64,16 @@ func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
 
 func handleInformStart(nc *NexusConn, msg *service.ServerInformStartRequest) {
 	log.Debug("PROCESS: START")
+	// streamId := msg.XInfo.StreamId
+	// stream := getStream(nc, streamId)
+	// TODO: grab settings from here
 }
 
 func handleInformFinish(nc *NexusConn, msg *service.ServerInformFinishRequest) {
 	log.Debug("PROCESS: FIN")
+	streamId := msg.XInfo.StreamId
+	stream := getStream(nc, streamId)
+	stream.MarkFinished()
 }
 
 func getStream(nc *NexusConn, streamId string) *Stream {
@@ -89,8 +95,32 @@ func handleInformRecord(nc *NexusConn, msg *service.Record) {
 	// fmt.Printf("PROCESS: COMM/PUBLISH %d 2\n", num)
 }
 
+func showFooter(result *service.Result, run *service.RunRecord, settings *Settings) {
+	PrintHeadFoot(run, settings)
+}
+
+func finishAll(nc *NexusConn) {
+	for _, stream := range nc.mux {
+		if stream.IsFinished() {
+			continue
+		}
+		exitRecord := service.RunExitRecord{}
+		record := service.Record{
+			RecordType: &service.Record_Exit{Exit: &exitRecord},
+		}
+		handle := stream.Deliver(&record)
+		got := handle.wait()
+		settings := stream.GetSettings()
+		run := stream.GetRun()
+		showFooter(got, run, settings)
+	}
+}
+
 func handleInformTeardown(nc *NexusConn, msg *service.ServerInformTeardownRequest) {
 	log.Debug("PROCESS: TEARDOWN")
+
+	finishAll(nc)
+
 	nc.done <- true
 	// _, cancelCtx := context.WithCancel(nc.ctx)
 

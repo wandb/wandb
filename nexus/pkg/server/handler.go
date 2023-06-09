@@ -58,17 +58,17 @@ func (handler *Handler) HandleRecord(rec *service.Record) {
 	handler.handlerChan <- rec
 }
 
-func (h *Handler) shutdownStream() {
-	log.Debug("HANDLER: shutdown")
-	if h.writer != nil {
-		h.writer.Stop()
-	}
-	// DONE ALREADY in defer path
-	// h.sender.Stop()
-	log.Debug("HANDLER: shutdown wait")
-	h.wg.Wait()
-	log.Debug("HANDLER: shutdown done")
-}
+// func (h *Handler) shutdownStream() {
+// 	log.Debug("HANDLER: shutdown")
+// 	if h.writer != nil {
+// 		h.writer.Stop()
+// 	}
+// 	// DONE ALREADY in defer path
+// 	// h.sender.Stop()
+// 	log.Debug("HANDLER: shutdown wait")
+// 	h.wg.Wait()
+// 	log.Debug("HANDLER: shutdown done")
+// }
 
 func (h *Handler) captureRunInfo(run *service.RunRecord) {
 	var ok bool
@@ -133,7 +133,7 @@ func (h *Handler) handleGetSummary(rec *service.Record, msg *service.GetSummaryR
 
 func (h *Handler) handleDefer(rec *service.Record, msg *service.DeferRequest) {
 	h.sender.SendRecord(rec)
-	h.shutdownStream()
+	// h.shutdownStream()
 }
 
 func (h *Handler) updateSummary(msg *service.HistoryRecord) {
@@ -243,4 +243,8 @@ func (handler *Handler) handlerGo() {
 		handler.storeRecord(record)
 		handler.handleRecord(record)
 	}
+}
+
+func (handler *Handler) GetRun() *service.RunRecord {
+	return handler.run
 }
