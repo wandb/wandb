@@ -53,7 +53,6 @@ class AzureEnvironment(AbstractEnvironment):
         """
         storage_account, storage_container, path = self.parse_uri(destination)
         creds = self.get_credentials()
-        print(storage_account, storage_container, path)
         try:
             client = BlobClient(
                 f"https://{storage_account}.blob.core.windows.net",
@@ -62,7 +61,6 @@ class AzureEnvironment(AbstractEnvironment):
                 credential=creds,
             )
             with open(source, "rb") as f:
-                print(path)
                 client.upload_blob(f)
         except Exception as e:
             raise LaunchError(

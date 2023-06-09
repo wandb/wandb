@@ -11,6 +11,7 @@ from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import State, Status
 from wandb.util import get_module
@@ -681,7 +682,9 @@ def maybe_create_imagepull_secret(
         A secret if one was created, otherwise None.
     """
     secret = None
-    if isinstance(registry, LocalRegistry):
+    if isinstance(registry, LocalRegistry) or isinstance(
+        registry, AzureContainerRegistry
+    ):
         # Secret not required
         return None
     uname, token = registry.get_username_password()

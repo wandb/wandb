@@ -1,5 +1,5 @@
 """Implementation of AzureContainerRegistry class."""
-
+import re
 from typing import Tuple
 
 from wandb.sdk.launch.utils import LaunchError
@@ -65,3 +65,13 @@ class AzureContainerRegistry(AbstractRegistry):
             pass
         except Exception as e:
             raise LaunchError(f"Unable to verify Azure Container Registry: {e}") from e
+
+    @property
+    def registry_name(self) -> str:
+        regex = r"([^\.]+)\.azurecr\.io/([^/]+)/?(.*)$"
+        match = re.match(regex, self.uri)
+        if match is None:
+            raise LaunchError(
+                f"Unable to parse Azure Container Registry URI: {self.uri}"
+            )
+        return match.group(1)

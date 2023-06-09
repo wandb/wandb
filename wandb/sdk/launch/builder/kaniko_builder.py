@@ -10,6 +10,7 @@ from typing import Optional
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
+from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.elastic_container_registry import (
@@ -256,20 +257,17 @@ class KanikoBuilder(AbstractBuilder):
         _, api_client = get_kube_context_and_api_client(
             kubernetes, launch_project.resource_args
         )
+        # TODO: use same client as kuberentes.py
+        batch_v1 = client.BatchV1Api(api_client)
+        core_v1 = client.CoreV1Api(api_client)
+
         build_job_name = f"{self.build_job_name}-{run_id}"
 
         build_context = self._upload_build_context(run_id, context_path)
         build_job = self._create_kaniko_job(
-            build_job_name,
-            repo_uri,
-            image_uri,
-            build_context,
+            build_job_name, repo_uri, image_uri, build_context, core_v1
         )
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
-
-        # TODO: use same client as kuberentes.py
-        batch_v1 = client.BatchV1Api(api_client)
-        core_v1 = client.CoreV1Api(api_client)
 
         try:
             if isinstance(self.registry, AzureContainerRegistry):
@@ -277,7 +275,15 @@ class KanikoBuilder(AbstractBuilder):
                     metadata=client.V1ObjectMeta(
                         name=f"docker-config-{build_job_name}"
                     ),
-                    data={"config.json": json.dumps({"credsStore": "acr"})},
+                    data={
+                        "config.json": json.dumps(
+                            {
+                                "credHelpers": {
+                                    f"{self.registry.registry_name}.azurecr.io": "acr-env"
+                                }
+                            }
+                        )
+                    },
                 )
                 core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             # core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
@@ -325,6 +331,7 @@ class KanikoBuilder(AbstractBuilder):
         repository: str,
         image_tag: str,
         build_context_path: str,
+        core_client: client.CoreV1Api,
     ) -> "client.V1Job":
         env = []
         volume_mounts = []
@@ -341,6 +348,31 @@ class KanikoBuilder(AbstractBuilder):
                     value=self.registry.environment.region,
                 )
             ]
+        if isinstance(self.registry.environment, AzureEnvironment):
+            # Use the core api to check if the secret exists
+            try:
+                core_client.read_namespaced_secret(
+                    "azure-storage-access-key",
+                    "wandb",
+                )
+            except kubernetes.kubernetes.client.ApiException as e:
+                raise LaunchError(
+                    "Secret azure-storage-access-key does not exist in "
+                    "namespace wandb. Please create it with the key password "
+                    "set to your azure storage access key."
+                ) from e
+            env += [
+                client.V1EnvVar(
+                    name="AZURE_STORAGE_ACCESS_KEY",
+                    value_from=client.V1EnvVarSource(
+                        secret_key_ref=client.V1SecretKeySelector(
+                            name="azure-storage-access-key",
+                            key="password",
+                        )
+                    ),
+                )
+            ]
+
         if self.secret_name and self.secret_key:
             volumes += [
                 client.V1Volume(
