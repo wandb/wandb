@@ -21,7 +21,6 @@ import shutil
 import tempfile
 import time
 import urllib
-from dataclasses import asdict, is_dataclass
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -1922,14 +1921,8 @@ class Run(Attrs):
     def json_config(self):
         config = {}
         for k, v in self.config.items():
-            config[k] = {"value": self._parse_value(v), "desc": None}
+            config[k] = {"value": v, "desc": None}
         return json.dumps(config)
-
-    def _parse_value(self, value):
-        """If needed, parse a config value to be more usable after being dumped to JSON."""
-        if is_dataclass(value):
-            return asdict(value)
-        return value
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend."""
