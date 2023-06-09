@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry
 from wandb.errors import Error
+from wandb.util import get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -168,9 +169,24 @@ class _Service:
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
-            service_args = [
-                "wandb",
-                "service",
+
+            service_args = []
+            if self._settings._use_nexus:
+                wandb_nexus = get_module(
+                    "wandb_nexus",
+                    required="""Please install wandb nexus package using: 'pip install "wandb[nexus]"'""",
+                )
+                nexus_path = wandb_nexus.get_nexus_path()
+                assert nexus_path.exists(), f"Not found {nexus_path}"
+                service_args += [nexus_path]
+                exec_cmd_list = []
+            else:
+                service_args += [
+                    "wandb",
+                    "service",
+                ]
+
+            service_args += [
                 "--port-filename",
                 fname,
                 "--pid",

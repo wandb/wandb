@@ -45,6 +45,10 @@ launch_requirements = [
 
 models_requirements = ["cloudpickle"]
 
+nexus_requirements = [
+    "wandb-nexus>=0.0.1.dev1",
+    # "wandb-nexus @ git+https://github.com/wandb/nexus-golang.git@initial",
+]
 async_requirements = [
     "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 ]
@@ -99,6 +103,7 @@ setup(
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
         "models": models_requirements,
+        "nexus": nexus_requirements,
         "async": async_requirements,
     },
 )
