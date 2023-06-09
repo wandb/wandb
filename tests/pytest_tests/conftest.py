@@ -4,18 +4,22 @@ import sys
 import unittest.mock
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Union
+from typing import Any, Callable, Generator, Optional, Union
 
-import git
-import pytest
-import wandb
-import wandb.old.settings
-import wandb.util
-from click.testing import CliRunner
-from wandb import Api
-from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.git import GitRepo
+os.environ["WANDB_ERROR_REPORTING"] = "false"
+
+import git  # noqa: E402
+import pytest  # noqa: E402
+import wandb  # noqa: E402
+import wandb.old.settings  # noqa: E402
+import wandb.sdk.lib.apikey  # noqa: E402
+import wandb.util  # noqa: E402
+from click.testing import CliRunner  # noqa: E402
+from wandb import Api  # noqa: E402
+from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
+from wandb.sdk.lib import filesystem, runid  # noqa: E402
+from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
+from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 # --------------------------------
 # Misc Fixtures utilities
@@ -32,9 +36,7 @@ def assets_path() -> Generator[Callable, None, None]:
 
 @pytest.fixture
 def copy_asset(assets_path) -> Generator[Callable, None, None]:
-    def copy_asset_fn(
-        path: Union[str, Path], dst: Union[str, Path, None] = None
-    ) -> Path:
+    def copy_asset_fn(path: StrPath, dst: Optional[StrPath] = None) -> Path:
         src = assets_path(path)
         if src.is_file():
             return shutil.copy(src, dst or path)
@@ -101,11 +103,15 @@ def dummy_api_key():
 
 
 @pytest.fixture
-def patch_apikey(dummy_api_key, mocker):
-    mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
-    mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
-    mocker.patch("wandb.wandb_lib.apikey.getpass", lambda x: dummy_api_key)
-    yield
+def patch_apikey(dummy_api_key):
+    with unittest.mock.patch.object(
+        wandb.sdk.lib.apikey, "isatty", return_value=True
+    ), unittest.mock.patch.object(
+        wandb.sdk.lib.apikey, "input", return_value=1
+    ), unittest.mock.patch.object(
+        wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key
+    ):
+        yield
 
 
 @pytest.fixture

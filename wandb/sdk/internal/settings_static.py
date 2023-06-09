@@ -1,5 +1,5 @@
 """static settings."""
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
@@ -18,6 +18,10 @@ class SettingsStatic:
     _stats_samples_to_average: int
     _stats_join_assets: bool
     _stats_neuron_monitor_config_path: Optional[str]
+    _stats_open_metrics_endpoints: Mapping[str, str]
+    _stats_open_metrics_filters: Union[
+        Sequence[str], Mapping[str, Mapping[str, str]], None
+    ]
     files_dir: str
     program_relpath: Optional[str]
     log_internal: str
@@ -59,6 +63,9 @@ class SettingsStatic:
     _flow_control_disabled: bool
     _flow_control_custom: bool
     disable_job_creation: bool
+    _async_upload_concurrency_limit: Optional[int]
+    _extra_http_headers: Optional[Mapping[str, str]]
+    job_source: Optional[str]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

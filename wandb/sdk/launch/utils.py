@@ -10,31 +10,25 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import click
 
 import wandb
+import wandb.docker as docker
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, Error
+from wandb.errors import CommError
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.github_reference import GitHubReference
 from wandb.sdk.launch.wandb_reference import WandbReference
 
+from .builder.templates._wandb_bootstrap import (
+    FAILED_PACKAGES_POSTFIX,
+    FAILED_PACKAGES_PREFIX,
+)
+
+FAILED_PACKAGES_REGEX = re.compile(
+    f"{re.escape(FAILED_PACKAGES_PREFIX)}(.*){re.escape(FAILED_PACKAGES_POSTFIX)}"
+)
+
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
-
-
-class LaunchError(Error):
-    """Raised when a known error occurs in wandb launch."""
-
-    pass
-
-
-class ExecutionError(Error):
-    """Generic execution exception."""
-
-    pass
-
-
-class SweepError(Error):
-    """Raised when a known error occurs with wandb sweeps."""
-
-    pass
+    from wandb.sdk.artifacts.artifact import Artifact
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -55,12 +49,13 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
 
 API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
+MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
+
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
-
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
@@ -143,12 +138,12 @@ def construct_launch_spec(
     resource: Optional[str],
     entry_point: Optional[List[str]],
     version: Optional[str],
-    parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
-    cuda: Optional[bool],
     run_id: Optional[str],
     repository: Optional[str],
+    author: Optional[str],
+    sweep_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -166,6 +161,8 @@ def construct_launch_spec(
         launch_config,
     )
     launch_spec["entity"] = entity
+    if author:
+        launch_spec["author"] = author
 
     launch_spec["project"] = project
     if name:
@@ -174,6 +171,8 @@ def construct_launch_spec(
         launch_spec["docker"] = {}
     if docker_image:
         launch_spec["docker"]["docker_image"] = docker_image
+    if sweep_id:  # all runs in a sweep have this set
+        launch_spec["sweep_id"] = sweep_id
 
     if "resource" not in launch_spec:
         launch_spec["resource"] = resource if resource else None
@@ -186,24 +185,14 @@ def construct_launch_spec(
     if "overrides" not in launch_spec:
         launch_spec["overrides"] = {}
 
-    if parameters:
-        override_args = util._user_args_to_dict(
-            launch_spec["overrides"].get("args", [])
-        )
-        base_args = override_args
-        launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
-    elif isinstance(launch_spec["overrides"].get("args"), list):
-        launch_spec["overrides"]["args"] = util._user_args_to_dict(
-            launch_spec["overrides"].get("args")
-        )
+    if not isinstance(launch_spec["overrides"].get("args", []), list):
+        raise LaunchError("override args must be a list of strings")
 
     if resource_args:
         launch_spec["resource_args"] = resource_args
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
-    if cuda is not None:
-        launch_spec["cuda"] = cuda
 
     if run_id is not None:
         launch_spec["run_id"] = run_id
@@ -275,8 +264,6 @@ def fetch_wandb_project_run_info(
             result["codePath"] = data.get("codePath")
             result["cudaVersion"] = data.get("cuda", None)
 
-    if result.get("args") is not None:
-        result["args"] = util._user_args_to_dict(result["args"])
     return result
 
 
@@ -456,49 +443,16 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git  # type: ignore
 
     _logger.info("Fetching git repo")
-    repo = git.Repo.init(dst_dir)
-    origin = repo.create_remote("origin", uri)
-    refspec = _make_refspec_from_version(version)
-    origin.fetch(refspec=refspec, depth=1)
-
-    if version is not None:
-        try:
-            repo.git.checkout(version)
-        except git.exc.GitCommandError as e:
-            raise LaunchError(
-                f"Unable to checkout version '{version}' of git repo {uri}"
-                "- please ensure that the version exists in the repo. "
-                f"Error: {e}"
-            ) from e
-    else:
-        if getattr(repo, "references", None) is not None:
-            branches = [ref.name for ref in repo.references]
-        else:
-            branches = []
-        # Check if main is in origin, else set branch to master
-        if "main" in branches or "origin/main" in branches:
-            version = "main"
-        else:
-            version = "master"
-
-        try:
-            repo.create_head(version, origin.refs[version])
-            repo.heads[version].checkout()
-            wandb.termlog(
-                f"{LOG_PREFIX}No git branch passed, defaulted to branch: {version}"
-            )
-        except (AttributeError, IndexError) as e:
-            raise LaunchError(
-                f"Unable to checkout default version '{version}' of git repo {uri} "
-                "- to specify a git version use: --git-version \n"
-                f"Error: {e}"
-            ) from e
-
-    repo.submodule_update(init=True, recursive=True)
-    return version
+    ref = GitHubReference.parse(uri)
+    if ref is None:
+        raise LaunchError(f"Unable to parse git uri: {uri}")
+    if version:
+        ref.update_ref(version)
+    ref.fetch(dst_dir)
+    assert version is not None or ref.ref is not None or ref.default_branch is not None
+    return version or ref.ref or ref.default_branch  # type: ignore
 
 
 def merge_parameters(
@@ -517,9 +471,17 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
     )
 
     _logger.info("Converting notebook to script")
-    new_name = fname.rstrip(".ipynb") + ".py"
+    new_name = fname.replace(".ipynb", ".py")
     with open(os.path.join(project_dir, fname)) as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
+        for cell in nb.cells:
+            if cell.cell_type == "code":
+                source_lines = cell.source.split("\n")
+                modified_lines = []
+                for line in source_lines:
+                    if not line.startswith("!"):
+                        modified_lines.append(line)
+                cell.source = "\n".join(modified_lines)
 
     exporter = nbconvert.PythonExporter()
     source, meta = exporter.from_notebook_node(nb)
@@ -531,7 +493,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> Optional["PublicArtifact"]:
+) -> Optional["Artifact"]:
     _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
@@ -577,7 +539,7 @@ def get_kube_context_and_api_client(
     kubernetes: Any,
     resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
-    config_file = resource_args.get("config_file", None)
+    config_file = resource_args.get("configFile", None)
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
         # context only exist in the non-incluster case
@@ -621,7 +583,7 @@ def resolve_build_and_registry_config(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     resolved_build_config: Dict[str, Any] = {}
     if build_config is None and default_launch_config is not None:
-        resolved_build_config = default_launch_config.get("build", {})
+        resolved_build_config = default_launch_config.get("builder", {})
     elif build_config is not None:
         resolved_build_config = build_config
     resolved_registry_config: Dict[str, Any] = {}
@@ -656,3 +618,83 @@ def make_name_dns_safe(name: str) -> str:
     # Actual length limit is 253, but we want to leave room for the generated suffix
     resp = resp[:200]
     return resp
+
+
+def warn_failed_packages_from_build_logs(log: str, image_uri: str) -> None:
+    match = FAILED_PACKAGES_REGEX.search(log)
+    if match:
+        wandb.termwarn(
+            f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
+        )
+
+
+def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
+    """Check if a specific image is already available.
+
+    Optionally raises an exception if the image is not found.
+    """
+    _logger.info("Checking if base image exists...")
+    try:
+        docker.run(["docker", "image", "inspect", docker_image])
+        return True
+    except (docker.DockerError, ValueError) as e:
+        if should_raise:
+            raise e
+        _logger.info("Base image not found. Generating new base image")
+        return False
+
+
+def pull_docker_image(docker_image: str) -> None:
+    """Pull the requested docker image."""
+    if docker_image_exists(docker_image):
+        # don't pull images if they exist already, eg if they are local images
+        return
+    try:
+        docker.run(["docker", "pull", docker_image])
+    except docker.DockerError as e:
+        raise LaunchError(f"Docker server returned error: {e}")
+
+
+def macro_sub(original: str, sub_dict: Dict[str, Optional[str]]) -> str:
+    """Substitute macros in a string.
+
+    Macros occur in the string in the ${macro} format. The macro names are
+    substituted with their values from the given dictionary. If a macro
+    is not found in the dictionary, it is left unchanged.
+
+    Args:
+        original: The string to substitute macros in.
+        sub_dict: A dictionary mapping macro names to their values.
+
+    Returns:
+        The string with the macros substituted.
+    """
+    return MACRO_REGEX.sub(
+        lambda match: str(sub_dict.get(match.group(1), match.group(0))), original
+    )
+
+
+def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
+    """Recursively substitute macros in a parsed JSON or YAML blob.
+
+    Macros occur in strings at leaves of the blob in the ${macro} format.
+    The macro names are substituted with their values from the given dictionary.
+    If a macro is not found in the dictionary, it is left unchanged.
+
+    Arguments:
+        source: The JSON or YAML blob to substitute macros in.
+        sub_dict: A dictionary mapping macro names to their values.
+
+    Returns:
+        The blob with the macros substituted.
+    """
+    if isinstance(source, str):
+        return macro_sub(source, sub_dict)
+    elif isinstance(source, list):
+        return [recursive_macro_sub(item, sub_dict) for item in source]
+    elif isinstance(source, dict):
+        return {
+            key: recursive_macro_sub(value, sub_dict) for key, value in source.items()
+        }
+    else:
+        return source

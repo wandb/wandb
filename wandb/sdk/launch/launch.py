@@ -11,13 +11,12 @@ from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder.build import construct_builder_args
+from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
-    ExecutionError,
-    LaunchError,
     construct_launch_spec,
     validate_launch_spec_source,
 )
@@ -26,7 +25,6 @@ _logger = logging.getLogger(__name__)
 
 
 def resolve_agent_config(  # noqa: C901
-    api: Api,
     entity: Optional[str],
     project: Optional[str],
     max_jobs: Optional[int],
@@ -47,14 +45,12 @@ def resolve_agent_config(  # noqa: C901
         Tuple[Dict[str, Any], Api]: The resolved config and api.
     """
     defaults = {
-        "entity": api.default_entity,
         "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
+        "max_schedulers": 1,
         "queues": [],
-        "api_key": api.api_key,
-        "base_url": api.settings("base_url"),
         "registry": {},
-        "build": {},
+        "builder": {},
         "runner": {},
     }
     user_set_project = False
@@ -79,14 +75,10 @@ def resolve_agent_config(  # noqa: C901
         user_set_project = True
     if os.environ.get("WANDB_ENTITY") is not None:
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
-    if os.environ.get("WANDB_API_KEY") is not None:
-        resolved_config.update({"api_key": os.environ.get("WANDB_API_KEY")})
     if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
         resolved_config.update(
             {"max_jobs": int(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))}
         )
-    if os.environ.get("WANDB_BASE_URL") is not None:
-        resolved_config.update({"base_url": os.environ.get("WANDB_BASE_URL")})
 
     if project is not None:
         resolved_config.update({"project": project})
@@ -107,19 +99,15 @@ def resolve_agent_config(  # noqa: C901
                 + " (expected str). Specify multiple queues with the 'queues' key"
             )
 
-    if (
-        resolved_config["entity"] != defaults["entity"]
-        or resolved_config["api_key"] != defaults["api_key"]
-        or resolved_config["base_url"] != defaults["base_url"]
-    ):
-        settings = dict(
-            api_key=resolved_config["api_key"],
-            base_url=resolved_config["base_url"],
-            project=resolved_config["project"],
-            entity=resolved_config["entity"],
-        )
-        api = Api(default_settings=settings)
+    keys = ["project", "entity"]
+    settings = {
+        k: resolved_config.get(k) for k in keys if resolved_config.get(k) is not None
+    }
 
+    api = Api(default_settings=settings)
+
+    if resolved_config.get("entity") is None:
+        resolved_config.update({"entity": api.default_entity})
     if user_set_project:
         wandb.termwarn(
             "Specifying a project for the launch agent is deprecated. Please use queues found in the Launch application at https://wandb.ai/launch."
@@ -145,12 +133,10 @@ def _run(
     docker_image: Optional[str],
     entry_point: Optional[List[str]],
     version: Optional[str],
-    parameters: Optional[Dict[str, Any]],
     resource: str,
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
-    cuda: Optional[bool],
     api: Api,
     run_id: Optional[str],
     repository: Optional[str],
@@ -167,12 +153,11 @@ def _run(
         resource,
         entry_point,
         version,
-        parameters,
         resource_args,
         launch_config,
-        cuda,
         run_id,
         repository,
+        author=None,
     )
     validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)
@@ -207,7 +192,6 @@ def run(
     job: Optional[str] = None,
     entry_point: Optional[List[str]] = None,
     version: Optional[str] = None,
-    parameters: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
     resource: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
@@ -216,7 +200,6 @@ def run(
     docker_image: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
-    cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
 ) -> AbstractRun:
@@ -229,8 +212,6 @@ def run(
     entry_point: Entry point to run within the project. Defaults to using the entry point used
         in the original run for wandb URIs, or main.py for git repository URIs.
     version: For Git-based projects, either a commit hash or a branch name.
-    parameters: Parameters (dictionary) for the entry point command. Defaults to using the
-        the parameters used to run the original run.
     name: Name run under which to launch the run.
     resource: Execution backend for the run.
     resource_args: Resource related arguments for launching runs onto a remote backend.
@@ -246,7 +227,6 @@ def run(
         asynchronous runs launched via this method will be terminated. If
         ``synchronous`` is True and the run fails, the current process will
         error out as well.
-    cuda: Whether to build a CUDA-enabled docker image or not
     run_id: ID for the run (To ultimately replace the :name: field)
     repository: string name of repository path for remote registry
 
@@ -284,12 +264,10 @@ def run(
         docker_image=docker_image,
         entry_point=entry_point,
         version=version,
-        parameters=parameters,
         resource=resource,
         resource_args=resource_args,
         launch_config=config,
         synchronous=synchronous,
-        cuda=cuda,
         api=api,
         run_id=run_id,
         repository=repository,

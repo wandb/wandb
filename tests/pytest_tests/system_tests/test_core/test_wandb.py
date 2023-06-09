@@ -52,7 +52,10 @@ def mock_sagemaker():
             "TRAINING_JOB_NAME": "sage",
             "CURRENT_HOST": "maker",
         },
-    ), unittest.mock.patch("wandb.util.os.path.exists", exists,), unittest.mock.patch(
+    ), unittest.mock.patch(
+        "wandb.util.os.path.exists",
+        exists,
+    ), unittest.mock.patch(
         "builtins.open",
         magic_factory(open),
         create=True,
@@ -427,6 +430,15 @@ def test_log_step_committed_same_dropped(relay_server, wandb_init):
     assert history["cool"][1] == 2
     # filter all the columns that don't start with `_`
     assert len(history.columns) == 1
+
+
+def test_log_empty_string(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.log(dict(cool=""))
+        run.finish()
+
+    assert relay.context.history["cool"][0] == ""
 
 
 # ----------------------------------

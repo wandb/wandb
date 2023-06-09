@@ -1,5 +1,5 @@
 import logging
-import multiprocessing as mp
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, List
 
@@ -115,6 +115,47 @@ class GPUMemoryAllocated:
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
             memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)  # type: ignore
             memory_allocated.append(memory_info.used / memory_info.total * 100)
+        self.samples.append(memory_allocated)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        if not self.samples:
+            return {}
+        stats = {}
+        device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
+        for i in range(device_count):
+            samples = [sample[i] for sample in self.samples]
+            aggregate = aggregate_mean(samples)
+            stats[self.name.format(i)] = aggregate
+
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
+            if gpu_in_use_by_this_process(handle, self.pid):
+                stats[self.name.format(f"process.{i}")] = aggregate
+
+        return stats
+
+
+class GPUMemoryAllocatedBytes:
+    """GPU memory allocated in bytes for each GPU."""
+
+    # name = "memory_allocated"
+    name = "gpu.{}.memoryAllocatedBytes"
+    # samples: Deque[Tuple[datetime.datetime, float]]
+    samples: "Deque[List[float]]"
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.samples = deque([])
+
+    def sample(self) -> None:
+        memory_allocated = []
+        device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
+            memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)  # type: ignore
+            memory_allocated.append(memory_info.used)
         self.samples.append(memory_allocated)
 
     def clear(self) -> None:
@@ -309,11 +350,12 @@ class GPU:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
             GPUMemoryAllocated(settings._stats_pid),
+            GPUMemoryAllocatedBytes(settings._stats_pid),
             GPUMemoryUtilization(settings._stats_pid),
             GPUUtilization(settings._stats_pid),
             GPUTemperature(settings._stats_pid),

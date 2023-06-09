@@ -423,7 +423,7 @@ def main(argv):  # noqa: C901
     # reset environment
     os.environ["WANDB_ENTITY"] = settings_entity
     os.environ["WANDB_BASE_URL"] = settings_base_url
-    os.environ
+
     if env_project is None:
         del os.environ["WANDB_PROJECT"]
     else:

@@ -114,14 +114,20 @@ def mock_server(mocker):
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
     sdk_path = "wandb.sdk"
+    # From previous wandb_gql transport library.
     mocker.patch("wandb_gql.transport.requests.requests", mock)
+
+    mocker.patch("wandb.sdk.artifacts.artifact.requests", mock)
+    mocker.patch(
+        "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.requests", mock
+    )
+    mocker.patch("wandb.wandb_sdk.lib.gql_request.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
-    mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
     mocker.patch("azure.core.pipeline.transport._requests_basic.requests", mock)
     print("Patched requests everywhere", os.getpid())
     return mock
@@ -263,6 +269,43 @@ def artifact(
     }
 
 
+def artifact2(
+    ctx,
+    _id=None,
+    entity="FAKE_ENTITY",
+    project="FAKE_PROJECT",
+    name="mnist",
+    _type="dataset",
+):
+    return {
+        "id": _id or str(ctx["page_count"]),
+        "artifactSequence": {
+            "project": {
+                "entityName": entity,
+                "name": project,
+            },
+            "name": name,
+        },
+        "versionIndex": ctx["page_count"],
+        "artifactType": {
+            "name": _type,
+        },
+        "description": None,
+        "metadata": None,
+        "aliases": [
+            {
+                "artifactCollectionName": name,
+                "alias": "v%i" % ctx["page_count"],
+            },
+        ],
+        "state": "COMMITTED",
+        "commitHash": "FAKE_HASH",
+        "fileCount": 10,
+        "createdAt": "2023-05-17T00:00:00",
+        "updatedAt": "2023-05-17T00:00:00",
+    }
+
+
 def paginated(node, ctx, extra={}):
     next_page = False
     ctx["page_count"] += 1
@@ -372,7 +415,6 @@ class HttpException(Exception):
 
 
 class SnoopRelay:
-
     _inject_count: int
     _inject_time: float
 
@@ -383,7 +425,6 @@ class SnoopRelay:
     def relay(self, func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-
             # Normal mockserver mode, disable live relay and call next function
             if not os.environ.get("MOCKSERVER_RELAY"):
                 return func(*args, **kwargs)
@@ -1209,6 +1250,24 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "query ProbeServerCreateArtifactFileSpecInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "CreateArtifactFileSpecInputInfoType": {
+                            "inputFields": [
+                                {"name": "artifactID"},
+                                {"name": "name"},
+                                {"name": "md5"},
+                                {"name": "mimetype"},
+                                {"name": "artifactManifestID"},
+                                {"name": "uploadPartsInput"},
+                            ]
+                        },
+                    }
+                }
+            )
+
         if "mutation CreateArtifactFiles" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create_files(variables=body["variables"])
@@ -1400,16 +1459,16 @@ def create_app(user_ctx=None):
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {key: artifacts}}}}
         if "query RunInputArtifacts(" in body["query"]:
-            artifacts = paginated(artifact(ctx), ctx)
+            artifacts = paginated(artifact2(ctx), ctx)
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {"inputArtifacts": artifacts}}}}
         if "query RunOutputArtifacts(" in body["query"]:
-            artifacts = paginated(artifact(ctx), ctx)
+            artifacts = paginated(artifact2(ctx), ctx)
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {"outputArtifacts": artifacts}}}}
         if "query Artifacts(" in body["query"]:
             version = "v%i" % ctx["page_count"]
-            artifacts = paginated(artifact(ctx), ctx, {"version": version})
+            artifacts = paginated(artifact2(ctx), ctx, {"version": version})
             artifacts["totalCount"] = ctx["page_times"]
             return {
                 "data": {
@@ -1424,9 +1483,7 @@ def create_app(user_ctx=None):
                 }
             }
         for query_name in [
-            "Artifact",
             "ArtifactType",
-            "ArtifactWithCurrentManifest",
             "ArtifactUsedBy",
             "ArtifactCreatedBy",
         ]:
@@ -1478,6 +1535,32 @@ def create_app(user_ctx=None):
                 if "model" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 6, "name": "model"}
                 return {"data": {"project": {"artifact": art}}}
+        if "query ArtifactByName(" in body["query"]:
+            _type = "dataset"
+            if "job" in body["variables"]["name"]:
+                _type = "job"
+            art = artifact2(
+                ctx,
+                _id="QXJ0aWZhY3Q6NTI1MDk4",
+                entity=body["variables"]["entityName"],
+                project=body["variables"]["projectName"],
+                name=body["variables"]["name"].split(":")[0],
+                _type=_type,
+            )
+            return {"data": {"project": {"artifact": art}}}
+        if (
+            "query ArtifactByID(" in body["query"]
+            or "query ArtifactByIDShort(" in body["query"]
+        ):
+            _id = body["variables"]["id"]
+            art = artifact2(ctx, _id=_id)
+            art["currentManifest"] = {
+                "file": {
+                    "directUrl": base_url
+                    + f"/storage?file=wandb_manifest.json&id={_id}"
+                },
+            }
+            return {"data": {"artifact": art}}
         if "query ArtifactManifest(" in body["query"]:
             if ART_EMU:
                 res = ART_EMU.query(
@@ -1659,7 +1742,6 @@ def create_app(user_ctx=None):
                 c["alerts"].append(adict)
             return {"data": {"notifyScriptableRunAlert": {"success": True}}}
         if "query SearchUsers" in body["query"]:
-
             return {
                 "data": {
                     "users": {

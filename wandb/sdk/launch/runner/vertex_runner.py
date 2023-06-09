@@ -17,7 +17,8 @@ from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.abstract import AbstractBuilder
 from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError, run_shell
+from ..errors import LaunchError
+from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -137,9 +138,7 @@ class VertexRunner(AbstractRunner):
                 launch_project,
                 entry_point,
             )
-
-        if not self.ack_run_queue_item(launch_project):
-            return None
+        launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 

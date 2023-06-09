@@ -191,6 +191,11 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_run(self, record: Record) -> None:
+        if self._settings._offline:
+            self._run_proto = record.run
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(record.run)
+            self._respond_result(result)
         self._dispatch_record(record)
 
     def handle_stats(self, record: Record) -> None:
@@ -624,7 +629,12 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_attach(self, record: Record) -> None:
-        self._dispatch_record(record)
+        result = proto_util._result_from_record(record)
+        attach_id = record.request.attach.attach_id
+        assert attach_id
+        assert self._run_proto
+        result.response.attach_response.run.CopyFrom(self._run_proto)
+        self._respond_result(result)
 
     def handle_request_log_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
@@ -674,6 +684,8 @@ class HandleManager:
         run_start = record.request.run_start
         assert run_start
         assert run_start.run
+
+        self._run_proto = run_start.run
 
         self._run_start_time = run_start.run.start_time.ToMicroseconds() / 1e6
 
@@ -840,6 +852,8 @@ class HandleManager:
 
     def finish(self) -> None:
         logger.info("shutting down handler")
+        if self._system_monitor is not None:
+            self._system_monitor.finish()
         if self._tb_watcher:
             self._tb_watcher.finish()
         # self._context_keeper._debug_print_orphans()

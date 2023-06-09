@@ -5,7 +5,7 @@ import pytest
 import wandb
 from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.wandb_artifacts import ArtifactNotLoggedError
+from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -232,93 +232,93 @@ def test_artifact_references_internal(
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         run = wandb.init(settings=test_settings)
-        t1 = wandb.Table(columns=[], data=[])
         art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
-        e = art.add(t1, "t1")
 
+        t1 = wandb.Table(columns=[], data=[])
+        e = art.add(t1, "t1")
         with pytest.raises(ValueError):
             e.ref_target()
 
-        # These properties should be valid both before and after logging
+        # These getters should be valid both before and after logging
         testable_getters_valid = [
             "id",
-            "entity",
-            "project",
-            "manifest",
-            "digest",
-            "type",
             "name",
-            "state",
-            "size",
+            "source_name",
+            "type",
             "description",
             "metadata",
+            "distributed_id",
+            "incremental",
+            "use_as",
+            "state",
+            "manifest",
+            "digest",
+            "size",
+        ]
+        # These getters should be valid only after logging
+        testable_getters_invalid = [
+            "entity",
+            "project",
+            "qualified_name",
+            "version",
+            "source_entity",
+            "source_project",
+            "source_qualified_name",
+            "source_version",
+            "aliases",
+            "commit_hash",
+            "file_count",
+            "created_at",
+            "updated_at",
         ]
 
-        # These are valid even before waiting!
-        testable_getters_always_valid = ["distributed_id"]
-
-        # These properties should be valid only after logging
-        testable_getters_invalid = ["version", "commit_hash", "aliases"]
-
         # These setters should be valid both before and after logging
-        testable_setters_valid = ["description", "metadata"]
-
-        # These are valid even before waiting!
-        testable_setters_always_valid = ["distributed_id"]
-
+        testable_setters_valid = [
+            "description",
+            "metadata",
+            "distributed_id",
+        ]
         # These setters should be valid only after logging
         testable_setters_invalid = ["aliases"]
+        setter_data = {"metadata": {}, "aliases": []}
 
         # These methods should be valid both before and after logging
-        testable_methods_valid = []
-
+        testable_methods_valid = ["finalize", "is_draft"]
         # These methods should be valid only after logging
         testable_methods_invalid = [
-            "used_by",
-            "logged_by",
             "get_path",
             "get",
             "download",
             "checkout",
             "verify",
             "delete",
+            "used_by",
+            "logged_by",
             "json_encode",
         ]
-
-        setter_data = {"metadata": {}}
-        params = {"get_path": ["t1.table.json"], "get": ["t1"]}
-
+        params = {"get_path": ["t1.table.json"], "get": ["t1"], "delete": [True]}
         # these are failures of mocking
         special_errors = {
-            "save": wandb.errors.CommError,
-            "delete": wandb.errors.CommError,
             "verify": ValueError,
-            "logged_by": KeyError,
         }
 
-        for valid_getter in testable_getters_valid + testable_getters_always_valid:
+        for valid_getter in testable_getters_valid:
             _ = getattr(art, valid_getter)
-
         for invalid_getter in testable_getters_invalid:
             with pytest.raises(ArtifactNotLoggedError):
                 _ = getattr(art, invalid_getter)
 
-        for valid_setter in testable_setters_valid + testable_setters_always_valid:
+        for valid_setter in testable_setters_valid:
             setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
-
         for invalid_setter in testable_setters_invalid:
             with pytest.raises(ArtifactNotLoggedError):
                 setattr(
                     art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
                 )
 
-        # Uncomment if there are ever entries in testable_methods_valid
-        # leaving commented for now since test coverage wants all lines to
-        # run
-        # for valid_method in testable_methods_valid:
-        #     attr_method = getattr(art, valid_method)
-        #     _ = attr_method(*params.get(valid_method, []))
-
+        for valid_method in testable_methods_valid:
+            attr_method = getattr(art, valid_method)
+            _ = attr_method(*params.get(valid_method, []))
         for invalid_method in testable_methods_invalid:
             attr_method = getattr(art, invalid_method)
             with pytest.raises(ArtifactNotLoggedError):
@@ -327,18 +327,27 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
         # THE LOG
         run.log_artifact(art)
 
-        for getter in testable_getters_valid + testable_getters_invalid:
+        for valid_getter in testable_getters_valid:
+            _ = getattr(art, valid_getter)
+        for invalid_getter in testable_getters_invalid:
             with pytest.raises(ArtifactNotLoggedError):
-                _ = getattr(art, getter)
+                _ = getattr(art, invalid_getter)
 
-        for setter in testable_setters_valid + testable_setters_invalid:
+        for valid_setter in testable_setters_valid:
+            setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
+        for invalid_setter in testable_setters_invalid:
             with pytest.raises(ArtifactNotLoggedError):
-                setattr(art, setter, setter_data.get(setter, setter))
+                setattr(
+                    art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
+                )
 
-        for method in testable_methods_valid + testable_methods_invalid:
-            attr_method = getattr(art, method)
+        for valid_method in testable_methods_valid:
+            attr_method = getattr(art, valid_method)
+            _ = attr_method(*params.get(valid_method, []))
+        for invalid_method in testable_methods_invalid:
+            attr_method = getattr(art, invalid_method)
             with pytest.raises(ArtifactNotLoggedError):
-                _ = attr_method(*params.get(method, []))
+                _ = attr_method(*params.get(invalid_method, []))
 
         # THE ALL IMPORTANT WAIT
         art.wait()

@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import base64
 import datetime
 import json
@@ -29,23 +30,24 @@ from typing import (
 import click
 import requests
 import yaml
-from wandb_gql import Client, gql  # type: ignore
-from wandb_gql.client import RetryError  # type: ignore
-from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
 
 import wandb
 from wandb import __version__, env, util
-from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
+from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
-from ..lib.git import GitRepo
+from ..lib.gitlib import GitRepo
 from . import context
-from .progress import Progress
+from .progress import AsyncProgress, Progress
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,7 @@ if TYPE_CHECKING:
         md5: str
         mimetype: Optional[str]
         artifactManifestID: Optional[str]  # noqa: N815
+        uploadPartsInput: Optional[List[Dict[str, object]]]  # noqa: N815
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
@@ -72,10 +75,33 @@ if TYPE_CHECKING:
         displayName: str  # noqa: N815
         uploadUrl: Optional[str]  # noqa: N815
         uploadHeaders: Sequence[str]  # noqa: N815
+        uploadMultipartUrls: "UploadPartsResponse"  # noqa: N815
+        storagePath: str  # noqa: N815
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
+
+    class UploadPartsResponse(TypedDict):
+        uploadUrlParts: List["UploadUrlParts"]  # noqa: N815
+        uploadID: str  # noqa: N815
+
+    class UploadUrlParts(TypedDict):
+        partNumber: int  # noqa: N815
+        uploadUrl: str  # noqa: N815
+
+    class CompleteMultipartUploadArtifactInput(TypedDict):
+        """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
+
+        completeMultipartAction: str  # noqa: N815
+        completedParts: Dict[int, str]  # noqa: N815
+        artifactID: str  # noqa: N815
+        storagePath: str  # noqa: N815
+        uploadID: str  # noqa: N815
+        md5: str
+
+    class CompleteMultipartUploadArtifactResponse(TypedDict):
+        digest: str
 
     class DefaultSettings(TypedDict):
         section: str
@@ -86,16 +112,41 @@ if TYPE_CHECKING:
         api_key: Optional[str]
         entity: Optional[str]
         project: Optional[str]
+        _extra_http_headers: Optional[Mapping[str, str]]
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
 
+# This funny if/else construction is the simplest thing I've found that
+# works at runtime, satisfies Mypy, and gives autocomplete in VSCode:
+if TYPE_CHECKING:
+    import httpx
+else:
+    httpx = util.get_module("httpx")
+
 # class _MappingSupportsCopy(Protocol):
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
+
+
+def check_httpx_exc_retriable(exc: Exception) -> bool:
+    retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
+    return (
+        isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
+        or (
+            isinstance(exc, httpx.HTTPStatusError)
+            and exc.response.status_code in retriable_codes
+        )
+        or (
+            isinstance(exc, httpx.HTTPStatusError)
+            and exc.response.status_code == 400
+            and "x-amz-meta-md5" in exc.request.headers
+            and "RequestTimeout" in str(exc.response.content)
+        )
+    )
 
 
 class _ThreadLocalData(threading.local):
@@ -153,6 +204,7 @@ class Api:
             "api_key": None,
             "entity": None,
             "project": None,
+            "_extra_http_headers": None,
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
@@ -169,21 +221,41 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+
+        # todo: remove this hacky hack after settings refactor is complete
+        #  keeping this code here to limit scope and so that it is easy to remove later
+        extra_http_headers = self.settings(
+            "_extra_http_headers"
+        ) or wandb.sdk.wandb_settings._str_as_json(
+            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        )
+
+        auth = None
+        if _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
+        extra_http_headers.update(_thread_local_api_settings.headers or {})
         self.client = Client(
-            transport=RequestsHTTPTransport(
+            transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                    **extra_http_headers,
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key or ""),
+                auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
+                cookies=_thread_local_api_settings.cookies,
             )
         )
+
+        # httpx is an optional dependency, so we lazily instantiate the client
+        # only when we need it
+        self._async_httpx_client: Optional["httpx.AsyncClient"] = None
+
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
             self.execute,
@@ -200,11 +272,17 @@ class Api:
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
+        self.upload_multipart_file_chunk_retry = normalize_exceptions(
+            retry.retriable(retry_timedelta=retry_timedelta)(
+                self.upload_multipart_file_chunk
+            )
+        )
         self._client_id_mapping: Dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
         self.query_types: Optional[List[str]] = None
+        self.mutation_types: Optional[List[str]] = None
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
@@ -230,7 +308,7 @@ class Api:
 
     def reauth(self) -> None:
         """Ensure the current api key is set in the transport."""
-        self.client.transport.auth = ("api", self.api_key or "")
+        self.client.transport.session.auth = ("api", self.api_key or "")
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
@@ -241,28 +319,12 @@ class Api:
         try:
             return self.client.execute(*args, **kwargs)  # type: ignore
         except requests.exceptions.HTTPError as err:
-            res = err.response
-            logger.error(f"{res.status_code} response executing GraphQL.")
-            logger.error(res.text)
-            self.display_gorilla_error_if_found(res)
+            response = err.response
+            logger.error(f"{response.status_code} response executing GraphQL.")
+            logger.error(response.text)
+            for error in parse_backend_error_messages(response):
+                wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
-
-    def display_gorilla_error_if_found(self, res: requests.Response) -> None:
-        try:
-            data = res.json()
-        except ValueError:
-            return
-
-        if "errors" in data and isinstance(data["errors"], list):
-            for err in data["errors"]:
-                # Our tests and potentially some api endpoints return a string error?
-                if isinstance(err, str):
-                    err = {"message": err}
-                if not err.get("message"):
-                    continue
-                wandb.termerror(
-                    "Error while calling W&B API: {} ({})".format(err["message"], res)
-                )
 
     def disabled(self) -> Union[str, bool]:
         return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)  # type: ignore
@@ -280,6 +342,8 @@ class Api:
 
     @property
     def api_key(self) -> Optional[str]:
+        if _thread_local_api_settings.api_key:
+            return _thread_local_api_settings.api_key
         auth = requests.utils.get_netrc_auth(self.api_url)
         key = None
         if auth:
@@ -409,10 +473,13 @@ class Api:
         return project, run
 
     @normalize_exceptions
-    def server_info_introspection(self) -> Tuple[List[str], List[str]]:
+    def server_info_introspection(self) -> Tuple[List[str], List[str], List[str]]:
         query_string = """
            query ProbeServerCapabilities {
                QueryType: __type(name: "Query") {
+                   ...fieldData
+                }
+                MutationType: __type(name: "Mutation") {
                    ...fieldData
                 }
                ServerInfoType: __type(name: "ServerInfo") {
@@ -426,7 +493,11 @@ class Api:
                 }
             }
         """
-        if self.query_types is None or self.server_info_types is None:
+        if (
+            self.query_types is None
+            or self.mutation_types is None
+            or self.server_info_types is None
+        ):
             query = gql(query_string)
             res = self.gql(query)
 
@@ -434,11 +505,15 @@ class Api:
                 field.get("name", "")
                 for field in res.get("QueryType", {}).get("fields", [{}])
             ]
+            self.mutation_types = [
+                field.get("name", "")
+                for field in res.get("MutationType", {}).get("fields", [{}])
+            ]
             self.server_info_types = [
                 field.get("name", "")
                 for field in res.get("ServerInfoType", {}).get("fields", [{}])
             ]
-        return self.query_types, self.server_info_types
+        return self.query_types, self.server_info_types, self.mutation_types
 
     @normalize_exceptions
     def server_settings_introspection(self) -> None:
@@ -506,6 +581,35 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
+    def fail_run_queue_item_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "failRunQueueItem" in mutations
+
+    @normalize_exceptions
+    def fail_run_queue_item(self, run_queue_item_id: str) -> bool:
+        mutation = gql(
+            """
+        mutation failRunQueueItem($runQueueItemId: ID!) {
+            failRunQueueItem(
+                input: {
+                    runQueueItemId: $runQueueItemId
+                }
+            ) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "runQueueItemId": run_queue_item_id,
+            },
+        )
+        result: bool = response["failRunQueueItem"]["success"]
+        return result
+
+    @normalize_exceptions
     def viewer(self) -> Dict[str, Any]:
         query = gql(
             """
@@ -533,7 +637,7 @@ class Api:
         if self._max_cli_version is not None:
             return self._max_cli_version
 
-        query_types, server_info_types = self.server_info_introspection()
+        query_types, server_info_types, _ = self.server_info_introspection()
         cli_version_exists = (
             "serverInfo" in query_types and "cliVersionInfo" in server_info_types
         )
@@ -579,7 +683,7 @@ class Api:
             _CLI_QUERY_
         }
         """
-        query_types, server_info_types = self.server_info_introspection()
+        query_types, server_info_types, _ = self.server_info_introspection()
 
         cli_version_exists = (
             "serverInfo" in query_types and "cliVersionInfo" in server_info_types
@@ -1006,6 +1110,32 @@ class Api:
         return result
 
     @normalize_exceptions
+    def entity_is_team(self, entity: str) -> bool:
+        query = gql(
+            """
+            query EntityIsTeam($entity: String!) {
+                entity(name: $entity) {
+                    id
+                    isTeam
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+        }
+
+        res = self.gql(query, variable_values)
+        if res.get("entity") is None:
+            raise Exception(
+                f"Error fetching entity {entity} "
+                "check that you have access to this entity"
+            )
+
+        is_team: bool = res["entity"]["isTeam"]
+        return is_team
+
+    @normalize_exceptions
     def get_project_run_queues(self, entity: str, project: str) -> List[Dict[str, str]]:
         query = gql(
             """
@@ -1028,10 +1158,19 @@ class Api:
 
         res = self.gql(query, variable_values)
         if res.get("project") is None:
-            raise Exception(
-                f"Error fetching run queues for {entity}/{project} "
-                "check that you have access to this entity and project"
-            )
+            # circular dependency: (LAUNCH_DEFAULT_PROJECT = model-registry)
+            if project == "model-registry":
+                msg = (
+                    f"Error fetching run queues for {entity} "
+                    "check that you have access to this entity and project"
+                )
+            else:
+                msg = (
+                    f"Error fetching run queues for {entity}/{project} "
+                    "check that you have access to this entity and project"
+                )
+
+            raise Exception(msg)
 
         project_run_queues: List[Dict[str, str]] = res["project"]["runQueues"]
         return project_run_queues
@@ -1890,7 +2029,16 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)  # type: ignore
+        auth = None
+        if _thread_local_api_settings.cookies is None:
+            auth = ("user", self.api_key or "")
+        response = requests.get(
+            url,
+            auth=auth,
+            cookies=_thread_local_api_settings.cookies or {},
+            headers=_thread_local_api_settings.headers or {},
+            stream=True,
+        )
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 
@@ -1958,6 +2106,53 @@ class Api:
             else:
                 raise requests.exceptions.ConnectionError(e.message)
 
+    def upload_multipart_file_chunk(
+        self,
+        url: str,
+        upload_chunk: bytes,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> Optional[requests.Response]:
+        """Upload a file chunk to S3 with failure resumption.
+
+        Arguments:
+            url: The url to download
+            upload_chunk: The path to the file you want to upload
+            extra_headers: A dictionary of extra headers to send with the request
+
+        Returns:
+            The `requests` library response object
+        """
+        try:
+            response = self._upload_file_session.put(
+                url, data=upload_chunk, headers=extra_headers
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"upload_file exception {url}: {e}")
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error(f"upload_file request headers: {request_headers}")
+            response_content = e.response.content if e.response is not None else ""
+            logger.error(f"upload_file response body: {response_content}")
+            status_code = e.response.status_code if e.response is not None else 0
+            # S3 reports retryable request timeouts out-of-band
+            is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
+                response_content
+            )
+            # Retry errors from cloud storage or local network issues
+            if (
+                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
+                or isinstance(
+                    e,
+                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+                )
+                or is_aws_retryable
+            ):
+                _e = retry.TransientError(exc=e)
+                raise _e.with_traceback(sys.exc_info()[2])
+            else:
+                wandb._sentry.reraise(e)
+        return response
+
     def upload_file(
         self,
         url: str,
@@ -2020,9 +2215,107 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                util.sentry_reraise(e)
+                wandb._sentry.reraise(e)
 
         return response
+
+    async def upload_file_async(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """An async not-quite-equivalent version of `upload_file`.
+
+        Differences from `upload_file`:
+            - This method doesn't implement Azure uploads. (The Azure SDK supports
+              async, but it's nontrivial to use it here.) If the upload looks like
+              it's destined for Azure, this method will delegate to the sync impl.
+            - Consequently, this method doesn't return the response object.
+              (Because it might fall back to the sync impl, it would sometimes
+               return a `requests.Response` and sometimes an `httpx.Response`.)
+            - This method doesn't wrap retryable errors in `TransientError`.
+              It leaves that determination to the caller.
+        """
+        must_delegate = False
+
+        if httpx is None:
+            wandb.termwarn(  # type: ignore[unreachable]
+                "async file-uploads require `pip install wandb[async]`; falling back to sync implementation",
+                repeat=False,
+            )
+            must_delegate = True
+
+        if extra_headers is not None and "x-ms-blob-type" in extra_headers:
+            wandb.termwarn(
+                "async file-uploads don't support Azure; falling back to sync implementation",
+                repeat=False,
+            )
+            must_delegate = True
+
+        if must_delegate:
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self.upload_file_retry(
+                    url=url,
+                    file=file,
+                    callback=callback,
+                    extra_headers=extra_headers,
+                ),
+            )
+            return
+
+        if self._async_httpx_client is None:
+            self._async_httpx_client = httpx.AsyncClient()
+
+        progress = AsyncProgress(Progress(file, callback=callback))
+
+        try:
+            response = await self._async_httpx_client.put(
+                url=url,
+                content=progress,
+                headers={
+                    "Content-Length": str(len(progress)),
+                    **(extra_headers if extra_headers is not None else {}),
+                },
+            )
+            response.raise_for_status()
+        except Exception as e:
+            progress.rewind()
+            logger.error(f"upload_file_async exception {url}: {e}")
+            if isinstance(e, httpx.RequestError):
+                logger.error(f"upload_file_async request headers: {e.request.headers}")
+            if isinstance(e, httpx.HTTPStatusError):
+                logger.error(f"upload_file_async response body: {e.response.content!r}")
+            raise
+
+    async def upload_file_retry_async(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        num_retries: int = 100,
+    ) -> None:
+        backoff = retry.FilteredBackoff(
+            filter=check_httpx_exc_retriable,
+            wrapped=retry.ExponentialBackoff(
+                initial_sleep=datetime.timedelta(seconds=1),
+                max_sleep=datetime.timedelta(seconds=60),
+                max_retries=num_retries,
+                timeout_at=datetime.datetime.now() + datetime.timedelta(days=7),
+            ),
+        )
+
+        await retry.retry_async(
+            backoff=backoff,
+            fn=self.upload_file_async,
+            url=url,
+            file=file,
+            callback=callback,
+            extra_headers=extra_headers,
+        )
 
     @normalize_exceptions
     def register_agent(
@@ -2081,7 +2374,7 @@ class Api:
 
     def agent_heartbeat(
         self, agent_id: str, metrics: dict, run_states: dict
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
         Arguments:
@@ -2131,7 +2424,9 @@ class Api:
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            result: List[str] = json.loads(response["agentHeartbeat"]["commands"])
+            result: List[Dict[str, Any]] = json.loads(
+                response["agentHeartbeat"]["commands"]
+            )
             return result
 
     @staticmethod
@@ -2151,7 +2446,8 @@ class Api:
         config = dict(config)
 
         if "parameters" not in config:
-            raise ValueError("sweep config must have a parameters section")
+            # still shows an anaconda warning, but doesn't error
+            return config
 
         for parameter_name in config["parameters"]:
             parameter = config["parameters"][parameter_name]
@@ -2270,21 +2566,29 @@ class Api:
 
         config = self._validate_config_and_fill_distribution(config)
 
+        # Silly, but attr-dicts like EasyDicts don't serialize correctly to yaml.
+        # This sanitizes them with a round trip pass through json to get a regular dict.
+        config_str = yaml.dump(json.loads(json.dumps(config)))
+
         err: Optional[Exception] = None
         for mutation in mutations:
             try:
+                variables = {
+                    "id": obj_id,
+                    "config": config_str,
+                    "description": config.get("description"),
+                    "entityName": entity or self.settings("entity"),
+                    "projectName": project or self.settings("project"),
+                    "controller": controller,
+                    "launchScheduler": launch_scheduler,
+                    "scheduler": scheduler,
+                }
+                if state:
+                    variables["state"] = state
+
                 response = self.gql(
                     mutation,
-                    variable_values={
-                        "id": obj_id,
-                        "config": yaml.dump(config),
-                        "description": config.get("description"),
-                        "entityName": entity or self.settings("entity"),
-                        "projectName": project or self.settings("project"),
-                        "controller": controller,
-                        "launchScheduler": launch_scheduler,
-                        "scheduler": scheduler,
-                    },
+                    variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:
@@ -2325,7 +2629,7 @@ class Api:
         )
 
         response = self.gql(mutation, variable_values={})
-        key: str = response["createAnonymousEntity"]["apiKey"]["name"]
+        key: str = str(response["createAnonymousEntity"]["apiKey"]["name"])
         return key
 
     @staticmethod
@@ -2672,13 +2976,13 @@ class Api:
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            %s
-            %s
-            %s
-            %s
-            %s
-        ) {
-            createArtifact(input: {
+            {}
+            {}
+            {}
+            {}
+            {}
+        ) {{
+            createArtifact(input: {{
                 artifactTypeName: $artifactTypeName,
                 artifactCollectionNames: $artifactCollectionNames,
                 entityName: $entityName,
@@ -2690,35 +2994,31 @@ class Api:
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                %s
-                %s
-                %s
-                %s
-                %s
-            }) {
-                artifact {
+                {}
+                {}
+                {}
+                {}
+                {}
+            }}) {{
+                artifact {{
                     id
                     digest
                     state
-                    aliases {
+                    aliases {{
                         artifactCollectionName
                         alias
-                    }
-                    artifactSequence {
+                    }}
+                    artifactSequence {{
                         id
-                        latestArtifact {
+                        latestArtifact {{
                             id
                             versionIndex
-                        }
-                    }
-                }
-            }
-        }
-        """
-            %
-            # For backwards compatibility with older backends that don't support
-            # distributed writers or digest deduplication.
-            (
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        """.format(
                 "$historyStep: Int64!,"
                 if can_handle_history and history_step not in [0, None]
                 else "",
@@ -2808,6 +3108,50 @@ class Api:
         )
         return response
 
+    def complete_multipart_upload_artifact(
+        self,
+        artifact_id: str,
+        storage_path: str,
+        completed_parts: List[Dict[str, Any]],
+        upload_id: str,
+        complete_multipart_action: str = "Complete",
+    ) -> Optional[str]:
+        mutation = gql(
+            """
+        mutation CompleteMultipartUploadArtifact(
+            $completeMultipartAction: CompleteMultipartAction!,
+            $completedParts: [UploadPartsInput!]!,
+            $artifactID: ID!
+            $storagePath: String!
+            $uploadID: String!
+        ) {
+        completeMultipartUploadArtifact(
+            input: {
+                completeMultipartAction: $completeMultipartAction,
+                completedParts: $completedParts,
+                artifactID: $artifactID,
+                storagePath: $storagePath
+                uploadID: $uploadID
+            }
+            ) {
+                digest
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "completeMultipartAction": complete_multipart_action,
+                "artifactID": artifact_id,
+                "storagePath": storage_path,
+                "completedParts": completed_parts,
+                "uploadID": upload_id,
+            },
+        )
+        digest: Optional[str] = response["completeMultipartUploadArtifact"]["digest"]
+        return digest
+
     def create_artifact_manifest(
         self,
         name: str,
@@ -2831,9 +3175,9 @@ class Api:
             $projectName: String!,
             $runName: String!,
             $includeUpload: Boolean!,
-            %s
-        ) {
-            createArtifactManifest(input: {
+            {}
+        ) {{
+            createArtifactManifest(input: {{
                 name: $name,
                 digest: $digest,
                 artifactID: $artifactID,
@@ -2841,25 +3185,21 @@ class Api:
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                %s
-            }) {
-                artifactManifest {
+                {}
+            }}) {{
+                artifactManifest {{
                     id
-                    file {
+                    file {{
                         id
                         name
                         displayName
                         uploadUrl @include(if: $includeUpload)
                         uploadHeaders @include(if: $includeUpload)
-                    }
-                }
-            }
-        }
-        """
-            %
-            # For backwards compatibility with older backends that don't support
-            # patch manifests.
-            (
+                    }}
+                }}
+            }}
+        }}
+        """.format(
                 "$type: ArtifactManifestType = FULL" if type != "FULL" else "",
                 "type: $type" if type != "FULL" else "",
             )
@@ -2969,19 +3309,39 @@ class Api:
                     self._client_id_mapping[client_id] = server_id
         return server_id
 
+    def server_create_artifact_file_spec_input_introspection(self) -> List:
+        query_string = """
+           query ProbeServerCreateArtifactFileSpecInput {
+                CreateArtifactFileSpecInputInfoType: __type(name:"CreateArtifactFileSpecInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+        create_artifact_file_spec_input_info = [
+            field.get("name", "")
+            for field in res.get("CreateArtifactFileSpecInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+        ]
+        return create_artifact_file_spec_input_info
+
     @normalize_exceptions
     def create_artifact_files(
         self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
     ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
-        mutation = gql(
-            """
+        query_template = """
         mutation CreateArtifactFiles(
             $storageLayout: ArtifactStorageLayout!
             $artifactFiles: [CreateArtifactFileSpecInput!]!
         ) {
             createArtifactFiles(input: {
                 artifactFiles: $artifactFiles,
-                storageLayout: $storageLayout
+                storageLayout: $storageLayout,
             }) {
                 files {
                     edges {
@@ -2991,6 +3351,7 @@ class Api:
                             displayName
                             uploadUrl
                             uploadHeaders
+                            _MULTIPART_UPLOAD_FIELDS_
                             artifact {
                                 id
                             }
@@ -3000,7 +3361,16 @@ class Api:
             }
         }
         """
-        )
+        multipart_upload_url_query = """
+            storagePath
+            uploadMultipartUrls {
+                uploadID
+                uploadUrlParts {
+                    partNumber
+                    uploadUrl
+                }
+            }
+        """
 
         # TODO: we should use constants here from interface/artifacts.py
         # but probably don't want the dependency. We're going to remove
@@ -3009,6 +3379,17 @@ class Api:
         if env.get_use_v1_artifacts():
             storage_layout = "V1"
 
+        create_artifact_file_spec_input_fields = (
+            self.server_create_artifact_file_spec_input_introspection()
+        )
+        if "uploadPartsInput" in create_artifact_file_spec_input_fields:
+            query_template = query_template.replace(
+                "_MULTIPART_UPLOAD_FIELDS_", multipart_upload_url_query
+            )
+        else:
+            query_template = query_template.replace("_MULTIPART_UPLOAD_FIELDS_", "")
+
+        mutation = gql(query_template)
         response = self.gql(
             mutation,
             variable_values={
@@ -3182,3 +3563,32 @@ class Api:
     def _flatten_edges(self, response: "_Response") -> List[Dict]:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
+
+    @normalize_exceptions
+    def stop_run(
+        self,
+        run_id: str,
+    ) -> bool:
+        mutation = gql(
+            """
+            mutation stopRun($id: ID!) {
+                stopRun(input: {
+                    id: $id
+                }) {
+                    clientMutationId
+                    success
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "id": run_id,
+            },
+        )
+
+        success: bool = response["stopRun"].get("success")
+
+        return success

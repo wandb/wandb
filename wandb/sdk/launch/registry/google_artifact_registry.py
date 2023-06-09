@@ -4,7 +4,7 @@ import re
 from typing import Tuple
 
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
 from .abstract import AbstractRegistry
@@ -99,7 +99,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Arguments:
             config: A dictionary containing the following keys:
                 repository: The repository name.
-                image_name: The image name.
+                image-name: The image name.
             environment: A GcpEnvironment configured for access to this registry.
 
         Returns:
@@ -110,7 +110,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
             raise LaunchError(
                 "The Google Artifact Registry repository must be specified."
             )
-        image_name = config.get("image_name")
+        image_name = config.get("image-name")
         if not image_name:
             raise LaunchError("The image name must be specified.")
         return cls(repository, image_name, environment, verify=verify)
@@ -169,3 +169,38 @@ class GoogleArtifactRegistry(AbstractRegistry):
             f"{self.environment.region}-docker.pkg.dev/"
             f"{self.environment.project}/{self.repository}/{self.image_name}"
         )
+
+    def check_image_exists(self, image_uri: str) -> bool:
+        """Check if the image exists.
+
+        Arguments:
+            image_uri: The image URI.
+
+        Returns:
+            True if the image exists, False otherwise.
+        """
+        _logger.info(
+            f"Checking if image {image_uri} exists. In Google Artifact Registry {self.uri}."
+        )
+        repo_uri, tag = image_uri.split(":")
+        if repo_uri != self.get_repo_uri():
+            raise LaunchError(
+                f"The image {image_uri} does not belong to the Google Artifact "
+                f"Repository {self.get_repo_uri()}."
+            )
+        credentials = self.environment.get_credentials()
+
+        # request = google.cloud.artifactregistry.GetTagRequest(name=image_uri)
+        parent = f"projects/{self.environment.project}/locations/{self.environment.region}/repositories/{self.repository}"
+        client = google.cloud.artifactregistry.ArtifactRegistryClient(
+            credentials=credentials
+        )
+        try:
+            for image in client.list_docker_images(request={"parent": parent}):
+                if tag in image.tags:
+                    return True
+        except google.api_core.exceptions.NotFound as e:
+            raise LaunchError(
+                f"The Google Artifact Registry repository {self.repository} does not exist."
+            ) from e
+        return False

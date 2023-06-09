@@ -482,7 +482,7 @@ The interfaces are described here:
 
 Good examples of tests for each level of testing can be found at:
 
-- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metric/test_system_metrics_*.py): User process tests
+- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metrics/test_system_metrics_*.py): User process tests
 - [test_metric_internal.py](tests/pytest_tests/system_tests/test_metric_internal.py): Internal process tests
 - [test_metric_full.py](tests/pytest_tests/system_tests/test_metric_full.py): Full stack tests
 
@@ -545,21 +545,25 @@ If you update one of those files, you need to:
 - While working on your contribution:
   - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
     Make sure to update the `yea-wandb` version.
-  - Point the client branch you are working on to this `yea-wandb` branch.
-    In `tox.ini`, search for `yea-wandb==<version>` and change it to
+  - Point the `wandb/wandb` branch you are working on to this `wandb/yea-wandb` branch.
+    In `tox.ini`, search for `yea-wandb==<version>` and replace the entire line with
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
   - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`.
-  - Merge and release `yea-wandb` (with `make release`).
-  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.**
-  - Point the client branch you are working on to the fresh release of `yea-wandb`.
+  - Release `yea-wandb` (with `make release`) from your `shiny-new-branch` branch.
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`) in your `wandb/yea-wandb` branch, make sure to update these files in `tests/utils` in a `wandb/wandb` branch. We have a Github Action that verifies that these files are equal (between the `wandb/wandb` and `wandb/yea-wandb`). **If you have changes in these files and you merge then in the wandb/yea-wandb repo and do not sync them to the wandb/wandb repo, all wandb/wandb PRs will fail this Github Action.**
+  - Once your `wandb/wandb` PR and `wandb/yea-wandb` PR are ready to be merged, you can merge first the `wandb/yea-wandb` PR, make sure that your `wandb/wandb` PR is green and merge it next.
 
 
 ### Regression Testing
 
 <!-- TODO(jhr): describe how regression works, how to run them, where they're located etc. -->
 
-You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py). Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`), can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
+You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing).
+The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found
+[here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py).
+Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`),
+can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
 
 #### Example usage:
 
@@ -735,6 +739,10 @@ The `Settings` object:
     (and so does not require any validation etc.), define a hook (which does not have to depend on the setting's value)
     and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
+- Note that individual settings may depend on other settings through validator methods and runtime hooks,
+  but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
+  modification order list with `tox -e generate` -- it will also automatically
+  detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated
 

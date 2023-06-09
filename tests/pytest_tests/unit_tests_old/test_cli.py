@@ -80,7 +80,7 @@ def test_artifact_ls(runner, git_repo, mock_server):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "10.0KB" in result.output
+    assert "81.3KB" in result.output
     assert "mnist:v2" in result.output
 
 
@@ -230,7 +230,7 @@ def test_sweep_pause(runner, mock_server, test_settings, stop_method):
 
 def test_sweep_scheduler(runner, mock_server, test_settings):
     with runner.isolated_filesystem():
-        with open("mock_launch_config.json", "w") as f:
+        with open("config.json", "w") as f:
             json.dump(
                 {
                     "queue": "default",
@@ -251,8 +251,8 @@ def test_sweep_scheduler(runner, mock_server, test_settings):
         assert sweep_id == "test"
         assert (
             runner.invoke(
-                cli.sweep,
-                ["--launch_config", "mock_launch_config.json", sweep_id],
+                cli.launch_sweep,
+                ["config.json", "--resume_id", sweep_id],
             ).exit_code
             == 0
         )

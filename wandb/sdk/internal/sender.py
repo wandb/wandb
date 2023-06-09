@@ -1,6 +1,5 @@
 """sender."""
 
-
 import json
 import logging
 import os
@@ -27,34 +26,36 @@ import requests
 
 import wandb
 from wandb import util
-from wandb.errors import CommError
+from wandb.errors import CommError, UsageError
+from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.sdk.lib import redirect
-from wandb.sdk.lib.mailbox import ContextCancelledError
-
-from ..interface import interface
-from ..interface.interface_queue import InterfaceQueue
-from ..lib import (
+from wandb.sdk.artifacts import artifact_saver
+from wandb.sdk.interface import interface
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
+from wandb.sdk.internal.file_pusher import FilePusher
+from wandb.sdk.internal.job_builder import JobBuilder
+from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.lib import (
     config_util,
     filenames,
     filesystem,
     printer,
     proto_util,
+    redirect,
     telemetry,
     tracelog,
 )
-from ..lib.proto_util import message_to_dict
-from ..wandb_settings import Settings
-from . import artifacts, context, datastore, file_stream, internal_api, update
-from .file_pusher import FilePusher
-from .job_builder import JobBuilder
-from .settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.lib.mailbox import ContextCancelledError
+from wandb.sdk.lib.proto_util import message_to_dict
+from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import sys
 
     from wandb.proto.wandb_internal_pb2 import (
+        ArtifactManifest,
         ArtifactRecord,
         HttpResponse,
         LocalInfo,
@@ -98,6 +99,37 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
         ("tensorflow", "tensorflow"),
         ("sklearn", "sklearn"),
     ]
+
+
+def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
+    if manifest.version == 1:
+        contents = {
+            content.path: {
+                "digest": content.digest,
+                "birthArtifactID": content.birth_artifact_id
+                if content.birth_artifact_id
+                else None,
+                "ref": content.ref if content.ref else None,
+                "size": content.size if content.size is not None else None,
+                "local_path": content.local_path if content.local_path else None,
+                "extra": {
+                    extra.key: json.loads(extra.value_json) for extra in content.extra
+                },
+            }
+            for content in manifest.contents
+        }
+    else:
+        raise ValueError(f"unknown artifact manifest version: {manifest.version}")
+
+    return {
+        "version": manifest.version,
+        "storagePolicy": manifest.storage_policy,
+        "storagePolicyConfig": {
+            config.key: json.loads(config.value_json)
+            for config in manifest.storage_policy_config
+        },
+        "contents": contents,
+    }
 
 
 class ResumeState:
@@ -300,6 +332,7 @@ class SendManager:
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
             disable_job_creation=False,
+            _async_upload_concurrency_limit=None,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
@@ -445,24 +478,6 @@ class SendManager:
             delete_message = messages.get("delete_message")
             if delete_message:
                 result.response.check_version_response.delete_message = delete_message
-        self._respond_result(result)
-
-    def _send_request_attach(
-        self,
-        req: wandb_internal_pb2.AttachRequest,
-        resp: wandb_internal_pb2.AttachResponse,
-    ) -> None:
-        attach_id = req.attach_id
-        assert attach_id
-        assert self._run
-        resp.run.CopyFrom(self._run)
-
-    def send_request_attach(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
-        result = proto_util._result_from_record(record)
-        self._send_request_attach(
-            record.request.attach, result.response.attach_response
-        )
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
@@ -729,8 +744,13 @@ class SendManager:
         if not resume_status:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
-                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-                error.message = "resume='must' but run (%s) doesn't exist" % run.run_id
+                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+                error.message = (
+                    "You provided an invalid value for the `resume` argument."
+                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
+                    " Please check your inputs and try again with a valid run ID."
+                    " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
+                )
                 return error
             return None
 
@@ -739,8 +759,12 @@ class SendManager:
         #
         if self._settings.resume == "never":
             error = wandb_internal_pb2.ErrorInfo()
-            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-            error.message = "resume='never' but run (%s) exists" % run.run_id
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+            error.message = (
+                "You provided an invalid value for the `resume` argument."
+                f" The value 'never' is not a valid option for resuming a run ({run.run_id}) that already exists."
+                " Please check your inputs and try again with a valid value for the `resume` argument."
+            )
             return error
 
         history = {}
@@ -768,7 +792,7 @@ class SendManager:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
-                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
+                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
                 error.message = "resume='must' but could not resume (%s) " % run.run_id
                 return error
 
@@ -927,13 +951,12 @@ class SendManager:
 
         try:
             self._init_run(run, config_value_dict)
-        except CommError as e:
+        except (CommError, UsageError) as e:
             logger.error(e, exc_info=True)
             if record.control.req_resp or record.control.mailbox_slot:
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
-                error = wandb_internal_pb2.ErrorInfo()
-                error.message = str(e)
+                error = ProtobufErrorHandler.from_exception(e)
                 result.run_result.error.CopyFrom(error)
                 self._respond_result(result)
             return
@@ -1067,11 +1090,10 @@ class SendManager:
         # so that fields like entity or project are available to be attached to Sentry events.
         run_settings = message_to_dict(self._run)
         self._settings = SettingsStatic({**dict(self._settings), **run_settings})
-        util.sentry_set_scope(
-            settings_dict=self._settings,
-        )
+        wandb._sentry.configure_scope(settings=self._settings)
+
         self._fs.start()
-        self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
+        self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
         self._dir_watcher = DirWatcher(
             cast(Settings, self._settings), self._pusher, file_dir
         )
@@ -1439,10 +1461,10 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifacts.ArtifactSaver(
+        saver = artifact_saver.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
-            manifest_json=artifacts._manifest_json_from_proto(artifact.manifest),
+            manifest_json=_manifest_json_from_proto(artifact.manifest),
             file_pusher=self._pusher,
             is_user_created=artifact.user_created,
         )
@@ -1515,6 +1537,7 @@ class SendManager:
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+        wandb._sentry.end_session()
 
     def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()

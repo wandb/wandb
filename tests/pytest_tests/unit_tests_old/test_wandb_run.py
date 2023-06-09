@@ -84,7 +84,7 @@ def test_use_artifact(live_mock_server, test_settings):
     artifact = wandb.Artifact("arti", type="dataset")
     run.use_artifact(artifact)
     artifact.wait()
-    assert artifact.digest == "abc123"
+    assert artifact.digest == "e74a08a632c8151960f676ca9cc4c0a5"
     run.finish()
 
 
@@ -102,21 +102,21 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         run.config.nested_dataset = {"nested": artifact}
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
 
     with pytest.raises(ValueError) as e_info:
         run.config.dict_nested = {"one_nest": {"two_nest": artifact}}
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
 
     with pytest.raises(ValueError) as e_info:
         run.config.update({"one_nest": {"two_nest": artifact}})
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
@@ -125,7 +125,7 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         "_version": "v0",
         "id": artifact.id,
         "version": "v0",
-        "sequenceName": artifact._sequence_name,
+        "sequenceName": artifact.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -134,7 +134,7 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         "_version": "v0",
         "id": artifact.id,
         "version": "v0",
-        "sequenceName": artifact._sequence_name,
+        "sequenceName": artifact.source_name.split(":")[0],
         "usedAs": "myarti",
     }
 
@@ -159,7 +159,7 @@ def test_artifact_string_run_config_init(live_mock_server, test_settings, parse_
         "_version": "v0",
         "id": run.config.dataset.id,
         "version": "v0",
-        "sequenceName": run.config.dataset._sequence_name,
+        "sequenceName": run.config.dataset.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -178,7 +178,7 @@ def test_artifact_string_run_config_set_item(
         "_version": "v0",
         "id": run.config.dataset.id,
         "version": "v0",
-        "sequenceName": run.config.dataset._sequence_name,
+        "sequenceName": run.config.dataset.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -195,7 +195,7 @@ def test_artifact_string_digest_run_config_update(
         "_version": "v0",
         "id": run.config.dataset.id,
         "version": "v0",
-        "sequenceName": run.config.dataset._sequence_name,
+        "sequenceName": run.config.dataset.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -213,7 +213,7 @@ def test_artifact_string_digest_run_config_init(
         "_version": "v0",
         "id": run.config.dataset.id,
         "version": "v0",
-        "sequenceName": run.config.dataset._sequence_name,
+        "sequenceName": run.config.dataset.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -230,7 +230,7 @@ def test_artifact_string_digest_run_config_set_item(
         "_version": "v0",
         "id": run.config.dataset.id,
         "version": "v0",
-        "sequenceName": run.config.dataset._sequence_name,
+        "sequenceName": run.config.dataset.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -247,7 +247,7 @@ def test_artifact_string_run_config_update(
         "_version": "v0",
         "id": run.config.dataset.id,
         "version": "v0",
-        "sequenceName": run.config.dataset._sequence_name,
+        "sequenceName": run.config.dataset.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -266,7 +266,7 @@ def test_public_artifact_run_config_init(
         "_version": "v0",
         "id": art.id,
         "version": "v0",
-        "sequenceName": art._sequence_name,
+        "sequenceName": art.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -285,7 +285,7 @@ def test_public_artifact_run_config_set_item(
         "_version": "v0",
         "id": art.id,
         "version": "v0",
-        "sequenceName": art._sequence_name,
+        "sequenceName": art.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
@@ -305,7 +305,7 @@ def test_public_artifact_run_config_update(
         "_version": "v0",
         "id": art.id,
         "version": "v0",
-        "sequenceName": art._sequence_name,
+        "sequenceName": art.source_name.split(":")[0],
         "usedAs": "dataset",
     }
 
