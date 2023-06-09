@@ -11,6 +11,7 @@ You might use the Public API to
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
 import ast
+from dataclasses import is_dataclass, asdict
 import datetime
 import io
 import json
@@ -1921,8 +1922,17 @@ class Run(Attrs):
     def json_config(self):
         config = {}
         for k, v in self.config.items():
-            config[k] = {"value": v, "desc": None}
+            config[k] = {"value": self._parse_value(v), "desc": None}
         return json.dumps(config)
+
+    def _parse_value(value):
+        """
+        If needed, parse a config value into a format that will be more usable downstream after being
+        dumped to JSON.
+        """
+        if is_dataclass(value):
+            return asdict(value)
+        return value
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend."""
