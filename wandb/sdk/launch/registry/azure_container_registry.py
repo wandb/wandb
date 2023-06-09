@@ -4,6 +4,7 @@ from typing import Tuple
 
 from wandb.sdk.launch.utils import LaunchError
 
+from ..environment.abstract import AbstractEnvironment
 from ..environment.azure_environment import AzureEnvironment
 from .abstract import AbstractRegistry
 
@@ -25,9 +26,13 @@ class AzureContainerRegistry(AbstractRegistry):
 
     @classmethod
     def from_config(
-        cls, config: dict, environment: AzureEnvironment, verify: bool = True
+        cls, config: dict, environment: AbstractEnvironment, verify: bool = True
     ) -> "AzureContainerRegistry":
         """Create an AzureContainerRegistry from a config dict."""
+        if not isinstance(environment, AzureEnvironment):
+            raise LaunchError(
+                "AzureContainerRegistry requires an AzureEnvironment to be passed in."
+            )
         uri = config.get("uri")
         if uri is None:
             raise LaunchError(

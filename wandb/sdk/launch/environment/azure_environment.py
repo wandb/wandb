@@ -31,7 +31,7 @@ class AzureEnvironment(AbstractEnvironment):
         return cls(verify=verify)
 
     @classmethod
-    def get_credentials(cls):
+    def get_credentials(cls) -> DefaultAzureCredential:
         """Get Azure credentials."""
         try:
             return DefaultAzureCredential()

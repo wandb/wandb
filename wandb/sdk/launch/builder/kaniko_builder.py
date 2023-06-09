@@ -348,7 +348,7 @@ class KanikoBuilder(AbstractBuilder):
                     value=self.registry.environment.region,
                 )
             ]
-        if isinstance(self.registry.environment, AzureEnvironment):
+        if isinstance(self.environment, AzureEnvironment):
             # Use the core api to check if the secret exists
             try:
                 core_client.read_namespaced_secret(

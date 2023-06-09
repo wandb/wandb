@@ -114,10 +114,7 @@ def test_create_kaniko_job_static(mock_kubernetes_client, runner):
         image_tag = "image_tag:12345678"
         context_path = "./test/context/path/"
         job = builder._create_kaniko_job(
-            job_name,
-            repo_url,
-            image_tag,
-            context_path,
+            job_name, repo_url, image_tag, context_path, MagicMock()
         )
 
         assert job["metadata"]["name"] == "test_job_name"
@@ -191,10 +188,7 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
         image_tag = "image_tag:12345678"
         context_path = "./test/context/path/"
         job = builder._create_kaniko_job(
-            job_name,
-            repo_url,
-            image_tag,
-            context_path,
+            job_name, repo_url, image_tag, context_path, MagicMock()
         )
 
         assert job["metadata"]["name"] == "test_job_name"
