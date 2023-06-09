@@ -109,6 +109,7 @@ def _log_message(
     msg_type: str
     # Note: using strings to avoid an import
     message_type_str = type(msg).__name__
+    # print("MSG", message_type_str)
     if message_type_str == "Record":
         record = cast("pb.Record", msg)
         msg_type = _record_msg_type(record)
@@ -119,6 +120,7 @@ def _log_message(
     elif message_type_str == "ServerRequest":
         server_request = cast("spb.ServerRequest", msg)
         msg_type = str(server_request.WhichOneof("server_request_type"))
+        print("SRV", msg_type)
         if msg_type == "record_publish":
             record = server_request.record_publish
             sub_msg_type = _record_msg_type(record)
@@ -127,11 +129,17 @@ def _log_message(
             record = server_request.record_communicate
             sub_msg_type = _record_msg_type(record)
             msg_type = f"comm-{sub_msg_type}"
-        # print("SRV", server_request)
+        elif msg_type.startswith("inform_"):
+            print("+++KAWABUNGA+++")
+            # record = getattr(server_request, msg_type)
+            print(msg_type)
+            # sub_msg_type = _record_msg_type(record)
+            # msg_type = f"inform-{sub_msg_type}"
     elif message_type_str == "ServerResponse":
         is_response = True
         server_response = cast("spb.ServerResponse", msg)
         msg_type = str(server_response.WhichOneof("server_response_type"))
+        print("SRV", msg_type)
         if msg_type == "result_communicate":
             result = server_response.result_communicate
             sub_msg_type = _result_msg_type(result)
