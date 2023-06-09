@@ -1577,11 +1577,9 @@ def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
         if path[-1] == "/":
             path = path[:-1]
         path_name = f"code-{path.replace('/', '-')}"
-        wandb.termlog(f"No name provided, using path for name: {path_name}")
         return path_name
 
     generated_name = f"code-{wandb.util.generate_id()}"
-    wandb.termlog(f"No name provided, generating name: {generated_name}")
     return generated_name
 
 
@@ -1682,11 +1680,12 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
     metadata = {}
     if _type == "image":
-        # TODO(gst): How to find these out from a docker image? Do we need to?
-        #            Maybe we can use a default python version?
         # TODO(gst): Check for existence? Might not exist in current context, should
         #            we let users create jobs from images without checking?
+        # TODO(gst): How to automatically upgrade these on first run
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        if sys.version_info.micro:
+            python_version += f".{sys.version_info.micro}"
         requirements = ["wandb"]
         metadata = {"python": python_version, "docker": path}
         _dump_metadata_and_requirements(
@@ -1707,6 +1706,8 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
                 )
             entrypoint = path.split("/")[-1]
             path = "/".join(path.split("/")[:-1])
+            if path == "":
+                path = "."
 
         if not entrypoint:
             wandb.termerror(
@@ -1732,13 +1733,16 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         )
     elif _type == "artifact":
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        if sys.version_info.micro:
+            python_version += f".{sys.version_info.micro}"
+
         metadata = {
             "python": python_version,
-            "codePath": os.path.join(path, entrypoint),
+            "codePath": entrypoint,
         }
-        if not os.path.isdir(path):
+        if not os.path.exists(path):
             wandb.termerror(
-                f"Building a job of type: {_type} requires path to be a directory for job source. Use the -t param to specify a different job type"
+                f"Building a job of type: {_type} requires path to be a valid file path. Use the -t param to specify a different job type"
             )
             return
         if not os.path.exists(os.path.join(path, "requirements.txt")):
@@ -1775,8 +1779,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
     # log code artifact first for artifact jobs
     if _type == "artifact":
-        # TODO(gst): better naming scheme?
-        artifact_name = _make_code_artifact_name(path, name)
+        artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint), name)
         code_artifact = wandb.Artifact(
             name=artifact_name,
             type="code",
@@ -1806,7 +1809,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         name = code_artifact.name.replace("code", "job").split(":")[0]
 
     # build job artifact, creates wandb-job.json here
-    artifact = _job_builder.build()
+    artifact = _job_builder.build(proto="v0")
     if not artifact:
         wandb.termerror("Failed to build job")
         logger.debug("Failed to build job, check job source and metadata")
@@ -1830,6 +1833,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         run_name=run.id,  # run will be deleted after creation
         description=description,
         metadata=metadata,
+        labels=["manually-created"],
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
@@ -1837,7 +1841,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     artifact.wait()
     run.finish()
 
-    artifact_path = f"{project}/{entity}/{artifact.name}"
+    artifact_path = f"{entity}/{project}/{artifact.name}"
     msg = f"Created job: {click.style(artifact_path, fg='yellow')}"
     if len(aliases) == 1:
         alias_str = click.style(aliases[0], fg="yellow")
