@@ -11,7 +11,6 @@ You might use the Public API to
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
 import ast
-from dataclasses import is_dataclass, asdict
 import datetime
 import io
 import json
@@ -22,6 +21,7 @@ import shutil
 import tempfile
 import time
 import urllib
+from dataclasses import is_dataclass, asdict
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -1926,10 +1926,7 @@ class Run(Attrs):
         return json.dumps(config)
 
     def _parse_value(self, value):
-        """
-        If needed, parse a config value into a format that will be more usable downstream after being
-        dumped to JSON.
-        """
+        """If needed, parse a config value to be more usable after being dumped to JSON."""
         if is_dataclass(value):
             return asdict(value)
         return value
