@@ -172,12 +172,13 @@ class _Service:
 
             service_args = []
             if self._settings._require_nexus:
+                # NOTE: the wandb_nexus module is not distributed yet so there are no
+                #       instructions about how to install the module.
                 wandb_nexus = get_module(
                     "wandb_nexus",
                     required="The nexus experiment requires the wandb_nexus module.",
                 )
                 nexus_path = wandb_nexus.get_nexus_path()
-                assert nexus_path.exists(), f"Not found {nexus_path}"
                 service_args.extend([nexus_path])
                 exec_cmd_list = []
             else:
@@ -194,11 +195,14 @@ class _Service:
                 service_args.append("--serve-grpc")
             else:
                 service_args.append("--serve-sock")
-            internal_proc = subprocess.Popen(
-                exec_cmd_list + service_args,
-                env=os.environ,
-                **kwargs,
-            )
+            try:
+                internal_proc = subprocess.Popen(
+                    exec_cmd_list + service_args,
+                    env=os.environ,
+                    **kwargs,
+                )
+            except Exception as e:
+                _sentry.reraise(e)
             self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
