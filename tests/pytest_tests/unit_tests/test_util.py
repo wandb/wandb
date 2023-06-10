@@ -184,7 +184,6 @@ def test_nested_dataclasses():
     class TestDataClass:
         test: bool
 
-
     @dataclass
     class TestDataClassHolder:
         test_dataclass: TestDataClass
