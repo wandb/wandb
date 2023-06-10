@@ -193,7 +193,7 @@ def test_nested_dataclasses():
     converted = util.json_friendly_val({"nested_dataclass": nested_dataclass})
     assert isinstance(converted["nested_dataclass"], dict)
     assert isinstance(converted["nested_dataclass"]["test_dataclass"], dict)
-    assert converted["nested_dataclass"]["test_dataclass"] is False
+    assert converted["nested_dataclass"]["test_dataclass"]["test"] is False
 
 
 ###############################################################################
