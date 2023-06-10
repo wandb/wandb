@@ -614,7 +614,7 @@ def json_friendly_val(val: Any) -> Any:
         for value in val:
             converted.append(json_friendly_val(value))
         return converted
-    if is_dataclass(val) and not isinstance(obj, type):
+    if is_dataclass(val) and not isinstance(val, type):
         converted = asdict(val)
         return converted
     else:
