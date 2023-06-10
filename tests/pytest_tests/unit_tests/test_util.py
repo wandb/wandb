@@ -167,9 +167,11 @@ def test_bfloat16_to_float():
 
 def test_dataclass():
     from dataclasses import dataclass
+
     @dataclass
     class TestDataClass:
         test: bool
+
     test_dataclass = TestDataClass(True)
     converted = util.json_friendly_val({"test": test_dataclass})
     assert isinstance(converted["test"], dict)
