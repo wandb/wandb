@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/Khan/genqlient v0.5.0
-	github.com/golang/leveldb v0.0.0-20170107010102-259d9253d719
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.3
 	google.golang.org/protobuf v1.28.1

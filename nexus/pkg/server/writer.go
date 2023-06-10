@@ -6,7 +6,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/golang/leveldb/record"
+	"github.com/wandb/wandb/nexus/pkg/leveldb"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
@@ -61,7 +62,7 @@ func (w *Writer) writerGo() {
 
 	logHeader(f)
 
-	records := record.NewWriter(f)
+	records := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
 
 	log.Debug("WRITER: OPEN")
 	for {
