@@ -28,11 +28,13 @@ func InitLogging() {
 	log.SetLevel(log.DebugLevel)
 }
 
-func writePortfile(portfile string, port int) {
-	tmpfile := fmt.Sprintf("%s.tmp", portfile)
-	f, err := os.Create(tmpfile)
+func writePortFile(portFile string, port int) {
+	tempFile := fmt.Sprintf("%s.tmp", portFile)
+	f, err := os.Create(tempFile)
 	checkError(err)
-	defer f.Close()
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
 
 	_, err = f.WriteString(fmt.Sprintf("sock=%d\n", port))
 	checkError(err)
@@ -43,7 +45,7 @@ func writePortfile(portfile string, port int) {
 	err = f.Sync()
 	checkError(err)
 
-	err = os.Rename(tmpfile, portfile)
+	err = os.Rename(tempFile, portFile)
 	checkError(err)
 }
 
@@ -52,13 +54,15 @@ type NexusServer struct {
 	listen   net.Listener
 }
 
-func tcpServer(portfile string) {
+func tcpServer(portFile string) {
 	addr := "127.0.0.1:0"
 	listen, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer listen.Close()
+	defer func(listen net.Listener) {
+		_ = listen.Close()
+	}(listen)
 
 	serverState := NexusServer{listen: listen}
 
@@ -66,7 +70,7 @@ func tcpServer(portfile string) {
 	port := listen.Addr().(*net.TCPAddr).Port
 	log.Println("PORT", port)
 
-	writePortfile(portfile, port)
+	writePortFile(portFile, port)
 
 	for {
 		conn, err := listen.Accept()
