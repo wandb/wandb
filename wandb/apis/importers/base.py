@@ -42,7 +42,11 @@ class ImporterRun:
     def __init__(self) -> None:
         self.interface = InterfaceQueue()
         self.run_dir = f"./wandb-importer/{self.run_id()}"
-        self._metrics = self.metrics()
+        try:
+            self._metrics = self.metrics()
+        except Exception as e:
+            print("problem", e)
+            self._metrics = []
         self._artifacts = self.artifacts()
         self._used_artifacts = self.used_artifacts()
 

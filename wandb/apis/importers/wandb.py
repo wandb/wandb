@@ -10,9 +10,7 @@ import wandb.apis.reports as wr
 import os
 from .base import Importer, ImporterRun
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-old_api_key = os.getenv("WANDB_API_KEY")
-new_api_key = os.getenv("WANDB_API_KEY2")
+import json
 
 
 class WandbRun(ImporterRun):
@@ -104,12 +102,46 @@ class WandbImporter(Importer):
         self.source_api = wandb.Api(
             api_key=source_api_key, overrides={"base_url": source_base_url}
         )
+        self.dest_api = wandb.Api(
+            api_key=dest_api_key, overrides={"base_url": dest_base_url}
+        )
         self.runs = []
 
         self.source_base_url = source_base_url
         self.source_api_key = source_api_key
         self.dest_base_url = dest_base_url
         self.dest_api_key = dest_api_key
+
+    def import_all_parallel(self, limit=50, pool_kwargs=None, overrides=None):
+        runs = []
+        for i, run in enumerate(self.download_all_runs()):
+            if i == limit:
+                break
+            runs.append(run)
+
+        # consumer
+        os.environ["WANDB_BASE_URL"] = self.dest_base_url
+        os.environ["WANDB_API_KEY"] = self.dest_api_key
+
+        if pool_kwargs is None:
+            pool_kwargs = {}
+        if overrides is None:
+            overrides = {}
+
+        with ThreadPoolExecutor(**pool_kwargs) as exc:
+            futures = {
+                exc.submit(self.import_one, run, overrides=overrides): run
+                for run in runs
+            }
+            with tqdm(total=len(futures)) as pbar:
+                for future in as_completed(futures):
+                    runs = futures[future]
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        pass
+                    finally:
+                        pbar.update(1)
 
     def import_all(self, limit=3):
         # producer
@@ -158,8 +190,8 @@ class WandbImporter(Importer):
         if reports is None:
             reports = []
             for i, report in enumerate(self.download_all_reports()):
-                if i >= 3:
-                    break
+                # if i >= 3:
+                #     break
 
                 reports.append(report)
             # reports = list(self.download_all_reports())
@@ -199,36 +231,40 @@ class WandbImporter(Importer):
     def import_one_report(
         self, report: wr.Report, overrides: Optional[Dict[str, Any]] = None
     ):
-        project = report.project
-        description = report.description
-        width = report.width
-        blocks = report.blocks[:3]
-        # blocks = report.blocks
-        # blocks = []
-        wandb.termlog(f"START: {project}/{report.id=}")
+        if overrides is None:
+            overrides = {}
 
-        os.environ["WANDB_BASE_URL"] = self.dest_base_url
-        os.environ["WANDB_API_KEY"] = self.dest_api_key
+        name = overrides.get("name", report.name)
+        entity = overrides.get("entity", report.entity)
+        project = overrides.get("entity", report.project)
+        title = overrides.get("title", report.title)
+        description = overrides.get("description", report.description)
 
-        report2 = wr.Report(
-            entity="andrew",
-            project=project,
-            description=description,
-            width=width,
-            blocks=blocks,
+        self.dest_api.create_project(project, entity)
+
+        # hack to skip the default save path which can be very slow
+        # ID will not match the originating server's ID.  if you import twice,
+        # You will end up with two of the same report (with different IDs).
+        self.dest_api.client.execute(
+            wr.report.UPSERT_VIEW,
+            variable_values={
+                "id": None,  # Is there any benefit for this to be the same as default report?
+                "name": name,
+                "entityName": entity,
+                "projectName": project,
+                "description": description,
+                "displayName": title,
+                "type": "runs",
+                "spec": json.dumps(report.spec),
+            },
         )
-        report2.save()
-
-        os.environ["WANDB_BASE_URL"] = self.source_base_url
-        os.environ["WANDB_API_KEY"] = self.source_api_key
-        wandb.termlog(f"STOP: {project}/{report.id=}")
 
 
 class WandbParquetRun(WandbRun):
     def metrics(self):
         arts = list(self.run.logged_artifacts())
-        wandb.termlog(f"{self.entity()}/{self.project()}/{self.display_name()}")
-        wandb.termlog(f"{arts=}")
+        # wandb.termlog(f"{self.entity()}/{self.project()}/{self.display_name()}")
+        # wandb.termlog(f"{arts=}")
         art = None
         for art in arts:
             if art.type == "wandb-history":
