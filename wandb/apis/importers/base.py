@@ -14,6 +14,7 @@ from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.artifacts.lazy_artifact import LazyArtifact
 
 Name = str
 Path = str
@@ -41,6 +42,9 @@ class ImporterRun:
     def __init__(self) -> None:
         self.interface = InterfaceQueue()
         self.run_dir = f"./wandb-importer/{self.run_id()}"
+        self._metrics = self.metrics()
+        self._artifacts = self.artifacts()
+        self._used_artifacts = self.used_artifacts()
 
     def run_id(self) -> str:
         _id = wandb.util.generate_id()
@@ -102,6 +106,9 @@ class ImporterRun:
         ...
 
     def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
+        ...
+
+    def used_artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
         ...
 
     def os_version(self) -> Optional[str]:
@@ -170,7 +177,7 @@ class ImporterRun:
         return self.interface._make_record(summary=summary)
 
     def _make_history_records(self) -> Iterable[pb.Record]:
-        for _, metrics in enumerate(self.metrics()):
+        for _, metrics in enumerate(self._metrics):
             history = pb.HistoryRecord()
             for k, v in metrics.items():
                 item = history.item.add()
@@ -194,13 +201,13 @@ class ImporterRun:
             {"files": [[f"{self.run_dir}/files/wandb-metadata.json", "end"]]}
         )
 
-    def _make_artifact_record(self, artifact) -> pb.Record:
+    def _make_artifact_record(self, artifact, use_artifact=False) -> pb.Record:
         proto = self.interface._make_artifact(artifact)
         proto.run_id = self.run_id()
         proto.project = self.project()
         proto.entity = self.entity()
-        proto.user_created = False
-        proto.use_after_commit = False
+        proto.user_created = use_artifact
+        proto.use_after_commit = use_artifact
         proto.finalize = True
         for tag in ["latest", "imported"]:
             proto.aliases.append(tag)
@@ -331,10 +338,14 @@ class Importer(ABC):
             sm.send(run._make_metadata_files_record())
             for history_record in run._make_history_records():
                 sm.send(history_record)
-            artifacts = run.artifacts()
+            artifacts = run._artifacts
             if artifacts is not None:
                 for artifact in artifacts:
                     sm.send(run._make_artifact_record(artifact))
+            used_artifacts = run._used_artifacts
+            if used_artifacts is not None:
+                for artifact in used_artifacts:
+                    sm.send(run._make_artifact_record(artifact, use_artifact=True))
             sm.send(run._make_telem_record())
 
 
