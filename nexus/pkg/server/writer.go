@@ -19,9 +19,10 @@ type Writer struct {
 	settings   *Settings
 }
 
-func NewWriter(wg *sync.WaitGroup, settings *Settings) *Writer {
+func NewWriter(settings *Settings) *Writer {
+	wg := sync.WaitGroup{}
 	writer := Writer{
-		wg:         wg,
+		wg:         &wg,
 		settings:   settings,
 		writerChan: make(chan *service.Record),
 	}
@@ -47,7 +48,7 @@ func logHeader(f *os.File) {
 	}
 	buf := new(bytes.Buffer)
 	ident := [4]byte{byte(':'), byte('W'), byte('&'), byte('B')}
-	head := logHeader{ident: ident, magic: 0xBEE1, version: 1}
+	head := logHeader{ident: ident, magic: 0xBEE1, version: 0}
 	err := binary.Write(buf, binary.LittleEndian, &head)
 	checkError(err)
 	_, err = f.Write(buf.Bytes())
@@ -86,4 +87,10 @@ func (w *Writer) writerGo() {
 	log.Debug("WRITER: CLOSE")
 	records.Close()
 	log.Debug("WRITER: FIN")
+}
+
+func (w *Writer) Flush() {
+	log.Debug("WRITER: flush")
+	close(w.writerChan)
+	w.wg.Wait()
 }

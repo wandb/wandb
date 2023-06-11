@@ -33,7 +33,7 @@ func NewHandler(respondResult func(result *service.Result), settings *Settings) 
 	var writer *Writer
 	wg := sync.WaitGroup{}
 	if !settings.NoWrite {
-		writer = NewWriter(&wg, settings)
+		writer = NewWriter(settings)
 	}
 	sender := NewSender(&wg, respondResult, settings)
 	handler := Handler{
@@ -131,7 +131,14 @@ func (h *Handler) handleGetSummary(rec *service.Record, msg *service.GetSummaryR
 	resp.ResponseType = &service.Response_GetSummaryResponse{GetSummaryResponse: &r}
 }
 
-func (h *Handler) handleDefer(rec *service.Record, msg *service.DeferRequest) {
+func (h *Handler) handleDefer(rec *service.Record, req *service.DeferRequest) {
+	switch req.State {
+	case service.DeferRequest_END:
+		if h.writer != nil {
+			h.writer.Flush()
+		}
+	default:
+	}
 	h.sender.SendRecord(rec)
 	// h.shutdownStream()
 }
