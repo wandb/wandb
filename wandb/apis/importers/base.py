@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from tqdm import tqdm
 
 import wandb
+from wandb.util import coalesce
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
@@ -18,11 +19,6 @@ from wandb.sdk.artifacts.lazy_artifact import LazyArtifact
 
 Name = str
 Path = str
-
-
-def coalesce(*arg: Any) -> Any:
-    """Return the first non-none value in the list of arguments.  Similar to ?? in C#."""
-    return next((a for a in arg if a is not None), None)
 
 
 @contextmanager

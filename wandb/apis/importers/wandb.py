@@ -8,9 +8,12 @@ from tqdm import tqdm
 import wandb
 import wandb.apis.reports as wr
 import os
+
+from wandb.apis.importers.base import ImporterRun
 from .base import Importer, ImporterRun
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+from wandb.util import coalesce
 
 
 class WandbRun(ImporterRun):
@@ -112,21 +115,14 @@ class WandbImporter(Importer):
         self.dest_base_url = dest_base_url
         self.dest_api_key = dest_api_key
 
-    def import_all_parallel(self, limit=50, pool_kwargs=None, overrides=None):
-        runs = []
-        for i, run in enumerate(self.download_all_runs()):
-            if i == limit:
-                break
-            runs.append(run)
+    def import_all_parallel(self, limit=None, pool_kwargs=None, overrides=None):
+        runs = coalesce(runs, list(self.download_all_runs(limit=limit)))
+        pool_kwargs = coalesce(pool_kwargs, {})
+        overrides = coalesce(overrides, {})
 
         # consumer
         os.environ["WANDB_BASE_URL"] = self.dest_base_url
         os.environ["WANDB_API_KEY"] = self.dest_api_key
-
-        if pool_kwargs is None:
-            pool_kwargs = {}
-        if overrides is None:
-            overrides = {}
 
         with ThreadPoolExecutor(**pool_kwargs) as exc:
             futures = {
@@ -143,16 +139,9 @@ class WandbImporter(Importer):
                     finally:
                         pbar.update(1)
 
-    def import_all(self, limit=3):
+    def import_all(self, limit=None):
         # producer
-        for i, run in enumerate(self.download_all_runs()):
-            if i == limit:
-                break
-
-            wandb.termlog(
-                f"Putting {run.entity()}/{run.project()}/{run.display_name()}"
-            )
-            self.runs.append(run)
+        runs = coalesce(runs, self.download_all_runs(limit=limit))
 
         # consumer
         os.environ["WANDB_BASE_URL"] = self.dest_base_url
@@ -164,12 +153,24 @@ class WandbImporter(Importer):
             )
             self.import_one(run, overrides={"entity": "andrew"})
 
-    def download_all_runs(self) -> None:
+    def download_all_runs(self, limit=None) -> Iterable[ImporterRun]:
+        for i, run in enumerate(self._download_all_runs()):
+            if limit and i >= limit:
+                break
+            yield run
+
+    def _download_all_runs(self) -> None:
         for project in self.source_api.projects():
             for run in self.source_api.runs(project.name):
                 yield WandbRun(run)
 
-    def download_all_reports(self) -> None:
+    def download_all_reports(self, limit=None):
+        for i, report in enumerate(self._download_all_reports()):
+            if limit and i >= limit:
+                break
+            yield report
+
+    def _download_all_reports(self) -> None:
         projects = [p for p in self.source_api.projects()]
         with tqdm(projects, "Collecting reports...") as projects:
             for project in projects:
@@ -186,18 +187,10 @@ class WandbImporter(Importer):
         reports: Optional[Iterable[wr.Report]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
         overrides: Optional[Dict[str, Any]] = None,
+        limit=None,
     ) -> None:
-        if reports is None:
-            reports = []
-            for i, report in enumerate(self.download_all_reports()):
-                # if i >= 3:
-                #     break
-
-                reports.append(report)
-            # reports = list(self.download_all_reports())
-
-        if pool_kwargs is None:
-            pool_kwargs = {}
+        reports = coalesce(reports, list(self.download_all_reports(limit=limit)))
+        pool_kwargs = coalesce(pool_kwargs, {})
 
         with ThreadPoolExecutor(**pool_kwargs) as exc:
             futures = {
@@ -231,9 +224,7 @@ class WandbImporter(Importer):
     def import_one_report(
         self, report: wr.Report, overrides: Optional[Dict[str, Any]] = None
     ):
-        if overrides is None:
-            overrides = {}
-
+        overrides = coalesce(overrides, {})
         name = overrides.get("name", report.name)
         entity = overrides.get("entity", report.entity)
         project = overrides.get("entity", report.project)
@@ -273,13 +264,13 @@ class WandbParquetRun(WandbRun):
             raise Exception("No parquet file!")
 
         path = art.download()
-        dfs = [pl.read_parquet(p) for p in Path(path).glob("*.parquet")]
-        rows = [df.iter_rows(named=True) for df in dfs]
+        dfs = (pl.read_parquet(p) for p in Path(path).glob("*.parquet"))
+        rows = (df.iter_rows(named=True) for df in dfs)
         return itertools.chain(*rows)
 
 
 class WandbParquetImporter(WandbImporter):
-    def download_all_runs(self):
+    def _download_all_runs(self):
         for project in self.source_api.projects():
             for run in self.source_api.runs(project.name):
                 yield WandbParquetRun(run)
