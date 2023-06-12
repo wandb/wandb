@@ -16,6 +16,7 @@ from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.artifacts.lazy_artifact import LazyArtifact
+import os
 
 Name = str
 Path = str
@@ -338,14 +339,20 @@ class Importer(ABC):
             sm.send(run._make_metadata_files_record())
             for history_record in run._make_history_records():
                 sm.send(history_record)
+
+            wandb.termlog("Importing logged artifacts")
             artifacts = run._artifacts
             if artifacts is not None:
                 for artifact in artifacts:
                     sm.send(run._make_artifact_record(artifact))
+
+            wandb.termlog("Importing used artifacts")
             used_artifacts = run._used_artifacts
             if used_artifacts is not None:
                 for artifact in used_artifacts:
                     sm.send(run._make_artifact_record(artifact, use_artifact=True))
+
+            wandb.termlog("Sending telem")
             sm.send(run._make_telem_record())
 
 
