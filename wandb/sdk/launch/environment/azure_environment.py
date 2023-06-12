@@ -1,10 +1,13 @@
 """Implementation of AzureEnvironment class."""
 
 import re
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobClient, BlobServiceClient
+if TYPE_CHECKING:
+    from azure.identity import DefaultAzureCredential  # type: ignore
+    from azure.storage.blob import BlobClient, BlobServiceClient  # type: ignore
+
+from wandb.util import get_module
 
 from ..errors import LaunchError
 from .abstract import AbstractEnvironment
@@ -12,6 +15,17 @@ from .abstract import AbstractEnvironment
 AZURE_BLOB_REGEX = re.compile(
     r"^https://([^\.]+)\.blob\.core\.windows\.net/([^/]+)/?(.*)$"
 )
+
+
+DefaultAzureCredential = get_module(  # noqa: F811
+    "azure.identity",
+    required="The azure-identity package is required to use launch with Azure. Please install it with `pip install azure-identity`.",
+).DefaultAzureCredential
+blob = get_module(
+    "azure.storage.blob",
+    required="The azure-storage-blob package is required to use launch with Azure. Please install it with `pip install azure-storage-blob`.",
+)
+BlobClient, BlobServiceClient = blob.BlobClient, blob.BlobServiceClient  # noqa: F811
 
 
 class AzureEnvironment(AbstractEnvironment):
