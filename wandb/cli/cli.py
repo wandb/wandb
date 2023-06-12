@@ -1678,7 +1678,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     # Use temp dir to create metadata (+ requirements) for job
     TMPDIR = tempfile.TemporaryDirectory()
 
-    metadata = {}
+    metadata = {"_proto": "v0"}
     if _type == "image":
         # TODO(gst): Check for existence? Might not exist in current context, should
         #            we let users create jobs from images without checking?
@@ -1687,7 +1687,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         if sys.version_info.micro:
             python_version += f".{sys.version_info.micro}"
         requirements = ["wandb"]
-        metadata = {"python": python_version, "docker": path}
+        metadata.update({"python": python_version, "docker": path})
         _dump_metadata_and_requirements(
             metadata=metadata,
             tmp_path=TMPDIR.name,
@@ -1721,11 +1721,13 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             return
 
         remote, commit, requirements, python_version = _make_git_data(path)
-        metadata = {
-            "git": {"remote": remote, "commit": commit},
-            "codePath": entrypoint,
-            "python": python_version,
-        }
+        metadata.update(
+            {
+                "git": {"remote": remote, "commit": commit},
+                "codePath": entrypoint,
+                "python": python_version,
+            }
+        )
         _dump_metadata_and_requirements(
             metadata=metadata,
             tmp_path=TMPDIR.name,
@@ -1736,10 +1738,12 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         if sys.version_info.micro:
             python_version += f".{sys.version_info.micro}"
 
-        metadata = {
-            "python": python_version,
-            "codePath": entrypoint,
-        }
+        metadata.update(
+            {
+                "python": python_version,
+                "codePath": entrypoint,
+            }
+        )
         if not os.path.exists(path):
             wandb.termerror(
                 f"Building a job of type: {_type} requires path to be a valid file path. Use the -t param to specify a different job type"
@@ -1809,7 +1813,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         name = code_artifact.name.replace("code", "job").split(":")[0]
 
     # build job artifact, creates wandb-job.json here
-    artifact = _job_builder.build(proto="v0")
+    artifact = _job_builder.build()
     if not artifact:
         wandb.termerror("Failed to build job")
         logger.debug("Failed to build job, check job source and metadata")
@@ -1837,6 +1841,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
+    # TODO(gst): res handling to modify 'create' message, if no-op let user know
     run.log_artifact(artifact, aliases=aliases)
     artifact.wait()
     run.finish()
