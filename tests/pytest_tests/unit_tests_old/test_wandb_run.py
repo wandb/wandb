@@ -84,7 +84,7 @@ def test_use_artifact(live_mock_server, test_settings):
     artifact = wandb.Artifact("arti", type="dataset")
     run.use_artifact(artifact)
     artifact.wait()
-    assert artifact.digest == "abc123"
+    assert artifact.digest == "e74a08a632c8151960f676ca9cc4c0a5"
     run.finish()
 
 

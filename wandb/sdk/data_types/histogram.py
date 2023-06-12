@@ -6,9 +6,9 @@ from wandb import util
 from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np  # type: ignore
+    import numpy as np
 
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
     from ..wandb_run import Run as LocalRun
 
@@ -84,7 +84,7 @@ class Histogram(WBValue):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
-    def to_json(self, run: Optional[Union["LocalRun", "LocalArtifact"]] = None) -> dict:
+    def to_json(self, run: Optional[Union["LocalRun", "Artifact"]] = None) -> dict:
         return {"_type": self._log_type, "values": self.histogram, "bins": self.bins}
 
     def __sizeof__(self) -> int:

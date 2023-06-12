@@ -14,7 +14,7 @@ from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 if TYPE_CHECKING:
     import azure.storage.blob  # type: ignore
 
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
 
 
 class AzureHandler(StorageHandler):
@@ -89,7 +89,7 @@ class AzureHandler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[StrPath] = None,
         checksum: bool = True,
