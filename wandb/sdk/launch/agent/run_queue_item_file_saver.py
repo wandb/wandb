@@ -43,5 +43,7 @@ class RunQueueItemFileSaver:
         if isinstance(res, list):
             return res
         else:
-            wandb.termwarn(f"Failed to save files for run queue item: {self.run_queue_item_id}")
+            wandb.termwarn(
+                f"Failed to save files for run queue item: {self.run_queue_item_id}"
+            )
             return None

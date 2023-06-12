@@ -313,7 +313,9 @@ class LaunchAgent:
                 )
         else:
             _logger.info("Finish thread id had no exception, ror run")
-            wandb._sentry.exception("launch agent called finish thread id on thread without run or exception")
+            wandb._sentry.exception(
+                "launch agent called finish thread id on thread without run or exception"
+            )
 
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
@@ -434,10 +436,15 @@ class LaunchAgent:
 
                                 # always the first phase, because we only enter phase 2 within the thread
                                 files = file_saver.save_contents(
-                                    contents=traceback.format_exc(), fname="error.log", file_sub_type="error"
+                                    contents=traceback.format_exc(),
+                                    fname="error.log",
+                                    file_sub_type="error",
                                 )
                                 self.fail_run_queue_item(
-                                    run_queue_item_id=job["runQueueItemId"], message=str(e), phase="agent", files=files
+                                    run_queue_item_id=job["runQueueItemId"],
+                                    message=str(e),
+                                    phase="agent",
+                                    files=files,
                                 )
 
                 for thread_id in self.thread_ids:
