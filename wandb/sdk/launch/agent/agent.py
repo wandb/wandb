@@ -265,7 +265,11 @@ class LaunchAgent:
     ) -> None:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
-        if exception is not None:
+        if job_and_run_status.entity != self._entity:
+            _logger.info(
+                "Skipping check for completed run status because run is on a different entity than agent"
+            )
+        elif exception is not None:
             tb_str = traceback.format_exception(
                 type(exception), value=exception, tb=exception.__traceback__
             )
@@ -278,10 +282,6 @@ class LaunchAgent:
                 job_and_run_status.err_stage,
                 fnames,
             )
-        elif job_and_run_status.entity != self._entity:
-            _logger.info(
-                "Skipping check for completed run status because run is on a different entity than agent"
-            )
         elif job_and_run_status.completed_status not in ["stopped", "failed"]:
             _logger.info(
                 "Skipping check for completed run status because run was successful"
@@ -291,6 +291,7 @@ class LaunchAgent:
             # sweep runs exist but have no info before they are started
             # so run_info returned will be None
             # normal runs just throw a comm error
+            # TODO: make more clear
             try:
                 run_info = self._api.get_run_info(
                     self._entity, job_and_run_status.project, job_and_run_status.run_id
@@ -303,7 +304,6 @@ class LaunchAgent:
                 fnames = None
 
                 logs = job_and_run_status.run.get_logs()
-                print(logs)
                 if logs:
                     fnames = job_and_run_status.saver.save_contents(
                         logs, "error.log", "error"
@@ -311,6 +311,9 @@ class LaunchAgent:
                 self.fail_run_queue_item(
                     job_and_run_status.run_queue_item_id, _msg, "run", fnames
                 )
+        else:
+            _logger.info("Finish thread id had no exception, ror run")
+            wandb._sentry.exception("launch agent called finish thread id on thread without run or exception")
 
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
@@ -407,6 +410,9 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
+                            file_saver = RunQueueItemFileSaver(
+                                self._wandb_run, job["runQueueItemId"]
+                            )
                             if _is_scheduler_job(job.get("runSpec")):
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
@@ -419,9 +425,6 @@ class LaunchAgent:
                                     continue
 
                             try:
-                                file_saver = RunQueueItemFileSaver(
-                                    self._wandb_run, job["runQueueItemId"]
-                                )
                                 self.run_job(job, file_saver)
                             except Exception as e:
                                 wandb.termerror(
@@ -431,10 +434,10 @@ class LaunchAgent:
 
                                 # always the first phase, because we only enter phase 2 within the thread
                                 files = file_saver.save_contents(
-                                    traceback.format_exc(), "error.log", "error"
+                                    contents=traceback.format_exc(), fname="error.log", file_sub_type="error"
                                 )
                                 self.fail_run_queue_item(
-                                    job["runQueueItemId"], str(e), "agent", files
+                                    run_queue_item_id=job["runQueueItemId"], message=str(e), phase="agent", files=files
                                 )
 
                 for thread_id in self.thread_ids:

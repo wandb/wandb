@@ -66,9 +66,9 @@ class SagemakerSubmittedRun(AbstractRun):
                 f"Failed to get logs for training job: {self.training_job_name}"
             )
             return None
-        except Exception:
+        except Exception as e:
             wandb.termwarn(
-                f"Failed to handle logs for training job: {self.training_job_name}"
+                f"Failed to handle logs for training job: {self.training_job_name} with error {str(e)}"
             )
             return None
 
@@ -171,9 +171,9 @@ class SageMakerRunner(AbstractRunner):
         log_client = None
         try:
             log_client = session.client("logs")
-        except Exception:
+        except Exception as e:
             wandb.termwarn(
-                "Failed to connect to cloudwatch logs, logs will not be available"
+                f"Failed to connect to cloudwatch logs with error {str(e)}, logs will not be available"
             )
 
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts

@@ -66,7 +66,7 @@ class AbstractRun(ABC):
 
     @abstractmethod
     def get_logs(self) -> Optional[str]:
-        """Returns the logs associated with the run."""
+        """Return the logs associated with the run."""
         pass
 
     def _run_cmd(

@@ -41,9 +41,6 @@ class LocalSubmittedRun(AbstractRun):
         return self.command_proc.wait() == 0
 
     def get_logs(self) -> Optional[str]:
-        # print(self.command_proc.stdout.read().decode("utf-8"))
-        # print("ERR")
-        # print(self.command_proc.stderr.read().decode("utf-8"))
         if self.command_proc.stdout is not None:
             return self.command_proc.stdout.read().decode("utf-8")
         return None

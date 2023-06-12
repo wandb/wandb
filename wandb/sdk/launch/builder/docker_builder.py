@@ -167,7 +167,7 @@ class DockerBuilder(AbstractBuilder):
             )
 
         except docker.DockerError as e:
-            if job_tracker is not None:
+            if job_tracker:
                 job_tracker.set_err_stage("build")
             raise LaunchDockerError(f"Error communicating with docker client: {e}")
 

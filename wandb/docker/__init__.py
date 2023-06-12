@@ -259,7 +259,7 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
         )
         res.raise_for_status()
     except requests.RequestException:
-        print(f"Received {res} when attempting to get digest for {image_name}")
+        log.error(f"Received {res} when attempting to get digest for {image_name}")
         return None
     return "@".join([registry + "/" + repository, res.headers["Docker-Content-Digest"]])
 

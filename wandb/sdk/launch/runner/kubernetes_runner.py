@@ -112,6 +112,8 @@ class KubernetesSubmittedRun(AbstractRun):
             )
             if logs:
                 return str(logs)
+            else:
+                wandb.termwarn(f"Retrieved no logs for kubernetes pod(s): {self.pod_names}")
             return None
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
@@ -277,7 +279,7 @@ class CrdSubmittedRun(AbstractRun):
     def get_logs(self) -> Optional[str]:
         """Get logs for custom object."""
         # TODO: test more carefully once we release multi-node support
-        logs = {}
+        logs: Dict[str, Optional[str]] = {}
         try:
             for pod_name in self.pod_names:
                 logs[pod_name] = self.core_api.read_namespaced_pod_log(

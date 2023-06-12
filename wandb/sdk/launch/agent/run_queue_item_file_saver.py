@@ -5,6 +5,7 @@ import sys
 import tempfile
 from typing import List, Optional, Union
 
+import wandb
 from wandb.sdk.lib import RunDisabled
 from wandb.sdk.wandb_run import Run
 
@@ -32,6 +33,7 @@ class RunQueueItemFileSaver:
         self, contents: str, fname: str, file_sub_type: FileSubtypes
     ) -> Optional[List[str]]:
         if not isinstance(self.run, Run):
+            wandb.termwarn("Not saving file contents because agent has no run")
             return None
         path = os.path.join(self._path_prefix, file_sub_type, fname)
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -41,4 +43,5 @@ class RunQueueItemFileSaver:
         if isinstance(res, list):
             return res
         else:
+            wandb.termwarn(f"Failed to save files for run queue item: {self.run_queue_item_id}")
             return None
