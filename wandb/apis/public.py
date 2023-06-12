@@ -4342,6 +4342,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
     _notebook_job: bool
+    _proto: bool = False
 
     def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
@@ -4371,6 +4372,9 @@ class Job:
         self._output_types = TypeRegistry.type_from_dict(
             self._job_info.get("output_types")
         )
+
+        if os.path.exists(os.path.join(self._fpath, "wandb-proto")):
+            self._proto = True
 
         if self._job_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
