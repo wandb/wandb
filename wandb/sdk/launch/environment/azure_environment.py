@@ -6,7 +6,7 @@ from typing import Tuple
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobClient, BlobServiceClient
 
-from ..utils import LaunchError
+from ..errors import LaunchError
 from .abstract import AbstractEnvironment
 
 AZURE_BLOB_REGEX = re.compile(

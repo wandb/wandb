@@ -2,10 +2,9 @@
 import re
 from typing import Tuple
 
-from wandb.sdk.launch.utils import LaunchError
-
 from ..environment.abstract import AbstractEnvironment
 from ..environment.azure_environment import AzureEnvironment
+from ..errors import LaunchError
 from .abstract import AbstractRegistry
 
 
