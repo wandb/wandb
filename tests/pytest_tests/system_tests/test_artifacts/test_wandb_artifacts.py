@@ -14,7 +14,6 @@ import wandb
 import wandb.data_types as data_types
 from wandb import util
 from wandb.sdk.artifacts import artifacts_cache
-from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -1086,24 +1085,6 @@ def test_add_obj_using_brackets(assets_path):
         _ = artifact["my-image"]
 
 
-def test_artifact_interface_link():
-    art = ArtifactInterface()
-    with pytest.raises(NotImplementedError):
-        _ = art.link("boom")
-
-
-def test_artifact_interface_get_item():
-    art = ArtifactInterface()
-    with pytest.raises(NotImplementedError):
-        _ = art["my-image"]
-
-
-def test_artifact_interface_set_item():
-    art = ArtifactInterface()
-    with pytest.raises(NotImplementedError):
-        art["my-image"] = 1
-
-
 def test_duplicate_wbimage_from_file(assets_path):
     im_path_1 = str(assets_path("test.png"))
     im_path_2 = str(assets_path("test2.png"))
@@ -1313,12 +1294,6 @@ def test_add_partition_folder():
         "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
         "size": 61,
     }
-
-
-def test_interface_commit_hash():
-    artifact = ArtifactInterface()
-    with pytest.raises(NotImplementedError):
-        artifact.commit_hash()
 
 
 @pytest.mark.parametrize(

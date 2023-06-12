@@ -44,7 +44,7 @@ from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
-from .lib.git import GitRepo
+from .lib.gitlib import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
@@ -486,6 +486,7 @@ class Settings:
     _platform: str
     _python: str
     _runqueue_item_id: str
+    _require_nexus: bool
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
@@ -662,6 +663,7 @@ class Settings:
             },
             _sync={"value": False},
             _platform={"value": util.get_platform_name()},
+            _require_nexus={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
                 "value": 30,
@@ -1559,6 +1561,7 @@ class Settings:
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
+            "WANDB_REQUIRE_NEXUS": "_require_nexus",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",

@@ -25,9 +25,9 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
-    LaunchError,
     get_kube_context_and_api_client,
     sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,

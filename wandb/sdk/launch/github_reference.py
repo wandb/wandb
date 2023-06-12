@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 PREFIX_HTTPS = "https://"
 PREFIX_SSH = "git@"
@@ -214,6 +214,7 @@ class GitHubReference:
             self.default_branch = default_branch
             head = repo.create_head(default_branch, origin.refs[default_branch])
             head.checkout()
+        repo.submodule_update(init=True, recursive=True)
 
         # Now that we've checked something out, try to extract directory and file from what remains
         self._update_path(dst_dir)

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     import boto3.s3  # type: ignore
     import boto3.session  # type: ignore
 
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
 
 
 class S3Handler(StorageHandler):
@@ -144,7 +144,7 @@ class S3Handler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[StrPath] = None,
         checksum: bool = True,

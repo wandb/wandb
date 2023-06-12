@@ -7,6 +7,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional,
 
 from wandb import env, termwarn, util
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
+from wandb.sdk.lib.capped_dict import CappedDict
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -14,8 +15,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 if TYPE_CHECKING:
     import sys
 
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -35,8 +35,8 @@ class ArtifactsCache:
         mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-        self._artifacts_by_id: Dict[str, "ArtifactInterface"] = {}
-        self._artifacts_by_client_id: Dict[str, "LocalArtifact"] = {}
+        self._artifacts_by_id: Dict[str, "Artifact"] = CappedDict()
+        self._artifacts_by_client_id: Dict[str, "Artifact"] = CappedDict()
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
@@ -68,18 +68,18 @@ class ArtifactsCache:
         mkdir_exists_ok(os.path.dirname(path))
         return FilePathStr(path), False, opener
 
-    def get_artifact(self, artifact_id: str) -> Optional["ArtifactInterface"]:
+    def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
 
-    def store_artifact(self, artifact: "ArtifactInterface") -> None:
+    def store_artifact(self, artifact: "Artifact") -> None:
         if not artifact.id:
             raise ArtifactNotLoggedError(artifact, "store_artifact")
         self._artifacts_by_id[artifact.id] = artifact
 
-    def get_client_artifact(self, client_id: str) -> Optional["LocalArtifact"]:
+    def get_client_artifact(self, client_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_client_id.get(client_id)
 
-    def store_client_artifact(self, artifact: "LocalArtifact") -> None:
+    def store_client_artifact(self, artifact: "Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int, remove_temp: bool = False) -> int:

@@ -2,7 +2,7 @@
 from typing import Any, Dict, Optional
 
 from wandb.apis.internal import Api
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 from .builder.abstract import AbstractBuilder
 from .environment.abstract import AbstractEnvironment

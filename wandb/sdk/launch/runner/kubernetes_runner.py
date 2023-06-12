@@ -18,10 +18,10 @@ from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )

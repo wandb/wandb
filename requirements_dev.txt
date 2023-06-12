@@ -76,6 +76,6 @@ azure-containerregistry
 
 cloudpickle
 responses
-kfp
+kfp<2.0.0
 
 mlflow
