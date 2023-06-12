@@ -2,14 +2,22 @@ import os
 import signal
 import subprocess
 import sys
+from typing import Optional, Tuple
 
 from kubernetes import client, config, watch
 from utils import get_wandb_api_key
 from wandb.sdk.launch.launch_add import launch_add
 
 
-def _create_wandb_and_aws_secrets(aws_id, aws_secret, aws_token, namespace):
-    wandb_api_key = get_wandb_api_key()
+def _create_wandb_and_aws_secrets(
+    wandb_api_key: Optional[str],
+    aws_id: str,
+    aws_secret: str,
+    aws_token: str,
+    namespace: str,
+) -> None:
+    if not wandb_api_key:
+        wandb_api_key = get_wandb_api_key()
     secrets = [
         ("wandb-api-key", wandb_api_key),
         ("aws-access-key-id", aws_id),
@@ -44,7 +52,7 @@ def _create_wandb_and_aws_secrets(aws_id, aws_secret, aws_token, namespace):
         ).wait()
 
 
-def _wait_for_job_completion(entity, project):
+def _wait_for_job_completion(entity: str, project: str) -> Tuple[str, str]:
     config.load_kube_config()
     v1 = client.CoreV1Api()
     w = watch.Watch()
@@ -85,7 +93,7 @@ def test_kubernetes_agent_on_local_process():
         subprocess.Popen(["rm", "-r", "artifacts"]).wait()
 
 
-def test_kubernetes_agent_in_cluster():
+def test_kubernetes_agent_in_cluster(api_key):
     entity = "launch-release-testing"
     project = "release-testing"
     queue = "kubernetes-queue"
@@ -99,12 +107,17 @@ def test_kubernetes_agent_in_cluster():
     aws_token = os.getenv("AWS_SESSION_TOKEN")
     _create_wandb_and_aws_secrets(aws_id, aws_secret, aws_token, "wandb")
 
-    subprocess.Popen(
-        ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-config.yml"]
-    ).wait()
-    subprocess.Popen(
-        ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-agent.yml"]
-    ).wait()
+    # TODO
+    # helm repo add wandb https://wandb.github.io/helm-charts
+    # note: LICENSE=eyJhbGciOiJSUzI1NiIsImtpZCI6InUzaHgyQjQyQWhEUXM1M0xQY09yNnZhaTdoSlduYnF1bTRZTlZWd1VwSWM9In0.eyJjb25jdXJyZW50QWdlbnRzIjoxLCJ0cmlhbCI6ZmFsc2UsIm1heFN0b3JhZ2VHYiI6MTAsIm1heFRlYW1zIjowLCJtYXhVc2VycyI6MSwibWF4Vmlld09ubHlVc2VycyI6MCwibWF4UmVnaXN0ZXJlZE1vZGVscyI6MiwiZXhwaXJlc0F0IjoiMjAyNC0wNi0wOVQyMzozMTo0MS4wMzFaIiwiZGVwbG95bWVudElkIjoiM2UzZGI0NTAtNzdlNC00NGE0LThiZTQtYjdjZjg2YTA5MjQ2IiwiZmxhZ3MiOltdLCJhY2Nlc3NLZXkiOiI5ZjExMGEyMy1kNjA4LTQyZmYtYWIxZC1mMzU3ZWFmYjdkNjYiLCJzZWF0cyI6MSwidmlld09ubHlTZWF0cyI6MCwidGVhbXMiOjAsInJlZ2lzdGVyZWRNb2RlbHMiOjIsInN0b3JhZ2VHaWdzIjoxMCwiZXhwIjoxNzE3OTc1OTAxfQ.jfWHTcLLcpgF_h7yCsEoZdipa9Q4XmzNiYwHajZExC6zh6zAp2cJJKk73sjBKTM_D4SU3qIHivIPZT-K6DrIbjpcAyOYF2VLbIW4rz7jht8kOLtPLfCuD312pwqtdL-8nbSsFgNQM9eeon6-CKwHxuhC9W9j2cReWLAln56ovdN09kcAuVZkCz6YyZqKAP6nEN3Ul9YtLMyAfHE-A2e2KPBTTPNm6fIhihMwgxAqFNa33aYHPScOVHhfZfJgL8QwOZKIa3DYHp9VTSdqohx1YUZTctVv6avSTNJ5pbkWdOehjmbDWWN1i8M2JOxPmfdBVJRespcEHb29ne_HYB2I_A
+    # license is needed for helm download
+
+    # subprocess.Popen(
+    #     ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-config.yml"]
+    # ).wait()
+    # subprocess.Popen(
+    #     ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-agent.yml"]
+    # ).wait()
 
     # Capture sigint so cleanup occurs even on ctrl-C
     sigint = signal.getsignal(signal.SIGINT)

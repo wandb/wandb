@@ -2,6 +2,9 @@
 
 These tests are intended to be run before any release of Launch, to ensure common use cases haven't regressed. The tests shouldn't mock anything related to the wandb server, and should make actual API calls the same way a user would.
 
-To run these tests, you need to be logged into a Weights & Biases account that has access to the entity `launch-release-testing`. You will also need to have AWS credentials - the env vars `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` should be set.
+Prerequisites:
+- You must be logged into a Weights & Biases account that has access to the entity `launch-release-testing`
+- You will also need to have AWS credentials - the env vars `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` should be set
+- `helm` must be installed: `brew install helm`
 
 If you are a W&B employee and have any questions or want to request access to the `launch-release-testing` entity, contact Tim Hays in Slack
