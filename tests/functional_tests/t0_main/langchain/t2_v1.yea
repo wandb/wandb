@@ -25,4 +25,4 @@ assert:
   #   - model_hash
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # features
-    - 52  # LangChain W&B Tracer callback
+    - 23  # LangChain W&B Tracer callback
