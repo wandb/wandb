@@ -5,12 +5,12 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 import wandb.data_types as data_types
 from wandb.data_types import _SavedModel
-from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 
 def _add_any(
-    artifact: Artifact,
+    artifact: ArtifactInterface,
     path_or_obj: Union[
         str, ArtifactManifestEntry, data_types.WBValue
     ],  # todo: add dataframe
@@ -23,7 +23,8 @@ def _add_any(
     be moved to the Artifact class in the future.
 
     Args:
-        artifact: `Artifact` - artifact created with `wandb.Artifact(...)`
+        artifact: `ArtifactInterface` - most likely a LocalArtifact created with
+            `wandb.Artifact(...)`
         path_or_obj: `Union[str, ArtifactManifestEntry, data_types.WBValue]` - either a
             str or valid object which indicates what to add to an artifact.
 
@@ -61,7 +62,7 @@ def _log_artifact_version(
     project: Optional[str] = None,
     scope_project: Optional[bool] = None,
     job_type: str = "auto",
-) -> Artifact:
+) -> ArtifactInterface:
     """Create an artifact, populate it, and log it with a run.
 
     If a run is not present, we create one.
@@ -82,7 +83,7 @@ def _log_artifact_version(
             Used to identify runs of a certain job type, i.e "evaluation".
 
     Returns:
-        Artifact
+        ArtifactInterface
 
     """
     if wandb.run is None:

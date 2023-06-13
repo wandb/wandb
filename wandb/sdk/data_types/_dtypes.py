@@ -13,7 +13,8 @@ from wandb.util import (
 np = get_module("numpy")  # intentionally not required
 
 if t.TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as ArtifactInCreation
+    from wandb.sdk.artifacts.public_artifact import Artifact as DownloadedArtifact
 
 _TYPES_STRIPPED = not (sys.version_info.major == 3 and sys.version_info.minor >= 6)
 if not _TYPES_STRIPPED:
@@ -76,7 +77,7 @@ class TypeRegistry:
 
     @staticmethod
     def type_from_dict(
-        json_dict: t.Dict[str, t.Any], artifact: t.Optional["Artifact"] = None
+        json_dict: t.Dict[str, t.Any], artifact: t.Optional["DownloadedArtifact"] = None
     ) -> "Type":
         wb_type = json_dict.get("wb_type")
         if wb_type is None:
@@ -134,7 +135,7 @@ class TypeRegistry:
 
 def _params_obj_to_json_obj(
     params_obj: t.Any,
-    artifact: t.Optional["Artifact"] = None,
+    artifact: t.Optional["ArtifactInCreation"] = None,
 ) -> t.Any:
     """Helper method."""
     if params_obj.__class__ == dict:
@@ -151,7 +152,7 @@ def _params_obj_to_json_obj(
 
 
 def _json_obj_to_params_obj(
-    json_obj: t.Any, artifact: t.Optional["Artifact"] = None
+    json_obj: t.Any, artifact: t.Optional["DownloadedArtifact"] = None
 ) -> t.Any:
     """Helper method."""
     if json_obj.__class__ == dict:
@@ -221,7 +222,9 @@ class Type:
         else:
             return InvalidType()
 
-    def to_json(self, artifact: t.Optional["Artifact"] = None) -> t.Dict[str, t.Any]:
+    def to_json(
+        self, artifact: t.Optional["ArtifactInCreation"] = None
+    ) -> t.Dict[str, t.Any]:
         """Generate a jsonable dictionary serialization the type.
 
         If overridden by subclass, ensure that `from_json` is equivalently overridden.
@@ -246,7 +249,7 @@ class Type:
     def from_json(
         cls,
         json_dict: t.Dict[str, t.Any],
-        artifact: t.Optional["Artifact"] = None,
+        artifact: t.Optional["DownloadedArtifact"] = None,
     ) -> "Type":
         """Construct a new instance of the type using a JSON dictionary.
 
@@ -753,7 +756,9 @@ class NDArrayType(Type):
 
         return InvalidType()
 
-    def to_json(self, artifact: t.Optional["Artifact"] = None) -> t.Dict[str, t.Any]:
+    def to_json(
+        self, artifact: t.Optional["ArtifactInCreation"] = None
+    ) -> t.Dict[str, t.Any]:
         # custom override to support serialization path outside of params internal dict
         res = {
             "wb_type": self.name,

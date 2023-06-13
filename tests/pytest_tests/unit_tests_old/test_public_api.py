@@ -12,7 +12,6 @@ import platform
 import pytest
 import requests
 import wandb
-from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib import filesystem
 
 from tests.pytest_tests.unit_tests_old import utils
@@ -340,7 +339,7 @@ def test_artifact_files(runner, mock_server, api):
         # Assert we don't break legacy local installs
         mock_server.ctx["max_cli_version"] = "0.12.20"
         # reset server info
-        art._client._server_info = None
+        art.client._server_info = None
         file = art.files()[0]
         assert "storagePath" not in file._attrs.keys()
 
@@ -417,7 +416,7 @@ def test_artifact_bracket_accessor(runner, live_mock_server, api):
     assert art["t"].__class__ == wandb.Table
     assert art["s"] is None
     # TODO: Remove this once we support incremental adds
-    with pytest.raises(ArtifactFinalizedError):
+    with pytest.raises(ValueError):
         art["s"] = wandb.Table(data=[], columns=[])
 
 

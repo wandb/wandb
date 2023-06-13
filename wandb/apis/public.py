@@ -41,6 +41,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError
+from wandb.sdk import artifacts
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.errors import LaunchError
@@ -908,13 +909,14 @@ class Api:
 
     @normalize_exceptions
     def artifact(self, name, type=None):
-        """Return a single artifact by parsing path in the form `entity/project/name`.
+        """Return a single artifact by parsing path in the form `entity/project/run_id`.
 
         Arguments:
             name: (str) An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
                     name:version
                     name:alias
+                    digest
             type: (str, optional) The type of artifact to fetch.
 
         Returns:
@@ -923,7 +925,7 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = wandb.Artifact.from_name(entity, project, artifact_name, self.client)
+        artifact = artifacts.PublicArtifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
@@ -2138,10 +2140,10 @@ class Run(Attrs):
         )
         api.set_current_run_id(self.id)
 
-        if isinstance(artifact, wandb.Artifact) and not artifact.is_draft():
+        if isinstance(artifact, artifacts.PublicArtifact):
             api.use_artifact(artifact.id, use_as=use_as or artifact.name)
             return artifact
-        elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
+        elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
                 "Only existing artifacts are accepted by this api. "
                 "Manually create one with `wandb artifacts put`"
@@ -2166,7 +2168,7 @@ class Run(Attrs):
         )
         api.set_current_run_id(self.id)
 
-        if isinstance(artifact, wandb.Artifact) and not artifact.is_draft():
+        if isinstance(artifact, artifacts.PublicArtifact):
             artifact_collection_name = artifact.name.split(":")[0]
             api.create_artifact(
                 artifact.type,
@@ -2175,7 +2177,7 @@ class Run(Attrs):
                 aliases=aliases,
             )
             return artifact
-        elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
+        elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
                 "Only existing artifacts are accepted by this api. "
                 "Manually create one with `wandb artifacts put`"
@@ -3812,7 +3814,7 @@ class RunArtifacts(Paginator):
             }
             %s
             """
-            % wandb.Artifact.GQL_FRAGMENT
+            % artifacts.ARTIFACT_FRAGMENT
         )
 
         input_query = gql(
@@ -3840,7 +3842,7 @@ class RunArtifacts(Paginator):
             }
             %s
             """
-            % wandb.Artifact.GQL_FRAGMENT
+            % artifacts.ARTIFACT_FRAGMENT
         )
 
         self.run = run
@@ -3888,14 +3890,14 @@ class RunArtifacts(Paginator):
 
     def convert_objects(self):
         return [
-            wandb.Artifact.from_attrs(
+            artifacts.PublicArtifact(
+                self.client,
                 self.run.entity,
                 self.run.project,
                 "{}:v{}".format(
                     r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
                 ),
                 r["node"],
-                self.client,
             )
             for r in self.last_response["project"]["run"][self.run_key]["edges"]
         ]
@@ -4142,7 +4144,7 @@ class ArtifactVersions(Paginator):
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
-                wandb.Artifact.GQL_FRAGMENT,
+                artifacts.ARTIFACT_FRAGMENT,
             )
         )
         super().__init__(client, variables, per_page)
@@ -4178,12 +4180,12 @@ class ArtifactVersions(Paginator):
         if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
         return [
-            wandb.Artifact.from_attrs(
+            artifacts.PublicArtifact(
+                self.client,
                 self.entity,
                 self.project,
                 self.collection_name + ":" + a["version"],
                 a["node"],
-                self.client,
             )
             for a in self.last_response["project"]["artifactType"][
                 "artifactCollection"
@@ -4219,7 +4221,7 @@ class ArtifactFiles(Paginator):
     def __init__(
         self,
         client: Client,
-        artifact: "wandb.Artifact",
+        artifact: "artifacts.PublicArtifact",
         names: Optional[Sequence[str]] = None,
         per_page: int = 50,
     ):
@@ -4333,7 +4335,9 @@ class Job:
     def _get_code_artifact(self, artifact_string):
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
-            code_artifact = wandb.Artifact.from_id(artifact_string, self._api._client)
+            code_artifact = artifacts.PublicArtifact.from_id(
+                artifact_string, self._api._client
+            )
         else:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
@@ -4408,7 +4412,7 @@ class Job:
         run_config = {}
         for key, item in config.items():
             if util._is_artifact_object(item):
-                if isinstance(item, wandb.Artifact) and item.is_draft():
+                if isinstance(item, wandb.Artifact) and item.id is None:
                     raise ValueError("Cannot queue jobs with unlogged artifacts")
                 run_config[key] = util.artifact_to_json(item)
 

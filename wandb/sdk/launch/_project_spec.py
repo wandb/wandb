@@ -7,20 +7,18 @@ import json
 import logging
 import os
 import tempfile
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.launch import utils
 from wandb.sdk.lib.runid import generate_id
 
 from .errors import LaunchError
 from .utils import LOG_PREFIX, recursive_macro_sub
-
-if TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact
 
 _logger = logging.getLogger(__name__)
 
@@ -71,7 +69,7 @@ class LaunchProject:
         self.job = job
         if job is not None:
             wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
-        self._job_artifact: Optional["Artifact"] = None
+        self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity

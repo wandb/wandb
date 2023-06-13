@@ -656,7 +656,7 @@ def test_run_in_launch_context_with_artifacts_api(
         assert arti_info["used_name"] == "old_name:v0"
         _, err = capsys.readouterr()
         assert (
-            "Swapping artifacts is not supported when using a non-draft artifact."
+            "Swapping artifacts is not supported when using an instance of `PublicArtifact`."
             in err
         )
 

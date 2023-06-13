@@ -29,7 +29,8 @@ if TYPE_CHECKING:  # pragma: no cover
     import tensorflow  # type: ignore
     import torch  # type: ignore
 
-    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
     from ..wandb_run import Run as LocalRun
 
@@ -38,7 +39,7 @@ DEBUG_MODE = False
 
 
 def _add_deterministic_dir_to_artifact(
-    artifact: "Artifact", dir_name: str, target_dir_root: str
+    artifact: "LocalArtifact", dir_name: str, target_dir_root: str
 ) -> str:
     file_paths = []
     for dirpath, _, filenames in os.walk(dir_name, topdown=True):
@@ -50,7 +51,7 @@ def _add_deterministic_dir_to_artifact(
     return target_path
 
 
-def _load_dir_from_artifact(source_artifact: "Artifact", path: str) -> str:
+def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str:
     dl_path = None
 
     # Look through the entire manifest to find all of the files in the directory.
@@ -125,7 +126,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     @classmethod
     def from_json(
-        cls: Type["_SavedModel"], json_obj: dict, source_artifact: "Artifact"
+        cls: Type["_SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "_SavedModel":
         path = json_obj["path"]
 
@@ -143,7 +144,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # and specified adapter.
         return cls(dl_path)
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         # Unlike other data types, we do not allow adding to a Run directly. There is a
         # bit of tech debt in the other data types which requires the input to `to_json`
         # to accept a Run or Artifact. However, Run additions should be deprecated in the future.
@@ -319,7 +320,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
     @classmethod
     def from_json(
-        cls: Type["_SavedModel"], json_obj: dict, source_artifact: "Artifact"
+        cls: Type["_SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "_PicklingSavedModel":
         backup_path = [p for p in sys.path]
         if (
@@ -336,7 +337,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
         return inst  # type: ignore
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_obj = super().to_json(run_or_artifact)
         assert isinstance(run_or_artifact, wandb.Artifact)
         if self._dep_py_files_path is not None:

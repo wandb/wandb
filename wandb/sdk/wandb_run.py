@@ -47,7 +47,9 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
-from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.lazy_artifact import LazyArtifact
+from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -1049,7 +1051,7 @@ class Run:
         name: Optional[str] = None,
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
-    ) -> Optional[Artifact]:
+    ) -> Optional[LocalArtifact]:
         """Save the current state of your code to a W&B Artifact.
 
         By default, it walks the current directory and logs all files that end with `.py`.
@@ -1283,15 +1285,15 @@ class Run:
             self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
-        self, key: str, val: Union[str, Artifact, dict]
-    ) -> Artifact:
+        self, key: str, val: Union[str, LocalArtifact, dict]
+    ) -> Union[LocalArtifact, PublicArtifact]:
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
         # in wandb.util.artifact_to_json
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = Artifact.from_id(val["id"], public_api.client)
+            artifact = PublicArtifact.from_id(val["id"], public_api.client)
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
@@ -1304,11 +1306,12 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = Artifact.from_id(artifact_string, public_api._client)
+                artifact = PublicArtifact.from_id(artifact_string, public_api._client)
             else:
                 artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
-            # different instances of wandb.
+            # different instances of wandb. simplest way to do that is
+            # likely to convert the retrieved PublicArtifact to a LocalArtifact
 
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_object(val):
@@ -2269,7 +2272,7 @@ class Run:
         source_dict: "JobSourceDict",
         installed_packages_list: List[str],
         patch_path: Optional[os.PathLike] = None,
-    ) -> "Artifact":
+    ) -> "LocalArtifact":
         job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
@@ -2287,7 +2290,7 @@ class Run:
         installed_packages_list: List[str],
         docker_image_name: Optional[str] = None,
         args: Optional[List[str]] = None,
-    ) -> Optional["Artifact"]:
+    ) -> Optional["LocalArtifact"]:
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
         if not docker_image_name:
@@ -2311,7 +2314,7 @@ class Run:
 
     def _log_job_artifact_with_image(
         self, docker_image_name: str, args: Optional[List[str]] = None
-    ) -> Artifact:
+    ) -> LocalArtifact:
         packages, in_types, out_types = self._make_job_source_reqs()
         job_artifact = self._create_image_job(
             in_types,
@@ -2587,7 +2590,7 @@ class Run:
     @_run_decorator._attach
     def link_artifact(
         self,
-        artifact: Artifact,
+        artifact: Union[PublicArtifact, LocalArtifact],
         target_path: str,
         aliases: Optional[List[str]] = None,
     ) -> None:
@@ -2612,7 +2615,7 @@ class Run:
             aliases = []
 
         if self._backend and self._backend.interface:
-            if artifact.is_draft() and not artifact._is_draft_save_started():
+            if isinstance(artifact, LocalArtifact) and not artifact._logged_artifact:
                 artifact = self._log_artifact(artifact)
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
@@ -2631,11 +2634,11 @@ class Run:
     @_run_decorator._attach
     def use_artifact(
         self,
-        artifact_or_name: Union[str, Artifact],
+        artifact_or_name: Union[str, PublicArtifact, LocalArtifact],
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
         use_as: Optional[str] = None,
-    ) -> Artifact:
+    ) -> Union[PublicArtifact, LocalArtifact]:
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2700,10 +2703,10 @@ class Run:
                 aliases = []
             elif isinstance(aliases, str):
                 aliases = [aliases]
-            if isinstance(artifact_or_name, Artifact) and artifact.is_draft():
+            if isinstance(artifact_or_name, wandb.Artifact):
                 if use_as is not None:
                     wandb.termwarn(
-                        "Indicating use_as is not supported when using a draft artifact"
+                        "Indicating use_as is not supported when using an artifact with an instance of `wandb.Artifact`"
                     )
                 self._log_artifact(
                     artifact,
@@ -2713,13 +2716,13 @@ class Run:
                 )
                 artifact.wait()
                 artifact._use_as = use_as or artifact.name
-            elif isinstance(artifact, Artifact) and not artifact.is_draft():
+            elif isinstance(artifact, PublicArtifact):
                 if (
                     self._launch_artifact_mapping
                     and artifact.name in self._launch_artifact_mapping.keys()
                 ):
                     wandb.termwarn(
-                        "Swapping artifacts is not supported when using a non-draft artifact. "
+                        "Swapping artifacts is not supported when using an instance of `PublicArtifact`. "
                         f"Using {artifact.name}."
                     )
                 artifact._use_as = use_as or artifact.name
@@ -2739,11 +2742,11 @@ class Run:
     @_run_decorator._attach
     def log_artifact(
         self,
-        artifact_or_path: Union[Artifact, StrPath],
+        artifact_or_path: Union[LocalArtifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-    ) -> Artifact:
+    ) -> LocalArtifact:
         """Declare an artifact as an output of a run.
 
         Arguments:
@@ -2776,12 +2779,12 @@ class Run:
     @_run_decorator._attach
     def upsert_artifact(
         self,
-        artifact_or_path: Union[Artifact, str],
+        artifact_or_path: Union[LocalArtifact, str],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
-    ) -> Artifact:
+    ) -> LocalArtifact:
         """Declare (or append to) a non-finalized artifact as output of a run.
 
         Note that you must call run.finish_artifact() to finalize the artifact.
@@ -2830,12 +2833,12 @@ class Run:
     @_run_decorator._attach
     def finish_artifact(
         self,
-        artifact_or_path: Union[Artifact, str],
+        artifact_or_path: Union[LocalArtifact, str],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
-    ) -> Artifact:
+    ) -> LocalArtifact:
         """Finishes a non-finalized artifact as output of a run.
 
         Subsequent "upserts" with the same distributed ID will result in a new version.
@@ -2882,7 +2885,7 @@ class Run:
 
     def _log_artifact(
         self,
-        artifact_or_path: Union[Artifact, StrPath],
+        artifact_or_path: Union[LocalArtifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
@@ -2890,7 +2893,7 @@ class Run:
         finalize: bool = True,
         is_user_created: bool = False,
         use_after_commit: bool = False,
-    ) -> Artifact:
+    ) -> LocalArtifact:
         api = internal.Api()
         if api.settings().get("anonymous") == "true":
             wandb.termwarn(
@@ -2919,7 +2922,7 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._set_save_future(future, self._public_api().client)
+                artifact._logged_artifact = LazyArtifact(self._public_api(), future)
             else:
                 self._backend.interface.publish_artifact(
                     self,
@@ -2952,11 +2955,11 @@ class Run:
         if not self._settings._offline:
             try:
                 public_api = self._public_api()
-                expected_type = Artifact.expected_type(
+                expected_type = PublicArtifact.expected_type(
+                    public_api.client,
+                    artifact.name,
                     public_api.settings["entity"],
                     public_api.settings["project"],
-                    artifact.name,
-                    public_api.client,
                 )
             except requests.exceptions.RequestException:
                 # Just return early if there is a network error. This is
@@ -2971,11 +2974,11 @@ class Run:
 
     def _prepare_artifact(
         self,
-        artifact_or_path: Union[Artifact, StrPath],
+        artifact_or_path: Union[LocalArtifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-    ) -> Tuple[Artifact, List[str]]:
+    ) -> Tuple[LocalArtifact, List[str]]:
         if isinstance(artifact_or_path, (str, os.PathLike)):
             name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
             artifact = wandb.Artifact(name, type or "unspecified")

@@ -3,8 +3,8 @@ import platform
 
 import pytest
 import wandb
-from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.public_artifact import Artifact
 from wandb.sdk.data_types import saved_model
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 
@@ -79,44 +79,27 @@ class ArtifactManifestEntryPatch(ArtifactManifestEntry):
         return copy_or_overwrite_changed(self.local_path, dest)
 
 
-class ArtifactPatch(Artifact):
-    def _load_manifest(self, url: str) -> None:
-        assert url == "FAKE_URL"
-
-
 def make_local_artifact_public(art):
-    pub = ArtifactPatch.from_attrs(
+    pub = Artifact(
+        None,
         "FAKE_ENTITY",
         "FAKE_PROJECT",
         "FAKE_NAME",
         {
+            "artifactSequence": {
+                "name": "FAKE_SEQUENCE_NAME",
+            },
+            "aliases": [],
             "id": "FAKE_ID",
+            "digest": "FAKE_DIGEST",
+            "state": None,
+            "size": None,
+            "createdAt": None,
+            "updatedAt": None,
             "artifactType": {
                 "name": "FAKE_TYPE_NAME",
             },
-            "aliases": [{"artifactCollectionName": "FAKE_NAME", "alias": "v0"}],
-            "artifactSequence": {
-                "name": "FAKE_SEQUENCE_NAME",
-                "project": {
-                    "entityName": "FAKE_ENTITY",
-                    "name": "FAKE_PROJECT",
-                },
-            },
-            "versionIndex": 0,
-            "description": None,
-            "metadata": None,
-            "state": "COMMITTED",
-            "currentManifest": {
-                "file": {
-                    "directUrl": "FAKE_URL",
-                }
-            },
-            "commitHash": "FAKE_HASH",
-            "fileCount": 0,
-            "createdAt": None,
-            "updatedAt": None,
         },
-        None,
     )
     pub._manifest = art._manifest
     return pub
@@ -132,7 +115,7 @@ def saved_model_test(mocker, model, py_deps=None):
     sm = saved_model._SavedModel.init(model, **kwargs)
 
     mocker.patch(
-        "wandb.sdk.artifacts.artifact.ArtifactManifestEntry",
+        "wandb.sdk.artifacts.local_artifact.ArtifactManifestEntry",
         ArtifactManifestEntryPatch,
     )
     art = wandb.Artifact("name", "type")

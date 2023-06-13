@@ -10,7 +10,8 @@ from .._private import MEDIA_TMP
 from ..base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
     from ...wandb_run import Run as LocalRun
 
@@ -183,14 +184,14 @@ class ImageMask(Media):
 
     @classmethod
     def from_json(
-        cls: Type["ImageMask"], json_obj: dict, source_artifact: "Artifact"
+        cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "ImageMask":
         return cls(
             {"path": source_artifact.get_path(json_obj["path"]).download()},
             key="",
         )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
@@ -200,7 +201,7 @@ class ImageMask(Media):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
     @classmethod
     def type_name(cls: Type["ImageMask"]) -> str:

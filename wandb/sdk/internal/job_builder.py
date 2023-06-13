@@ -5,7 +5,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
 from wandb.util import make_artifact_name_safe
@@ -62,7 +62,7 @@ class ArtifactInfoForJob(TypedDict):
     name: str
 
 
-class JobArtifact(Artifact):
+class JobArtifact(LocalArtifact):
     def __init__(self, name: str, *args: Any, **kwargs: Any):
         super().__init__(name, "placeholder", *args, **kwargs)
         self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
@@ -116,7 +116,7 @@ class JobBuilder:
 
     def _build_repo_job(
         self, metadata: Dict[str, Any], program_relpath: str, root: Optional[str]
-    ) -> Tuple[Optional[Artifact], Optional[GitSourceDict]]:
+    ) -> Tuple[Optional[LocalArtifact], Optional[GitSourceDict]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
@@ -177,7 +177,7 @@ class JobBuilder:
 
     def _build_artifact_job(
         self, metadata: Dict[str, Any], program_relpath: str
-    ) -> Tuple[Optional[Artifact], Optional[ArtifactSourceDict]]:
+    ) -> Tuple[Optional[LocalArtifact], Optional[ArtifactSourceDict]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run() and not self._is_colab_run():
@@ -212,7 +212,7 @@ class JobBuilder:
 
     def _build_image_job(
         self, metadata: Dict[str, Any]
-    ) -> Tuple[Artifact, ImageSourceDict]:
+    ) -> Tuple[LocalArtifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
         name = make_artifact_name_safe(f"job-{image_name}")
@@ -228,7 +228,7 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
-    def build(self) -> Optional[Artifact]:
+    def build(self) -> Optional[LocalArtifact]:
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)

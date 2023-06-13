@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Uni
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
     from ...wandb_run import Run as LocalRun
 
@@ -35,19 +36,19 @@ def _server_accepts_client_ids() -> bool:
 
 
 class _WBValueArtifactSource:
-    artifact: "Artifact"
+    artifact: "PublicArtifact"
     name: Optional[str]
 
-    def __init__(self, artifact: "Artifact", name: Optional[str] = None) -> None:
+    def __init__(self, artifact: "PublicArtifact", name: Optional[str] = None) -> None:
         self.artifact = artifact
         self.name = name
 
 
 class _WBValueArtifactTarget:
-    artifact: "Artifact"
+    artifact: "LocalArtifact"
     name: Optional[str]
 
-    def __init__(self, artifact: "Artifact", name: Optional[str] = None) -> None:
+    def __init__(self, artifact: "LocalArtifact", name: Optional[str] = None) -> None:
         self.artifact = artifact
         self.name = name
 
@@ -72,7 +73,7 @@ class WBValue:
         self._artifact_source = None
         self._artifact_target = None
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serialize the object into a JSON blob.
 
         Uses current run or artifact to store additional data.
@@ -89,7 +90,7 @@ class WBValue:
 
     @classmethod
     def from_json(
-        cls: Type["WBValue"], json_obj: dict, source_artifact: "Artifact"
+        cls: Type["WBValue"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "WBValue":
         """Deserialize a `json_obj` into it's class representation.
 
@@ -125,7 +126,7 @@ class WBValue:
 
     @staticmethod
     def init_from_json(
-        json_obj: dict, source_artifact: "Artifact"
+        json_obj: dict, source_artifact: "PublicArtifact"
     ) -> Optional["WBValue"]:
         """Initialize a `WBValue` from a JSON blob based on the class that creatd it.
 
@@ -185,7 +186,7 @@ class WBValue:
         raise NotImplementedError
 
     def _set_artifact_source(
-        self, artifact: "Artifact", name: Optional[str] = None
+        self, artifact: "PublicArtifact", name: Optional[str] = None
     ) -> None:
         assert (
             self._artifact_source is None
@@ -195,7 +196,7 @@ class WBValue:
         self._artifact_source = _WBValueArtifactSource(artifact, name)
 
     def _set_artifact_target(
-        self, artifact: "Artifact", name: Optional[str] = None
+        self, artifact: "LocalArtifact", name: Optional[str] = None
     ) -> None:
         assert (
             self._artifact_target is None
@@ -231,7 +232,7 @@ class WBValue:
         elif (
             self._artifact_target
             and self._artifact_target.name
-            and self._artifact_target.artifact._is_draft_save_started()
+            and self._artifact_target.artifact._logged_artifact is not None
             and not util._is_offline()
             and not _server_accepts_client_ids()
         ):
@@ -262,7 +263,7 @@ class WBValue:
         elif (
             self._artifact_target
             and self._artifact_target.name
-            and self._artifact_target.artifact._is_draft_save_started()
+            and self._artifact_target.artifact._logged_artifact is not None
             and not util._is_offline()
             and not _server_accepts_client_ids()
         ):

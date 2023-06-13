@@ -16,7 +16,8 @@ from .wb_value import WBValue
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np
 
-    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 
     from ...wandb_run import Run as LocalRun
 
@@ -143,7 +144,7 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-    def to_json(self, run: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serialize the object into a JSON blob.
 
         Uses run or artifact to store additional data. If `run_or_artifact` is a
@@ -253,7 +254,7 @@ class Media(WBValue):
 
     @classmethod
     def from_json(
-        cls: Type["Media"], json_obj: dict, source_artifact: "Artifact"
+        cls: Type["Media"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "Media":
         """Likely will need to override for any more complicated media objects."""
         return cls(source_artifact.get_path(json_obj["path"]).download())
