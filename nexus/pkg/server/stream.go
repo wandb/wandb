@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -47,4 +48,27 @@ func (ns *Stream) GetSettings() *Settings {
 
 func (ns *Stream) GetRun() *service.RunRecord {
 	return ns.handler.GetRun()
+}
+
+func showFooter(result *service.Result, run *service.RunRecord, settings *Settings) {
+	// todo: move this elsewhere more appropriate
+	PrintHeadFoot(run, settings)
+}
+
+func (ns *Stream) Close(wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	if ns.IsFinished() {
+		return
+	}
+	exitRecord := service.RunExitRecord{}
+	record := service.Record{
+		RecordType: &service.Record_Exit{Exit: &exitRecord},
+	}
+	handle := ns.Deliver(&record)
+	got := handle.wait()
+	settings := ns.GetSettings()
+	run := ns.GetRun()
+	showFooter(got, run, settings)
+	ns.MarkFinished()
 }

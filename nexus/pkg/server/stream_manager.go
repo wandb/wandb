@@ -37,10 +37,17 @@ func (sm *StreamManager) getStream(streamId string) (*Stream, bool) {
 	return stream, ok
 }
 
-func (sm *StreamManager) getStreams() map[string]*Stream {
+func (sm *StreamManager) Close() {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
-	return sm.streams
+
+	wg := sync.WaitGroup{}
+	for _, stream := range sm.streams {
+		wg.Add(1)
+		go stream.Close(&wg) // test this
+	}
+
+	wg.Wait()
 }
 
 var streamManager = NewStreamManager()
