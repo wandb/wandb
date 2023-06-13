@@ -452,8 +452,11 @@ class InterfaceBase:
         artifact: "Artifact",
     ) -> None:
         assert artifact.id is not None, "Artifact must have an id"
+        is_proto_job = True if "_proto" in artifact.metadata else False
+
+        print(f"publish_use_artifact {is_proto_job=} {artifact.metadata=}")
         use_artifact = pb.UseArtifactRecord(
-            id=artifact.id, type=artifact.type, name=artifact.name
+            id=artifact.id, type=artifact.type, name=artifact.name, proto=is_proto_job
         )
 
         self._publish_use_artifact(use_artifact)
