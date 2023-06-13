@@ -14,19 +14,9 @@ integration will not break user code. The one exception to the rule is at import
 LangChain is not installed, or the symbols are not in the same place, the appropriate error
 will be raised when importing this module.
 """
-import sys
-
-if sys.version_info >= (3, 8):
-    from typing import TypedDict
-else:
-    from typing_extensions import TypedDict
-
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
-
 from packaging import version
 
 import wandb.util
-
 
 langchain = wandb.util.get_module(
     name="langchain",
@@ -47,9 +37,8 @@ from langchain.callbacks.tracers import WandbTracer  # noqa: E402, I001
 class WandbTracer(WandbTracer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        wandb.termwarn("This integration has been moved to langchain. In the future, please use:`from "
-                       "langchain.callbacks.tracers import WandbTracer`. This import will be removed in a v0.15.5 of "
-                       "wandb")
-
-
-
+        wandb.termwarn(
+            "This integration has been moved to langchain. In the future, please use:`from "
+            "langchain.callbacks.tracers import WandbTracer`. This import will be removed in a v0.15.5 of "
+            "wandb"
+        )
