@@ -294,7 +294,9 @@ class QueryResolver:
             }
             post_processed_data = {
                 "name": name,
-                "dropped": [request_data["dropped"]],
+                "dropped": [request_data["dropped"]]
+                if "dropped" in request_data
+                else [],
                 "files": files,
             }
             return post_processed_data
