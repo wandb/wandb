@@ -678,6 +678,7 @@ class Run:
             except (ValueError, SyntaxError):
                 wandb.termwarn("Malformed WANDB_ARTIFACTS, using original artifacts")
             else:
+                print(f"initizalizing launch artifacts {self._settings.launch}")
                 self._initialize_launch_artifact_maps(artifacts)
 
         elif (
@@ -1050,6 +1051,7 @@ class Run:
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
+        print(f"log code {name} {self.config} {self._launch_artifact_mapping}")
         """Save the current state of your code to a W&B Artifact.
 
         By default, it walks the current directory and logs all files that end with `.py`.
@@ -1092,10 +1094,15 @@ class Run:
                     else:
                         notebook_name = self.settings._jupyter_path
                 name_string = f"{self._project}-{notebook_name}"
+                name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
+            elif self._launch_artifact_mapping.get('_wandb_job'):
+                # creating a code artifact from a launch job
+                name = "code-" + self._launch_artifact_mapping['_wandb_job'].split("/")[-1].split(':')[0]
             else:
                 name_string = f"{self._project}-{self._settings.program_relpath}"
-            name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
+                name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
         art = wandb.Artifact(name, "code")
+        print(f"{art=}")
         files_added = False
         if root is not None:
             root = os.path.abspath(root)
@@ -1285,6 +1292,7 @@ class Run:
     def _config_artifact_callback(
         self, key: str, val: Union[str, Artifact, dict]
     ) -> Artifact:
+        print("config_artifact_cb", key, val)
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
         # in wandb.util.artifact_to_json
@@ -2270,6 +2278,7 @@ class Run:
         installed_packages_list: List[str],
         patch_path: Optional[os.PathLike] = None,
     ) -> "Artifact":
+        print("constructing job artifact")
         job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
@@ -2636,6 +2645,7 @@ class Run:
         aliases: Optional[List[str]] = None,
         use_as: Optional[str] = None,
     ) -> Artifact:
+        print(f"use_artifact: {artifact_or_name}")
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.

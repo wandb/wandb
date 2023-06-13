@@ -820,7 +820,9 @@ class _WandbInit:
         job_artifact = run._launch_artifact_mapping.get(
             wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME
         )
+        # TODO(gst): use this proto-job
         if job_artifact:
+            print(f"{job_artifact=}")
             run.use_artifact(job_artifact)
 
         self.backend = backend

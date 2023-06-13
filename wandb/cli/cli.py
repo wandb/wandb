@@ -1841,13 +1841,18 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
-    # TODO(gst): res handling to modify 'create' message, if no-op let user know
+    action = "No changes detected for"
+    if not res.get("artifactSequence", {}).get("latestArtifact"):
+        action = "Created"
+    elif res.get("state") == "PENDING":
+        action = "Updated"
+
     run.log_artifact(artifact, aliases=aliases)
     artifact.wait()
     run.finish()
 
     artifact_path = f"{entity}/{project}/{artifact.name}"
-    msg = f"Created job: {click.style(artifact_path, fg='yellow')}"
+    msg = f"{action} job: {click.style(artifact_path, fg='yellow')}"
     if len(aliases) == 1:
         alias_str = click.style(aliases[0], fg="yellow")
         msg += f", with alias: {alias_str}"
