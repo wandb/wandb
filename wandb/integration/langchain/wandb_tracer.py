@@ -41,6 +41,5 @@ class WandbTracer(WandbTracer):
             "This integration has been moved to langchain. Enable tracing by setting LANGCHAIN_WANDB_TRACING=true in "
             "your environment. See the documentation at "
             "https://python.langchain.com/en/latest/integrations/agent_with_wandb_tracing.html for guidance. Replace "
-            "your current import with `from langchain.callbacks.tracers import WandbTracer`. This import will be "
-            "removed in wandb v0.15.5."
+            "your current import with `from langchain.callbacks.tracers import WandbTracer`."
         )
