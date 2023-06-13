@@ -73,12 +73,6 @@ Want to use Weights & Biases for seamless collaboration between your ML or Data 
   <img alt="Weights and Biases Model Management" src="">
 </picture>
 </a>
-<a target="_blank">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/monitoring-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/monitorin-light.svg" width="14.0%">
-  <img alt="Weights and Biases Monitoring" src="">
-</picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/prompts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
@@ -86,7 +80,7 @@ Want to use Weights & Biases for seamless collaboration between your ML or Data 
   <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/prompts-light.svg" width="14.0%">
   <img alt="Weights and Biases Prompts" src="">
 </picture>
-<a target="_blank">
+<a target="_blank" href="https://github.com/wandb/weave">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/weave-dark.svg" width="14.0%">
   <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/weave-light.svg" width="14.0%">
