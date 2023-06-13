@@ -218,13 +218,13 @@ class JobBuilder:
     ) -> Tuple[Artifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
-        
+
         raw_image_name = image_name
         if ":" in image_name:
             raw_image_name, tag = image_name.split(":")
             # TODO(gst): make this better
             self.aliases += [tag]
-        
+
         name = make_artifact_name_safe(f"job-{raw_image_name}")
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
