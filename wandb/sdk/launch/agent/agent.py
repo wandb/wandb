@@ -265,7 +265,10 @@ class LaunchAgent:
     ) -> None:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
-        if job_and_run_status.entity != self._entity:
+        if (
+            job_and_run_status.entity is not None
+            and job_and_run_status.entity != self._entity
+        ):
             _logger.info(
                 "Skipping check for completed run status because run is on a different entity than agent"
             )
