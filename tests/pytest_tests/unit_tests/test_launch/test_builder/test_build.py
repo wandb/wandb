@@ -98,7 +98,6 @@ def _setup(mocker):
 def test_construct_builder_args(
     default_config, override_build_config, resolved_namespace
 ):
-    
     build_config, registry_config = build.construct_builder_args(
         default_config, override_build_config
     )
