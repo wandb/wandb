@@ -1,4 +1,5 @@
 import os
+import pytest
 import signal
 import subprocess
 import sys
@@ -10,14 +11,12 @@ from wandb.sdk.launch.launch_add import launch_add
 
 
 def _create_wandb_and_aws_secrets(
-    wandb_api_key: Optional[str],
+    wandb_api_key: str,
     aws_id: str,
     aws_secret: str,
     aws_token: str,
     namespace: str,
 ) -> None:
-    if not wandb_api_key:
-        wandb_api_key = get_wandb_api_key()
     secrets = [
         ("wandb-api-key", wandb_api_key),
         ("aws-access-key-id", aws_id),
@@ -59,7 +58,7 @@ def _wait_for_job_completion(entity: str, project: str) -> Tuple[str, str]:
     status = None
     pod_name = None
     for event in w.stream(
-        v1.list_namespaced_pod, namespace="wandb", timeout_seconds=60
+        v1.list_namespaced_pod, namespace="wandb", timeout_seconds=300
     ):
         if event["object"].metadata.name.startswith(f"launch-{entity}-{project}-"):
             pod_name = event["object"].metadata.name
@@ -93,7 +92,34 @@ def test_kubernetes_agent_on_local_process():
         subprocess.Popen(["rm", "-r", "artifacts"]).wait()
 
 
-def test_kubernetes_agent_in_cluster(api_key):
+def _cleanup_deployment(pod_name: Optional[str] = None):
+    subprocess.Popen(
+        [
+            "kubectl",
+            "-n",
+            "wandb",
+            "delete",
+            "deploy",
+            "launch-agent",
+        ]
+    ).wait()
+    if pod_name:
+        subprocess.Popen(
+            [
+                "kubectl",
+                "-n",
+                "wandb",
+                "delete",
+                "pod",
+                pod_name,
+            ]
+        ).wait()
+    subprocess.Popen(["helm", "uninstall", "release-testing"])
+
+
+@pytest.mark.timeout(300)
+def test_kubernetes_agent_in_cluster(api_key, base_url):
+    print("\n" * 20)
     entity = "launch-release-testing"
     project = "release-testing"
     queue = "kubernetes-queue"
@@ -102,13 +128,35 @@ def test_kubernetes_agent_in_cluster(api_key):
     )
 
     # get user's wandb API key and AWS creds
+    if not api_key:
+        api_key = get_wandb_api_key(base_url)
     aws_id = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
     aws_token = os.getenv("AWS_SESSION_TOKEN")
-    _create_wandb_and_aws_secrets(aws_id, aws_secret, aws_token, "wandb")
+    _create_wandb_and_aws_secrets(api_key, aws_id, aws_secret, aws_token, "wandb")
+
+    subprocess.Popen(
+        ["helm", "repo", "add", "wandb", "https://wandb.github.io/helm-charts"]
+    )
+    process = subprocess.Popen(
+        [
+            "helm",
+            "install",
+            "release-testing",
+            "wandb/launch-agent",
+            "--set",
+            f"agent.apiKey={api_key}",
+            "--set-file",
+            "launchConfig=tests/release_tests/test_launch/launch-config.yaml",
+        ]
+    )
+    process.wait()
+    print(process.returncode)
 
     # TODO
     # helm repo add wandb https://wandb.github.io/helm-charts
+    # helm install {some custom name} wandb/launch-agent --set agent.apiKey={wandb api key} --set-file launchConfig=launch-config.yaml
+    # remove .yml files, not needed anymore
     # note: LICENSE=eyJhbGciOiJSUzI1NiIsImtpZCI6InUzaHgyQjQyQWhEUXM1M0xQY09yNnZhaTdoSlduYnF1bTRZTlZWd1VwSWM9In0.eyJjb25jdXJyZW50QWdlbnRzIjoxLCJ0cmlhbCI6ZmFsc2UsIm1heFN0b3JhZ2VHYiI6MTAsIm1heFRlYW1zIjowLCJtYXhVc2VycyI6MSwibWF4Vmlld09ubHlVc2VycyI6MCwibWF4UmVnaXN0ZXJlZE1vZGVscyI6MiwiZXhwaXJlc0F0IjoiMjAyNC0wNi0wOVQyMzozMTo0MS4wMzFaIiwiZGVwbG95bWVudElkIjoiM2UzZGI0NTAtNzdlNC00NGE0LThiZTQtYjdjZjg2YTA5MjQ2IiwiZmxhZ3MiOltdLCJhY2Nlc3NLZXkiOiI5ZjExMGEyMy1kNjA4LTQyZmYtYWIxZC1mMzU3ZWFmYjdkNjYiLCJzZWF0cyI6MSwidmlld09ubHlTZWF0cyI6MCwidGVhbXMiOjAsInJlZ2lzdGVyZWRNb2RlbHMiOjIsInN0b3JhZ2VHaWdzIjoxMCwiZXhwIjoxNzE3OTc1OTAxfQ.jfWHTcLLcpgF_h7yCsEoZdipa9Q4XmzNiYwHajZExC6zh6zAp2cJJKk73sjBKTM_D4SU3qIHivIPZT-K6DrIbjpcAyOYF2VLbIW4rz7jht8kOLtPLfCuD312pwqtdL-8nbSsFgNQM9eeon6-CKwHxuhC9W9j2cReWLAln56ovdN09kcAuVZkCz6YyZqKAP6nEN3Ul9YtLMyAfHE-A2e2KPBTTPNm6fIhihMwgxAqFNa33aYHPScOVHhfZfJgL8QwOZKIa3DYHp9VTSdqohx1YUZTctVv6avSTNJ5pbkWdOehjmbDWWN1i8M2JOxPmfdBVJRespcEHb29ne_HYB2I_A
     # license is needed for helm download
 
@@ -124,20 +172,12 @@ def test_kubernetes_agent_in_cluster(api_key):
 
     def cleanup(signum, frame):
         signal.signal(signal.SIGINT, sigint)
-        subprocess.Popen(
-            [
-                "kubectl",
-                "-n",
-                "wandb",
-                "delete",
-                "deploy",
-                "launch-agent-release-testing",
-            ]
-        ).wait()
+        _cleanup_deployment()
         sys.exit(1)
 
     signal.signal(signal.SIGINT, cleanup)
 
+    pod_name = None
     try:
         # Start run
         cfg = {"resource_args": {"kubernetes": {"namespace": "wandb"}}}
@@ -155,25 +195,6 @@ def test_kubernetes_agent_in_cluster(api_key):
             status == "Succeeded"
         ), "Kubernetes job didn't succeed. Check Kubernetes pods and Docker container output."
     finally:
+        pass
         # Cleanup
-        subprocess.Popen(
-            [
-                "kubectl",
-                "-n",
-                "wandb",
-                "delete",
-                "deploy",
-                "launch-agent-release-testing",
-            ]
-        ).wait()
-        if pod_name:
-            subprocess.Popen(
-                [
-                    "kubectl",
-                    "-n",
-                    "wandb",
-                    "delete",
-                    "pod",
-                    pod_name,
-                ]
-            ).wait()
+        # _cleanup_deployment(pod_name)

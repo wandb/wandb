@@ -1,10 +1,13 @@
 import os
 from netrc import netrc
+from typing import Optional
 
 import wandb
 
 
-def get_wandb_api_key(base_url: str = "api.wandb.ai"):
+def get_wandb_api_key(base_url: Optional[str]):
+    if not base_url:
+        base_url = "api.wandb.ai"
     if os.getenv("WANDB_API_KEY"):
         return
     wandb.login()
