@@ -461,6 +461,7 @@ class KanikoBuilder(AbstractBuilder):
         )
         # Create and configure a spec section
         labels = {"wandb": "launch"}
+        # This annotation is required to enable azure workload identity.
         if isinstance(self.registry, AzureContainerRegistry):
             labels["azure.workload.identity/use"] = "true"
         template = client.V1PodTemplateSpec(
