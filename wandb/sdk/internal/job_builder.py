@@ -46,6 +46,7 @@ class ArtifactSourceDict(TypedDict):
 
 class ImageSourceDict(TypedDict):
     image: str
+    tag: str
 
 
 class JobSourceDict(TypedDict, total=False):
@@ -215,10 +216,15 @@ class JobBuilder:
     ) -> Tuple[Artifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
+        tag = "latest"
+        if ":" in image_name:
+            image_name, tag = image_name.split(":")
+            print(f"Removing tag: {tag}")
         name = make_artifact_name_safe(f"job-{image_name}")
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
+            "tag": tag,
         }
         return artifact, source
 
@@ -279,6 +285,8 @@ class JobBuilder:
             artifact, source = self._build_artifact_job(metadata, program_relpath)
         elif source_type == "image":
             artifact, source = self._build_image_job(metadata)
+            artifact.aliases.append(source.get("tag"))
+            artifact.save()
 
         if artifact is None or source_type is None or source is None:
             return None
