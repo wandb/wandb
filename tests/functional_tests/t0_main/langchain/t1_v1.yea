@@ -7,7 +7,7 @@ tag:
     - platform: win
 depend:
   requirements:
-    - langchain
+    - langchain>=0.0.188
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 1

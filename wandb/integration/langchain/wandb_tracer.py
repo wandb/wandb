@@ -24,10 +24,10 @@ langchain = wandb.util.get_module(
     "package installed. Please install it with `pip install langchain`.",
 )
 
-if version.parse(langchain.__version__) < version.parse("0.0.170"):
+if version.parse(langchain.__version__) < version.parse("0.0.188"):
     raise ValueError(
-        "The Weights & Biases Langchain integration does not support versions 0.0.169 and lower. "
-        "To ensure proper functionality, please use version 0.0.170 or higher."
+        "The Weights & Biases Langchain integration does not support versions 0.0.187 and lower. "
+        "To ensure proper functionality, please use version 0.0.188 or higher."
     )
 
 # isort: off
