@@ -257,7 +257,7 @@ class KanikoBuilder(AbstractBuilder):
         _, api_client = get_kube_context_and_api_client(
             kubernetes, launch_project.resource_args
         )
-        # TODO: use same client as kuberentes.py
+        # TODO: use same client as kuberentes_runner.py
         batch_v1 = client.BatchV1Api(api_client)
         core_v1 = client.CoreV1Api(api_client)
 
@@ -355,7 +355,7 @@ class KanikoBuilder(AbstractBuilder):
                     "azure-storage-access-key",
                     "wandb",
                 )
-            except kubernetes.kubernetes.client.ApiException as e:
+            except Exception as e:
                 raise LaunchError(
                     "Secret azure-storage-access-key does not exist in "
                     "namespace wandb. Please create it with the key password "

@@ -1,11 +1,28 @@
 """Implementation of AzureContainerRegistry class."""
 import re
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
+
+from wandb.util import get_module
 
 from ..environment.abstract import AbstractEnvironment
 from ..environment.azure_environment import AzureEnvironment
 from ..errors import LaunchError
 from .abstract import AbstractRegistry
+
+if TYPE_CHECKING:
+    from azure.containerregistry import ContainerRegistryClient  # type: ignore
+    from azure.core.exceptions import ResourceNotFoundError  # type: ignore
+
+
+ContainerRegistryClient = get_module(  # noqa: F811
+    "azure.containerregistry",
+    required="The azure-containerregistry package is required to use launch with Azure. Please install it with `pip install azure-containerregistry`.",
+).ContainerRegistryClient
+
+ResourceNotFoundError = get_module(  # noqa: F811
+    "azure.core.exceptions",
+    required="The azure-core package is required to use launch with Azure. Please install it with `pip install azure-core`.",
+).ResourceNotFoundError
 
 
 class AzureContainerRegistry(AbstractRegistry):
@@ -59,20 +76,31 @@ class AzureContainerRegistry(AbstractRegistry):
         Returns:
             bool: False
         """
-        return False
+        credential = self.environment.get_credentials()
+        client = ContainerRegistryClient(self.uri, credential)
+        repository, tag = image_uri.split(":")
+        try:
+            client.get_manifest_properties(repository, tag)
+            return True
+        except ResourceNotFoundError:
+            return False
+        except Exception as e:
+            raise LaunchError(
+                f"Unable to check if image exists in Azure Container Registry: {e}"
+            ) from e
 
     def get_repo_uri(self) -> str:
         return self.uri
 
     def verify(self) -> None:
         try:
-            pass
+            _ = self.registry_name
         except Exception as e:
             raise LaunchError(f"Unable to verify Azure Container Registry: {e}") from e
 
     @property
     def registry_name(self) -> str:
-        regex = r"([^\.]+)\.azurecr\.io/([^/]+)/?(.*)$"
+        regex = r"https://([\w]+).azurecr.io/?"
         match = re.match(regex, self.uri)
         if match is None:
             raise LaunchError(

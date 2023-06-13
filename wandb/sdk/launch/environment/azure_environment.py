@@ -93,7 +93,6 @@ class AzureEnvironment(AbstractEnvironment):
         """
         creds = self.get_credentials()
         storage_account, storage_container, _ = self.parse_uri(uri)
-        print(storage_account, storage_container)
         try:
             client = BlobServiceClient(
                 f"https://{storage_account}.blob.core.windows.net",
