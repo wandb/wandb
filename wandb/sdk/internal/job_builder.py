@@ -210,13 +210,13 @@ class JobBuilder:
         }
 
         name = ""
-        print(f"{self._logged_code_artifact['name']=} {metadata=}")
-        if metadata.get("_proto"):
-            print("PROTOOTOT", self._logged_code_artifact['name'])
-            name = self._logged_code_artifact['name'].replace("code-", "")
-            assert "job-" in name
-        else:
-            name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+        # print(f"{self._logged_code_artifact['name']=} {metadata=}")
+        # if metadata.get("_proto"):
+        #     print("PROTOOTOT", self._logged_code_artifact['name'])
+        #     name = self._logged_code_artifact['name'].replace("code-", "")
+        # else:
+        
+        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         artifact = JobArtifact(name)
         return artifact, source
