@@ -98,10 +98,24 @@ class AzureContainerRegistry(AbstractRegistry):
 
     @property
     def registry_name(self) -> str:
-        regex = r"https://([\w]+).azurecr.io/?"
-        match = re.match(regex, self.uri)
+        """Get registry name."""
+        return self.parse_azurecr_uri(self.uri)[0]
+
+    @staticmethod
+    def parse_azurecr_uri(uri: str) -> Tuple[str, str, str]:
+        """Parse an Azure Container Registry URI.
+
+        Args:
+            uri (str): URI to parse.
+
+        Returns:
+            Tuple[str, str, str]: Tuple of registry name, repository name, and tag.
+
+        Raises:
+            LaunchError: If unable to parse URI.
+        """
+        regex = r"^https://([\w]+)\.azurecr\.io/([\w]+)/?(.*)$"
+        match = re.match(regex, uri)
         if match is None:
-            raise LaunchError(
-                f"Unable to parse Azure Container Registry URI: {self.uri}"
-            )
-        return match.group(1)
+            raise LaunchError(f"Unable to parse Azure Container Registry URI: {uri}")
+        return match.group(1), match.group(2), match.group(3)

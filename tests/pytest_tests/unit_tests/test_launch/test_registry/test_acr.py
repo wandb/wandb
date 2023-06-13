@@ -1,7 +1,10 @@
 from unittest.mock import MagicMock
 
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
-from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
+from wandb.sdk.launch.registry.azure_container_registry import (
+    AzureContainerRegistry,
+    ResourceNotFoundError,
+)
 
 
 def test_acr_from_config(mocker):
@@ -45,11 +48,29 @@ def test_acr_check_image_exists(mocker):
         "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistry.verify",
         MagicMock(),
     )
+
+    # Make the mock client return a digest when get_manifest_properties is called and
+    # check that the method returns True.
+    mock_client = MagicMock()
+    mock_client.get_manifest_properties.return_value = {"digest": "test"}
+    mocker.patch(
+        "wandb.sdk.launch.registry.azure_container_registry.ContainerRegistryClient",
+        MagicMock(),
+    )
     config = {"uri": "test"}
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
-    assert not registry.check_image_exists("test")
+    assert registry.check_image_exists("https://test.azurecr.io/launch-images:tag")
+
+    # Make the mock client raise an error when get_manifest_properties is called and
+    # check that the method returns False.
+    mock_client.get_manifest_properties.side_effect = ResourceNotFoundError()
+    mocker.patch(
+        "wandb.sdk.launch.registry.azure_container_registry.ContainerRegistryClient",
+        MagicMock(return_value=mock_client),
+    )
+    assert not registry.check_image_exists("https://test.azurecr.io/launch-images:tag")
 
 
 def test_acr_registry_name(mocker):
@@ -58,7 +79,7 @@ def test_acr_registry_name(mocker):
         "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
         MagicMock(),
     )
-    config = {"uri": "test.azurecr.io/repository"}
+    config = {"uri": "https://test.azurecr.io/repository"}
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
