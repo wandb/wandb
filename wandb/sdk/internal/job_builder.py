@@ -77,6 +77,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
+    _docker_image_tag: Optional[str]
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -86,6 +87,7 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
+        self._docker_image_tag = None
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.get("job_source")
@@ -221,6 +223,7 @@ class JobBuilder:
             image_name, tag = image_name.split(":")
             print(f"Removing tag: {tag}")
             metadata['tag'] = tag
+            self._docker_image_tag = tag
         name = make_artifact_name_safe(f"job-{image_name}")
         artifact = JobArtifact(name)
         source: ImageSourceDict = {

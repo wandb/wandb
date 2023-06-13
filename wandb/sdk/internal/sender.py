@@ -1609,9 +1609,9 @@ class SendManager:
             # by the backend (WB-12116)
             proto_artifact.aliases.append("latest")
             # add docker image tag 
-            print(f"{artifact.metadata=} {proto_artifact.metadata=}")
-            if proto_artifact.metadata.get('source', {}).get('tag'):
-                proto_artifact.aliases.append(proto_artifact.metadata['source']['tag'])
+            wandb.termlog(f"{artifact.metadata=} {proto_artifact.metadata=}")
+            if self._job_builder._docker_image_tag:
+                proto_artifact.aliases.append(self._job_builder._docker_image_tag)
             
             proto_artifact.user_created = True
             proto_artifact.use_after_commit = True
