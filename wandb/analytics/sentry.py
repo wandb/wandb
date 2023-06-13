@@ -207,7 +207,6 @@ class Sentry:
             "sweep_id",
             "deployment",
             "_disable_service",
-            "_require_nexus",
             "launch",
         )
 

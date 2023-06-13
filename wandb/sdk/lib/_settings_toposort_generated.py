@@ -48,7 +48,6 @@ _Setting = Literal[
     "_platform",
     "_python",
     "_runqueue_item_id",
-    "_require_nexus",
     "_save_requirements",
     "_service_transport",
     "_service_wait",
