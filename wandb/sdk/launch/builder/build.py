@@ -461,21 +461,11 @@ def join(split_command: List[str]) -> str:
 
 
 def construct_builder_args(
-    launch_config: Optional[Dict] = None,
-    build_config: Optional[Dict] = None,
+    default_launch_config: Optional[Dict] = None,
+    override_build_config: Optional[Dict] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    registry_config = None
-    if launch_config is not None:
-        build_config = launch_config.get("builder")
-        registry_config = launch_config.get("registry")
-
-    default_launch_config = None
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
-            default_launch_config = yaml.safe_load(f)
-
     build_config, registry_config = resolve_build_and_registry_config(
-        default_launch_config, build_config, registry_config
+        default_launch_config, override_build_config
     )
 
     return build_config, registry_config

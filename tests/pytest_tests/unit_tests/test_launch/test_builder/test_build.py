@@ -98,7 +98,8 @@ def _setup(mocker):
 def test_construct_builder_args(
     default_config, override_build_config, resolved_namespace
 ):
-    build_config, _ = build.construct_builder_args(
+    
+    build_config, registry_config = build.construct_builder_args(
         default_config, override_build_config
     )
     assert build_config.get("namespace") == resolved_namespace
