@@ -223,7 +223,6 @@ class JobBuilder:
             metadata['tag'] = tag
         name = make_artifact_name_safe(f"job-{image_name}")
         artifact = JobArtifact(name)
-        artifact.aliases([tag])
         source: ImageSourceDict = {
             "image": image_name,
             "tag": tag,
