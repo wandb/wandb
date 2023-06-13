@@ -38,9 +38,9 @@ class WandbTracer(WandbTracer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         wandb.termwarn(
-            "This integration has been moved to langchain. The preferred method to enable the tracer is to set the "
-            "environment variable `LANGCHAIN_WANDB_TRACING=true`. Please refer to the langchain documentation at "
-            "https://python.langchain.com/en/latest/integrations/agent_with_wandb_tracing.html  In future, "
-            "please use: `from langchain.callbacks.tracers import WandbTracer` in place of this import. This import "
-            "will be removed in a v0.15.5 of wandb"
+            "This integration has been moved to langchain. Enable tracing by setting LANGCHAIN_WANDB_TRACING=true in "
+            "your environment. See the documentation at "
+            "https://python.langchain.com/en/latest/integrations/agent_with_wandb_tracing.html for guidance. Replace "
+            "your current import with `from langchain.callbacks.tracers import WandbTracer`. This import will be "
+            "removed in wandb v0.15.5."
         )
