@@ -198,9 +198,10 @@ class ImporterRun:
 
     def _make_metadata_files_record(self) -> pb.Record:
         self._make_metadata_file(self.run_dir)
-        return self._make_files_record(
-            {"files": [[f"{self.run_dir}/files/wandb-metadata.json", "end"]]}
-        )
+        # files = [(f"{self.run_dir}/files/wandb-metadata.json", "end")]
+        files = self._files
+
+        return self._make_files_record({"files": files})
 
     def _make_artifact_record(self, artifact, use_artifact=False) -> pb.Record:
         proto = self.interface._make_artifact(artifact)
@@ -340,19 +341,19 @@ class Importer(ABC):
             for history_record in run._make_history_records():
                 sm.send(history_record)
 
-            wandb.termlog("Importing logged artifacts")
+            wandb.termlog(">> Importing logged artifacts")
             artifacts = run._artifacts
             if artifacts is not None:
                 for artifact in artifacts:
                     sm.send(run._make_artifact_record(artifact))
 
-            wandb.termlog("Importing used artifacts")
+            wandb.termlog(">> Importing used artifacts")
             used_artifacts = run._used_artifacts
             if used_artifacts is not None:
                 for artifact in used_artifacts:
                     sm.send(run._make_artifact_record(artifact, use_artifact=True))
 
-            wandb.termlog("Sending telem")
+            wandb.termlog(">> Sending telem")
             sm.send(run._make_telem_record())
 
 

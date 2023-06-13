@@ -21,8 +21,10 @@ class WandbRun(ImporterRun):
         self.run = run
         super().__init__(*args, **kwargs)
 
-        # self._artifacts = list(self.artifacts())
-        # self._used_artifacts = list(self.used_artifacts())
+        # download everything up front before switching api keys
+        self._files = list(self.files())
+        self._artifacts = list(self.artifacts())
+        self._used_artifacts = list(self.used_artifacts())
 
     def run_id(self):
         return self.run.id
@@ -77,7 +79,6 @@ class WandbRun(ImporterRun):
             yield new_art
 
     def used_artifacts(self):
-        # this probably does not handle the case of runs linked together...
         for art in self.run.used_artifacts():
             name, ver = art.name.split(":v")
             path = art.download()
@@ -89,6 +90,12 @@ class WandbRun(ImporterRun):
             new_art.add_dir(path)
 
             yield new_art
+
+    def files(self):
+        base_path = f"{self.run_dir}/files"
+        for f in self.run.files():
+            result = f.download(base_path, exist_ok=True)
+            yield (result.name, "end")
 
 
 class WandbImporter(Importer):
@@ -239,10 +246,12 @@ class WandbImporter(Importer):
         for project in self.source_api.projects(entity):
             for run in self.source_api.runs(
                 f"{project.entity}/{project.name}",
-                filters={"createdAt": {"$gte": last_checked_time}},
+                filters={
+                    "createdAt": {"$gte": last_checked_time},
+                    "name": {"$nin": already_imported},
+                },
             ):
-                if run.run_id() not in already_imported:
-                    yield WandbRun(run)
+                yield WandbRun(run)
 
     def download_all_reports(self, limit: Optional[int] = None):
         for i, report in enumerate(self._download_all_reports()):
@@ -351,6 +360,15 @@ class WandbParquetRun(WandbRun):
         for path in self.history_paths:
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)
+
+                # images, videos, etc will be packed as structs and not render properly
+                non_structs = [
+                    col
+                    for col, dtype in zip(df.columns, df.dtypes)
+                    if not isinstance(dtype, pl.Struct)
+                ]
+                df2 = df.select(non_structs)
+
                 for row in df.iter_rows(named=True):
                     yield row
 
