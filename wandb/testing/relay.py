@@ -4,6 +4,7 @@ import logging
 import socket
 import sys
 import threading
+import traceback
 import urllib.parse
 from collections import defaultdict, deque
 from copy import deepcopy
@@ -644,7 +645,17 @@ class RelayServer:
         }
         self.context.raw_data.append(raw_data)
 
-        snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
+        try:
+            snooped_context = self.resolver.resolve(
+                request_data,
+                response_data,
+                **kwargs,
+            )
+        except Exception as e:
+            print("Failed to resolve context: ", e)
+            traceback.print_exc()
+            snooped_context = None
+
         if snooped_context is not None:
             self.context.upsert(snooped_context)
 
