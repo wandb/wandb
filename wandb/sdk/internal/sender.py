@@ -1608,6 +1608,10 @@ class SendManager:
             # TODO: this should be removed when the latest tag is handled
             # by the backend (WB-12116)
             proto_artifact.aliases.append("latest")
+            # add docker image tag 
+            if artifact.metadata['source'].get('tag'):
+                proto_artifact.aliases.append(artifact.metadata['source']['tag'])
+            
             proto_artifact.user_created = True
             proto_artifact.use_after_commit = True
             proto_artifact.finalize = True

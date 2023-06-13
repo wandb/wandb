@@ -220,8 +220,10 @@ class JobBuilder:
         if ":" in image_name:
             image_name, tag = image_name.split(":")
             print(f"Removing tag: {tag}")
+            metadata['tag'] = tag
         name = make_artifact_name_safe(f"job-{image_name}")
         artifact = JobArtifact(name)
+        artifact.aliases([tag])
         source: ImageSourceDict = {
             "image": image_name,
             "tag": tag,
@@ -285,8 +287,6 @@ class JobBuilder:
             artifact, source = self._build_artifact_job(metadata, program_relpath)
         elif source_type == "image":
             artifact, source = self._build_image_job(metadata)
-            artifact.aliases.append(source.get("tag"))
-            artifact.save()
 
         if artifact is None or source_type is None or source is None:
             return None
