@@ -1,6 +1,7 @@
 import hashlib
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.sdk.launch.builder import build
 
 
@@ -80,3 +81,24 @@ def _setup(mocker):
     mocker.api = api
 
     mocker.patch("json.dumps", lambda x: "test-wandb-artifacts")
+
+
+@pytest.mark.parametrize(
+    "default_config,override_build_config,resolved_namespace",
+    [
+        ({}, {}, None),
+        (
+            {"builder": {"namespace": "not-namespace"}},
+            {"namespace": "is-namespace"},
+            "is-namespace",
+        ),
+        ({"builder": {"namespace": "is-namespace"}}, {}, "is-namespace"),
+    ],
+)
+def test_construct_builder_args(
+    default_config, override_build_config, resolved_namespace
+):
+    build_config, _ = build.construct_builder_args(
+        default_config, override_build_config
+    )
+    assert build_config.get("namespace") == resolved_namespace
