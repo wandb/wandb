@@ -1398,6 +1398,7 @@ class SendManager:
         This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
+        print(f"{record.use_artifact.proto=}")
         if use.type == "job" and not record.use_artifact.proto:
             self._job_builder.disable = True
 
