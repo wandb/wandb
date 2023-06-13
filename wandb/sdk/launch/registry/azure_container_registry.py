@@ -67,18 +67,16 @@ class AzureContainerRegistry(AbstractRegistry):
     def check_image_exists(self, image_uri: str) -> bool:
         """Check if image exists in container registry.
 
-        WARNING: This is not implemented for Azure Container Registry and will
-        always return False.
-
         Args:
             image_uri (str): Image URI to check.
 
         Returns:
-            bool: False
+            bool: True if image exists, False otherwise.
         """
         credential = self.environment.get_credentials()
         client = ContainerRegistryClient(self.uri, credential)
-        repository, tag = image_uri.split(":")
+        name = image_uri.split("/")[-1]
+        repository, tag = name.split(":")
         try:
             client.get_manifest_properties(repository, tag)
             return True
