@@ -46,7 +46,6 @@ class ArtifactSourceDict(TypedDict):
 
 class ImageSourceDict(TypedDict):
     image: str
-    tag: str
 
 
 class JobSourceDict(TypedDict, total=False):
@@ -77,7 +76,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
-    _docker_image_tag: Optional[str]
+    aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -87,10 +86,11 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
-        self._docker_image_tag = None
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.get("job_source")
+
+        self.aliases = []
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -218,17 +218,17 @@ class JobBuilder:
     ) -> Tuple[Artifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
-        tag = "latest"
+        
+        raw_image_name = image_name
         if ":" in image_name:
-            image_name, tag = image_name.split(":")
-            print(f"Removing tag: {tag}")
-            metadata['tag'] = tag
-            self._docker_image_tag = tag
-        name = make_artifact_name_safe(f"job-{image_name}")
+            raw_image_name, tag = image_name.split(":")
+            # TODO(gst): make this better
+            self.aliases += [tag]
+        
+        name = make_artifact_name_safe(f"job-{raw_image_name}")
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
-            "tag": tag,
         }
         return artifact, source
 

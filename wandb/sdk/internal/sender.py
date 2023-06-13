@@ -1481,6 +1481,7 @@ class SendManager:
                 return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
+        wandb.termlog(f"[_send_artifact] {metadata=}")
         res = saver.save(
             type=artifact.type,
             name=artifact.name,
@@ -1609,9 +1610,8 @@ class SendManager:
             # by the backend (WB-12116)
             proto_artifact.aliases.append("latest")
             # add docker image tag 
-            wandb.termlog(f"{artifact.metadata=} {proto_artifact.metadata=}")
-            if self._job_builder._docker_image_tag:
-                proto_artifact.aliases.append(self._job_builder._docker_image_tag)
+            for alias in self._job_builder.aliases:
+                proto_artifact.aliases.append(alias)
             
             proto_artifact.user_created = True
             proto_artifact.use_after_commit = True
