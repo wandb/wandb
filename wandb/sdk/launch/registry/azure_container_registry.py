@@ -44,7 +44,19 @@ class AzureContainerRegistry(AbstractRegistry):
     def from_config(
         cls, config: dict, environment: AbstractEnvironment, verify: bool = True
     ) -> "AzureContainerRegistry":
-        """Create an AzureContainerRegistry from a config dict."""
+        """Create an AzureContainerRegistry from a config dict.
+
+        Args:
+            config (dict): The config dict.
+            environment (AbstractEnvironment): The environment to use.
+            verify (bool, optional): Whether to verify the registry. Defaults to True.
+
+        Returns:
+            AzureContainerRegistry: The registry.
+
+        Raises:
+            LaunchError: If the config is invalid.
+        """
         if not isinstance(environment, AzureEnvironment):
             raise LaunchError(
                 "AzureContainerRegistry requires an AzureEnvironment to be passed in."
@@ -74,9 +86,8 @@ class AzureContainerRegistry(AbstractRegistry):
             bool: True if image exists, False otherwise.
         """
         credential = self.environment.get_credentials()
-        client = ContainerRegistryClient(self.uri, credential)
-        name = image_uri.split("/")[-1]
-        repository, tag = name.split(":")
+        registry, repository, tag = self.parse_azurecr_uri(image_uri)
+        client = ContainerRegistryClient(f"https://{registry}.azurecr.io", credential)
         try:
             client.get_manifest_properties(repository, tag)
             return True
