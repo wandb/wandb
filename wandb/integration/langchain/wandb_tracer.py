@@ -14,9 +14,9 @@ integration will not break user code. The one exception to the rule is at import
 LangChain is not installed, or the symbols are not in the same place, the appropriate error
 will be raised when importing this module.
 """
-from packaging import version
-
 import wandb.util
+from packaging import version
+from wandb.sdk.lib import deprecate
 
 langchain = wandb.util.get_module(
     name="langchain",
@@ -37,9 +37,10 @@ from langchain.callbacks.tracers import WandbTracer  # noqa: E402, I001
 class WandbTracer(WandbTracer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        wandb.termwarn(
-            "This integration has been moved to langchain. Enable tracing by setting LANGCHAIN_WANDB_TRACING=true in "
-            "your environment. See the documentation at "
-            "https://python.langchain.com/en/latest/integrations/agent_with_wandb_tracing.html for guidance. Replace "
-            "your current import with `from langchain.callbacks.tracers import WandbTracer`."
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.langchain_tracer,
+            warning_message="This feature is deprecated and has been moved to `langchain`. Enable tracing by setting "
+            "LANGCHAIN_WANDB_TRACING=true in your environment. See the documentation at "
+            "https://python.langchain.com/en/latest/integrations/agent_with_wandb_tracing.html for guidance. "
+            "Replace your current import with `from langchain.callbacks.tracers import WandbTracer`.",
         )
