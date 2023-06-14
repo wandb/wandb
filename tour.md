@@ -153,7 +153,7 @@ shandler: "Callable[[spb.ServerRequest], None]" = getattr(self, shandler_str, No
 shandler(sreq)
 ```
 
-(This is why if you try and find all the places where `server_inform_init` is called
+(This is why if you try to find all the places where `server_inform_init` is called
 using your IDE or by grep'ping, you won't find any. It's called dynamically.
 Similar logic is applied to e.g. the handler methods -- see below.)
 
