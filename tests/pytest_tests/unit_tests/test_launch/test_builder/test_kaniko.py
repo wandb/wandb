@@ -29,7 +29,7 @@ def azure_container_registry(mocker, azure_environment):
         MagicMock(),
     )
     config = {
-        "uri": "https://registry.azurecr.io",
+        "uri": "https://registry.azurecr.io/test-repo",
     }
     return AzureContainerRegistry.from_config(config, azure_environment)
 
@@ -45,7 +45,7 @@ def test_kaniko_azure(azure_container_registry):
     core_client = MagicMock()
     job = builder._create_kaniko_job(
         "test-job",
-        "test-repo",
+        "https://registry.azurecr.io/test-repo",
         "12345678",
         "https://account.blob.core.windows.net/container/blob",
         core_client,
