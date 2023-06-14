@@ -466,6 +466,7 @@ class KubernetesRunner(AbstractRunner):
             assert entry_point is not None
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
+            image_uri = image_uri.replace("https://", "")
             launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
