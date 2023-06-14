@@ -4473,7 +4473,9 @@ class Job:
 
         assigned_config_type = self._input_types.assign(run_config)
         if self._proto:
-            wandb.termwarn("Launching manually created job for the first time, can't verify types")
+            wandb.termwarn(
+                "Launching manually created job for the first time, can't verify types"
+            )
         else:
             if isinstance(assigned_config_type, InvalidType):
                 raise TypeError(self._input_types.explain(run_config))

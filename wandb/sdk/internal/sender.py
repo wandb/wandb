@@ -1398,12 +1398,9 @@ class SendManager:
         This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
-        print(f"[send_use_artifact] {record.use_artifact.proto=}")
-
-        # set a ton of info from record.use_artifact.proto in job builder
         self._job_builder._proto = record.use_artifact.proto
 
-        if use.type == "job" and not record.use_artifact.proto is not None:
+        if use.type == "job" and not record.use_artifact.proto.job_name:
             self._job_builder.disable = True
 
     def send_request_log_artifact(self, record: "Record") -> None:
@@ -1411,8 +1408,6 @@ class SendManager:
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step
-
-        print(f"[send_request_log_artifact] {artifact.name=}")
 
         try:
             res = self._send_artifact(artifact, history_step)
@@ -1468,7 +1463,6 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        print(f"_send_artifact {artifact=}")
         saver = artifact_saver.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
@@ -1503,9 +1497,6 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
-
-        print(f"sender {metadata=}")
-
         self._job_builder._set_logged_code_artifact(res, artifact)
         return res
 
@@ -1601,7 +1592,6 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
-        print(f"Flushing job {self._job_builder.disable=}")
         if self._job_builder.disable or self._settings.get("_offline", False):
             return
         self._job_builder.set_config(
@@ -1611,11 +1601,7 @@ class SendManager:
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
         artifact = self._job_builder.build()
-        
-        # include stuff from use_artifact.proto
 
-
-        print(f"_flush_job artifact: {artifact}")
         if artifact is not None and self._run is not None:
             proto_artifact = self._interface._make_artifact(artifact)
             proto_artifact.run_id = self._run.run_id

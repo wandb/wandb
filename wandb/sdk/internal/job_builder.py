@@ -120,7 +120,11 @@ class JobBuilder:
             )
 
     def _build_repo_job(
-        self, metadata: Dict[str, Any], program_relpath: str, root: Optional[str]
+        self,
+        metadata: Dict[str, Any],
+        program_relpath: str,
+        root: Optional[str],
+        name: Optional[str] = None,
     ) -> Tuple[Optional[Artifact], Optional[GitSourceDict]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
@@ -170,7 +174,8 @@ class JobBuilder:
             },
         }
 
-        name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
+        if not name:
+            name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
         artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
@@ -218,11 +223,13 @@ class JobBuilder:
         return artifact, source
 
     def _build_image_job(
-        self, metadata: Dict[str, Any]
+        self, metadata: Dict[str, Any], name: Optional[str] = None
     ) -> Tuple[Artifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
-        name = make_artifact_name_safe(f"job-{image_name}")
+
+        if not name:
+            name = make_artifact_name_safe(f"job-{image_name}")
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
@@ -245,15 +252,24 @@ class JobBuilder:
         if metadata is None:
             return None
 
-        if self._proto:
-            print(f"{self._proto=}")
+        runtime: Optional[str] = metadata.get("python")
+        program_relpath: Optional[str] = metadata.get("codePath")
+        artifact = None
+        source: Optional[
+            Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
+        ] = None
+
+        if self._proto.job_name:  # test a subfield for existence
             name, alias = self._proto.job_name.split(":")
             source_type = self._proto.source.type
             runtime = self._proto.source.runtime
+
             if self._proto.source.type == "artifact":
                 self._logged_code_artifact = ArtifactInfoForJob(
                     {
-                        "id": self._proto.source.artifactSource.artifact.split('wandb-artifact://_id/')[1],
+                        "id": self._proto.source.artifactSource.artifact.split(
+                            "wandb-artifact://_id/"
+                        )[1],
                         "name": self._proto.source.artifactSource.name,
                     }
                 )
@@ -263,16 +279,21 @@ class JobBuilder:
                     program_relpath=self._proto.source.artifactSource.program,
                     name=name,
                 )
-
-                print(f">>>>> {artifact=} {source=}")
+            elif self._proto.source.type == "repo":
+                assert program_relpath is not None
+                artifact, source = self._build_repo_job(
+                    metadata=metadata,
+                    program_relpath=program_relpath,
+                    root=metadata.get("root"),
+                    name=name,
+                )
+            elif self._proto.source.type == "image":
+                artifact, source = self._build_image_job(metadata, name=name)
 
         else:
-            runtime: Optional[str] = metadata.get("python")
             # can't build a job without a python version
             if runtime is None:
                 return None
-
-            program_relpath: Optional[str] = metadata.get("codePath")
 
             source_type = self._source_type
 
@@ -295,22 +316,19 @@ class JobBuilder:
                 _logger.info("no source found")
                 return None
 
-            artifact = None
-            source: Optional[
-                Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
-            ] = None
             if source_type == "repo":
                 assert program_relpath is not None
-                root: Optional[str] = metadata.get("root")
-                artifact, source = self._build_repo_job(metadata, program_relpath, root)
+                artifact, source = self._build_repo_job(
+                    metadata, program_relpath, metadata.get("root")
+                )
             elif source_type == "artifact":
                 assert program_relpath is not None
                 artifact, source = self._build_artifact_job(metadata, program_relpath)
             elif source_type == "image":
                 artifact, source = self._build_image_job(metadata)
 
-            if artifact is None or source_type is None or source is None:
-                return None
+        if artifact is None or source_type is None or source is None:
+            return None
 
         input_types = TypeRegistry.type_of(self._config).to_json()
         output_types = TypeRegistry.type_of(self._summary).to_json()

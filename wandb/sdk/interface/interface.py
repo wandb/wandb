@@ -454,35 +454,47 @@ class InterfaceBase:
         assert artifact.id is not None, "Artifact must have an id"
         is_proto_job = True if "_proto" in artifact.metadata else False
 
-        # TODO(gst): if artifact source, get code artifact ID
-        # and populate proto stuff
-
-        # Antipattern, get artifact file to figure out the code artifact ID
-        job_info = None
+        # Download source info from logged job artifact
+        job_info = {}
         try:
             path = artifact.get_path("wandb-job.json").download()
             with open(path, "r") as f:
                 job_info = json.load(f)
         except Exception as e:
-            print(f"fail: {e}")
-        
-        print(f"{job_info=}")
-
-        print(f"publish_use_artifact {is_proto_job=} {artifact.metadata=}")
+            logger.warning(
+                f"Failed to download job info from artifact {artifact}, : {e}"
+            )
 
         use_artifact = pb.UseArtifactRecord(
-            id=artifact.id, 
-            type=artifact.type, 
+            id=artifact.id,
+            type=artifact.type,
             name=artifact.name,
         )
-        use_artifact.proto.job_name = artifact.name
-        use_artifact.proto.source.runtime = artifact.metadata.get("python", "")
-        use_artifact.proto.source.type = job_info.get("source_type", "artifact")
-        use_artifact.proto.source.artifactSource.artifact = job_info.get("source", {}).get("artifact", "")
-        use_artifact.proto.source.artifactSource.program = artifact.metadata.get("codePath", "")
-        use_artifact.proto.source.artifactSource.notebook = job_info.get("source", {}).get("notebook", False)
-        use_artifact.proto.source.artifactSource.name = job_info.get("source", {}).get("artifact_name", "")
-        
+
+        if is_proto_job:
+            use_artifact.proto.job_name = artifact.name
+            use_artifact.proto.source.runtime = artifact.metadata.get("python", "")
+            use_artifact.proto.source.type = job_info.get("source_type", "")
+
+            if job_info.get("source_type") == "artifact":
+                use_artifact.proto.source.artifactSource.artifact = job_info.get(
+                    "source", {}
+                ).get("artifact", "")
+                use_artifact.proto.source.artifactSource.program = (
+                    artifact.metadata.get("codePath", "")
+                )
+                use_artifact.proto.source.artifactSource.notebook = job_info.get(
+                    "source", {}
+                ).get("notebook", False)
+                use_artifact.proto.source.artifactSource.name = job_info.get(
+                    "source", {}
+                ).get("artifact_name", "")
+            elif job_info.get("source_type") == "repo":
+                # TODO(gst): what are the reqs here? (and below)
+                pass
+            elif job_info.get("source_type") == "image":
+                pass
+
         self._publish_use_artifact(use_artifact)
 
     @abstractmethod
@@ -509,15 +521,12 @@ class InterfaceBase:
         proto_artifact.finalize = finalize
         for alias in aliases:
             proto_artifact.aliases.append(alias)
-        
-        print(f"communicate_artifact {proto_artifact=} {proto_run=} {aliases=}")
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
         if history_step is not None:
             log_artifact.history_step = history_step
         resp = self._communicate_artifact(log_artifact)
-        print(f"{resp=}")
         return resp
 
     @abstractmethod
