@@ -26,7 +26,7 @@ class Record(google.protobuf.message.Message):
     Records and Results
     **********************
 
-
+    
     Record: joined record for message passing and persistence
     """
 
@@ -1435,7 +1435,7 @@ class Request(google.protobuf.message.Message):
     Requests and Responses
     **********************
 
-
+    
     Request: all non persistent messages
     """
 
