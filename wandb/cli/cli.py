@@ -15,7 +15,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 import click
 import yaml
@@ -1544,7 +1544,7 @@ def _list(project, entity):
     public_api = PublicApi()
     try:
         jobs = public_api.list_jobs(entity=entity, project=project)
-    except wandb.errors.CommError as e:
+    except wandb.errors.CommError:
         wandb.termerror(f"Error listing jobs for entity/project: {entity}/{project}")
         return
 
@@ -1560,7 +1560,7 @@ def _list(project, entity):
 
 
 def _make_git_data(path):
-    """mock, to be replaced"""
+    """mock, to be replaced."""
     remote = path
     commit = "bdb06b4b5b6449d891ca7d019f7885394d57fcfb"
     requirements = ["wandb"]
@@ -1569,7 +1569,7 @@ def _make_git_data(path):
 
 
 def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
-    """Make a code artifact name from a path and user provided name"""
+    """Make a code artifact name from a path and user provided name."""
     if name:
         return f"code-{name}"
 
@@ -1586,7 +1586,7 @@ def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
 def _dump_metadata_and_requirements(
     tmp_path, metadata: Dict[str, Any], requirements: Optional[List[str]]
 ):
-    """Dump manufactured metadata and requirements.txt"""
+    """Dump manufactured metadata and requirements.txt."""
     filesystem.mkdir_exists_ok(tmp_path)
     with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
         json.dump(metadata, f)
@@ -1676,7 +1676,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         return
 
     # Use temp dir to create metadata (+ requirements) for job
-    TMPDIR = tempfile.TemporaryDirectory()
+    tmpdir = tempfile.TemporaryDirectory()
 
     metadata = {"_proto": "v0"}
     if _type == "image":
@@ -1690,7 +1690,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         metadata.update({"python": python_version, "docker": path})
         _dump_metadata_and_requirements(
             metadata=metadata,
-            tmp_path=TMPDIR.name,
+            tmp_path=tmpdir.name,
             requirements=requirements,
         )
     else:  # repo and artifact
@@ -1730,7 +1730,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         )
         _dump_metadata_and_requirements(
             metadata=metadata,
-            tmp_path=TMPDIR.name,
+            tmp_path=tmpdir.name,
             requirements=requirements,
         )
     elif _type == "artifact":
@@ -1757,15 +1757,15 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             return
         # read local requirements.txt and dump to temp dir for builder
         requirements = []
-        with open(os.path.join(path, "requirements.txt"), "r") as f:
+        with open(os.path.join(path, "requirements.txt")) as f:
             requirements = f.read().splitlines()
         _dump_metadata_and_requirements(
-            tmp_path=TMPDIR.name, metadata=metadata, requirements=requirements
+            tmp_path=tmpdir.name, metadata=metadata, requirements=requirements
         )
 
     # init hidden wandb run with job building disabled (handled manually)
     run = wandb.init(
-        dir=TMPDIR.name,
+        dir=tmpdir.name,
         settings={"silent": True, "disable_job_creation": True},
         entity=entity,
         project=project,
@@ -1774,7 +1774,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
     # configure job builder with temp dir and job source
     settings = wandb.Settings()
-    settings.update({"files_dir": TMPDIR.name, "job_source": _type})
+    settings.update({"files_dir": tmpdir.name, "job_source": _type})
     _job_builder = wandb.sdk.internal.job_builder.JobBuilder(
         settings=settings,
     )

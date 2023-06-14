@@ -458,7 +458,7 @@ class InterfaceBase:
         job_info = {}
         try:
             path = artifact.get_path("wandb-job.json").download()
-            with open(path, "r") as f:
+            with open(path) as f:
                 job_info = json.load(f)
         except Exception as e:
             logger.warning(
