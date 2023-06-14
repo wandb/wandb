@@ -458,7 +458,6 @@ class InterfaceBase:
         use_artifact = pb.UseArtifactRecord(
             id=artifact.id, type=artifact.type, name=artifact.name, proto=is_proto_job
         )
-
         self._publish_use_artifact(use_artifact)
 
     @abstractmethod
@@ -485,12 +484,15 @@ class InterfaceBase:
         proto_artifact.finalize = finalize
         for alias in aliases:
             proto_artifact.aliases.append(alias)
+        
+        print(f"communicate_artifact {proto_artifact=} {proto_run=} {aliases=}")
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
         if history_step is not None:
             log_artifact.history_step = history_step
         resp = self._communicate_artifact(log_artifact)
+        print(f"{resp=}")
         return resp
 
     @abstractmethod

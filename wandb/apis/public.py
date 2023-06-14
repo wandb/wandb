@@ -941,7 +941,7 @@ class Api:
         return Job(self, name, path)
 
     @normalize_exceptions
-    def jobs(self, entity, project):
+    def list_jobs(self, entity, project):
         if entity is None:
             raise ValueError("Specify an entity when listing jobs")
         if project is None:
@@ -4342,7 +4342,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
     _notebook_job: bool
-    _proto: bool = False
+    _proto: bool
 
     def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
@@ -4365,6 +4365,7 @@ class Job:
         self._notebook_job = source_info.get("notebook", False)
         self._entrypoint = source_info.get("entrypoint")
         self._args = source_info.get("args")
+        self._proto = self._job_info.get("_proto", False)
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
             self._job_info.get("input_types")
@@ -4372,10 +4373,6 @@ class Job:
         self._output_types = TypeRegistry.type_from_dict(
             self._job_info.get("output_types")
         )
-
-        if os.path.exists(os.path.join(self._fpath, "wandb-proto")):
-            self._proto = True
-
         if self._job_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
         if self._job_info.get("source_type") == "repo":
@@ -4475,8 +4472,11 @@ class Job:
         run_config.update(config)
 
         assigned_config_type = self._input_types.assign(run_config)
-        if isinstance(assigned_config_type, InvalidType):
-            raise TypeError(self._input_types.explain(run_config))
+        if self._proto:
+            wandb.termwarn("Launching manually created job for the first time, can't verify types")
+        else:
+            if isinstance(assigned_config_type, InvalidType):
+                raise TypeError(self._input_types.explain(run_config))
 
         queued_run = launch_add.launch_add(
             job=self._name,

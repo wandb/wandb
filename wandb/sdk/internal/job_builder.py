@@ -273,6 +273,7 @@ class JobBuilder:
 
         if not source_type:
             _logger.info("no source found")
+            print(f'no source {metadata=} {self._logged_code_artifact}')
             return None
 
         artifact = None
