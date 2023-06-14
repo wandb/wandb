@@ -1399,6 +1399,11 @@ class SendManager:
         """
         use = record.use_artifact
         print(f"{record.use_artifact.proto=}")
+
+        # set a ton of info from record.use_artifact.proto in job builder
+        self._job_builder._is_proto = record.use_artifact.proto
+        self._job_builder. = record.use_artifact.proto
+
         if use.type == "job" and not record.use_artifact.proto:
             self._job_builder.disable = True
 
@@ -1607,6 +1612,10 @@ class SendManager:
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
         artifact = self._job_builder.build()
+        
+        # include stuff from use_artifact.proto
+
+
         print(f"_flush_job artifact: {artifact}")
         if artifact is not None and self._run is not None:
             proto_artifact = self._interface._make_artifact(artifact)

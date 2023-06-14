@@ -209,13 +209,6 @@ class JobBuilder:
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
 
-        name = ""
-        # print(f"{self._logged_code_artifact['name']=} {metadata=}")
-        # if metadata.get("_proto"):
-        #     print("PROTOOTOT", self._logged_code_artifact['name'])
-        #     name = self._logged_code_artifact['name'].replace("code-", "")
-        # else:
-        
         name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         artifact = JobArtifact(name)
@@ -245,7 +238,7 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
-    def build(self) -> Optional[Artifact]:
+    def build(self, from_proto: bool = False) -> Optional[Artifact]:
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
@@ -313,7 +306,7 @@ class JobBuilder:
             "runtime": runtime,
         }
 
-        if metadata.get("_proto"):
+        if from_proto:
             source_info["_proto"] = metadata["_proto"]
             _logger.info("adding wandb-proto file")
             with artifact.new_file(PROTO_FILE) as f:

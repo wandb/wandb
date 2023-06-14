@@ -1734,6 +1734,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             requirements=requirements,
         )
     elif _type == "artifact":
+        # TODO(gst): log info about code artifact
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
         if sys.version_info.micro:
             python_version += f".{sys.version_info.micro}"

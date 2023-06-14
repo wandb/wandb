@@ -905,6 +905,9 @@ message KeepaliveRequest {
 message KeepaliveResponse {
 }
 
+
+message
+
 /*
  * UseArtifact:
  */
@@ -912,7 +915,8 @@ message UseArtifactRecord {
   string id = 1;
   string type = 2;
   string name = 3;
-  bool proto = 4;
+
+  ProtoJobArtifact _proto = 4;
 
   _RecordInfo     _info = 200;
 }
