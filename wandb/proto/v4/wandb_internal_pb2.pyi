@@ -2910,6 +2910,111 @@ class KeepaliveResponse(google.protobuf.message.Message):
 global___KeepaliveResponse = KeepaliveResponse
 
 @typing_extensions.final
+class ArtifactInfo(google.protobuf.message.Message):
+    """
+    Job info specific for Proto -> Job upgrade
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ARTIFACT_FIELD_NUMBER: builtins.int
+    PROGRAM_FIELD_NUMBER: builtins.int
+    NOTEBOOK_FIELD_NUMBER: builtins.int
+    NAME_FIELD_NUMBER: builtins.int
+    artifact: builtins.str
+    program: builtins.str
+    notebook: builtins.bool
+    name: builtins.str
+    def __init__(
+        self,
+        *,
+        artifact: builtins.str = ...,
+        program: builtins.str = ...,
+        notebook: builtins.bool = ...,
+        name: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "name", b"name", "notebook", b"notebook", "program", b"program"]) -> None: ...
+
+global___ArtifactInfo = ArtifactInfo
+
+@typing_extensions.final
+class GitInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    NAME_FIELD_NUMBER: builtins.int
+    name: builtins.str
+    def __init__(
+        self,
+        *,
+        name: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["name", b"name"]) -> None: ...
+
+global___GitInfo = GitInfo
+
+@typing_extensions.final
+class ImageInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    IMAGE_FIELD_NUMBER: builtins.int
+    image: builtins.str
+    def __init__(
+        self,
+        *,
+        image: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["image", b"image"]) -> None: ...
+
+global___ImageInfo = ImageInfo
+
+@typing_extensions.final
+class JobSource(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    TYPE_FIELD_NUMBER: builtins.int
+    GITINFO_FIELD_NUMBER: builtins.int
+    ARTIFACTSOURCE_FIELD_NUMBER: builtins.int
+    RUNTIME_FIELD_NUMBER: builtins.int
+    type: builtins.str
+    @property
+    def gitInfo(self) -> global___GitInfo: ...
+    @property
+    def artifactSource(self) -> global___ArtifactInfo: ...
+    runtime: builtins.str
+    def __init__(
+        self,
+        *,
+        type: builtins.str = ...,
+        gitInfo: global___GitInfo | None = ...,
+        artifactSource: global___ArtifactInfo | None = ...,
+        runtime: builtins.str = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitInfo", b"gitInfo"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitInfo", b"gitInfo", "runtime", b"runtime", "type", b"type"]) -> None: ...
+
+global___JobSource = JobSource
+
+@typing_extensions.final
+class ProtoJobArtifact(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    JOB_NAME_FIELD_NUMBER: builtins.int
+    SOURCE_FIELD_NUMBER: builtins.int
+    job_name: builtins.str
+    @property
+    def source(self) -> global___JobSource: ...
+    def __init__(
+        self,
+        *,
+        job_name: builtins.str = ...,
+        source: global___JobSource | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["source", b"source"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["job_name", b"job_name", "source", b"source"]) -> None: ...
+
+global___ProtoJobArtifact = ProtoJobArtifact
+
+@typing_extensions.final
 class UseArtifactRecord(google.protobuf.message.Message):
     """
     UseArtifact:
@@ -2925,7 +3030,8 @@ class UseArtifactRecord(google.protobuf.message.Message):
     id: builtins.str
     type: builtins.str
     name: builtins.str
-    proto: builtins.bool
+    @property
+    def proto(self) -> global___ProtoJobArtifact: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -2934,10 +3040,10 @@ class UseArtifactRecord(google.protobuf.message.Message):
         id: builtins.str = ...,
         type: builtins.str = ...,
         name: builtins.str = ...,
-        proto: builtins.bool = ...,
+        proto: global___ProtoJobArtifact | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "proto", b"proto"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "id", b"id", "name", b"name", "proto", b"proto", "type", b"type"]) -> None: ...
 
 global___UseArtifactRecord = UseArtifactRecord

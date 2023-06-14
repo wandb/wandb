@@ -41,6 +41,7 @@ class GitSourceDict(TypedDict):
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
+    artifact_name: str
     entrypoint: List[str]
     notebook: bool
 
@@ -78,6 +79,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
+    _proto: Any
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -87,6 +89,7 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
+        self._proto = {}
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.get("job_source")
@@ -178,7 +181,7 @@ class JobBuilder:
         return artifact, source
 
     def _build_artifact_job(
-        self, metadata: Dict[str, Any], program_relpath: str
+        self, metadata: Dict[str, Any], program_relpath: str, name: Optional[str] = None
     ) -> Tuple[Optional[Artifact], Optional[ArtifactSourceDict]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
@@ -205,11 +208,13 @@ class JobBuilder:
             "entrypoint": entrypoint,
             "notebook": self._is_notebook_run(),
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
+            "artifact_name": self._logged_code_artifact["name"],
         }
 
-        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+        if not name:
+            name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
-        artifact = JobArtifact(name)
+        artifact = JobArtifact(name, metadata=metadata)
         return artifact, source
 
     def _build_image_job(
@@ -230,7 +235,7 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
-    def build(self, from_proto: bool = False) -> Optional[Artifact]:
+    def build(self) -> Optional[Artifact]:
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
@@ -240,51 +245,72 @@ class JobBuilder:
         if metadata is None:
             return None
 
-        runtime: Optional[str] = metadata.get("python")
-        # can't build a job without a python version
-        if runtime is None:
-            return None
+        if self._proto:
+            print(f"{self._proto=}")
+            name, alias = self._proto.job_name.split(":")
+            source_type = self._proto.source.type
+            runtime = self._proto.source.runtime
+            if self._proto.source.type == "artifact":
+                self._logged_code_artifact = ArtifactInfoForJob(
+                    {
+                        "id": self._proto.source.artifactSource.artifact.split('wandb-artifact://_id/')[1],
+                        "name": self._proto.source.artifactSource.name,
+                    }
+                )
 
-        program_relpath: Optional[str] = metadata.get("codePath")
+                artifact, source = self._build_artifact_job(
+                    metadata=metadata,
+                    program_relpath=self._proto.source.artifactSource.program,
+                    name=name,
+                )
 
-        source_type = self._source_type
+                print(f">>>>> {artifact=} {source=}")
 
-        if self._is_notebook_run():
-            _logger.info("run is notebook based run")
-            program_relpath = metadata.get("program")
+        else:
+            runtime: Optional[str] = metadata.get("python")
+            # can't build a job without a python version
+            if runtime is None:
+                return None
 
-        if not source_type:
-            if self._has_git_job_ingredients(metadata, program_relpath):
-                _logger.info("is repo sourced job")
-                source_type = "repo"
-            elif self._has_artifact_job_ingredients(program_relpath):
-                _logger.info("is artifact sourced job")
-                source_type = "artifact"
-            elif self._has_image_job_ingredients(metadata):
-                _logger.info("is image sourced job")
-                source_type = "image"
+            program_relpath: Optional[str] = metadata.get("codePath")
 
-        if not source_type:
-            _logger.info("no source found")
-            print(f'no source {metadata=} {self._logged_code_artifact}')
-            return None
+            source_type = self._source_type
 
-        artifact = None
-        source: Optional[
-            Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
-        ] = None
-        if source_type == "repo":
-            assert program_relpath is not None
-            root: Optional[str] = metadata.get("root")
-            artifact, source = self._build_repo_job(metadata, program_relpath, root)
-        elif source_type == "artifact":
-            assert program_relpath is not None
-            artifact, source = self._build_artifact_job(metadata, program_relpath)
-        elif source_type == "image":
-            artifact, source = self._build_image_job(metadata)
+            if self._is_notebook_run():
+                _logger.info("run is notebook based run")
+                program_relpath = metadata.get("program")
 
-        if artifact is None or source_type is None or source is None:
-            return None
+            if not source_type:
+                if self._has_git_job_ingredients(metadata, program_relpath):
+                    _logger.info("is repo sourced job")
+                    source_type = "repo"
+                elif self._has_artifact_job_ingredients(program_relpath):
+                    _logger.info("is artifact sourced job")
+                    source_type = "artifact"
+                elif self._has_image_job_ingredients(metadata):
+                    _logger.info("is image sourced job")
+                    source_type = "image"
+
+            if not source_type:
+                _logger.info("no source found")
+                return None
+
+            artifact = None
+            source: Optional[
+                Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
+            ] = None
+            if source_type == "repo":
+                assert program_relpath is not None
+                root: Optional[str] = metadata.get("root")
+                artifact, source = self._build_repo_job(metadata, program_relpath, root)
+            elif source_type == "artifact":
+                assert program_relpath is not None
+                artifact, source = self._build_artifact_job(metadata, program_relpath)
+            elif source_type == "image":
+                artifact, source = self._build_image_job(metadata)
+
+            if artifact is None or source_type is None or source is None:
+                return None
 
         input_types = TypeRegistry.type_of(self._config).to_json()
         output_types = TypeRegistry.type_of(self._summary).to_json()
@@ -297,12 +323,6 @@ class JobBuilder:
             "output_types": output_types,
             "runtime": runtime,
         }
-
-        if from_proto:
-            source_info["_proto"] = metadata["_proto"]
-            _logger.info("adding wandb-proto file")
-            with artifact.new_file(PROTO_FILE) as f:
-                f.write(metadata["_proto"])
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:

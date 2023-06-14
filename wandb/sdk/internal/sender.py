@@ -1398,13 +1398,12 @@ class SendManager:
         This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
-        print(f"{record.use_artifact.proto=}")
+        print(f"[send_use_artifact] {record.use_artifact.proto=}")
 
         # set a ton of info from record.use_artifact.proto in job builder
-        self._job_builder._is_proto = record.use_artifact.proto
-        self._job_builder. = record.use_artifact.proto
+        self._job_builder._proto = record.use_artifact.proto
 
-        if use.type == "job" and not record.use_artifact.proto:
+        if use.type == "job" and not record.use_artifact.proto is not None:
             self._job_builder.disable = True
 
     def send_request_log_artifact(self, record: "Record") -> None:

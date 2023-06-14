@@ -905,8 +905,37 @@ message KeepaliveRequest {
 message KeepaliveResponse {
 }
 
+/*
+ * Job info specific for Proto -> Job upgrade
+ */
+message ArtifactInfo {
+  string artifact = 1;
+  string program = 2;
+  bool notebook = 3;
 
-message
+  string name = 4;
+}
+
+message GitInfo {
+  string name = 1;
+}
+
+message ImageInfo {
+  string image = 1;
+}
+
+message JobSource {
+  string type = 1;
+  GitInfo gitInfo = 2;
+  ArtifactInfo artifactSource = 3;
+
+  string runtime = 4;
+}
+
+message ProtoJobArtifact {
+  string job_name = 1;
+  JobSource source = 2;
+}
 
 /*
  * UseArtifact:
@@ -916,7 +945,7 @@ message UseArtifactRecord {
   string type = 2;
   string name = 3;
 
-  ProtoJobArtifact _proto = 4;
+  ProtoJobArtifact proto = 4;
 
   _RecordInfo     _info = 200;
 }
