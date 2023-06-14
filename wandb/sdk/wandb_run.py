@@ -2696,18 +2696,18 @@ class Run:
                     )
                 self._used_artifact_slots[use_as] = artifact.id
             
-            print(f"[wandb_run] {artifact.metadata=} {artifact.version=}")
-            if artifact.metadata.get("_proto"):
-                # convert to real job
-                artifact.metadata['_proto'] = 123
-                # del artifact.metadata["_proto"]
-                print(f"[wandb_run] {artifact.manifest.entries=}")
-                artifact.save()
+            # print(f"[wandb_run] {artifact.metadata=} {artifact.version=}")
+            # if artifact.metadata.get("_proto"):
+            #     # convert to real job
+            #     artifact.metadata['_proto'] = 123
+            #     # del artifact.metadata["_proto"]
+            #     print(f"[wandb_run] {artifact.manifest.entries=}")
+            #     artifact.save()
 
-            # api.use_artifact(
-            #     artifact.id,
-            #     use_as=use_as or artifact_or_name,
-            # )
+            api.use_artifact(
+                artifact.id,
+                use_as=use_as or artifact_or_name,
+            )
         else:
             artifact = artifact_or_name
             if aliases is None:

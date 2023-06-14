@@ -454,6 +454,9 @@ class InterfaceBase:
         assert artifact.id is not None, "Artifact must have an id"
         is_proto_job = True if "_proto" in artifact.metadata else False
 
+        # TODO(gst): if artifact source, get code artifact ID
+        # and populate proto stuff
+
         print(f"publish_use_artifact {is_proto_job=} {artifact.metadata=}")
         use_artifact = pb.UseArtifactRecord(
             id=artifact.id, type=artifact.type, name=artifact.name, proto=is_proto_job

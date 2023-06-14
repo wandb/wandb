@@ -820,7 +820,8 @@ class _WandbInit:
         )
         if job_artifact:
             print(f"in wandb_init {job_artifact=}")
-            run.use_artifact(job_artifact)
+            artifact = run.use_artifact(job_artifact)
+            # if artifact.metadata.get("_proto"):
 
         self.backend = backend
         assert self._reporter
