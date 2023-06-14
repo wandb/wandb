@@ -14,8 +14,9 @@ integration will not break user code. The one exception to the rule is at import
 LangChain is not installed, or the symbols are not in the same place, the appropriate error
 will be raised when importing this module.
 """
-import wandb.util
 from packaging import version
+
+import wandb.util
 from wandb.sdk.lib import deprecate
 
 langchain = wandb.util.get_module(
