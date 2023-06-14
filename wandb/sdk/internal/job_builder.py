@@ -89,7 +89,7 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
-        self._proto = {}
+        self._proto = None
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.get("job_source")
@@ -259,7 +259,7 @@ class JobBuilder:
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
 
-        if self._proto.job_name:  # test a subfield for existence
+        if self._proto and self._proto.job_name:
             name, alias = self._proto.job_name.split(":")
             source_type = self._proto.source.type
             runtime = self._proto.source.runtime
