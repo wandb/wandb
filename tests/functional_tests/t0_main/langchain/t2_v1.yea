@@ -23,6 +23,4 @@ assert:
   # - :op:contains:
   #   - :wandb:runs[0][summary][langchain_trace]
   #   - model_hash
-  - :op:contains:
-    - :wandb:runs[0][telemetry][3]  # features
-    - 23  # LangChain W&B Tracer callback
+  - :wandb:runs[0][telemetry][9][2] : langchain  # label is langchain
