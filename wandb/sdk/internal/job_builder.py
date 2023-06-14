@@ -76,7 +76,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
-    aliases: List[str]
+    _aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -86,11 +86,10 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
+        self._aliases = []
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.get("job_source")
-
-        self.aliases = []
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -222,8 +221,7 @@ class JobBuilder:
         raw_image_name = image_name
         if ":" in image_name:
             raw_image_name, tag = image_name.split(":")
-            # TODO(gst): make this better
-            self.aliases += [tag]
+            self._aliases += [tag]
 
         name = make_artifact_name_safe(f"job-{raw_image_name}")
         artifact = JobArtifact(name)
