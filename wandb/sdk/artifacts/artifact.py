@@ -170,7 +170,9 @@ class Artifact:
             }
         )
         self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
-        self._added_objs: Dict[int, ArtifactManifestEntry] = {}
+        self._added_objs: Dict[
+            int, Tuple[data_types.WBValue, ArtifactManifestEntry]
+        ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
         self._save_future: Optional["MessageFuture"] = None
         self._dependent_artifacts: Set["Artifact"] = set()
@@ -1301,7 +1303,7 @@ class Artifact:
 
         obj_id = id(obj)
         if obj_id in self._added_objs:
-            return self._added_objs[obj_id]
+            return self._added_objs[obj_id][1]
 
         # If the object is coming from another artifact, save it as a reference
         ref_path = obj._get_artifact_entry_ref_url()
@@ -1336,7 +1338,8 @@ class Artifact:
         # It will be added again later on finalize, but succeed since
         # the checksum should match
         entry = self.add_file(file_path, name, is_tmp_name)
-        self._added_objs[obj_id] = entry
+        # We store a reference to the obj so that its id doesn't get reused.
+        self._added_objs[obj_id] = (obj, entry)
         if obj._artifact_target is None:
             obj._set_artifact_target(self, entry.path)
 
