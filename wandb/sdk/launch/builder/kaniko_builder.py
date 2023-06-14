@@ -348,6 +348,8 @@ class KanikoBuilder(AbstractBuilder):
                     value=self.registry.environment.region,
                 )
             ]
+        # TODO: Refactor all of this environment/registry
+        # specific stuff into methods of those classes.
         if isinstance(self.environment, AzureEnvironment):
             # Use the core api to check if the secret exists
             try:
