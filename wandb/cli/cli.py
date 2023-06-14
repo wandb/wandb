@@ -1543,7 +1543,7 @@ def _list(project, entity):
 
     public_api = PublicApi()
     try:
-        jobs = public_api.jobs(entity=entity, project=project)
+        jobs = public_api.list_jobs(entity=entity, project=project)
     except wandb.errors.CommError as e:
         wandb.termerror(f"Error listing jobs for entity/project: {entity}/{project}")
         return

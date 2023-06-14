@@ -1094,15 +1094,10 @@ class Run:
                     else:
                         notebook_name = self.settings._jupyter_path
                 name_string = f"{self._project}-{notebook_name}"
-                name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
-            elif self._launch_artifact_mapping.get('_wandb_job'):
-                # creating a code artifact from a launch job
-                name = "code-" + self._launch_artifact_mapping['_wandb_job'].split("/")[-1].split(':')[0]
             else:
                 name_string = f"{self._project}-{self._settings.program_relpath}"
-                name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
+        name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
         art = wandb.Artifact(name, "code")
-        print(f"{art=}")
         files_added = False
         if root is not None:
             root = os.path.abspath(root)
@@ -2645,7 +2640,7 @@ class Run:
         aliases: Optional[List[str]] = None,
         use_as: Optional[str] = None,
     ) -> Artifact:
-        print(f"use_artifact: {artifact_or_name}")
+        print(f"[wandb_run] use_artifact: {artifact_or_name}")
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2700,10 +2695,19 @@ class Run:
                         "use_as cannot contain special characters ':' or '/'"
                     )
                 self._used_artifact_slots[use_as] = artifact.id
-            api.use_artifact(
-                artifact.id,
-                use_as=use_as or artifact_or_name,
-            )
+            
+            print(f"[wandb_run] {artifact.metadata=} {artifact.version=}")
+            if artifact.metadata.get("_proto"):
+                # convert to real job
+                artifact.metadata['_proto'] = 123
+                # del artifact.metadata["_proto"]
+                print(f"[wandb_run] {artifact.manifest.entries=}")
+                artifact.save()
+
+            # api.use_artifact(
+            #     artifact.id,
+            #     use_as=use_as or artifact_or_name,
+            # )
         else:
             artifact = artifact_or_name
             if aliases is None:
@@ -2901,6 +2905,7 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
+        print(f"_log_artifact {name=}")
         api = internal.Api()
         if api.settings().get("anonymous") == "true":
             wandb.termwarn(
@@ -2986,6 +2991,7 @@ class Run:
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> Tuple[Artifact, List[str]]:
+        print(f"prepare_artifact {name=}")
         if isinstance(artifact_or_path, (str, os.PathLike)):
             name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
             artifact = wandb.Artifact(name, type or "unspecified")
@@ -3007,6 +3013,7 @@ class Run:
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
+        print(f"about to finalize {artifact.name=}")
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
