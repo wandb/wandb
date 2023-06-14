@@ -122,7 +122,7 @@ def test_create_kaniko_job_static(mock_kubernetes_client, runner):
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
-            == "gcr.io/kaniko-project/executor:v1.8.0"
+            == "gcr.io/kaniko-project/executor:v1.11.0"
         )
         assert job["spec"]["template"]["spec"]["containers"][0]["args"] == [
             f"--context={context_path}",
@@ -181,7 +181,10 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
             "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo"
         )
         builder = KanikoBuilder(
-            MagicMock(), registry, build_context_store="s3://test-bucket/test-prefix"
+            MagicMock(),
+            registry,
+            build_context_store="s3://test-bucket/test-prefix",
+            image="gcr.io/kaniko-project/executor:v1.8.0",
         )
         job_name = "test_job_name"
         repo_url = "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo"
