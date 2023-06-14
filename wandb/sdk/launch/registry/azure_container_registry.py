@@ -125,7 +125,7 @@ class AzureContainerRegistry(AbstractRegistry):
         Raises:
             LaunchError: If unable to parse URI.
         """
-        regex = r"^https://([\w]+)\.azurecr\.io/([\w]+)/?(.*)$"
+        regex = r"(?:https://)([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
         match = re.match(regex, uri)
         if match is None:
             raise LaunchError(f"Unable to parse Azure Container Registry URI: {uri}")
