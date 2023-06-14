@@ -20,7 +20,7 @@ from typing import Optional
 
 from wandb.errors import Error
 
-# This needs to be early as other modules call it.
+# This needs to be initearly as other modules call it.
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
 from wandb import sdk as wandb_sdk

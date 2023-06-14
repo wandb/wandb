@@ -395,7 +395,7 @@ class StreamMux:
         if not self._pid:
             return False
         time_now = time.time()
-        # if we have checked already and it was less than 2 seconds ago
+        # if we have checked already, and it was less than 2 seconds ago
         if self._pid_checked_ts and time_now < self._pid_checked_ts + 2:
             return False
         self._pid_checked_ts = time_now
