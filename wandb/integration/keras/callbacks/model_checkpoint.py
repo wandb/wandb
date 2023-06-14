@@ -156,23 +156,16 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         """Log model checkpoint as  W&B Artifact."""
         try:
             assert wandb.run is not None
-            model_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", type="model")
-            if self.save_weights_only:
-                # We get three files when this is True
-                model_artifact.add_file(
-                    os.path.join(os.path.dirname(filepath), "checkpoint")
-                )
-                model_artifact.add_file(filepath + ".index")
-                # In a distributed setting we get multiple shards.
-                for file in glob.glob(f"{filepath}.data-*"):
-                    model_artifact.add_file(file)
-            elif filepath.endswith(".h5"):
-                # Model saved in .h5 format thus we get one file.
-                model_artifact.add_file(filepath)
+            model_checkpoint_artifact = wandb.Artifact(
+                f"run_{wandb.run.id}_model", type="model"
+            )
+            if os.path.isfile(filepath):
+                model_checkpoint_artifact.add_file(filepath)
+            elif os.path.isdir(filepath):
+                model_checkpoint_artifact.add_dir(filepath)
             else:
-                # Model saved in the SavedModel format thus we have dir.
-                model_artifact.add_dir(filepath)
-            wandb.log_artifact(model_artifact, aliases=aliases or [])
+                raise FileNotFoundError(f"No such file or directory {filepath}")
+            wandb.log_artifact(model_checkpoint_artifact, aliases=aliases or [])
         except ValueError:
             # This error occurs when `save_best_only=True` and the model
             # checkpoint is not saved for that epoch/batch. Since TF/Keras
