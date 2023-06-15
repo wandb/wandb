@@ -12,8 +12,9 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from wandb import _sentry
 from wandb.errors import Error
-from wandb.util import sentry_reraise, sentry_set_scope
+from wandb.util import get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -61,7 +62,7 @@ class _Service:
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
-        sentry_set_scope(process_context="service")
+        _sentry.configure_scope(process_context="service")
 
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
@@ -168,9 +169,22 @@ class _Service:
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
-            service_args = [
-                "wandb",
-                "service",
+
+            service_args = []
+            if self._settings._require_nexus:
+                # NOTE: the wandb_nexus module is not distributed yet so there are no
+                #       instructions about how to install the module.
+                wandb_nexus = get_module(
+                    "wandb_nexus",
+                    required="The nexus experiment requires the wandb_nexus module.",
+                )
+                nexus_path = wandb_nexus.get_nexus_path()
+                service_args.extend([nexus_path])
+                exec_cmd_list = []
+            else:
+                service_args.extend(["wandb", "service"])
+
+            service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
@@ -181,16 +195,19 @@ class _Service:
                 service_args.append("--serve-grpc")
             else:
                 service_args.append("--serve-sock")
-            internal_proc = subprocess.Popen(
-                exec_cmd_list + service_args,
-                env=os.environ,
-                **kwargs,
-            )
+            try:
+                internal_proc = subprocess.Popen(
+                    exec_cmd_list + service_args,
+                    env=os.environ,
+                    **kwargs,
+                )
+            except Exception as e:
+                _sentry.reraise(e)
             self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
             except Exception as e:
-                sentry_reraise(e, delay=True)
+                _sentry.reraise(e)
             self._startup_debug_print("wait_ports_done")
             self._internal_proc = internal_proc
         self._startup_debug_print("launch_done")

@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 from unittest import mock
 
 import pytest
@@ -27,6 +28,7 @@ else:
 Property = wandb_settings.Property
 Settings = wandb_settings.Settings
 Source = wandb_settings.Source
+is_instance_recursive = wandb_settings.is_instance_recursive
 
 
 def test_multiproc_strict_bad(test_settings):
@@ -152,10 +154,14 @@ def test_settings_modification_order():
     # between settings manifested in validator methods and runtime hooks.
     s = wandb.Settings()
     modification_order = s._Settings__modification_order
-    assert (
-        modification_order.index("base_url")
-        < modification_order.index("is_local")
-        < modification_order.index("api_key")
+    # todo: uncomment once api_key validation is restored:
+    # assert (
+    #     modification_order.index("base_url")
+    #     < modification_order.index("is_local")
+    #     < modification_order.index("api_key")
+    # )
+    assert modification_order.index("_network_buffer") < modification_order.index(
+        "_flow_control_custom"
     )
 
 
@@ -296,7 +302,7 @@ def test_settings_strict_validation(capsys):
     s = Settings(api_key=271828, lol=True)
     assert s.api_key == 271828
     with pytest.raises(AttributeError):
-        s.lol
+        s.lol  # noqa: B018
     captured = capsys.readouterr().err
     msgs = (
         "Ignoring unexpected arguments: ['lol']",
@@ -437,7 +443,7 @@ def test_attrib_set_not_allowed():
 def test_attrib_get_bad():
     s = Settings()
     with pytest.raises(AttributeError):
-        s.missing
+        s.missing  # noqa: B018
 
 
 def test_update_override():
@@ -865,6 +871,53 @@ def test_log_internal(test_settings):
     assert fname == "debug-internal.log"
 
 
+class TestAsyncUploadConcurrency:
+    def test_default_is_none(self, test_settings):
+        settings = test_settings()
+        assert settings._async_upload_concurrency_limit is None
+
+    @pytest.mark.parametrize(
+        ["value", "ok"],
+        [
+            (None, True),
+            (1, True),
+            (2, True),
+            (10, True),
+            (100, True),
+            (99999999, True),
+            (-10, False),
+            ("not an int", False),
+        ],
+    )
+    def test_err_iff_bad_value(self, value: Optional[int], ok: bool, test_settings):
+        if ok:
+            settings = test_settings({"_async_upload_concurrency_limit": value})
+            assert settings._async_upload_concurrency_limit == value
+        else:
+            with pytest.raises((UsageError, ValueError)):
+                test_settings({"_async_upload_concurrency_limit": value})
+
+    @pytest.mark.parametrize(
+        ["value", "warn"], [(None, False), (1, False), (9999999, True)]
+    )
+    @mock.patch("wandb.termwarn")
+    def test_warns_if_exceeds_filelimit(
+        self,
+        termwarn: mock.Mock,
+        test_settings,
+        value: Optional[int],
+        warn: bool,
+    ):
+        pytest.importorskip("resource")
+        test_settings({"_async_upload_concurrency_limit": value})
+
+        if warn:
+            termwarn.assert_called_once()
+            assert "exceeds this process's limit" in termwarn.call_args[0][0]
+        else:
+            termwarn.assert_not_called()
+
+
 # --------------------------
 # test static settings
 # --------------------------
@@ -1021,3 +1074,103 @@ def test_silent_env_run(mock_run, test_settings):
         settings._apply_env_vars(os.environ)
         run = mock_run(settings=settings)
         assert run._settings.silent is True
+
+
+def test_is_instance_recursive():
+    # Test with simple types
+    assert is_instance_recursive(42, int)
+    assert not is_instance_recursive(42, str)
+    assert is_instance_recursive("hello", str)
+    assert not is_instance_recursive("hello", int)
+
+    # Test with Any type
+    assert is_instance_recursive(42, Any)
+    assert is_instance_recursive("hello", Any)
+    assert is_instance_recursive([1, 2, 3], Any)
+    assert is_instance_recursive({"a": 1, "b": 2}, Any)
+
+    # Test with Union
+    assert is_instance_recursive(42, Union[int, str])
+    assert is_instance_recursive("hello", Union[int, str])
+    assert not is_instance_recursive([1, 2, 3], Union[int, str])
+
+    # Test with Mapping
+    assert is_instance_recursive({"a": 1, "b": 2}, Dict[str, int])
+    assert not is_instance_recursive({"a": 1, "b": "2"}, Dict[str, int])
+    assert not is_instance_recursive([("a", 1), ("b", 2)], Dict[str, int])
+
+    # Test with Sequence
+    assert is_instance_recursive([1, 2, 3], List[int])
+    assert not is_instance_recursive([1, 2, "3"], List[int])
+    assert not is_instance_recursive("123", List[int])
+    assert is_instance_recursive([(1, 2), (3, 4)], List[Tuple[int, int]])
+    assert not is_instance_recursive([(1, 2), (3, "4")], List[Tuple[int, int]])
+
+    # Test with fixed-length Sequence
+    assert is_instance_recursive([1, "a", 3.5], Tuple[int, str, float])
+    assert not is_instance_recursive([1, "a", "3.5"], Tuple[int, str, float])
+    assert not is_instance_recursive([1, "a"], Tuple[int, str, float])
+
+    # Test with Tuple of variable length
+    assert is_instance_recursive((1, 2, 3), Tuple[int, ...])
+    assert not is_instance_recursive((1, 2, "a"), Tuple[int, ...])
+    assert is_instance_recursive((1, 2, "a"), Tuple[Union[int, str], ...])
+
+    # Test with Set
+    assert is_instance_recursive({1, 2, 3}, Set[int])
+    assert not is_instance_recursive({1, 2, "3"}, Set[int])
+    assert not is_instance_recursive([1, 2, 3], Set[int])
+
+    # Test with nested types
+    assert is_instance_recursive({"a": [1, 2], "b": [3, 4]}, Dict[str, List[int]])
+    assert not is_instance_recursive({"a": [1, 2], "b": [3, "4"]}, Dict[str, List[int]])
+
+
+def test_is_instance_recursive_mapping_and_sequence():
+    # Test with Mapping
+    assert is_instance_recursive({"a": 1, "b": 2}, Mapping[str, int])
+    assert not is_instance_recursive({"a": 1, "b": "2"}, Mapping[str, int])
+    assert not is_instance_recursive([("a", 1), ("b", 2)], Mapping[str, int])
+
+    # Test with Sequence
+    assert is_instance_recursive([1, 2, 3], Sequence[int])
+    assert not is_instance_recursive([1, 2, "3"], Sequence[int])
+    assert not is_instance_recursive("123", Sequence[int])
+    assert is_instance_recursive([(1, 2), (3, 4)], Sequence[Tuple[int, int]])
+    assert not is_instance_recursive([(1, 2), (3, "4")], Sequence[Tuple[int, int]])
+
+    # Test with nested types and Mapping
+    assert is_instance_recursive(
+        {"a": [1, 2], "b": [3, 4]}, Mapping[str, Sequence[int]]
+    )
+    assert not is_instance_recursive(
+        {"a": [1, 2], "b": [3, "4"]}, Mapping[str, Sequence[int]]
+    )
+
+    # Test with nested types and Sequence
+    assert is_instance_recursive(
+        [{"a": 1, "b": 2}, {"c": 3, "d": 4}], Sequence[Mapping[str, int]]
+    )
+    assert not is_instance_recursive(
+        [{"a": 1, "b": 2}, {"c": 3, "d": "4"}], Sequence[Mapping[str, int]]
+    )
+
+
+def test_is_instance_recursive_custom_types():
+    class Custom:
+        pass
+
+    class CustomSubclass(Custom):
+        pass
+
+    assert is_instance_recursive(Custom(), Custom)
+    assert is_instance_recursive(CustomSubclass(), Custom)
+    assert not is_instance_recursive(Custom(), CustomSubclass)
+    assert is_instance_recursive(CustomSubclass(), CustomSubclass)
+
+    # container types
+    assert is_instance_recursive([Custom()], List[Custom])
+    assert is_instance_recursive([CustomSubclass()], List[Custom])
+    assert is_instance_recursive(
+        {"a": Custom(), "b": CustomSubclass()}, Mapping[str, Custom]
+    )

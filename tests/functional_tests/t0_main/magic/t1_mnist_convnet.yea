@@ -4,6 +4,10 @@ plugin:
 var:
   - runs_len:
       :fn:len: :wandb:runs
+depend:
+  requirements:
+    - tensorflow
+    - keras
 assert:
   - :runs_len: 1
   - :op:contains:

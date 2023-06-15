@@ -15,11 +15,17 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
+from ..errors import LaunchDockerError, LaunchError
 from ..registry.local_registry import LocalRegistry
-from ..utils import LOG_PREFIX, LaunchError, sanitize_wandb_api_key
+from ..utils import (
+    LOG_PREFIX,
+    sanitize_wandb_api_key,
+    warn_failed_packages_from_build_logs,
+)
 from .build import (
     _create_docker_build_ctx,
     generate_dockerfile,
+    image_tag_from_dockerfile_and_source,
     validate_docker_installation,
 )
 
@@ -43,6 +49,7 @@ class DockerBuilder(AbstractBuilder):
         self,
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
+        config: Dict[str, Any],
         verify: bool = True,
         login: bool = True,
     ):
@@ -59,6 +66,7 @@ class DockerBuilder(AbstractBuilder):
         """
         self.environment = environment  # Docker builder doesn't actually use this.
         self.registry = registry
+        self.config = config
         if verify:
             self.verify()
         if login:
@@ -85,7 +93,7 @@ class DockerBuilder(AbstractBuilder):
         """
         # TODO the config for the docker builder as of yet is empty
         # but ultimately we should add things like target platform, base image, etc.
-        return cls(environment, registry)
+        return cls(environment, registry, config)
 
     def verify(self) -> None:
         """Verify the builder."""
@@ -110,15 +118,32 @@ class DockerBuilder(AbstractBuilder):
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """
-        repository = None if not self.registry else self.registry.get_repo_uri()
-        if repository:
-            image_uri = f"{repository}:{launch_project.image_tag}"
-        else:
-            image_uri = launch_project.image_uri
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
         dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, "docker"
         )
+
+        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
+
+        repository = None if not self.registry else self.registry.get_repo_uri()
+        # if repo is set, use the repo name as the image name
+        if repository:
+            image_uri = f"{repository}:{image_tag}"
+        # otherwise, base the image name off of the source
+        # which the launch_project checks in image_name
+        else:
+            image_uri = f"{launch_project.image_name}:{image_tag}"
+
+        if not launch_project.build_required() and self.registry.check_image_exists(
+            image_uri
+        ):
+            return image_uri
+
+        _logger.info(
+            f"image {image_uri} does not already exist in repository, building."
+        )
+
+        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+
         create_metadata_file(
             launch_project,
             image_uri,
@@ -128,9 +153,16 @@ class DockerBuilder(AbstractBuilder):
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
-            docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
+            output = docker.build(
+                tags=[image_uri],
+                file=dockerfile,
+                context_path=build_ctx_path,
+                platform=self.config.get("platform"),
+            )
+            warn_failed_packages_from_build_logs(output, image_uri)
+
         except docker.DockerError as e:
-            raise LaunchError(f"Error communicating with docker client: {e}")
+            raise LaunchDockerError(f"Error communicating with docker client: {e}")
 
         try:
             os.remove(build_ctx_path)

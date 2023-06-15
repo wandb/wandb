@@ -1,3 +1,4 @@
+import collections.abc
 import configparser
 import enum
 import getpass
@@ -36,13 +37,14 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
-from .lib.git import GitRepo
+from .lib.gitlib import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
@@ -104,21 +106,21 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
-def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """Parse a string as a dict."""
-    if isinstance(val, dict):
+def _str_as_json(val: Union[str, Dict[str, Any]]) -> Any:
+    """Parse a string as a json object."""
+    if not isinstance(val, str):
         return val
     try:
-        return dict(json.loads(val))
+        return json.loads(val)
     except (AttributeError, ValueError):
         pass
 
     # todo: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a dict. ",
+        f"Could not parse value {val} as JSON. ",
         repeat=False,
     )
-    raise UsageError(f"Could not parse value {val} as a dict.")
+    raise UsageError(f"Could not parse value {val} as JSON.")
 
 
 def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
@@ -179,6 +181,71 @@ def _get_program_relpath_from_gitrepo(
     return None
 
 
+def is_instance_recursive(obj: Any, type_hint: Any) -> bool:  # noqa: C901
+    if type_hint is Any:
+        return True
+
+    origin = get_origin(type_hint)
+    args = get_args(type_hint)
+
+    if origin is None:
+        return isinstance(obj, type_hint)
+
+    if origin is Union:
+        return any(is_instance_recursive(obj, arg) for arg in args)
+
+    if issubclass(origin, collections.abc.Mapping):
+        if not isinstance(obj, collections.abc.Mapping):
+            return False
+        key_type, value_type = args
+
+        for key, value in obj.items():
+            if not is_instance_recursive(key, key_type) or not is_instance_recursive(
+                value, value_type
+            ):
+                return False
+
+        return True
+
+    if issubclass(origin, collections.abc.Sequence):
+        if not isinstance(obj, collections.abc.Sequence) or isinstance(
+            obj, (str, bytes, bytearray)
+        ):
+            return False
+
+        if len(args) == 1 and args[0] != ...:
+            (item_type,) = args
+            for item in obj:
+                if not is_instance_recursive(item, item_type):
+                    return False
+        elif len(args) == 2 and args[-1] == ...:
+            item_type = args[0]
+            for item in obj:
+                if not is_instance_recursive(item, item_type):
+                    return False
+        elif len(args) == len(obj):
+            for item, item_type in zip(obj, args):
+                if not is_instance_recursive(item, item_type):
+                    return False
+        else:
+            return False
+
+        return True
+
+    if issubclass(origin, collections.abc.Set):
+        if not isinstance(obj, collections.abc.Set):
+            return False
+
+        (item_type,) = args
+        for item in obj:
+            if not is_instance_recursive(item, item_type):
+                return False
+
+        return True
+
+    return False
+
+
 @enum.unique
 class Source(enum.IntEnum):
     OVERRIDE: int = 0
@@ -235,6 +302,7 @@ class Property:
         "show_errors",
         "base_url",
         "login_timeout",
+        "_async_upload_concurrency_limit",
     }
 
     def __init__(  # pylint: disable=unused-argument
@@ -382,6 +450,8 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _aws_lambda: bool
+    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
     _config_dict: Config
@@ -393,10 +463,12 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _extra_http_headers: Mapping[str, str]
     _flow_control_custom: bool
     _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
+    _ipython: bool
     _jupyter: bool
     _jupyter_name: str
     _jupyter_path: str
@@ -407,12 +479,14 @@ class Settings:
     _log_level: int
     _network_buffer: int
     _noop: bool
+    _notebook: bool
     _offline: bool
     _sync: bool
     _os: str
     _platform: str
     _python: str
     _runqueue_item_id: str
+    _require_nexus: bool
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
@@ -424,8 +498,10 @@ class Settings:
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
-    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
-    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
+    # open metrics filters in one of the two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -457,6 +533,7 @@ class Settings:
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
+    job_source: str
     label_disable: bool
     launch: bool
     launch_config_path: str
@@ -526,6 +603,14 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
+            _aws_lambda={
+                "hook": lambda _: is_aws_lambda(),
+                "auto_hook": True,
+            },
+            _async_upload_concurrency_limit={
+                "preprocessor": int,
+                "validator": self._validate__async_upload_concurrency_limit,
+            },
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_service={
                 "value": False,
@@ -534,6 +619,7 @@ class Settings:
             },
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _extra_http_headers={"preprocessor": _str_as_json},
             _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
@@ -542,12 +628,23 @@ class Settings:
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
+            _ipython={
+                "hook": lambda _: _get_python_type() == "ipython",
+                "auto_hook": True,
+            },
             _jupyter={
-                "hook": lambda _: str(_get_python_type()) != "python",
+                "hook": lambda _: _get_python_type() == "jupyter",
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
             _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
+            _notebook={
+                "hook": lambda _: self._ipython
+                or self._jupyter
+                or self._colab
+                or self._kaggle,
+                "auto_hook": True,
+            },
             _offline={
                 "hook": (
                     lambda _: True
@@ -566,6 +663,7 @@ class Settings:
             },
             _sync={"value": False},
             _platform={"value": util.get_platform_name()},
+            _require_nexus={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
                 "value": 30,
@@ -587,18 +685,12 @@ class Settings:
                 "hook": lambda x: self._path_convert(x),
             },
             _stats_open_metrics_endpoints={
-                # todo: opt-in to this feature
-                # "value": {
-                #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
-                # },
-                "preprocessor": _str_as_dict,
+                "preprocessor": _str_as_json,
             },
             _stats_open_metrics_filters={
-                # capture all metrics by default
-                "value": {
-                    ".*": {},
-                },
-                "preprocessor": _str_as_dict,
+                # capture all metrics on all endpoints by default
+                "value": (".*",),
+                "preprocessor": _str_as_json,
             },
             _tmp_code_dir={
                 "value": "code",
@@ -648,6 +740,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            job_source={"validator": self._validate_job_source},
             label_disable={"preprocessor": _str_as_bool},
             launch={"preprocessor": _str_as_bool},
             log_dir={
@@ -688,6 +781,9 @@ class Settings:
             root_dir={
                 "preprocessor": lambda x: str(x),
                 "value": os.path.abspath(os.getcwd()),
+            },
+            run_id={
+                "validator": self._validate_run_id,
             },
             run_mode={
                 "hook": lambda _: "offline-run" if self._offline else "run",
@@ -777,24 +873,17 @@ class Settings:
 
     # helper methods for validating values
     @staticmethod
-    def _validator_factory(hint: Any) -> Callable[[Any], bool]:
-        """Return a factory for type validators.
+    def _validator_factory(hint: Any) -> Callable[[Any], bool]:  # noqa: C901
+        """Return a factory for setting type validators."""
 
-        Given a type hint for a setting into a function that type checks the argument.
-        """
-        origin, args = get_origin(hint), get_args(hint)
+        def helper(value: Any) -> bool:
+            try:
+                is_valid = is_instance_recursive(value, hint)
+            except Exception:
+                # instance check failed, but let's not crash and only print a warning
+                is_valid = False
 
-        def helper(x: Any) -> bool:
-            if origin is None:
-                return isinstance(x, hint)
-            elif origin is Union:
-                return isinstance(x, args) if args is not None else True
-            else:
-                return (
-                    isinstance(x, origin) and all(isinstance(y, args) for y in x)
-                    if args is not None
-                    else isinstance(x, origin)
-                )
+            return is_valid
 
         return helper
 
@@ -865,14 +954,22 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: {value!r} not in {choices}")
         return True
 
-    def _validate_api_key(self, value: str) -> bool:
+    @staticmethod
+    def _validate_run_id(value: str) -> bool:
+        # if len(value) > len(value.strip()):
+        #     raise UsageError("Run ID cannot start or end with whitespace")
+        return bool(value.strip())
+
+    @staticmethod
+    def _validate_api_key(value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
-        if value.startswith("local") and not self.is_local:
-            raise UsageError(
-                "Attempting to use a local API key to connect to https://api.wandb.ai"
-            )
+        # todo: move this check to the post-init validation step
+        # if value.startswith("local") and not self.is_local:
+        #     raise UsageError(
+        #         "Attempting to use a local API key to connect to https://api.wandb.ai"
+        #     )
         # todo: move here the logic from sdk/lib/apikey.py
 
         return True
@@ -995,6 +1092,44 @@ class Settings:
     def _validate__stats_samples_to_average(value: int) -> bool:
         if value < 1 or value > 30:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
+        return True
+
+    @staticmethod
+    def _validate__async_upload_concurrency_limit(value: int) -> bool:
+        if value <= 0:
+            raise UsageError("_async_upload_concurrency_limit must be positive")
+
+        try:
+            import resource  # not always available on Windows
+
+            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+        except Exception:
+            # Couldn't get the open-file-limit for some reason,
+            # probably very platform-specific. Not a problem,
+            # we just won't use it to cap the concurrency.
+            pass
+        else:
+            if value > file_limit:
+                wandb.termwarn(
+                    (
+                        "_async_upload_concurrency_limit setting of"
+                        f" {value} exceeds this process's limit"
+                        f" on open files ({file_limit}); may cause file-upload failures."
+                        " Try decreasing _async_upload_concurrency_limit,"
+                        " or increasing your file limit with `ulimit -n`."
+                    ),
+                    repeat=False,
+                )
+
+        return True
+
+    @staticmethod
+    def _validate_job_source(value: str) -> bool:
+        valid_sources = ["repo", "artifact", "image"]
+        if value not in valid_sources:
+            raise UsageError(
+                f"Settings field `job_source`: {value!r} not in {valid_sources}"
+            )
         return True
 
     # other helper methods
@@ -1395,6 +1530,7 @@ class Settings:
 
     def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
         if _logger is not None:
+            _logger.info(f"Current SDK version is {wandb.__version__}")
             _logger.info(f"Configure stats pid to {pid}")
         self.update({"_stats_pid": pid}, source=Source.SETUP)
 
@@ -1425,6 +1561,7 @@ class Settings:
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
+            "WANDB_REQUIRE_NEXUS": "_require_nexus",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",

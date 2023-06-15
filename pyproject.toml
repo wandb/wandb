@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 88
+target-version = ['py36', 'py37', 'py38', 'py39', 'py310', 'py311']
 include = '\.pyi?$'
 exclude = '''
 wandb/vendor/
@@ -28,7 +29,7 @@ skip_gitignore = "True"
 [tool.commitizen]
 name = "cz_conventional_commits"
 major_version_zero = true
-version = "0.13.11.dev1"
+version = "0.15.5.dev1"
 version_files = ["setup.py", "setup.cfg", "wandb/__init__.py"]
 tag_format = "v$major.$minor.$patch$prerelease"
 changelog_incremental = true
@@ -49,17 +50,16 @@ select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
     "E501",
-    "D1",  # Allow missing docstrings.
+    "D1",    # Allow missing docstrings.
     "D417",  # Don't require descriptions for all arguments.
-    "UP022",  # Only valid for Python 3.7+
-    "UP036",  # Only valid for Python 3.7+
+    "UP022", # Only valid for Python 3.7+
+    "UP036", # Only valid for Python 3.7+
 ]
 exclude = [
     "tests/functional_tests/t0_main/fastai/t1_v1.py",
     "tests/functional_tests/t0_main/metaflow",
     "tests/pytest_tests/assets/fixtures/train.py",
     "tests/pytest_tests/unit_tests_old",
-    "wandb/__init__.py",
     "wandb/bin",
     "wandb/data",
     "wandb/env.py",
@@ -86,9 +86,11 @@ target-version = "py37"
 split-on-trailing-comma = false
 
 [tool.ruff.per-file-ignores]
+"**/__init__.py" = ["E402", "F401"]
+"wandb/__init__.py" = ["I001"]
 "wandb/cli/cli.py" = ["C901"]
-"wandb/wandb_controller.py" = ["N803", "N806"]
 "wandb/filesync/step_checksum.py" = ["B023"]
+"wandb/wandb_controller.py" = ["N803", "N806"]
 
 [tool.ruff.pydocstyle]
 convention = "google"

@@ -7,10 +7,9 @@ import pytest
 import wandb
 import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
-from wandb.errors import CommError
 from wandb.sdk.data_types._dtypes import TypeRegistry
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.launch_add import launch_add
-from wandb.sdk.launch.utils import LaunchError
 
 from tests.pytest_tests.unit_tests_old import utils
 
@@ -62,7 +61,7 @@ def mocked_public_artifact(monkeypatch):
 def test_fetch_job_fail(api):
     kwargs = {
         "uri": None,
-        "job": "test:v0",
+        "job": "mock_server_entity/Test_project/test:v0",
         "api": api,
         "launch_spec": {},
         "target_entity": "live_mock_server_entity",
@@ -73,13 +72,15 @@ def test_fetch_job_fail(api):
         "overrides": {},
         "resource": "local-container",
         "resource_args": {},
-        "cuda": None,
         "run_id": None,
     }
     launch_project = _project_spec.LaunchProject(**kwargs)
     with pytest.raises(LaunchError) as e_info:
         launch_project._fetch_job()
-    assert "Job test:v0 not found" in str(e_info.value)
+    assert (
+        "Job mock_server_entity/Test_project/test:v0 not found. Jobs have the format: <entity>/<project>/<name>:<alias>"
+        in str(e_info.value)
+    )
 
 
 def test_launch_job_artifact(
@@ -115,7 +116,7 @@ def test_launch_job_artifact(
         default_settings=test_settings, load_settings=False
     )
     kwargs = {
-        "job": "test-job:v0",
+        "job": "mock_server_entity/test/test-job:v0",
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
@@ -161,7 +162,7 @@ def test_launch_job_repo(
     )
 
     kwargs = {
-        "job": "test-job:v0",
+        "job": "mock_server_entity/test/test-job:v0",
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
@@ -201,7 +202,7 @@ def test_launch_job_container(
     )
 
     kwargs = {
-        "job": "test-job:v0",
+        "job": "mock_server_entity/test/test-job:v0",
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
@@ -241,6 +242,6 @@ def test_launch_add_container_queued_run(
         lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
     )
 
-    queued_run = launch_add(job="test-job:v0")
-    with pytest.raises(CommError):
+    queued_run = launch_add(job="test/test/test-job:v0")
+    with pytest.raises(LaunchError):
         queued_run.wait_until_finished()

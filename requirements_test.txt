@@ -9,3 +9,7 @@ pytest-openfiles
 pytest-flakefinder
 pytest-rerunfailures
 parameterized
+pyfakefs
+    
+pandas
+responses

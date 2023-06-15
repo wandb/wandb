@@ -1,6 +1,17 @@
+from typing import AbstractSet
 from unittest import mock
 
+from wandb.proto.v3.wandb_telemetry_pb2 import Feature
+
 # TODO: implement the telemetry context resolver
+
+
+def get_features(telemetry) -> AbstractSet[str]:
+    features = telemetry.get("3", [])
+    return {
+        Feature.DESCRIPTOR.fields_by_number[feature_number].name
+        for feature_number in features
+    }
 
 
 def test_telemetry_finish(relay_server, wandb_init):
@@ -9,11 +20,11 @@ def test_telemetry_finish(relay_server, wandb_init):
         run.finish()
 
     telemetry = relay.context.get_run_telemetry(run.id)
-    assert telemetry and 2 in telemetry.get("3", [])
+    assert telemetry
+    assert "finish" in get_features(telemetry)
 
 
 def test_telemetry_imports(relay_server, wandb_init):
-
     with relay_server() as relay:
         transformers_mock = mock.MagicMock()
         transformers_mock.__name__ = "transformers"
@@ -59,10 +70,10 @@ def test_telemetry_run_organizing_init(relay_server, wandb_init):
         run.finish()
 
         telemetry = relay.context.get_run_telemetry(run.id)
-        assert telemetry and 13 in telemetry.get("3", [])  # name
-        assert telemetry and 14 in telemetry.get("3", [])  # id
-        assert telemetry and 15 in telemetry.get("3", [])  # tags
-        assert telemetry and 16 in telemetry.get("3", [])  # config
+        assert "set_init_name" in get_features(telemetry)
+        assert "set_init_id" in get_features(telemetry)
+        assert "set_init_tags" in get_features(telemetry)
+        assert "set_init_config" in get_features(telemetry)
 
 
 def test_telemetry_run_organizing_set(relay_server, wandb_init):
@@ -74,6 +85,15 @@ def test_telemetry_run_organizing_set(relay_server, wandb_init):
         run.finish()
 
         telemetry = relay.context.get_run_telemetry(run.id)
-        assert telemetry and 17 in telemetry.get("3", [])  # name
-        assert telemetry and 18 in telemetry.get("3", [])  # tags
-        assert telemetry and 19 in telemetry.get("3", [])  # config update
+        assert "set_run_name" in get_features(telemetry)
+        assert "set_run_tags" in get_features(telemetry)
+        assert "set_config_item" in get_features(telemetry)
+
+
+def test_telemetry_logs_settings_flags(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init(settings={"_async_upload_concurrency_limit": 123})
+        run.finish()
+
+    telemetry = relay.context.get_run_telemetry(run.id)
+    assert "async_uploads" in get_features(telemetry)

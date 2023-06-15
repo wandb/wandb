@@ -12,14 +12,10 @@ with open("requirements.txt") as requirements_file:
 with open("requirements_sweeps.txt") as sweeps_requirements_file:
     sweeps_requirements = sweeps_requirements_file.read().splitlines()
 
-
-test_requirements = ["mock>=2.0.0", "tox-pyenv>=1.0.3"]
-
 gcp_requirements = ["google-cloud-storage"]
 aws_requirements = ["boto3"]
-azure_requirements = ["azure-storage-blob"]
+azure_requirements = ["azure-identity", "azure-storage-blob"]
 grpc_requirements = ["grpcio>=1.27.2"]
-service_requirements = []
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = [
     "numpy",
@@ -44,14 +40,19 @@ launch_requirements = [
     "google-cloud-storage",
     "google-cloud-artifact-registry",
     "kubernetes",
+    "optuna",
 ]
 
 models_requirements = ["cloudpickle"]
 
+async_requirements = [
+    "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
+]
+
 
 setup(
     name="wandb",
-    version="0.13.11.dev1",
+    version="0.15.5.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -71,7 +72,6 @@ setup(
     install_requires=requirements,
     license="MIT license",
     zip_safe=False,
-    # keywords='wandb',
     python_requires=">=3.6",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -89,24 +89,16 @@ setup(
         "Topic :: System :: Logging",
         "Topic :: System :: Monitoring",
     ],
-    test_suite="tests",
-    tests_require=test_requirements,
     extras_require={
         "kubeflow": kubeflow_requirements,
         "gcp": gcp_requirements,
         "aws": aws_requirements,
         "azure": azure_requirements,
-        "service": service_requirements,
         "grpc": grpc_requirements,
         "media": media_requirements,
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
         "models": models_requirements,
+        "async": async_requirements,
     },
 )
-
-# if os.name == "nt" and sys.version_info >= (3, 6):
-#     legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
-#     if legacy_env_var not in os.environ:
-#         if os.system("setx " + legacy_env_var + " 1") != 0:
-#             raise Exception("Error setting environment variable " + legacy_env_var)
