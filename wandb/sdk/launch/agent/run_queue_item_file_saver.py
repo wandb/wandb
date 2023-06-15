@@ -23,11 +23,10 @@ class RunQueueItemFileSaver:
     ):
         self.run_queue_item_id = run_queue_item_id
         self.run = agent_run
-        self.root_dir = tempfile.mkdtemp()
-
-    @property
-    def _path_prefix(self) -> str:
-        return os.path.join(self.root_dir, self.run_queue_item_id)
+        if not isinstance(self.run, Run):
+            self.root_dir = None
+        else:
+            self.root_dir = self.run._settings.files_dir
 
     def save_contents(
         self, contents: str, fname: str, file_sub_type: FileSubtypes
@@ -35,13 +34,17 @@ class RunQueueItemFileSaver:
         if not isinstance(self.run, Run):
             wandb.termwarn("Not saving file contents because agent has no run")
             return None
-        path = os.path.join(self._path_prefix, file_sub_type, fname)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as f:
+        saved_run_path = os.path.join(self.run_queue_item_id, file_sub_type, fname)
+        local_path = os.path.join(self.root_dir, saved_run_path)
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        with open(local_path, "w") as f:
             f.write(contents)
-        res = self.run.save(path, base_path=self.root_dir, policy="now")
+        res = self.run.save(local_path, base_path=self.root_dir, policy="now")
         if isinstance(res, list):
-            return res
+            full_saved_path = os.path.join(
+                self.run.entity, self.run.project, self.run.id, saved_run_path
+            )
+            return [full_saved_path]
         else:
             wandb.termwarn(
                 f"Failed to save files for run queue item: {self.run_queue_item_id}"

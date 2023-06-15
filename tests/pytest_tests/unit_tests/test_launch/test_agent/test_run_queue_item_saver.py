@@ -5,23 +5,27 @@ from wandb.sdk.launch.agent.run_queue_item_file_saver import RunQueueItemFileSav
 from wandb.sdk.wandb_run import Run
 
 
-def test_path_prefix():
-    saver = RunQueueItemFileSaver(None, "test_run_queue_item_id")
-    assert saver._path_prefix == os.path.join(saver.root_dir, "test_run_queue_item_id")
-
-
 def test_no_run():
     saver = RunQueueItemFileSaver(None, "test_run_queue_item_id")
     assert saver.save_contents("contents", "fname", "error") is None
 
 
 def test_run():
+    rqi_id = "test_run_queue_item_id"
+    settings = MagicMock()
+    settings.files_dir = "blah"
     run = MagicMock(spec=Run)
+    run._settings = settings
+    run.project = "test-project"
+    run.entity = "test-entity"
+    run.id = "test"
     run.save = MagicMock(return_value=["test_path"])
-    saver = RunQueueItemFileSaver(run, "test_run_queue_item_id")
-    assert saver.save_contents("contents", "fname", "error") == ["test_path"]
+    saver = RunQueueItemFileSaver(run, rqi_id)
+    assert saver.save_contents("contents", "fname", "error") == [
+        os.path.join(run.entity, run.project, run.id, rqi_id, "error", "fname")
+    ]
     run.save.assert_called_once_with(
-        os.path.join(saver._path_prefix, "error", "fname"),
+        os.path.join(settings.files_dir, rqi_id, "error", "fname"),
         base_path=saver.root_dir,
         policy="now",
     )
