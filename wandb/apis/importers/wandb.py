@@ -40,8 +40,6 @@ class WandbRun(ImporterRun):
             self._used_artifacts = list(self._used_artifacts)
             self._logs = list(self._logs)
 
-        wandb.termlog(f"{self._files}")
-
     def host(self):
         fname = None
         for name, _ in self._files:
@@ -336,7 +334,7 @@ class WandbImporter(Importer):
             wandb.termwarn("No importable runs found!")
             return
 
-        for i, run in tqdm(enumerate(runs), "Collecting runs", total=limit):
+        for i, run in tqdm(enumerate(runs), "Collecting runs (this may take a while)", total=limit):
             if limit and i >= limit:
                 break
             yield run

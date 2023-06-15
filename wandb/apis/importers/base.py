@@ -22,25 +22,26 @@ Name = str
 Path = str
 
 
-@contextmanager
-def send_manager(root_dir):
-    sm = SendManager.setup(root_dir, resume=False)
-    try:
-        yield sm
-    finally:
-        # flush any remaining records
-        while sm:
-            data = next(sm)
-            sm.send(data)
-        sm.finish()
-
-
 class ImporterRun:
     def __init__(self) -> None:
         self.interface = InterfaceQueue()
         self.run_dir = f"./wandb-importer/{self.run_id()}"
-        try:
             self._metrics = self.metrics()
+            self._metrics = self.metrics()
+            self._metrics = self.metrics()
+        except Exception as e:
+            print("problem", e)
+            self._metrics = []
+        self._metrics = self.metrics()
+        except Exception as e:
+            print("problem", e)
+            self._metrics = []
+        self._metrics = self.metrics()
+            self._metrics = self.metrics()
+        except Exception as e:
+            print("problem", e)
+            self._metrics = []
+        self._metrics = self.metrics()
         except Exception as e:
             print("problem", e)
             self._metrics = []
@@ -341,35 +342,44 @@ class Importer:
 
     def _import_one_run(self, run: ImporterRun) -> None:
         with send_manager(run.run_dir) as sm:
-            wandb.termlog(">> Make run record")
+            # wandb.termlog(">> Make run record")
             sm.send(run._make_run_record())
 
-            wandb.termlog(">> Use Artifacts")
+            # wandb.termlog(">> Use Artifacts")
             used_artifacts = run._used_artifacts
             if used_artifacts is not None:
-                for artifact in used_artifacts:
+                for artifact in tqdm(
+                    used_artifacts, desc="Used artifacts", unit="artifacts", leave=False
+                ):
                     sm.send(run._make_artifact_record(artifact, use_artifact=True))
 
-            wandb.termlog(">> Log Artifacts")
+            # wandb.termlog(">> Log Artifacts")
             artifacts = run._artifacts
             if artifacts is not None:
-                for artifact in artifacts:
+                for artifact in tqdm(
+                    artifacts, desc="Logged artifacts", unit="artifacts", leave=False
+                ):
                     sm.send(run._make_artifact_record(artifact))
 
-            wandb.termlog(">> Log Metadata")
+            # wandb.termlog(">> Log Metadata")
             sm.send(run._make_metadata_files_record())
 
             # wandb.termlog(">> Log History")
-            # for history_record in run._make_history_records():
-            #     sm.send(history_record)
+            for history_record in tqdm(
+                run._make_history_records(),
+                desc="History",
+                unit="steps",
+                leave=False,
+            ):
+                sm.send(history_record)
 
-            wandb.termlog(">> Log Summary")
+            # wandb.termlog(">> Log Summary")
             sm.send(run._make_summary_record())
 
-            wandb.termlog(">> Log Output")
+            # wandb.termlog(">> Log Output")
             lines = run._logs
             if lines is not None:
-                for line in lines:
+                for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
                     sm.send(run._make_output_record(line))
 
             wandb.termlog(">> Log Telem")
@@ -384,3 +394,16 @@ def cast_dictlike_to_dict(d):
             d[k] = dict(v)
             cast_dictlike_to_dict(d[k])
     return d
+
+
+@contextmanager
+def send_manager(root_dir):
+    sm = SendManager.setup(root_dir, resume=False)
+    try:
+        yield sm
+    finally:
+        # flush any remaining records
+        while sm:
+            data = next(sm)
+            sm.send(data)
+        sm.finish()
