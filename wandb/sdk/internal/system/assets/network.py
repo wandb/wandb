@@ -25,10 +25,12 @@ class NetworkSent:
 
     def __init__(self) -> None:
         self.samples = deque([])
-        self.sent_init = psutil.net_io_counters().bytes_sent
+        self.sent_prior = psutil.net_io_counters().bytes_sent
 
     def sample(self) -> None:
-        self.samples.append(psutil.net_io_counters().bytes_sent - self.sent_init)
+        sample = psutil.net_io_counters().bytes_sent - self.sent_prior
+        self.samples.append(sample)
+        self.sent_prior += sample
 
     def clear(self) -> None:
         self.samples.clear()
@@ -50,10 +52,12 @@ class NetworkRecv:
 
     def __init__(self) -> None:
         self.samples = deque([])
-        self.recv_init = psutil.net_io_counters().bytes_recv
+        self.recv_prior = psutil.net_io_counters().bytes_recv
 
     def sample(self) -> None:
-        self.samples.append(psutil.net_io_counters().bytes_recv - self.recv_init)
+        sample = psutil.net_io_counters().bytes_recv - self.recv_prior
+        self.samples.append(sample)
+        self.recv_prior += sample
 
     def clear(self) -> None:
         self.samples.clear()
