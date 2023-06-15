@@ -5,7 +5,6 @@ from packaging.version import Version
 
 import wandb
 from wandb.util import get_module
-import wandb
 
 from .base import Importer, ImporterRun
 
@@ -115,13 +114,13 @@ class MlflowImporter(Importer):
             mlflow.set_registry_uri(mlflow_registry_uri)
         self.mlflow_client = mlflow.tracking.MlflowClient(mlflow_tracking_uri)
 
-    def import_one(
+    def import_one_run(
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-        super().import_one(run, overrides)
+        super().import_one_run(run, overrides)
 
     def download_all_runs(self) -> Iterable[MlflowRun]:
         if mlflow_version < Version("1.28.0"):
@@ -134,4 +133,4 @@ class MlflowImporter(Importer):
                 yield MlflowRun(run, self.mlflow_client)
 
     def import_one_report(self):
-        raise NotImplementedError("MlflowImporter does not support import_one_report")
+        raise NotImplementedError("MLFlow does not have a reports concept")

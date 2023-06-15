@@ -1,22 +1,22 @@
 import json
-import platform
 import re
-from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
 from typing import Any, Dict, Iterable, List, Optional
+from unittest.mock import patch
 
 from tqdm import tqdm
 
 import wandb
-from wandb.util import coalesce
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.artifacts.lazy_artifact import LazyArtifact
-import os
+from wandb.util import coalesce
+
+with patch("click.echo"):
+    import wandb.apis.reports as wr
 
 Name = str
 Path = str
@@ -153,19 +153,46 @@ class ImporterRun:
         run.run_id = self.run_id()
         run.entity = self.entity()
         run.project = self.project()
+        host = self.host()
+        if host:
+            run.host = host
         run.display_name = coalesce(self.display_name())
         run.notes = coalesce(self.notes(), "")
-        run.tags.extend(coalesce(self.tags(), list()))
-        # run.start_time.FromMilliseconds(self.start_time())
-        # run.runtime = self.runtime()
+        run.tags.extend(coalesce(self.tags(), []))
+
+        # start_time = 1400000
+        start_time = self.start_time()
+        run.start_time.FromMilliseconds(start_time)
+        # config["_wandb"]["start_time"] = start_time
+
+        runtime = self.runtime()
+        if runtime:
+            run.runtime = self.runtime()
+
         run_group = self.run_group()
         if run_group is not None:
             run.run_group = run_group
+
+        config = self.config()
+        if "_wandb" not in config:
+            config["_wandb"] = {}
+
+        # how do I get this automatically?
+        config["_wandb"]["code_path"] = self.code_path()
+        config["_wandb"]["python_version"] = self.python_version()
+        config["_wandb"]["cli_version"] = self.cli_version()
+
         self.interface._make_config(
-            data=self.config(),
+            data=config,
             obj=run.config,
         )  # is there a better way?
         return self.interface._make_record(run=run)
+
+    def _make_output_record(self, line) -> pb.Record:
+        output_raw = pb.OutputRawRecord()
+        output_raw.output_type = pb.OutputRawRecord.OutputType.STDOUT
+        output_raw.line = line
+        return self.interface._make_record(output_raw=output_raw)
 
     def _make_summary_record(self) -> pb.Record:
         d: dict = {
@@ -197,7 +224,7 @@ class ImporterRun:
         return self.interface._make_record(files=files_record)
 
     def _make_metadata_files_record(self) -> pb.Record:
-        self._make_metadata_file(self.run_dir)
+        # self._make_metadata_file(self.run_dir)
         # files = [(f"{self.run_dir}/files/wandb-metadata.json", "end")]
         files = self._files
 
@@ -216,49 +243,38 @@ class ImporterRun:
         return self.interface._make_record(artifact=proto)
 
     def _make_telem_record(self) -> pb.Record:
+        telem = telem_pb.TelemetryRecord()
+
         feature = telem_pb.Feature()
         feature.importer_mlflow = True
-
-        telem = telem_pb.TelemetryRecord()
         telem.feature.CopyFrom(feature)
-        telem.python_version = platform.python_version()  # importer's python version
-        telem.cli_version = wandb.__version__
+
+        telem.cli_version = self.cli_version()
+        telem.python_version = self.python_version()
+
         return self.interface._make_record(telemetry=telem)
 
     def _make_metadata_file(self, run_dir: str) -> None:
-        missing_text = "MLFlow did not capture this info."
+        missing_text = "This data was not captured"
 
         d = {}
-        if self.os_version() is not None:
-            d["os"] = self.os_version()
-        else:
-            d["os"] = missing_text
+        d["os"] = coalesce(self.os_version(), missing_text)
+        d["python"] = coalesce(self.python_version(), missing_text)
+        d["program"] = coalesce(self.program(), missing_text)
+        d["cuda"] = coalesce(self.cuda_version(), missing_text)
+        d["host"] = coalesce(self.host(), missing_text)
+        d["username"] = coalesce(self.username(), missing_text)
+        d["executable"] = coalesce(self.executable(), missing_text)
 
-        if self.python_version() is not None:
-            d["python"] = self.python_version()
-        else:
-            d["python"] = missing_text
-
-        if self.program() is not None:
-            d["program"] = self.program()
-        else:
-            d["program"] = missing_text
-
-        if self.cuda_version() is not None:
-            d["cuda"] = self.cuda_version()
-        if self.host() is not None:
-            d["host"] = self.host()
-        if self.username() is not None:
-            d["username"] = self.username()
-        if self.executable() is not None:
-            d["executable"] = self.executable()
         gpus_used = self.gpus_used()
         if gpus_used is not None:
             d["gpu_devices"] = json.dumps(gpus_used)
             d["gpu_count"] = json.dumps(len(gpus_used))
+
         cpus_used = self.cpus_used()
         if cpus_used is not None:
             d["cpu_count"] = json.dumps(self.cpus_used())
+
         mem_used = self.memory_used()
         if mem_used is not None:
             d["memory"] = json.dumps({"total": self.memory_used()})
@@ -274,37 +290,27 @@ class ImporterRun:
         return re.sub(valid_chars, replacement, s)
 
 
-class Importer(ABC):
-    @abstractmethod
+class Importer:
     def download_all_runs(self) -> Iterable[ImporterRun]:
-        ...
+        raise NotImplementedError
 
-    # @abstractmethod
-    # def download_all_reports(self):
-    #     ...
+    def download_all_reports(self) -> Iterable[wr.Report]:
+        raise NotImplementedError
 
-    @abstractmethod
-    def import_one_report(self, report):
-        ...
+    def import_one_report(self, report) -> None:
+        raise NotImplementedError
 
-    def import_all_reports(self, limit=10):
-        for i, report in enumerate(self.download_all_reports()):
-            if i > limit:
-                break
-            self.import_one_report(report)
+    def import_all_reports(self, limit=10) -> None:
+        raise NotImplementedError
 
-    def import_all(self, overrides: Optional[Dict[str, Any]] = None) -> None:
-        for run in tqdm(self.download_all_runs(), desc="Sending runs"):
-            self.import_one(run, overrides)
-
-    def import_all_parallel(
+    def import_all_runs(
         self, overrides: Optional[Dict[str, Any]] = None, **pool_kwargs: Any
     ) -> None:
         runs = list(self.download_all_runs())
         with tqdm(total=len(runs)) as pbar:
             with ProcessPoolExecutor(**pool_kwargs) as exc:
                 futures = {
-                    exc.submit(self.import_one, run, overrides=overrides): run
+                    exc.submit(self.import_one_run, run, overrides=overrides): run
                     for run in runs
                 }
                 for future in as_completed(futures):
@@ -320,7 +326,7 @@ class Importer(ABC):
                     finally:
                         pbar.update(1)
 
-    def import_one(
+    def import_one_run(
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
@@ -331,29 +337,42 @@ class Importer(ABC):
                 # `lambda: v` won't work!
                 # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
                 setattr(run, k, lambda v=v: v)
-        self._import_one(run)
+        self._import_one_run(run)
 
-    def _import_one(self, run: ImporterRun) -> None:
+    def _import_one_run(self, run: ImporterRun) -> None:
         with send_manager(run.run_dir) as sm:
+            wandb.termlog(">> Make run record")
             sm.send(run._make_run_record())
-            sm.send(run._make_summary_record())
-            sm.send(run._make_metadata_files_record())
-            for history_record in run._make_history_records():
-                sm.send(history_record)
 
-            wandb.termlog(">> Importing logged artifacts")
-            artifacts = run._artifacts
-            if artifacts is not None:
-                for artifact in artifacts:
-                    sm.send(run._make_artifact_record(artifact))
-
-            wandb.termlog(">> Importing used artifacts")
+            wandb.termlog(">> Use Artifacts")
             used_artifacts = run._used_artifacts
             if used_artifacts is not None:
                 for artifact in used_artifacts:
                     sm.send(run._make_artifact_record(artifact, use_artifact=True))
 
-            wandb.termlog(">> Sending telem")
+            wandb.termlog(">> Log Artifacts")
+            artifacts = run._artifacts
+            if artifacts is not None:
+                for artifact in artifacts:
+                    sm.send(run._make_artifact_record(artifact))
+
+            wandb.termlog(">> Log Metadata")
+            sm.send(run._make_metadata_files_record())
+
+            # wandb.termlog(">> Log History")
+            # for history_record in run._make_history_records():
+            #     sm.send(history_record)
+
+            wandb.termlog(">> Log Summary")
+            sm.send(run._make_summary_record())
+
+            wandb.termlog(">> Log Output")
+            lines = run._logs
+            if lines is not None:
+                for line in lines:
+                    sm.send(run._make_output_record(line))
+
+            wandb.termlog(">> Log Telem")
             sm.send(run._make_telem_record())
 
 
