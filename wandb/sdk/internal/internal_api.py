@@ -1865,14 +1865,10 @@ class Api:
         mutation createRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
             createRunFiles(input: {entityName: $entity, projectName: $project, runName: $run, files: $files}) {
                 runID
+                uploadHeaders
                 files {
-                    uploadHeaders
-                    edges {
-                        node {
-                            name
-                            uploadUrl
-                        }
-                    }
+                    name
+                    uploadUrl
                 }
             }
         }
@@ -1900,11 +1896,10 @@ class Api:
             raise CommError(
                 f"Error uploading files to {entity}/{project}/{run_name}. Check that this project exists and you have access to this entity and project"
             )
+        upload_headers = result["uploadHeaders"]
         files = result["files"]
-        file_name_urls = {
-            file["name"]: file for file in self._flatten_edges(files)
-        }
-        return run_id, files["uploadHeaders"], file_name_urls
+        file_name_urls = {file["name"]: file for file in files}
+        return run_id, upload_headers, file_name_urls
 
     @normalize_exceptions
     def download_urls(
