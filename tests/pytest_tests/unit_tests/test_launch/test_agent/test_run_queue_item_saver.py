@@ -26,6 +26,6 @@ def test_run():
     ]
     run.save.assert_called_once_with(
         os.path.join(settings.files_dir, rqi_id, "error", "fname"),
-        base_path=saver.root_dir,
+        base_path=saver.run._settings.files_dir,
         policy="now",
     )
