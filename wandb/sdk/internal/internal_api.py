@@ -1861,7 +1861,6 @@ class Api:
                     ]
                 }
         """
-
         query = gql(
             """
         mutation createRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
