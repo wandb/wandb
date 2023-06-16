@@ -738,7 +738,6 @@ class _WandbInit:
         logger.info(f"communicating run to backend with {timeout} second timeout")
 
         run_init_handle = backend.interface.deliver_run(run)
-        print("++++run_init_handle", run_init_handle._slot.__dict__)
         result = run_init_handle.wait(
             timeout=timeout,
             on_progress=self._on_progress_init,
