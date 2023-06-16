@@ -11,6 +11,7 @@ from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import State, Status
 from wandb.util import get_module
@@ -465,6 +466,7 @@ class KubernetesRunner(AbstractRunner):
             assert entry_point is not None
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
+            image_uri = image_uri.replace("https://", "")
             launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
@@ -681,7 +683,9 @@ def maybe_create_imagepull_secret(
         A secret if one was created, otherwise None.
     """
     secret = None
-    if isinstance(registry, LocalRegistry):
+    if isinstance(registry, LocalRegistry) or isinstance(
+        registry, AzureContainerRegistry
+    ):
         # Secret not required
         return None
     uname, token = registry.get_username_password()
