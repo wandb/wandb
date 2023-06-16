@@ -85,7 +85,9 @@ def disable_ssl_context():
         reset()
 
 
-@pytest.mark.skipif(sys.version_info[:2] == (3, 7), reason="fails on python version 3.7")
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 7), reason="fails on python version 3.7"
+)
 def test_disable_ssl(
     ssl_server: http.server.HTTPServer,
 ):
@@ -98,7 +100,9 @@ def test_disable_ssl(
         assert requests.get(url).status_code == 200
 
 
-@pytest.mark.skipif(sys.version_info[:2] == (3, 7), reason="fails on python version 3.7")
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 7), reason="fails on python version 3.7"
+)
 @pytest.mark.parametrize(
     "make_env",
     [
