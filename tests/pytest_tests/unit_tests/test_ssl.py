@@ -3,9 +3,9 @@ import dataclasses
 import http.server
 import os
 import ssl
+import sys
 import threading
 from pathlib import Path
-import sys
 from typing import Callable, Iterator, Mapping
 from unittest.mock import patch
 
