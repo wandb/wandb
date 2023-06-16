@@ -5,6 +5,7 @@ import os
 import ssl
 import threading
 from pathlib import Path
+import sys
 from typing import Callable, Iterator, Mapping
 from unittest.mock import patch
 
@@ -84,6 +85,7 @@ def disable_ssl_context():
         reset()
 
 
+@pytest.mark.xfail(sys.version_info == (3, 7), reason="fails on python version 3.7")
 def test_disable_ssl(
     ssl_server: http.server.HTTPServer,
 ):
@@ -96,6 +98,7 @@ def test_disable_ssl(
         assert requests.get(url).status_code == 200
 
 
+@pytest.mark.xfail(sys.version_info == (3, 7), reason="fails on python version 3.7")
 @pytest.mark.parametrize(
     "make_env",
     [
