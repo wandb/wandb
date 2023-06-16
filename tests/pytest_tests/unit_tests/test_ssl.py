@@ -116,3 +116,11 @@ def test_uses_userspecified_custom_ssl_certs(
     with patch.dict("os.environ", make_env(ssl_creds.cert)):
         print(os.environ)
         assert requests.get(url).status_code == 200
+
+def test_ssl_server_works(ssl_server):
+    url = f"https://{ssl_server.server_address[0]}:{ssl_server.server_address[1]}"
+    print("SRP: url =", url)
+    resp = requests.get(url, verify=False)
+    print("SRP: resp =", resp)
+    print("SRP: resp.text =", resp.text)
+    assert resp.status_code == 200
