@@ -118,7 +118,6 @@ if TYPE_CHECKING:
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
-
 # This funny if/else construction is the simplest thing I've found that
 # works at runtime, satisfies Mypy, and gives autocomplete in VSCode:
 if TYPE_CHECKING:
@@ -2700,7 +2699,10 @@ class Api:
         # will never retry self.upload_urls() here. Instead, maybe we should
         # make push itself retriable.
         _, upload_headers, result = self.upload_urls(
-            project, files
+            project,
+            files,
+            run,
+            entity,
         )
         extra_headers = {}
         for upload_header in upload_headers:
