@@ -1855,8 +1855,10 @@ class Api:
                 {
                     "run_id": "run_id",
                     "upload_headers": [""],
-                    { "name": "weights.h5", "uploadUrl": "https://weights.url" },
-                    { "name": "model.json", "uploadUrl": "https://model.json" }
+                    "file_info":  [
+                        {"weights.h5": "uploadUrl": "https://weights.url" },
+                        { "model.json", "uploadUrl": "https://model.json" }
+                    ]
                 }
         """
 
@@ -1896,10 +1898,8 @@ class Api:
             raise CommError(
                 f"Error uploading files to {entity}/{project}/{run_name}. Check that this project exists and you have access to this entity and project"
             )
-        upload_headers = result["uploadHeaders"]
-        files = result["files"]
-        file_name_urls = {file["name"]: file for file in files}
-        return run_id, upload_headers, file_name_urls
+        file_name_urls = {file["name"]: file for file in result["files"]}
+        return run_id, result["uploadHeaders"], file_name_urls
 
     @normalize_exceptions
     def download_urls(
