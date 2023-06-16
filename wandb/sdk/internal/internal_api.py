@@ -1855,11 +1855,24 @@ class Api:
                     "run_id": "run_id",
                     "upload_headers": [""],
                     "file_info":  [
-                        {"weights.h5": "uploadUrl": "https://weights.url" },
-                        { "model.json", "uploadUrl": "https://model.json" }
+                        { "weights.h5": "uploadUrl": "https://weights.url" },
+                        { "model.json": "uploadUrl": "https://model.json" }
                     ]
                 }
         """
+        from pkg_resources import parse_version
+
+        _, server_info = self.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        is_before_create_run_files = max_cli_version is None or parse_version(
+            max_cli_version
+        ) <= parse_version("0.15.4")
+
+        if is_before_create_run_files:
+            return self.old_upload_urls(project, files, run, entity)
+
         query = gql(
             """
         mutation createRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
@@ -1898,6 +1911,68 @@ class Api:
             )
         file_name_urls = {file["name"]: file for file in result["files"]}
         return run_id, result["uploadHeaders"], file_name_urls
+
+    def old_upload_urls(
+        self,
+        project: str,
+        files: Union[List[str], Dict[str, IO]],
+        run: Optional[str] = None,
+        entity: Optional[str] = None,
+    ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
+        """Generate temporary resumable upload urls.
+
+        A new mutation createRunFiles was introduced after 0.15.4.
+        This function is used to support older versions.
+        """
+        query = gql(
+            """
+        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!) {
+            model(name: $name, entityName: $entity) {
+                bucket(name: $run) {
+                    id
+                    files(names: $files) {
+                        uploadHeaders
+                        edges {
+                            node {
+                                name
+                                url(upload: true)
+                                updatedAt
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+        run_id = run or self.current_run_id
+        assert run_id, "run must be specified"
+        entity = entity or self.settings("entity")
+        query_result = self.gql(
+            query,
+            variable_values={
+                "name": project,
+                "run": run_id,
+                "entity": entity,
+                "files": [file for file in files],
+            },
+        )
+
+        run_obj = query_result["model"]["bucket"]
+        if run_obj:
+            for file_node in run_obj["files"]["edges"]:
+                file = file_node["node"]
+                # we previously used "url" field but now use "uploadUrl"
+                # replace the "url" field with "uploadUrl for downstream compatibility
+                if "url" in file and "uploadUrl" not in file:
+                    file["uploadUrl"] = file.pop("url")
+
+            result = {
+                file["name"]: file for file in self._flatten_edges(run_obj["files"])
+            }
+            return run_obj["id"], run_obj["files"]["uploadHeaders"], result
+        else:
+            raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
 
     @normalize_exceptions
     def download_urls(
