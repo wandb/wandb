@@ -20,8 +20,6 @@ from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
-from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -40,6 +38,8 @@ from .message_future import MessageFuture
 GlobStr = NewType("GlobStr", str)
 
 if TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run
 
     if sys.version_info >= (3, 8):
@@ -180,8 +180,9 @@ class InterfaceBase:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
-    def publish_run(self, run: "pb.RunRecord") -> None:
-        self._publish_run(run)
+    def publish_run(self, run: "Run") -> None:
+        run_record = self._make_run(run)
+        self._publish_run(run_record)
 
     @abstractmethod
     def _publish_run(self, run: pb.RunRecord) -> None:
@@ -372,7 +373,7 @@ class InterfaceBase:
     def _publish_files(self, files: pb.FilesRecord) -> None:
         raise NotImplementedError
 
-    def _make_artifact(self, artifact: LocalArtifact) -> pb.ArtifactRecord:
+    def _make_artifact(self, artifact: "Artifact") -> pb.ArtifactRecord:
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
@@ -424,14 +425,14 @@ class InterfaceBase:
     def publish_link_artifact(
         self,
         run: "Run",
-        artifact: Union[LocalArtifact, PublicArtifact],
+        artifact: "Artifact",
         portfolio_name: str,
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
         link_artifact = pb.LinkArtifactRecord()
-        if isinstance(artifact, LocalArtifact):
+        if artifact.is_draft():
             link_artifact.client_id = artifact._client_id
         else:
             link_artifact.server_id = artifact.id if artifact.id else ""
@@ -448,10 +449,8 @@ class InterfaceBase:
 
     def publish_use_artifact(
         self,
-        artifact: LocalArtifact,
+        artifact: "Artifact",
     ) -> None:
-        # use_artifact is either a public.Artifact or a wandb.Artifact that has been
-        # waited on and has an id
         assert artifact.id is not None, "Artifact must have an id"
         use_artifact = pb.UseArtifactRecord(
             id=artifact.id, type=artifact.type, name=artifact.name
@@ -466,7 +465,7 @@ class InterfaceBase:
     def communicate_artifact(
         self,
         run: "Run",
-        artifact: LocalArtifact,
+        artifact: "Artifact",
         aliases: Iterable[str],
         history_step: Optional[int] = None,
         is_user_created: bool = False,
@@ -516,7 +515,7 @@ class InterfaceBase:
     def publish_artifact(
         self,
         run: "Run",
-        artifact: LocalArtifact,
+        artifact: "Artifact",
         aliases: Iterable[str],
         is_user_created: bool = False,
         use_after_commit: bool = False,
@@ -744,8 +743,9 @@ class InterfaceBase:
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
-    def deliver_run(self, run: "pb.RunRecord") -> MailboxHandle:
-        return self._deliver_run(run)
+    def deliver_run(self, run: "Run") -> MailboxHandle:
+        run_record = self._make_run(run)
+        return self._deliver_run(run_record)
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:

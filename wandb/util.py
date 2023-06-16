@@ -50,14 +50,14 @@ import yaml
 import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
-    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -1246,7 +1246,17 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
-    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
+    auth = None
+    if not _thread_local_api_settings.cookies:
+        auth = ("api", api_key or "")
+    response = requests.get(
+        source_url,
+        auth=auth,
+        headers=_thread_local_api_settings.headers,
+        cookies=_thread_local_api_settings.cookies,
+        stream=True,
+        timeout=5,
+    )
     response.raise_for_status()
 
     if os.sep in dest_path:
@@ -1289,7 +1299,9 @@ def from_human_size(size: str, units: Optional[List[Tuple[str, Any]]] = None) ->
 
 def auto_project_name(program: Optional[str]) -> str:
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = wandb.wandb_sdk.lib.git.GitRepo().root_dir
+    from wandb.sdk.lib.gitlib import GitRepo
+
+    root_dir = GitRepo().root_dir
     if root_dir is None:
         return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows
@@ -1487,16 +1499,14 @@ def check_windows_valid_filename(path: Union[int, str]) -> bool:
     return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
-def artifact_to_json(
-    artifact: Union["LocalArtifact", "PublicArtifact"]
-) -> Dict[str, Any]:
+def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
         "sequenceName": artifact.source_name.split(":")[0],
-        "usedAs": artifact._use_as,
+        "usedAs": artifact.use_as,
     }
 
 
@@ -1506,11 +1516,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
             contains_artifacts = check_dict_contains_nested_artifact(item, True)
             if contains_artifacts:
                 return True
-        elif (
-            isinstance(item, wandb.Artifact)
-            or isinstance(item, wandb.sdk.PublicArtifact)
-            or _is_artifact_string(item)
-        ) and nested:
+        elif (isinstance(item, wandb.Artifact) or _is_artifact_string(item)) and nested:
             return True
     return False
 
@@ -1590,7 +1596,7 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
 
 
 def _is_artifact_object(v: Any) -> bool:
-    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.sdk.PublicArtifact)
+    return isinstance(v, wandb.Artifact)
 
 
 def _is_artifact_string(v: Any) -> bool:

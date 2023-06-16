@@ -8,7 +8,7 @@ import yaml
 import wandb
 from wandb import util
 from wandb.apis.public import Api as PublicApi
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 DEFAULT_SWEEP_COMMAND: List[str] = [
     "${env}",

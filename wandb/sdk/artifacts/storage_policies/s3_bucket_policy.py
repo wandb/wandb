@@ -9,7 +9,7 @@ from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandle
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 
 if TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 
@@ -50,7 +50,7 @@ class __S3BucketPolicy(StoragePolicy):  # noqa: N801
 
     def store_path(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[str] = None,
         checksum: bool = True,
