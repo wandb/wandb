@@ -43,7 +43,7 @@ def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
             self.end_headers()
             self.wfile.write(b"Hello, world!")
 
-    httpd = http.server.HTTPServer(("localhost", 0), MyServer)
+    httpd = http.server.HTTPServer(("0.0.0.0", 0), MyServer)
     httpd.socket = ssl.wrap_socket(
         httpd.socket,
         keyfile=ssl_creds.key,
