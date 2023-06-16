@@ -80,6 +80,7 @@ class KanikoBuilder(AbstractBuilder):
     build_context_store: str
     secret_name: Optional[str]
     secret_key: Optional[str]
+    image: str
 
     def __init__(
         self,
@@ -89,6 +90,7 @@ class KanikoBuilder(AbstractBuilder):
         build_context_store: str = "",
         secret_name: str = "",
         secret_key: str = "",
+        image: str = "gcr.io/kaniko-project/executor:1.11.0",
         verify: bool = True,
     ):
         """Initialize a KanikoBuilder.
@@ -115,6 +117,7 @@ class KanikoBuilder(AbstractBuilder):
         self.build_context_store = build_context_store.rstrip("/")
         self.secret_name = secret_name
         self.secret_key = secret_key
+        self.image = image
         if verify:
             self.verify()
 
@@ -153,6 +156,7 @@ class KanikoBuilder(AbstractBuilder):
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
+        image = config.get("kaniko-image", "gcr.io/kaniko-project/executor:1.11.0")
         return cls(
             environment,
             registry,
@@ -160,6 +164,7 @@ class KanikoBuilder(AbstractBuilder):
             build_job_name=build_job_name,
             secret_name=secret_name,
             secret_key=secret_key,
+            image=image,
             verify=verify,
         )
 
@@ -459,7 +464,7 @@ class KanikoBuilder(AbstractBuilder):
         ]
         container = client.V1Container(
             name="wandb-container-build",
-            image="gcr.io/kaniko-project/executor:v1.11.0",
+            image=self.image,
             args=args,
             volume_mounts=volume_mounts,
             env=env if env else None,
