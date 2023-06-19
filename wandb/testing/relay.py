@@ -4,7 +4,7 @@ import logging
 import socket
 import sys
 import threading
-import time
+import traceback
 import urllib.parse
 from collections import defaultdict, deque
 from copy import deepcopy
@@ -27,6 +27,7 @@ import responses
 
 import wandb
 import wandb.util
+from wandb.sdk.lib.timer import Timer
 
 try:
     from typing import Literal, TypedDict
@@ -71,22 +72,6 @@ class DeliberateHTTPError(Exception):
 
     def __repr__(self):
         return f"DeliberateHTTPError({self.message!r}, {self.status_code!r})"
-
-
-class Timer:
-    def __init__(self) -> None:
-        self.start: float = time.perf_counter()
-        self.stop: float = self.start
-
-    def __enter__(self) -> "Timer":
-        return self
-
-    def __exit__(self, *args: Any) -> None:
-        self.stop = time.perf_counter()
-
-    @property
-    def elapsed(self) -> float:
-        return self.stop - self.start
 
 
 class Context:
@@ -310,7 +295,9 @@ class QueryResolver:
             }
             post_processed_data = {
                 "name": name,
-                "dropped": [request_data["dropped"]],
+                "dropped": [request_data["dropped"]]
+                if "dropped" in request_data
+                else [],
                 "files": files,
             }
             return post_processed_data
@@ -556,9 +543,9 @@ class RelayServer:
         self.session = requests.Session()
         self.relay_url = f"http://127.0.0.1:{self.port}"
 
-        # recursively merge-able object to store state
-        self.resolver = QueryResolver()
         # todo: add an option to add custom resolvers
+        self.resolver = QueryResolver()
+        # recursively merge-able object to store state
         self.context = Context()
 
         # injected responses
@@ -658,7 +645,17 @@ class RelayServer:
         }
         self.context.raw_data.append(raw_data)
 
-        snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
+        try:
+            snooped_context = self.resolver.resolve(
+                request_data,
+                response_data,
+                **kwargs,
+            )
+        except Exception as e:
+            print("Failed to resolve context: ", e)
+            traceback.print_exc()
+            snooped_context = None
+
         if snooped_context is not None:
             self.context.upsert(snooped_context)
 

@@ -13,7 +13,7 @@ from .plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import pandas as pd  # type: ignore
+    import pandas as pd
     import plotly  # type: ignore
 
     from ..wandb_run import Run as LocalRun
@@ -90,7 +90,6 @@ def val_to_json(
             and isinstance(val[0], BatchableMedia)
             and all(isinstance(v, type(val[0])) for v in val)
         ):
-
             if TYPE_CHECKING:
                 val = cast(Sequence["BatchableMedia"], val)
 
@@ -125,7 +124,7 @@ def val_to_json(
             # the array index?
             # There is a bug here: if this array contains two arrays of the same type of
             # anonymous media objects, their eventual names will collide.
-            # This used to happen. The frontend doesn't handle heterogenous arrays
+            # This used to happen. The frontend doesn't handle heterogeneous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
             return [
@@ -143,16 +142,13 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
-
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
-                # we sanitize the key to meet the constraints defined in wandb_artifacts.py
+                # we sanitize the key to meet the constraints
                 # in this case, leaving only alpha numerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
-                art = wandb.wandb_sdk.wandb_artifacts.Artifact(
-                    f"run-{run.id}-{sanitized_key}", "run_table"
-                )
+                art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
                 art.add(val, key)
                 run.log_artifact(art)
 

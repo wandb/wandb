@@ -15,11 +15,10 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
+from ..errors import LaunchDockerError, LaunchError
 from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
-    LaunchDockerError,
-    LaunchError,
     sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
@@ -50,6 +49,7 @@ class DockerBuilder(AbstractBuilder):
         self,
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
+        config: Dict[str, Any],
         verify: bool = True,
         login: bool = True,
     ):
@@ -66,6 +66,7 @@ class DockerBuilder(AbstractBuilder):
         """
         self.environment = environment  # Docker builder doesn't actually use this.
         self.registry = registry
+        self.config = config
         if verify:
             self.verify()
         if login:
@@ -92,7 +93,7 @@ class DockerBuilder(AbstractBuilder):
         """
         # TODO the config for the docker builder as of yet is empty
         # but ultimately we should add things like target platform, base image, etc.
-        return cls(environment, registry)
+        return cls(environment, registry, config)
 
     def verify(self) -> None:
         """Verify the builder."""
@@ -153,7 +154,10 @@ class DockerBuilder(AbstractBuilder):
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
             output = docker.build(
-                tags=[image_uri], file=dockerfile, context_path=build_ctx_path
+                tags=[image_uri],
+                file=dockerfile,
+                context_path=build_ctx_path,
+                platform=self.config.get("platform"),
             )
             warn_failed_packages_from_build_logs(output, image_uri)
 

@@ -16,7 +16,7 @@ spec:
       serviceAccountName: wandb-launch-serviceaccount
       containers:
         - name: launch-agent
-          image: wandb/launch-agent-dev:3c89dc65
+          image: wandb/launch-agent-dev:df552430
           resources:
             limits:
               memory: "2Gi"
@@ -35,6 +35,11 @@ spec:
                 secretKeyRef:
                   name: wandb-api-key
                   key: password
+            - name: WANDB_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: wandb-launch-configmap
+                  key: wandb-base-url
           volumeMounts:
             - name: wandb-launch-config
               mountPath: /home/launch_agent/.config/wandb

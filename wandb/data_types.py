@@ -23,6 +23,7 @@ import logging
 import os
 import pprint
 import tempfile
+from decimal import Decimal
 from typing import Optional
 
 import wandb
@@ -143,6 +144,8 @@ def _json_helper(val, artifact):
         )
     elif isinstance(val, (list, tuple)):
         return [_json_helper(i, artifact) for i in val]
+    elif isinstance(val, Decimal):
+        return float(val)
     else:
         return util.json_friendly(val)[0]
 
@@ -630,7 +633,7 @@ class Table(Media):
                 }
             )
 
-        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -900,6 +903,14 @@ class Table(Media):
             index.set_table(self)
             ndxs.append(index)
         return ndxs
+
+    def get_dataframe(self):
+        """Returns a pandas.DataFrame of the table."""
+        pd = util.get_module(
+            "pandas",
+            required="Converting to pandas.DataFrame requires installing pandas",
+        )
+        return pd.DataFrame.from_records(self.data, columns=self.columns)
 
     def index_ref(self, index):
         """Get a reference to a particular row index in the table."""

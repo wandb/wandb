@@ -2,7 +2,7 @@
 from typing import Any, Dict, Optional
 
 from wandb.apis.internal import Api
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 
 from .builder.abstract import AbstractBuilder
 from .environment.abstract import AbstractEnvironment
@@ -42,6 +42,10 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
         raise LaunchError(
             "Could not create environment from config. Environment type not specified!"
         )
+    if env_type == "local":
+        from .environment.local_environment import LocalEnvironment
+
+        return LocalEnvironment.from_config(config)
     if env_type == "aws":
         from .environment.aws_environment import AwsEnvironment
 
@@ -50,6 +54,10 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
         from .environment.gcp_environment import GcpEnvironment
 
         return GcpEnvironment.from_config(config)
+    if env_type == "azure":
+        from .environment.azure_environment import AzureEnvironment
+
+        return AzureEnvironment.from_config(config)
     raise LaunchError(
         f"Could not create environment from config. Invalid type: {env_type}"
     )
@@ -80,7 +88,7 @@ def registry_from_config(
 
         return LocalRegistry()  # This is the default, dummy registry.
     registry_type = config.get("type")
-    if registry_type is None:
+    if registry_type is None or registry_type == "local":
         from .registry.local_registry import LocalRegistry
 
         return LocalRegistry()  # This is the default, dummy registry.
@@ -106,6 +114,17 @@ def registry_from_config(
         from .registry.google_artifact_registry import GoogleArtifactRegistry
 
         return GoogleArtifactRegistry.from_config(config, environment)
+    if registry_type == "acr":
+        from .environment.azure_environment import AzureEnvironment
+
+        if not isinstance(environment, AzureEnvironment):
+            raise LaunchError(
+                "Could not create ACR registry. "
+                "Environment must be an instance of AzureEnvironment."
+            )
+        from .registry.azure_container_registry import AzureContainerRegistry
+
+        return AzureContainerRegistry.from_config(config, environment)
     raise LaunchError(
         f"Could not create registry from config. Invalid registry type: {registry_type}"
     )

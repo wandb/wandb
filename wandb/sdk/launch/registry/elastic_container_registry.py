@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Tuple
 
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
 from .abstract import AbstractRegistry
@@ -157,5 +157,7 @@ class ElasticContainerRegistry(AbstractRegistry):
 
         except botocore.exceptions.ClientError as e:
             code = e.response["Error"]["Code"]
+            if code == "ImageNotFoundException":
+                return False
             msg = e.response["Error"]["Message"]
             raise LaunchError(f"Error checking if image tag exists: {code} {msg}")

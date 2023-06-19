@@ -8,9 +8,8 @@ from wandb.util import has_num
 from ..base_types.json_metadata import JSONMetadata
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
-    from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
 
 
@@ -274,19 +273,19 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("A box's caption must be a string")
         return True
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             return super().to_json(run_or_artifact)
-        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.Artifact):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
             # want to mess with the visualizations that are currently available in the UI. This really should output
             # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
             return self._val
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
     def from_json(
-        cls: Type["BoundingBoxes2D"], json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["BoundingBoxes2D"], json_obj: dict, source_artifact: "Artifact"
     ) -> "BoundingBoxes2D":
         return cls({"box_data": json_obj}, "")
