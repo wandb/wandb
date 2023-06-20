@@ -38,23 +38,19 @@ def asyncify(f):
 def mock_upload_urls(
     project: str,
     files,
-    run=None,
-    entity=None,
+    run="my-run",
+    entity="my-entity",
 ):
+    print(f"mock_upload_urls(): project={project}")
     return (
         "some-bucket",
         [],
-        {
-            file: {"uploadUrl": f"http://localhost/{entity}/{project}/{run}/{file}"}
-            for file in files
-        },
+        {file: {"uploadUrl": f"http://localhost/{file}"} for file in files},
     )
 
 
 def get_upload_url(save_name: str):
-    return mock_upload_urls("my-proj", [save_name], "my-run", "my-entity")[2][
-        save_name
-    ]["uploadUrl"]
+    return mock_upload_urls("my-proj", [save_name])[2][save_name]["uploadUrl"]
 
 
 def mock_upload_file_retry(url, file, callback, extra_headers):
@@ -470,6 +466,9 @@ class TestUpload:
                 max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
+            print(
+                f"good_cmd: {good_cmd}, good_url: {good_url}, result: {api.upload_file_retry.call_args[0]}"
+            )
             assert api.upload_file_retry.call_args[0][0] == good_url
 
     class TestStats:

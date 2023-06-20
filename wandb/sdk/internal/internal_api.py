@@ -1831,6 +1831,11 @@ class Api:
         return run_state
 
     @normalize_exceptions
+    def create_run_files_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "createRunFiles" in mutations
+
+    @normalize_exceptions
     def upload_urls(
         self,
         project: str,
@@ -1855,23 +1860,14 @@ class Api:
                     "run_id": "run_id",
                     "upload_headers": [""],
                     "file_info":  [
-                        { "weights.h5": "uploadUrl": "https://weights.url" },
-                        { "model.json": "uploadUrl": "https://model.json" }
+                        { "weights.h5": { "uploadUrl": "https://weights.url" } },
+                        { "model.json": { "uploadUrl": "https://model.json" } }
                     ]
                 }
         """
-        from pkg_resources import parse_version
-
-        _, server_info = self.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
-        is_before_create_run_files = max_cli_version is None or parse_version(
-            max_cli_version
-        ) <= parse_version("0.15.4")
-
-        if is_before_create_run_files:
-            return self.old_upload_urls(project, files, run, entity)
+        has_create_run_files_mutation = self.create_run_files_introspection()
+        if not has_create_run_files_mutation:
+            return self.legacy_upload_urls(project, files, run, entity)
 
         query = gql(
             """
@@ -1912,7 +1908,7 @@ class Api:
         file_name_urls = {file["name"]: file for file in result["files"]}
         return run_id, result["uploadHeaders"], file_name_urls
 
-    def old_upload_urls(
+    def legacy_upload_urls(
         self,
         project: str,
         files: Union[List[str], Dict[str, IO]],

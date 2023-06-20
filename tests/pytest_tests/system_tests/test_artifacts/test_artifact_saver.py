@@ -10,14 +10,12 @@ def mock_upload_urls(
     files,
     run=None,
     entity=None,
+    description=None,
 ):
     return (
         "some-bucket",
         [],
-        {
-            file: {"uploadUrl": f"http://wandb-test/{project}/{entity}/{run}/{file}"}
-            for file in files
-        },
+        {file: {"url": f"http://wandb-test/{file}"} for file in files},
     )
 
 
