@@ -103,6 +103,7 @@ class GitHubReference:
     def repo_ssh(self) -> str:
         return f"{PREFIX_SSH}{self.host}:{self.organization}/{self.repo}{SUFFIX_GIT}"
 
+    @property
     def url(self) -> str:
         url = self.url_repo
         if self.view:
@@ -227,7 +228,7 @@ class GitHubReference:
                     # (While the references appear to be sorted, not clear if that's guaranteed.)
             if not default_branch:
                 raise LaunchError(
-                    f"Unable to determine branch or commit to checkout from {self.url()}"
+                    f"Unable to determine branch or commit to checkout from {self.url}"
                 )
             self.default_branch = default_branch
             head = repo.create_head(default_branch, origin.refs[default_branch])

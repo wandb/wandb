@@ -17,7 +17,7 @@ def test_parse_ssh() -> None:
     assert ref.organization == "wandb"
     assert ref.repo == "examples"
     assert ref.path is None
-    assert ref.repo_ssh() == case
+    assert ref.repo_ssh == case
 
 
 def test_parse_organization() -> None:
@@ -40,7 +40,7 @@ def test_parse_enterprise() -> None:
     assert ref.host == "github.foo.bar.com"
     assert ref.organization == "wandb"
     assert ref.repo == "examples"
-    assert ref.url() == case
+    assert ref.url == case
 
 
 def test_parse_repo() -> None:
@@ -65,7 +65,7 @@ def test_parse_repo() -> None:
         assert ref.host == "github.com"
         assert ref.organization == "wandb"
         assert ref.repo == "examples"
-        assert ref.url() == case
+        assert ref.url == case
         assert ref.path == expected_path
 
 
@@ -78,7 +78,7 @@ def test_parse_tree() -> None:
     assert ref.repo == "examples"
     assert ref.view == "tree"
     assert ref.path == "master/examples/launch/launch-quickstart"
-    assert ref.url() == case
+    assert ref.url == case
 
 
 def test_parse_blob() -> None:
@@ -90,7 +90,7 @@ def test_parse_blob() -> None:
     assert ref.repo == "examples"
     assert ref.view == "blob"
     assert ref.path == "master/examples/launch/launch-quickstart/README.md"
-    assert ref.url() == case
+    assert ref.url == case
 
 
 def test_parse_auth() -> None:
@@ -104,7 +104,7 @@ def test_parse_auth() -> None:
     assert ref.repo == "examples"
     assert ref.view == "blob"
     assert ref.path == "commit/path/entry.py"
-    assert ref.url() == case
+    assert ref.url == case
 
     case = "https://username:pword@github.com/wandb/examples/blob/commit/path/entry.py"
     ref = GitHubReference.parse(case)
@@ -115,7 +115,7 @@ def test_parse_auth() -> None:
     assert ref.repo == "examples"
     assert ref.view == "blob"
     assert ref.path == "commit/path/entry.py"
-    assert ref.url() == case
+    assert ref.url == case
 
 
 def test_update_ref() -> None:
@@ -132,7 +132,7 @@ def test_update_ref() -> None:
     assert ref.ref_type is None
     assert ref.ref == "jamie/testing-a-branch"
     expected = "https://github.com/jamie-rasmussen/launch-test-private/blob/jamie/testing-a-branch/haspyenv/today.py"
-    assert ref.url() == expected
+    assert ref.url == expected
 
 
 def test_get_commit() -> None:
