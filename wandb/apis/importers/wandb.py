@@ -316,7 +316,9 @@ class WandbImporter(Importer):
                     finally:
                         pbar.update(1)
 
-    def get_all_runs_alt(self, entity, project=None, limit=1):
+    def download_all_runs_alt(self, entity, project=None, limit=None, skip_ids=None):
+        skip_ids = coalesce(skip_ids, [])
+
         api = self.source_api
 
         if project is None:
@@ -327,10 +329,12 @@ class WandbImporter(Importer):
         runs = (
             run
             for project in projects
-            for run in api.runs(f"{project.entity}/{project.name}")
+            for run in api.runs(
+                f"{project.entity}/{project.name}", filters={"name": {"$nin": skip_ids}}
+            )
         )
         for i, run in enumerate(runs):
-            if i >= limit:
+            if limit and i >= limit:
                 break
             yield run
 
@@ -388,7 +392,7 @@ class WandbImporter(Importer):
                     finally:
                         pbar.update(1)
 
-    def download_all_reports_alt(self, entity, project=None, limit=1):
+    def download_all_reports_alt(self, entity, project=None, limit=None):
         api = self.source_api
 
         if project is None:
@@ -402,17 +406,25 @@ class WandbImporter(Importer):
             for report in api.reports(f"{project.entity}/{project.name}")
         )
         for i, report in enumerate(reports):
-            if i >= limit:
+            if limit and i >= limit:
                 break
             yield report
 
-    def rsync(self, entity):
-        ids_in_dst = list(self._get_ids_in_dst(entity))
-        runs = self.download_all_runs(skip_ids=ids_in_dst)
-        self.import_all_runs(runs)
+    def rsync(self, entity, overrides=None):
+        overrides = coalesce(overrides, {})
+
+        dest_ent = overrides.get("entity", entity)
+        ids_in_dst = list(self._get_ids_in_dst(dest_ent))
+        wandb.termwarn(f"Found IDs already in destination.  Skipping {ids_in_dst}")
+        runs = self.download_all_runs_alt(entity, skip_ids=ids_in_dst)
+        self.import_multiple_runs_alt(runs, overrides)
+
+        # do the same for reports?
+        reports = self.download_all_reports_alt(entity)
+        self.import_multiple_reports_alt(reports, overrides)
 
     def _get_ids_in_dst(self, entity):
-        api = self.source_api
+        api = self.dest_api
         for project in api.projects(entity):
             for run in api.runs(f"{project.entity}/{project.name}"):
                 yield run.id
@@ -425,16 +437,17 @@ class WandbImporter(Importer):
 class WandbParquetRun(WandbRun):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.history_arts = [
-            art for art in self.run.logged_artifacts() if art.type == "wandb-history"
-        ]
 
         # download up here because the env var is still set to be source... kinda hacky
         with patch("click.echo"):
-            self.history_paths = [art.download() for art in self.history_arts]
+            self.history_paths = []
+            for art in self.run.logged_artifacts():
+                if art.type != "wandb-history":
+                    continue
+                path = art.download()
+                self.history_paths.append(path)
 
-        # I think there is an edge case with multiple wandb-history artifacts.
-        if len(self.history_arts) == 0:
+        if len(self.history_paths) == 0:
             wandb.termwarn("No parquet files detected!")
 
     def metrics(self):
