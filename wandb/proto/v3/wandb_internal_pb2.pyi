@@ -2808,12 +2808,10 @@ class UseArtifactRecord(google.protobuf.message.Message):
     ID_FIELD_NUMBER: builtins.int
     TYPE_FIELD_NUMBER: builtins.int
     NAME_FIELD_NUMBER: builtins.int
-    PROTO_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     id: builtins.str
     type: builtins.str
     name: builtins.str
-    proto: builtins.bool
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -2822,11 +2820,10 @@ class UseArtifactRecord(google.protobuf.message.Message):
         id: builtins.str = ...,
         type: builtins.str = ...,
         name: builtins.str = ...,
-        proto: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "id", b"id", "name", b"name", "proto", b"proto", "type", b"type"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "id", b"id", "name", b"name", "type", b"type"]) -> None: ...
 
 global___UseArtifactRecord = UseArtifactRecord
 

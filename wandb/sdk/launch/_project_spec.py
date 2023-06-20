@@ -266,8 +266,6 @@ class LaunchProject:
         job_dir = tempfile.mkdtemp()
         try:
             job = public_api.job(self.job, path=job_dir)
-            if job._proto:
-                print("fetched a proto job")
         except CommError:
             raise LaunchError(
                 f"Job {self.job} not found. Jobs have the format: <entity>/<project>/<name>:<alias>"

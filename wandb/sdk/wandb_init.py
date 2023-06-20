@@ -821,9 +821,7 @@ class _WandbInit:
             wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME
         )
         if job_artifact:
-            print(f"in wandb_init {job_artifact=}")
-            artifact = run.use_artifact(job_artifact)
-            # if artifact.metadata.get("_proto"):
+            run.use_artifact(job_artifact)
 
         self.backend = backend
         assert self._reporter

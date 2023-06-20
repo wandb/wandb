@@ -25,7 +25,6 @@ if TYPE_CHECKING:
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
 JOB_ARTIFACT_TYPE = "job"
-PROTO_FILE = "wandb-proto"
 
 
 class GitInfo(TypedDict):
@@ -56,7 +55,6 @@ class JobSourceDict(TypedDict, total=False):
     input_types: Dict[str, Any]
     output_types: Dict[str, Any]
     runtime: Optional[str]
-    _proto: Optional[str]
 
 
 class ArtifactInfoForJob(TypedDict):
@@ -238,7 +236,7 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
-    def build(self, from_proto: bool = False) -> Optional[Artifact]:
+    def build(self) -> Optional[Artifact]:
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
@@ -274,7 +272,6 @@ class JobBuilder:
 
         if not source_type:
             _logger.info("no source found")
-            print(f'no source {metadata=} {self._logged_code_artifact}')
             return None
 
         artifact = None
@@ -305,13 +302,6 @@ class JobBuilder:
             "output_types": output_types,
             "runtime": runtime,
         }
-
-        if from_proto:
-            source_info["_proto"] = metadata["_proto"]
-            _logger.info("adding wandb-proto file")
-            with artifact.new_file(PROTO_FILE) as f:
-                f.write(metadata["_proto"])
-
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:
             f.write(json.dumps(source_info, indent=4))
