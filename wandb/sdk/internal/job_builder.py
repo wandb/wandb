@@ -80,6 +80,7 @@ class JobBuilder:
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
     _proto: Any
+    _aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -90,6 +91,7 @@ class JobBuilder:
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
         self._proto = None
+        self._aliases = []
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.get("job_source")
@@ -229,7 +231,12 @@ class JobBuilder:
         assert isinstance(image_name, str)
 
         if not name:
-            name = make_artifact_name_safe(f"job-{image_name}")
+            raw_image_name = image_name
+            if ":" in image_name:
+                raw_image_name, tag = image_name.split(":")
+                self._aliases += [tag]
+            name = make_artifact_name_safe(f"job-{raw_image_name}")
+        
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
@@ -260,6 +267,7 @@ class JobBuilder:
         ] = None
 
         if self._proto and self._proto.job_name:
+            print(f"PROTO TYPE: {type(self._proto)}")
             name, alias = self._proto.job_name.split(":")
             source_type = self._proto.source.type
             runtime = self._proto.source.runtime
