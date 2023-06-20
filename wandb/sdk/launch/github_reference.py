@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from wandb.sdk.launch.errors import LaunchError
 
 if TYPE_CHECKING:
-    import git
+    import git  # type: ignore
 
 
 PREFIX_HTTPS = "https://"
@@ -164,7 +164,7 @@ class GitHubReference:
         """Fetch the repo into dst_dir and refine githubref based on what we learn."""
         # We defer importing git until the last moment, because the import requires that the git
         # executable is available on the PATH, so we only want to fail if we actually need it.
-        import git  # type: ignore
+        import git
 
         repo = git.Repo.init(dst_dir)
         origin = repo.create_remote("origin", self.url_repo)
