@@ -4,13 +4,14 @@ import base64
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import State, Status
 from wandb.util import get_module
@@ -465,6 +466,7 @@ class KubernetesRunner(AbstractRunner):
             assert entry_point is not None
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
+            image_uri = image_uri.replace("https://", "")
             launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
@@ -681,7 +683,9 @@ def maybe_create_imagepull_secret(
         A secret if one was created, otherwise None.
     """
     secret = None
-    if isinstance(registry, LocalRegistry):
+    if isinstance(registry, LocalRegistry) or isinstance(
+        registry, AzureContainerRegistry
+    ):
         # Secret not required
         return None
     uname, token = registry.get_username_password()
@@ -715,30 +719,37 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
     Recursively walks the spec and injects the environment variables into
     every container spec. Containers are identified by the "containers" key.
 
+    This function treats the WANDB_RUN_ID and WANDB_GROUP_ID environment variables
+    specially. If they are present in the spec, they will be overwritten. If a setting
+    for WANDB_RUN_ID is provided in env_vars, then that environment variable will only be
+    set in the first container modified by this function.
+
     Arguments:
         root: The spec to modify.
         env_vars: The environment variables to inject.
 
     Returns: None.
     """
-    if isinstance(root, dict):
-        for k, v in root.items():
-            if k == "containers":
-                if isinstance(v, list):
-                    for cont in v:
-                        env = cont.get("env", [])
-                        env.extend(
-                            [
-                                {"name": key, "value": value}
-                                for key, value in env_vars.items()
-                            ]
-                        )
-                        cont["env"] = env
-            elif isinstance(v, (dict, list)):
-                add_wandb_env(v, env_vars)
-    elif isinstance(root, list):
-        for item in root:
-            add_wandb_env(item, env_vars)
+
+    def yield_containers(root: Any) -> Iterator[dict]:
+        if isinstance(root, dict):
+            for k, v in root.items():
+                if k == "containers":
+                    if isinstance(v, list):
+                        yield from v
+                elif isinstance(v, (dict, list)):
+                    yield from yield_containers(v)
+        elif isinstance(root, list):
+            for item in root:
+                yield from yield_containers(item)
+
+    for cont in yield_containers(root):
+        env = cont.setdefault("env", [])
+        env.extend([{"name": key, "value": value} for key, value in env_vars.items()])
+        cont["env"] = env
+        # After we have set WANDB_RUN_ID once, we don't want to set it again
+        if "WANDB_RUN_ID" in env_vars:
+            env_vars.pop("WANDB_RUN_ID")
 
 
 def add_label_to_pods(
@@ -757,16 +768,22 @@ def add_label_to_pods(
 
     Returns: None.
     """
-    if isinstance(manifest, list):
-        for item in manifest:
-            add_label_to_pods(item, label_key, label_value)
-    elif isinstance(manifest, dict):
-        if "spec" in manifest and "containers" in manifest["spec"]:
-            metadata = manifest.setdefault("metadata", {})
-            labels = metadata.setdefault("labels", {})
-            labels[label_key] = label_value
-        for value in manifest.values():
-            add_label_to_pods(value, label_key, label_value)
+
+    def yield_pods(manifest: Any) -> Iterator[dict]:
+        if isinstance(manifest, list):
+            for item in manifest:
+                yield from yield_pods(item)
+        elif isinstance(manifest, dict):
+            if "spec" in manifest and "containers" in manifest["spec"]:
+                yield manifest
+            for value in manifest.values():
+                if isinstance(value, (dict, list)):
+                    yield from yield_pods(value)
+
+    for pod in yield_pods(manifest):
+        metadata = pod.setdefault("metadata", {})
+        labels = metadata.setdefault("labels", {})
+        labels[label_key] = label_value
 
 
 def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) -> None:
