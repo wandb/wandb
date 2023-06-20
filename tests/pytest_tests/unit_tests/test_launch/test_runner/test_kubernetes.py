@@ -49,12 +49,17 @@ def manifest():
 
 def test_add_env(manifest):
     """Test that env vars are added to custom k8s specs."""
-    env = {"TEST_ENV": "test_value", "TEST_ENV_2": "test_value_2"}
+    env = {
+        "TEST_ENV": "test_value",
+        "TEST_ENV_2": "test_value_2",
+        "WANDB_RUN_ID": "test_run_id",
+    }
     add_wandb_env(manifest, env)
     assert manifest["spec"]["template"]["spec"]["containers"][0]["env"] == [
         {"name": "MY_ENV_VAR", "value": "MY_VALUE"},
         {"name": "TEST_ENV", "value": "test_value"},
         {"name": "TEST_ENV_2", "value": "test_value_2"},
+        {"name": "WANDB_RUN_ID", "value": "test_run_id"},
     ]
     assert manifest["spec"]["template"]["spec"]["containers"][1]["env"] == [
         {"name": "TEST_ENV", "value": "test_value"},
