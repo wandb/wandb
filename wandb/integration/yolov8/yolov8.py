@@ -182,6 +182,19 @@ class WandbCallback:
                 aliases=["best", f"epoch_{trainer.epoch + 1}"],
             )
 
+        print(f"self.validation_table: {self.validation_table}")
+        if self.validation_table is not None:
+            print("\n\n\n self.validation_table is not NONE \n\n\n")
+            if self.validation_table.data is not None:
+                print(self.validation_table.data)
+                wandb.log({"sample_predictions": self.validation_table})
+        if self.origitnal_plot_predictions_fn is not None:
+            trainer.validator.plot_predictions = self.origitnal_plot_predictions_fn
+            self.origitnal_plot_predictions_fn = None
+            self.validation_table = None
+
+
+
     def on_model_save(self, trainer: BaseTrainer) -> None:
         """On model save we log the model as an artifact to Weights & Biases."""
         self.run.log_artifact(
@@ -196,7 +209,7 @@ class WandbCallback:
         self.run.finish()
         self.run = None
 
-    def on_val_start(
+    def on_val_batch_start(
         self,
         validator: BaseValidator,
     ) -> None:
@@ -223,13 +236,13 @@ class WandbCallback:
             )
 
     def on_val_end(self, validator: BaseValidator) -> None:
+        print("\n\n\nON VAL END called \n\n\n")
         """On validation end we log the validation table and unpatch the validator's `plot_predictions` method."""
         if self.validation_table is not None:
             self.run.log({"sample_predictions": self.validation_table})
         if self.origitnal_plot_predictions_fn is not None:
             validator.plot_predictions = self.origitnal_plot_predictions_fn
             self.origitnal_plot_predictions_fn = None
-            self.validation_table = None
 
     @property
     def callbacks(
@@ -245,7 +258,7 @@ class WandbCallback:
             "on_train_end": self.on_train_end,
             "on_model_save": self.on_model_save,
             "teardown": self.teardown,
-            "on_val_start": self.on_val_start,
+            "on_val_batch_start": self.on_val_batch_start,
             "on_val_end": self.on_val_end,
         }
 
@@ -273,7 +286,7 @@ def add_images_to_validation_table(
                 *im,
                 *map(lambda x: x[1], sorted(score.items(), key=lambda x: x[0])),
             )
-
+    # print(logger.validation_table.data)
 
 def plot_detection_predictions(
     logger: WandbCallback,
@@ -283,6 +296,8 @@ def plot_detection_predictions(
     batch_id: int,
 ) -> None:
     """Utility to plot predictions from the `DetectionValidator` to a wandb.Table"""
+    wandb.termlog("\n\n\nInside plot detection predictions\n\n\n")
+    # print(predictions)
     (batch_idx, cls, bboxes) = output_to_target(predictions, max_det=15)
     wb_images, scores = convert_to_wb_images(
         batch=batch,
@@ -292,6 +307,7 @@ def plot_detection_predictions(
         masks=None,
         names=validator.names,
     )
+    print(len(wb_images), len(scores))
 
     add_images_to_validation_table(logger, validator, wb_images, scores, batch_id)
 
