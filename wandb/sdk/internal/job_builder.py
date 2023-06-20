@@ -5,7 +5,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
 from wandb.util import make_artifact_name_safe
@@ -62,7 +62,7 @@ class ArtifactInfoForJob(TypedDict):
     name: str
 
 
-class JobArtifact(LocalArtifact):
+class JobArtifact(Artifact):
     def __init__(self, name: str, *args: Any, **kwargs: Any):
         super().__init__(name, "placeholder", *args, **kwargs)
         self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
@@ -76,6 +76,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
+    _aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -85,6 +86,7 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
+        self._aliases = []
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.get("job_source")
@@ -116,7 +118,7 @@ class JobBuilder:
 
     def _build_repo_job(
         self, metadata: Dict[str, Any], program_relpath: str, root: Optional[str]
-    ) -> Tuple[Optional[LocalArtifact], Optional[GitSourceDict]]:
+    ) -> Tuple[Optional[Artifact], Optional[GitSourceDict]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
@@ -177,7 +179,7 @@ class JobBuilder:
 
     def _build_artifact_job(
         self, metadata: Dict[str, Any], program_relpath: str
-    ) -> Tuple[Optional[LocalArtifact], Optional[ArtifactSourceDict]]:
+    ) -> Tuple[Optional[Artifact], Optional[ArtifactSourceDict]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run() and not self._is_colab_run():
@@ -212,10 +214,16 @@ class JobBuilder:
 
     def _build_image_job(
         self, metadata: Dict[str, Any]
-    ) -> Tuple[LocalArtifact, ImageSourceDict]:
+    ) -> Tuple[Artifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
-        name = make_artifact_name_safe(f"job-{image_name}")
+
+        raw_image_name = image_name
+        if ":" in image_name:
+            raw_image_name, tag = image_name.split(":")
+            self._aliases += [tag]
+
+        name = make_artifact_name_safe(f"job-{raw_image_name}")
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
@@ -228,7 +236,7 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
-    def build(self) -> Optional[LocalArtifact]:
+    def build(self) -> Optional[Artifact]:
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)

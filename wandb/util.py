@@ -21,7 +21,9 @@ import tempfile
 import threading
 import time
 import traceback
+import types
 import urllib
+from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
@@ -57,8 +59,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath
 if TYPE_CHECKING:
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
-    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -180,25 +181,59 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def import_module_lazy(name: str) -> Any:
+class LazyModuleState:
+    def __init__(self, module: types.ModuleType) -> None:
+        self.module = module
+        self.load_started = False
+        self.lock = threading.RLock()
+
+    def load(self) -> None:
+        with self.lock:
+            if self.load_started:
+                return
+            self.load_started = True
+            assert self.module.__spec__ is not None
+            assert self.module.__spec__.loader is not None
+            self.module.__spec__.loader.exec_module(self.module)
+            self.module.__class__ = types.ModuleType
+
+
+class LazyModule(types.ModuleType):
+    def __getattribute__(self, name: str) -> Any:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        return object.__getattribute__(self, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        object.__delattr__(self, name)
+
+
+def import_module_lazy(name: str) -> types.ModuleType:
     """Import a module lazily, only when it is used.
+
+    Inspired by importlib.util.LazyLoader, but improved so that the module loading is
+    thread-safe. Circular dependency between modules can lead to a deadlock if the two
+    modules are loaded from different threads.
 
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     """
     try:
         return sys.modules[name]
     except KeyError:
-        module_spec = importlib.util.find_spec(name)
-        if not module_spec:
+        spec = importlib.util.find_spec(name)
+        if spec is None:
             raise ModuleNotFoundError
-
-        module = importlib.util.module_from_spec(module_spec)
+        module = importlib.util.module_from_spec(spec)
+        module.__lazy_module_state__ = LazyModuleState(module)  # type: ignore
+        module.__class__ = LazyModule
         sys.modules[name] = module
-
-        assert module_spec.loader is not None
-        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
-        lazy_loader.exec_module(module)
-
         return module
 
 
@@ -596,7 +631,7 @@ def json_friendly(  # noqa: C901
 
 
 def json_friendly_val(val: Any) -> Any:
-    """Make any value (including dict, slice, sequence, etc) JSON friendly."""
+    """Make any value (including dict, slice, sequence, dataclass) JSON friendly."""
     converted: Union[dict, list]
     if isinstance(val, dict):
         converted = {}
@@ -613,6 +648,9 @@ def json_friendly_val(val: Any) -> Any:
         converted = []
         for value in val:
             converted.append(json_friendly_val(value))
+        return converted
+    if is_dataclass(val) and not isinstance(val, type):
+        converted = asdict(val)
         return converted
     else:
         if val.__class__.__module__ not in ("builtins", "__builtin__"):
@@ -1500,16 +1538,14 @@ def check_windows_valid_filename(path: Union[int, str]) -> bool:
     return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
-def artifact_to_json(
-    artifact: Union["LocalArtifact", "PublicArtifact"]
-) -> Dict[str, Any]:
+def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
         "sequenceName": artifact.source_name.split(":")[0],
-        "usedAs": artifact._use_as,
+        "usedAs": artifact.use_as,
     }
 
 
@@ -1519,11 +1555,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
             contains_artifacts = check_dict_contains_nested_artifact(item, True)
             if contains_artifacts:
                 return True
-        elif (
-            isinstance(item, wandb.Artifact)
-            or isinstance(item, wandb.sdk.PublicArtifact)
-            or _is_artifact_string(item)
-        ) and nested:
+        elif (isinstance(item, wandb.Artifact) or _is_artifact_string(item)) and nested:
             return True
     return False
 
@@ -1603,7 +1635,7 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
 
 
 def _is_artifact_object(v: Any) -> bool:
-    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.sdk.PublicArtifact)
+    return isinstance(v, wandb.Artifact)
 
 
 def _is_artifact_string(v: Any) -> bool:
