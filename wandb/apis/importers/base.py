@@ -14,6 +14,8 @@ from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
 from wandb.util import coalesce
+import threading
+from dataclasses import dataclass
 
 with patch("click.echo"):
     import wandb.apis.reports as wr
@@ -22,29 +24,30 @@ Name = str
 Path = str
 
 
+@dataclass
+class ThreadLocalSettings(threading.local):
+    api_key: str = ""
+    base_url: str = ""
+
+
+_thread_local_settings = ThreadLocalSettings()
+
+
+def set_thread_local_settings(api_key, base_url):
+    _thread_local_settings.api_key = api_key
+    _thread_local_settings.base_url = base_url
+
+
+def reset_thread_local_settings():
+    _thread_local_settings.api_key = None
+    _thread_local_settings.base_url = None
+
+
 class ImporterRun:
     def __init__(self) -> None:
         self.interface = InterfaceQueue()
         self.run_dir = f"./wandb-importer/{self.run_id()}"
-            self._metrics = self.metrics()
-            self._metrics = self.metrics()
-            self._metrics = self.metrics()
-        except Exception as e:
-            print("problem", e)
-            self._metrics = []
         self._metrics = self.metrics()
-        except Exception as e:
-            print("problem", e)
-            self._metrics = []
-        self._metrics = self.metrics()
-            self._metrics = self.metrics()
-        except Exception as e:
-            print("problem", e)
-            self._metrics = []
-        self._metrics = self.metrics()
-        except Exception as e:
-            print("problem", e)
-            self._metrics = []
         self._artifacts = self.artifacts()
         self._used_artifacts = self.used_artifacts()
 
@@ -250,8 +253,13 @@ class ImporterRun:
         feature.importer_mlflow = True
         telem.feature.CopyFrom(feature)
 
-        telem.cli_version = self.cli_version()
-        telem.python_version = self.python_version()
+        cli_version = self.cli_version()
+        if cli_version:
+            telem.cli_version = cli_version
+
+        python_version = self.python_version()
+        if python_version:
+            telem.python_version = python_version
 
         return self.interface._make_record(telemetry=telem)
 
@@ -331,6 +339,7 @@ class Importer:
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
+        settings_override=None,
     ) -> None:
         # does this need to be here for pmap?
         if overrides:
@@ -338,14 +347,14 @@ class Importer:
                 # `lambda: v` won't work!
                 # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
                 setattr(run, k, lambda v=v: v)
-        self._import_one_run(run)
+        self._import_one_run(run, settings_override)
 
-    def _import_one_run(self, run: ImporterRun) -> None:
-        with send_manager(run.run_dir) as sm:
-            # wandb.termlog(">> Make run record")
+    def _import_one_run(self, run: ImporterRun, settings_override=None) -> None:
+        with send_manager(run.run_dir, settings_override=settings_override) as sm:
+            wandb.termlog(">> Make run record")
             sm.send(run._make_run_record())
 
-            # wandb.termlog(">> Use Artifacts")
+            wandb.termlog(">> Use Artifacts")
             used_artifacts = run._used_artifacts
             if used_artifacts is not None:
                 for artifact in tqdm(
@@ -353,7 +362,7 @@ class Importer:
                 ):
                     sm.send(run._make_artifact_record(artifact, use_artifact=True))
 
-            # wandb.termlog(">> Log Artifacts")
+            wandb.termlog(">> Log Artifacts")
             artifacts = run._artifacts
             if artifacts is not None:
                 for artifact in tqdm(
@@ -361,10 +370,10 @@ class Importer:
                 ):
                     sm.send(run._make_artifact_record(artifact))
 
-            # wandb.termlog(">> Log Metadata")
+            wandb.termlog(">> Log Metadata")
             sm.send(run._make_metadata_files_record())
 
-            # wandb.termlog(">> Log History")
+            wandb.termlog(">> Log History")
             for history_record in tqdm(
                 run._make_history_records(),
                 desc="History",
@@ -373,10 +382,10 @@ class Importer:
             ):
                 sm.send(history_record)
 
-            # wandb.termlog(">> Log Summary")
+            wandb.termlog(">> Log Summary")
             sm.send(run._make_summary_record())
 
-            # wandb.termlog(">> Log Output")
+            wandb.termlog(">> Log Output")
             lines = run._logs
             if lines is not None:
                 for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
@@ -397,8 +406,8 @@ def cast_dictlike_to_dict(d):
 
 
 @contextmanager
-def send_manager(root_dir):
-    sm = SendManager.setup(root_dir, resume=False)
+def send_manager(root_dir, settings_override=None):
+    sm = SendManager.setup(root_dir, resume=False, settings_override=settings_override)
     try:
         yield sm
     finally:

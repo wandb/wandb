@@ -1,13 +1,8 @@
-import itertools
 import json
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from contextlib import contextmanager
 from datetime import datetime as dt
-from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
 from unittest.mock import patch
 
 import polars as pl
@@ -17,7 +12,12 @@ from tqdm.auto import tqdm
 import wandb
 from wandb.util import coalesce
 
-from .base import Importer, ImporterRun
+from .base import (
+    Importer,
+    ImporterRun,
+    _thread_local_settings,
+    set_thread_local_settings,
+)
 
 with patch("click.echo"):
     import wandb.apis.reports as wr
@@ -28,90 +28,22 @@ class WandbRun(ImporterRun):
         self.run = run
         super().__init__(*args, **kwargs)
 
+        self.api = wandb.Api(
+            api_key=_thread_local_settings.api_key,
+            overrides={"base_url": _thread_local_settings.base_url},
+        )
+
         # download everything up front before switching api keys
-        with patch("click.echo"):
-            self._files = self.files()
-            self._artifacts = self.artifacts()
-            self._used_artifacts = self.used_artifacts()
-            self._logs = self.logs()
+        # with patch("click.echo"):
+        self._files = self.files()
+        self._artifacts = self.artifacts()
+        self._used_artifacts = self.used_artifacts()
+        self._logs = self.logs()
 
-            self._files = list(self._files)
-            self._artifacts = list(self._artifacts)
-            self._used_artifacts = list(self._used_artifacts)
-            self._logs = list(self._logs)
-
-    def host(self):
-        fname = None
-        for name, _ in self._files:
-            if "wandb-metadata.json" in name:
-                fname = name
-                break
-
-        if fname is None:
-            return None
-
-        with open(fname) as f:
-            result = json.loads(f.read())
-
-        return result.get("host")
-
-    def logs(self):
-        fname = None
-        for name, _ in self._files:
-            if "output.log" in name:
-                fname = name
-                break
-
-        if fname is None:
-            return None
-
-        with open(fname) as f:
-            yield from f.readlines()
-
-    def code_path(self):
-        fname = None
-        for name, _ in self._files:
-            if "wandb-metadata.json" in name:
-                fname = name
-                break
-
-        if fname is None:
-            return None
-
-        with open(fname) as f:
-            result = json.loads(f.read())
-
-        return "code/" + result.get("codePath", "")
-
-    def cli_version(self):
-        fname = None
-        for name, _ in self._files:
-            if "config.yaml" in name:
-                fname = name
-                break
-
-        if fname is None:
-            return None
-
-        with open(fname) as f:
-            result = yaml.safe_load(f)
-
-        return result.get("_wandb", {}).get("value", {}).get("cli_version")
-
-    def python_version(self):
-        fname = None
-        for name, _ in self._files:
-            if "wandb-metadata.json" in name:
-                fname = name
-                break
-
-        if fname is None:
-            return None
-
-        with open(fname) as f:
-            result = json.loads(f.read())
-
-        return result.get("python")
+        self._files = list(self._files)
+        self._artifacts = list(self._artifacts)
+        self._used_artifacts = list(self._used_artifacts)
+        self._logs = list(self._logs)
 
     def run_id(self):
         return self.run.id
@@ -165,36 +97,104 @@ class WandbRun(ImporterRun):
         return int(t)
 
     def artifacts(self):
-        for art in self.run.logged_artifacts():
+        arts = self.run.logged_artifacts()
+        for art in tqdm(arts, "Logged artifacts", leave=False, unit="art"):
             name, ver = art.name.split(":v")
-            path = art.download()
+            try:
+                with patch("click.echo"):
+                    path = art.download()
+            except Exception as e:
+                wandb.termerror(f"Skipping artifact: {e}")
+                continue
 
             # Hack: skip naming validation check for wandb-* types
             new_art = wandb.Artifact(name, "temp")
             new_art._type = art.type
-
-            new_art.add_dir(path)
+            with patch("click.echo"):
+                new_art.add_dir(path)
 
             yield new_art
 
     def used_artifacts(self):
-        for art in self.run.used_artifacts():
+        arts = self.run.used_artifacts()
+        for art in tqdm(arts, "Used artifacts", leave=False, unit="art"):
             name, ver = art.name.split(":v")
-            path = art.download()
+            try:
+                with patch("click.echo"):
+                    path = art.download()
+            except Exception as e:
+                wandb.termerror(f"Skipping artifact: {e}")
+                continue
 
             # Hack: skip naming validation check for wandb-* types
             new_art = wandb.Artifact(name, "temp")
             new_art._type = art.type
-
-            new_art.add_dir(path)
+            with patch("click.echo"):
+                new_art.add_dir(path)
 
             yield new_art
 
     def files(self):
         base_path = f"{self.run_dir}/files"
-        for f in self.run.files():
-            result = f.download(base_path, exist_ok=True)
-            yield (result.name, "now")
+        files = self.run.files()
+        for f in tqdm(files, "Files", leave=False, unit="file"):
+            try:
+                result = f.download(base_path, exist_ok=True)
+            except Exception as e:
+                wandb.termerror(
+                    f"Problem in run {self.run_id()}({self.display_name()}) downloading file {f}: {e}"
+                )
+                continue
+            else:
+                yield (result.name, "now")
+
+    def host(self):
+        fname = self._find_in_files("wandb-metadata.json")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            result = json.loads(f.read())
+
+        return result.get("host")
+
+    def logs(self):
+        fname = self._find_in_files("output.log")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            yield from f.readlines()
+
+    def code_path(self):
+        fname = self._find_in_files("wandb-metadata.json")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            result = json.loads(f.read())
+
+        return "code/" + result.get("codePath", "")
+
+    def cli_version(self):
+        fname = self._find_in_files("config.yaml")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            result = yaml.safe_load(f)
+
+        return result.get("_wandb", {}).get("value", {}).get("cli_version")
+
+    def python_version(self):
+        fname = self._find_in_files("wandb-metadata.json")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            result = json.loads(f.read())
+
+        return result.get("python")
 
     def _modify_table_artifact_paths(self, row):
         table_keys = []
@@ -211,8 +211,8 @@ class WandbRun(ImporterRun):
             art_path = f"{self.entity()}/{self.project()}/run-{self.run_id()}-{table_key}:latest"
             art = None
 
-            # Try to pick up the artifact within 30 seconds
-            for _ in range(15):
+            # Try to pick up the artifact within 20 seconds
+            for _ in range(10):
                 try:
                     art = self.api.artifact(art_path, type="run_table")
                 except wandb.errors.CommError:
@@ -237,15 +237,21 @@ class WandbRun(ImporterRun):
 
         return row
 
+    def _find_in_files(self, name):
+        for path, _ in self._files:
+            if name in path:
+                return path
+
 
 class WandbImporter(Importer):
+    DefaultRunClass = WandbRun
+
     def __init__(
         self,
         source_base_url: str,
         source_api_key: str,
         dest_base_url: str,
         dest_api_key: str,
-        overrides=None,
     ):
         super().__init__()
         self.source_api = wandb.Api(
@@ -261,175 +267,88 @@ class WandbImporter(Importer):
         self.dest_base_url = dest_base_url
         self.dest_api_key = dest_api_key
 
-        self.src_env = partial(env, source_api_key, source_base_url)
-        self.dst_env = partial(env, dest_api_key, dest_base_url)
-        self.overrides = overrides
+    def import_one_run_alt(self, entity, project, id, overrides=None):
+        if overrides is None:
+            overrides = {}
 
-    def import_one_run(
-        self,
-        run: WandbRun,
-        overrides: Optional[Dict[str, Any]] = None,
-    ):
-        # consumer
-        os.environ["WANDB_BASE_URL"] = self.dest_base_url
-        os.environ["WANDB_API_KEY"] = self.dest_api_key
-        super().import_one_run(run, overrides)
+        wandb.termlog("GETTING SOURCE RUN")
+        api = self.source_api
+        run = api.run(f"{entity}/{project}/{id}")
 
-    def import_all_runs(
-        self,
-        runs: Optional[Iterable[WandbRun]] = None,
-        entity: Optional[str] = None,
-        limit: Optional[int] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
-        overrides: Optional[Dict[str, Any]] = None,
-    ):
-        pool_kwargs = coalesce(pool_kwargs, {})
+        # set threadlocal here?
+        set_thread_local_settings(self.dest_api_key, self.dest_base_url)
+        run = self.DefaultRunClass(run)
+
+        wandb.termlog("UPLOADING TO DEST")
+        super().import_one_run(
+            run,
+            overrides=overrides,
+            settings_override={
+                "api_key": self.dest_api_key,
+                "base_url": self.dest_base_url,
+            },
+        )
+
+    def import_multiple_runs_alt(self, runs, overrides=None, pool_kwargs=None):
         overrides = coalesce(overrides, {})
-
-        if runs is None:
-            runs = list(self.download_all_runs(entity, limit))
-
+        pool_kwargs = coalesce(pool_kwargs, {})
+        runs = list(runs)
         with ThreadPoolExecutor(**pool_kwargs) as exc:
             futures = {
-                exc.submit(self.import_one_run, run, overrides=overrides): run
+                exc.submit(
+                    self.import_one_run_alt,
+                    run.entity,
+                    run.project,
+                    run.id,
+                    overrides=overrides,
+                ): run
                 for run in runs
             }
-            with tqdm(desc="Importing runs", total=len(futures)) as pbar:
+            with tqdm(desc="Importing runs", total=len(futures), unit="run") as pbar:
                 for future in as_completed(futures):
+                    run = futures[future]
                     try:
                         future.result()
                     except Exception as e:
                         wandb.termerror(f"Import problem: {e}")
-                        raise e
+                    else:
+                        pbar.set_postfix({"id": run.id})
                     finally:
                         pbar.update(1)
 
-    def rsync(self, entity):
-        ids_in_dst = list(self._get_ids_in_dst(entity))
-        runs = self.download_all_runs(skip_ids=ids_in_dst)
-        self.import_all_runs(runs)
+    def get_all_runs_alt(self, entity, project=None, limit=1):
+        api = self.source_api
 
-    def _get_ids_in_dst(self, entity):
-        for project in self.source_api.projects(entity):
-            for run in self.source_api.runs(f"{project.entity}/{project.name}"):
-                yield run.id
+        if project is None:
+            projects = api.projects(entity)
+        else:
+            projects = [api.project(project, entity)]
 
-    def download_all_runs(
-        self,
-        entity: Optional[str] = None,
-        limit: Optional[int] = None,
-        skip_ids: Optional[List[str]] = None,
-        created_after: Optional[str] = None,
-    ) -> Iterable[ImporterRun]:
-        filters = {}
-        if skip_ids:
-            filters["name"] = {"$nin": skip_ids}
-        if created_after:
-            filters["createdAt"] = {"$gte": dt.fromisoformat(created_after)}
-
-        runs = self._download_all_runs(entity, filters)
-        empty, runs = generator_is_empty(runs)
-
-        if empty:
-            wandb.termwarn("No importable runs found!")
-            return
-
-        for i, run in tqdm(enumerate(runs), "Collecting runs (this may take a while)", total=limit):
-            if limit and i >= limit:
+        runs = (
+            run
+            for project in projects
+            for run in api.runs(f"{project.entity}/{project.name}")
+        )
+        for i, run in enumerate(runs):
+            if i >= limit:
                 break
             yield run
 
-    def _download_all_runs(
-        self, entity: str, filters: Optional[Dict[str, Any]] = None
-    ) -> None:
-        for project in self.source_api.projects(entity):
-            for run in self.source_api.runs(
-                f"{project.entity}/{project.name}", filters
-            ):
-                yield WandbRun(run)
-
-    def download_all_reports(self, limit: Optional[int] = None):
-        for i, report in tqdm(
-            enumerate(self._download_all_reports()),
-            "Collecting reports",
-            total=limit,
-        ):
-            if limit and i >= limit:
-                break
-            yield report
-
-    def _download_all_reports(self) -> None:
-        for project in self.source_api.projects():
-            for report in self.source_api.reports(f"{project.entity}/{project.name}"):
-                try:
-                    r = wr.Report.from_url(report.url)
-                except Exception as e:
-                    pass
-                else:
-                    # projects.set_postfix(
-                    #     {
-                    #         "Project": r.project,
-                    #         "Report": r.title,
-                    #         "ID": r.id,
-                    #     }
-                    # )
-                    yield r
-
-    def import_all_reports(
-        self,
-        reports: Optional[Iterable[wr.Report]] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
-        overrides: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
-    ) -> None:
-        reports = coalesce(reports, list(self.download_all_reports(limit=limit)))
-        pool_kwargs = coalesce(pool_kwargs, {})
-
-        with ThreadPoolExecutor(**pool_kwargs) as exc:
-            futures = {
-                exc.submit(self.import_one_report, report, overrides=overrides): report
-                for report in reports
-            }
-            with tqdm(desc="Importing reports", total=len(futures)) as pbar:
-                for future in as_completed(futures):
-                    report = futures[future]
-                    try:
-                        future.result()
-                    except Exception as exc:
-                        wandb.termerror(
-                            f"Failed to import {report.title} {report.id}: {exc}"
-                        )
-                        with open("failed.txt", "a") as f:
-                            f.write(f"{report.id}\n")
-                    else:
-                        pbar.set_postfix(
-                            {
-                                "Project": report.project,
-                                "Report": report.title,
-                                "ID": report.id,
-                            }
-                        )
-                        with open("success.txt", "a") as f:
-                            f.write(f"{report.id}\n")
-                    finally:
-                        pbar.update(1)
-
-    def import_one_report(
-        self, report: wr.Report, overrides: Optional[Dict[str, Any]] = None
-    ):
+    def import_one_report_alt(self, report_url, overrides=None):
         overrides = coalesce(overrides, {})
+
+        report = wr.Report.from_url(report_url)
         name = overrides.get("name", report.name)
         entity = overrides.get("entity", report.entity)
         project = overrides.get("project", report.project)
         title = overrides.get("title", report.title)
         description = overrides.get("description", report.description)
 
-        self.dest_api.create_project(project, entity)
+        api = self.dest_api
 
-        # hack to skip the default save path which can be very slow
-        # ID will not match the originating server's ID.  if you import twice,
-        # You will end up with two of the same report (with different IDs).
-        self.dest_api.client.execute(
+        api.create_project(project, entity)
+
+        api.client.execute(
             wr.report.UPSERT_VIEW,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
@@ -442,6 +361,61 @@ class WandbImporter(Importer):
                 "spec": json.dumps(report.spec),
             },
         )
+
+    def import_multiple_reports_alt(self, reports, overrides=None, pool_kwargs=None):
+        overrides = coalesce(overrides, {})
+        pool_kwargs = coalesce(pool_kwargs, {})
+        reports = list(reports)
+
+        with ThreadPoolExecutor(**pool_kwargs) as exc:
+            futures = {
+                exc.submit(
+                    self.import_one_report_alt, report.url, overrides=overrides
+                ): report
+                for report in reports
+            }
+            with tqdm(
+                desc="Importing reports", total=len(futures), unit="report"
+            ) as pbar:
+                for future in as_completed(futures):
+                    report = futures[future]
+                    try:
+                        future.result()
+                    except Exception as e:
+                        wandb.termerror(f"Import problem: {e}")
+                    else:
+                        pbar.set_postfix({"id": report.id})
+                    finally:
+                        pbar.update(1)
+
+    def download_all_reports_alt(self, entity, project=None, limit=1):
+        api = self.source_api
+
+        if project is None:
+            projects = api.projects(entity)
+        else:
+            projects = [api.project(project, entity)]
+
+        reports = (
+            report
+            for project in projects
+            for report in api.reports(f"{project.entity}/{project.name}")
+        )
+        for i, report in enumerate(reports):
+            if i >= limit:
+                break
+            yield report
+
+    def rsync(self, entity):
+        ids_in_dst = list(self._get_ids_in_dst(entity))
+        runs = self.download_all_runs(skip_ids=ids_in_dst)
+        self.import_all_runs(runs)
+
+    def _get_ids_in_dst(self, entity):
+        api = self.source_api
+        for project in api.projects(entity):
+            for run in api.runs(f"{project.entity}/{project.name}"):
+                yield run.id
 
     def _make_metadata_file(self, run_dir: str) -> None:
         # skip because we have our own metadata already
@@ -459,11 +433,6 @@ class WandbParquetRun(WandbRun):
         with patch("click.echo"):
             self.history_paths = [art.download() for art in self.history_arts]
 
-        self.api = wandb.Api(
-            api_key="ed3b84bc5bc8bd5877f11f79ab8a8124cf41cf50",
-            overrides={"base_url": "https://api.wandb.test"},
-        )
-
         # I think there is an edge case with multiple wandb-history artifacts.
         if len(self.history_arts) == 0:
             wandb.termwarn("No parquet files detected!")
@@ -478,14 +447,7 @@ class WandbParquetRun(WandbRun):
 
 
 class WandbParquetImporter(WandbImporter):
-    def _download_all_runs(
-        self, entity: str, filters: Optional[Dict[str, Any]] = None
-    ) -> None:
-        for project in self.source_api.projects(entity):
-            for run in self.source_api.runs(
-                f"{project.entity}/{project.name}", filters
-            ):
-                yield WandbParquetRun(run)
+    DefaultRunClass = WandbParquetRun
 
 
 def remove_none_values(d):
@@ -498,26 +460,3 @@ def remove_none_values(d):
                 new_dict[k] = new_v
         return new_dict if new_dict else None
     return d
-
-
-def generator_is_empty(gen):
-    try:
-        first = next(gen)
-    except StopIteration:  # generator was empty, return an empty generator
-        return True, gen
-    else:  # generator has elements, return a new generator with the first element re-attached
-        return False, itertools.chain([first], gen)
-
-
-@contextmanager
-def env(api_key, base_url):
-    starting_api_key = os.getenv("WANDB_API_KEY", "")
-    starting_base_url = os.getenv("WANDB_BASE_URL", "")
-
-    os.environ["WANDB_API_KEY"] = api_key
-    os.environ["WANDB_BASE_URL"] = base_url
-
-    yield
-
-    os.environ["WANDB_API_KEY"] = starting_api_key
-    os.environ["WANDB_BASE_URL"] = starting_base_url
