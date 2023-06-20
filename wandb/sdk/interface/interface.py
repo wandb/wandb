@@ -15,7 +15,7 @@ import os
 import sys
 import time
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -447,23 +447,43 @@ class InterfaceBase:
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         raise NotImplementedError
 
+    def _make_proto_use_artifact(
+        self,
+        use_artifact: pb.UseArtifactRecord,
+        job_name: str,
+        job_info: Dict[str, Any],
+        metadata: Dict[str, Any],
+    ) -> pb.UseArtifactRecord:
+        use_artifact.proto.job_name = job_name
+        use_artifact.proto.source.runtime = metadata.get("python", "")
+        use_artifact.proto.source.type = job_info.get("source_type", "")
+
+        if job_info.get("source_type") == "artifact":
+            use_artifact.proto.source.artifactSource.artifact = job_info.get(
+                "source", {}
+            ).get("artifact", "")
+            use_artifact.proto.source.artifactSource.program = metadata.get(
+                "codePath", ""
+            )
+            use_artifact.proto.source.artifactSource.notebook = job_info.get(
+                "source", {}
+            ).get("notebook", False)
+            use_artifact.proto.source.artifactSource.name = job_info.get(
+                "source", {}
+            ).get("artifact_name", "")
+        elif job_info.get("source_type") == "repo":
+            # TODO(gst): what are the reqs here? (and below)
+            pass
+        elif job_info.get("source_type") == "image":
+            pass
+
+        return use_artifact
+
     def publish_use_artifact(
         self,
         artifact: "Artifact",
     ) -> None:
         assert artifact.id is not None, "Artifact must have an id"
-        is_proto_job = True if "_proto" in artifact.metadata else False
-
-        # Download source info from logged job artifact
-        job_info = {}
-        try:
-            path = artifact.get_path("wandb-job.json").download()
-            with open(path) as f:
-                job_info = json.load(f)
-        except Exception as e:
-            logger.warning(
-                f"Failed to download job info from artifact {artifact}, : {e}"
-            )
 
         use_artifact = pb.UseArtifactRecord(
             id=artifact.id,
@@ -471,29 +491,23 @@ class InterfaceBase:
             name=artifact.name,
         )
 
-        if is_proto_job:
-            use_artifact.proto.job_name = artifact.name
-            use_artifact.proto.source.runtime = artifact.metadata.get("python", "")
-            use_artifact.proto.source.type = job_info.get("source_type", "")
-
-            if job_info.get("source_type") == "artifact":
-                use_artifact.proto.source.artifactSource.artifact = job_info.get(
-                    "source", {}
-                ).get("artifact", "")
-                use_artifact.proto.source.artifactSource.program = (
-                    artifact.metadata.get("codePath", "")
+        if "_proto" in artifact.metadata:
+            # Download source info from logged proto job artifact
+            job_info = {}
+            try:
+                path = artifact.get_path("wandb-job.json").download()
+                with open(path) as f:
+                    job_info = json.load(f)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to download proto job info from artifact {artifact}, : {e}"
                 )
-                use_artifact.proto.source.artifactSource.notebook = job_info.get(
-                    "source", {}
-                ).get("notebook", False)
-                use_artifact.proto.source.artifactSource.name = job_info.get(
-                    "source", {}
-                ).get("artifact_name", "")
-            elif job_info.get("source_type") == "repo":
-                # TODO(gst): what are the reqs here? (and below)
-                pass
-            elif job_info.get("source_type") == "image":
-                pass
+            use_artifact = self._make_proto_use_artifact(
+                use_artifact=use_artifact,
+                job_name=artifact.name,
+                job_info=job_info,
+                metadata=artifact.metadata,
+            )
 
         self._publish_use_artifact(use_artifact)
 

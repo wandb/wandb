@@ -1584,16 +1584,18 @@ def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
 
 
 def _dump_metadata_and_requirements(
-    tmp_path, metadata: Dict[str, Any], requirements: Optional[List[str]]
-):
-    """Dump manufactured metadata and requirements.txt."""
+    tmp_path, metadata: Dict[str, Any], requirements: List[str]
+) -> None:
+    """Dump manufactured metadata and requirements.txt.
+
+    File used by the job_builder to create a job from provided metadata.
+    """
     filesystem.mkdir_exists_ok(tmp_path)
     with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
         json.dump(metadata, f)
 
-    if requirements:
-        with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
-            f.write("\n".join(requirements))
+    with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
+        f.write("\n".join(requirements))
 
 
 @job.command()
@@ -1664,8 +1666,9 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     artifact: A code path, containing a requirements.txt file.
     image: A docker image.
     """
+    wandb._sentry.configure_scope(process_context="job_create")
     api = _get_cling_api()
-    entity = entity or os.getenv("WANDB_ENTITY")
+    entity = entity or os.getenv("WANDB_ENTITY") or api.default_entity
     if not entity:
         wandb.termerror("No entity provided")
         return
@@ -1680,12 +1683,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
     metadata = {"_proto": "v0"}
     if _type == "image":
-        # TODO(gst): Check for existence? Might not exist in current context, should
-        #            we let users create jobs from images without checking?
-        # TODO(gst): How to automatically upgrade these on first run
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-        if sys.version_info.micro:
-            python_version += f".{sys.version_info.micro}"
         requirements = ["wandb"]
         metadata.update({"python": python_version, "docker": path})
         _dump_metadata_and_requirements(
@@ -1694,15 +1692,17 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             requirements=requirements,
         )
     else:  # repo and artifact
-        # TODO(gst): support other entrypoint types for git?
         if path.endswith("Dockerfile"):
-            wandb.termerror("Dockerfile entrypoints are not yet supported")
+            # TODO(gst): support dockerfile entrypoint
+            wandb.termerror(
+                "Dockerfile entrypoints are not currently supported. Build your image first and use `wandb job create --source-type image`"
+            )
             return
         if path.endswith(".py"):
             # If user provides a path to a file, set entrypoint to that file
             if entrypoint:
                 wandb.termwarn(
-                    "Ignoring entrypoint as path targets file, not directory"
+                    f"Ignoring provided entrypoint '{entrypoint}' as path targets file, not directory"
                 )
             entrypoint = path.split("/")[-1]
             path = "/".join(path.split("/")[:-1])
@@ -1711,13 +1711,13 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
         if not entrypoint:
             wandb.termerror(
-                f"Manually created {_type} jobs must have an entrypoint, specify one with -E"
+                f"'{_type}' type jobs must have an entrypoint, specify one with -E"
             )
             return
 
     if _type == "repo":
         if not wandb.sdk.launch.utils._is_git_uri(path):
-            wandb.termerror(f"Repo jobs must originate from git paths, got: {path}")
+            wandb.termerror(f"Repo jobs must originate from git paths, not: '{path}'")
             return
 
         remote, commit, requirements, python_version = _make_git_data(path)
@@ -1734,17 +1734,11 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             requirements=requirements,
         )
     elif _type == "artifact":
-        # TODO(gst): log info about code artifact
-        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        python = f"{sys.version_info.major}.{sys.version_info.minor}"
         if sys.version_info.micro:
-            python_version += f".{sys.version_info.micro}"
+            python += f".{sys.version_info.micro}"
 
-        metadata.update(
-            {
-                "python": python_version,
-                "codePath": entrypoint,
-            }
-        )
+        metadata.update({"python": python, "codePath": entrypoint})
         if not os.path.exists(path):
             wandb.termerror(
                 f"Building a job of type: {_type} requires path to be a valid file path. Use the -t param to specify a different job type"
@@ -1759,6 +1753,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         requirements = []
         with open(os.path.join(path, "requirements.txt")) as f:
             requirements = f.read().splitlines()
+
         _dump_metadata_and_requirements(
             tmp_path=tmpdir.name, metadata=metadata, requirements=requirements
         )
@@ -1823,7 +1818,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     if not name:
         name = artifact.name
         wandb.termlog(f"No name provided, using default: {name}")
-    
+
     aliases = list(aliases) + _job_builder._aliases
     if "latest" not in aliases:
         aliases = list(aliases) + ["latest"]

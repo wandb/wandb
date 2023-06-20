@@ -5,6 +5,8 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
+from wandb.proto.wandb_internal_pb2 import UseArtifactRecord
+
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
@@ -79,7 +81,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
-    _proto: Any
+    _proto: Optional[UseArtifactRecord]
     _aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):
@@ -236,7 +238,7 @@ class JobBuilder:
                 raw_image_name, tag = image_name.split(":")
                 self._aliases += [tag]
             name = make_artifact_name_safe(f"job-{raw_image_name}")
-        
+
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
