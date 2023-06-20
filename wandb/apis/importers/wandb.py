@@ -155,8 +155,7 @@ class WandbRun(ImporterRun):
 
         with open(fname) as f:
             result = json.loads(f.read())
-
-        return result.get("host")
+            return result.get("host")
 
     def logs(self):
         fname = self._find_in_files("output.log")
@@ -173,8 +172,7 @@ class WandbRun(ImporterRun):
 
         with open(fname) as f:
             result = json.loads(f.read())
-
-        return "code/" + result.get("codePath", "")
+            return "code/" + result.get("codePath", "")
 
     def cli_version(self):
         fname = self._find_in_files("config.yaml")
@@ -183,8 +181,7 @@ class WandbRun(ImporterRun):
 
         with open(fname) as f:
             result = yaml.safe_load(f)
-
-        return result.get("_wandb", {}).get("value", {}).get("cli_version")
+            return result.get("_wandb", {}).get("value", {}).get("cli_version")
 
     def python_version(self):
         fname = self._find_in_files("wandb-metadata.json")
@@ -193,8 +190,7 @@ class WandbRun(ImporterRun):
 
         with open(fname) as f:
             result = json.loads(f.read())
-
-        return result.get("python")
+            return result.get("python")
 
     def _modify_table_artifact_paths(self, row):
         table_keys = []
@@ -413,10 +409,12 @@ class WandbImporter(Importer):
     def rsync(self, entity, overrides=None):
         overrides = coalesce(overrides, {})
 
-        dest_ent = overrides.get("entity", entity)
-        ids_in_dst = list(self._get_ids_in_dst(dest_ent))
-        wandb.termwarn(f"Found IDs already in destination.  Skipping {ids_in_dst}")
-        runs = self.download_all_runs_alt(entity, skip_ids=ids_in_dst)
+        # Actually there is a bug here.  If the project is deleted, the ids still appear to be here even though they are not!
+        # dest_ent = overrides.get("entity", entity)
+        # ids_in_dst = list(self._get_ids_in_dst(dest_ent))
+        # wandb.termwarn(f"Found IDs already in destination.  Skipping {ids_in_dst}")
+        # runs = self.download_all_runs_alt(entity, skip_ids=ids_in_dst)
+        runs = self.download_all_runs_alt(entity, skip_ids=[])
         self.import_multiple_runs_alt(runs, overrides)
 
         # do the same for reports?

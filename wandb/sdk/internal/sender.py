@@ -357,6 +357,15 @@ class SendManager:
     def __len__(self) -> int:
         return self._record_q.qsize()
 
+    def __enter__(self):
+        yield self
+
+    def __exit__(self):
+        while self:
+            data = next(self)
+            self.send(data)
+        self.finish()
+
     def retry_callback(self, status: int, response_text: str) -> None:
         response = wandb_internal_pb2.HttpResponse()
         response.http_status_code = status

@@ -1,7 +1,6 @@
 import json
 import re
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from contextlib import contextmanager
 from typing import Any, Dict, Iterable, List, Optional
 from unittest.mock import patch
 
@@ -350,7 +349,7 @@ class Importer:
         self._import_one_run(run, settings_override)
 
     def _import_one_run(self, run: ImporterRun, settings_override=None) -> None:
-        with send_manager(run.run_dir, settings_override=settings_override) as sm:
+        with SendManager.setup(run.run_dir, settings_override=settings_override) as sm:
             wandb.termlog(">> Make run record")
             sm.send(run._make_run_record())
 
@@ -403,16 +402,3 @@ def cast_dictlike_to_dict(d):
             d[k] = dict(v)
             cast_dictlike_to_dict(d[k])
     return d
-
-
-@contextmanager
-def send_manager(root_dir, settings_override=None):
-    sm = SendManager.setup(root_dir, resume=False, settings_override=settings_override)
-    try:
-        yield sm
-    finally:
-        # flush any remaining records
-        while sm:
-            data = next(sm)
-            sm.send(data)
-        sm.finish()
