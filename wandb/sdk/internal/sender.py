@@ -30,16 +30,10 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.sdk.artifacts import artifact_saver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import (
-    artifacts,
-    context,
-    datastore,
-    file_stream,
-    internal_api,
-    update,
-)
+from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
@@ -484,24 +478,6 @@ class SendManager:
             delete_message = messages.get("delete_message")
             if delete_message:
                 result.response.check_version_response.delete_message = delete_message
-        self._respond_result(result)
-
-    def _send_request_attach(
-        self,
-        req: wandb_internal_pb2.AttachRequest,
-        resp: wandb_internal_pb2.AttachResponse,
-    ) -> None:
-        attach_id = req.attach_id
-        assert attach_id
-        assert self._run
-        resp.run.CopyFrom(self._run)
-
-    def send_request_attach(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
-        result = proto_util._result_from_record(record)
-        self._send_request_attach(
-            record.request.attach, result.response.attach_response
-        )
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
@@ -1114,9 +1090,8 @@ class SendManager:
         # so that fields like entity or project are available to be attached to Sentry events.
         run_settings = message_to_dict(self._run)
         self._settings = SettingsStatic({**dict(self._settings), **run_settings})
-        util.sentry_set_scope(
-            settings_dict=self._settings,
-        )
+        wandb._sentry.configure_scope(settings=self._settings)
+
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
         self._dir_watcher = DirWatcher(
@@ -1486,7 +1461,7 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifacts.ArtifactSaver(
+        saver = artifact_saver.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
             manifest_json=_manifest_json_from_proto(artifact.manifest),
@@ -1562,6 +1537,7 @@ class SendManager:
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+        wandb._sentry.end_session()
 
     def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()

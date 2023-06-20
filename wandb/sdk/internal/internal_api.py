@@ -39,12 +39,13 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
-from ..lib.git import GitRepo
+from ..lib.gitlib import GitRepo
 from . import context
 from .progress import AsyncProgress, Progress
 
@@ -66,6 +67,7 @@ if TYPE_CHECKING:
         md5: str
         mimetype: Optional[str]
         artifactManifestID: Optional[str]  # noqa: N815
+        uploadPartsInput: Optional[List[Dict[str, object]]]  # noqa: N815
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
@@ -73,10 +75,33 @@ if TYPE_CHECKING:
         displayName: str  # noqa: N815
         uploadUrl: Optional[str]  # noqa: N815
         uploadHeaders: Sequence[str]  # noqa: N815
+        uploadMultipartUrls: "UploadPartsResponse"  # noqa: N815
+        storagePath: str  # noqa: N815
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
+
+    class UploadPartsResponse(TypedDict):
+        uploadUrlParts: List["UploadUrlParts"]  # noqa: N815
+        uploadID: str  # noqa: N815
+
+    class UploadUrlParts(TypedDict):
+        partNumber: int  # noqa: N815
+        uploadUrl: str  # noqa: N815
+
+    class CompleteMultipartUploadArtifactInput(TypedDict):
+        """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
+
+        completeMultipartAction: str  # noqa: N815
+        completedParts: Dict[int, str]  # noqa: N815
+        artifactID: str  # noqa: N815
+        storagePath: str  # noqa: N815
+        uploadID: str  # noqa: N815
+        md5: str
+
+    class CompleteMultipartUploadArtifactResponse(TypedDict):
+        digest: str
 
     class DefaultSettings(TypedDict):
         section: str
@@ -87,6 +112,7 @@ if TYPE_CHECKING:
         api_key: Optional[str]
         entity: Optional[str]
         project: Optional[str]
+        _extra_http_headers: Optional[Mapping[str, str]]
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
@@ -178,6 +204,7 @@ class Api:
             "api_key": None,
             "entity": None,
             "project": None,
+            "_extra_http_headers": None,
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
@@ -194,19 +221,34 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+
+        # todo: remove this hacky hack after settings refactor is complete
+        #  keeping this code here to limit scope and so that it is easy to remove later
+        extra_http_headers = self.settings(
+            "_extra_http_headers"
+        ) or wandb.sdk.wandb_settings._str_as_json(
+            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        )
+
+        auth = None
+        if _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
+        extra_http_headers.update(_thread_local_api_settings.headers or {})
         self.client = Client(
             transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                    **extra_http_headers,
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key or ""),
+                auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
+                cookies=_thread_local_api_settings.cookies,
             )
         )
 
@@ -229,6 +271,11 @@ class Api:
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
+        )
+        self.upload_multipart_file_chunk_retry = normalize_exceptions(
+            retry.retriable(retry_timedelta=retry_timedelta)(
+                self.upload_multipart_file_chunk
+            )
         )
         self._client_id_mapping: Dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
@@ -261,7 +308,7 @@ class Api:
 
     def reauth(self) -> None:
         """Ensure the current api key is set in the transport."""
-        self.client.transport.auth = ("api", self.api_key or "")
+        self.client.transport.session.auth = ("api", self.api_key or "")
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
@@ -295,6 +342,8 @@ class Api:
 
     @property
     def api_key(self) -> Optional[str]:
+        if _thread_local_api_settings.api_key:
+            return _thread_local_api_settings.api_key
         auth = requests.utils.get_netrc_auth(self.api_url)
         key = None
         if auth:
@@ -1980,7 +2029,16 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)  # type: ignore
+        auth = None
+        if _thread_local_api_settings.cookies is None:
+            auth = ("user", self.api_key or "")
+        response = requests.get(
+            url,
+            auth=auth,
+            cookies=_thread_local_api_settings.cookies or {},
+            headers=_thread_local_api_settings.headers or {},
+            stream=True,
+        )
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 
@@ -2048,6 +2106,53 @@ class Api:
             else:
                 raise requests.exceptions.ConnectionError(e.message)
 
+    def upload_multipart_file_chunk(
+        self,
+        url: str,
+        upload_chunk: bytes,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> Optional[requests.Response]:
+        """Upload a file chunk to S3 with failure resumption.
+
+        Arguments:
+            url: The url to download
+            upload_chunk: The path to the file you want to upload
+            extra_headers: A dictionary of extra headers to send with the request
+
+        Returns:
+            The `requests` library response object
+        """
+        try:
+            response = self._upload_file_session.put(
+                url, data=upload_chunk, headers=extra_headers
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"upload_file exception {url}: {e}")
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error(f"upload_file request headers: {request_headers}")
+            response_content = e.response.content if e.response is not None else ""
+            logger.error(f"upload_file response body: {response_content}")
+            status_code = e.response.status_code if e.response is not None else 0
+            # S3 reports retryable request timeouts out-of-band
+            is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
+                response_content
+            )
+            # Retry errors from cloud storage or local network issues
+            if (
+                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
+                or isinstance(
+                    e,
+                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+                )
+                or is_aws_retryable
+            ):
+                _e = retry.TransientError(exc=e)
+                raise _e.with_traceback(sys.exc_info()[2])
+            else:
+                wandb._sentry.reraise(e)
+        return response
+
     def upload_file(
         self,
         url: str,
@@ -2110,7 +2215,7 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                util.sentry_reraise(e)
+                wandb._sentry.reraise(e)
 
         return response
 
@@ -2269,7 +2374,7 @@ class Api:
 
     def agent_heartbeat(
         self, agent_id: str, metrics: dict, run_states: dict
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
         Arguments:
@@ -2319,7 +2424,9 @@ class Api:
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            result: List[str] = json.loads(response["agentHeartbeat"]["commands"])
+            result: List[Dict[str, Any]] = json.loads(
+                response["agentHeartbeat"]["commands"]
+            )
             return result
 
     @staticmethod
@@ -2339,7 +2446,8 @@ class Api:
         config = dict(config)
 
         if "parameters" not in config:
-            raise ValueError("sweep config must have a parameters section")
+            # still shows an anaconda warning, but doesn't error
+            return config
 
         for parameter_name in config["parameters"]:
             parameter = config["parameters"][parameter_name]
@@ -2458,21 +2566,29 @@ class Api:
 
         config = self._validate_config_and_fill_distribution(config)
 
+        # Silly, but attr-dicts like EasyDicts don't serialize correctly to yaml.
+        # This sanitizes them with a round trip pass through json to get a regular dict.
+        config_str = yaml.dump(json.loads(json.dumps(config)))
+
         err: Optional[Exception] = None
         for mutation in mutations:
             try:
+                variables = {
+                    "id": obj_id,
+                    "config": config_str,
+                    "description": config.get("description"),
+                    "entityName": entity or self.settings("entity"),
+                    "projectName": project or self.settings("project"),
+                    "controller": controller,
+                    "launchScheduler": launch_scheduler,
+                    "scheduler": scheduler,
+                }
+                if state:
+                    variables["state"] = state
+
                 response = self.gql(
                     mutation,
-                    variable_values={
-                        "id": obj_id,
-                        "config": yaml.dump(config),
-                        "description": config.get("description"),
-                        "entityName": entity or self.settings("entity"),
-                        "projectName": project or self.settings("project"),
-                        "controller": controller,
-                        "launchScheduler": launch_scheduler,
-                        "scheduler": scheduler,
-                    },
+                    variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:
@@ -2513,7 +2629,7 @@ class Api:
         )
 
         response = self.gql(mutation, variable_values={})
-        key: str = response["createAnonymousEntity"]["apiKey"]["name"]
+        key: str = str(response["createAnonymousEntity"]["apiKey"]["name"])
         return key
 
     @staticmethod
@@ -2860,13 +2976,13 @@ class Api:
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            %s
-            %s
-            %s
-            %s
-            %s
-        ) {
-            createArtifact(input: {
+            {}
+            {}
+            {}
+            {}
+            {}
+        ) {{
+            createArtifact(input: {{
                 artifactTypeName: $artifactTypeName,
                 artifactCollectionNames: $artifactCollectionNames,
                 entityName: $entityName,
@@ -2878,35 +2994,31 @@ class Api:
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                %s
-                %s
-                %s
-                %s
-                %s
-            }) {
-                artifact {
+                {}
+                {}
+                {}
+                {}
+                {}
+            }}) {{
+                artifact {{
                     id
                     digest
                     state
-                    aliases {
+                    aliases {{
                         artifactCollectionName
                         alias
-                    }
-                    artifactSequence {
+                    }}
+                    artifactSequence {{
                         id
-                        latestArtifact {
+                        latestArtifact {{
                             id
                             versionIndex
-                        }
-                    }
-                }
-            }
-        }
-        """
-            %
-            # For backwards compatibility with older backends that don't support
-            # distributed writers or digest deduplication.
-            (
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        """.format(
                 "$historyStep: Int64!,"
                 if can_handle_history and history_step not in [0, None]
                 else "",
@@ -2996,6 +3108,50 @@ class Api:
         )
         return response
 
+    def complete_multipart_upload_artifact(
+        self,
+        artifact_id: str,
+        storage_path: str,
+        completed_parts: List[Dict[str, Any]],
+        upload_id: str,
+        complete_multipart_action: str = "Complete",
+    ) -> Optional[str]:
+        mutation = gql(
+            """
+        mutation CompleteMultipartUploadArtifact(
+            $completeMultipartAction: CompleteMultipartAction!,
+            $completedParts: [UploadPartsInput!]!,
+            $artifactID: ID!
+            $storagePath: String!
+            $uploadID: String!
+        ) {
+        completeMultipartUploadArtifact(
+            input: {
+                completeMultipartAction: $completeMultipartAction,
+                completedParts: $completedParts,
+                artifactID: $artifactID,
+                storagePath: $storagePath
+                uploadID: $uploadID
+            }
+            ) {
+                digest
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "completeMultipartAction": complete_multipart_action,
+                "artifactID": artifact_id,
+                "storagePath": storage_path,
+                "completedParts": completed_parts,
+                "uploadID": upload_id,
+            },
+        )
+        digest: Optional[str] = response["completeMultipartUploadArtifact"]["digest"]
+        return digest
+
     def create_artifact_manifest(
         self,
         name: str,
@@ -3019,9 +3175,9 @@ class Api:
             $projectName: String!,
             $runName: String!,
             $includeUpload: Boolean!,
-            %s
-        ) {
-            createArtifactManifest(input: {
+            {}
+        ) {{
+            createArtifactManifest(input: {{
                 name: $name,
                 digest: $digest,
                 artifactID: $artifactID,
@@ -3029,25 +3185,21 @@ class Api:
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                %s
-            }) {
-                artifactManifest {
+                {}
+            }}) {{
+                artifactManifest {{
                     id
-                    file {
+                    file {{
                         id
                         name
                         displayName
                         uploadUrl @include(if: $includeUpload)
                         uploadHeaders @include(if: $includeUpload)
-                    }
-                }
-            }
-        }
-        """
-            %
-            # For backwards compatibility with older backends that don't support
-            # patch manifests.
-            (
+                    }}
+                }}
+            }}
+        }}
+        """.format(
                 "$type: ArtifactManifestType = FULL" if type != "FULL" else "",
                 "type: $type" if type != "FULL" else "",
             )
@@ -3157,19 +3309,39 @@ class Api:
                     self._client_id_mapping[client_id] = server_id
         return server_id
 
+    def server_create_artifact_file_spec_input_introspection(self) -> List:
+        query_string = """
+           query ProbeServerCreateArtifactFileSpecInput {
+                CreateArtifactFileSpecInputInfoType: __type(name:"CreateArtifactFileSpecInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+        create_artifact_file_spec_input_info = [
+            field.get("name", "")
+            for field in res.get("CreateArtifactFileSpecInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+        ]
+        return create_artifact_file_spec_input_info
+
     @normalize_exceptions
     def create_artifact_files(
         self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
     ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
-        mutation = gql(
-            """
+        query_template = """
         mutation CreateArtifactFiles(
             $storageLayout: ArtifactStorageLayout!
             $artifactFiles: [CreateArtifactFileSpecInput!]!
         ) {
             createArtifactFiles(input: {
                 artifactFiles: $artifactFiles,
-                storageLayout: $storageLayout
+                storageLayout: $storageLayout,
             }) {
                 files {
                     edges {
@@ -3179,6 +3351,7 @@ class Api:
                             displayName
                             uploadUrl
                             uploadHeaders
+                            _MULTIPART_UPLOAD_FIELDS_
                             artifact {
                                 id
                             }
@@ -3188,7 +3361,16 @@ class Api:
             }
         }
         """
-        )
+        multipart_upload_url_query = """
+            storagePath
+            uploadMultipartUrls {
+                uploadID
+                uploadUrlParts {
+                    partNumber
+                    uploadUrl
+                }
+            }
+        """
 
         # TODO: we should use constants here from interface/artifacts.py
         # but probably don't want the dependency. We're going to remove
@@ -3197,6 +3379,17 @@ class Api:
         if env.get_use_v1_artifacts():
             storage_layout = "V1"
 
+        create_artifact_file_spec_input_fields = (
+            self.server_create_artifact_file_spec_input_introspection()
+        )
+        if "uploadPartsInput" in create_artifact_file_spec_input_fields:
+            query_template = query_template.replace(
+                "_MULTIPART_UPLOAD_FIELDS_", multipart_upload_url_query
+            )
+        else:
+            query_template = query_template.replace("_MULTIPART_UPLOAD_FIELDS_", "")
+
+        mutation = gql(query_template)
         response = self.gql(
             mutation,
             variable_values={
@@ -3370,3 +3563,32 @@ class Api:
     def _flatten_edges(self, response: "_Response") -> List[Dict]:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
+
+    @normalize_exceptions
+    def stop_run(
+        self,
+        run_id: str,
+    ) -> bool:
+        mutation = gql(
+            """
+            mutation stopRun($id: ID!) {
+                stopRun(input: {
+                    id: $id
+                }) {
+                    clientMutationId
+                    success
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "id": run_id,
+            },
+        )
+
+        success: bool = response["stopRun"].get("success")
+
+        return success

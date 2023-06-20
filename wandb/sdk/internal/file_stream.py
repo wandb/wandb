@@ -79,7 +79,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
                     util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
-                util.sentry_message(msg)
+                wandb._sentry.message(msg, repeat=False)
             else:
                 chunk_data.append(chunk.data)
 
@@ -97,7 +97,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
                 util.to_human_size(util.MAX_LINE_BYTES)
             )
             wandb.termerror(msg, repeat=False)
-            util.sentry_message(msg)
+            wandb._sentry.message(msg, repeat=False)
             return False
         return {"offset": 0, "content": [data]}
 
@@ -336,14 +336,9 @@ class FileStreamApi:
         self._client = requests.Session()
         # todo: actually use the timeout once more thorough error injection in testing covers it
         # self._client.post = functools.partial(self._client.post, timeout=self.HTTP_TIMEOUT)
-        self._client.auth = ("api", api.api_key or "")
-        self._client.headers.update(
-            {
-                "User-Agent": api.user_agent,
-                "X-WANDB-USERNAME": env.get_username() or "",
-                "X-WANDB-USER-EMAIL": env.get_user_email() or "",
-            }
-        )
+        self._client.auth = api.client.transport.session.auth
+        self._client.headers.update(api.client.transport.headers or {})
+        self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
         self._file_policies: Dict[str, "DefaultFilePolicy"] = {}
         self._dropped_chunks: int = 0
         self._queue: queue.Queue = queue.Queue()
@@ -494,7 +489,7 @@ class FileStreamApi:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
-            util.sentry_exc(exc_info, delay=True)
+            wandb._sentry.exception(exc_info)
             raise e
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
@@ -658,9 +653,8 @@ def request_with_retry(
                 e.response is not None and e.response.status_code == 429
             ):
                 err_str = (
-                    "Filestream rate limit exceeded, retrying in {} seconds".format(
-                        delay
-                    )
+                    "Filestream rate limit exceeded, "
+                    f"retrying in {delay:.1f} seconds. "
                 )
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)

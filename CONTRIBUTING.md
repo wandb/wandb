@@ -482,7 +482,7 @@ The interfaces are described here:
 
 Good examples of tests for each level of testing can be found at:
 
-- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metric/test_system_metrics_*.py): User process tests
+- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metrics/test_system_metrics_*.py): User process tests
 - [test_metric_internal.py](tests/pytest_tests/system_tests/test_metric_internal.py): Internal process tests
 - [test_metric_full.py](tests/pytest_tests/system_tests/test_metric_full.py): Full stack tests
 
@@ -545,14 +545,14 @@ If you update one of those files, you need to:
 - While working on your contribution:
   - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
     Make sure to update the `yea-wandb` version.
-  - Point the client branch you are working on to this `yea-wandb` branch.
-    In `tox.ini`, search for `yea-wandb==<version>` and change it to
+  - Point the `wandb/wandb` branch you are working on to this `wandb/yea-wandb` branch.
+    In `tox.ini`, search for `yea-wandb==<version>` and replace the entire line with
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
   - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`.
-  - Merge and release `yea-wandb` (with `make release`).
-  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.**
-  - Point the client branch you are working on to the fresh release of `yea-wandb`.
+  - Release `yea-wandb` (with `make release`) from your `shiny-new-branch` branch.
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`) in your `wandb/yea-wandb` branch, make sure to update these files in `tests/utils` in a `wandb/wandb` branch. We have a Github Action that verifies that these files are equal (between the `wandb/wandb` and `wandb/yea-wandb`). **If you have changes in these files and you merge then in the wandb/yea-wandb repo and do not sync them to the wandb/wandb repo, all wandb/wandb PRs will fail this Github Action.**
+  - Once your `wandb/wandb` PR and `wandb/yea-wandb` PR are ready to be merged, you can merge first the `wandb/yea-wandb` PR, make sure that your `wandb/wandb` PR is green and merge it next.
 
 
 ### Regression Testing
