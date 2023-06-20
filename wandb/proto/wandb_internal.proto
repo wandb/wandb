@@ -916,20 +916,12 @@ message ArtifactInfo {
   string name = 4;
 }
 
-message GitInfo {
-  string name = 1;
-}
-
-message ImageInfo {
-  string image = 1;
-}
 
 message JobSource {
   string type = 1;
-  GitInfo gitInfo = 2;
-  ArtifactInfo artifactSource = 3;
+  string runtime = 2;
 
-  string runtime = 4;
+  ArtifactInfo artifactSource = 3;
 }
 
 message ProtoJobArtifact {

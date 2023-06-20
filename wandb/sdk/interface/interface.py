@@ -472,7 +472,6 @@ class InterfaceBase:
                 "source", {}
             ).get("artifact_name", "")
         elif job_info.get("source_type") == "repo":
-            # TODO(gst): what are the reqs here? (and below)
             pass
         elif job_info.get("source_type") == "image":
             pass

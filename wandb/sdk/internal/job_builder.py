@@ -269,7 +269,6 @@ class JobBuilder:
         ] = None
 
         if self._proto and self._proto.job_name:
-            print(f"PROTO TYPE: {type(self._proto)}")
             name, alias = self._proto.job_name.split(":")
             source_type = self._proto.source.type
             runtime = self._proto.source.runtime
@@ -290,6 +289,7 @@ class JobBuilder:
                     name=name,
                 )
             elif self._proto.source.type == "repo":
+                print(f'{metadata=} {self._proto.source.gitInfo}')
                 assert program_relpath is not None
                 artifact, source = self._build_repo_job(
                     metadata=metadata,

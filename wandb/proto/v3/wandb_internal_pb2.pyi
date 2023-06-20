@@ -2825,57 +2825,25 @@ class ArtifactInfo(google.protobuf.message.Message):
 
 global___ArtifactInfo = ArtifactInfo
 
-class GitInfo(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    NAME_FIELD_NUMBER: builtins.int
-    name: builtins.str
-    def __init__(
-        self,
-        *,
-        name: builtins.str = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["name", b"name"]) -> None: ...
-
-global___GitInfo = GitInfo
-
-class ImageInfo(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    IMAGE_FIELD_NUMBER: builtins.int
-    image: builtins.str
-    def __init__(
-        self,
-        *,
-        image: builtins.str = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["image", b"image"]) -> None: ...
-
-global___ImageInfo = ImageInfo
-
 class JobSource(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     TYPE_FIELD_NUMBER: builtins.int
-    GITINFO_FIELD_NUMBER: builtins.int
-    ARTIFACTSOURCE_FIELD_NUMBER: builtins.int
     RUNTIME_FIELD_NUMBER: builtins.int
+    ARTIFACTSOURCE_FIELD_NUMBER: builtins.int
     type: builtins.str
-    @property
-    def gitInfo(self) -> global___GitInfo: ...
+    runtime: builtins.str
     @property
     def artifactSource(self) -> global___ArtifactInfo: ...
-    runtime: builtins.str
     def __init__(
         self,
         *,
         type: builtins.str = ...,
-        gitInfo: global___GitInfo | None = ...,
-        artifactSource: global___ArtifactInfo | None = ...,
         runtime: builtins.str = ...,
+        artifactSource: global___ArtifactInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitInfo", b"gitInfo"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitInfo", b"gitInfo", "runtime", b"runtime", "type", b"type"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "runtime", b"runtime", "type", b"type"]) -> None: ...
 
 global___JobSource = JobSource
 
