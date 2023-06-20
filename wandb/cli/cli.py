@@ -37,11 +37,7 @@ from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.launch.utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    check_logged_in,
-    construct_launch_spec,
-)
+from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
@@ -1073,7 +1069,7 @@ def launch_sweep(
         name = scheduler_args["name"]
 
     # Launch job spec for the Scheduler
-    launch_scheduler_spec = construct_launch_spec(
+    launch_scheduler_spec = launch_utils.construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
         api=api,
         name=name,
@@ -1093,7 +1089,7 @@ def launch_sweep(
     launch_scheduler_with_queue = json.dumps(
         {
             "queue": queue,
-            "run_queue_project": LAUNCH_DEFAULT_PROJECT,
+            "run_queue_project": launch_utils.LAUNCH_DEFAULT_PROJECT,
             "run_spec": json.dumps(launch_scheduler_spec),
         }
     )
@@ -1303,7 +1299,7 @@ def launch(
         raise LaunchError("Build flag requires a queue to be set")
 
     try:
-        check_logged_in(api)
+        launch_utils.check_logged_in(api)
     except Exception:
         wandb.termerror(f"Error running job: {traceback.format_exc()}")
 
@@ -1568,36 +1564,6 @@ def _make_git_data(path):
     return remote, commit, requirements, python
 
 
-def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
-    """Make a code artifact name from a path and user provided name."""
-    if name:
-        return f"code-{name}"
-
-    if len(path) > 7:
-        if path[-1] == "/":
-            path = path[:-1]
-        path_name = f"code-{path.replace('/', '-')}"
-        return path_name
-
-    generated_name = f"code-{wandb.util.generate_id()}"
-    return generated_name
-
-
-def _dump_metadata_and_requirements(
-    tmp_path, metadata: Dict[str, Any], requirements: List[str]
-) -> None:
-    """Dump manufactured metadata and requirements.txt.
-
-    File used by the job_builder to create a job from provided metadata.
-    """
-    filesystem.mkdir_exists_ok(tmp_path)
-    with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
-        json.dump(metadata, f)
-
-    with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
-        f.write("\n".join(requirements))
-
-
 @job.command()
 @click.argument("job")
 def describe(job):
@@ -1606,7 +1572,10 @@ def describe(job):
     public_api = PublicApi()
     job = public_api.job(name=job)
 
-    wandb.termlog(f"{job._job_info}")
+    for key in job._job_info:
+        if key.startswith("_"):
+            continue
+        wandb.termlog(f"{key}: {job._job_info[key]}")
 
 
 @job.command(
@@ -1686,7 +1655,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
         requirements = ["wandb"]
         metadata.update({"python": python_version, "docker": path})
-        _dump_metadata_and_requirements(
+        launch_utils.dump_metadata_and_requirements(
             metadata=metadata,
             tmp_path=tmpdir.name,
             requirements=requirements,
@@ -1728,7 +1697,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
                 "python": python_version,
             }
         )
-        _dump_metadata_and_requirements(
+        launch_utils.dump_metadata_and_requirements(
             metadata=metadata,
             tmp_path=tmpdir.name,
             requirements=requirements,
@@ -1754,7 +1723,7 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         with open(os.path.join(path, "requirements.txt")) as f:
             requirements = f.read().splitlines()
 
-        _dump_metadata_and_requirements(
+        launch_utils.dump_metadata_and_requirements(
             tmp_path=tmpdir.name, metadata=metadata, requirements=requirements
         )
 
@@ -1779,7 +1748,9 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
     # log code artifact first for artifact jobs
     if _type == "artifact":
-        artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint), name)
+        artifact_name = launch_utils.make_code_artifact_name(
+            os.path.join(path, entrypoint), name
+        )
         code_artifact = wandb.Artifact(
             name=artifact_name,
             type="code",
