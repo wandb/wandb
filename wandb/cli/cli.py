@@ -1634,7 +1634,7 @@ def describe(job):
     help="Description for the job",
 )
 @click.option(
-    "--type",
+    "--source-type",
     "-t",
     "_type",
     type=click.Choice(("repo", "artifact", "image")),
@@ -1823,7 +1823,8 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
     if not name:
         name = artifact.name
         wandb.termlog(f"No name provided, using default: {name}")
-
+    
+    aliases = list(aliases) + _job_builder._aliases
     if "latest" not in aliases:
         aliases = list(aliases) + ["latest"]
 
