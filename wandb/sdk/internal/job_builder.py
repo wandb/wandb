@@ -5,8 +5,6 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-from wandb.proto.wandb_internal_pb2 import UseArtifactRecord
-
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
@@ -22,7 +20,7 @@ else:
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import ArtifactRecord
+    from wandb.proto.wandb_internal_pb2 import ArtifactRecord, UseArtifactRecord
 
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
@@ -81,7 +79,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
-    _proto: Optional[UseArtifactRecord]
+    _proto: Optional["UseArtifactRecord"]
     _aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):

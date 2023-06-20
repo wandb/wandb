@@ -1437,7 +1437,7 @@ def launch_agent(
             "To launch an agent please specify a queue or a list of queues in the configuration file or cli."
         )
 
-    check_logged_in(api)
+    launch_utils.check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
     try:
