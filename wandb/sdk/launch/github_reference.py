@@ -1,13 +1,19 @@
 """Support for parsing GitHub URLs (which might be user provided) into constituent parts."""
 
+import os
 import re
+import tempfile
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 from urllib.parse import urlparse
 
 from wandb.sdk.launch.errors import LaunchError
+
+if TYPE_CHECKING:
+    import git
+
 
 PREFIX_HTTPS = "https://"
 PREFIX_SSH = "git@"
@@ -62,12 +68,18 @@ class GitHubReference:
     directory: Optional[str] = None
     file: Optional[str] = None
 
+    # Location of repo locally if pulled
+    local_dir: Optional[str] = None
+
+    repo_object: Optional["git.Repo"] = None
+
     def update_ref(self, ref: Optional[str]) -> None:
         if ref:
             # We no longer know what this refers to
             self.ref_type = None
             self.ref = ref
 
+    @property
     def url_host(self) -> str:
         assert self.host
         auth = self.username or ""
@@ -77,19 +89,22 @@ class GitHubReference:
             auth += "@"
         return f"{PREFIX_HTTPS}{auth}{self.host}"
 
+    @property
     def url_organization(self) -> str:
         assert self.organization
-        return f"{self.url_host()}/{self.organization}"
+        return f"{self.url_host}/{self.organization}"
 
+    @property
     def url_repo(self) -> str:
         assert self.repo
-        return f"{self.url_organization()}/{self.repo}"
+        return f"{self.url_organization}/{self.repo}"
 
+    @property
     def repo_ssh(self) -> str:
         return f"{PREFIX_SSH}{self.host}:{self.organization}/{self.repo}{SUFFIX_GIT}"
 
     def url(self) -> str:
-        url = self.url_repo()
+        url = self.url_repo
         if self.view:
             url += f"/{self.view}"
         if self.ref:
@@ -98,7 +113,7 @@ class GitHubReference:
                 url += f"/{self.directory}"
             if self.file:
                 url += f"/{self.file}"
-        elif self.path:
+        if self.path:
             url += f"/{self.path}"
         return url
 
@@ -127,18 +142,21 @@ class GitHubReference:
         ref.username, ref.password, ref.host = _parse_netloc(parsed.netloc)
 
         parts = parsed.path.split("/")
-        if len(parts) > 1:
-            if parts[1] == "orgs" and len(parts) > 2:
-                ref.organization = parts[2]
-            else:
-                ref.organization = parts[1]
-                if len(parts) > 2:
-                    repo = parts[2]
-                    if repo.endswith(SUFFIX_GIT):
-                        repo = repo[: -len(SUFFIX_GIT)]
-                    ref.repo = repo
-                    ref.view = parts[3] if len(parts) > 3 else None
-                    ref.path = "/".join(parts[4:])
+        if len(parts) < 2:
+            return ref
+        if parts[1] == "orgs" and len(parts) > 2:
+            ref.organization = parts[2]
+            return ref
+        ref.organization = parts[1]
+        if len(parts) < 3:
+            return ref
+        repo = parts[2]
+        if repo.endswith(SUFFIX_GIT):
+            repo = repo[: -len(SUFFIX_GIT)]
+        ref.repo = repo
+        ref.view = parts[3] if len(parts) > 3 else None
+        ref.path = "/".join(parts[4:])
+
         return ref
 
     def fetch(self, dst_dir: str) -> None:
@@ -148,7 +166,7 @@ class GitHubReference:
         import git  # type: ignore
 
         repo = git.Repo.init(dst_dir)
-        origin = repo.create_remote("origin", self.url_repo())
+        origin = repo.create_remote("origin", self.url_repo)
 
         # We fetch the origin so that we have branch and tag references
         origin.fetch(depth=1)
@@ -231,3 +249,35 @@ class GitHubReference:
         elif path.is_dir():
             self.directory = self.path
             self.path = None
+
+    def _clone_repo(self) -> None:
+        """Clone the repo to a temp directory."""
+        if self.local_dir is not None:
+            # Repo already cloned, location is stored in self.local_dir
+            return
+        import git
+
+        dst_dir = tempfile.TemporaryDirectory().name
+        self.repo_object = git.Repo.clone_from(self.repo_ssh, dst_dir, depth=1)
+        self.local_dir = dst_dir
+
+        if not self.repo_object:
+            LaunchError(f"Error cloning git repo: {self.repo_ssh}")
+
+    def get_commit(self) -> str:
+        """Get git hash associated with the reference."""
+        self._clone_repo()
+        assert self.repo_object, "Repo object not properly initialized"
+        return self.repo_object.head.commit.hexsha  # type: ignore
+
+    def get_file(self, path: str) -> Optional[str]:
+        """Pull a file from the repo.
+
+        :return: Local path to the file if it exists, None otherwise
+        """
+        self._clone_repo()
+        assert (
+            self.local_dir is not None
+        )  # Always true, but stops mypy from complaining
+        file = os.path.join(self.local_dir, path)
+        return file if os.path.isfile(file) else None

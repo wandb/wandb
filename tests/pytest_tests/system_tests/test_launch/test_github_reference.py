@@ -57,13 +57,16 @@ def test_parse_repo() -> None:
         "https://github.com/wandb/examples/pulls",
         "https://github.com/wandb/examples/tree/master/examples/launch/launch-quickstart",
         "https://github.com/wandb/examples/blob/master/examples/launch/launch-quickstart/README.md",
+        "https://github.com/wandb/examples/blob/other-branch/examples/launch/launch-quickstart/README.md",
     ]
     for case in cases:
+        expected_path = "/".join(case.split("/")[6:])
         ref = GitHubReference.parse(case)
         assert ref.host == "github.com"
         assert ref.organization == "wandb"
         assert ref.repo == "examples"
         assert ref.url() == case
+        assert ref.path == expected_path
 
 
 def test_parse_tree() -> None:
@@ -130,3 +133,10 @@ def test_update_ref() -> None:
     assert ref.ref == "jamie/testing-a-branch"
     expected = "https://github.com/jamie-rasmussen/launch-test-private/blob/jamie/testing-a-branch/haspyenv/today.py"
     assert ref.url() == expected
+
+
+def test_get_commit() -> None:
+    case = "https://github.com/wandb/examples/tree/master/examples/launch/launch-quickstart"
+    ref = GitHubReference.parse(case)
+    commit = ref.get_commit()
+    assert len(commit) == 40
