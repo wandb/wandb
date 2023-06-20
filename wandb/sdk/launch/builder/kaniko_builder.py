@@ -52,13 +52,19 @@ _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
 SERVICE_ACCOUNT_NAME = os.environ.get("WANDB_LAUNCH_SERVICE_ACCOUNT_NAME", "default")
 
+if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace"):
+    with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
+        NAMESPACE = f.read().strip()
+else:
+    NAMESPACE = "wandb"
+
 
 def _wait_for_completion(
     batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
 ) -> bool:
     start_time = time.time()
     while True:
-        job = batch_client.read_namespaced_job_status(job_name, "wandb")
+        job = batch_client.read_namespaced_job_status(job_name, NAMESPACE)
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
@@ -80,6 +86,7 @@ class KanikoBuilder(AbstractBuilder):
     build_context_store: str
     secret_name: Optional[str]
     secret_key: Optional[str]
+    image: str
 
     def __init__(
         self,
@@ -89,6 +96,7 @@ class KanikoBuilder(AbstractBuilder):
         build_context_store: str = "",
         secret_name: str = "",
         secret_key: str = "",
+        image: str = "gcr.io/kaniko-project/executor:1.11.0",
         verify: bool = True,
     ):
         """Initialize a KanikoBuilder.
@@ -115,6 +123,7 @@ class KanikoBuilder(AbstractBuilder):
         self.build_context_store = build_context_store.rstrip("/")
         self.secret_name = secret_name
         self.secret_key = secret_key
+        self.image = image
         if verify:
             self.verify()
 
@@ -153,6 +162,7 @@ class KanikoBuilder(AbstractBuilder):
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
+        image = config.get("kaniko-image", "gcr.io/kaniko-project/executor:1.11.0")
         return cls(
             environment,
             registry,
@@ -160,6 +170,7 @@ class KanikoBuilder(AbstractBuilder):
             build_job_name=build_job_name,
             secret_name=secret_name,
             secret_key=secret_key,
+            image=image,
             verify=verify,
         )
 
@@ -189,7 +200,7 @@ class KanikoBuilder(AbstractBuilder):
             kind="ConfigMap",
             metadata=client.V1ObjectMeta(
                 name=f"docker-config-{job_name}",
-                namespace="wandb",
+                namespace=NAMESPACE,
             ),
             data={
                 "config.json": json.dumps(
@@ -198,13 +209,13 @@ class KanikoBuilder(AbstractBuilder):
             },
             immutable=True,
         )
-        corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
+        corev1_client.create_namespaced_config_map(NAMESPACE, ecr_config_map)
 
     def _delete_docker_ecr_config_map(
         self, job_name: str, client: client.CoreV1Api
     ) -> None:
         if self.secret_name:
-            client.delete_namespaced_config_map(f"docker-config-{job_name}", "wandb")
+            client.delete_namespaced_config_map(f"docker-config-{job_name}", NAMESPACE)
 
     def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
@@ -289,7 +300,7 @@ class KanikoBuilder(AbstractBuilder):
             # core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             if self.secret_name:
                 self._create_docker_ecr_config_map(build_job_name, core_v1, repo_uri)
-            batch_v1.create_namespaced_job("wandb", build_job)
+            batch_v1.create_namespaced_job(NAMESPACE, build_job)
 
             # wait for double the job deadline since it might take time to schedule
             if not _wait_for_completion(
@@ -297,7 +308,7 @@ class KanikoBuilder(AbstractBuilder):
             ):
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
             try:
-                logs = batch_v1.read_namespaced_job_log(build_job_name, "wandb")
+                logs = batch_v1.read_namespaced_job_log(build_job_name, NAMESPACE)
                 warn_failed_packages_from_build_logs(logs, image_uri)
             except Exception as e:
                 wandb.termwarn(
@@ -319,7 +330,7 @@ class KanikoBuilder(AbstractBuilder):
                     )
                 if self.secret_name:
                     self._delete_docker_ecr_config_map(build_job_name, core_v1)
-                batch_v1.delete_namespaced_job(build_job_name, "wandb")
+                batch_v1.delete_namespaced_job(build_job_name, NAMESPACE)
             except Exception as e:
                 raise LaunchError(f"Exception during Kubernetes resource clean up {e}")
 
@@ -459,7 +470,7 @@ class KanikoBuilder(AbstractBuilder):
         ]
         container = client.V1Container(
             name="wandb-container-build",
-            image="gcr.io/kaniko-project/executor:v1.11.0",
+            image=self.image,
             args=args,
             volume_mounts=volume_mounts,
             env=env if env else None,
@@ -485,7 +496,7 @@ class KanikoBuilder(AbstractBuilder):
             api_version="batch/v1",
             kind="Job",
             metadata=client.V1ObjectMeta(
-                name=job_name, namespace="wandb", labels={"wandb": "launch"}
+                name=job_name, namespace=NAMESPACE, labels={"wandb": "launch"}
             ),
             spec=spec,
         )
