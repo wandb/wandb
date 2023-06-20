@@ -287,7 +287,6 @@ class JobBuilder:
                     name=name,
                 )
             elif self._proto.source.type == "repo":
-                print(f"{metadata=} {self._proto.source.gitInfo}")
                 assert program_relpath is not None
                 artifact, source = self._build_repo_job(
                     metadata=metadata,

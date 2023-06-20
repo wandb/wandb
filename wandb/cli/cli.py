@@ -15,7 +15,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import click
 import yaml
@@ -33,11 +33,11 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs

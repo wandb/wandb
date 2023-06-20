@@ -1,4 +1,5 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
+import json
 import logging
 import os
 import platform
@@ -8,8 +9,6 @@ import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import click
-from wandb.sdk.lib import filesystem
-import json
 
 import wandb
 import wandb.docker as docker
@@ -19,6 +18,7 @@ from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.github_reference import GitHubReference
 from wandb.sdk.launch.wandb_reference import WandbReference
+from wandb.sdk.lib import filesystem
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
