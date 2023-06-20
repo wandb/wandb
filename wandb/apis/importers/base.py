@@ -12,15 +12,12 @@ from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
-from wandb.util import coalesce
+from wandb.util import coalesce, cast_dictlike_to_dict
 import threading
 from dataclasses import dataclass
 
 with patch("click.echo"):
     import wandb.apis.reports as wr
-
-Name = str
-Path = str
 
 
 @dataclass
@@ -35,11 +32,6 @@ _thread_local_settings = ThreadLocalSettings()
 def set_thread_local_settings(api_key, base_url):
     _thread_local_settings.api_key = api_key
     _thread_local_settings.base_url = base_url
-
-
-def reset_thread_local_settings():
-    _thread_local_settings.api_key = None
-    _thread_local_settings.base_url = None
 
 
 class ImporterRun:
@@ -299,13 +291,13 @@ class ImporterRun:
 
 
 class Importer:
-    def download_all_runs(self) -> Iterable[ImporterRun]:
+    def collect_runs(self) -> Iterable[ImporterRun]:
         raise NotImplementedError
 
-    def download_all_reports(self) -> Iterable[wr.Report]:
+    def collect_reports(self) -> Iterable[wr.Report]:
         raise NotImplementedError
 
-    def import_one_report(self, report) -> None:
+    def import_report(self, report) -> None:
         raise NotImplementedError
 
     def import_all_reports(self, limit=10) -> None:
@@ -314,11 +306,11 @@ class Importer:
     def import_all_runs(
         self, overrides: Optional[Dict[str, Any]] = None, **pool_kwargs: Any
     ) -> None:
-        runs = list(self.download_all_runs())
+        runs = list(self.collect_runs())
         with tqdm(total=len(runs)) as pbar:
             with ProcessPoolExecutor(**pool_kwargs) as exc:
                 futures = {
-                    exc.submit(self.import_one_run, run, overrides=overrides): run
+                    exc.submit(self.import_run, run, overrides=overrides): run
                     for run in runs
                 }
                 for future in as_completed(futures):
@@ -334,7 +326,7 @@ class Importer:
                     finally:
                         pbar.update(1)
 
-    def import_one_run(
+    def import_run(
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
@@ -346,14 +338,14 @@ class Importer:
                 # `lambda: v` won't work!
                 # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
                 setattr(run, k, lambda v=v: v)
-        self._import_one_run(run, settings_override)
 
-    def _import_one_run(self, run: ImporterRun, settings_override=None) -> None:
-        with SendManager.setup(run.run_dir, settings_override=settings_override) as sm:
-            wandb.termlog(">> Make run record")
+        with SendManager.setup(
+            run.run_dir, resume=False, settings_override=settings_override
+        ) as sm:
+            # wandb.termlog(">> Make run record")
             sm.send(run._make_run_record())
 
-            wandb.termlog(">> Use Artifacts")
+            # wandb.termlog(">> Use Artifacts")
             used_artifacts = run._used_artifacts
             if used_artifacts is not None:
                 for artifact in tqdm(
@@ -361,7 +353,7 @@ class Importer:
                 ):
                     sm.send(run._make_artifact_record(artifact, use_artifact=True))
 
-            wandb.termlog(">> Log Artifacts")
+            # wandb.termlog(">> Log Artifacts")
             artifacts = run._artifacts
             if artifacts is not None:
                 for artifact in tqdm(
@@ -369,10 +361,10 @@ class Importer:
                 ):
                     sm.send(run._make_artifact_record(artifact))
 
-            wandb.termlog(">> Log Metadata")
+            # wandb.termlog(">> Log Metadata")
             sm.send(run._make_metadata_files_record())
 
-            wandb.termlog(">> Log History")
+            # wandb.termlog(">> Log History")
             for history_record in tqdm(
                 run._make_history_records(),
                 desc="History",
@@ -381,24 +373,14 @@ class Importer:
             ):
                 sm.send(history_record)
 
-            wandb.termlog(">> Log Summary")
+            # wandb.termlog(">> Log Summary")
             sm.send(run._make_summary_record())
 
-            wandb.termlog(">> Log Output")
+            # wandb.termlog(">> Log Output")
             lines = run._logs
             if lines is not None:
                 for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
                     sm.send(run._make_output_record(line))
 
-            wandb.termlog(">> Log Telem")
+            # wandb.termlog(">> Log Telem")
             sm.send(run._make_telem_record())
-
-
-def cast_dictlike_to_dict(d):
-    for k, v in d.items():
-        if isinstance(v, dict):
-            cast_dictlike_to_dict(v)
-        elif hasattr(v, "keys"):
-            d[k] = dict(v)
-            cast_dictlike_to_dict(d[k])
-    return d

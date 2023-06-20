@@ -360,7 +360,7 @@ class SendManager:
     def __enter__(self):
         yield self
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_value, exc_traceback):
         while self:
             data = next(self)
             self.send(data)

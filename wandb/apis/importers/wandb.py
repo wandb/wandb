@@ -250,6 +250,8 @@ class WandbImporter(Importer):
         dest_api_key: str,
     ):
         super().__init__()
+
+        # There is probably a less redundant way of doing this
         self.source_api = wandb.Api(
             api_key=source_api_key,
             overrides={"base_url": source_base_url},
@@ -263,11 +265,33 @@ class WandbImporter(Importer):
         self.dest_base_url = dest_base_url
         self.dest_api_key = dest_api_key
 
-    def import_one_run_alt(self, entity, project, id, overrides=None):
+    def collect_runs(
+        self, entity, project=None, limit=None, skip_ids=None, start_date=None
+    ):
+        filters = {}
+        if skip_ids is not None:
+            filters["name"] = {"$nin": skip_ids}
+        if start_date is not None:
+            filters["createdAt"] = {"$gte": start_date}
+
+        api = self.source_api
+        projects = self._projects(entity, project)
+
+        runs = (
+            run
+            for project in projects
+            for run in api.runs(f"{project.entity}/{project.name}", filters=filters)
+        )
+        for i, run in enumerate(runs):
+            if limit and i >= limit:
+                break
+            yield run
+
+    def import_run(self, entity, project, id, overrides=None):
         if overrides is None:
             overrides = {}
 
-        wandb.termlog("GETTING SOURCE RUN")
+        # wandb.termlog("GETTING SOURCE RUN")
         api = self.source_api
         run = api.run(f"{entity}/{project}/{id}")
 
@@ -275,8 +299,8 @@ class WandbImporter(Importer):
         set_thread_local_settings(self.dest_api_key, self.dest_base_url)
         run = self.DefaultRunClass(run)
 
-        wandb.termlog("UPLOADING TO DEST")
-        super().import_one_run(
+        # wandb.termlog("UPLOADING TO DEST")
+        super().import_run(
             run,
             overrides=overrides,
             settings_override={
@@ -285,14 +309,14 @@ class WandbImporter(Importer):
             },
         )
 
-    def import_multiple_runs_alt(self, runs, overrides=None, pool_kwargs=None):
+    def import_runs(self, runs, overrides=None, pool_kwargs=None):
         overrides = coalesce(overrides, {})
         pool_kwargs = coalesce(pool_kwargs, {})
         runs = list(runs)
         with ThreadPoolExecutor(**pool_kwargs) as exc:
             futures = {
                 exc.submit(
-                    self.import_one_run_alt,
+                    self.import_run,
                     run.entity,
                     run.project,
                     run.id,
@@ -312,29 +336,25 @@ class WandbImporter(Importer):
                     finally:
                         pbar.update(1)
 
-    def download_all_runs_alt(self, entity, project=None, limit=None, skip_ids=None):
-        skip_ids = coalesce(skip_ids, [])
+    def import_all_runs(self, entity, project=None, limit=None, overrides=None):
+        runs = self.collect_runs(entity, project, limit)
+        self.import_runs(runs, overrides)
 
+    def collect_reports(self, entity, project=None, limit=None):
         api = self.source_api
+        projects = self._projects(entity, project)
 
-        if project is None:
-            projects = api.projects(entity)
-        else:
-            projects = [api.project(project, entity)]
-
-        runs = (
-            run
+        reports = (
+            report
             for project in projects
-            for run in api.runs(
-                f"{project.entity}/{project.name}", filters={"name": {"$nin": skip_ids}}
-            )
+            for report in api.reports(f"{project.entity}/{project.name}")
         )
-        for i, run in enumerate(runs):
+        for i, report in enumerate(reports):
             if limit and i >= limit:
                 break
-            yield run
+            yield report
 
-    def import_one_report_alt(self, report_url, overrides=None):
+    def import_report(self, report_url, overrides=None):
         overrides = coalesce(overrides, {})
 
         report = wr.Report.from_url(report_url)
@@ -362,16 +382,14 @@ class WandbImporter(Importer):
             },
         )
 
-    def import_multiple_reports_alt(self, reports, overrides=None, pool_kwargs=None):
+    def import_reports(self, reports, overrides=None, pool_kwargs=None):
         overrides = coalesce(overrides, {})
         pool_kwargs = coalesce(pool_kwargs, {})
         reports = list(reports)
 
         with ThreadPoolExecutor(**pool_kwargs) as exc:
             futures = {
-                exc.submit(
-                    self.import_one_report_alt, report.url, overrides=overrides
-                ): report
+                exc.submit(self.import_report, report.url, overrides=overrides): report
                 for report in reports
             }
             with tqdm(
@@ -388,25 +406,11 @@ class WandbImporter(Importer):
                     finally:
                         pbar.update(1)
 
-    def download_all_reports_alt(self, entity, project=None, limit=None):
-        api = self.source_api
+    def import_all_reports(self, entity, project=None, limit=None, overrides=None):
+        reports = self.collect_reports(entity, project, limit)
+        self.import_reports(reports, overrides)
 
-        if project is None:
-            projects = api.projects(entity)
-        else:
-            projects = [api.project(project, entity)]
-
-        reports = (
-            report
-            for project in projects
-            for report in api.reports(f"{project.entity}/{project.name}")
-        )
-        for i, report in enumerate(reports):
-            if limit and i >= limit:
-                break
-            yield report
-
-    def rsync(self, entity, overrides=None):
+    def rsync(self, entity, project=None, overrides=None):
         overrides = coalesce(overrides, {})
 
         # Actually there is a bug here.  If the project is deleted, the ids still appear to be here even though they are not!
@@ -414,12 +418,35 @@ class WandbImporter(Importer):
         # ids_in_dst = list(self._get_ids_in_dst(dest_ent))
         # wandb.termwarn(f"Found IDs already in destination.  Skipping {ids_in_dst}")
         # runs = self.download_all_runs_alt(entity, skip_ids=ids_in_dst)
-        runs = self.download_all_runs_alt(entity, skip_ids=[])
-        self.import_multiple_runs_alt(runs, overrides)
+        runs = self.collect_runs(entity, skip_ids=[])
+        self.import_runs(runs, overrides)
 
         # do the same for reports?
-        reports = self.download_all_reports_alt(entity)
-        self.import_multiple_reports_alt(reports, overrides)
+        reports = self.collect_reports(entity)
+        self.import_reports(reports, overrides)
+
+    def rsync_time(self, entity, project=None, overrides=None):
+        # instead of using ids, just use the last run timestamp
+        from datetime import datetime as dt
+
+        last_run_file = "_wandb_last_run.txt"
+        last_run_time = None
+        now = dt.now().isoformat()
+
+        try:
+            with open(last_run_file) as f:
+                last_run_time = f.read()
+        except FileNotFoundError:
+            wandb.termlog("First time running importer.  Downloading everything...")
+            last_run_time = "2016-01-01"
+        else:
+            wandb.termlog(f"Downloading runs created after {last_run_time}")
+
+        runs = self.collect_runs(entity, start_date=last_run_time)
+        self.import_runs(runs, overrides)
+
+        with open(last_run_file, "w") as f:
+            f.write(now)
 
     def _get_ids_in_dst(self, entity):
         api = self.dest_api
@@ -430,6 +457,15 @@ class WandbImporter(Importer):
     def _make_metadata_file(self, run_dir: str) -> None:
         # skip because we have our own metadata already
         pass
+
+    def _projects(self, entity, project):
+        api = self.source_api
+        if project is None:
+            projects = api.projects(entity)
+        else:
+            projects = [api.project(project, entity)]
+
+        return projects
 
 
 class WandbParquetRun(WandbRun):

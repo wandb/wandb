@@ -114,15 +114,15 @@ class MlflowImporter(Importer):
             mlflow.set_registry_uri(mlflow_registry_uri)
         self.mlflow_client = mlflow.tracking.MlflowClient(mlflow_tracking_uri)
 
-    def import_one_run(
+    def import_run(
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-        super().import_one_run(run, overrides)
+        super().import_run(run, overrides)
 
-    def download_all_runs(self) -> Iterable[MlflowRun]:
+    def collect_runs(self) -> Iterable[MlflowRun]:
         if mlflow_version < Version("1.28.0"):
             experiments = self.mlflow_client.list_experiments()
         else:
@@ -132,5 +132,5 @@ class MlflowImporter(Importer):
             for run in self.mlflow_client.search_runs(exp.experiment_id):
                 yield MlflowRun(run, self.mlflow_client)
 
-    def import_one_report(self):
+    def import_report(self):
         raise NotImplementedError("MLFlow does not have a reports concept")
