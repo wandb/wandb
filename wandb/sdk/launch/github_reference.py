@@ -69,7 +69,7 @@ class GitHubReference:
     file: Optional[str] = None
 
     # Location of repo locally if pulled
-    local_dir: Optional[str] = None
+    local_dir: Optional[tempfile.TemporaryDirectory] = None
 
     repo_object: Optional["git.Repo"] = None
 
