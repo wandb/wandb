@@ -6,7 +6,6 @@ depend:
   requirements:
     - pandas
     - ray[tune]>=2.0.0rc0,<2.4
-     - protobuf<=3.20
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 5
