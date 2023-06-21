@@ -295,10 +295,12 @@ class Scheduler(ABC):
         self.state = SchedulerState.RUNNING
         try:
             while True:
-                wandb.termlog(f"{LOG_PREFIX}Polling for new runs to launch")
+                self._update_scheduler_run_state()
                 if not self.is_alive:
                     break
-
+            
+                wandb.termlog(f"{LOG_PREFIX}Polling for new runs to launch")
+                
                 self._update_run_states()
                 self._poll()
                 if self.state == SchedulerState.FLUSH_RUNS:
@@ -454,6 +456,28 @@ class Scheduler(ABC):
             _logger.debug(f"error stopping run ({run_id}): {e}")
 
         return False
+
+    def _update_scheduler_run_state(self) -> None:
+        """Update the scheduler state from state of scheduler run and sweep state"""
+        state: RunState = self._get_run_state(self._wandb_run.name)
+
+        if state == RunState.KILLED:
+            self.state = SchedulerState.STOPPED
+        elif state in [RunState.FAILED, RunState.CRASHED]:
+            self.state = SchedulerState.FAILED
+        elif state == RunState.FINISHED:
+            self.state = SchedulerState.COMPLETED
+
+        try:
+            sweep_state = self._api.get_sweep_state(self._sweep_id, self._entity, self._project)
+        except Exception as e:
+            _logger.debug(f"sweep state error: {sweep_state}")
+            return
+
+        if sweep_state in ['FINISHED', 'CANCELLED']:
+            self.state = SchedulerState.COMPLETED
+        elif sweep_state in ['PAUSED', "STOPPED"]:
+            self.state = SchedulerState.FLUSH_RUNS
 
     def _update_run_states(self) -> None:
         """Iterate through runs.
