@@ -162,10 +162,8 @@ class ImporterRun:
         run.notes = coalesce(self.notes(), "")
         run.tags.extend(coalesce(self.tags(), []))
 
-        # start_time = 1400000
         start_time = self.start_time()
         run.start_time.FromMilliseconds(start_time)
-        # config["_wandb"]["start_time"] = start_time
 
         runtime = self.runtime()
         if runtime:
