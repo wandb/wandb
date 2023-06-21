@@ -1,6 +1,7 @@
 id: 0.artifacts.public-link-model
 plugin:
   - wandb
+shard: artifacts
 depend:
   requirements:
     - torch

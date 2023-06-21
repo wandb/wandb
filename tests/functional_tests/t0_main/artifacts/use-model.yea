@@ -1,6 +1,7 @@
 id: 0.artifacts.use-model
 plugin:
   - wandb
+shard: artifacts
 depend:
   requirements:
     - torch
