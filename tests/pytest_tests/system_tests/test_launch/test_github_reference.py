@@ -178,7 +178,7 @@ def test_get_commit(monkeypatch) -> None:
     assert not os.path.exists(file)
 
 
-def test_get_commit_None(monkeypatch) -> None:
+def test_get_commit_none(monkeypatch) -> None:
     def mock_clone_repo(dst_dir):
         # mock dumping a file to the local clone of the repo
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
