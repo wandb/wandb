@@ -184,6 +184,7 @@ message Feature {
   bool langchain_tracer = 52; // Langchain wandb tracer callback used
   bool cohere_autolog = 53; // Cohere autolog used
   bool hf_pipeline_autolog = 54; // HuggingFace Autologging
+  bool nexus = 55; // Using wandb nexus internal process
 }
 
 message Env {
@@ -220,6 +221,7 @@ message Deprecated {
   bool init__config_include_keys = 7 ; // wandb.init(config_include_keys=...) called
   bool init__config_exclude_keys = 8 ; // wandb.init(config_exclude_keys=...) called
   bool keras_callback__save_model = 9; // wandb.keras.WandbCallback(save_model=True) called
+  bool langchain_tracer = 10; // wandb.integration.langchain.WandbTracer called
 }
 
 message Issues {
