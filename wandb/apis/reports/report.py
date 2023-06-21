@@ -54,11 +54,11 @@ class Report(Base):
         self.blocks = coalesce(blocks, [])
 
     @classmethod
-    def from_url(cls, url):
+    def from_url(cls, url, api=None):
+        if api is None:
+            api = PublicApi()
         report_id = cls._url_to_report_id(url)
-        r = PublicApi().client.execute(
-            VIEW_REPORT, variable_values={"reportId": report_id}
-        )
+        r = api.client.execute(VIEW_REPORT, variable_values={"reportId": report_id})
         viewspec = r["view"]
         viewspec["spec"] = json.loads(viewspec["spec"])
         return cls.from_json(viewspec)
