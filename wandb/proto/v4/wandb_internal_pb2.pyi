@@ -2938,25 +2938,50 @@ class ArtifactInfo(google.protobuf.message.Message):
 global___ArtifactInfo = ArtifactInfo
 
 @typing_extensions.final
+class GitInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    REMOTE_FIELD_NUMBER: builtins.int
+    COMMIT_FIELD_NUMBER: builtins.int
+    ROOT_FIELD_NUMBER: builtins.int
+    remote: builtins.str
+    commit: builtins.str
+    root: builtins.str
+    def __init__(
+        self,
+        *,
+        remote: builtins.str = ...,
+        commit: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["commit", b"commit", "remote", b"remote", "root", b"root"]) -> None: ...
+
+global___GitInfo = GitInfo
+
+@typing_extensions.final
 class JobSource(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     TYPE_FIELD_NUMBER: builtins.int
     RUNTIME_FIELD_NUMBER: builtins.int
     ARTIFACTSOURCE_FIELD_NUMBER: builtins.int
+    GITSOURCE_FIELD_NUMBER: builtins.int
     type: builtins.str
     runtime: builtins.str
     @property
     def artifactSource(self) -> global___ArtifactInfo: ...
+    @property
+    def gitSource(self) -> global___GitInfo: ...
     def __init__(
         self,
         *,
         type: builtins.str = ...,
         runtime: builtins.str = ...,
         artifactSource: global___ArtifactInfo | None = ...,
+        gitSource: global___GitInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "runtime", b"runtime", "type", b"type"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitSource", b"gitSource"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitSource", b"gitSource", "runtime", b"runtime", "type", b"type"]) -> None: ...
 
 global___JobSource = JobSource
 

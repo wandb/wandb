@@ -288,10 +288,20 @@ class JobBuilder:
                 )
             elif self._proto.source.type == "repo":
                 assert program_relpath is not None
+
+                # update current metadata from proto, where we downloaded the previous 
+                # proto-artifacts real repo metadata
+                metadata.update({
+                    "git": {
+                        "remote": self._proto.source.gitSource.remote,
+                        "commit": self._proto.source.gitSource.commit,
+                    }
+                })
+
                 artifact, source = self._build_repo_job(
                     metadata=metadata,
                     program_relpath=program_relpath,
-                    root=metadata.get("root"),
+                    root=self._proto.source.gitSource.root,
                     name=name,
                 )
             elif self._proto.source.type == "image":

@@ -916,12 +916,18 @@ message ArtifactInfo {
   string name = 4;
 }
 
+message GitInfo {
+  string remote = 1;
+  string commit = 2;
+  string root = 3;
+}
 
 message JobSource {
   string type = 1;
   string runtime = 2;
 
   ArtifactInfo artifactSource = 3;
+  GitInfo gitSource = 4;
 }
 
 message ProtoJobArtifact {

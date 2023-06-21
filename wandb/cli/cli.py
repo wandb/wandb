@@ -1557,11 +1557,12 @@ def _list(project, entity):
 
 def _make_git_data(path):
     """mock, to be replaced."""
-    remote = path
+    remote = "https://github.com/gtarpenning/wandb-launch-test/main.py"
     commit = "bdb06b4b5b6449d891ca7d019f7885394d57fcfb"
     requirements = ["wandb"]
     python = "3.11.4"
-    return remote, commit, requirements, python
+    root = "/wandb-launch-test"
+    return remote, commit, requirements, python, root
 
 
 @job.command()
@@ -1689,10 +1690,11 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             wandb.termerror(f"Repo jobs must originate from git paths, not: '{path}'")
             return
 
-        remote, commit, requirements, python_version = _make_git_data(path)
+        remote, commit, requirements, python_version, root = _make_git_data(path)
         metadata.update(
             {
                 "git": {"remote": remote, "commit": commit},
+                "root": root,
                 "codePath": entrypoint,
                 "python": python_version,
             }
