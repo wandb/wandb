@@ -472,8 +472,12 @@ class InterfaceBase:
                 "source", {}
             ).get("artifact_name", "")
         elif job_info.get("source_type") == "repo":
-            use_artifact.proto.source.gitSource.remote = metadata.get("git", {}).get("remote", "")
-            use_artifact.proto.source.gitSource.commit = metadata.get("git", {}).get("commit", "")
+            use_artifact.proto.source.gitSource.remote = metadata.get("git", {}).get(
+                "remote", ""
+            )
+            use_artifact.proto.source.gitSource.commit = metadata.get("git", {}).get(
+                "commit", ""
+            )
             use_artifact.proto.source.gitSource.root = metadata.get("root", "")
         elif job_info.get("source_type") == "image":
             # no extra handling for image, just need the job_name

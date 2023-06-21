@@ -26,6 +26,7 @@ from dockerpycreds.utils import find_executable
 
 import wandb
 import wandb.env
+from wandb.sdk.launch.github_reference import GitHubReference
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
@@ -1555,16 +1556,6 @@ def _list(project, entity):
             print(full_name, aliases)
 
 
-def _make_git_data(path):
-    """mock, to be replaced."""
-    remote = "https://github.com/gtarpenning/wandb-launch-test/main.py"
-    commit = "bdb06b4b5b6449d891ca7d019f7885394d57fcfb"
-    requirements = ["wandb"]
-    python = "3.11.4"
-    root = "/wandb-launch-test"
-    return remote, commit, requirements, python, root
-
-
 @job.command()
 @click.argument("job")
 def describe(job):
@@ -1608,9 +1599,8 @@ def describe(job):
 @click.option(
     "--source-type",
     "-t",
-    "_type",
+    "given_type",
     type=click.Choice(("repo", "artifact", "image")),
-    default="artifact",
     help="Type of job to create, defaults to artifact",
 )
 @click.option(
@@ -1626,8 +1616,17 @@ def describe(job):
     "entrypoint",
     help="Codepath to the main script, required for repo jobs",
 )
+@click.option(
+    "--git-info",
+    "-g",
+    "git_info",
+    type=str,
+    help="Git info to use for repo jobs, avoids cloning repo. Either path to json or yaml, or raw json. Must include the 'commit' hash, 'python_version' (ex: 3.9), and 'requirements' (path in remote repo) as keys. See docs for more info.",
+)
 @click.argument("path")
-def create(path, project, entity, name, _type, description, aliases, entrypoint):
+def create(
+    path, project, entity, name, given_type, description, aliases, entrypoint, git_info
+):
     """Create a job from a source, without a wandb run.
 
     Jobs can be of three types, repo, artifact, or image.
@@ -1648,27 +1647,23 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         wandb.termerror("No project provided")
         return
 
-    # Use temp dir to create metadata (+ requirements) for job
-    tmpdir = tempfile.TemporaryDirectory()
+    # Smartly determine type if not given
+    if given_type:
+        _type = given_type
+    elif wandb.sdk.launch.utils._is_git_uri(path):
+        _type = "repo"
+    else:
+        _type = "artifact"
 
-    metadata = {"_proto": "v0"}
-    if _type == "image":
-        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-        requirements = ["wandb"]
-        metadata.update({"python": python_version, "docker": path})
-        launch_utils.dump_metadata_and_requirements(
-            metadata=metadata,
-            tmp_path=tmpdir.name,
-            requirements=requirements,
-        )
-    else:  # repo and artifact
+    # use temp dir to create metadata + requirements for job
+    tmpdir = tempfile.TemporaryDirectory()
+    metadata = {"_proto": "v0"}  # special proto tag for manually created jobs
+    if _type in ["repo", "artifact"]:  # repo and artifact entrypoint handling
         if path.endswith("Dockerfile"):
-            # TODO(gst): support dockerfile entrypoint
-            wandb.termerror(
-                "Dockerfile entrypoints are not currently supported. Build your image first and use `wandb job create --source-type image`"
-            )
+            wandb.termerror("Paths to Dockerfiles are not currently supported")
             return
-        if path.endswith(".py"):
+
+        if "." in path.split("/")[-1]:
             # If user provides a path to a file, set entrypoint to that file
             if entrypoint:
                 wandb.termwarn(
@@ -1690,11 +1685,64 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
             wandb.termerror(f"Repo jobs must originate from git paths, not: '{path}'")
             return
 
-        remote, commit, requirements, python_version, root = _make_git_data(path)
+        ref = GitHubReference.parse(path)
+        if git_info is not None:
+            git_info = util.load_json_yaml_dict(git_info) or {}
+        else:
+            git_info = {}
+
+        commit = git_info.get("commit_hash") or ref.get_commit()
+        assert commit, "Repo jobs must have a commit hash"
+
+        python_version = git_info.get("python_version")
+        # Try to load python version from .python-version file
+        if python_version:
+            python_version = str(python_version)
+        else:
+            version_file = ref.get_file(".python-version")
+            if version_file:
+                with open(version_file) as f:
+                    python_version = f.read().strip().splitlines()[0]
+
+        if not python_version:
+            wandb.termerror(
+                "Repo jobs require a python version, either provided under the 'python_version' key using the --git-info flag or in a .python-version file in the remote repo."
+            )
+            return
+
+        requirements = []
+        if isinstance(git_info.get("requirements"), str):
+            assert git_info["requirements"].endswith(
+                ".txt"
+            ), "requirements path not to a txt file"
+            req_path = ref.get_file(git_info["requirements"])
+            if req_path:
+                wandb.termerror(
+                    f"Could not find requirements.txt in remote repo at {git_info['requirements']}"
+                )
+                return
+
+            with open(req_path) as f:
+                requirements = f.read().splitlines()
+        elif isinstance(git_info.get("requirements"), list):
+            requirements = git_info["requirements"]
+        else:
+            # just assume requirements.txt in root
+            req_path = ref.get_file("requirements.txt")
+            if req_path:
+                with open(req_path) as f:
+                    requirements = f.read().splitlines()
+
+        if not requirements:
+            wandb.termerror(
+                "Repo jobs require either a requirements.txt file in the repo root or a 'requirements' key in a dict using the --git-info flag. 'requirements' can be specified as either a list of requirements or the relative path to the requirements.txt file from the repo root."
+            )
+            return
+
         metadata.update(
             {
-                "git": {"remote": remote, "commit": commit},
-                "root": root,
+                "git": {"remote": ref.url, "commit": commit},
+                "root": ref.repo,
                 "codePath": entrypoint,
                 "python": python_version,
             }
@@ -1702,13 +1750,10 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
         launch_utils.dump_metadata_and_requirements(
             metadata=metadata,
             tmp_path=tmpdir.name,
-            requirements=requirements,
+            requirements=[],
         )
     elif _type == "artifact":
-        python = f"{sys.version_info.major}.{sys.version_info.minor}"
-        if sys.version_info.micro:
-            python += f".{sys.version_info.micro}"
-
+        python = wandb.sdk.launch.builder.build.get_python_version()
         metadata.update({"python": python, "codePath": entrypoint})
         if not os.path.exists(path):
             wandb.termerror(
@@ -1727,6 +1772,13 @@ def create(path, project, entity, name, _type, description, aliases, entrypoint)
 
         launch_utils.dump_metadata_and_requirements(
             tmp_path=tmpdir.name, metadata=metadata, requirements=requirements
+        )
+    elif _type == "image":
+        metadata.update({"python": "", "docker": path})
+        launch_utils.dump_metadata_and_requirements(
+            metadata=metadata,
+            tmp_path=tmpdir.name,
+            requirements=[],
         )
 
     # init hidden wandb run with job building disabled (handled manually)
