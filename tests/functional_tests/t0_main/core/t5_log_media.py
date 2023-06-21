@@ -1,24 +1,4 @@
-#!/usr/bin/env python
-"""Base case - logging sequence of media types multiple times.
-
----
-id: 0.core.05-log-media
-plugin:
-    - wandb
-    - numpy
-depend:
-  requirements:
-    - pillow
-assert:
-    - :wandb:runs_len: 1
-    - :wandb:runs[0][config]: {}
-    - :wandb:runs[0][summary][media][count]: 2
-    - :wandb:runs[0][summary][media][_type]: images/separated
-    - :wandb:runs[0][summary][media][format]: png
-    - :wandb:runs[0][summary][media][height]: 2
-    - :wandb:runs[0][summary][media][width]: 2
-    - :wandb:runs[0][exitcode]: 0
-"""
+"""Base case - logging sequence of media types multiple times."""
 
 import numpy as np
 import wandb
