@@ -73,6 +73,11 @@ class GitHubReference:
 
     repo_object: Optional["git.Repo"] = None
 
+    def __del__(self):
+        # on delete, clean up the local directory
+        if self.local_dir:
+            self.local_dir.cleanup()
+
     def update_ref(self, ref: Optional[str]) -> None:
         if ref:
             # We no longer know what this refers to
@@ -254,16 +259,17 @@ class GitHubReference:
     def _clone_repo(self) -> None:
         """Clone the repo to a temp directory."""
         if self.local_dir is not None:
-            # Repo already cloned, location is stored in self.local_dir
+            # Repo already cloned, location is stored in self.local_dir.name
             return
         import git
 
-        dst_dir = tempfile.TemporaryDirectory().name
-        self.repo_object = git.Repo.clone_from(self.repo_ssh, dst_dir, depth=1)
+        dst_dir = tempfile.TemporaryDirectory()
+        self.repo_object = git.Repo.clone_from(self.repo_ssh, dst_dir.name, depth=1)
         self.local_dir = dst_dir
 
         if not self.repo_object:
-            LaunchError(f"Error cloning git repo: {self.repo_ssh}")
+            self.local_dir.cleanup()
+            raise LaunchError(f"Error cloning git repo: {self.repo_ssh}")
 
     def get_commit(self) -> str:
         """Get git hash associated with the reference."""
@@ -280,5 +286,5 @@ class GitHubReference:
         assert (
             self.local_dir is not None
         )  # Always true, but stops mypy from complaining
-        file = os.path.join(self.local_dir, path)
+        file = os.path.join(self.local_dir.name, path)
         return file if os.path.isfile(file) else None
