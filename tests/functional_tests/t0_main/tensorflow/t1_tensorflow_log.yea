@@ -1,6 +1,8 @@
 id: 0.tf.01-tensorflow-log
 plugin:
     - wandb
+tag:
+    shard: tf26
 depend:
   requirements:
     - tensorboard

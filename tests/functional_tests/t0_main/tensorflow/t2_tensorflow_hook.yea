@@ -1,6 +1,8 @@
 id: 0.tf.02-tensorflow-hook
 plugin:
     - wandb
+tag:
+    shard: tf26
 depend:
   requirements:
     - tensorflow
