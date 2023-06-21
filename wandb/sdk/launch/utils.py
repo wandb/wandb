@@ -700,33 +700,3 @@ def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
         }
     else:
         return source
-
-
-def make_code_artifact_name(path: str, name: Optional[str]) -> str:
-    """Make a code artifact name from a path and user provided name."""
-    if name:
-        return f"code-{name}"
-
-    if len(path) > 7:
-        if path[-1] == "/":
-            path = path[:-1]
-        path_name = f"code-{path.replace('/', '-')}"
-        return path_name
-
-    generated_name = f"code-{wandb.util.generate_id()}"
-    return generated_name
-
-
-def dump_metadata_and_requirements(
-    tmp_path: str, metadata: Dict[str, Any], requirements: List[str]
-) -> None:
-    """Dump manufactured metadata and requirements.txt.
-
-    File used by the job_builder to create a job from provided metadata.
-    """
-    filesystem.mkdir_exists_ok(tmp_path)
-    with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
-        json.dump(metadata, f)
-
-    with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
-        f.write("\n".join(requirements))

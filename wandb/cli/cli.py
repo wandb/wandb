@@ -35,7 +35,6 @@ from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
-from wandb.sdk.launch.github_reference import GitHubReference
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -1617,15 +1616,15 @@ def describe(job):
     help="Codepath to the main script, required for repo jobs",
 )
 @click.option(
-    "--git-info",
+    "--git-hash",
     "-g",
-    "git_info",
+    "git_hash",
     type=str,
-    help="Git info to use for repo jobs, avoids cloning repo. Either path to json or yaml, or raw json. Must include the 'commit' hash, 'python_version' (ex: 3.9), and 'requirements' (path in remote repo) as keys. See docs for more info.",
+    help="Hash to a specific git commit.",
 )
 @click.argument("path")
 def create(
-    path, project, entity, name, given_type, description, aliases, entrypoint, git_info
+    path, project, entity, name, given_type, description, aliases, entrypoint, git_hash
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1635,6 +1634,8 @@ def create(
     artifact: A code path, containing a requirements.txt file.
     image: A docker image.
     """
+    from wandb.sdk.launch.create_job import _create_job
+
     wandb._sentry.configure_scope(process_context="job_create")
     api = _get_cling_api()
     entity = entity or os.getenv("WANDB_ENTITY") or api.default_entity
@@ -1647,231 +1648,18 @@ def create(
         wandb.termerror("No project provided")
         return
 
-    # Smartly determine type if not given
-    if given_type:
-        _type = given_type
-    elif wandb.sdk.launch.utils._is_git_uri(path):
-        _type = "repo"
-    else:
-        _type = "artifact"
-
-    # use temp dir to create metadata + requirements for job
-    tmpdir = tempfile.TemporaryDirectory()
-    metadata = {"_proto": "v0"}  # special proto tag for manually created jobs
-    if _type in ["repo", "artifact"]:  # repo and artifact entrypoint handling
-        if path.endswith("Dockerfile"):
-            wandb.termerror("Paths to Dockerfiles are not currently supported")
-            return
-
-        if "." in path.split("/")[-1]:
-            # If user provides a path to a file, set entrypoint to that file
-            if entrypoint:
-                wandb.termwarn(
-                    f"Ignoring provided entrypoint '{entrypoint}' as path targets file, not directory"
-                )
-            entrypoint = path.split("/")[-1]
-            path = "/".join(path.split("/")[:-1])
-            if path == "":
-                path = "."
-
-        if not entrypoint:
-            wandb.termerror(
-                f"'{_type}' type jobs must have an entrypoint, specify one with -E"
-            )
-            return
-
-    if _type == "repo":
-        if not wandb.sdk.launch.utils._is_git_uri(path):
-            wandb.termerror(f"Repo jobs must originate from git paths, not: '{path}'")
-            return
-
-        ref = GitHubReference.parse(path)
-        if git_info is not None:
-            git_info = util.load_json_yaml_dict(git_info) or {}
-        else:
-            git_info = {}
-
-        commit = git_info.get("commit_hash") or ref.get_commit()
-        assert commit, "Repo jobs must have a commit hash"
-
-        python_version = git_info.get("python_version")
-        # Try to load python version from .python-version file
-        if python_version:
-            python_version = str(python_version)
-        else:
-            version_file = ref.get_file(".python-version")
-            if version_file:
-                with open(version_file) as f:
-                    python_version = f.read().strip().splitlines()[0]
-
-        if not python_version:
-            wandb.termerror(
-                "Repo jobs require a python version, either provided under the 'python_version' key using the --git-info flag or in a .python-version file in the remote repo."
-            )
-            return
-
-        requirements = []
-        if isinstance(git_info.get("requirements"), str):
-            assert git_info["requirements"].endswith(
-                ".txt"
-            ), "requirements path not to a txt file"
-            req_path = ref.get_file(git_info["requirements"])
-            if req_path:
-                wandb.termerror(
-                    f"Could not find requirements.txt in remote repo at {git_info['requirements']}"
-                )
-                return
-
-            with open(req_path) as f:
-                requirements = f.read().splitlines()
-        elif isinstance(git_info.get("requirements"), list):
-            requirements = git_info["requirements"]
-        else:
-            # just assume requirements.txt in root
-            req_path = ref.get_file("requirements.txt")
-            if req_path:
-                with open(req_path) as f:
-                    requirements = f.read().splitlines()
-
-        if not requirements:
-            wandb.termerror(
-                "Repo jobs require either a requirements.txt file in the repo root or a 'requirements' key in a dict using the --git-info flag. 'requirements' can be specified as either a list of requirements or the relative path to the requirements.txt file from the repo root."
-            )
-            return
-
-        metadata.update(
-            {
-                "git": {"remote": ref.url, "commit": commit},
-                "root": ref.repo,
-                "codePath": entrypoint,
-                "python": python_version,
-            }
-        )
-        launch_utils.dump_metadata_and_requirements(
-            metadata=metadata,
-            tmp_path=tmpdir.name,
-            requirements=[],
-        )
-    elif _type == "artifact":
-        python = wandb.sdk.launch.builder.build.get_python_version()
-        metadata.update({"python": python, "codePath": entrypoint})
-        if not os.path.exists(path):
-            wandb.termerror(
-                f"Building a job of type: {_type} requires path to be a valid file path. Use the -t param to specify a different job type"
-            )
-            return
-        if not os.path.exists(os.path.join(path, "requirements.txt")):
-            wandb.termerror(
-                f"Building a job of type: {_type} requires a requirements.txt file in the job source. Use the -t param to specify a different job type"
-            )
-            return
-        # read local requirements.txt and dump to temp dir for builder
-        requirements = []
-        with open(os.path.join(path, "requirements.txt")) as f:
-            requirements = f.read().splitlines()
-
-        launch_utils.dump_metadata_and_requirements(
-            tmp_path=tmpdir.name, metadata=metadata, requirements=requirements
-        )
-    elif _type == "image":
-        metadata.update({"python": "", "docker": path})
-        launch_utils.dump_metadata_and_requirements(
-            metadata=metadata,
-            tmp_path=tmpdir.name,
-            requirements=[],
-        )
-
-    # init hidden wandb run with job building disabled (handled manually)
-    run = wandb.init(
-        dir=tmpdir.name,
-        settings={"silent": True, "disable_job_creation": True},
+    artifact, action, aliases = _create_job(
+        api=api,
+        path=path,
         entity=entity,
         project=project,
-        job_type="cli_create_job",
-    )
-
-    # configure job builder with temp dir and job source
-    settings = wandb.Settings()
-    settings.update({"files_dir": tmpdir.name, "job_source": _type})
-    _job_builder = wandb.sdk.internal.job_builder.JobBuilder(
-        settings=settings,
-    )
-    # set run inputs and outputs to empty dicts
-    _job_builder.set_config({})
-    _job_builder.set_summary({})
-
-    # log code artifact first for artifact jobs
-    if _type == "artifact":
-        artifact_name = launch_utils.make_code_artifact_name(
-            os.path.join(path, entrypoint), name
-        )
-        code_artifact = wandb.Artifact(
-            name=artifact_name,
-            type="code",
-            description="Code artifact for job",
-        )
-        code_artifact.add_dir(path)
-        res, _ = api.create_artifact(
-            artifact_type_name="code",
-            artifact_collection_name=artifact_name,
-            digest=code_artifact.digest,
-            client_id=code_artifact._client_id,
-            sequence_client_id=code_artifact._sequence_client_id,
-            entity_name=entity,
-            project_name=project,
-            run_name=run.id,  # run will be deleted after creation
-            description="Code artifact for job",
-            metadata={"codePath": path, "entrypoint": entrypoint},
-            is_user_created=True,
-            aliases=[
-                {"artifactCollectionName": artifact_name, "alias": a} for a in aliases
-            ],
-        )
-
-        run.log_artifact(code_artifact)
-        code_artifact.wait()
-        _job_builder._set_logged_code_artifact(res, code_artifact)
-        name = code_artifact.name.replace("code", "job").split(":")[0]
-
-    # build job artifact, creates wandb-job.json here
-    artifact = _job_builder.build()
-    if not artifact:
-        wandb.termerror("Failed to build job")
-        logger.debug("Failed to build job, check job source and metadata")
-        return
-
-    if not name:
-        name = artifact.name
-        wandb.termlog(f"No name provided, using default: {name}")
-
-    aliases = list(aliases) + _job_builder._aliases
-    if "latest" not in aliases:
-        aliases = list(aliases) + ["latest"]
-
-    res, _ = api.create_artifact(
-        artifact_type_name="job",
-        artifact_collection_name=name,
-        digest=artifact.digest,
-        client_id=artifact._client_id,
-        sequence_client_id=artifact._sequence_client_id,
-        entity_name=entity,
-        project_name=project,
-        run_name=run.id,  # run will be deleted after creation
+        name=name,
+        given_type=given_type,
         description=description,
-        metadata=metadata,
-        labels=["manually-created"],
-        is_user_created=True,
-        aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
+        aliases=aliases,
+        entrypoint=entrypoint,
+        git_hash=git_hash,
     )
-    action = "No changes detected for"
-    if not res.get("artifactSequence", {}).get("latestArtifact"):
-        action = "Created"
-    elif res.get("state") == "PENDING":
-        action = "Updated"
-
-    run.log_artifact(artifact, aliases=aliases)
-    artifact.wait()
-    run.finish()
 
     artifact_path = f"{entity}/{project}/{artifact.name}"
     msg = f"{action} job: {click.style(artifact_path, fg='yellow')}"
@@ -1883,14 +1671,9 @@ def create(
         msg += f", with aliases: {alias_str}"
 
     wandb.termlog(msg)
-    # TODO(gst): confirm this works for local server release
     web_url = api.settings().get("base_url").replace("api.", "")
     url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
     wandb.termlog(f"View all project jobs here: {url}\n")
-
-    # fetch, then delete hidden run
-    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
-    _run.delete()
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
