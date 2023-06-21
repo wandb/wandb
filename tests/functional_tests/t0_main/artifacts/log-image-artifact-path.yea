@@ -1,7 +1,8 @@
 id: 0.artifacts.log-image-artifact-path
 plugin:
   - wandb
-shard: artifacts
+tag:
+  shard: artifacts
 depend:
   requirements:
     - pillow
