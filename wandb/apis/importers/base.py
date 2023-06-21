@@ -1,7 +1,10 @@
+from contextlib import contextmanager
 import json
 import re
+import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Any, Dict, Iterable, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
 from tqdm import tqdm
@@ -12,9 +15,7 @@ from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
-from wandb.util import coalesce, cast_dictlike_to_dict
-import threading
-from dataclasses import dataclass
+from wandb.util import cast_dictlike_to_dict, coalesce
 
 with patch("click.echo"):
     import wandb.apis.reports as wr
@@ -43,27 +44,21 @@ class ImporterRun:
         self._used_artifacts = self.used_artifacts()
 
     def run_id(self) -> str:
-        _id = wandb.util.generate_id()
-        wandb.termwarn(f"`run_id` not specified.  Autogenerating id: {_id}")
-        return _id
+        ...
 
     def entity(self) -> str:
-        _entity = "unspecified-entity"
-        wandb.termwarn(f"`entity` not specified.  Defaulting to: {_entity}")
-        return _entity
+        ...
 
     def project(self) -> str:
-        _project = "unspecified-project"
-        wandb.termwarn(f"`project` not specified.  Defaulting to: {_project}")
-        return _project
+        ...
 
     def config(self) -> Dict[str, Any]:
-        return {}
+        ...
 
     def summary(self) -> Dict[str, float]:
-        return {}
+        ...
 
-    def metrics(self) -> List[Dict[str, float]]:
+    def metrics(self) -> Iterable[Dict[str, float]]:
         """Metrics for the run.
 
         We expect metrics in this shape:
@@ -84,7 +79,7 @@ class ImporterRun:
             ...
         ]
         """
-        return []
+        ...
 
     def run_group(self) -> Optional[str]:
         ...
@@ -93,7 +88,7 @@ class ImporterRun:
         ...
 
     def display_name(self) -> str:
-        return self.run_id()
+        ...
 
     def notes(self) -> Optional[str]:
         ...
@@ -141,6 +136,18 @@ class ImporterRun:
         ...
 
     def start_time(self) -> Optional[int]:
+        ...
+
+    def code_path(self) -> Optional[str]:
+        ...
+
+    def cli_version(self) -> Optional[str]:
+        ...
+
+    def files(self) -> Optional[Iterable[Tuple[str, str]]]:
+        ...
+
+    def logs(self) -> Optional[Iterable[str]]:
         ...
 
     def _make_run_record(self) -> pb.Record:
@@ -219,9 +226,8 @@ class ImporterRun:
         return self.interface._make_record(files=files_record)
 
     def _make_metadata_files_record(self) -> pb.Record:
-        # self._make_metadata_file(self.run_dir)
-        # files = [(f"{self.run_dir}/files/wandb-metadata.json", "end")]
-        files = self._files
+        self._make_metadata_file(self.run_dir)
+        files = [(f"{self.run_dir}/files/wandb-metadata.json", "end")]
 
         return self._make_files_record({"files": files})
 
@@ -292,95 +298,75 @@ class ImporterRun:
 
 class Importer:
     def collect_runs(self) -> Iterable[ImporterRun]:
-        raise NotImplementedError
+        ...
 
     def collect_reports(self) -> Iterable[wr.Report]:
-        raise NotImplementedError
+        ...
 
-    def import_report(self, report) -> None:
-        raise NotImplementedError
+    def import_run(self, run: ImporterRun):
+        ...
 
-    def import_all_reports(self, limit=10) -> None:
-        raise NotImplementedError
+    def import_report(self, report: wr.Report) -> None:
+        ...
 
-    def import_all_runs(
-        self, overrides: Optional[Dict[str, Any]] = None, **pool_kwargs: Any
-    ) -> None:
-        runs = list(self.collect_runs())
-        with tqdm(total=len(runs)) as pbar:
-            with ProcessPoolExecutor(**pool_kwargs) as exc:
-                futures = {
-                    exc.submit(self.import_run, run, overrides=overrides): run
-                    for run in runs
-                }
-                for future in as_completed(futures):
-                    run = futures[future]
-                    try:
-                        future.result()
-                    except Exception as exc:
-                        wandb.termerror(f"Failed to import {run.display_name()}: {exc}")
-                    else:
-                        pbar.set_description(
-                            f"Imported Run: {run.run_group()} {run.display_name()}"
-                        )
-                    finally:
-                        pbar.update(1)
 
-    def import_run(
-        self,
-        run: ImporterRun,
-        overrides: Optional[Dict[str, Any]] = None,
-        settings_override=None,
-    ) -> None:
-        # does this need to be here for pmap?
-        if overrides:
-            for k, v in overrides.items():
-                # `lambda: v` won't work!
-                # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
-                setattr(run, k, lambda v=v: v)
+def send_run_with_send_manager(
+    run: ImporterRun,
+    overrides: Optional[Dict[str, Any]] = None,
+    settings_override=None,
+) -> None:
+    # does this need to be here for pmap?
+    if overrides:
+        for k, v in overrides.items():
+            # `lambda: v` won't work!
+            # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
+            setattr(run, k, lambda v=v: v)
 
-        with SendManager.setup(
-            run.run_dir, resume=False, settings_override=settings_override
-        ) as sm:
-            # wandb.termlog(">> Make run record")
-            sm.send(run._make_run_record())
+    with SendManager.setup(
+        run.run_dir,
+        resume=False,
+        settings_override=settings_override,
+    ) as sm:
+        wandb.termlog(">> Make run record")
+        sm.send(run._make_run_record())
 
-            # wandb.termlog(">> Use Artifacts")
-            used_artifacts = run._used_artifacts
-            if used_artifacts is not None:
-                for artifact in tqdm(
-                    used_artifacts, desc="Used artifacts", unit="artifacts", leave=False
-                ):
-                    sm.send(run._make_artifact_record(artifact, use_artifact=True))
-
-            # wandb.termlog(">> Log Artifacts")
-            artifacts = run._artifacts
-            if artifacts is not None:
-                for artifact in tqdm(
-                    artifacts, desc="Logged artifacts", unit="artifacts", leave=False
-                ):
-                    sm.send(run._make_artifact_record(artifact))
-
-            # wandb.termlog(">> Log Metadata")
-            sm.send(run._make_metadata_files_record())
-
-            # wandb.termlog(">> Log History")
-            for history_record in tqdm(
-                run._make_history_records(),
-                desc="History",
-                unit="steps",
-                leave=False,
+        wandb.termlog(">> Use Artifacts")
+        used_artifacts = run._used_artifacts
+        if used_artifacts is not None:
+            for artifact in tqdm(
+                used_artifacts, desc="Used artifacts", unit="artifacts", leave=False
             ):
-                sm.send(history_record)
+                sm.send(run._make_artifact_record(artifact, use_artifact=True))
 
-            # wandb.termlog(">> Log Summary")
-            sm.send(run._make_summary_record())
+        wandb.termlog(">> Log Artifacts")
+        artifacts = run._artifacts
+        if artifacts is not None:
+            for artifact in tqdm(
+                artifacts, desc="Logged artifacts", unit="artifacts", leave=False
+            ):
+                sm.send(run._make_artifact_record(artifact))
 
-            # wandb.termlog(">> Log Output")
+        wandb.termlog(">> Log Metadata")
+        sm.send(run._make_metadata_files_record())
+
+        wandb.termlog(">> Log History")
+        for history_record in tqdm(
+            run._make_history_records(),
+            desc="History",
+            unit="steps",
+            leave=False,
+        ):
+            sm.send(history_record)
+
+        wandb.termlog(">> Log Summary")
+        sm.send(run._make_summary_record())
+
+        wandb.termlog(">> Log Output")
+        if hasattr(run, "_logs"):
             lines = run._logs
             if lines is not None:
                 for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
                     sm.send(run._make_output_record(line))
 
-            # wandb.termlog(">> Log Telem")
-            sm.send(run._make_telem_record())
+        wandb.termlog(">> Log Telem")
+        sm.send(run._make_telem_record())

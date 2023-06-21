@@ -358,13 +358,14 @@ class SendManager:
         return self._record_q.qsize()
 
     def __enter__(self):
-        yield self
+        return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         while self:
             data = next(self)
             self.send(data)
         self.finish()
+        return False
 
     def retry_callback(self, status: int, response_text: str) -> None:
         response = wandb_internal_pb2.HttpResponse()

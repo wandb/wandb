@@ -3,8 +3,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
+from wandb.proto import wandb_internal_pb2 as pb
 import polars as pl
 import yaml
 from tqdm.auto import tqdm
@@ -17,6 +19,7 @@ from .base import (
     ImporterRun,
     _thread_local_settings,
     set_thread_local_settings,
+    send_run_with_send_manager,
 )
 
 with patch("click.echo"):
@@ -34,7 +37,6 @@ class WandbRun(ImporterRun):
         )
 
         # download everything up front before switching api keys
-        # with patch("click.echo"):
         self._files = self.files()
         self._artifacts = self.artifacts()
         self._used_artifacts = self.used_artifacts()
@@ -60,8 +62,8 @@ class WandbRun(ImporterRun):
     def summary(self):
         s = self.run.summary
 
-        # Hack: We need to overwrite the artifact path for logged tables because
-        # they are different between systems!
+        # Hack: We need to overwrite the artifact path for tables
+        # because they are different between systems!
         s = self._modify_table_artifact_paths(s)
         return s
 
@@ -239,7 +241,7 @@ class WandbRun(ImporterRun):
                 return path
 
 
-class WandbImporter(Importer):
+class WandbImporter:
     DefaultRunClass = WandbRun
 
     def __init__(
@@ -266,7 +268,12 @@ class WandbImporter(Importer):
         self.dest_api_key = dest_api_key
 
     def collect_runs(
-        self, entity, project=None, limit=None, skip_ids=None, start_date=None
+        self,
+        entity: str,
+        project: Optional[str] = None,
+        limit: Optional[int] = None,
+        skip_ids: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
     ):
         filters = {}
         if skip_ids is not None:
@@ -287,11 +294,18 @@ class WandbImporter(Importer):
                 break
             yield run
 
-    def import_run(self, entity, project, id, overrides=None):
+    def import_run(
+        self,
+        entity: str,
+        project: str,
+        id: str,
+        overrides: Optional[Dict[str, Any]] = None,
+    ):
+        wandb.termlog("START")
         if overrides is None:
             overrides = {}
 
-        # wandb.termlog("GETTING SOURCE RUN")
+        wandb.termlog("GETTING SOURCE RUN")
         api = self.source_api
         run = api.run(f"{entity}/{project}/{id}")
 
@@ -299,8 +313,8 @@ class WandbImporter(Importer):
         set_thread_local_settings(self.dest_api_key, self.dest_base_url)
         run = self.DefaultRunClass(run)
 
-        # wandb.termlog("UPLOADING TO DEST")
-        super().import_run(
+        wandb.termlog("UPLOADING TO DEST")
+        send_run_with_send_manager(
             run,
             overrides=overrides,
             settings_override={
@@ -308,8 +322,14 @@ class WandbImporter(Importer):
                 "base_url": self.dest_base_url,
             },
         )
+        wandb.termlog("DONE")
 
-    def import_runs(self, runs, overrides=None, pool_kwargs=None):
+    def import_runs(
+        self,
+        runs: List[WandbRun],
+        overrides: Optional[Dict[str, Any]] = None,
+        pool_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         overrides = coalesce(overrides, {})
         pool_kwargs = coalesce(pool_kwargs, {})
         runs = list(runs)
@@ -336,11 +356,20 @@ class WandbImporter(Importer):
                     finally:
                         pbar.update(1)
 
-    def import_all_runs(self, entity, project=None, limit=None, overrides=None):
+    def import_all_runs(
+        self,
+        entity: str,
+        project: Optional[str] = None,
+        limit: Optional[int] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        pool_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         runs = self.collect_runs(entity, project, limit)
-        self.import_runs(runs, overrides)
+        self.import_runs(runs, overrides, pool_kwargs)
 
-    def collect_reports(self, entity, project=None, limit=None):
+    def collect_reports(
+        self, entity: str, project: Optional[str] = None, limit: Optional[int] = None
+    ):
         api = self.source_api
         projects = self._projects(entity, project)
 
@@ -354,7 +383,11 @@ class WandbImporter(Importer):
                 break
             yield report
 
-    def import_report(self, report_url, overrides=None):
+    def import_report(
+        self,
+        report_url: str,
+        overrides: Optional[Dict[str, Any]] = None,
+    ):
         overrides = coalesce(overrides, {})
 
         report = wr.Report.from_url(report_url)
@@ -382,7 +415,12 @@ class WandbImporter(Importer):
             },
         )
 
-    def import_reports(self, reports, overrides=None, pool_kwargs=None):
+    def import_reports(
+        self,
+        reports: List[wr.Report],
+        overrides: Optional[Dict[str, Any]] = None,
+        pool_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         overrides = coalesce(overrides, {})
         pool_kwargs = coalesce(pool_kwargs, {})
         reports = list(reports)
@@ -406,11 +444,22 @@ class WandbImporter(Importer):
                     finally:
                         pbar.update(1)
 
-    def import_all_reports(self, entity, project=None, limit=None, overrides=None):
+    def import_all_reports(
+        self,
+        entity: str,
+        project: Optional[str] = None,
+        limit: Optional[int] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+    ):
         reports = self.collect_reports(entity, project, limit)
         self.import_reports(reports, overrides)
 
-    def rsync(self, entity, project=None, overrides=None):
+    def rsync(
+        self,
+        entity: str,
+        project: Optional[str] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+    ):
         overrides = coalesce(overrides, {})
 
         # Actually there is a bug here.  If the project is deleted, the ids still appear to be here even though they are not!
@@ -418,14 +467,19 @@ class WandbImporter(Importer):
         # ids_in_dst = list(self._get_ids_in_dst(dest_ent))
         # wandb.termwarn(f"Found IDs already in destination.  Skipping {ids_in_dst}")
         # runs = self.download_all_runs_alt(entity, skip_ids=ids_in_dst)
-        runs = self.collect_runs(entity, skip_ids=[])
+        runs = self.collect_runs(entity, project, skip_ids=[])
         self.import_runs(runs, overrides)
 
         # do the same for reports?
         reports = self.collect_reports(entity)
         self.import_reports(reports, overrides)
 
-    def rsync_time(self, entity, project=None, overrides=None):
+    def rsync_time(
+        self,
+        entity: str,
+        project: Optional[str] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+    ):
         # instead of using ids, just use the last run timestamp
         from datetime import datetime as dt
 
@@ -442,23 +496,26 @@ class WandbImporter(Importer):
         else:
             wandb.termlog(f"Downloading runs created after {last_run_time}")
 
-        runs = self.collect_runs(entity, start_date=last_run_time)
+        runs = self.collect_runs(entity, project, start_date=last_run_time)
         self.import_runs(runs, overrides)
 
         with open(last_run_file, "w") as f:
             f.write(now)
 
-    def _get_ids_in_dst(self, entity):
+    def _get_ids_in_dst(self, entity: str):
         api = self.dest_api
         for project in api.projects(entity):
             for run in api.runs(f"{project.entity}/{project.name}"):
                 yield run.id
 
-    def _make_metadata_file(self, run_dir: str) -> None:
-        # skip because we have our own metadata already
-        pass
+    # def _make_metadata_file(self, run_dir: str) -> None:
+    #     # skip because we have our own metadata already
+    #     pass
 
-    def _projects(self, entity, project):
+    def _make_metadata_files_record(self) -> pb.Record:
+        self._make_files_record({"files": self._files})
+
+    def _projects(self, entity: str, project: str):
         api = self.source_api
         if project is None:
             projects = api.projects(entity)
@@ -497,7 +554,7 @@ class WandbParquetImporter(WandbImporter):
     DefaultRunClass = WandbParquetRun
 
 
-def remove_none_values(d):
+def remove_none_values(d: Dict[str, Any]):
     # otherwise iterrows will create a bunch of ugly charts
     if isinstance(d, dict):
         new_dict = {}

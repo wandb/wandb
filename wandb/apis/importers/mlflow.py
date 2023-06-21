@@ -4,9 +4,11 @@ from typing import Any, Dict, Iterable, Optional
 from packaging.version import Version
 
 import wandb
-from wandb.util import get_module
+from wandb.util import get_module, coalesce
+from tqdm.auto import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .base import Importer, ImporterRun
+from .base import Importer, ImporterRun, send_run_with_send_manager
 
 mlflow = get_module(
     "mlflow",
@@ -102,11 +104,8 @@ class MlflowRun(ImporterRun):
         return [art]
 
 
-class MlflowImporter(Importer):
-    def __init__(
-        self, mlflow_tracking_uri, mlflow_registry_uri=None, wandb_base_url=None
-    ) -> None:
-        super().__init__()
+class MlflowImporter:
+    def __init__(self, mlflow_tracking_uri, mlflow_registry_uri=None) -> None:
         self.mlflow_tracking_uri = mlflow_tracking_uri
 
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
@@ -114,23 +113,68 @@ class MlflowImporter(Importer):
             mlflow.set_registry_uri(mlflow_registry_uri)
         self.mlflow_client = mlflow.tracking.MlflowClient(mlflow_tracking_uri)
 
+    def collect_runs(self, limit: Optional[int] = None) -> Iterable[MlflowRun]:
+        if mlflow_version < Version("1.28.0"):
+            experiments = self.mlflow_client.list_experiments()
+        else:
+            experiments = self.mlflow_client.search_experiments()
+
+        runs = (
+            run
+            for exp in experiments
+            for run in self.mlflow_client.search_runs(exp.experiment_id)
+        )
+        for i, run in enumerate(runs):
+            if limit and i >= limit:
+                break
+            yield MlflowRun(run, self.mlflow_client)
+
     def import_run(
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-        super().import_run(run, overrides)
+        send_run_with_send_manager(run, overrides)
 
-    def collect_runs(self) -> Iterable[MlflowRun]:
-        if mlflow_version < Version("1.28.0"):
-            experiments = self.mlflow_client.list_experiments()
-        else:
-            experiments = self.mlflow_client.search_experiments()
+    def import_runs(
+        self,
+        runs: Iterable[ImporterRun],
+        overrides: Optional[Dict[str, Any]] = None,
+        pool_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        runs = list(self.collect_runs())
+        overrides = coalesce(overrides, {})
+        pool_kwargs = coalesce(pool_kwargs, {})
 
-        for exp in experiments:
-            for run in self.mlflow_client.search_runs(exp.experiment_id):
-                yield MlflowRun(run, self.mlflow_client)
+        with ThreadPoolExecutor(**pool_kwargs) as exc:
+            futures = {
+                exc.submit(self.import_run, run, overrides=overrides): run
+                for run in runs
+            }
+            with tqdm(desc="Importing runs", total=len(futures), unit="run") as pbar:
+                for future in as_completed(futures):
+                    run = futures[future]
+                    try:
+                        future.result()
+                    except Exception as e:
+                        wandb.termerror(f"Failed to import {run.display_name()}: {e}")
+                        raise e
+                    else:
+                        pbar.set_description(
+                            f"Imported Run: {run.run_group()} {run.display_name()}"
+                        )
+                    finally:
+                        pbar.update(1)
+
+    def import_all_runs(
+        self,
+        limit: Optional[int] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        pool_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        runs = self.collect_runs(limit)
+        self.import_runs(runs, overrides, pool_kwargs)
 
     def import_report(self):
         raise NotImplementedError("MLFlow does not have a reports concept")
