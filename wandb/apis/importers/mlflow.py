@@ -1,14 +1,14 @@
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, Iterable, Optional
 
 from packaging.version import Version
+from tqdm.auto import tqdm
 
 import wandb
-from wandb.util import get_module, coalesce
-from tqdm.auto import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from wandb.util import coalesce, get_module
 
-from .base import Importer, ImporterRun, send_run_with_send_manager
+from .base import ImporterRun, send_run_with_send_manager
 
 mlflow = get_module(
     "mlflow",

@@ -1,8 +1,6 @@
-from contextlib import contextmanager
 import json
 import re
 import threading
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
@@ -155,18 +153,17 @@ class ImporterRun:
         run.run_id = self.run_id()
         run.entity = self.entity()
         run.project = self.project()
-        host = self.host()
-        if host:
-            run.host = host
         run.display_name = coalesce(self.display_name())
         run.notes = coalesce(self.notes(), "")
         run.tags.extend(coalesce(self.tags(), []))
+        run.start_time.FromMilliseconds(self.start_time())
 
-        start_time = self.start_time()
-        run.start_time.FromMilliseconds(start_time)
+        host = self.host()
+        if host is not None:
+            run.host = host
 
         runtime = self.runtime()
-        if runtime:
+        if runtime is not None:
             run.runtime = self.runtime()
 
         run_group = self.run_group()

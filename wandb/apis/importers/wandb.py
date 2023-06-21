@@ -6,20 +6,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
-from wandb.proto import wandb_internal_pb2 as pb
 import polars as pl
 import yaml
 from tqdm.auto import tqdm
 
 import wandb
-from wandb.util import coalesce
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.util import coalesce, remove_keys_with_none_values
 
 from .base import (
-    Importer,
     ImporterRun,
     _thread_local_settings,
-    set_thread_local_settings,
     send_run_with_send_manager,
+    set_thread_local_settings,
 )
 
 with patch("click.echo"):
@@ -251,8 +250,6 @@ class WandbImporter:
         dest_base_url: str,
         dest_api_key: str,
     ):
-        super().__init__()
-
         # There is probably a less redundant way of doing this
         self.source_api = wandb.Api(
             api_key=source_api_key,
@@ -508,21 +505,14 @@ class WandbImporter:
             for run in api.runs(f"{project.entity}/{project.name}"):
                 yield run.id
 
-    # def _make_metadata_file(self, run_dir: str) -> None:
-    #     # skip because we have our own metadata already
-    #     pass
-
     def _make_metadata_files_record(self) -> pb.Record:
         self._make_files_record({"files": self._files})
 
     def _projects(self, entity: str, project: str):
         api = self.source_api
         if project is None:
-            projects = api.projects(entity)
-        else:
-            projects = [api.project(project, entity)]
-
-        return projects
+            return api.projects(entity)
+        return [api.project(project, entity)]
 
 
 class WandbParquetRun(WandbRun):
@@ -546,21 +536,9 @@ class WandbParquetRun(WandbRun):
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)
                 for row in df.iter_rows(named=True):
-                    row = remove_none_values(row)
+                    row = remove_keys_with_none_values(row)
                     yield row
 
 
 class WandbParquetImporter(WandbImporter):
     DefaultRunClass = WandbParquetRun
-
-
-def remove_none_values(d: Dict[str, Any]):
-    # otherwise iterrows will create a bunch of ugly charts
-    if isinstance(d, dict):
-        new_dict = {}
-        for k, v in d.items():
-            new_v = remove_none_values(v)
-            if new_v is not None and not (isinstance(new_v, dict) and len(new_v) == 0):
-                new_dict[k] = new_v
-        return new_dict if new_dict else None
-    return d

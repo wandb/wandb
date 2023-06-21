@@ -1725,3 +1725,15 @@ def cast_dictlike_to_dict(d):
             d[k] = dict(v)
             cast_dictlike_to_dict(d[k])
     return d
+
+
+def remove_keys_with_none_values(d: Dict[str, Any]) -> Dict[str, Any]:
+    # otherwise iterrows will create a bunch of ugly charts
+    if isinstance(d, dict):
+        new_dict = {}
+        for k, v in d.items():
+            new_v = remove_keys_with_none_values(v)
+            if new_v is not None and not (isinstance(new_v, dict) and len(new_v) == 0):
+                new_dict[k] = new_v
+        return new_dict if new_dict else None
+    return d
