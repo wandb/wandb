@@ -1507,6 +1507,8 @@ workflows:
                 - "tf24"
                 - "tf25"
                 - "tf26"
+                - "ray112"
+                - "ray2"
                 - "sklearn"
                 - "metaflow"
                 - "service"
