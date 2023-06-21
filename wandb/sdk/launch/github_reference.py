@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 from wandb.sdk.launch.errors import LaunchError
 
 if TYPE_CHECKING:
+    # We defer importing git until the last moment, because the import requires that the git
+    # executable is available on the PATH, so we only want to fail if we actually need it.
     import git  # type: ignore
 
 
@@ -73,7 +75,7 @@ class GitHubReference:
 
     repo_object: Optional["git.Repo"] = None
 
-    def __del__(self):
+    def __del__(self) -> None:
         # on delete, clean up the local directory
         if self.local_dir:
             self.local_dir.cleanup()
@@ -167,8 +169,6 @@ class GitHubReference:
 
     def fetch(self, dst_dir: str) -> None:
         """Fetch the repo into dst_dir and refine githubref based on what we learn."""
-        # We defer importing git until the last moment, because the import requires that the git
-        # executable is available on the PATH, so we only want to fail if we actually need it.
         import git
 
         repo = git.Repo.init(dst_dir)
@@ -277,14 +277,16 @@ class GitHubReference:
         assert self.repo_object, "Repo object not properly initialized"
         return self.repo_object.head.commit.hexsha  # type: ignore
 
-    def get_file(self, path: str) -> Optional[str]:
+    def get_file(self, local_path: str) -> Optional[str]:
         """Pull a file from the repo.
 
-        :return: Local path to the file if it exists, None otherwise
+        :local_path: relative path to the file in the repo
+
+        :return: tmpdir local path to the file if it exists, None otherwise
         """
         self._clone_repo()
         assert (
             self.local_dir is not None
         )  # Always true, but stops mypy from complaining
-        file = os.path.join(self.local_dir.name, path)
+        file = os.path.join(self.local_dir.name, local_path)
         return file if os.path.isfile(file) else None
