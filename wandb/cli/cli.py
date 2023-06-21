@@ -26,7 +26,6 @@ from dockerpycreds.utils import find_executable
 
 import wandb
 import wandb.env
-from wandb.sdk.launch.github_reference import GitHubReference
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
@@ -36,6 +35,7 @@ from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
+from wandb.sdk.launch.github_reference import GitHubReference
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
