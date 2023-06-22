@@ -486,7 +486,7 @@ class Scheduler(ABC):
         return False
 
     def _update_scheduler_run_state(self) -> None:
-        """Update the scheduler state from state of scheduler run and sweep state"""
+        """Update the scheduler state from state of scheduler run and sweep state."""
         state: RunState = self._get_run_state(self._wandb_run.name)
 
         if state == RunState.KILLED:
@@ -501,7 +501,7 @@ class Scheduler(ABC):
                 self._sweep_id, self._entity, self._project
             )
         except Exception as e:
-            _logger.debug(f"sweep state error: {sweep_state}")
+            _logger.debug(f"sweep state error: {sweep_state} e: {e}")
             return
 
         if sweep_state in ["FINISHED", "CANCELLED"]:
