@@ -4,11 +4,10 @@ import re
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 from wandb.sdk.launch.errors import LaunchError
-
 
 PREFIX_HTTPS = "https://"
 PREFIX_SSH = "git@"
