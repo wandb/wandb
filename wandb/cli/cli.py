@@ -1006,7 +1006,6 @@ def launch_sweep(
         raw_scheduler_args = found.get("scheduler") or "{}"
         prev_sweep_scheduler = json.loads(raw_scheduler_args)
         prev_sweep_run_spec = json.loads(prev_sweep_scheduler.get("run_spec", "{}"))
-        wandb.termlog(f"{prev_sweep_run_spec=} \n {prev_sweep_run_spec.get('job')=}")
         if prev_sweep_run_spec.get("job"):
             if scheduler_args and not scheduler_job:
                 wandb.termwarn(
