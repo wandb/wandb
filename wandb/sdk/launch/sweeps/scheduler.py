@@ -130,10 +130,10 @@ class Scheduler(ABC):
             if resp.get("state") == SchedulerState.CANCELLED.name:
                 self._state = SchedulerState.CANCELLED
             self._sweep_config = yaml.safe_load(resp["config"])
-            self._num_runs_launched: int = len(resp["runs"])
+            self._num_runs_launched: int = self._get_num_runs_launched(resp["runs"])
             if self._num_runs_launched > 0:
                 wandb.termlog(
-                    f"{LOG_PREFIX}Found {self._num_runs_launched} previous runs for sweep {self._sweep_id}"
+                    f"{LOG_PREFIX}Found {self._num_runs_launched} previous valid runs for sweep {self._sweep_id}"
                 )
         except Exception as e:
             raise SchedulerError(
@@ -359,6 +359,22 @@ class Scheduler(ABC):
         self._stop_runs()
         self._set_sweep_state("FINISHED")
         self._wandb_run.finish()
+
+    def _get_num_runs_launched(self, runs: List[Dict[str, Any]]) -> int:
+        """Returns the number of valid runs in the sweep."""
+        count = 0
+        for run in runs:
+            # if bad run, shouldn't be counted against run cap
+            if run.get("state", "") in ["killed", "crashed"] and not run.get(
+                "summaryMetrics"
+            ):
+                _logger.debug(
+                    f"excluding run: {run['name']} with state: {run['state']} from run cap \n{run}"
+                )
+                continue
+            count += 1
+
+        return count
 
     def _try_load_executable(self) -> bool:
         """Check existance of valid executable for a run.
