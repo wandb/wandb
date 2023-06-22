@@ -993,6 +993,15 @@ def launch_sweep(
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{resume_id}")
             return
+        
+        if found.get("state") == "RUNNING":
+            wandb.termerror(
+                f"Cannot resume sweep {entity}/{project}/{resume_id}, it is already running"
+            )
+            return
+        
+        api.set_sweep_state(resume_id, "RUNNING")
+
         sweep_obj_id = found["id"]
         sweep_config = yaml.safe_load(found["config"])
         wandb.termlog(f"Resuming from existing sweep {entity}/{project}/{resume_id}")
@@ -1115,7 +1124,7 @@ def launch_sweep(
         entity=entity,
         obj_id=sweep_obj_id,  # if resuming
         launch_scheduler=launch_scheduler_with_queue,
-        state="PENDING",
+        state="PENDING" if not resume_id else "RUNNING",
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information
