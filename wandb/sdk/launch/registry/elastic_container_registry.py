@@ -73,7 +73,7 @@ class ElasticContainerRegistry(AbstractRegistry):
                 f"Could not create ElasticContainerRegistry from config. Expected type 'ecr' "
                 f"but got '{config.get('type')}'."
             )
-        if ("uri" in config) != ("repository" in config):
+        if ("uri" in config) == ("repository" in config):
             raise LaunchError(
                 "Could not create ElasticContainerRegistry from config. Either 'uri' or "
                 f"'repository' is required. The config received was:\n{yaml.dump(config)}."
