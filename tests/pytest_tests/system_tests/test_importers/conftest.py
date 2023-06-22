@@ -14,7 +14,7 @@ import uuid
 import warnings
 from dataclasses import dataclass
 from itertools import islice
-from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Union
+from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 
 import hypothesis.strategies as st
 import mlflow
@@ -293,7 +293,7 @@ def sqlite_backend():
         # "mysql_backend",
         # "postgres_backend",
         "file_backend",
-        # "sqlite_backend",
+        "sqlite_backend",
     ]
 )
 def mlflow_backend(request):
