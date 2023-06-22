@@ -303,7 +303,7 @@ class LaunchAgent:
             except CommError:
                 pass
             if run_info is None:
-                _msg = "submitted run was not successfully started"
+                _msg = "The submitted run was not successfully started"
                 fnames = None
 
                 logs = job_and_run_status.run.get_logs()

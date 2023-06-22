@@ -629,11 +629,14 @@ def warn_failed_packages_from_build_logs(
         _msg = f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
         wandb.termwarn(_msg)
         if job_tracker is not None:
-            job_tracker.saver.save_contents(_msg, "build.log", "warning")
+            res = job_tracker.saver.save_contents(
+                _msg, "failed-packages.log", "warning"
+            )
             api.update_run_queue_item_warning(
                 job_tracker.run_queue_item_id,
-                "failed to install some packages during build",
+                "Some packages were not successfully installed during the build",
                 "build",
+                res,
             )
 
 

@@ -697,7 +697,7 @@ class Api:
                 "runQueueItemId": run_queue_item_id,
                 "message": message,
                 "stage": stage,
-                "file_paths": file_paths,
+                "filePaths": file_paths,
             },
         )
         result: bool = response["updateRunQueueItemWarning"]["success"]
