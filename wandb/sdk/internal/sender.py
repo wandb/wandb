@@ -200,7 +200,8 @@ class SendManager:
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
     _context_keeper: context.ContextKeeper
-    _job_link: Optional[str]
+    _job_seq_id: Optional[str]
+    _job_version_alias: Optional[str]
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: Optional["file_stream.FileStreamApi"]
@@ -296,7 +297,8 @@ class SendManager:
 
         # job builder
         self._job_builder = JobBuilder(settings)
-        self._job_link = None
+        self._job_seq_id = None
+        self._job_version_alias = None
 
         time_now = time.monotonic()
         self._debounce_config_time = time_now
@@ -711,7 +713,8 @@ class SendManager:
     def send_request_job_info(self, record: "Record") -> None:
         """Respond to a request for a job link."""
         result = proto_util._result_from_record(record)
-        result.response.job_info_response.link = self._job_link or ""
+        result.response.job_info_response.sequenceId = self._job_seq_id or ""
+        result.response.job_info_response.version = self._job_version_alias or ""
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -1491,8 +1494,8 @@ class SendManager:
         )
         if artifact.type == "job":
             assert res
-            print(self.get_server_info())
-            self._job_link = f"{self._settings.base_url}/{artifact.entity}/{artifact.project}/jobs/{res['artifactSequence']['id']}/version_details/{res['version']}"
+            self._job_version_alias = res["version"]
+            self._job_seq_id = res["artifactSequence"]["id"]
         self._job_builder._set_logged_code_artifact(res, artifact)
         return res
 

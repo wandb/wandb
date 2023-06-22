@@ -3216,7 +3216,7 @@ class Run:
         poll_exit_response: Optional[PollExitResponse] = None,
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version: Optional["CheckVersionResponse"] = None,
-        job_link: Optional["JobInfoResponse"] = None,
+        job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3233,7 +3233,7 @@ class Run:
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
-            job_link=job_link,
+            job_info=job_info,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3408,7 +3408,7 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
-        job_link: Optional["JobInfoResponse"] = None,
+        job_info: Optional["JobInfoResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3431,6 +3431,11 @@ class Run:
                 info = [
                     f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
                 ]
+            if job_info and job_info.version and job_info.sequenceId:
+                link = f"{settings.project_url}/jobs/{job_info.sequenceId}/version_details/{job_info.version}"
+                info.append(
+                    f"{printer.emoji('rocket')} View job at {printer.link(link)}",
+                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts
@@ -3438,10 +3443,7 @@ class Run:
                     f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
                     f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
                 )
-            if job_link and job_link.link:
-                info.append(
-                    f"View job at {printer.link(job_link.link)}",
-                )
+
             printer.display(info)
 
     @staticmethod
