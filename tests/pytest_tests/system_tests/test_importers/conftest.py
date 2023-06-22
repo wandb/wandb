@@ -397,12 +397,18 @@ def random_string(length: int = 12) -> str:
     )
 
 
-LOCAL_BASE_PORT = "8080"
-LOCAL_BASE_PORT_ALT = "9180"
-SERVICES_API_PORT = "8083"
-SERVICES_API_PORT_ALT = "9183"
-FIXTURE_SERVICE_PORT = "9015"
-FIXTURE_SERVICE_PORT_ALT = "9115"
+@dataclass
+class WandbServerSettings:
+    name: str
+    volume: str
+    local_base_port: str
+    services_api_port: str
+    fixture_service_port: str
+    wandb_server_pull: str
+    wandb_server_tag: str
+    internal_local_base_port: str = "8080"
+    internal_local_services_api_port: str = "8083"
+    internal_fixture_service_port: str = "9015"
 
 
 @dataclass
@@ -412,7 +418,7 @@ class UserFixtureCommand:
     password: Optional[str] = None
     admin: bool = False
     endpoint: str = "db/user"
-    port: str = FIXTURE_SERVICE_PORT_ALT
+    port: str = "9115"
     method: Literal["post"] = "post"
 
 
@@ -421,17 +427,59 @@ class AddAdminAndEnsureNoDefaultUser:
     email: str
     password: str
     endpoint: str = "api/users-admin"
-    port: str = SERVICES_API_PORT_ALT
+    port: str = "9183"
     method: Literal["put"] = "put"
 
 
+@dataclass
+class WandbLoggingConfig:
+    n_steps: int
+    n_metrics: int
+    n_experiments: int
+
+
 @pytest.fixture(scope="session")
-def fixture_fn_alt(base_url_alt, wandb_server_tag, wandb_server_pull):
+def wandb_logging_config():
+    config = {"n_steps": 250, "n_metrics": 2, "n_experiments": 3}
+    return WandbLoggingConfig(**config)
+
+
+@pytest.fixture(scope="session")
+def settings():
+    src_server_settings = {
+        "name": "wandb-src-server",
+        "volume": "wandb-src-server-vol",
+        "local_base_port": "9180",
+        "services_api_port": "9183",
+        "fixture_service_port": "9115",
+        "wandb_server_pull": "missing",
+        "wandb_server_tag": "master",
+    }
+    return WandbServerSettings(**src_server_settings)
+
+
+@pytest.fixture(scope="session")
+def settings2():
+    dst_server_settings = {
+        "name": "wandb-dst-server",
+        "volume": "wandb-dst-server-vol",
+        "local_base_port": "8080",
+        "services_api_port": "8083",
+        "fixture_service_port": "9015",
+        "wandb_server_pull": "missing",
+        "wandb_server_tag": "master",
+    }
+    return WandbServerSettings(**dst_server_settings)
+
+
+@pytest.fixture(scope="session")
+def fixture_fn_alt(settings):
     def fixture_util(
         cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
     ) -> bool:
+        base_url = f"http://localhost:{settings.local_base_port}"
         endpoint = urllib.parse.urljoin(
-            base_url_alt.replace(LOCAL_BASE_PORT_ALT, cmd.port),
+            base_url.replace(settings.local_base_port, cmd.port),
             cmd.endpoint,
         )
 
@@ -469,14 +517,8 @@ def fixture_fn_alt(base_url_alt, wandb_server_tag, wandb_server_pull):
 
 
 @pytest.fixture(scope="session")
-def base_url_alt(request):
-    # return request.config.getoption("--base-url")
-    return "http://localhost:9180"
-
-
-@pytest.fixture(scope="session")
 def alt_user(
-    wandb_server, worker_id: str, fixture_fn_alt, base_url_alt, wandb_debug
+    wandb_server, worker_id: str, fixture_fn_alt, settings, wandb_debug
 ) -> str:
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
@@ -494,7 +536,7 @@ def alt_user(
             "WANDB_API_KEY": username,
             "WANDB_ENTITY": username,
             "WANDB_USERNAME": username,
-            "WANDB_BASE_URL": base_url_alt,
+            "WANDB_BASE_URL": f"http://localhost:{settings.local_base_port}",
         },
     ):
         yield username
@@ -526,15 +568,13 @@ def check_server_health(
 
 
 @pytest.fixture(scope="session")
-def wandb_server():
-    wandb_server_pull = "missing"
-    wandb_server_tag = "master"
-    base_url = "http://localhost:9180"
+def wandb_server(settings):
+    base_url = f"http://localhost:{settings.local_base_port}"
     endpoint = "healthz"
-    volume = "wandb1"
-    name = "wandb-server-1"
     app_health_endpoint = "healthz"
-    fixture_url = base_url.replace(LOCAL_BASE_PORT_ALT, FIXTURE_SERVICE_PORT_ALT)
+    fixture_url = base_url.replace(
+        settings.local_base_port, settings.fixture_service_port
+    )
     fixture_health_endpoint = "health"
 
     if not check_server_health(base_url, endpoint):
@@ -542,23 +582,23 @@ def wandb_server():
             "docker",
             "run",
             "--pull",
-            wandb_server_pull,
+            settings.wandb_server_pull,
             "--rm",
             "-v",
-            f"{volume}:/vol",
+            f"{settings.volume}:/vol",
             "-p",
-            f"{LOCAL_BASE_PORT_ALT}:{LOCAL_BASE_PORT}",
+            f"{settings.local_base_port}:{settings.internal_local_base_port}",
             "-p",
-            f"{SERVICES_API_PORT_ALT}:{SERVICES_API_PORT}",
+            f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
             "-p",
-            f"{FIXTURE_SERVICE_PORT_ALT}:{FIXTURE_SERVICE_PORT}",
+            f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
             "-e",
             "WANDB_ENABLE_TEST_CONTAINER=true",
             "--name",
-            name,
+            settings.name,
             "--platform",
             "linux/amd64",
-            f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{wandb_server_tag}",
+            f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{settings.wandb_server_tag}",
         ]
         subprocess.Popen(command)
         # wait for the server to start
@@ -577,24 +617,16 @@ def wandb_server():
     )
 
 
-@pytest.fixture(scope="session")
-def wandb_logging_config():
-    config = {"n_steps": 250, "n_metrics": 2, "n_experiments": 3}
-    yield config
-
-
 @pytest.fixture
 def prelogged_wandb_server(alt_user, wandb_logging_config):
-    n_steps = wandb_logging_config["n_steps"]
-    n_metrics = wandb_logging_config["n_metrics"]
-    n_experiments = wandb_logging_config["n_experiments"]
-
-    for _ in range(n_experiments):
+    for _ in range(wandb_logging_config.n_experiments):
         with wandb.init(
             project="test", settings={"console": "off", "save_code": False}
         ) as run:
-            data = generate_random_data(n_steps, n_metrics)
-            for i in range(n_steps):
+            data = generate_random_data(
+                wandb_logging_config.n_steps, wandb_logging_config.n_metrics
+            )
+            for i in range(wandb_logging_config.n_steps):
                 metrics = {k: v[i] for k, v in data.items()}
                 run.log(metrics)
 
