@@ -5,6 +5,7 @@ import pprint
 import threading
 import time
 import traceback
+from kubernetes.client.exceptions import ApiException
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
@@ -13,7 +14,6 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
-from wandb.sdk.launch.runner.kubernetes_runner import KubernetesSubmittedRun
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
@@ -562,7 +562,7 @@ class LaunchAgent:
         with self._jobs_lock:
             job_tracker.run = run
         while self._jobs_event.is_set():
-            if self._check_run_finished(job_tracker, api, launch_spec):
+            if self._check_run_finished(job_tracker, launch_spec):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
@@ -588,18 +588,17 @@ class LaunchAgent:
         known_error = False
         try:
             run = job_tracker.run
-            status = run.get_status().state
-            if (
-                isinstance(run, KubernetesSubmittedRun) and status == "stopped"
-            ):  # TODO determine preemption conditional
-                # TODO how to get retry count?
+            try:
+                status = run.get_status().state
+            except ApiException:
+                # Pod not reachable
                 wandb.termlog(f"{LOG_PREFIX}Requeueing job: {launch_spec}")
                 launch_add(
-                    uri=api.api_url,
                     config=launch_spec,
                     project_queue=self._project,
                     queue_name=job_tracker.queue,
                 )
+                status = "failed"
             if status in ["stopped", "failed", "finished"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
