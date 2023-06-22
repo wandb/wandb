@@ -272,5 +272,5 @@ def test_build_image_success(
             in capsys.readouterr().err
         )
         assert (
-            image_uri == "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:b60e433c"
+            image_uri == "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:f334a427"
         )
