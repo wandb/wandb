@@ -1,8 +1,6 @@
 """Support for parsing GitHub URLs (which might be user provided) into constituent parts."""
 
-import os
 import re
-import tempfile
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
@@ -10,11 +8,6 @@ from typing import TYPE_CHECKING, Optional, Tuple
 from urllib.parse import urlparse
 
 from wandb.sdk.launch.errors import LaunchError
-
-if TYPE_CHECKING:
-    # We defer importing git until the last moment, because the import requires that the git
-    # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git  # type: ignore
 
 
 PREFIX_HTTPS = "https://"
@@ -160,7 +153,9 @@ class GitHubReference:
 
     def fetch(self, dst_dir: str) -> None:
         """Fetch the repo into dst_dir and refine githubref based on what we learn."""
-        import git
+        # We defer importing git until the last moment, because the import requires that the git
+        # executable is available on the PATH, so we only want to fail if we actually need it.
+        import git  # type: ignore
 
         repo = git.Repo.init(dst_dir)
         origin = repo.create_remote("origin", self.url_repo)

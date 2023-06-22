@@ -1,9 +1,6 @@
 import os
 import tempfile
-from unittest.mock import Mock
 
-import pytest
-from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.github_reference import GitHubReference
 
 
