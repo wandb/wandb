@@ -298,9 +298,9 @@ class Scheduler(ABC):
                 self._update_scheduler_run_state()
                 if not self.is_alive:
                     break
-            
+
                 wandb.termlog(f"{LOG_PREFIX}Polling for new runs to launch")
-                
+
                 self._update_run_states()
                 self._poll()
                 if self.state == SchedulerState.FLUSH_RUNS:
@@ -469,14 +469,16 @@ class Scheduler(ABC):
             self.state = SchedulerState.COMPLETED
 
         try:
-            sweep_state = self._api.get_sweep_state(self._sweep_id, self._entity, self._project)
+            sweep_state = self._api.get_sweep_state(
+                self._sweep_id, self._entity, self._project
+            )
         except Exception as e:
             _logger.debug(f"sweep state error: {sweep_state}")
             return
 
-        if sweep_state in ['FINISHED', 'CANCELLED']:
+        if sweep_state in ["FINISHED", "CANCELLED"]:
             self.state = SchedulerState.COMPLETED
-        elif sweep_state in ['PAUSED', "STOPPED"]:
+        elif sweep_state in ["PAUSED", "STOPPED"]:
             self.state = SchedulerState.FLUSH_RUNS
 
     def _update_run_states(self) -> None:
