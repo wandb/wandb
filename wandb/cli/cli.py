@@ -1006,18 +1006,30 @@ def launch_sweep(
         raw_scheduler_args = found.get("scheduler") or "{}"
         prev_sweep_scheduler = json.loads(raw_scheduler_args)
         prev_sweep_run_spec = json.loads(prev_sweep_scheduler.get("run_spec", "{}"))
+        wandb.termlog(f"{prev_sweep_run_spec=} \n {prev_sweep_run_spec.get('job')=}")
         if prev_sweep_run_spec.get("job"):
             if scheduler_args and not scheduler_job:
                 wandb.termwarn(
                     f"Resuming a launch sweep that was previously run from a scheduler job, but no scheduler job found in config. Defaulting to previous scheduler job: {prev_sweep_run_spec['job']}"
                 )
-                scheduler_job = prev_sweep_run_spec["job"]
 
             if scheduler_job and scheduler_job != prev_sweep_run_spec["job"]:
                 wandb.termerror(
                     f"Resuming a launch sweep with a different scheduler job is not supported. Loaded from sweep: {prev_sweep_run_spec['job']}, Provided in config: {scheduler_job}"
                 )
                 return False
+
+            scheduler_job = prev_sweep_run_spec["job"]
+            scheduler_args = (
+                prev_sweep_run_spec.get("overrides", {})
+                .get("run_config", {})
+                .get("scheduler", {})
+            )
+            settings = (
+                prev_sweep_run_spec.get("overrides", {})
+                .get("run_config", {})
+                .get("settings", {})
+            )
 
         # grab the queue from previously run scheduler if not specified
         if not queue and prev_sweep_run_spec.get("overrides", {}).get(
