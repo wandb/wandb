@@ -6,7 +6,12 @@ import pandas as pd
 
 @pytest.mark.timeout(30)
 def test_wandb_runs(
-    prelogged_wandb_server, wandb_logging_config, alt_user, user, base_url_alt, base_url
+    prelogged_wandb_server,
+    wandb_logging_config,
+    alt_user,
+    user,
+    base_url_alt,
+    base_url,
 ):
     n_steps = wandb_logging_config["n_steps"]
     n_metrics = wandb_logging_config["n_metrics"]

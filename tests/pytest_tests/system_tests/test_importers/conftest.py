@@ -556,60 +556,6 @@ def wandb_server():
         subprocess.Popen(command)
 
 
-@pytest.fixture(scope="function")
-def alt_wandb_init(
-    alt_user,
-    test_settings,
-):
-    # mirror wandb.sdk.wandb_init.init args, overriding name and entity defaults
-    def init(
-        job_type: Optional[str] = None,
-        dir: Optional[str] = None,
-        config: Union[Dict, str, None] = None,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
-        reinit: bool = None,
-        tags: Optional[Sequence] = None,
-        group: Optional[str] = None,
-        name: Optional[str] = None,
-        notes: Optional[str] = None,
-        magic: Union[dict, str, bool] = None,
-        config_exclude_keys: Optional[List[str]] = None,
-        config_include_keys: Optional[List[str]] = None,
-        anonymous: Optional[str] = None,
-        mode: Optional[str] = None,
-        allow_val_change: Optional[bool] = None,
-        resume: Optional[Union[bool, str]] = None,
-        force: Optional[bool] = None,
-        tensorboard: Optional[bool] = None,
-        sync_tensorboard: Optional[bool] = None,
-        monitor_gym: Optional[bool] = None,
-        save_code: Optional[bool] = None,
-        id: Optional[str] = None,
-        settings: Union[
-            "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
-        ] = None,
-    ):
-        kwargs = dict(locals())
-        # drop fixtures from kwargs
-        for key in ("user", "test_settings"):
-            kwargs.pop(key, None)
-        # merge settings from request with test_settings
-        request_settings = kwargs.pop("settings", dict())
-        # kwargs["name"] = kwargs.pop("name", request.node.name)
-
-        run = wandb.init(
-            settings=test_settings(request_settings),
-            **kwargs,
-        )
-        return run
-
-    wandb._IS_INTERNAL_PROCESS = False
-    yield init
-    # note: this "simulates" a wandb.init function, so you would have to do
-    # something like: run = wandb_init(...); ...; run.finish()
-
-
 @pytest.fixture(scope="session")
 def wandb_logging_config():
     config = {"n_steps": 250, "n_metrics": 2, "n_experiments": 3}
