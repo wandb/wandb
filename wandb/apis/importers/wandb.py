@@ -251,6 +251,8 @@ class WandbImporter:
         dest_api_key: str,
     ):
         # There is probably a less redundant way of doing this
+        set_thread_local_settings(source_api_key, source_base_url)
+
         self.source_api = wandb.Api(
             api_key=source_api_key,
             overrides={"base_url": source_base_url},
@@ -528,10 +530,12 @@ class WandbParquetRun(WandbRun):
                 path = art.download()
                 self.history_paths.append(path)
 
-        if len(self.history_paths) == 0:
-            wandb.termwarn("No parquet files detected!")
-
     def metrics(self):
+        if not self.history_paths:
+            wandb.termwarn("No parquet files detected -- using scan_history")
+            yield from super().metrics()
+            return
+
         for path in self.history_paths:
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)

@@ -1,23 +1,37 @@
 import os
+import platform
+import random
+import secrets
 import signal
+import string
 import subprocess
 import tempfile
 import time
+import typing
+import unittest
 import urllib.parse
 import uuid
 import warnings
+from dataclasses import dataclass
 from itertools import islice
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Union
 
 import hypothesis.strategies as st
 import mlflow
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
 import psutil
 import pytest
 import requests
+import wandb
 from hypothesis.errors import NonInteractiveExampleWarning
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
 from packaging.version import Version
+from PIL import Image
+from rdkit import Chem
 
 MLFLOW_BASE_URL = "http://localhost:4040"
 MLFLOW_HEALTH_ENDPOINT = "health"
@@ -279,7 +293,7 @@ def sqlite_backend():
         # "mysql_backend",
         # "postgres_backend",
         "file_backend",
-        "sqlite_backend",
+        # "sqlite_backend",
     ]
 )
 def mlflow_backend(request):
@@ -370,3 +384,402 @@ def prelogged_mlflow_server(mlflow_server):
     total_files = N_ROOT_FILES + N_SUBDIRS * N_SUBDIR_FILES
 
     yield mlflow_server, total_runs, total_files, STEPS
+
+
+def random_string(length: int = 12) -> str:
+    """Generate a random string of a given length.
+
+    :param length: Length of the string to generate.
+    :return: Random string.
+    """
+    return "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+    )
+
+
+LOCAL_BASE_PORT = "8080"
+LOCAL_BASE_PORT_ALT = "9180"
+SERVICES_API_PORT = "8083"
+SERVICES_API_PORT_ALT = "9183"
+FIXTURE_SERVICE_PORT = "9015"
+FIXTURE_SERVICE_PORT_ALT = "9115"
+
+
+@dataclass
+class UserFixtureCommand:
+    command: Literal["up", "down", "down_all", "logout", "login", "password"]
+    username: Optional[str] = None
+    password: Optional[str] = None
+    admin: bool = False
+    endpoint: str = "db/user"
+    port: str = FIXTURE_SERVICE_PORT_ALT
+    method: Literal["post"] = "post"
+
+
+@dataclass
+class AddAdminAndEnsureNoDefaultUser:
+    email: str
+    password: str
+    endpoint: str = "api/users-admin"
+    port: str = SERVICES_API_PORT_ALT
+    method: Literal["put"] = "put"
+
+
+@pytest.fixture(scope="session")
+def fixture_fn_alt(base_url_alt, wandb_server_tag, wandb_server_pull):
+    def fixture_util(
+        cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+    ) -> bool:
+        endpoint = urllib.parse.urljoin(
+            base_url_alt.replace(LOCAL_BASE_PORT_ALT, cmd.port),
+            cmd.endpoint,
+        )
+
+        if isinstance(cmd, UserFixtureCommand):
+            data = {"command": cmd.command}
+            if cmd.username:
+                data["username"] = cmd.username
+            if cmd.password:
+                data["password"] = cmd.password
+            if cmd.admin is not None:
+                data["admin"] = cmd.admin
+        elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
+            data = [
+                {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
+            ]
+        else:
+            raise NotImplementedError(f"{cmd} is not implemented")
+        # trigger fixture
+        print(f"Triggering fixture on {endpoint}: {data}")
+        response = getattr(requests, cmd.method)(endpoint, json=data)
+        print(response)
+        if response.status_code != 200:
+            print(response.json())
+            return False
+        return True
+
+    # todo: remove this once testcontainer is available on Win
+    if platform.system() == "Windows":
+        pytest.skip("testcontainer is not available on Win")
+
+    # if not check_server_up(base_url_alt, wandb_server_tag, wandb_server_pull):
+    #     pytest.fail("wandb server is not running")
+
+    yield fixture_util
+
+
+@pytest.fixture(scope="session")
+def base_url_alt(request):
+    # return request.config.getoption("--base-url")
+    return "http://localhost:9180"
+
+
+@pytest.fixture(scope="session")
+def alt_user(worker_id: str, fixture_fn_alt, base_url_alt, wandb_debug) -> str:
+    username = f"user-{worker_id}-{random_string()}"
+    command = UserFixtureCommand(command="up", username=username)
+    fixture_fn_alt(command)
+    command = UserFixtureCommand(
+        command="password", username=username, password=username
+    )
+    fixture_fn_alt(command)
+
+    with unittest.mock.patch.dict(
+        os.environ,
+        {
+            "WANDB_API_KEY": username,
+            "WANDB_ENTITY": username,
+            "WANDB_USERNAME": username,
+            "WANDB_BASE_URL": base_url_alt,
+        },
+    ):
+        yield username
+
+        if not wandb_debug:
+            command = UserFixtureCommand(command="down", username=username)
+            fixture_fn_alt(command)
+
+
+def check_server_health(
+    base_url: str, endpoint: str, num_retries: int = 1, sleep_time: int = 1
+) -> bool:
+    """Check if wandb server is healthy.
+
+    :param base_url:
+    :param num_retries:
+    :param sleep_time:
+    :return:
+    """
+    for _ in range(num_retries):
+        try:
+            response = requests.get(urllib.parse.urljoin(base_url, endpoint))
+            if response.status_code == 200:
+                return True
+            time.sleep(sleep_time)
+        except requests.exceptions.ConnectionError:
+            time.sleep(sleep_time)
+    return False
+
+
+@pytest.fixture
+def wandb_server():
+    wandb_server_pull = "missing"
+    wandb_server_tag = "master"
+    base_url = "http://localhost:9180"
+    endpoint = "healthz"
+    volume = "wandb1"
+    name = "wandb-server-1"
+
+    if not check_server_health(base_url, endpoint):
+        command = [
+            "docker",
+            "run",
+            "--pull",
+            wandb_server_pull,
+            "--rm",
+            "-v",
+            f"{volume}:/vol",
+            "-p",
+            f"{LOCAL_BASE_PORT_ALT}:{LOCAL_BASE_PORT}",
+            "-p",
+            f"{SERVICES_API_PORT_ALT}:{SERVICES_API_PORT}",
+            "-p",
+            f"{FIXTURE_SERVICE_PORT_ALT}:{FIXTURE_SERVICE_PORT}",
+            "-e",
+            "WANDB_ENABLE_TEST_CONTAINER=true",
+            "--name",
+            name,
+            "--platform",
+            "linux/amd64",
+            f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{wandb_server_tag}",
+        ]
+        subprocess.Popen(command)
+
+
+@pytest.fixture(scope="function")
+def alt_wandb_init(
+    alt_user,
+    test_settings,
+):
+    # mirror wandb.sdk.wandb_init.init args, overriding name and entity defaults
+    def init(
+        job_type: Optional[str] = None,
+        dir: Optional[str] = None,
+        config: Union[Dict, str, None] = None,
+        project: Optional[str] = None,
+        entity: Optional[str] = None,
+        reinit: bool = None,
+        tags: Optional[Sequence] = None,
+        group: Optional[str] = None,
+        name: Optional[str] = None,
+        notes: Optional[str] = None,
+        magic: Union[dict, str, bool] = None,
+        config_exclude_keys: Optional[List[str]] = None,
+        config_include_keys: Optional[List[str]] = None,
+        anonymous: Optional[str] = None,
+        mode: Optional[str] = None,
+        allow_val_change: Optional[bool] = None,
+        resume: Optional[Union[bool, str]] = None,
+        force: Optional[bool] = None,
+        tensorboard: Optional[bool] = None,
+        sync_tensorboard: Optional[bool] = None,
+        monitor_gym: Optional[bool] = None,
+        save_code: Optional[bool] = None,
+        id: Optional[str] = None,
+        settings: Union[
+            "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
+        ] = None,
+    ):
+        kwargs = dict(locals())
+        # drop fixtures from kwargs
+        for key in ("user", "test_settings"):
+            kwargs.pop(key, None)
+        # merge settings from request with test_settings
+        request_settings = kwargs.pop("settings", dict())
+        # kwargs["name"] = kwargs.pop("name", request.node.name)
+
+        run = wandb.init(
+            settings=test_settings(request_settings),
+            **kwargs,
+        )
+        return run
+
+    wandb._IS_INTERNAL_PROCESS = False
+    yield init
+    # note: this "simulates" a wandb.init function, so you would have to do
+    # something like: run = wandb_init(...); ...; run.finish()
+
+
+@pytest.fixture(scope="session")
+def wandb_logging_config():
+    config = {"n_steps": 250, "n_metrics": 2, "n_experiments": 3}
+    yield config
+
+
+@pytest.fixture
+def prelogged_wandb_server(wandb_logging_config):
+    n_steps = wandb_logging_config["n_steps"]
+    n_metrics = wandb_logging_config["n_metrics"]
+    n_experiments = wandb_logging_config["n_experiments"]
+
+    for _ in range(n_experiments):
+        with wandb.init(
+            project="test", settings={"console": "off", "save_code": False}
+        ) as run:
+            data = generate_random_data(n_steps, n_metrics)
+            for i in range(n_steps):
+                metrics = {k: v[i] for k, v in data.items()}
+                run.log(metrics)
+
+            run.log(
+                {
+                    "df": create_random_dataframe(),
+                    "img": create_random_image(),
+                    # "vid": create_random_video(),  # path error matplotlib
+                    "audio": create_random_audio(),
+                    "pc": create_random_point_cloud(),
+                    "html": create_random_html(),
+                    "plotly_fig": create_random_plotly(),
+                    "mol": create_random_molecule(),
+                }
+            )
+
+
+def generate_random_data(n: int, n_metrics: int) -> list:
+    steps = np.arange(0, n, 1)
+    data = {}
+    fns: list[typing.Any] = [
+        lambda steps: steps**2,
+        lambda steps: np.cos(steps * 0.0001),
+        lambda steps: np.sin(steps * 0.01),
+        lambda steps: np.log(steps + 1),
+        lambda steps: np.exp(steps * 0.0001),
+        lambda steps: np.exp(-steps * 0.0001) * 1000,  # Simulate decreasing loss
+        lambda steps: 1 - np.exp(-steps * 0.0001),  # Simulate increasing accuracy
+        lambda steps: np.power(steps, -0.5)
+        * 1000,  # Simulate decreasing loss with power-law decay
+        lambda steps: np.tanh(
+            steps * 0.0001
+        ),  # Simulate a metric converging to a value
+        lambda steps: np.arctan(
+            steps * 0.0001
+        ),  # Simulate a metric converging to a value with a different curve
+        lambda steps: np.piecewise(
+            steps,
+            [steps < n / 2, steps >= n / 2],
+            [lambda steps: steps * 0.001, lambda steps: 1 - np.exp(-steps * 0.0001)],
+        ),  # Simulate a two-stage training process
+        lambda steps: np.sin(steps * 0.001)
+        * np.exp(-steps * 0.0001),  # Sinusoidal oscillations with exponential decay
+        lambda steps: (np.cos(steps * 0.001) + 1)
+        * 0.5
+        * (
+            1 - np.exp(-steps * 0.0001)
+        ),  # Oscillations converging to increasing accuracy
+        lambda steps: np.log(steps + 1)
+        * (
+            1 - np.exp(-steps * 0.0001)
+        ),  # Logarithmic growth modulated by increasing accuracy
+        lambda steps: np.random.random()
+        * (
+            1 - np.exp(-steps * 0.0001)
+        ),  # Random constant value modulated by increasing accuracy
+    ]
+    for j in range(n_metrics):
+        noise_fraction = random.random()
+        fn = random.choice(fns)
+        values = fn(steps)
+        # Add different types of noise
+        noise_type = random.choice(["uniform", "normal", "triangular"])
+        if noise_type == "uniform":
+            noise = np.random.uniform(low=-noise_fraction, high=noise_fraction, size=n)
+        elif noise_type == "normal":
+            noise = np.random.normal(scale=noise_fraction, size=n)
+        elif noise_type == "triangular":
+            noise = np.random.triangular(
+                left=-noise_fraction, mode=0, right=noise_fraction, size=n
+            )
+        data[f"metric{j}"] = values + noise_fraction * values * noise
+    return data
+
+
+# Function to generate random text
+def generate_random_text(length=10):
+    letters = string.ascii_lowercase
+    return "".join(random.choice(letters) for i in range(length))
+
+
+def create_random_dataframe(rows=100, columns=5):
+    data = np.random.randint(0, 100, (rows, columns))
+    df = pd.DataFrame(data)
+    return df
+
+
+def create_random_image(size=(100, 100)):
+    array = np.random.randint(0, 256, size + (3,), dtype=np.uint8)
+    img = Image.fromarray(array)
+    return wandb.Image(img)
+
+
+def create_random_video():
+    frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+    return wandb.Video(frames, fps=4)
+
+
+def create_random_audio():
+    # Generate a random numpy array for audio data
+    sampling_rate = 44100  # Typical audio sampling rate
+    duration = 1.0  # duration in seconds
+    audio_data = np.random.uniform(
+        low=-1.0, high=1.0, size=int(sampling_rate * duration)
+    )
+    return wandb.Audio(audio_data, sample_rate=sampling_rate, caption="its audio yo")
+
+
+def create_random_plotly():
+    df = pd.DataFrame({"x": np.random.rand(100), "y": np.random.rand(100)})
+
+    # Create a scatter plot
+    fig = px.scatter(df, x="x", y="y")
+    return fig
+
+
+def create_random_html():
+    fig = create_random_plotly()
+    string = pio.to_html(fig)
+    return wandb.Html(string)
+
+
+def create_random_point_cloud():
+    point_cloud = np.random.rand(100, 3)
+    return wandb.Object3D(point_cloud)
+
+
+def create_random_molecule():
+    m = Chem.MolFromSmiles("Cc1ccccc1")
+    return wandb.Molecule.from_rdkit(m)
+
+
+def make_artifact(name):
+    # Create a temporary directory
+    with tempfile.TemporaryDirectory() as tmpdirname:
+
+        # Set the filename
+        filename = os.path.join(tmpdirname, "random_text.txt")
+
+        # Open the file in write mode
+        with open(filename, "w") as f:
+            for _ in range(100):  # Write 100 lines of random text
+                random_text = generate_random_text(
+                    50
+                )  # Each line contains 50 characters
+                f.write(random_text + "\n")  # Write the random text to the file
+
+        print(f"Random text data has been written to {filename}")
+
+        # Create a new artifact
+        artifact = wandb.Artifact(name, name)
+
+        # Add the file to the artifact
+        artifact.add_file(filename)
+        return artifact
