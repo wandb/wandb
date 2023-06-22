@@ -288,8 +288,8 @@ class Artifact:
         attrs: Dict[str, Any],
         client: RetryingClient,
     ) -> "Artifact":
-        # type="placeholder" is required to skip validation.
-        artifact = cls(name.split(":")[0], type="placeholder")
+        # Placeholder is required to skip validation.
+        artifact = cls("placeholder", type="placeholder")
         artifact._client = client
         artifact._id = attrs["id"]
         artifact._entity = entity
