@@ -200,6 +200,7 @@ class SendManager:
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
     _context_keeper: context.ContextKeeper
+    _job_link: Optional[str]
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: Optional["file_stream.FileStreamApi"]
@@ -295,6 +296,7 @@ class SendManager:
 
         # job builder
         self._job_builder = JobBuilder(settings)
+        self._job_link = None
 
         time_now = time.monotonic()
         self._debounce_config_time = time_now
@@ -704,6 +706,12 @@ class SendManager:
                     level=message_level_sanitized,
                 )
             )
+        self._respond_result(result)
+
+    def send_request_job_link(self, record: "Record") -> None:
+        """Respond to a request for a job link."""
+        result = proto_util._result_from_record(record)
+        result.response.job_link_response.link = self._job_link or ""
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -1482,6 +1490,7 @@ class SendManager:
             history_step=history_step,
         )
         if artifact.type == "job":
+            print("CREATING  A JOB!!!")
             pass  # TODO: Set the job link in this object
         self._job_builder._set_logged_code_artifact(res, artifact)
         return res

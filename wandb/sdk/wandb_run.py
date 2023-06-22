@@ -610,6 +610,7 @@ class Run:
         self._poll_exit_response = None
         self._server_info_response = None
         self._poll_exit_handle = None
+        self._job_link = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -2421,6 +2422,7 @@ class Run:
             self._poll_exit_response,
             self._server_info_response,
             self._check_version,
+            self._job_link,
             self._reporter,
             self._quiet,
             settings=self._settings,
@@ -3214,6 +3216,7 @@ class Run:
         poll_exit_response: Optional[PollExitResponse] = None,
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version: Optional["CheckVersionResponse"] = None,
+        job_link: Optional["JobLinkResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3230,6 +3233,7 @@ class Run:
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
+            job_link=job_link,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3404,6 +3408,7 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
+        job_link: Optional["JobLinkResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3432,6 +3437,10 @@ class Run:
                 info.append(
                     f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
                     f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
+                )
+            if job_link and job_link.link:
+                info.append(
+                    f"View job at {printer.link(job_link.link)}",
                 )
             printer.display(info)
 

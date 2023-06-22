@@ -854,7 +854,8 @@ class InterfaceBase:
 
     @abstractmethod
     def deliver_request_job_link(self) -> MailboxHandle:
-        return self._deliver_request_job_link()
+        job_link = pb.JobLinkRequest()
+        return self._deliver_request_job_link(job_link)
 
-    def _deliver_request_job_link(self) -> MailboxHandle:
+    def _deliver_request_job_link(self, job_link: pb.JobLinkRequest) -> MailboxHandle:
         raise NotImplementedError
