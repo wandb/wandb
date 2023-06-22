@@ -66,19 +66,10 @@ class GitHubReference:
 
     ref: Optional[str] = None  # branch or commit
     ref_type: Optional[ReferenceType] = None
+    commit_hash: Optional[str] = None  # hash of commit
 
     directory: Optional[str] = None
     file: Optional[str] = None
-
-    # Location of repo locally if pulled
-    local_dir: Optional[tempfile.TemporaryDirectory] = None
-
-    repo_object: Optional["git.Repo"] = None
-
-    def __del__(self) -> None:
-        # on delete, clean up the local directory
-        if self.local_dir:
-            self.local_dir.cleanup()
 
     def update_ref(self, ref: Optional[str]) -> None:
         if ref:
@@ -189,6 +180,7 @@ class GitHubReference:
                     self.path = self.path[len(first_segment) + 1 :]
                 head = repo.create_head(first_segment, commit)
                 head.checkout()
+                self.commit_hash = head.commit.hexsha
             except ValueError:
                 # Apparently it just looked like a commit
                 pass
@@ -212,6 +204,7 @@ class GitHubReference:
                         self.path = self.path[len(refname) + 1 :]
                     head = repo.create_head(branch, origin.refs[branch])
                     head.checkout()
+                    self.commit_hash = head.commit.hexsha
                     break
 
         # Must be on default branch. Try to figure out what that is.
@@ -238,6 +231,7 @@ class GitHubReference:
             self.default_branch = default_branch
             head = repo.create_head(default_branch, origin.refs[default_branch])
             head.checkout()
+            self.commit_hash = head.commit.hexsha
         repo.submodule_update(init=True, recursive=True)
 
         # Now that we've checked something out, try to extract directory and file from what remains
@@ -255,38 +249,3 @@ class GitHubReference:
         elif path.is_dir():
             self.directory = self.path
             self.path = None
-
-    def _clone_repo(self) -> None:
-        """Clone the repo to a temp directory."""
-        if self.local_dir is not None:
-            # Repo already cloned, location is stored in self.local_dir.name
-            return
-        import git
-
-        dst_dir = tempfile.TemporaryDirectory()
-        self.repo_object = git.Repo.clone_from(self.repo_ssh, dst_dir.name, depth=1)
-        self.local_dir = dst_dir
-
-        if not self.repo_object:
-            self.local_dir.cleanup()
-            raise LaunchError(f"Error cloning git repo: {self.repo_ssh}")
-
-    def get_commit(self) -> str:
-        """Get git hash associated with the reference."""
-        self._clone_repo()
-        assert self.repo_object, "Repo object not properly initialized"
-        return self.repo_object.head.commit.hexsha  # type: ignore
-
-    def get_file(self, local_path: str) -> Optional[str]:
-        """Pull a file from the repo.
-
-        :local_path: relative path to the file in the repo
-
-        :return: tmpdir local path to the file if it exists, None otherwise
-        """
-        self._clone_repo()
-        assert (
-            self.local_dir is not None
-        )  # Always true, but stops mypy from complaining
-        file = os.path.join(self.local_dir.name, local_path)
-        return file if os.path.isfile(file) else None
