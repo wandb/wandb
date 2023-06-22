@@ -1019,16 +1019,16 @@ def launch_sweep(
                 return False
 
             scheduler_job = prev_sweep_run_spec["job"]
-            scheduler_args = (
-                prev_sweep_run_spec.get("overrides", {})
-                .get("run_config", {})
-                .get("scheduler", {})
-            )
-            settings = (
-                prev_sweep_run_spec.get("overrides", {})
-                .get("run_config", {})
-                .get("settings", {})
-            )
+        scheduler_args = (
+            prev_sweep_run_spec.get("overrides", {})
+            .get("run_config", {})
+            .get("scheduler", {})
+        )
+        settings = (
+            prev_sweep_run_spec.get("overrides", {})
+            .get("run_config", {})
+            .get("settings", {})
+        )
 
         # grab the queue from previously run scheduler if not specified
         if not queue and prev_sweep_run_spec.get("overrides", {}).get(
