@@ -475,14 +475,18 @@ def base_url_alt(request):
 
 
 @pytest.fixture(scope="session")
-def alt_user(worker_id: str, fixture_fn_alt, base_url_alt, wandb_debug) -> str:
+def alt_user(
+    wandb_server, worker_id: str, fixture_fn_alt, base_url_alt, wandb_debug
+) -> str:
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
     fixture_fn_alt(command)
+    print("firing first fixture")
     command = UserFixtureCommand(
         command="password", username=username, password=username
     )
     fixture_fn_alt(command)
+    print("firing second fixture")
 
     with unittest.mock.patch.dict(
         os.environ,
@@ -521,7 +525,7 @@ def check_server_health(
     return False
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def wandb_server():
     wandb_server_pull = "missing"
     wandb_server_tag = "master"
@@ -529,6 +533,9 @@ def wandb_server():
     endpoint = "healthz"
     volume = "wandb1"
     name = "wandb-server-1"
+    app_health_endpoint = "healthz"
+    fixture_url = base_url.replace(LOCAL_BASE_PORT_ALT, FIXTURE_SERVICE_PORT_ALT)
+    fixture_health_endpoint = "health"
 
     if not check_server_health(base_url, endpoint):
         command = [
@@ -554,6 +561,20 @@ def wandb_server():
             f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{wandb_server_tag}",
         ]
         subprocess.Popen(command)
+        # wait for the server to start
+        server_is_up = check_server_health(
+            base_url=base_url, endpoint=app_health_endpoint, num_retries=30
+        )
+        if not server_is_up:
+            return False
+        # check that the fixture service is accessible
+        return check_server_health(
+            base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=30
+        )
+
+    return check_server_health(
+        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
+    )
 
 
 @pytest.fixture(scope="session")
@@ -563,7 +584,7 @@ def wandb_logging_config():
 
 
 @pytest.fixture
-def prelogged_wandb_server(wandb_logging_config):
+def prelogged_wandb_server(alt_user, wandb_logging_config):
     n_steps = wandb_logging_config["n_steps"]
     n_metrics = wandb_logging_config["n_metrics"]
     n_experiments = wandb_logging_config["n_experiments"]
@@ -589,6 +610,8 @@ def prelogged_wandb_server(wandb_logging_config):
                     "mol": create_random_molecule(),
                 }
             )
+
+    return alt_user
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:

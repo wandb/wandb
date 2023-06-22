@@ -4,15 +4,12 @@ from wandb.apis.importers import WandbParquetImporter
 import pandas as pd
 
 
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(300)
 def test_wandb_runs(
-    prelogged_wandb_server,
-    wandb_logging_config,
-    alt_user,
-    user,
-    base_url_alt,
-    base_url,
+    wandb_logging_config, prelogged_wandb_server, user, base_url, base_url_alt
 ):
+    alt_user = prelogged_wandb_server
+
     n_steps = wandb_logging_config["n_steps"]
     n_metrics = wandb_logging_config["n_metrics"]
     n_experiments = wandb_logging_config["n_experiments"]
