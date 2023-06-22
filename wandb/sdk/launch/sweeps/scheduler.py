@@ -318,8 +318,17 @@ class Scheduler(ABC):
                         self.state = SchedulerState.FLUSH_RUNS
                         break
 
-                    run: Optional[SweepRun] = self._get_next_sweep_run(worker_id)
-                    if not run:
+                    try:
+                        run: Optional[SweepRun] = self._get_next_sweep_run(worker_id)
+                        if not run:
+                            break
+                    except SchedulerError as e:
+                        raise SchedulerError(e)
+                    except Exception as e:
+                        wandb.termerror(
+                            f"{LOG_PREFIX}Failed to get next sweep run: {e}"
+                        )
+                        self.state = SchedulerState.FAILED
                         break
 
                     if self._add_to_launch_queue(run):
@@ -358,8 +367,11 @@ class Scheduler(ABC):
             SchedulerState.STOPPED,
         ]:
             self.state = SchedulerState.FAILED
+            self._set_sweep_state("CRASHED")
+        else:
+            self._set_sweep_state("FINISHED")
+
         self._stop_runs()
-        self._set_sweep_state("FINISHED")
         self._wandb_run.finish()
 
     def _get_num_runs_launched(self, runs: List[Dict[str, Any]]) -> int:
@@ -572,7 +584,7 @@ class Scheduler(ABC):
                 run_state = RunState.UNKNOWN
         except (AttributeError, ValueError):
             wandb.termwarn(
-                f"Bad state ({state}) for run ({run_id}). Error: {traceback.format_exc()}"
+                f"Bad state ({run_state}) for run ({run_id}). Error: {traceback.format_exc()}"
             )
             run_state = RunState.UNKNOWN
         return run_state
