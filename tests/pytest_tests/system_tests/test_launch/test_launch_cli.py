@@ -391,3 +391,21 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         print(result.output)
         assert "blah blah" in result.output
         assert "except caught, failed item" in result.output
+
+
+@pytest.mark.parametrize(
+    "path,given_type",
+    [
+        ("./test.py", None),  # default to artifact
+        ("/test.py", None),  # default to artifact"
+        ("test.py", None),  # default to artifact
+        ("./test.py", "artifact"),  # correct given
+        ("test.py", "artifact"),  # correct given
+        ("https://username:pword@github.com/wandb/examples/blob/commit/path/entry.py", None),  # default repo
+        ("git@github.com:wandb/examples.git", None),  # default repo
+        ("https://username:pword@github.com/wandb/examples/blob/commit/path/entry.py", "repo"),  # correct given
+        ("docker.io/wandb-examples:latest", None), # default image
+        ("docker.io/wandb-examples:latest", "docker"),  # correct given
+    ]
+)
+def test_create_job():
