@@ -1,5 +1,5 @@
 """NoOp builder implementation."""
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -7,6 +7,7 @@ from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
+from ..agent.job_status_tracker import JobAndRunStatusTracker
 
 
 class NoOpBuilder(AbstractBuilder):
@@ -43,6 +44,7 @@ class NoOpBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         """Build the image.
 
