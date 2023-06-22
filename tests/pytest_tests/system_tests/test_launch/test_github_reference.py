@@ -143,29 +143,34 @@ def test_get_commit(monkeypatch) -> None:
 
     def mock_fetch_repo(self, dst_dir):
         # mock dumping a file to the local clone of the repo
-        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+        os.makedirs(os.path.join(dst_dir, "commit/path/"), exist_ok=True)
+        with open(os.path.join(dst_dir, "commit/path/requirements.txt"), "w") as f:
             f.write("wandb\n")
 
         self.commit_hash = "1234567890"
+        self._update_path(dst_dir)
 
-    case = "https://github.com/wandb/mock-examples-123/tree/master/examples/launch/launch-quickstart"
+    case = "https://username:pword@github.com/wandb/mock-examples-123/blob/commit/path/requirements.txt"
     ref = GitHubReference.parse(case)
-    ref.fetch = mock_fetch_repo
+
+    monkeypatch.setattr(GitHubReference, "fetch", mock_fetch_repo)
 
     # confirm basic asserts
     assert ref.repo == "mock-examples-123"
-    assert ref.view == "tree"
-    assert ref.path == "master/examples/launch/launch-quickstart"
+    assert ref.view == "blob"
+    assert ref.path == "commit/path/requirements.txt"
 
     tmpdir = tempfile.TemporaryDirectory()
-    ref.fetch(tmpdir.name)
+    ref.fetch(dst_dir=tmpdir.name)
 
-    assert os.path.exists(os.path.join(tmpdir, ref.directory))
-    assert os.path.exists(os.path.join(tmpdir, ref.directory, "requirements.txt"))
+    assert ref.directory == os.path.join(tmpdir.name, "commit/path")
+
+    assert os.path.exists(ref.directory)
+    assert os.path.exists(os.path.join(ref.directory, "requirements.txt"))
 
     assert ref.commit_hash == "1234567890"
 
-    req_path = os.path.join(tmpdir, ref.directory, "requirements.txt")
+    req_path = os.path.join(ref.directory, "requirements.txt")
 
     del ref
     tmpdir.cleanup()
