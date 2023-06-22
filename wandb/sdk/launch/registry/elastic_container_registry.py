@@ -97,13 +97,12 @@ class ElasticContainerRegistry(AbstractRegistry):
                     f"{config.get('uri')} is in region {match.group('region')} but the "
                     f"environment is in region {environment.region}."
                 )
-            if environment._account:
-                if match.group("account") != environment._account:
-                    raise LaunchError(
-                        f"Could not create ElasticContainerRegistry from config. The uri "
-                        f"{config.get('uri')} is in account {match.group('account')} but the "
-                        f"account being used is {environment._account}."
-                    )
+            if match.group("account") != environment._account:
+                raise LaunchError(
+                    f"Could not create ElasticContainerRegistry from config. The uri "
+                    f"{config.get('uri')} is in account {match.group('account')} but the "
+                    f"account being used is {environment._account}."
+                )
         if not isinstance(repository, str):
             # This is for mypy. We should never get here.
             raise LaunchError(
