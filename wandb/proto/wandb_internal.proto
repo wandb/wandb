@@ -505,7 +505,7 @@ message Request {
     StatusReportRequest   status_report = 70;
     SummaryRecordRequest  summary_record = 71;
     TelemetryRecordRequest telemetry_record = 72;
-    JobLinkRequest        job_link = 73;
+    JobInfoRequest      job_info = 73;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -533,7 +533,7 @@ message Response {
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
     ServerInfoResponse     server_info_response = 67;
-    JobLinkResponse        job_link_response = 68;
+    JobInfoResponse        job_info_response = 68;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -848,13 +848,13 @@ message CheckVersionResponse {
 
 
 /*
-* JobLink:
+* JobInfo:
 */
-message JobLinkRequest {
+message JobInfoRequest {
 
 }
 
-message JobLinkResponse {
+message JobInfoResponse {
   string link = 1;
 }
 

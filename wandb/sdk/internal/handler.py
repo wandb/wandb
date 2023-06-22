@@ -850,7 +850,7 @@ class HandleManager:
         self._respond_result(result)
         self._stopped.set()
 
-    def handle_request_job_link(self, record: Record) -> None:
+    def handle_request_job_info(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
 
     def finish(self) -> None:

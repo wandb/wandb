@@ -708,10 +708,10 @@ class SendManager:
             )
         self._respond_result(result)
 
-    def send_request_job_link(self, record: "Record") -> None:
+    def send_request_job_info(self, record: "Record") -> None:
         """Respond to a request for a job link."""
         result = proto_util._result_from_record(record)
-        result.response.job_link_response.link = self._job_link or ""
+        result.response.job_info_response.link = self._job_link or ""
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -1490,8 +1490,9 @@ class SendManager:
             history_step=history_step,
         )
         if artifact.type == "job":
-            print("CREATING  A JOB!!!")
-            pass  # TODO: Set the job link in this object
+            assert res
+            print(self.get_server_info())
+            self._job_link = f"{self._settings.base_url}/{artifact.entity}/{artifact.project}/jobs/{res['artifactSequence']['id']}/version_details/{res['version']}"
         self._job_builder._set_logged_code_artifact(res, artifact)
         return res
 

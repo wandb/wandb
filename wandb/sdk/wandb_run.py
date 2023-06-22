@@ -41,7 +41,7 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
-    JobLinkResponse,
+    JobInfoResponse,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -503,7 +503,7 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
-    _job_link: Optional["JobLinkResponse"]
+    _job_info: Optional["JobInfoResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
@@ -610,7 +610,7 @@ class Run:
         self._poll_exit_response = None
         self._server_info_response = None
         self._poll_exit_handle = None
-        self._job_link = None
+        self._job_info = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -2378,7 +2378,7 @@ class Run:
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
-        job_link_handle = self._backend.interface.deliver_request_job_link()
+        job_info_handle = self._backend.interface.deliver_request_job_info()
 
         # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
@@ -2397,9 +2397,9 @@ class Run:
         assert result
         self._final_summary = result.response.get_summary_response
 
-        result = job_link_handle.wait(timeout=-1)
+        result = job_info_handle.wait(timeout=-1)
         assert result
-        self._job_link = result.response.job_link_response
+        self._job_info = result.response.job_info_response
 
         if self._backend:
             self._backend.cleanup()
@@ -2422,7 +2422,7 @@ class Run:
             self._poll_exit_response,
             self._server_info_response,
             self._check_version,
-            self._job_link,
+            self._job_info,
             self._reporter,
             self._quiet,
             settings=self._settings,
@@ -3216,7 +3216,7 @@ class Run:
         poll_exit_response: Optional[PollExitResponse] = None,
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version: Optional["CheckVersionResponse"] = None,
-        job_link: Optional["JobLinkResponse"] = None,
+        job_link: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3408,7 +3408,7 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
-        job_link: Optional["JobLinkResponse"] = None,
+        job_link: Optional["JobInfoResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
