@@ -39,6 +39,8 @@ def test_bad_image_name():
 def test_from_config():
     """Test that we construct a GoogleArtifactRegistry from a config dict."""
     environment = MagicMock()
+    environment.project = "myproject-12345"
+    environment.region = "region"
     config = {
         "type": "gcr",
         "repository": "test-repository",
@@ -60,6 +62,8 @@ def test_from_config():
 
 def test_from_config_bad_uri():
     environment = MagicMock()
+    environment.project = "myproject-12345"
+    environment.region = "region"
     config = {
         "type": "gcr",
         "uri": "region-docker.pkg.dev/myproject-12345/test-repository",

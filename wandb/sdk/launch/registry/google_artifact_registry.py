@@ -127,6 +127,16 @@ class GoogleArtifactRegistry(AbstractRegistry):
             else:
                 repository = match.group("repository")
                 image_name = match.group("image_name")
+                if match.group("region") != environment.region:
+                    raise LaunchError(
+                        f"The Google Artifact Registry uri {config['uri']} does not "
+                        f"match the configured region {environment.region}."
+                    )
+                if match.group("project") != environment.project:
+                    raise LaunchError(
+                        f"The Google Artifact Registry uri {config['uri']} does not "
+                        f"match the configured project {environment.project}."
+                    )
         else:
             repository = config.get("repository")
             if not repository:
