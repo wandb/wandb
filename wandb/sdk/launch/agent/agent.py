@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch.runner.kubernetes_runner import KubernetesSubmittedRun
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
@@ -335,7 +337,9 @@ class LaunchAgent:
         if job.job_completed:
             self.finish_thread_id(thread_id)
 
-    def run_job(self, job: Dict[str, Any], file_saver: RunQueueItemFileSaver) -> None:
+    def run_job(
+        self, job: Dict[str, Any], queue: str, file_saver: RunQueueItemFileSaver
+    ) -> None:
         """Set up project and run the job.
 
         Arguments:
@@ -361,6 +365,7 @@ class LaunchAgent:
                 job,
                 self.default_config,
                 self._api,
+                queue,
                 file_saver,
             ),
         )
@@ -430,7 +435,7 @@ class LaunchAgent:
                                     continue
 
                             try:
-                                self.run_job(job, file_saver)
+                                self.run_job(job, queue, file_saver)
                             except Exception as e:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
@@ -483,6 +488,7 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
+        queue: str,
         file_saver: RunQueueItemFileSaver,
     ) -> None:
         thread_id = threading.current_thread().ident
@@ -492,7 +498,7 @@ class LaunchAgent:
             self._jobs[thread_id] = job_tracker
         try:
             self._thread_run_job(
-                launch_spec, job, default_config, api, thread_id, job_tracker
+                launch_spec, job, default_config, api, queue, thread_id, job_tracker
             )
         except LaunchDockerError as e:
             wandb.termerror(
@@ -511,6 +517,7 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
+        queue: str,
         thread_id: int,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
@@ -555,7 +562,7 @@ class LaunchAgent:
         with self._jobs_lock:
             job_tracker.run = run
         while self._jobs_event.is_set():
-            if self._check_run_finished(job_tracker):
+            if self._check_run_finished(job_tracker, api, launch_spec):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
@@ -563,7 +570,9 @@ class LaunchAgent:
         if isinstance(run, LocalSubmittedRun):
             run.command_proc.kill()
 
-    def _check_run_finished(self, job_tracker: JobAndRunStatusTracker) -> bool:
+    def _check_run_finished(
+        self, job_tracker: JobAndRunStatusTracker, api: Api, launch_spec: Dict[str, Any]
+    ) -> bool:
         if job_tracker.completed_status:
             return True
 
@@ -580,6 +589,17 @@ class LaunchAgent:
         try:
             run = job_tracker.run
             status = run.get_status().state
+            if (
+                isinstance(run, KubernetesSubmittedRun) and status == "stopped"
+            ):  # TODO determine preemption conditional
+                # TODO how to get retry count?
+                wandb.termlog(f"{LOG_PREFIX}Requeueing job: {launch_spec}")
+                launch_add(
+                    uri=api.api_url,
+                    config=launch_spec,
+                    project_queue=self._project,
+                    queue_name=job_tracker.queue,
+                )
             if status in ["stopped", "failed", "finished"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
