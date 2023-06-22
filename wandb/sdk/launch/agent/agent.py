@@ -10,6 +10,8 @@ from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
 
+from kubernetes.client.exceptions import ApiException
+
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
