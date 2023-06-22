@@ -851,3 +851,10 @@ class InterfaceBase:
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         raise NotImplementedError
+
+    @abstractmethod
+    def deliver_request_job_link(self) -> MailboxHandle:
+        return self._deliver_request_job_link()
+
+    def _deliver_request_job_link(self) -> MailboxHandle:
+        raise NotImplementedError

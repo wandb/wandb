@@ -1481,7 +1481,8 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
-
+        if artifact.type == "job":
+            pass  # TODO: Set the job link in this object
         self._job_builder._set_logged_code_artifact(res, artifact)
         return res
 
