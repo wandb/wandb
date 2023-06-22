@@ -3434,7 +3434,7 @@ class Run:
             if job_info and job_info.version and job_info.sequenceId:
                 link = f"{settings.project_url}/jobs/{job_info.sequenceId}/version_details/{job_info.version}"
                 info.append(
-                    f"{printer.emoji('rocket')} View job at {printer.link(link)}",
+                    f"{printer.emoji('lightning')} View job at {printer.link(link)}",
                 )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
