@@ -2644,14 +2644,17 @@ global___JobInfoRequest = JobInfoRequest
 class JobInfoResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    LINK_FIELD_NUMBER: builtins.int
-    link: builtins.str
+    SEQUENCEID_FIELD_NUMBER: builtins.int
+    VERSION_FIELD_NUMBER: builtins.int
+    sequenceId: builtins.str
+    version: builtins.str
     def __init__(
         self,
         *,
-        link: builtins.str = ...,
+        sequenceId: builtins.str = ...,
+        version: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["link", b"link"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["sequenceId", b"sequenceId", "version", b"version"]) -> None: ...
 
 global___JobInfoResponse = JobInfoResponse
 

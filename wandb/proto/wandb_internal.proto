@@ -851,11 +851,11 @@ message CheckVersionResponse {
 * JobInfo:
 */
 message JobInfoRequest {
-
 }
 
 message JobInfoResponse {
-  string link = 1;
+  string sequenceId = 1;
+  string version = 2;
 }
 
 /*
