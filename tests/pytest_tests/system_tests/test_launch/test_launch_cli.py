@@ -3,6 +3,7 @@ import json
 import pytest
 import wandb
 from wandb.cli import cli
+from wandb.sdk.launch.create_job import create_job
 from wandb.sdk.launch.errors import LaunchError
 
 REPO_CONST = "test-repo"
@@ -408,4 +409,13 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         ("docker.io/wandb-examples:latest", "docker"),  # correct given
     ]
 )
-def test_create_job():
+def test_create_job(path, given_type, monkeypatch):
+    
+    def mock_repo_fetch(self, dst_dir):
+        self._update_path(dst_dir)
+        self.commit_hash = '123456789'
+        return 
+
+    monkeypatch.setattr("wandb.sdk.launch.github_reference.GithubReference", 'fetch', mock_repo_fetch)
+
+    job = create_job(path=path, given_type=given_type)
