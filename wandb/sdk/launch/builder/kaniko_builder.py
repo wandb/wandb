@@ -96,7 +96,7 @@ class KanikoBuilder(AbstractBuilder):
         build_context_store: str = "",
         secret_name: str = "",
         secret_key: str = "",
-        image: str = "gcr.io/kaniko-project/executor:1.11.0",
+        image: str = "gcr.io/kaniko-project/executor:v1.11.0",
         verify: bool = True,
     ):
         """Initialize a KanikoBuilder.
@@ -162,7 +162,7 @@ class KanikoBuilder(AbstractBuilder):
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
-        image = config.get("kaniko-image", "gcr.io/kaniko-project/executor:1.11.0")
+        image = config.get("kaniko-image", "gcr.io/kaniko-project/executor:v1.11.0")
         return cls(
             environment,
             registry,

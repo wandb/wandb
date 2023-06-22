@@ -1,6 +1,7 @@
 [paths]
 canonicalsrc =
     wandb/
+    .tox/func-s_artifacts-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_default-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_docs-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_grpc-py39/lib/python3.9/site-packages/wandb/
