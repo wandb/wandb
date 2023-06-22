@@ -66,6 +66,7 @@ class GitHubReference:
 
     ref: Optional[str] = None  # branch or commit
     ref_type: Optional[ReferenceType] = None
+    commit_hash: Optional[str] = None  # hash of commit
 
     directory: Optional[str] = None
     file: Optional[str] = None
@@ -172,7 +173,11 @@ class GitHubReference:
         import git
 
         repo = git.Repo.init(dst_dir)
-        origin = repo.create_remote("origin", self.url_repo)
+        try:
+            origin = repo.create_remote("origin", self.url_repo)
+        except git.exc.GitCommandError:
+            # Origin already exists
+            origin = repo.remote("origin")
 
         # We fetch the origin so that we have branch and tag references
         origin.fetch(depth=1)
@@ -189,6 +194,7 @@ class GitHubReference:
                     self.path = self.path[len(first_segment) + 1 :]
                 head = repo.create_head(first_segment, commit)
                 head.checkout()
+                self.commit_hash = head.commit.hexsha
             except ValueError:
                 # Apparently it just looked like a commit
                 pass
@@ -212,6 +218,7 @@ class GitHubReference:
                         self.path = self.path[len(refname) + 1 :]
                     head = repo.create_head(branch, origin.refs[branch])
                     head.checkout()
+                    self.commit_hash = head.commit.hexsha
                     break
 
         # Must be on default branch. Try to figure out what that is.
@@ -238,6 +245,7 @@ class GitHubReference:
             self.default_branch = default_branch
             head = repo.create_head(default_branch, origin.refs[default_branch])
             head.checkout()
+            self.commit_hash = head.commit.hexsha
         repo.submodule_update(init=True, recursive=True)
 
         # Now that we've checked something out, try to extract directory and file from what remains

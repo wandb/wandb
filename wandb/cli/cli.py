@@ -1656,10 +1656,13 @@ def create(
         name=name,
         given_type=given_type,
         description=description,
-        aliases=aliases,
+        aliases=list(aliases or []),
         entrypoint=entrypoint,
         git_hash=git_hash,
     )
+    if not artifact:
+        wandb.termerror("Job creation failed")
+        return
 
     artifact_path = f"{entity}/{project}/{artifact.name}"
     msg = f"{action} job: {click.style(artifact_path, fg='yellow')}"
@@ -1673,7 +1676,7 @@ def create(
     wandb.termlog(msg)
     web_url = api.settings().get("base_url").replace("api.", "")
     url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
-    wandb.termlog(f"View all project jobs here: {url}\n")
+    wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")

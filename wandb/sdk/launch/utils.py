@@ -1,5 +1,4 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
-import json
 import logging
 import os
 import platform
@@ -18,7 +17,6 @@ from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.github_reference import GitHubReference
 from wandb.sdk.launch.wandb_reference import WandbReference
-from wandb.sdk.lib import filesystem
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
