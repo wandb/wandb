@@ -22,7 +22,7 @@ def test_run():
     run.save = MagicMock(return_value=["test_path"])
     saver = RunQueueItemFileSaver(run, rqi_id)
     assert saver.save_contents("contents", "fname", "error") == [
-        os.path.join(run.entity, run.project, run.id, rqi_id, "error", "fname")
+        os.path.join(rqi_id, "error", "fname")
     ]
     run.save.assert_called_once_with(
         os.path.join(settings.files_dir, rqi_id, "error", "fname"),
