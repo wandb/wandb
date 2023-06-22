@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
@@ -21,6 +21,9 @@ from wandb.sdk.lib import runid
 from .._project_spec import LaunchProject
 
 _logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 if sys.version_info >= (3, 8):
@@ -60,6 +63,11 @@ class AbstractRun(ABC):
     @property
     def status(self) -> Status:
         return self._status
+
+    @abstractmethod
+    def get_logs(self) -> Optional[str]:
+        """Return the logs associated with the run."""
+        pass
 
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
@@ -152,6 +160,7 @@ class AbstractRunner(ABC):
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
+        job_tracker: Optional["JobAndRunStatusTracker"] = None,
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 
