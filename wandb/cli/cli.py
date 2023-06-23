@@ -1016,9 +1016,7 @@ def launch_sweep(
 
         prev_scheduler_args, prev_settings = sweep_utils.get_previous_args(run_spec)
         # Passed in scheduler_args and settings override previous
-        wandb.termlog(f"{scheduler_args=}")
         scheduler_args.update(prev_scheduler_args)
-        wandb.termlog(f"{scheduler_args=}")
         settings.update(prev_settings)
     if not queue:
         wandb.termerror(
