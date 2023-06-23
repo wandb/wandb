@@ -659,7 +659,7 @@ def fixture_fn_factory():
         def fixture_util(
             cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
         ) -> bool:
-            base_url = f"http://0.0.0.0:{settings.local_base_port}"
+            base_url = f"http://localhost:{settings.local_base_port}"
             endpoint = urllib.parse.urljoin(
                 base_url.replace(settings.local_base_port, cmd.port),
                 cmd.endpoint,
