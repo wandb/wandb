@@ -410,46 +410,42 @@ def determine_scope(fixture_name, config):
 
 @pytest.fixture(scope="session")
 def wandb_logging_config():
-    config = {"n_steps": 250, "n_metrics": 2, "n_experiments": 3}
-    return WandbLoggingConfig(**config)
+    return WandbLoggingConfig(n_steps=250, n_metrics=2, n_experiments=3)
 
 
 @pytest.fixture(scope="session")
-def settings():
-    src_server_settings = {
-        "name": "wandb-src-server",
-        "volume": "wandb-src-server-vol",
-        "local_base_port": "9180",
-        "services_api_port": "9183",
-        "fixture_service_port": "9115",
-        "wandb_server_pull": "missing",
-        "wandb_server_tag": "master",
-    }
-    return WandbServerSettings(**src_server_settings)
+def wandb_server2(wandb_server_factory):
+    settings = WandbServerSettings(
+        name="wandb-src-server",
+        volume="wandb-src-server-vol",
+        local_base_port="9180",
+        services_api_port="9183",
+        fixture_service_port="9115",
+        wandb_server_pull="missing",
+        wandb_server_tag="master",
+    )
 
-
-@pytest.fixture(scope="session")
-def wandb_server(wandb_server_factory, settings):
-    return wandb_server_factory(settings)
+    wandb_server_factory(settings)
+    return settings
 
 
 @pytest.fixture(scope=determine_scope)
-def alt_user(user_factory, fixture_fn_alt, settings):
-    yield from user_factory(fixture_fn_alt, settings)
+def user2(user_factory, fixture_fn2, wandb_server2):
+    yield from user_factory(fixture_fn2, wandb_server2)
 
 
 @pytest.fixture(scope="session")
-def fixture_fn_alt(fixture_fn_factory, settings):
-    yield from fixture_fn_factory(settings)
+def fixture_fn2(wandb_server2, fixture_fn_factory):
+    yield from fixture_fn_factory(wandb_server2)
 
 
 @pytest.fixture
-def other_wandb_server(base_wandb_server, user):
-    return user
+def wandb_server_dst(wandb_server, user):
+    return wandb_server, user
 
 
 @pytest.fixture
-def prelogged_wandb_server(wandb_server, alt_user, wandb_logging_config):
+def wandb_server_src(wandb_server2, user2, wandb_logging_config):
     for _ in range(wandb_logging_config.n_experiments):
         with wandb.init(
             project="test", settings={"console": "off", "save_code": False}
@@ -474,7 +470,7 @@ def prelogged_wandb_server(wandb_server, alt_user, wandb_logging_config):
                 }
             )
 
-    return alt_user
+    return wandb_server2, user2
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:

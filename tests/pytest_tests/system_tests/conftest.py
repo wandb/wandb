@@ -491,68 +491,6 @@ def check_server_health(
     return False
 
 
-# def check_server_up(
-#     base_url: str,
-#     wandb_server_tag: str = "master",
-#     wandb_server_pull: Literal["missing", "always"] = "missing",
-# ) -> bool:
-#     """Check if wandb server is up and running.
-
-#     If not on the CI and the server is not running, then start it first.
-
-#     :param base_url:
-#     :param wandb_server_tag:
-#     :param wandb_server_pull:
-#     :return:
-#     """
-#     app_health_endpoint = "healthz"
-#     fixture_url = base_url.replace(LOCAL_BASE_PORT, FIXTURE_SERVICE_PORT)
-#     fixture_health_endpoint = "health"
-
-#     if os.environ.get("CI") == "true":
-#         return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
-
-#     if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-#         # start wandb server locally and expose necessary ports to the host
-#         command = [
-#             "docker",
-#             "run",
-#             "--pull",
-#             wandb_server_pull,
-#             "--rm",
-#             "-v",
-#             "wandb:/vol",
-#             "-p",
-#             f"{LOCAL_BASE_PORT}:{LOCAL_BASE_PORT}",
-#             "-p",
-#             f"{SERVICES_API_PORT}:{SERVICES_API_PORT}",
-#             "-p",
-#             f"{FIXTURE_SERVICE_PORT}:{FIXTURE_SERVICE_PORT}",
-#             "-e",
-#             "WANDB_ENABLE_TEST_CONTAINER=true",
-#             "--name",
-#             "wandb-local",
-#             "--platform",
-#             "linux/amd64",
-#             f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{wandb_server_tag}",
-#         ]
-#         subprocess.Popen(command)
-#         # wait for the server to start
-#         server_is_up = check_server_health(
-#             base_url=base_url, endpoint=app_health_endpoint, num_retries=30
-#         )
-#         if not server_is_up:
-#             return False
-#         # check that the fixture service is accessible
-#         return check_server_health(
-#             base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=30
-#         )
-
-#     return check_server_health(
-#         base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
-#     )
-
-
 @pytest.fixture(scope="session")
 def user_factory(worker_id: str, wandb_debug) -> str:
     def _user_factory(fixture_fn, settings):
@@ -696,7 +634,7 @@ def fixture_fn_factory():
         if platform.system() == "Windows":
             pytest.skip("testcontainer is not available on Win")
 
-        # if not check_server_up(base_url_alt, wandb_server_tag, wandb_server_pull):
+        # if not check_server_up(base_url_alst, wandb_server_tag, wandb_server_pull):
         #     pytest.fail("wandb server is not running")
 
         yield fixture_util
@@ -704,101 +642,30 @@ def fixture_fn_factory():
     yield _fixture_fn_factory
 
 
-# @pytest.fixture(scope="session")
-# def fixture_fn(base_url, wandb_server_tag, wandb_server_pull):
-#     def fixture_util(
-#         cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
-#     ) -> bool:
-#         endpoint = urllib.parse.urljoin(
-#             base_url.replace(LOCAL_BASE_PORT, cmd.port),
-#             cmd.endpoint,
-#         )
+@pytest.fixture(scope="session")
+def wandb_server(wandb_server_factory):
+    settings = WandbServerSettings(
+        name="wandb-dst-server",
+        volume="wandb-dst-server-vol",
+        local_base_port="8080",
+        services_api_port="8083",
+        fixture_service_port="9015",
+        wandb_server_pull="missing",
+        wandb_server_tag="master",
+    )
 
-#         if isinstance(cmd, UserFixtureCommand):
-#             data = {"command": cmd.command}
-#             if cmd.username:
-#                 data["username"] = cmd.username
-#             if cmd.password:
-#                 data["password"] = cmd.password
-#             if cmd.admin is not None:
-#                 data["admin"] = cmd.admin
-#         elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
-#             data = [
-#                 {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
-#             ]
-#         else:
-#             raise NotImplementedError(f"{cmd} is not implemented")
-#         # trigger fixture
-#         print(f"Triggering fixture on {endpoint}: {data}")
-#         response = getattr(requests, cmd.method)(endpoint, json=data)
-#         if response.status_code != 200:
-#             print(response.json())
-#             return False
-#         return True
-
-#     # todo: remove this once testcontainer is available on Win
-#     if platform.system() == "Windows":
-#         pytest.skip("testcontainer is not available on Win")
-
-#     if not check_server_up(base_url, wandb_server_tag, wandb_server_pull):
-#         pytest.fail("wandb server is not running")
-
-#     yield fixture_util
-
-
-# @pytest.fixture(scope=determine_scope)
-# def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
-#     username = f"user-{worker_id}-{random_string()}"
-#     command = UserFixtureCommand(command="up", username=username)
-#     fixture_fn(command)
-#     command = UserFixtureCommand(
-#         command="password", username=username, password=username
-#     )
-#     fixture_fn(command)
-
-#     with unittest.mock.patch.dict(
-#         os.environ,
-#         {
-#             "WANDB_API_KEY": username,
-#             "WANDB_ENTITY": username,
-#             "WANDB_USERNAME": username,
-#             "WANDB_BASE_URL": base_url,
-#         },
-#     ):
-#         yield username
-
-#         if not wandb_debug:
-#             command = UserFixtureCommand(command="down", username=username)
-#             fixture_fn(command)
+    wandb_server_factory(settings)
+    return settings
 
 
 @pytest.fixture(scope="session")
-def settings2():
-    dst_server_settings = {
-        "name": "wandb-dst-server",
-        "volume": "wandb-dst-server-vol",
-        "local_base_port": "8080",
-        "services_api_port": "8083",
-        "fixture_service_port": "9015",
-        "wandb_server_pull": "missing",
-        "wandb_server_tag": "master",
-    }
-    return WandbServerSettings(**dst_server_settings)
-
-
-@pytest.fixture(scope="session")
-def base_wandb_server(wandb_server_factory, settings2):
-    return wandb_server_factory(settings2)
-
-
-@pytest.fixture(scope="session")
-def fixture_fn(base_wandb_server, fixture_fn_factory, settings2):
-    yield from fixture_fn_factory(settings2)
+def fixture_fn(wandb_server, fixture_fn_factory):
+    yield from fixture_fn_factory(wandb_server)
 
 
 @pytest.fixture(scope=determine_scope)
-def user(user_factory, fixture_fn, settings2):
-    yield from user_factory(fixture_fn, settings2)
+def user(user_factory, fixture_fn, wandb_server):
+    yield from user_factory(fixture_fn, wandb_server)
 
 
 @pytest.fixture(scope="session", autouse=True)

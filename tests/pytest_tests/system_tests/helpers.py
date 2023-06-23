@@ -1,4 +1,4 @@
-import dataclasses
+from dataclasses import dataclass
 from typing import Optional
 
 try:
@@ -11,7 +11,7 @@ SERVICES_API_PORT = "8083"
 FIXTURE_SERVICE_PORT = "9015"
 
 
-@dataclasses.dataclass
+@dataclass
 class UserFixtureCommand:
     command: Literal["up", "down", "down_all", "logout", "login", "password"]
     username: Optional[str] = None
@@ -22,7 +22,7 @@ class UserFixtureCommand:
     method: Literal["post"] = "post"
 
 
-@dataclasses.dataclass
+@dataclass
 class AddAdminAndEnsureNoDefaultUser:
     email: str
     password: str
@@ -31,7 +31,7 @@ class AddAdminAndEnsureNoDefaultUser:
     method: Literal["put"] = "put"
 
 
-@dataclasses.dataclass
+@dataclass
 class WandbServerSettings:
     name: str
     volume: str
@@ -43,3 +43,20 @@ class WandbServerSettings:
     internal_local_base_port: str = "8080"
     internal_local_services_api_port: str = "8083"
     internal_fixture_service_port: str = "9015"
+    url: str = "http://localhost"
+
+    def __post_init__(self):
+        self.base_url = f"{self.url}:{self.internal_local_base_port}"
+
+
+@dataclass
+class WandbLoggingConfig:
+    n_steps: int
+    n_metrics: int
+    n_experiments: int
+
+
+@dataclass
+class WandbServerUser:
+    server: WandbServerSettings
+    user: str
