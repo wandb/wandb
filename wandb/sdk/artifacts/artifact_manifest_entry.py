@@ -34,6 +34,7 @@ class ArtifactManifestEntry:
     local_path: Optional[str]
 
     _parent_artifact: Optional["Artifact"] = None
+    _download_url: Optional[str] = None
 
     def __init__(
         self,

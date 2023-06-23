@@ -1,8 +1,13 @@
 import os
+<<<<<<< HEAD
 from unittest.mock import Mock
 
 import pytest
 from wandb.sdk.launch.errors import LaunchError
+=======
+import tempfile
+
+>>>>>>> cab87e1119602433b16756161eac00cce0ae3c5c
 from wandb.sdk.launch.github_reference import GitHubReference
 
 
@@ -143,57 +148,38 @@ def test_update_ref() -> None:
 def test_get_commit(monkeypatch) -> None:
     """Test getting commit from reference."""
 
-    def mock_clone_repo(dst_dir):
+    def mock_fetch_repo(self, dst_dir):
         # mock dumping a file to the local clone of the repo
-        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+        os.makedirs(os.path.join(dst_dir, "commit/path/"), exist_ok=True)
+        with open(os.path.join(dst_dir, "commit/path/requirements.txt"), "w") as f:
             f.write("wandb\n")
 
-        m = Mock()
-        m.head.commit.hexsha = "1234567890"
-        return m
+        self.commit_hash = "1234567890"
+        self._update_path(dst_dir)
 
-    monkeypatch.setattr(
-        "git.Repo.clone_from", lambda _, dst_dir, depth: mock_clone_repo(dst_dir)
-    )
-    case = "https://github.com/wandb/mock-examples-123/tree/master/examples/launch/launch-quickstart"
+    case = "https://username:pword@github.com/wandb/mock-examples-123/blob/commit/path/requirements.txt"
     ref = GitHubReference.parse(case)
+
+    monkeypatch.setattr(GitHubReference, "fetch", mock_fetch_repo)
 
     # confirm basic asserts
     assert ref.repo == "mock-examples-123"
-    assert ref.view == "tree"
-    assert ref.path == "master/examples/launch/launch-quickstart"
+    assert ref.view == "blob"
+    assert ref.path == "commit/path/requirements.txt"
 
-    ref._clone_repo()
+    tmpdir = tempfile.TemporaryDirectory()
+    ref.fetch(dst_dir=tmpdir.name)
 
-    assert ref.repo_object is not None  # Mock object
-    assert os.path.exists(ref.local_dir.name)
+    assert ref.directory == os.path.join(tmpdir.name, "commit/path")
 
-    commit_hash = ref.get_commit()
-    file = ref.get_file("requirements.txt")
+    assert os.path.exists(ref.directory)
+    assert os.path.exists(os.path.join(ref.directory, "requirements.txt"))
 
-    assert commit_hash == "1234567890"
-    assert file == os.path.join(ref.local_dir.name, "requirements.txt")
+    assert ref.commit_hash == "1234567890"
+
+    req_path = os.path.join(ref.directory, "requirements.txt")
 
     del ref
-    assert not os.path.exists(file)
+    tmpdir.cleanup()
 
-
-def test_get_commit_none(monkeypatch) -> None:
-    def mock_clone_repo(dst_dir):
-        # mock dumping a file to the local clone of the repo
-        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
-            f.write("wandb\n")
-
-        # mock failing in the middle of the clone
-        return None
-
-    monkeypatch.setattr(
-        "git.Repo.clone_from", lambda _, dst_dir, depth: mock_clone_repo(dst_dir)
-    )
-    case = "https://github.com/wandb/mock-examples-123/tree/master/examples/launch/launch-quickstart"
-    ref = GitHubReference.parse(case)
-
-    with pytest.raises(LaunchError):
-        ref.get_commit()
-
-    assert not os.path.exists(ref.local_dir.name)
+    assert not os.path.exists(req_path)

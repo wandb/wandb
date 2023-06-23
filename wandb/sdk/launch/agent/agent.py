@@ -5,7 +5,6 @@ import pprint
 import threading
 import time
 import traceback
-from dataclasses import dataclass
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
@@ -13,7 +12,6 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
-from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
@@ -22,8 +20,9 @@ from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.build import construct_builder_args
 from ..errors import LaunchDockerError, LaunchError
-from ..runner.abstract import AbstractRun
 from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
+from .job_status_tracker import JobAndRunStatusTracker
+from .run_queue_item_file_saver import RunQueueItemFileSaver
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -37,27 +36,6 @@ HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 MAX_THREADS = 64
 
 _logger = logging.getLogger(__name__)
-
-
-@dataclass
-class JobAndRunStatus:
-    run_queue_item_id: str
-    run_id: Optional[str] = None
-    project: Optional[str] = None
-    entity: Optional[str] = None
-    run: Optional[AbstractRun] = None
-    failed_to_start: bool = False
-    completed_status: Optional[str] = None
-    is_scheduler: bool = False
-
-    @property
-    def job_completed(self) -> bool:
-        return self.failed_to_start or self.completed_status is not None
-
-    def update_run_info(self, launch_project: LaunchProject) -> None:
-        self.run_id = launch_project.run_id
-        self.project = launch_project.target_project
-        self.entity = launch_project.target_entity
 
 
 def _convert_access(access: str) -> str:
@@ -139,7 +117,7 @@ class LaunchAgent:
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
-        self._jobs: Dict[int, JobAndRunStatus] = {}
+        self._jobs: Dict[int, JobAndRunStatusTracker] = {}
         self._jobs_lock = threading.Lock()
         self._jobs_event = Event()
         self._jobs_event.set()
@@ -180,22 +158,31 @@ class LaunchAgent:
             self._id, self.gorilla_supports_agents
         )
         self._name = agent_response["name"]
-        if self.gorilla_supports_agents:
-            self._init_agent_run()
+        self._init_agent_run()
 
-    def fail_run_queue_item(self, run_queue_item_id: str) -> None:
+    def fail_run_queue_item(
+        self,
+        run_queue_item_id: str,
+        message: str,
+        phase: str,
+        files: Optional[List[str]] = None,
+    ) -> None:
         if self._gorilla_supports_fail_run_queue_items:
-            self._api.fail_run_queue_item(run_queue_item_id)
+            self._api.fail_run_queue_item(run_queue_item_id, message, phase, files)
 
     def _init_agent_run(self) -> None:
-        settings = wandb.Settings(silent=True, disable_git=True)
-        wandb.init(
-            project=self._project,
-            entity=self._entity,
-            settings=settings,
-            id=self._name,
-            job_type=HIDDEN_AGENT_RUN_TYPE,
-        )
+        # TODO: has it been long enough that all backends support agents?
+        if self.gorilla_supports_agents:
+            settings = wandb.Settings(silent=True, disable_git=True)
+            self._wandb_run = wandb.init(
+                project=self._project,
+                entity=self._entity,
+                settings=settings,
+                id=self._name,
+                job_type=HIDDEN_AGENT_RUN_TYPE,
+            )
+        else:
+            self._wandb_run = None
 
     @property
     def thread_ids(self) -> List[int]:
@@ -279,24 +266,35 @@ class LaunchAgent:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
         if (
-            not job_and_run_status.run_id
-            or not job_and_run_status.project
-            or exception is not None
+            job_and_run_status.entity is not None
+            and job_and_run_status.entity != self._entity
         ):
-            self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
-        elif job_and_run_status.entity != self._entity:
             _logger.info(
                 "Skipping check for completed run status because run is on a different entity than agent"
+            )
+        elif exception is not None:
+            tb_str = traceback.format_exception(
+                type(exception), value=exception, tb=exception.__traceback__
+            )
+            fnames = job_and_run_status.saver.save_contents(
+                "".join(tb_str), "error.log", "error"
+            )
+            self.fail_run_queue_item(
+                job_and_run_status.run_queue_item_id,
+                str(exception),
+                job_and_run_status.err_stage,
+                fnames,
             )
         elif job_and_run_status.completed_status not in ["stopped", "failed"]:
             _logger.info(
                 "Skipping check for completed run status because run was successful"
             )
-        else:
+        elif job_and_run_status.run is not None:
             run_info = None
             # sweep runs exist but have no info before they are started
             # so run_info returned will be None
             # normal runs just throw a comm error
+            # TODO: make more clear
             try:
                 run_info = self._api.get_run_info(
                     self._entity, job_and_run_status.project, job_and_run_status.run_id
@@ -305,7 +303,22 @@ class LaunchAgent:
             except CommError:
                 pass
             if run_info is None:
-                self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
+                _msg = "The submitted run was not successfully started"
+                fnames = None
+
+                logs = job_and_run_status.run.get_logs()
+                if logs:
+                    fnames = job_and_run_status.saver.save_contents(
+                        logs, "error.log", "error"
+                    )
+                self.fail_run_queue_item(
+                    job_and_run_status.run_queue_item_id, _msg, "run", fnames
+                )
+        else:
+            _logger.info("Finish thread id had no exception, ror run")
+            wandb._sentry.exception(
+                "launch agent called finish thread id on thread without run or exception"
+            )
 
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
@@ -322,7 +335,7 @@ class LaunchAgent:
         if job.job_completed:
             self.finish_thread_id(thread_id)
 
-    def run_job(self, job: Dict[str, Any]) -> None:
+    def run_job(self, job: Dict[str, Any], file_saver: RunQueueItemFileSaver) -> None:
         """Set up project and run the job.
 
         Arguments:
@@ -348,6 +361,7 @@ class LaunchAgent:
                 job,
                 self.default_config,
                 self._api,
+                file_saver,
             ),
         )
 
@@ -401,6 +415,9 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
+                            file_saver = RunQueueItemFileSaver(
+                                self._wandb_run, job["runQueueItemId"]
+                            )
                             if _is_scheduler_job(job.get("runSpec")):
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
@@ -413,13 +430,25 @@ class LaunchAgent:
                                     continue
 
                             try:
-                                self.run_job(job)
+                                self.run_job(job, file_saver)
                             except Exception as e:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
                                 wandb._sentry.exception(e)
-                                self.fail_run_queue_item(job["runQueueItemId"])
+
+                                # always the first phase, because we only enter phase 2 within the thread
+                                files = file_saver.save_contents(
+                                    contents=traceback.format_exc(),
+                                    fname="error.log",
+                                    file_sub_type="error",
+                                )
+                                self.fail_run_queue_item(
+                                    run_queue_item_id=job["runQueueItemId"],
+                                    message=str(e),
+                                    phase="agent",
+                                    files=files,
+                                )
 
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
@@ -454,11 +483,17 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
+        file_saver: RunQueueItemFileSaver,
     ) -> None:
         thread_id = threading.current_thread().ident
         assert thread_id is not None
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], file_saver)
+        with self._jobs_lock:
+            self._jobs[thread_id] = job_tracker
         try:
-            self._thread_run_job(launch_spec, job, default_config, api, thread_id)
+            self._thread_run_job(
+                launch_spec, job, default_config, api, thread_id, job_tracker
+            )
         except LaunchDockerError as e:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
@@ -477,10 +512,8 @@ class LaunchAgent:
         default_config: Dict[str, Any],
         api: Api,
         thread_id: int,
+        job_tracker: JobAndRunStatusTracker,
     ) -> None:
-        job_tracker = JobAndRunStatus(job["runQueueItemId"])
-        with self._jobs_lock:
-            self._jobs[thread_id] = job_tracker
         project = create_project_from_spec(launch_spec, api)
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
@@ -505,8 +538,7 @@ class LaunchAgent:
         backend = loader.runner_from_config(resource, api, backend_config, environment)
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
-        run = backend.run(project, builder)
-
+        run = backend.run(project, builder, job_tracker)
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
@@ -527,10 +559,10 @@ class LaunchAgent:
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
         # types of runners in general
-        if isinstance(run, LocalSubmittedRun):
-            run.command_proc.kill()
+        if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
+            run._command_proc.kill()
 
-    def _check_run_finished(self, job_tracker: JobAndRunStatus) -> bool:
+    def _check_run_finished(self, job_tracker: JobAndRunStatusTracker) -> bool:
         if job_tracker.completed_status:
             return True
 

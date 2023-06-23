@@ -3,6 +3,8 @@ import logging
 import re
 from typing import Tuple
 
+import yaml
+
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
@@ -105,14 +107,51 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Returns:
             A GoogleArtifactRegistry.
         """
-        repository = config.get("repository")
-        if not repository:
-            raise LaunchError(
-                "The Google Artifact Registry repository must be specified."
+        if "uri" in config:
+            if "repository" in config or "image-name" in config:
+                raise LaunchError(
+                    "The Google Artifact Registry must be specified with either "
+                    "the uri key or the repository and image-name keys, but not both. "
+                    f"The provided config is:\n{yaml.dump(config)}."
+                )
+            match = re.match(
+                r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/(?P<image_name>[\w-]+)$",
+                config["uri"],
             )
-        image_name = config.get("image-name")
-        if not image_name:
-            raise LaunchError("The image name must be specified.")
+            if not match:
+                raise LaunchError(
+                    f"The Google Artifact Registry uri {config['uri']} is invalid. "
+                    "Please provide a uri of the form "
+                    "REGION-docker.pkg.dev/PROJECT/REPOSITORY/IMAGE_NAME."
+                )
+            else:
+                repository = match.group("repository")
+                image_name = match.group("image_name")
+                if match.group("region") != environment.region:
+                    raise LaunchError(
+                        f"The Google Artifact Registry uri {config['uri']} does not "
+                        f"match the configured region {environment.region}."
+                    )
+                if match.group("project") != environment.project:
+                    raise LaunchError(
+                        f"The Google Artifact Registry uri {config['uri']} does not "
+                        f"match the configured project {environment.project}."
+                    )
+        else:
+            repository = config.get("repository")
+            if not repository:
+                raise LaunchError(
+                    "The Google Artifact Registry repository must be specified "
+                    "by setting the either the uri or  repository key of your "
+                    f"registry config. The provided config is:\n{yaml.dump(config)}."
+                )
+            image_name = config.get("image-name")
+            if not image_name:
+                raise LaunchError(
+                    "The Google Artifact Registry repository must be specified "
+                    "by setting the either the uri or  repository key of your "
+                    f"registry config. The provided config is:\n{yaml.dump(config)}."
+                )
         return cls(repository, image_name, environment, verify=verify)
 
     def verify(self) -> None:

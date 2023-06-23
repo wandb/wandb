@@ -173,11 +173,7 @@ class GitHubReference:
         import git
 
         repo = git.Repo.init(dst_dir)
-        try:
-            origin = repo.create_remote("origin", self.url_repo)
-        except git.exc.GitCommandError:
-            # Origin already exists
-            origin = repo.remote("origin")
+        origin = repo.create_remote("origin", self.url_repo)
 
         # We fetch the origin so that we have branch and tag references
         origin.fetch(depth=1)
