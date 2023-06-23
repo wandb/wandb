@@ -8,22 +8,20 @@ from wandb.apis.importers import WandbParquetImporter
 def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
     wandb_server2, user2 = wandb_server_src
     wandb_server, user = wandb_server_dst
-    source_base_url = f"http://localhost:{wandb_server2.local_base_port}"
-    dest_base_url = f"http://localhost:{wandb_server.local_base_port}"
 
     project = "test"
     overrides = {"entity": user, "project": project}
     importer = WandbParquetImporter(
-        source_base_url=source_base_url,
+        source_base_url=wandb_server2.base_url,
         source_api_key=user2,
-        dest_base_url=dest_base_url,
+        dest_base_url=wandb_server.base_url,
         dest_api_key=user,
     )
     importer.import_all_runs(user2, overrides=overrides)
 
     #
 
-    api = wandb.Api(api_key=user, overrides={"base_url": dest_base_url})
+    api = wandb.Api(api_key=user, overrides={"base_url": wandb_server.base_url})
     runs = api.runs(f"{user}/test")
     runs = list(runs)
 
