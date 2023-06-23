@@ -1,9 +1,10 @@
 import json
+import os
 
 import pytest
 import wandb
+import tempfile
 from wandb.cli import cli
-from wandb.sdk.launch.create_job import create_job
 from wandb.sdk.launch.errors import LaunchError
 
 REPO_CONST = "test-repo"
@@ -395,27 +396,74 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 
 
 @pytest.mark.parametrize(
-    "path,given_type",
+    "path,job_type",
     [
-        ("./test.py", None),  # default to artifact
-        ("/test.py", None),  # default to artifact"
-        ("test.py", None),  # default to artifact
-        ("./test.py", "artifact"),  # correct given
-        ("test.py", "artifact"),  # correct given
-        ("https://username:pword@github.com/wandb/examples/blob/commit/path/entry.py", None),  # default repo
-        ("git@github.com:wandb/examples.git", None),  # default repo
-        ("https://username:pword@github.com/wandb/examples/blob/commit/path/entry.py", "repo"),  # correct given
-        ("docker.io/wandb-examples:latest", None), # default image
-        ("docker.io/wandb-examples:latest", "docker"),  # correct given
-    ]
+        ("./test.py", "artifact"),
+        ("/test.py", "artifact"),
+        ("test.py", "artifact"),
+        ("docker.io/wandb-examples:latest", "image"),
+    ],
 )
-def test_create_job(path, given_type, monkeypatch):
-    
-    def mock_repo_fetch(self, dst_dir):
-        self._update_path(dst_dir)
-        self.commit_hash = '123456789'
-        return 
+def test_create_job(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
 
-    monkeypatch.setattr("wandb.sdk.launch.github_reference.GithubReference", 'fetch', mock_repo_fetch)
+        with open("requirements.txt", "w") as f:
+            f.write("wandb\n")
 
-    job = create_job(path=path, given_type=given_type)
+        result = runner.invoke(
+            cli.job,
+            ["create", path, job_type, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert "Created job:" in result.output
+
+
+@pytest.mark.parametrize(
+    "path,job_type",
+    [
+        ("./test.py", "artifact"),
+        ("/test.py", "artifact"),
+        ("test.py", "artifact"),
+    ],
+)
+def test_create_job_no_reqs(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        result = runner.invoke(
+            cli.job,
+            ["create", path, job_type, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert "Could not find requirements.txt file" in result.output
+
+
+@pytest.mark.parametrize(
+    "path,job_type",
+    [
+        ("./test.py", "123"),
+        ("./test.py", ""),
+        (".test.py", "docker"),
+        (".test.py", "repo"),
+    ],
+)
+def test_create_job_bad_type(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        with open("requirements.txt", "w") as f:
+            f.write("wandb\n")
+
+        result = runner.invoke(
+            cli.job,
+            ["create", path, job_type, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert (
+            "ERROR" in result.output
+            or "Usage: job create [OPTIONS] PATH" in result.output
+        )

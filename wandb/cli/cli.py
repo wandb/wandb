@@ -1596,13 +1596,6 @@ def describe(job):
     help="Description for the job",
 )
 @click.option(
-    "--source-type",
-    "-t",
-    "given_type",
-    type=click.Choice(("repo", "artifact", "image")),
-    help="Type of job to create, defaults to artifact",
-)
-@click.option(
     "--alias",
     "-a",
     "aliases",
@@ -1623,8 +1616,12 @@ def describe(job):
     help="Hash to a specific git commit.",
 )
 @click.argument("path")
+@click.argument(
+    "job_type",
+    type=click.Choice(("repo", "artifact", "image")),
+)
 def create(
-    path, project, entity, name, given_type, description, aliases, entrypoint, git_hash
+    path, project, entity, name, job_type, description, aliases, entrypoint, git_hash
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1654,7 +1651,7 @@ def create(
         entity=entity,
         project=project,
         name=name,
-        given_type=given_type,
+        job_type=job_type,
         description=description,
         aliases=list(aliases or []),
         entrypoint=entrypoint,
