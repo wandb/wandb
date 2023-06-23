@@ -681,7 +681,14 @@ def fixture_fn_factory():
                 raise NotImplementedError(f"{cmd} is not implemented")
             # trigger fixture
             print(f"Triggering fixture on {endpoint}: {data}")
-            response = getattr(requests, cmd.method)(endpoint, json=data)
+            response = getattr(requests, cmd.method)(
+                endpoint,
+                json=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "accept": "application/json",
+                },
+            )
             print(response)
             if response.status_code != 200:
                 print(response.json())
