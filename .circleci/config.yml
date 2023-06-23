@@ -586,10 +586,10 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 8
+        default: 10
       shard:
         type: string
-        default: "core"
+        default: "importers"
       toxenv:
         type: string
       coverage_dir:
@@ -638,6 +638,7 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
+            cd project && \ 
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
@@ -1446,7 +1447,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [9]
+              python_version_minor: [10]
           name: "system-importers-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
