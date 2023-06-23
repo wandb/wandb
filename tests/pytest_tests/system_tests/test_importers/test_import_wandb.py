@@ -6,23 +6,30 @@ from wandb.apis.importers import WandbParquetImporter
 
 @pytest.mark.timeout(300)
 def test_wandb_runs(
-    prelogged_wandb_server, user, base_url, settings, wandb_logging_config
+    prelogged_wandb_server,
+    other_wandb_server,
+    settings,
+    settings2,
+    wandb_logging_config,
 ):
     alt_user = prelogged_wandb_server
+    user = other_wandb_server
+    source_base_url = f"http://localhost:{settings.local_base_port}"
+    dest_base_url = f"http://localhost:{settings2.local_base_port}"
 
     project = "test"
     overrides = {"entity": user, "project": project}
     importer = WandbParquetImporter(
-        source_base_url=f"http://localhost:{settings.local_base_port}",
+        source_base_url=source_base_url,
         source_api_key=alt_user,
-        dest_base_url=base_url,
+        dest_base_url=dest_base_url,
         dest_api_key=user,
     )
     importer.import_all_runs(alt_user, overrides=overrides)
 
     #
 
-    api = wandb.Api(api_key=user, overrides={"base_url": base_url})
+    api = wandb.Api(api_key=user, overrides={"base_url": dest_base_url})
     runs = api.runs(f"{user}/test")
     runs = list(runs)
 

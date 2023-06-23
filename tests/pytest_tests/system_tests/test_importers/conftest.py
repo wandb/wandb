@@ -442,6 +442,11 @@ def fixture_fn_alt(fixture_fn_factory, settings):
 
 
 @pytest.fixture
+def other_wandb_server(base_wandb_server, user):
+    return user
+
+
+@pytest.fixture
 def prelogged_wandb_server(wandb_server, alt_user, wandb_logging_config):
     for _ in range(wandb_logging_config.n_experiments):
         with wandb.init(
