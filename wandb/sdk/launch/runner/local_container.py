@@ -4,6 +4,8 @@ import shlex
 import signal
 import subprocess
 import sys
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
 import wandb
@@ -29,40 +31,45 @@ _logger = logging.getLogger(__name__)
 class LocalSubmittedRun(AbstractRun):
     """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command locally."""
 
-    def __init__(self, command_proc: "subprocess.Popen[bytes]") -> None:
+    def __init__(self) -> None:
         super().__init__()
+        self.command_proc = None
+        self._stdout: Optional[str] = None
+        self._terminate_flag = False
+        self._thread = None
+
+    def set_command_proc(self, command_proc):
         self.command_proc = command_proc
 
+    def set_thread(self, thread):
+        self._thread = thread
+
     @property
-    def id(self) -> str:
+    def id(self) -> Optional[str]:
+        if self.command_proc is None:
+            return None
         return str(self.command_proc.pid)
 
-    def wait(self) -> bool:
+    def wait(self) -> Optional[bool]:
         return self.command_proc.wait() == 0
 
     def get_logs(self) -> Optional[str]:
-        if self.command_proc.stdout is not None:
-            return self.command_proc.stdout.read().decode("utf-8")
-        return None
+        return self._stdout
 
     def cancel(self) -> None:
-        # Interrupt child process if it hasn't already exited
-        if self.command_proc.poll() is None:
-            # Kill the the process tree rooted at the child if it's the leader of its own process
-            # group, otherwise just kill the child
-            try:
-                if self.command_proc.pid == os.getpgid(self.command_proc.pid):
-                    os.killpg(self.command_proc.pid, signal.SIGTERM)
-                else:
-                    self.command_proc.terminate()
-            except OSError:
-                # The child process may have exited before we attempted to terminate it, so we
-                # ignore OSErrors raised during child process termination
-                _msg = f"{LOG_PREFIX}Failed to terminate child process PID {self.command_proc.pid}"
-                _logger.debug(_msg)
-            self.command_proc.wait()
+        # thread is set immediately after starting, should always exist
+        assert self._thread is not None
+
+        # cancel called before the thread subprocess has started
+        # indicates to thread to not start command proc if not already started
+        self._terminate_flag = True
 
     def get_status(self) -> Status:
+        if self.command_proc is None and self._thread.is_alive():
+            return Status("running")
+        elif self.command_proc is None and not self._thread.is_alive():
+            return Status("stopped")
+        assert self.command_proc is not None
         exit_code = self.command_proc.poll()
         if exit_code is None:
             return Status("running")
@@ -105,6 +112,7 @@ class LocalContainerRunner(AbstractRunner):
         job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:
         docker_args = self._populate_docker_args(launch_project)
+        synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         entry_point = launch_project.get_single_entry_point()
         env_vars = get_env_vars_dict(launch_project, self._api)
 
@@ -154,7 +162,6 @@ class LocalContainerRunner(AbstractRunner):
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)
-        synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()
@@ -174,22 +181,44 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
     if work_dir is None:
         work_dir = os.getcwd()
     env = os.environ.copy()
-    if os.name == "nt":
-        # we are running on windows
-        process = subprocess.Popen(
-            ["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env
-        )
-    else:
-        process = subprocess.Popen(
-            ["bash", "-c", command],
-            close_fds=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=work_dir,
-            env=env,
-        )
+    run = LocalSubmittedRun()
+    thread = threading.Thread(target=_thread_process_runner, args=(run, ["bash", "-c", command], work_dir, env))
+    run.set_thread(thread)
+    thread.start()
+    return run
 
-    return LocalSubmittedRun(process)
+
+def _thread_process_runner(run, args, work_dir, env):
+    # cancel was called before we started the subprocess
+    if run._terminate_flag:
+        return
+    process = subprocess.Popen(
+        args,
+        close_fds=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1,
+        cwd=work_dir,
+        env=env,
+    )
+    run.set_command_proc(process)
+    run._stdout = ""
+    while True:
+        if run._terminate_flag:
+            process.terminate()
+        chunk = os.read(process.stdout.fileno(), 4096)  # type: ignore
+        if not chunk:
+            break
+        index = chunk.find(b"\r")
+        decoded_chunk = chunk.decode()
+        if index != -1:
+            run._stdout += decoded_chunk
+            print(chunk.decode(), end="")
+        else:
+            run._stdout += decoded_chunk + "\r"
+            print(chunk.decode(), end="\r")
+
 
 
 def get_docker_command(
