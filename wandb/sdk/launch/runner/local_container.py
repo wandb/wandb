@@ -1,7 +1,6 @@
 import logging
 import os
 import shlex
-import signal
 import subprocess
 import sys
 import threading
@@ -33,15 +32,15 @@ class LocalSubmittedRun(AbstractRun):
 
     def __init__(self) -> None:
         super().__init__()
-        self.command_proc = None
+        self.command_proc: Optional[subprocess.Popen] = None
         self._stdout: Optional[str] = None
-        self._terminate_flag = False
-        self._thread = None
+        self._terminate_flag: bool = False
+        self._thread: Optional[threading.Thread] = None
 
-    def set_command_proc(self, command_proc):
+    def set_command_proc(self, command_proc: subprocess.Popen) -> None:
         self.command_proc = command_proc
 
-    def set_thread(self, thread):
+    def set_thread(self, thread: threading.Thread) -> None:
         self._thread = thread
 
     @property
@@ -50,7 +49,18 @@ class LocalSubmittedRun(AbstractRun):
             return None
         return str(self.command_proc.pid)
 
-    def wait(self) -> Optional[bool]:
+    def wait(self) -> bool:
+        assert self._thread is not None
+        # if command proc is not set
+        # wait for thread to set it
+        if self.command_proc is None:
+            while self._thread.is_alive():
+                time.sleep(5)
+                # command proc can be updated by another thread
+                if self.command_proc is not None:
+                    return self.command_proc.wait() == 0  # type: ignore
+            return False
+
         return self.command_proc.wait() == 0
 
     def get_logs(self) -> Optional[str]:
@@ -65,6 +75,7 @@ class LocalSubmittedRun(AbstractRun):
         self._terminate_flag = True
 
     def get_status(self) -> Status:
+        assert self._thread is not None
         if self.command_proc is None and self._thread.is_alive():
             return Status("running")
         elif self.command_proc is None and not self._thread.is_alive():
@@ -182,13 +193,18 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
         work_dir = os.getcwd()
     env = os.environ.copy()
     run = LocalSubmittedRun()
-    thread = threading.Thread(target=_thread_process_runner, args=(run, ["bash", "-c", command], work_dir, env))
+    thread = threading.Thread(
+        target=_thread_process_runner,
+        args=(run, ["bash", "-c", command], work_dir, env),
+    )
     run.set_thread(thread)
     thread.start()
     return run
 
 
-def _thread_process_runner(run, args, work_dir, env):
+def _thread_process_runner(
+    run: LocalSubmittedRun, args: List[str], work_dir: str, env: Dict[str, str]
+) -> None:
     # cancel was called before we started the subprocess
     if run._terminate_flag:
         return
@@ -205,8 +221,9 @@ def _thread_process_runner(run, args, work_dir, env):
     run.set_command_proc(process)
     run._stdout = ""
     while True:
+        # the agent thread could set the terminate flag
         if run._terminate_flag:
-            process.terminate()
+            process.terminate()  # type: ignore
         chunk = os.read(process.stdout.fileno(), 4096)  # type: ignore
         if not chunk:
             break
@@ -218,7 +235,6 @@ def _thread_process_runner(run, args, work_dir, env):
         else:
             run._stdout += decoded_chunk + "\r"
             print(chunk.decode(), end="\r")
-
 
 
 def get_docker_command(
