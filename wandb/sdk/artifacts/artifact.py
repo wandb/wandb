@@ -1,4 +1,5 @@
 """Artifact class."""
+import concurrent.futures
 import contextlib
 import datetime
 import json
@@ -56,7 +57,7 @@ from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStora
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.sdk.lib import filesystem, runid, telemetry
+from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
@@ -1112,8 +1113,6 @@ class Artifact:
             logical_path, physical_path = log_phy_path
             self._add_local_file(logical_path, physical_path)
 
-        import multiprocessing.dummy  # this uses threads
-
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
         pool.map(add_manifest_file, paths)
@@ -1572,8 +1571,41 @@ class Artifact:
             start_time = datetime.datetime.now()
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
-        def _download_file(
-            name: str,
+        @retry.retriable(
+            retry_timedelta=datetime.timedelta(minutes=3),
+            retryable_exceptions=(requests.RequestException),
+        )
+        def fetch_file_urls(cursor: Optional[str]) -> Any:
+            query = gql(
+                """
+                query ArtifactFileURLs($id: ID!, $cursor: String) {
+                    artifact(id: $id) {
+                        files(after: $cursor, first: 5000) {
+                            pageInfo {
+                                hasNextPage
+                                endCursor
+                            }
+                            edges {
+                                node {
+                                    name
+                                    directUrl
+                                }
+                            }
+                        }
+                    }
+                }
+                """
+            )
+            assert self._client is not None
+            response = self._client.execute(
+                query,
+                variable_values={"id": self.id, "cursor": cursor},
+                timeout=60,
+            )
+            return response["artifact"]["files"]
+
+        def _download_entry(
+            entry: ArtifactManifestEntry,
             api_key: Optional[str],
             cookies: Optional[Dict],
             headers: Optional[Dict],
@@ -1582,23 +1614,48 @@ class Artifact:
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
 
-            self.get_path(name).download(root)
+            entry.download(root)
             download_logger.notify_downloaded()
 
-        pool = multiprocessing.dummy.Pool(32)
-        pool.map(
-            partial(
-                _download_file,
-                api_key=_thread_local_api_settings.api_key,
-                cookies=_thread_local_api_settings.cookies,
-                headers=_thread_local_api_settings.headers,
-            ),
-            self.manifest.entries,
+        download_entry = partial(
+            _download_entry,
+            api_key=_thread_local_api_settings.api_key,
+            cookies=_thread_local_api_settings.cookies,
+            headers=_thread_local_api_settings.headers,
         )
+
+        with concurrent.futures.ThreadPoolExecutor(64) as executor:
+            active_futures = set()
+            # Download files.
+            has_next_page = True
+            cursor = None
+            while has_next_page:
+                attrs = fetch_file_urls(cursor)
+                has_next_page = attrs["pageInfo"]["hasNextPage"]
+                cursor = attrs["pageInfo"]["endCursor"]
+                for edge in attrs["edges"]:
+                    entry = self.get_path(edge["node"]["name"])
+                    entry._download_url = edge["node"]["directUrl"]
+                    active_futures.add(executor.submit(download_entry, entry))
+                # Wait for download threads to catch up.
+                max_backlog = 5000
+                if len(active_futures) > max_backlog:
+                    for future in concurrent.futures.as_completed(active_futures):
+                        future.result()  # check for errors
+                        active_futures.remove(future)
+                        if len(active_futures) <= max_backlog:
+                            break
+            # Download references.
+            for entry in self.manifest.entries.values():
+                if entry.ref is not None:
+                    active_futures.add(executor.submit(download_entry, entry))
+            # Check for errors.
+            for future in concurrent.futures.as_completed(active_futures):
+                future.result()
+
         if recursive:
-            pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
-        pool.close()
-        pool.join()
+            for dependent_artifact in self._dependent_artifacts:
+                dependent_artifact.download()
 
         if log:
             now = datetime.datetime.now()
