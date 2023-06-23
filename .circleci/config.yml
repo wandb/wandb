@@ -621,8 +621,8 @@ jobs:
       - run:
           name: Install python dependencies
           command: |
-            pip install tox==<< pipeline.parameters.tox_version >>
-            pip install -U pip
+            python3 -m pip install tox==<< pipeline.parameters.tox_version >>
+            python3 -m pip install -U pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
