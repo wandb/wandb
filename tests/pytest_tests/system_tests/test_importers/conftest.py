@@ -31,9 +31,7 @@ from packaging.version import Version
 from PIL import Image
 from rdkit import Chem
 
-from ..helpers import (
-    WandbServerSettings,
-)
+from ..helpers import WandbServerSettings
 
 MLFLOW_BASE_URL = "http://localhost:4040"
 MLFLOW_HEALTH_ENDPOINT = "health"
@@ -597,7 +595,6 @@ def create_random_molecule():
 def make_artifact(name):
     # Create a temporary directory
     with tempfile.TemporaryDirectory() as tmpdirname:
-
         # Set the filename
         filename = os.path.join(tmpdirname, "random_text.txt")
 
