@@ -1,5 +1,10 @@
 import dataclasses
-from typing import Literal, Optional
+from typing import Optional
+
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 LOCAL_BASE_PORT = "8080"
 SERVICES_API_PORT = "8083"
