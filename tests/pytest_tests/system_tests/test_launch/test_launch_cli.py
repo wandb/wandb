@@ -1,9 +1,7 @@
 import json
-import os
 
 import pytest
 import wandb
-import tempfile
 from wandb.cli import cli
 from wandb.sdk.launch.errors import LaunchError
 

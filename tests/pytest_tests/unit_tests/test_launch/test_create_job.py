@@ -1,19 +1,16 @@
+import json
+import os
 import tempfile
-from wandb.sdk.artifacts.artifact import Artifact
+
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.create_job import (
+    _configure_job_builder,
     _create_artifact_metadata,
     _handle_artifact_entrypoint,
-    _configure_job_builder,
-    make_code_artifact_name,
     dump_metadata_and_requirements,
-    create_job,
+    make_code_artifact_name,
 )
-
-import os
-import sys
-import json
 
 
 def test_create_artifact_metadata():
@@ -82,14 +79,14 @@ def test_make_code_artifact_name():
     name = "karen"
 
     assert make_code_artifact_name("./test", name) == f"code-{name}"
-    assert make_code_artifact_name("./test", None) == f"code-test"
-    assert make_code_artifact_name("test", None) == f"code-test"
-    assert make_code_artifact_name("/test", None) == f"code-test"
-    assert make_code_artifact_name("/test/", None) == f"code-test"
-    assert make_code_artifact_name("./test/", None) == f"code-test"
+    assert make_code_artifact_name("./test", None) == "code-test"
+    assert make_code_artifact_name("test", None) == "code-test"
+    assert make_code_artifact_name("/test", None) == "code-test"
+    assert make_code_artifact_name("/test/", None) == "code-test"
+    assert make_code_artifact_name("./test/", None) == "code-test"
 
-    assert make_code_artifact_name("/test/dir", None) == f"code-test_dir"
-    assert make_code_artifact_name("./test/dir/", None) == f"code-test_dir"
+    assert make_code_artifact_name("/test/dir", None) == "code-test_dir"
+    assert make_code_artifact_name("./test/dir/", None) == "code-test_dir"
 
 
 def test_dump_metadata_and_requirements():
