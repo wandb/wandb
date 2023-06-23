@@ -74,7 +74,7 @@ azure-storage-blob
 
 cloudpickle
 responses
-kfp
+kfp<2.0.0
 
 mlflow
 polars

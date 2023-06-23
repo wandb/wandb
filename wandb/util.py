@@ -57,8 +57,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath
 if TYPE_CHECKING:
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
-    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -1500,16 +1499,14 @@ def check_windows_valid_filename(path: Union[int, str]) -> bool:
     return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
-def artifact_to_json(
-    artifact: Union["LocalArtifact", "PublicArtifact"]
-) -> Dict[str, Any]:
+def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
         "sequenceName": artifact.source_name.split(":")[0],
-        "usedAs": artifact._use_as,
+        "usedAs": artifact.use_as,
     }
 
 
@@ -1519,11 +1516,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
             contains_artifacts = check_dict_contains_nested_artifact(item, True)
             if contains_artifacts:
                 return True
-        elif (
-            isinstance(item, wandb.Artifact)
-            or isinstance(item, wandb.sdk.PublicArtifact)
-            or _is_artifact_string(item)
-        ) and nested:
+        elif (isinstance(item, wandb.Artifact) or _is_artifact_string(item)) and nested:
             return True
     return False
 
@@ -1603,7 +1596,7 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
 
 
 def _is_artifact_object(v: Any) -> bool:
-    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.sdk.PublicArtifact)
+    return isinstance(v, wandb.Artifact)
 
 
 def _is_artifact_string(v: Any) -> bool:

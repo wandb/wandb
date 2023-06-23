@@ -986,7 +986,7 @@ def launch_sweep(
 
         if settings.get("method"):
             # assume WandbScheduler, and user is using this right
-            sweep_config["method"] = method
+            sweep_config["method"] = settings["method"]
 
     else:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
