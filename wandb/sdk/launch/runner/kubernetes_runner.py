@@ -146,14 +146,21 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         """Return the run status."""
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
-        status = job_response.status
+        try:
+            job_response = self.batch_api.read_namespaced_job_status(
+                name=self.name, namespace=self.namespace
+            )
+            status = job_response.status
 
-        pod = self.core_api.read_namespaced_pod(
-            name=self.pod_names[0], namespace=self.namespace
-        )
+            pod = self.core_api.read_namespaced_pod(
+                name=self.pod_names[0], namespace=self.namespace
+            )
+        except ApiException:
+            # Pod/job not reachable
+            # TODO: determine specific error when machine goes down
+            wandb.termlog(f"{LOG_PREFIX}Job or pod disconnected for job: {self.name}")
+            return Status("disconnected")
+
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:

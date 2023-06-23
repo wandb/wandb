@@ -5,12 +5,9 @@ import pprint
 import threading
 import time
 import traceback
-from kubernetes.client.exceptions import ApiException
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
-
-from kubernetes.client.exceptions import ApiException
 
 import wandb
 from wandb.apis.internal import Api
@@ -495,7 +492,7 @@ class LaunchAgent:
     ) -> None:
         thread_id = threading.current_thread().ident
         assert thread_id is not None
-        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], file_saver)
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
         with self._jobs_lock:
             self._jobs[thread_id] = job_tracker
         try:
@@ -573,7 +570,7 @@ class LaunchAgent:
             run.command_proc.kill()
 
     def _check_run_finished(
-        self, job_tracker: JobAndRunStatusTracker, api: Api, launch_spec: Dict[str, Any]
+        self, job_tracker: JobAndRunStatusTracker, launch_spec: Dict[str, Any]
     ) -> bool:
         if job_tracker.completed_status:
             return True
@@ -590,24 +587,26 @@ class LaunchAgent:
         known_error = False
         try:
             run = job_tracker.run
-            try:
-                status = run.get_status().state
-            except ApiException:
-                # Pod not reachable
-                wandb.termlog(f"{LOG_PREFIX}Requeueing job: {launch_spec}")
-                launch_add(
-                    config=launch_spec,
-                    project_queue=self._project,
-                    queue_name=job_tracker.queue,
-                )
-                status = "failed"
-            if status in ["stopped", "failed", "finished"]:
+            status = run.get_status().state
+            if status in ["stopped", "failed", "finished", "disconnected"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
                     job_tracker.completed_status = status
+                if status == "disconnected":
+                    config = launch_spec.copy()
+                    config["run_id"] = job_tracker.run_id
+                    config["resume"] = True
+                    wandb.termlog(
+                        f"{LOG_PREFIX}Requeueing run id {job_tracker.run_id}, job spec: {launch_spec}"
+                    )
+                    launch_add(
+                        config=config,
+                        project_queue=self._project,
+                        queue_name=job_tracker.queue,
+                    )
                 return True
             return False
         except LaunchError as e:
