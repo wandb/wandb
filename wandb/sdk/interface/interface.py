@@ -852,10 +852,10 @@ class InterfaceBase:
     ) -> MailboxHandle:
         raise NotImplementedError
 
-    @abstractmethod
     def deliver_request_job_info(self) -> MailboxHandle:
         job_link = pb.JobInfoRequest()
         return self._deliver_request_job_info(job_link)
 
+    @abstractmethod
     def _deliver_request_job_info(self, job_link: pb.JobInfoRequest) -> MailboxHandle:
         raise NotImplementedError
