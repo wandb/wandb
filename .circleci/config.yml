@@ -606,7 +606,7 @@ jobs:
         default: ""
     resource_class: xlarge
     machine:
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2204:2023.04.2
       docker_layer_caching: true
     steps:
       - checkout
