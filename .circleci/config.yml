@@ -405,11 +405,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Start second wandb server
-          command: |
-            echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
-            docker run -d -p 9180:8080 -p 9183:8083 -p 9115:9015 -e CI=1 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-      - run:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
@@ -583,6 +578,71 @@ jobs:
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
+
+  importers:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+      shard:
+        type: string
+        default: "core"
+      toxenv:
+        type: string
+      coverage_dir:
+        type: string
+        default: ""
+      notify_on_failure:
+        type: boolean
+        default: false
+      xdist:
+        type: integer
+        default: 3
+      tox_args:
+        type: string
+        default: ""
+    machine:
+      image: ubuntu-2004:202104-01
+      docker_layer_caching: true
+    steps:
+      - checkout
+      - run:
+          name: Start second wandb server
+          command: |
+            echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
+            docker run -d -p 9180:8080 -p 9183:8083 -p 9115:9015 -e CI=1 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install python dependencies
+          command: |
+            pip install tox==<< pipeline.parameters.tox_version >>
+            pip install -U pip
+            while ! curl http://localhost:8080/healthz; do sleep 1; done
+          no_output_timeout: 5m
+      - run:
+          name: Run tests
+          no_output_timeout: 10m
+          command: |
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
+            tox run -v -e <<parameters.toxenv>>  \
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
+      - save-test-results
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   launch:
     parameters:
@@ -1371,7 +1431,7 @@ workflows:
       #
       # Import API System tests on Linux, using two real wandb servers
       #
-      - pytest:
+      - importers:
           requires:
             - "system-tests"
           matrix:
