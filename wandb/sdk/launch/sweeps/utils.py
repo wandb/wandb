@@ -291,3 +291,39 @@ def check_job_exists(public_api: PublicApi, job: Optional[str]) -> bool:
         wandb.termerror(f"Failed to load job. {e}")
         return False
     return True
+
+
+def check_same_job(
+    prev_scheduler_job: Optional[str], scheduler_job: Optional[str]
+) -> Optional[str]:
+    if not prev_scheduler_job:
+        wandb.termerror("No job found in previous sweep, aborting")
+        return None
+
+    if scheduler_job and prev_scheduler_job != scheduler_job:
+        wandb.termerror(
+            f"Resuming a launch sweep with a different scheduler job is not supported. Job loaded from sweep: {prev_scheduler_job}, job in config: {scheduler_job}"
+        )
+        return None
+
+    return prev_scheduler_job
+
+
+def get_previous_args(
+    run_spec: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Parse through previous scheduler run_spec to determine
+    scheduler_args and settings.
+    """
+    scheduler_args = (
+        run_spec.get("overrides", {}).get("run_config", {}).get("scheduler", {})
+    )
+    # also pipe through top level resource setup
+    if run_spec.get("resource"):
+        scheduler_args["resource"] = run_spec["resource"]
+    if run_spec.get("resource_args"):
+        scheduler_args["resource_args"] = run_spec["resource_args"]
+
+    settings = run_spec.get("overrides", {}).get("run_config", {}).get("settings", {})
+
+    return scheduler_args, settings
