@@ -559,8 +559,8 @@ class LaunchAgent:
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
         # types of runners in general
-        if isinstance(run, LocalSubmittedRun) and run.command_proc is not None:
-            run.command_proc.kill()
+        if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
+            run._command_proc.kill()
 
     def _check_run_finished(self, job_tracker: JobAndRunStatusTracker) -> bool:
         if job_tracker.completed_status:

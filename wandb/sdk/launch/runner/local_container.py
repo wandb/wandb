@@ -32,36 +32,36 @@ class LocalSubmittedRun(AbstractRun):
 
     def __init__(self) -> None:
         super().__init__()
-        self.command_proc: Optional[subprocess.Popen] = None
+        self._command_proc: Optional[subprocess.Popen] = None
         self._stdout: Optional[str] = None
         self._terminate_flag: bool = False
         self._thread: Optional[threading.Thread] = None
 
     def set_command_proc(self, command_proc: subprocess.Popen) -> None:
-        self.command_proc = command_proc
+        self._command_proc = command_proc
 
     def set_thread(self, thread: threading.Thread) -> None:
         self._thread = thread
 
     @property
     def id(self) -> Optional[str]:
-        if self.command_proc is None:
+        if self._command_proc is None:
             return None
-        return str(self.command_proc.pid)
+        return str(self._command_proc.pid)
 
     def wait(self) -> bool:
         assert self._thread is not None
         # if command proc is not set
         # wait for thread to set it
-        if self.command_proc is None:
+        if self._command_proc is None:
             while self._thread.is_alive():
                 time.sleep(5)
                 # command proc can be updated by another thread
-                if self.command_proc is not None:
-                    return self.command_proc.wait() == 0  # type: ignore
+                if self._command_proc is not None:
+                    return self._command_proc.wait() == 0  # type: ignore
             return False
 
-        return self.command_proc.wait() == 0
+        return self._command_proc.wait() == 0
 
     def get_logs(self) -> Optional[str]:
         return self._stdout
@@ -75,13 +75,12 @@ class LocalSubmittedRun(AbstractRun):
         self._terminate_flag = True
 
     def get_status(self) -> Status:
-        assert self._thread is not None
-        if self.command_proc is None and self._thread.is_alive():
-            return Status("running")
-        elif self.command_proc is None and not self._thread.is_alive():
+        assert self._thread is not None, "Failed to get status, self._thread = None"
+        if self._command_proc is None:
+            if self._thread.is_alive():
+                return Status("running")
             return Status("stopped")
-        assert self.command_proc is not None
-        exit_code = self.command_proc.poll()
+        exit_code = self._command_proc.poll()
         if exit_code is None:
             return Status("running")
         if exit_code == 0:
