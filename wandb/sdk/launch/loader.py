@@ -54,6 +54,10 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
         from .environment.gcp_environment import GcpEnvironment
 
         return GcpEnvironment.from_config(config)
+    if env_type == "azure":
+        from .environment.azure_environment import AzureEnvironment
+
+        return AzureEnvironment.from_config(config)
     raise LaunchError(
         f"Could not create environment from config. Invalid type: {env_type}"
     )
@@ -110,6 +114,17 @@ def registry_from_config(
         from .registry.google_artifact_registry import GoogleArtifactRegistry
 
         return GoogleArtifactRegistry.from_config(config, environment)
+    if registry_type == "acr":
+        from .environment.azure_environment import AzureEnvironment
+
+        if not isinstance(environment, AzureEnvironment):
+            raise LaunchError(
+                "Could not create ACR registry. "
+                "Environment must be an instance of AzureEnvironment."
+            )
+        from .registry.azure_container_registry import AzureContainerRegistry
+
+        return AzureContainerRegistry.from_config(config, environment)
     raise LaunchError(
         f"Could not create registry from config. Invalid registry type: {registry_type}"
     )

@@ -1195,7 +1195,7 @@ def test_launch_build_config_file(
             "synchronous": False,
         }
         args, _ = launch.run(**kwargs)
-        _, _, builder = args
+        _, _, builder, _ = args
         assert isinstance(builder, DockerBuilder)
 
 

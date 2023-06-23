@@ -68,6 +68,7 @@ _Setting = Literal[
     "allow_val_change",
     "anonymous",
     "api_key",
+    "azure_account_url_to_access_key",
     "base_url",
     "code_dir",
     "config_paths",
