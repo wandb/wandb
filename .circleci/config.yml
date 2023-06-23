@@ -604,6 +604,7 @@ jobs:
       tox_args:
         type: string
         default: ""
+    resource_class: xlarge
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
