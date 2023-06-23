@@ -175,7 +175,7 @@ def _run(
     builder = loader.builder_from_config(build_config, environment, registry)
     backend = loader.runner_from_config(resource, api, runner_config, environment)
     if backend:
-        submitted_run = backend.run(launch_project, builder)
+        submitted_run = backend.run(launch_project, builder, None)
         # this check will always pass, run is only optional in the agent case where
         # a run queue id is present on the backend config
         assert submitted_run
