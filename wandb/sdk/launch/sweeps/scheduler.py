@@ -487,7 +487,7 @@ class Scheduler(ABC):
 
     def _update_scheduler_run_state(self) -> None:
         """Update the scheduler state from state of scheduler run and sweep state."""
-        state: RunState = self._get_run_state(self._wandb_run.name)
+        state: RunState = self._get_run_state(self._wandb_run.id)
 
         if state == RunState.KILLED:
             self.state = SchedulerState.STOPPED
