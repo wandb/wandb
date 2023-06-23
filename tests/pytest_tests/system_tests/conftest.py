@@ -1,4 +1,3 @@
-import dataclasses
 import os
 import platform
 import secrets
@@ -34,8 +33,8 @@ from wandb.testing.relay import (
 )
 
 from .helpers import (
-    UserFixtureCommand,
     AddAdminAndEnsureNoDefaultUser,
+    UserFixtureCommand,
     WandbServerSettings,
 )
 

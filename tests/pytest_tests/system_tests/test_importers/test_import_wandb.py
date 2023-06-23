@@ -1,7 +1,7 @@
+import pandas as pd
 import pytest
 import wandb
 from wandb.apis.importers import WandbParquetImporter
-import pandas as pd
 
 
 @pytest.mark.timeout(300)
