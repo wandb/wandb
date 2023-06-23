@@ -82,7 +82,7 @@ parameters:
     default: true
   wandb_server_tag:
     type: string
-    default: "andrew/testcontainer-logs"
+    default: "andrew-testcontainer-logs"
 
 commands:
   save-test-results:
