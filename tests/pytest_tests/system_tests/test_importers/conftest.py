@@ -406,6 +406,10 @@ class WandbLoggingConfig:
     n_experiments: int
 
 
+def determine_scope(fixture_name, config):
+    return config.getoption("--user-scope")
+
+
 @pytest.fixture(scope="session")
 def wandb_logging_config():
     config = {"n_steps": 250, "n_metrics": 2, "n_experiments": 3}
@@ -431,7 +435,7 @@ def wandb_server(wandb_server_factory, settings):
     return wandb_server_factory(settings)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=determine_scope)
 def alt_user(user_factory, fixture_fn_alt, settings):
     yield from user_factory(fixture_fn_alt, settings)
 

@@ -789,7 +789,7 @@ def fixture_fn(base_wandb_server, fixture_fn_factory, settings2):
     yield from fixture_fn_factory(settings2)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=determine_scope)
 def user(user_factory, fixture_fn, settings2):
     yield from user_factory(fixture_fn, settings2)
 
