@@ -12,7 +12,17 @@ from setuptools.command.develop import develop
 # from distutils.command.bdist import bdist
 from wheel.bdist_wheel import bdist_wheel
 
-PACKAGE: str = "wandb_nexus"
+
+# Package naming
+# --------------
+#   wandb-core:         Package containing architecture specific code
+#   wandb-core-nightly: Package created every night based on main branch
+#   wandb-core-alpha:   Package used during early development
+_WANDB_CORE_ALPHA_ENV = "WANDB_CORE_ALPHA"
+_is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
+
+
+PACKAGE: str = "wandb_core"
 ALL_PLATFORMS = (
     ("darwin", "arm64"),
     ("darwin", "amd64"),
@@ -87,7 +97,7 @@ class WrapInstall(install, NexusBase):
 class WrapDevelop(develop, NexusBase):
     def run(self):
         develop.run(self)
-        self._build_nexus(path=Path("wandb_nexus"))
+        self._build_nexus(path=Path("wandb_core"))
 
 
 class WrapBdistWheel(bdist_wheel, NexusBase):
@@ -111,7 +121,7 @@ class WrapBdistWheel(bdist_wheel, NexusBase):
 
 
 setup(
-    name="wandb-nexus",
+    name="wandb-core" if not _is_wandb_core_alpha else "wandb-core-alpha",
     version="0.0.1.dev1",
     description="Wandb core",
     packages=[PACKAGE],
