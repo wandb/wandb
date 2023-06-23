@@ -627,8 +627,8 @@ jobs:
       - run:
           name: Install python dependencies
           command: |
-            python3 -m pip install tox==<< pipeline.parameters.tox_version >>
-            python3 -m pip install -U pip
+            pip3 install tox==<< pipeline.parameters.tox_version >>
+            pip3 install -U pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
             while ! curl http://localhost:9180/healthz; do sleep 1; done
             while ! curl http://localhost:9015/health; do sleep 1; done
@@ -638,7 +638,6 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
-            export PATH=$PATH:`python3 -m site --user-base`/bin && \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
