@@ -604,20 +604,16 @@ jobs:
       tox_args:
         type: string
         default: ""
-    docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-      - image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-        auth:
-          username: _json_key
-          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
-        environment:
-          CI: 1
-          WANDB_ENABLE_TEST_CONTAINER: true
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
     steps:
       - checkout
+      - run:
+          name: Start first wandb server
+          command: |
+            echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
+            docker run -d -e CI=1 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
       - run:
           name: Start second wandb server
           command: |
@@ -632,6 +628,7 @@ jobs:
           command: |
             python3 -m pip install tox==<< pipeline.parameters.tox_version >>
             python3 -m pip install -U pip
+            while ! curl http://localhost:8080/healthz; do sleep 1; done
             while ! curl http://localhost:9180/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
