@@ -659,10 +659,11 @@ class Scheduler(ABC):
             raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
 
         entry_point, launch_config = self._make_entry_and_launch_config(run)
-        wandb.termwarn(
-            f"{LOG_PREFIX}Sweep command {entry_point} will override"
-            f' {"job" if _job else "image_uri"} entrypoint'
-        )
+        if entry_point:
+            wandb.termwarn(
+                f"{LOG_PREFIX}Sweep command {entry_point} will override"
+                f' {"job" if _job else "image_uri"} entrypoint'
+            )
 
         run_id = run.id or generate_id()
         queued_run = launch_add(
