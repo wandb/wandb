@@ -1492,8 +1492,7 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
-        if artifact.type == "job":
-            assert res
+        if artifact.type == "job" and res is not None:
             self._job_version_alias = res["version"]
             self._job_seq_id = res["artifactSequence"]["id"]
         self._job_builder._set_logged_code_artifact(res, artifact)
