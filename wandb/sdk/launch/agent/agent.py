@@ -545,7 +545,6 @@ class LaunchAgent:
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         run = backend.run(project, builder, job_tracker)
-
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
@@ -566,8 +565,8 @@ class LaunchAgent:
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
         # types of runners in general
-        if isinstance(run, LocalSubmittedRun):
-            run.command_proc.kill()
+        if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
+            run._command_proc.kill()
 
     def _check_run_finished(
         self, job_tracker: JobAndRunStatusTracker, launch_spec: Dict[str, Any]
