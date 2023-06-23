@@ -610,16 +610,16 @@ jobs:
       docker_layer_caching: true
     steps:
       - checkout
-      - run:
-          name: Start first wandb server
-          command: |
-            echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
-            docker run -d -p 8080:8080 -p 8083:8083 -p 9015:9015 -e CI=1 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-      - run:
-          name: Start second wandb server
-          command: |
-            echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
-            docker run -d -p 9180:8080 -p 9183:8083 -p 9115:9015 -e CI=1 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      # - run:
+      #     name: Start first wandb server
+      #     command: |
+      #       echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
+      #       docker run -d -p 8080:8080 -p 8083:8083 -p 9015:9015 -e CI=1 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      # - run:
+      #     name: Start second wandb server
+      #     command: |
+      #       echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
+      #       docker run -d -p 9180:8080 -p 9183:8083 -p 9115:9015 -e CI=1 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
       - run:
           name: Install system deps
           command: |
