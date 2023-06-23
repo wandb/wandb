@@ -1010,8 +1010,14 @@ def launch_sweep(
 
         prev_scheduler = json.loads(found.get("scheduler") or "{}")
         run_spec = json.loads(prev_scheduler.get("run_spec", "{}"))
-        scheduler_job = sweep_utils.check_same_job(run_spec.get("job"), scheduler_job)
-        if not scheduler_job:
+        if (
+            scheduler_job
+            and run_spec.get("job")
+            and run_spec.get("job") != scheduler_job
+        ):
+            wandb.termerror(
+                f"Resuming a launch sweep with a different scheduler job is not supported. Job loaded from sweep: {run_spec.get('job')}, job in config: {scheduler_job}"
+            )
             return
 
         prev_scheduler_args, prev_settings = sweep_utils.get_previous_args(run_spec)
@@ -1095,7 +1101,7 @@ def launch_sweep(
         entity=entity,
         obj_id=sweep_obj_id,  # if resuming
         launch_scheduler=launch_scheduler_with_queue,
-        state="PENDING" if not resume_id else "RUNNING",
+        state="PENDING",
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information

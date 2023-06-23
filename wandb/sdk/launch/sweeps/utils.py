@@ -293,22 +293,6 @@ def check_job_exists(public_api: PublicApi, job: Optional[str]) -> bool:
     return True
 
 
-def check_same_job(
-    prev_scheduler_job: Optional[str], scheduler_job: Optional[str]
-) -> Optional[str]:
-    if not prev_scheduler_job:
-        wandb.termerror("No job found in previous sweep, aborting")
-        return None
-
-    if scheduler_job and prev_scheduler_job != scheduler_job:
-        wandb.termerror(
-            f"Resuming a launch sweep with a different scheduler job is not supported. Job loaded from sweep: {prev_scheduler_job}, job in config: {scheduler_job}"
-        )
-        return None
-
-    return prev_scheduler_job
-
-
 def get_previous_args(
     run_spec: Dict[str, Any]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
