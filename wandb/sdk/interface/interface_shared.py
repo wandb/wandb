@@ -547,6 +547,17 @@ class InterfaceShared(InterfaceBase):
         assert sampled_history_response
         return sampled_history_response
 
+    def _communicate_job_info(
+        self, job_info: pb.JobInfoRequest
+    ) -> Optional[pb.JobInfoResponse]:
+        record = self._make_request(job_info=job_info)
+        result = self._communicate(record)
+        if result is None:
+            return None
+        job_info_response = result.response.job_info_response
+        assert job_info_response
+        return job_info_response
+
     def _communicate_shutdown(self) -> None:
         # shutdown
         request = pb.Request(shutdown=pb.ShutdownRequest())

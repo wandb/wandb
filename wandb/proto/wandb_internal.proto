@@ -851,6 +851,7 @@ message CheckVersionResponse {
 * JobInfo:
 */
 message JobInfoRequest {
+    _RequestInfo _info = 200;
 }
 
 message JobInfoResponse {
