@@ -685,8 +685,11 @@ def fixture_fn_factory():
                 endpoint,
                 json=data,
                 headers={
-                    "Content-Type": "application/json",
-                    "accept": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
+                    "Accept-Encoding": "*",
+                    "Connection": "keep-alive",
+                    # "Content-Type": "application/json",
+                    # "accept": "application/json",
                 },
             )
             print(response)
