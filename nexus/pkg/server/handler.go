@@ -1,8 +1,9 @@
 package server
 
 import (
+	"context"
 	"fmt"
-	"sync"
+	"strconv"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
@@ -13,134 +14,215 @@ import (
 )
 
 type Handler struct {
-	handlerChan chan *service.Record
+	settings *Settings
+	inChan   chan *service.Record
+	outChan  chan<- *service.Record
+
+	dispatcherChan dispatchChannel
 
 	currentStep int64
 	startTime   float64
-
-	wg     *sync.WaitGroup
-	writer *Writer
-	sender *Sender
-	run    *service.RunRecord
-
-	summary map[string]string
-
-	settings      *Settings
-	respondResult func(result *service.Result)
+	run         *service.RunRecord
+	summary     map[string]string
 }
 
-func NewHandler(respondResult func(result *service.Result), settings *Settings) *Handler {
-	var writer *Writer
-	wg := sync.WaitGroup{}
-	if !settings.NoWrite {
-		writer = NewWriter(settings)
-	}
-	sender := NewSender(&wg, respondResult, settings)
+func NewHandler(ctx context.Context, settings *Settings) *Handler {
 	handler := Handler{
-		wg:            &wg,
-		writer:        writer,
-		sender:        sender,
-		respondResult: respondResult,
-		settings:      settings,
-		summary:       make(map[string]string),
-		handlerChan:   make(chan *service.Record)}
-	sender.SetHandler(&handler)
-
-	go handler.handlerGo()
+		inChan:   make(chan *service.Record),
+		settings: settings,
+		summary:  make(map[string]string),
+	}
 	return &handler
 }
 
-func (handler *Handler) Stop() {
-	close(handler.handlerChan)
-}
-
-func (handler *Handler) HandleRecord(rec *service.Record) {
-	handler.handlerChan <- rec
-}
-
-// func (h *Handler) shutdownStream() {
-// 	log.Debug("HANDLER: shutdown")
-// 	if h.writer != nil {
-// 		h.writer.Stop()
-// 	}
-// 	// DONE ALREADY in defer path
-// 	// h.sender.Stop()
-// 	log.Debug("HANDLER: shutdown wait")
-// 	h.wg.Wait()
-// 	log.Debug("HANDLER: shutdown done")
-// }
-
-func (h *Handler) captureRunInfo(run *service.RunRecord) {
-	var ok bool
-	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
-	h.run, ok = proto.Clone(run).(*service.RunRecord)
-	if !ok {
-		log.Fatal("error")
+func (h *Handler) start() {
+	for msg := range h.inChan {
+		log.WithFields(log.Fields{"rec": msg}).Debug("handle: got msg")
+		h.handleRecord(msg)
 	}
 }
 
-func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartRequest) {
-	h.captureRunInfo(req.Run)
-	h.sender.SendRecord(rec)
+func (h *Handler) close() {
+	close(h.outChan)
 }
 
-func (h *Handler) handleRun(rec *service.Record, run *service.RunRecord) {
-	// runResult := &service.RunUpdateResult{Run: run}
-
-	// let sender take care of it
-	h.sender.SendRecord(rec)
-
-	/*
-	   result := &service.Result{
-	       ResultType: &service.Result_RunResult{runResult},
-	       Control: rec.Control,
-	       Uuid: rec.Uuid,
-	   }
-	   stream.respond <-*result
-	*/
+//gocyclo:ignore
+func (h *Handler) handleRecord(msg *service.Record) {
+	switch x := msg.RecordType.(type) {
+	case *service.Record_Alert:
+		// TODO: handle alert
+	case *service.Record_Artifact:
+		// TODO: handle artifact
+	case *service.Record_Config:
+		// TODO: handle config
+	case *service.Record_Exit:
+		h.handleExit(msg, x.Exit)
+	case *service.Record_Files:
+		h.handleFiles(msg, x.Files)
+	case *service.Record_Final:
+		// TODO: handle final
+	case *service.Record_Footer:
+		// TODO: handle footer
+	case *service.Record_Header:
+		// TODO: handle header
+	case *service.Record_History:
+		// TODO: handle history
+	case *service.Record_LinkArtifact:
+		// TODO: handle linkartifact
+	case *service.Record_Metric:
+		// TODO: handle metric
+	case *service.Record_Output:
+		// TODO: handle output
+	case *service.Record_OutputRaw:
+		// TODO: handle outputraw
+	case *service.Record_Preempting:
+		// TODO: handle preempting
+	case *service.Record_Request:
+		log.WithFields(log.Fields{"req": x}).Debug("reqgot")
+		h.handleRequest(msg)
+	case *service.Record_Run:
+		h.handleRun(msg, x.Run)
+	case *service.Record_Stats:
+		// TODO: handle stats
+	case *service.Record_Summary:
+		// TODO: handle summary
+	case *service.Record_Tbrecord:
+		// TODO: handle tbrecord
+	case *service.Record_Telemetry:
+		// TODO: handle telemetry
+	case nil:
+		log.Fatal("handleRecord: record type is nil")
+	default:
+		log.Fatalf("handleRecord: unknown record type %T", x)
+	}
 }
 
-func (h *Handler) handleRunExit(rec *service.Record, runExit *service.RunExitRecord) {
+func (h *Handler) handleRequest(rec *service.Record) {
+	req := rec.GetRequest()
+	ref := req.ProtoReflect()
+	desc := ref.Descriptor()
+	num := ref.WhichOneof(desc.Oneofs().ByName("request_type")).Number()
+	log.WithFields(log.Fields{"type": num}).Debug("PROCESS: REQUEST")
+
+	response := &service.Response{}
+	switch x := req.RequestType.(type) {
+	case *service.Request_CheckVersion:
+		// TODO: handle checkversion
+	case *service.Request_Defer:
+		h.handleDefer(rec)
+	case *service.Request_GetSummary:
+		h.handleGetSummary(rec, x.GetSummary, response)
+	case *service.Request_Keepalive:
+	case *service.Request_NetworkStatus:
+	case *service.Request_PartialHistory:
+		log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got partial")
+		h.handlePartialHistory(rec, x.PartialHistory)
+		return
+	case *service.Request_PollExit:
+	case *service.Request_RunStart:
+		log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got start")
+		h.handleRunStart(rec, x.RunStart)
+	case *service.Request_SampledHistory:
+	case *service.Request_ServerInfo:
+	case *service.Request_Shutdown:
+	case *service.Request_StopStatus:
+	default:
+		log.Fatalf("handleRequest: unknown request type %T", x)
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{Response: response},
+		Control:    rec.Control,
+		Uuid:       rec.Uuid,
+	}
+	h.dispatcherChan.Deliver(result)
+}
+
+func (h *Handler) sendRecord(rec *service.Record) {
 	control := rec.GetControl()
 	if control != nil {
 		control.AlwaysSend = true
 	}
-	h.sender.SendRecord(rec)
-
-	// TODO: need to flush stuff before responding with exit
-	// runExitResult := &service.RunExitResult{}
-	// result := &service.Result{
-	// 	ResultType: &service.Result_ExitResult{runExitResult},
-	// 	Control:    rec.Control,
-	// 	Uuid:       rec.Uuid,
-	// }
-	// h.respondResult(result)
-	// FIXME: hack to make sure that filestream has no data before continuing
-	// time.Sleep(2 * time.Second)
-	// h.shutdownStream()
+	h.outChan <- rec
 }
 
-func (h *Handler) handleGetSummary(rec *service.Record, msg *service.GetSummaryRequest, resp *service.Response) {
-	items := []*service.SummaryItem{}
+func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartRequest) {
+	var ok bool
+	run := req.Run
+	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
+	h.run, ok = proto.Clone(run).(*service.RunRecord)
+	if !ok {
+		log.Fatal("handleRunStart: failed to clone run")
+	}
+	h.sendRecord(rec)
+}
+
+func (h *Handler) handleRun(rec *service.Record, _ *service.RunRecord) {
+	h.sendRecord(rec)
+}
+
+func (h *Handler) handleExit(msg *service.Record, _ *service.RunExitRecord) {
+	h.sendRecord(msg)
+}
+
+func (h *Handler) handleFiles(rec *service.Record, _ *service.FilesRecord) {
+	h.sendRecord(rec)
+}
+
+func (h *Handler) handleGetSummary(_ *service.Record, _ *service.GetSummaryRequest, response *service.Response) {
+	var items []*service.SummaryItem
 
 	for key, element := range h.summary {
 		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
 	}
 
-	r := service.GetSummaryResponse{Item: items}
-	resp.ResponseType = &service.Response_GetSummaryResponse{GetSummaryResponse: &r}
+	response.ResponseType = &service.Response_GetSummaryResponse{GetSummaryResponse: &service.GetSummaryResponse{Item: items}}
 }
 
-func (h *Handler) handleDefer(rec *service.Record, req *service.DeferRequest) {
+func (h *Handler) handleDefer(rec *service.Record) {
+	// TODO: add defer state machine
+	req := rec.GetRequest().GetDefer()
 	switch req.State {
 	case service.DeferRequest_END:
-		if h.writer != nil {
-			h.writer.Flush()
-		}
+		h.close()
 	default:
+		h.sendRecord(rec)
 	}
-	h.sender.SendRecord(rec)
-	// h.shutdownStream()
+}
+
+func (h *Handler) handlePartialHistory(_ *service.Record, req *service.PartialHistoryRequest) {
+	items := req.Item
+
+	stepNum := h.currentStep
+	h.currentStep += 1
+	s := service.HistoryStep{Num: stepNum}
+
+	var runTime float64 = 0
+	// walk through items looking for _timestamp
+	for i := 0; i < len(items); i++ {
+		if items[i].Key == "_timestamp" {
+			val, err := strconv.ParseFloat(items[i].ValueJson, 64)
+			if err != nil {
+				log.Errorf("Error parsing _timestamp: %s", err)
+			}
+			runTime = val - h.startTime
+		}
+	}
+	items = append(items,
+		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
+		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", stepNum)},
+	)
+
+	record := service.HistoryRecord{Step: &s, Item: items}
+
+	r := service.Record{
+		RecordType: &service.Record_History{History: &record},
+	}
+	h.updateSummary(&record)
+
+	// TODO: remove this once we have handleHistory
+	h.sendRecord(&r)
+
 }
 
 func (h *Handler) updateSummary(msg *service.HistoryRecord) {
@@ -150,108 +232,6 @@ func (h *Handler) updateSummary(msg *service.HistoryRecord) {
 	}
 }
 
-func (h *Handler) handleRequest(rec *service.Record, req *service.Request) {
-	ref := req.ProtoReflect()
-	desc := ref.Descriptor()
-	num := ref.WhichOneof(desc.Oneofs().ByName("request_type")).Number()
-	log.WithFields(log.Fields{"type": num}).Debug("PROCESS: REQUEST")
-	noResult := false
-
-	response := &service.Response{}
-
-	switch x := req.RequestType.(type) {
-	case *service.Request_PartialHistory:
-		log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got partial")
-		h.handlePartialHistory(rec, x.PartialHistory)
-		noResult = true
-	case *service.Request_RunStart:
-		log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got start")
-		h.handleRunStart(rec, x.RunStart)
-	case *service.Request_GetSummary:
-		h.handleGetSummary(rec, x.GetSummary, response)
-	case *service.Request_Defer:
-		h.handleDefer(rec, x.Defer)
-	case *service.Request_CheckVersion:
-	case *service.Request_StopStatus:
-	case *service.Request_NetworkStatus:
-	case *service.Request_PollExit:
-	case *service.Request_ServerInfo:
-	case *service.Request_SampledHistory:
-	case *service.Request_Shutdown:
-	case *service.Request_Keepalive:
-	default:
-		bad := fmt.Sprintf("REC UNKNOWN Request type %T", x)
-		panic(bad)
-	}
-
-	if noResult {
-		return
-	}
-
-	result := &service.Result{
-		ResultType: &service.Result_Response{Response: response},
-		Control:    rec.Control,
-		Uuid:       rec.Uuid,
-	}
-	h.respondResult(result)
-}
-
-func (handler *Handler) handleRecord(msg *service.Record) {
-	// fmt.Println("HANDLEREC", msg)
-	switch x := msg.RecordType.(type) {
-	case *service.Record_Header:
-		// fmt.Println("headgot:", x)
-	case *service.Record_Request:
-		log.WithFields(log.Fields{"req": x}).Debug("reqgot")
-		handler.handleRequest(msg, x.Request)
-	case *service.Record_Summary:
-		// fmt.Println("sumgot:", x)
-	case *service.Record_Run:
-		// fmt.Println("rungot:", x)
-		handler.handleRun(msg, x.Run)
-	case *service.Record_Files:
-		handler.sender.SendRecord(msg)
-	case *service.Record_History:
-		// fmt.Println("histgot:", x)
-	case *service.Record_Telemetry:
-		// fmt.Println("telgot:", x)
-	case *service.Record_OutputRaw:
-		// fmt.Println("outgot:", x)
-	case *service.Record_Exit:
-		// fmt.Println("exitgot:", x)
-		handler.handleRunExit(msg, x.Exit)
-	case nil:
-		// The field is not set.
-		panic("bad2rec")
-	default:
-		bad := fmt.Sprintf("REC UNKNOWN type %T", x)
-		panic(bad)
-	}
-}
-
-func (h *Handler) storeRecord(msg *service.Record) {
-	switch msg.RecordType.(type) {
-	case *service.Record_Request:
-		// dont log this
-	case nil:
-		// The field is not set.
-		panic("bad3rec")
-	default:
-		if h.writer != nil {
-			h.writer.WriteRecord(msg)
-		}
-	}
-}
-
-func (handler *Handler) handlerGo() {
-	log.Debug("HANDLER")
-	for record := range handler.handlerChan {
-		log.WithFields(log.Fields{"rec": record}).Debug("HANDLER")
-		handler.storeRecord(record)
-		handler.handleRecord(record)
-	}
-}
-
-func (handler *Handler) GetRun() *service.RunRecord {
-	return handler.run
+func (h *Handler) GetRun() *service.RunRecord {
+	return h.run
 }

@@ -13,22 +13,28 @@ import (
 func writePortFile(portFile string, port int) {
 	tempFile := fmt.Sprintf("%s.tmp", portFile)
 	f, err := os.Create(tempFile)
-	checkError(err)
+	if err != nil {
+		log.Error(err)
+	}
 	defer func(f *os.File) {
 		_ = f.Close()
 	}(f)
 
-	_, err = f.WriteString(fmt.Sprintf("sock=%d\n", port))
-	checkError(err)
+	if _, err = f.WriteString(fmt.Sprintf("sock=%d\n", port)); err != nil {
+		log.Error(err)
+	}
 
-	_, err = f.WriteString("EOF")
-	checkError(err)
+	if _, err = f.WriteString("EOF"); err != nil {
+		log.Error(err)
+	}
 
-	err = f.Sync()
-	checkError(err)
+	if err = f.Sync(); err != nil {
+		log.Error(err)
+	}
 
-	err = os.Rename(tempFile, portFile)
-	checkError(err)
+	if err = os.Rename(tempFile, portFile); err != nil {
+		log.Error(err)
+	}
 }
 
 type NexusServer struct {
@@ -41,7 +47,7 @@ func tcpServer(portFile string) {
 	addr := "127.0.0.1:0"
 	listen, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 
 	server := NexusServer{shutdownChan: make(chan bool), listen: listen}

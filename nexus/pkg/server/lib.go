@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +10,23 @@ import (
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
+
+func SetupLogger(toStderr bool) {
+	file, err := os.OpenFile("/tmp/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if toStderr {
+		mw := io.MultiWriter(os.Stderr, file)
+		log.SetOutput(mw)
+	} else {
+		log.SetOutput(file)
+	}
+
+	log.SetFormatter(&log.JSONFormatter{})
+	log.SetReportCaller(true)
+	log.SetLevel(log.DebugLevel)
+}
 
 var m map[int]*NexusStream = make(map[int]*NexusStream)
 
@@ -44,37 +60,8 @@ func ResultFromServerResponse(serverResponse *service.ServerResponse) *service.R
 	return nil
 }
 
-func FuncRespondServerResponse(num int) func(ctx context.Context, serverResponse *service.ServerResponse) {
-	return func(ctx context.Context, serverResponse *service.ServerResponse) {
-		// fmt.Println("GOT", num, serverResponse)
-		ns := m[num]
-
-		result := ResultFromServerResponse(serverResponse)
-		ns.CaptureResult(result)
-		ns.Recv <- result
-	}
-}
-
-func InitLogging() {
-	logFile, err := os.OpenFile("/tmp/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	logToConsole := false
-	if logToConsole {
-		mw := io.MultiWriter(os.Stderr, logFile)
-		log.SetOutput(mw)
-	} else {
-		log.SetOutput(logFile)
-	}
-
-	log.SetFormatter(&log.JSONFormatter{})
-	log.SetLevel(log.DebugLevel)
-}
-
 func LibStart() int {
-	InitLogging()
+	SetupLogger(false)
 
 	base_url := os.Getenv("WANDB_BASE_URL")
 	if base_url == "" {
@@ -106,7 +93,8 @@ func LibStartSettings(settings *Settings, run_id string) int {
 	}
 
 	num := 42
-	s := NewStream(FuncRespondServerResponse(num), settings)
+	s := NewStream(settings)
+	s.Start()
 
 	c := make(chan *service.Record, 1000)
 	d := make(chan *service.Result, 1000)
@@ -119,7 +107,7 @@ func LibStartSettings(settings *Settings, run_id string) int {
 	ns.Start(s)
 
 	ns.SendRecord(&r)
-	// s.ProcessRecord(&r)
+	// s.Handle(&r)
 
 	// go processStuff()
 	return num

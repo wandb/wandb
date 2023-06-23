@@ -3,6 +3,8 @@ package server
 import (
 	"strings"
 
+	"github.com/wandb/wandb/nexus/pkg/service"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/wandb/wandb/nexus/pkg/auth"
 )
@@ -13,6 +15,18 @@ type Settings struct {
 	Offline  bool
 	SyncFile string
 	NoWrite  bool
+}
+
+func NewSettings(s map[string]*service.SettingsValue) *Settings {
+	settings := Settings{
+		BaseURL:  s["base_url"].GetStringValue(),
+		ApiKey:   s["api_key"].GetStringValue(),
+		Offline:  s["offline"].GetBoolValue(),
+		SyncFile: s["sync_file"].GetStringValue(),
+	}
+
+	settings.parseNetrc()
+	return &settings
 }
 
 func (s *Settings) parseNetrc() {

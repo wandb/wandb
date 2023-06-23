@@ -1,9 +1,6 @@
 package server
 
 import (
-	// "flag"
-	// "io"
-	// "google.golang.org/protobuf/reflect/protoreflect"
 	"sync"
 	"time"
 
@@ -11,11 +8,8 @@ import (
 	"os"
 
 	"context"
-	"encoding/base64"
 	"fmt"
 
-	// "google.golang.org/protobuf/proto"
-	// "google.golang.org/protobuf/encoding/protojson"
 	"net/http"
 
 	"github.com/Khan/genqlient/graphql"
@@ -26,286 +20,124 @@ import (
 )
 
 type Sender struct {
-	senderChan    chan *service.Record
-	wg            *sync.WaitGroup
-	graphqlClient graphql.Client
-	respondResult func(result *service.Result)
-	settings      *Settings
-	fstream       *FileStream
-	run           *service.RunRecord
-	handler       *Handler
-	deferResult   *service.Result
+	settings       *Settings
+	inChan         chan *service.Record
+	outChan        chan<- *service.Record
+	dispatcherChan dispatchChannel
+	graphqlClient  graphql.Client
+	fileStream     *FileStream
+	run            *service.RunRecord
 }
 
-func NewSender(wg *sync.WaitGroup, respondResult func(result *service.Result), settings *Settings) *Sender {
-	sender := Sender{
-		senderChan:    make(chan *service.Record),
-		wg:            wg,
-		respondResult: respondResult,
-		settings:      settings,
+// NewSender creates a new Sender instance
+func NewSender(ctx context.Context, settings *Settings) *Sender {
+	sender := &Sender{
+		settings: settings,
+		inChan:   make(chan *service.Record),
 	}
-
-	sender.wg.Add(1)
-	go sender.senderGo()
-	return &sender
+	log.Debug("Sender: start")
+	url := fmt.Sprintf("%s/graphql", settings.BaseURL)
+	sender.graphqlClient = newGraphqlClient(url, settings.ApiKey)
+	return sender
 }
 
-func (sender *Sender) startRunWorkers() {
-	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-		sender.settings.BaseURL, sender.run.Entity, sender.run.Project, sender.run.RunId)
-	sender.fstream = NewFileStream(fsPath, sender.settings)
-}
+// start starts the sender
+func (s *Sender) start(wg *sync.WaitGroup) {
+	defer wg.Done()
 
-func (sender *Sender) SetHandler(h *Handler) {
-	sender.handler = h
-}
-
-func (sender *Sender) SendRecord(rec *service.Record) {
-	control := rec.GetControl()
-	if sender.settings.Offline && control != nil && !control.AlwaysSend {
-		return
+	for msg := range s.inChan {
+		log.WithFields(log.Fields{"record": msg}).Debug("sender: got msg")
+		s.sendRecord(msg)
 	}
-	sender.senderChan <- rec
+	log.Debug("sender: started and closed")
 }
 
-type authedTransport struct {
-	key     string
-	wrapped http.RoundTripper
-}
+// close closes the sender's resources
+// func (s *Sender) close() {
+// 	log.Debug("Sender: close")
+// 	//close(s.fileStream.inChan)
+// }
 
-func basicAuth(username, password string) string {
-	auth := username + ":" + password
-	return base64.StdEncoding.EncodeToString([]byte(auth))
-}
-
-func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
-	req.Header.Set("User-Agent", "wandb-nexus")
-	// req.Header.Set("X-WANDB-USERNAME", "jeff")
-	// req.Header.Set("X-WANDB-USER-EMAIL", "jeff@wandb.com")
-	return t.wrapped.RoundTrip(req)
-}
-
-func (sender *Sender) senderInit() {
-	httpClient := http.Client{
-		Transport: &authedTransport{
-			key:     sender.settings.ApiKey,
-			wrapped: http.DefaultTransport,
-		},
-	}
-	url := fmt.Sprintf("%s/graphql", sender.settings.BaseURL)
-	sender.graphqlClient = graphql.NewClient(url, &httpClient)
-}
-
-func (sender *Sender) sendNetworkStatusRequest(msg *service.NetworkStatusRequest) {
-}
-
-func (sender *Sender) sendDefer(req *service.DeferRequest) {
-	log.Debug("SENDER: DEFER STOP")
-	// fmt.Println("DEFER", req)
-	// fmt.Println("DEFER2", req.State)
-	done := false
-	switch req.State {
-	case service.DeferRequest_FLUSH_FS:
-		sender.fstream.flush()
-	case service.DeferRequest_END:
-		done = true
-	default:
-	}
-	if done {
-		sender.respondResult(sender.deferResult)
-	} else {
-		req.State += 1
-		sender.doSendDefer(req)
-	}
-}
-
-func (sender *Sender) sendRunStart(req *service.RunStartRequest) {
-	sender.startRunWorkers()
-}
-
-func (sender *Sender) sendHistory(msg *service.Record, history *service.HistoryRecord) {
-	if sender.fstream != nil {
-		sender.fstream.StreamRecord(msg)
-	}
-}
-
-func (sender *Sender) sendRequest(msg *service.Record, req *service.Request) {
-	switch x := req.RequestType.(type) {
-	case *service.Request_NetworkStatus:
-		sender.sendNetworkStatusRequest(x.NetworkStatus)
-	case *service.Request_RunStart:
-		sender.sendRunStart(x.RunStart)
-	case *service.Request_Defer:
-		sender.sendDefer(x.Defer)
-	default:
-	}
-}
-
-func (sender *Sender) networkSendRecord(msg *service.Record) {
+// sendRecord sends a record
+func (s *Sender) sendRecord(msg *service.Record) {
 	switch x := msg.RecordType.(type) {
 	case *service.Record_Run:
-		// fmt.Println("rungot:", x)
-		sender.sendRun(msg, x.Run)
+		s.sendRun(msg, x.Run)
 	case *service.Record_Exit:
-		sender.sendRunExit(msg, x.Exit)
+		s.sendExit(msg, x.Exit)
 	case *service.Record_Files:
-		sender.sendFiles(msg, x.Files)
+		s.sendFiles(msg, x.Files)
 	case *service.Record_History:
-		sender.sendHistory(msg, x.History)
+		log.Debug("Sender: sendRecord", msg)
+		s.sendHistory(msg, x.History)
 	case *service.Record_Request:
-		sender.sendRequest(msg, x.Request)
+		s.sendRequest(msg, x.Request)
 	case nil:
-		// The field is not set.
-		panic("bad2rec")
+		log.Fatal("sender: sendRecord: nil RecordType")
 	default:
-		bad := fmt.Sprintf("REC UNKNOWN type %T", x)
-		panic(bad)
+		log.Fatalf("sender: sendRecord: unexpected type %T", x)
 	}
 }
 
-func sendData(fname, urlPath string) error {
-	method := "PUT"
-	client := &http.Client{
-		Timeout: time.Second * 10,
-	}
-
-	b, err := os.ReadFile(fname)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest(method, urlPath, bytes.NewReader(b))
-	if err != nil {
-		return err
-	}
-	// req.Header.Set("Content-Type", "application/octet-stream")
-	rsp, err := client.Do(req)
-	if rsp.StatusCode != http.StatusOK {
-		log.Printf("Request failed with response code: %d", rsp.StatusCode)
-		panic("badness")
-	}
-	// fmt.Println("GOTERR", rsp, err)
-	checkError(err)
-	return nil
-}
-
-func (sender *Sender) sendFiles(msg *service.Record, filesRecord *service.FilesRecord) {
-	myfiles := filesRecord.GetFiles()
-	for _, fi := range myfiles {
-		sender.doSendFile(msg, fi)
+func (s *Sender) sendRequest(_ *service.Record, req *service.Request) {
+	switch x := req.RequestType.(type) {
+	case *service.Request_RunStart:
+		s.sendRunStart(x.RunStart)
+	case *service.Request_NetworkStatus:
+		s.sendNetworkStatusRequest(x.NetworkStatus)
+	case *service.Request_Defer:
+		s.sendDefer(x.Defer)
+	default:
 	}
 }
 
-func (sender *Sender) doSendFile(msg *service.Record, fileItem *service.FilesItem) {
-	// fmt.Println("GOTFILE", filesRecord)
-	path := fileItem.GetPath()
-
-	if sender.run == nil {
-		panic("upsert run not called before send file")
-	}
-
-	ctx := context.Background()
-	project := sender.run.Project
-	runId := sender.run.RunId
-	entity := sender.run.Entity
-	fname := path
-	files := []*string{&fname}
-
-	resp, err := RunUploadUrls(
-		ctx,
-		sender.graphqlClient,
-		project,
-		files,
-		&entity,
-		runId,
-		nil, // description
-	)
-	checkError(err)
-	// func RunUploadUrls(
-	//     ctx context.Context,
-	//     client graphql.Client,
-	//     name string,
-	//     files []*string,
-	//     entity *string,
-	//     run string,
-	//     description *string,
-	// ) (*RunUploadUrlsResponse, error) {
-
-	// got := proto.MarshalTextString(resp)
-	// got := protojson.Format(resp)
-	// fmt.Printf("got: %s\n", got)
-	model := resp.GetModel()
-	bucket := model.GetBucket()
-
-	// runID := bucket.GetId()
-	// fmt.Printf("ID: %s\n", runID)
-
-	fileList := bucket.GetFiles()
-
-	// headers := fileList.GetUploadHeaders()
-	// fmt.Printf("HEADS: %s\n", headers)
-
-	edges := fileList.GetEdges()
-	// result := make([]*RunUploadUrlsModelProjectBucketRunFilesFileConnectionEdgesFileEdgeNodeFile, len(edges))
-	result := make([]*string, len(edges))
-	for i, e := range edges {
-		node := e.GetNode()
-		// name := node.GetName()
-		url := node.GetUrl()
-		// updated := node.GetUpdatedAt()
-		result[i] = url
-		// fmt.Printf("url: %d %s %s %s\n", i, *url, name, updated)
-		err = sendData(fname, *url)
-		checkError(err)
-	}
-	// fmt.Printf("got: %s\n", result)
+func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
+	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
+		s.settings.BaseURL, s.run.Entity, s.run.Project, s.run.RunId)
+	s.fileStream = NewFileStream(fsPath, s.settings)
+	log.Debug("Sender: sendRunStart: start file stream")
 }
 
-func (sender *Sender) doSendDefer(deferRequest *service.DeferRequest) {
-	req := service.Request{
-		RequestType: &service.Request_Defer{Defer: deferRequest},
+func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
+}
+
+func (s *Sender) sendDefer(req *service.DeferRequest) {
+	switch req.State {
+	case service.DeferRequest_FLUSH_FS:
+		log.Debug("Sender: sendDefer: flush file stream", req.State)
+		s.fileStream.close()
+		req.State++
+		s.sendRequestDefer(req)
+	case service.DeferRequest_END:
+		log.Debug("Sender: sendDefer: end", req.State)
+	default:
+		log.Debug("Sender: sendDefer: unknown state", req.State)
+		req.State++
+		s.sendRequestDefer(req)
 	}
+}
+
+func (s *Sender) sendRequestDefer(req *service.DeferRequest) {
 	r := service.Record{
-		RecordType: &service.Record_Request{Request: &req},
-		Control:    &service.Control{AlwaysSend: true},
+		RecordType: &service.Record_Request{Request: &service.Request{
+			RequestType: &service.Request_Defer{Defer: req},
+		}},
+		Control: &service.Control{AlwaysSend: true},
 	}
-	sender.handler.HandleRecord(&r)
+	s.outChan <- &r
 }
 
-func (sender *Sender) sendRunExit(msg *service.Record, record *service.RunExitRecord) {
-	// send exit via filestream
-	sender.fstream.StreamRecord(msg)
+func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 
-	// TODO: need to flush stuff before responding with exit
-	runExitResult := &service.RunExitResult{}
-	result := &service.Result{
-		ResultType: &service.Result_ExitResult{ExitResult: runExitResult},
-		Control:    msg.Control,
-		Uuid:       msg.Uuid,
-	}
-	// FIXME: hack to make sure that filestream has no data before continuing
-	// time.Sleep(2 * time.Second)
-	// h.shutdownStream()
-	sender.deferResult = result
-	deferRequest := &service.DeferRequest{}
-	sender.doSendDefer(deferRequest)
-}
-
-func (sender *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
-
-	keepRun, ok := proto.Clone(record).(*service.RunRecord)
+	run, ok := proto.Clone(record).(*service.RunRecord)
 	if !ok {
 		log.Fatal("error")
 	}
 
-	// fmt.Println("SEND", record)
 	ctx := context.Background()
-	// resp, err := Viewer(ctx, sender.graphqlClient)
-	// fmt.Println(resp, err)
-	tags := []string{}
+	var tags []string
 	resp, err := UpsertBucket(
-		ctx, sender.graphqlClient,
+		ctx, s.graphqlClient,
 		nil,           // id
 		&record.RunId, // name
 		nil,           // project
@@ -326,66 +158,105 @@ func (sender *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 		tags,          // tags []string,
 		nil,           // summaryMetrics
 	)
-	checkError(err)
+	if err != nil {
+		log.Error("error upserting bucket", err)
+	}
 
-	displayName := *resp.UpsertBucket.Bucket.DisplayName
-	projectName := resp.UpsertBucket.Bucket.Project.Name
-	entityName := resp.UpsertBucket.Bucket.Project.Entity.Name
-	keepRun.DisplayName = displayName
-	keepRun.Project = projectName
-	keepRun.Entity = entityName
+	run.DisplayName = *resp.UpsertBucket.Bucket.DisplayName
+	run.Project = resp.UpsertBucket.Bucket.Project.Name
+	run.Entity = resp.UpsertBucket.Bucket.Project.Entity.Name
 
-	sender.run = keepRun
-
-	// fmt.Println("RESP::", keepRun)
-
-	// (*UpsertBucketResponse, error) {
-	/*
-		id *string,
-		name *string,
-		project *string,
-		entity *string,
-		groupName *string,
-		description *string,
-		displayName *string,
-		notes *string,
-		commit *string,
-		config *string,
-		host *string,
-		debug *bool,
-		program *string,
-		repo *string,
-		jobType *string,
-		state *string,
-		sweep *string,
-		tags []string,
-		summaryMetrics *string,
-	*/
-
-	runResult := &service.RunUpdateResult{Run: keepRun}
+	s.run = run
 	result := &service.Result{
-		ResultType: &service.Result_RunResult{RunResult: runResult},
+		ResultType: &service.Result_RunResult{RunResult: &service.RunUpdateResult{Run: run}},
 		Control:    msg.Control,
 		Uuid:       msg.Uuid,
 	}
-	sender.respondResult(result)
+	log.Debug("sending run result ", result)
+	s.dispatcherChan.Deliver(result)
 }
 
-func (sender *Sender) senderGo() {
-	defer sender.wg.Done()
-
-	log.Debug("SENDER: OPEN")
-	sender.senderInit()
-	for {
-		msg, ok := <-sender.senderChan
-		if !ok {
-			log.Debug("SENDER: NOMORE")
-			break
-		}
-		log.Debug("SENDER *******")
-		log.WithFields(log.Fields{"record": msg}).Debug("SENDER: got msg")
-		sender.networkSendRecord(msg)
-		// handleLogWriter(sender, msg)
+func (s *Sender) sendHistory(msg *service.Record, _ *service.HistoryRecord) {
+	log.Debug("sending history result ", msg)
+	if s.fileStream != nil {
+		s.fileStream.stream(msg)
 	}
-	log.Debug("SENDER: FIN")
+}
+
+func (s *Sender) sendExit(msg *service.Record, _ *service.RunExitRecord) {
+	// send exit via filestream
+	log.Debug("sending run exit result ", msg)
+	s.fileStream.stream(msg)
+
+	result := &service.Result{
+		ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
+		Control:    msg.Control,
+		Uuid:       msg.Uuid,
+	}
+	s.dispatcherChan.Deliver(result)
+	//RequestType: &service.Request_Defer{Defer: &service.DeferRequest{State: service.DeferRequest_BEGIN}}
+	req := &service.Request{RequestType: &service.Request_Defer{Defer: &service.DeferRequest{State: service.DeferRequest_BEGIN}}}
+	rec := &service.Record{RecordType: &service.Record_Request{Request: req}, Control: msg.Control, Uuid: msg.Uuid}
+	s.sendRecord(rec)
+}
+
+func (s *Sender) sendFiles(msg *service.Record, filesRecord *service.FilesRecord) {
+	files := filesRecord.GetFiles()
+	for _, file := range files {
+		s.sendFile(msg, file)
+	}
+}
+
+func sendData(fileName, urlPath string) error {
+	client := &http.Client{
+		Timeout: time.Second * 10,
+	}
+
+	b, err := os.ReadFile(fileName)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, urlPath, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	rsp, err := client.Do(req)
+	if rsp.StatusCode != http.StatusOK {
+		log.Fatalf("Request failed with response code: %d", rsp.StatusCode)
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Sender) sendFile(_ *service.Record, fileItem *service.FilesItem) {
+
+	if s.run == nil {
+		log.Fatal("upsert run not called before send db")
+	}
+
+	entity := s.run.Entity
+	path := fileItem.GetPath()
+	resp, err := RunUploadUrls(
+		context.Background(),
+		s.graphqlClient,
+		s.run.Project,
+		[]*string{&path},
+		&entity,
+		s.run.RunId,
+		nil, // description
+	)
+	if err != nil {
+		log.Error("error getting upload urls", err)
+	}
+
+	edges := resp.GetModel().GetBucket().GetFiles().GetEdges()
+	for _, e := range edges {
+		url := e.GetNode().GetUrl()
+		if err = sendData(path, *url); err != nil {
+			log.Error("error sending data", err)
+		}
+	}
 }

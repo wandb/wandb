@@ -59,6 +59,7 @@ message Control {
   string relay_id = 3;  // used by service transport to identify correct stream
   string mailbox_slot = 4;  // mailbox slot
   bool always_send = 5;  // message to sender
+  string connection_id = 8;  // connection id
 }
 
 /*

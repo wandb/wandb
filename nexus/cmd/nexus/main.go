@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/wandb/wandb/nexus/pkg/server"
@@ -17,7 +18,8 @@ func main() {
 
 	flag.Parse()
 
-	server.InitLogging()
+	logStdErr := os.Getenv("WANDB_NEXUS_DEBUG") != ""
+	server.SetupLogger(logStdErr)
 
 	log.WithFields(log.Fields{
 		"fname":     *portFilename,

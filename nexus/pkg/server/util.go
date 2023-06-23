@@ -26,11 +26,11 @@ func (ns *NexusStream) SetResultCallback(cb func(run *service.RunRecord, setting
 }
 
 func (ns *NexusStream) Start(s *Stream) {
-	// read from send channel and call ProcessRecord
+	// read from send channel and call Handle
 	// in a goroutine
 	go func() {
 		for record := range ns.Send {
-			s.ProcessRecord(record)
+			s.HandleRecord(record)
 		}
 	}()
 }
