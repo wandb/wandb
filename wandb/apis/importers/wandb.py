@@ -274,7 +274,7 @@ class WandbImporter:
         skip_ids: Optional[List[str]] = None,
         start_date: Optional[str] = None,
     ):
-        filters = {}
+        filters: Dict[str, Any] = {}
         if skip_ids is not None:
             filters["name"] = {"$nin": skip_ids}
         if start_date is not None:
@@ -351,7 +351,7 @@ class WandbImporter:
                     except Exception as e:
                         wandb.termerror(f"Import problem: {e}")
                     else:
-                        pbar.set_postfix({"id": run.id})
+                        pbar.set_postfix({"id": run.run.id})
                     finally:
                         pbar.update(1)
 
@@ -387,14 +387,14 @@ class WandbImporter:
         report_url: str,
         overrides: Optional[Dict[str, Any]] = None,
     ):
-        overrides = coalesce(overrides, {})
+        overrides2: Dict[str, Any] = coalesce(overrides, {})
 
         report = wr.Report.from_url(report_url)
-        name = overrides.get("name", report.name)
-        entity = overrides.get("entity", report.entity)
-        project = overrides.get("project", report.project)
-        title = overrides.get("title", report.title)
-        description = overrides.get("description", report.description)
+        name = overrides2.get("name", report.name)
+        entity = overrides2.get("entity", report.entity)
+        project = overrides2.get("project", report.project)
+        title = overrides2.get("title", report.title)
+        description = overrides2.get("description", report.description)
 
         api = self.dest_api
 

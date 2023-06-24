@@ -302,7 +302,10 @@ class SendManager:
 
     @classmethod
     def setup(
-        cls, root_dir: str, resume: Union[None, bool, str], settings_override=None
+        cls,
+        root_dir: str,
+        resume: Union[None, bool, str],
+        settings_override: Optional[SettingsDict] = None,
     ) -> "SendManager":
         """Set up a standalone SendManager.
 

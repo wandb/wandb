@@ -47,6 +47,8 @@ from typing import (
     TextIO,
     Tuple,
     Union,
+    MutableMapping,
+    TypeVar
 )
 
 import requests
@@ -65,7 +67,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
-
+T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -1752,7 +1754,7 @@ def coalesce(*arg: Any) -> Any:
     return next((a for a in arg if a is not None), None)
 
 
-def cast_dictlike_to_dict(d):
+def cast_dictlike_to_dict(d: MutableMapping[str, Any]) -> Dict[str, Any]:
     for k, v in d.items():
         if isinstance(v, dict):
             cast_dictlike_to_dict(v)
@@ -1762,7 +1764,7 @@ def cast_dictlike_to_dict(d):
     return d
 
 
-def remove_keys_with_none_values(d: Dict[str, Any]) -> Dict[str, Any]:
+def remove_keys_with_none_values(d: Dict[str, Any]) -> Union[Any, Dict[str, Any]]:
     # otherwise iterrows will create a bunch of ugly charts
     if isinstance(d, dict):
         new_dict = {}
@@ -1774,7 +1776,7 @@ def remove_keys_with_none_values(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
-def batched(n, iterable):
+def batched(n: int, iterable: Iterable[T]) -> Generator[List[T], None, None]:
     i = iter(iterable)
     batch = list(itertools.islice(i, n))
     while batch:
