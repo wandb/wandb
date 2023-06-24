@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, InitVar
 from typing import Optional
 
 try:
@@ -74,6 +74,7 @@ class MlflowServerSettings:
         "sqlite_backend",
     ]
     artifacts_backend: Literal["file_artifacts", "s3_artifacts"]
+
     base_url: str = "http://localhost:4040"
     health_endpoint: str = "health"
 
@@ -92,3 +93,11 @@ class MlflowLoggingConfig:
 
     # batching
     logging_batch_size: int = 50
+
+    @property
+    def total_runs(self):
+        return self.n_experiments * self.n_runs_per_experiment
+
+    @property
+    def total_files(self):
+        return self.n_root_files + self.n_subdirs * self.n_subdir_files
