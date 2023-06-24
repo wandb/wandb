@@ -10,8 +10,6 @@ import typing
 import urllib.parse
 import uuid
 import warnings
-from dataclasses import dataclass
-from itertools import islice
 from typing import Any, Dict, Iterable, List, Optional
 
 import hypothesis.strategies as st
@@ -30,8 +28,15 @@ from mlflow.tracking import MlflowClient
 from packaging.version import Version
 from PIL import Image
 from rdkit import Chem
+from wandb.util import batched, random_string
 
-from ..helpers import WandbServerSettings, WandbLoggingConfig, WandbServerUser
+from ..helpers import (
+    WandbServerSettings,
+    WandbLoggingConfig,
+    WandbServerUser,
+    MlflowServerSettings,
+    MlflowLoggingConfig,
+)
 
 MLFLOW_BASE_URL = "http://localhost:4040"
 MLFLOW_HEALTH_ENDPOINT = "health"
@@ -81,14 +86,6 @@ def _make_run(
 #     with mlflow.start_run():
 #         for _ in range(NUM_RUNS_PER_NESTED_EXPERIMENT):
 #             make_run(batch_size=50)
-
-
-def batched(n, iterable):
-    i = iter(iterable)
-    batch = list(islice(i, n))
-    while batch:
-        yield batch
-        batch = list(islice(i, n))
 
 
 def batch_metrics(metrics, bs: int) -> Iterable[List[Metric]]:
@@ -368,6 +365,105 @@ def mlflow_server(mlflow_backend, mlflow_artifacts_destination):
 
 
 @pytest.fixture
+def mlflow_server_settings():
+    return MlflowServerSettings(
+        metrics_backend=...,
+        artifacts_backend=...,
+    )
+
+
+@pytest.fixture
+def mlflow_logging_config():
+    return MlflowLoggingConfig(
+        n_experiments=2,
+        n_runs_per_experiment=3,
+        n_steps_per_run=1000,
+        n_root_files=5,
+        n_subdirs=3,
+        n_subdir_files=2,
+    )
+
+
+@pytest.fixture
+def new_mlflow_server(mlflow_server_settings):
+    new_port = get_free_port()
+    mlflow_server_settings.base_url = mlflow_server_settings.base_url.replace(
+        "4040", new_port
+    )
+
+    if mlflow_version < Version("2.0.0"):
+        start_cmd = [
+            "mlflow",
+            "server",
+            "-p",
+            new_port,
+            # no sqlite
+            # no --artifacts-destination flag
+        ]
+    else:
+        start_cmd = [
+            "mlflow",
+            "server",
+            "-p",
+            new_port,
+            "--backend-store-uri",
+            mlflow_server_settings.metrics_backend,
+            "--artifacts-destination",
+            mlflow_server_settings.artifacts_backend,
+        ]
+
+    process = subprocess.Popen(start_cmd)  # process
+    healthy = check_mlflow_server_health(
+        mlflow_server_settings.base_url, MLFLOW_HEALTH_ENDPOINT, num_retries=30
+    )
+
+    if healthy:
+        yield mlflow_server_settings
+    else:
+        raise Exception("MLflow server is not healthy")
+
+    kill_child_processes(process.pid)
+
+
+@pytest.fixture
+def new_prelogged_mlflow_server(mlflow_server, mlflow_logging_config):
+    client = MlflowClient()
+    config = mlflow_logging_config
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
+        mlflow.set_tracking_uri(mlflow_server.base_url)
+
+        # Experiments
+        for _ in range(config.n_experiments):
+            exp_name = "Experiment " + str(uuid.uuid4())
+            mlflow.set_experiment(exp_name)
+
+            # Runs
+            for _ in range(config.n_runs_per_experiment):
+                run_name = "Run :/" + str(uuid.uuid4())
+                with mlflow.start_run() as run:
+                    mlflow.set_tag("mlflow.runName", run_name)
+                    mlflow.set_tags(make_tags())
+                    mlflow.log_params(make_params())
+
+                    metrics = make_metrics(config.n_metrics)
+                    for batch in batch_metrics(metrics, config.batch_size):
+                        client.log_batch(run.info.run_id, metrics=batch)
+
+                with tempfile.TemporaryDirectory() as temp_path:
+                    artifacts_dir = make_artifacts_dir(
+                        temp_path,
+                        config.n_root_files,
+                        config.n_subdirs,
+                        config.n_subdir_files,
+                    )
+                    mlflow.log_artifact(artifacts_dir)
+
+    return mlflow_server, mlflow_logging_config
+
+
+@pytest.fixture
 def prelogged_mlflow_server(mlflow_server):
     log_to_mlflow(
         mlflow_server,
@@ -384,24 +480,6 @@ def prelogged_mlflow_server(mlflow_server):
     total_files = N_ROOT_FILES + N_SUBDIRS * N_SUBDIR_FILES
 
     yield mlflow_server, total_runs, total_files, STEPS
-
-
-def random_string(length: int = 12) -> str:
-    """Generate a random string of a given length.
-
-    :param length: Length of the string to generate.
-    :return: Random string.
-    """
-    return "".join(
-        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
-    )
-
-
-@dataclass
-class WandbLoggingConfig:
-    n_steps: int
-    n_metrics: int
-    n_experiments: int
 
 
 def determine_scope(fixture_name, config):

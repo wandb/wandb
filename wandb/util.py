@@ -1,3 +1,5 @@
+import secrets
+import string
 import colorsys
 import contextlib
 import functools
@@ -22,6 +24,7 @@ import threading
 import time
 import traceback
 import urllib
+import itertools
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
@@ -1730,3 +1733,21 @@ def remove_keys_with_none_values(d: Dict[str, Any]) -> Dict[str, Any]:
                 new_dict[k] = new_v
         return new_dict if new_dict else None
     return d
+
+
+def batched(n, iterable):
+    i = iter(iterable)
+    batch = list(itertools.islice(i, n))
+    while batch:
+        yield batch
+        batch = list(itertools.islice(i, n))
+        
+def random_string(length: int = 12) -> str:
+    """Generate a random string of a given length.
+
+    :param length: Length of the string to generate.
+    :return: Random string.
+    """
+    return "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+    )

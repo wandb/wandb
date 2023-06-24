@@ -62,3 +62,33 @@ class WandbLoggingConfig:
 class WandbServerUser:
     server: WandbServerSettings
     user: str
+
+
+@dataclass
+class MlflowServerSettings:
+    metrics_backend: Literal[
+        "mssql_backend",
+        "mysql_backend",
+        "postgres_backend",
+        "file_backend",
+        "sqlite_backend",
+    ]
+    artifacts_backend: Literal["file_artifacts", "s3_artifacts"]
+    base_url: str = "http://localhost:4040"
+    health_endpoint: str = "health"
+
+
+@dataclass
+class MlflowLoggingConfig:
+    # experiments and metrics
+    n_experiments: int
+    n_runs_per_experiment: int
+    n_steps_per_run: int
+
+    # artifacts
+    n_root_files: int
+    n_subdirs: int
+    n_subdir_files: int
+
+    # batching
+    logging_batch_size: int = 50
