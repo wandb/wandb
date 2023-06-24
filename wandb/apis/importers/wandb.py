@@ -12,7 +12,6 @@ from tqdm.auto import tqdm
 
 import wandb
 from wandb.apis.public import Run
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from .base import (
@@ -23,6 +22,7 @@ from .base import (
 
 with patch("click.echo"):
     import wandb.apis.reports as wr
+    from wandb.apis.reports import Report
 
 
 class WandbRun:
@@ -276,27 +276,23 @@ class WandbImporter:
     DefaultRunClass = WandbRun
 
     def __init__(
-        self,
-        source_base_url: str,
-        source_api_key: str,
-        dest_base_url: str,
-        dest_api_key: str,
+        self, src_base_url: str, src_api_key: str, dst_base_url: str, dst_api_key: str
     ):
         # There is probably a less redundant way of doing this
-        set_thread_local_settings(source_api_key, source_base_url)
+        set_thread_local_settings(src_api_key, src_base_url)
 
         self.source_api = wandb.Api(
-            api_key=source_api_key,
-            overrides={"base_url": source_base_url},
+            api_key=src_api_key,
+            overrides={"base_url": src_base_url},
         )
         self.dest_api = wandb.Api(
-            api_key=dest_api_key,
-            overrides={"base_url": dest_base_url},
+            api_key=dst_api_key,
+            overrides={"base_url": dst_base_url},
         )
-        self.source_base_url = source_base_url
-        self.source_api_key = source_api_key
-        self.dest_base_url = dest_base_url
-        self.dest_api_key = dest_api_key
+        self.source_base_url = src_base_url
+        self.source_api_key = src_api_key
+        self.dest_base_url = dst_base_url
+        self.dest_api_key = dst_api_key
 
     def collect_runs(
         self,
@@ -434,7 +430,7 @@ class WandbImporter:
         api.create_project(project, entity)
 
         api.client.execute(
-            wr.report.UPSERT_VIEW,
+            wr.Report.UPSERT_VIEW,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
                 "name": name,
@@ -449,7 +445,7 @@ class WandbImporter:
 
     def import_reports(
         self,
-        reports: List[wr.Report],
+        reports: List[Report],
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
     ):
@@ -548,19 +544,14 @@ class WandbImporter:
 
 
 class WandbParquetRun(WandbRun):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # download up here because the env var is still set to be source... kinda hacky
-        with patch("click.echo"):
-            self.history_paths = []
-            for art in self.run.logged_artifacts():
-                if art.type != "wandb-history":
-                    continue
-                path = art.download()
-                self.history_paths.append(path)
-
     def metrics(self):
+        self.history_paths = []
+        for art in self.run.logged_artifacts():
+            if art.type != "wandb-history":
+                continue
+            path = art.download()
+            self.history_paths.append(path)
+
         if not self.history_paths:
             wandb.termwarn("No parquet files detected -- using scan_history")
             yield from super().metrics()
@@ -572,9 +563,6 @@ class WandbParquetRun(WandbRun):
                 for row in df.iter_rows(named=True):
                     row = remove_keys_with_none_values(row)
                     yield row
-
-    def _make_metadata_files_record(self) -> pb.Record:
-        return self._make_files_record({"files": self.files()})
 
 
 class WandbParquetImporter(WandbImporter):

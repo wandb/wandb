@@ -7,10 +7,10 @@ from wandb.apis.importers import WandbParquetImporter
 @pytest.mark.timeout(300)
 def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
     importer = WandbParquetImporter(
-        source_base_url=wandb_server_src.server.base_url,
-        source_api_key=wandb_server_src.user,
-        dest_base_url=wandb_server_dst.server.base_url,
-        dest_api_key=wandb_server_dst.user,
+        src_base_url=wandb_server_src.server.base_url,
+        src_api_key=wandb_server_src.user,
+        dst_base_url=wandb_server_dst.server.base_url,
+        dst_api_key=wandb_server_dst.user,
     )
 
     importer.import_all_runs(

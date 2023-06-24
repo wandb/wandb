@@ -15,7 +15,7 @@ from wandb.sdk.internal.sender import SendManager
 from wandb.util import cast_dictlike_to_dict, coalesce
 
 with patch("click.echo"):
-    import wandb.apis.reports as wr
+    from wandb.apis.reports import Report
 
 
 @dataclass
@@ -145,13 +145,13 @@ class Importer(Protocol):
     def collect_runs(self) -> Iterable[ImporterRun]:
         ...
 
-    def collect_reports(self) -> Iterable[wr.Report]:
+    def collect_reports(self) -> Iterable[Report]:
         ...
 
     def import_run(self, run: ImporterRun):
         ...
 
-    def import_report(self, report: wr.Report) -> None:
+    def import_report(self, report: Report) -> None:
         ...
 
 
@@ -226,8 +226,6 @@ def _make_history_records(
 def _make_files_record(
     run: ImporterRun, files_dict, interface: InterfaceQueue
 ) -> pb.Record:
-    # when making the metadata file, it captures most things correctly
-    # but notably it doesn't capture the start time!
     files_record = pb.FilesRecord()
     for path, policy in files_dict["files"]:
         f = files_record.files.add()
@@ -239,11 +237,14 @@ def _make_files_record(
 def _make_metadata_files_record(
     run: ImporterRun, interface: InterfaceQueue
 ) -> pb.Record:
-    run_dir = f"./wandb-importer/{run.run_id()}"
-    _make_metadata_file(run, run_dir)
-    files = [(f"{run_dir}/files/wandb-metadata.json", "end")]
+    files = run.files()
+    if files is None:
+        run_dir = f"./wandb-importer/{run.run_id()}"
+        metadata_fname = _make_metadata_file(run, run_dir)
+        files = [(metadata_fname, "end")]
 
-    return _make_files_record(run, {"files": files}, interface)
+    files_dict = {"files": files}
+    return _make_files_record(run, files_dict, interface)
 
 
 def _make_artifact_record(
@@ -304,8 +305,10 @@ def _make_metadata_file(run: ImporterRun, run_dir: str) -> None:
     if mem_used is not None:
         d["memory"] = json.dumps({"total": run.memory_used()})
 
-    with open(f"{run_dir}/files/wandb-metadata.json", "w") as f:
+    fname = f"{run_dir}/files/wandb-metadata.json"
+    with open(fname, "w") as f:
         f.write(json.dumps(d))
+    return fname
 
 
 # @dataclass
