@@ -31,7 +31,7 @@ from packaging.version import Version
 from PIL import Image
 from rdkit import Chem
 
-from ..helpers import WandbServerSettings
+from ..helpers import WandbServerSettings, WandbLoggingConfig, WandbServerUser
 
 MLFLOW_BASE_URL = "http://localhost:4040"
 MLFLOW_HEALTH_ENDPOINT = "health"
@@ -441,7 +441,7 @@ def fixture_fn2(wandb_server2, fixture_fn_factory):
 
 @pytest.fixture
 def wandb_server_dst(wandb_server, user):
-    return wandb_server, user
+    return WandbServerUser(wandb_server, user)
 
 
 @pytest.fixture
@@ -470,7 +470,7 @@ def wandb_server_src(wandb_server2, user2, wandb_logging_config):
                 }
             )
 
-    return wandb_server2, user2
+    return WandbServerUser(wandb_server2, user2)
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:

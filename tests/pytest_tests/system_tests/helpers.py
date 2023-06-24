@@ -45,8 +45,10 @@ class WandbServerSettings:
     internal_fixture_service_port: str = "9015"
     url: str = "http://localhost"
 
+    base_url: Optional[str] = None
+
     def __post_init__(self):
-        self.base_url = f"{self.url}:{self.internal_local_base_port}"
+        self.base_url = f"{self.url}:{self.local_base_port}"
 
 
 @dataclass
