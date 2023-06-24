@@ -1,11 +1,10 @@
-import secrets
-import string
 import colorsys
 import contextlib
 import functools
 import gzip
 import importlib
 import importlib.util
+import itertools
 import json
 import logging
 import math
@@ -15,8 +14,10 @@ import platform
 import queue
 import random
 import re
+import secrets
 import shlex
 import socket
+import string
 import sys
 import tarfile
 import tempfile
@@ -24,7 +25,6 @@ import threading
 import time
 import traceback
 import urllib
-import itertools
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
@@ -1741,7 +1741,8 @@ def batched(n, iterable):
     while batch:
         yield batch
         batch = list(itertools.islice(i, n))
-        
+
+
 def random_string(length: int = 12) -> str:
     """Generate a random string of a given length.
 
