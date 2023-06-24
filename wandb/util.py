@@ -48,7 +48,7 @@ from typing import (
     Tuple,
     Union,
     MutableMapping,
-    TypeVar
+    TypeVar,
 )
 
 import requests
@@ -1764,8 +1764,13 @@ def cast_dictlike_to_dict(d: MutableMapping[str, Any]) -> Dict[str, Any]:
     return d
 
 
-def remove_keys_with_none_values(d: Dict[str, Any]) -> Union[Any, Dict[str, Any]]:
+def remove_keys_with_none_values(
+    d: Union[Dict[str, Any], Any]
+) -> Optional[Dict[str, Any]]:
     # otherwise iterrows will create a bunch of ugly charts
+    if not isinstance(d, dict):
+        return d
+
     if isinstance(d, dict):
         new_dict = {}
         for k, v in d.items():
@@ -1773,7 +1778,6 @@ def remove_keys_with_none_values(d: Dict[str, Any]) -> Union[Any, Dict[str, Any]
             if new_v is not None and not (isinstance(new_v, dict) and len(new_v) == 0):
                 new_dict[k] = new_v
         return new_dict if new_dict else None
-    return d
 
 
 def batched(n: int, iterable: Iterable[T]) -> Generator[List[T], None, None]:

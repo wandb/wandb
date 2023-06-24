@@ -312,8 +312,7 @@ class SendManager:
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
-        if settings_override is None:
-            settings_override = {}
+        _settings_override: SettingsDict = util.coalesce(settings_override, {})
 
         default_settings = dict(
             files_dir=files_dir,
@@ -343,7 +342,7 @@ class SendManager:
         )
 
         # TODO(settings) replace with wandb.Settings
-        sd: SettingsDict = {**default_settings, **settings_override}
+        sd: SettingsDict = {**default_settings, **_settings_override}
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
@@ -360,15 +359,14 @@ class SendManager:
     def __len__(self) -> int:
         return self._record_q.qsize()
 
-    def __enter__(self):
+    def __enter__(self) -> "SendManager":
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
         while self:
             data = next(self)
             self.send(data)
         self.finish()
-        return False
 
     def retry_callback(self, status: int, response_text: str) -> None:
         response = wandb_internal_pb2.HttpResponse()

@@ -143,13 +143,13 @@ class MlflowImporter:
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        _overrides = coalesce(overrides, {})
+        _pool_kwargs = coalesce(pool_kwargs, {})
         runs = list(self.collect_runs())
-        overrides = coalesce(overrides, {})
-        pool_kwargs = coalesce(pool_kwargs, {})
 
-        with ThreadPoolExecutor(**pool_kwargs) as exc:
+        with ThreadPoolExecutor(**_pool_kwargs) as exc:
             futures = {
-                exc.submit(self.import_run, run, overrides=overrides): run
+                exc.submit(self.import_run, run, overrides=_overrides): run
                 for run in runs
             }
             with tqdm(desc="Importing runs", total=len(futures), unit="run") as pbar:

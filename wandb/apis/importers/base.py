@@ -164,7 +164,7 @@ class ImporterRun:
 
         runtime = self.runtime()
         if runtime is not None:
-            run.runtime = runtime
+            run.runtime = self.runtime()
 
         run_group = self.run_group()
         if run_group is not None:

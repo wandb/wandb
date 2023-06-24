@@ -13,6 +13,7 @@ from tqdm.auto import tqdm
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.util import coalesce, remove_keys_with_none_values
+from wandb.apis.public import Run
 
 from .base import (
     ImporterRun,
@@ -26,7 +27,7 @@ with patch("click.echo"):
 
 
 class WandbRun(ImporterRun):
-    def __init__(self, run, *args, **kwargs):
+    def __init__(self, run: Run, *args, **kwargs):
         self.run = run
         super().__init__(*args, **kwargs)
 
@@ -37,14 +38,20 @@ class WandbRun(ImporterRun):
 
         # download everything up front before switching api keys
         self._files = self.files()
-        self._artifacts = self.artifacts()
-        self._used_artifacts = self.used_artifacts()
-        self._logs = self.logs()
+        if self._files:
+            self._files = list(self._files)
 
-        self._files = list(self._files)
-        self._artifacts = list(self._artifacts)
-        self._used_artifacts = list(self._used_artifacts)
-        self._logs = list(self._logs)
+        self._artifacts = self.artifacts()
+        if self._artifacts:
+            self._artifacts = list(self._artifacts)
+
+        self._used_artifacts = self.used_artifacts()
+        if self._used_artifacts:
+            self._used_artifacts = list(self._used_artifacts)
+
+        self._logs = self.logs()
+        if self._logs:
+            self._logs = list(self._logs)
 
     def run_id(self):
         return self.run.id
@@ -325,21 +332,22 @@ class WandbImporter:
 
     def import_runs(
         self,
-        runs: List[WandbRun],
+        runs: List[Run],
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        overrides = coalesce(overrides, {})
-        pool_kwargs = coalesce(pool_kwargs, {})
+        _overrides: Dict[str, Any] = coalesce(overrides, {})
+        _pool_kwargs: Dict[str, Any] = coalesce(pool_kwargs, {})
         runs = list(runs)
-        with ThreadPoolExecutor(**pool_kwargs) as exc:
+
+        with ThreadPoolExecutor(**_pool_kwargs) as exc:
             futures = {
                 exc.submit(
                     self.import_run,
                     run.entity,
                     run.project,
                     run.id,
-                    overrides=overrides,
+                    overrides=_overrides,
                 ): run
                 for run in runs
             }
@@ -351,7 +359,7 @@ class WandbImporter:
                     except Exception as e:
                         wandb.termerror(f"Import problem: {e}")
                     else:
-                        pbar.set_postfix({"id": run.run.id})
+                        pbar.set_postfix({"id": run.id})
                     finally:
                         pbar.update(1)
 
@@ -420,13 +428,13 @@ class WandbImporter:
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        overrides = coalesce(overrides, {})
-        pool_kwargs = coalesce(pool_kwargs, {})
+        _overrides = coalesce(overrides, {})
+        _pool_kwargs = coalesce(pool_kwargs, {})
         reports = list(reports)
 
-        with ThreadPoolExecutor(**pool_kwargs) as exc:
+        with ThreadPoolExecutor(**_pool_kwargs) as exc:
             futures = {
-                exc.submit(self.import_report, report.url, overrides=overrides): report
+                exc.submit(self.import_report, report.url, overrides=_overrides): report
                 for report in reports
             }
             with tqdm(
@@ -507,10 +515,7 @@ class WandbImporter:
             for run in api.runs(f"{project.entity}/{project.name}"):
                 yield run.id
 
-    def _make_metadata_files_record(self) -> pb.Record:
-        self._make_files_record({"files": self._files})
-
-    def _projects(self, entity: str, project: str):
+    def _projects(self, entity: str, project: Optional[str]):
         api = self.source_api
         if project is None:
             return api.projects(entity)
@@ -542,6 +547,9 @@ class WandbParquetRun(WandbRun):
                 for row in df.iter_rows(named=True):
                     row = remove_keys_with_none_values(row)
                     yield row
+
+    def _make_metadata_files_record(self) -> pb.Record:
+        return self._make_files_record({"files": self._files})
 
 
 class WandbParquetImporter(WandbImporter):
