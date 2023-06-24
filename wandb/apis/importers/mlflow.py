@@ -1,6 +1,7 @@
+import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from packaging.version import Version
 from tqdm.auto import tqdm
@@ -18,28 +19,27 @@ mlflow = get_module(
 mlflow_version = Version(mlflow.__version__)
 
 
-class MlflowRun(ImporterRun):
+class MlflowRun:
     def __init__(self, run, mlflow_client):
         self.run = run
         self.mlflow_client = mlflow_client
-        super().__init__()
 
-    def run_id(self):
+    def run_id(self) -> str:
         return self.run.info.run_id
 
-    def entity(self):
+    def entity(self) -> str:
         return self.run.info.user_id
 
-    def project(self):
+    def project(self) -> str:
         return "imported-from-mlflow"
 
-    def config(self):
+    def config(self) -> Dict[str, Any]:
         return self.run.data.params
 
-    def summary(self):
+    def summary(self) -> Dict[str, float]:
         return self.run.data.metrics
 
-    def metrics(self):
+    def metrics(self) -> Iterable[Dict[str, float]]:
         d = defaultdict(dict)
         metrics = (
             self.mlflow_client.get_metric_history(self.run.info.run_id, k)
@@ -52,44 +52,28 @@ class MlflowRun(ImporterRun):
         flattened = ({"_step": k, **v} for k, v in d.items())
         return flattened
 
-    def run_group(self):
+    def run_group(self) -> Optional[str]:
         # this is nesting?  Parent at `run.info.tags.get("mlflow.parentRunId")`
         return f"Experiment {self.run.info.experiment_id}"
 
-    def job_type(self):
+    def job_type(self) -> Optional[str]:
         # Is this the right approach?
         return f"User {self.run.info.user_id}"
 
-    def display_name(self):
+    def display_name(self) -> str:
         if mlflow_version < Version("1.30.0"):
             return self.run.data.tags["mlflow.runName"]
-
         return self.run.info.run_name
 
-    def notes(self):
+    def notes(self) -> Optional[str]:
         return self.run.data.tags.get("mlflow.note.content")
 
-    def tags(self):
+    def tags(self) -> Optional[List[str]]:
         return {
             k: v for k, v in self.run.data.tags.items() if not k.startswith("mlflow.")
         }
 
-    def start_time(self):
-        return self.run.info.start_time // 1000
-
-    def runtime(self):
-        end_time = (
-            self.run.info.end_time // 1000
-            if self.run.info.end_time is not None
-            else self.start_time()
-        )
-
-        return end_time - self.start_time()
-
-    def git(self):
-        ...
-
-    def artifacts(self):
+    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
         if mlflow_version < Version("2.0.0"):
             dir_path = self.mlflow_client.download_artifacts(
                 run_id=self.run.info.run_id, path=""
@@ -97,11 +81,74 @@ class MlflowRun(ImporterRun):
         else:
             dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
 
-        artifact_name = self._handle_incompatible_strings(self.display_name())
+        artifact_name = _handle_incompatible_strings(self.display_name())
         art = wandb.Artifact(artifact_name, "imported-artifacts")
         art.add_dir(dir_path)
 
         return [art]
+
+    def used_artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
+        ...
+
+    def os_version(self) -> Optional[str]:
+        ...
+
+    def python_version(self) -> Optional[str]:
+        ...
+
+    def cuda_version(self) -> Optional[str]:
+        ...
+
+    def program(self) -> Optional[str]:
+        ...
+
+    def host(self) -> Optional[str]:
+        ...
+
+    def username(self) -> Optional[str]:
+        ...
+
+    def executable(self) -> Optional[str]:
+        ...
+
+    def gpus_used(self) -> Optional[str]:
+        ...
+
+    def cpus_used(self) -> Optional[int]:  # can we get the model?
+        ...
+
+    def memory_used(self) -> Optional[int]:
+        ...
+
+    def runtime(self) -> Optional[int]:
+        end_time = (
+            self.run.info.end_time // 1000
+            if self.run.info.end_time is not None
+            else self.start_time()
+        )
+        return end_time - self.start_time()
+
+    def start_time(self) -> Optional[int]:
+        return self.run.info.start_time // 1000
+
+    def code_path(self) -> Optional[str]:
+        ...
+
+    def cli_version(self) -> Optional[str]:
+        ...
+
+    def files(self) -> Optional[Iterable[Tuple[str, str]]]:
+        ...
+
+    def logs(self) -> Optional[Iterable[str]]:
+        ...
+
+
+def _handle_incompatible_strings(s):
+    valid_chars = r"[^a-zA-Z0-9_\-\.]"
+    replacement = "__"
+
+    return re.sub(valid_chars, replacement, s)
 
 
 class MlflowImporter:

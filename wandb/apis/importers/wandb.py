@@ -3,7 +3,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
 import polars as pl
@@ -16,7 +16,6 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from .base import (
-    ImporterRun,
     _thread_local_settings,
     send_run_with_send_manager,
     set_thread_local_settings,
@@ -26,29 +25,27 @@ with patch("click.echo"):
     import wandb.apis.reports as wr
 
 
-class WandbRun(ImporterRun):
-    def __init__(self, run: Run, *args, **kwargs):
+class WandbRun:
+    def __init__(self, run: Run):
         self.run = run
-        super().__init__(*args, **kwargs)
-
         self.api = wandb.Api(
             api_key=_thread_local_settings.api_key,
             overrides={"base_url": _thread_local_settings.base_url},
         )
 
-    def run_id(self):
+    def run_id(self) -> str:
         return self.run.id
 
-    def entity(self):
+    def entity(self) -> str:
         return self.run.entity
 
-    def project(self):
+    def project(self) -> str:
         return self.run.project
 
-    def config(self):
+    def config(self) -> Dict[str, Any]:
         return self.run.config
 
-    def summary(self):
+    def summary(self) -> Dict[str, float]:
         s = self.run.summary
 
         # Hack: We need to overwrite the artifact path for tables
@@ -56,38 +53,45 @@ class WandbRun(ImporterRun):
         s = self._modify_table_artifact_paths(s)
         return s
 
-    def metrics(self):
+    def metrics(self) -> Iterable[Dict[str, float]]:
+        """Metrics for the run.
+
+        We expect metrics in this shape:
+
+        [
+            {'metric1': 1, 'metric2': 1, '_step': 0},
+            {'metric1': 2, 'metric2': 4, '_step': 1},
+            {'metric1': 3, 'metric2': 9, '_step': 2},
+            ...
+        ]
+
+        You can also submit metrics in this shape:
+        [
+            {'metric1': 1, '_step': 0},
+            {'metric2': 1, '_step': 0},
+            {'metric1': 2, '_step': 1},
+            {'metric2': 4, '_step': 1},
+            ...
+        ]
+        """
         return self.run.scan_history()
 
-    def run_group(self):
+    def run_group(self) -> Optional[str]:
         return self.run.group
 
-    def job_type(self):
+    def job_type(self) -> Optional[str]:
         return self.run.job_type
 
-    def display_name(self):
+    def display_name(self) -> str:
         return self.run.display_name
 
-    def notes(self):
+    def notes(self) -> Optional[str]:
         return self.run.notes
 
-    def tags(self):
+    def tags(self) -> Optional[List[str]]:
         return self.run.tags
 
-    def start_time(self):
-        t = dt.fromisoformat(self.run.created_at).timestamp()
-        return int(t)
-
-    def runtime(self):
-        wandb_runtime = self.run.summary.get("_wandb", {}).get("runtime")
-        base_runtime = self.run.summary.get("_runtime")
-
-        t = coalesce(wandb_runtime, base_runtime)
-        if t is None:
-            return t
-        return int(t)
-
-    def artifacts(self):
+    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
         arts = self.run.logged_artifacts()
         for art in tqdm(arts, "Logged artifacts", leave=False, unit="art"):
             name, ver = art.name.split(":v")
@@ -106,7 +110,7 @@ class WandbRun(ImporterRun):
 
             yield new_art
 
-    def used_artifacts(self):
+    def used_artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
         arts = self.run.used_artifacts()
         for art in tqdm(arts, "Used artifacts", leave=False, unit="art"):
             name, ver = art.name.split(":v")
@@ -125,8 +129,82 @@ class WandbRun(ImporterRun):
 
             yield new_art
 
-    def files(self):
-        base_path = f"{self.run_dir}/files"
+    def os_version(self) -> Optional[str]:
+        ...
+
+    def python_version(self) -> Optional[str]:
+        fname = self._find_in_files("wandb-metadata.json")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            result = json.loads(f.read())
+            return result.get("python")
+
+    def cuda_version(self) -> Optional[str]:
+        ...
+
+    def program(self) -> Optional[str]:
+        ...
+
+    def host(self) -> Optional[str]:
+        fname = self._find_in_files("wandb-metadata.json")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            result = json.loads(f.read())
+            return result.get("host")
+
+    def username(self) -> Optional[str]:
+        ...
+
+    def executable(self) -> Optional[str]:
+        ...
+
+    def gpus_used(self) -> Optional[str]:
+        ...
+
+    def cpus_used(self) -> Optional[int]:  # can we get the model?
+        ...
+
+    def memory_used(self) -> Optional[int]:
+        ...
+
+    def runtime(self) -> Optional[int]:
+        wandb_runtime = self.run.summary.get("_wandb", {}).get("runtime")
+        base_runtime = self.run.summary.get("_runtime")
+
+        t = coalesce(wandb_runtime, base_runtime)
+        if t is None:
+            return t
+        return int(t)
+
+    def start_time(self) -> Optional[int]:
+        t = dt.fromisoformat(self.run.created_at).timestamp()
+        return int(t)
+
+    def code_path(self) -> Optional[str]:
+        fname = self._find_in_files("wandb-metadata.json")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            result = json.loads(f.read())
+            return "code/" + result.get("codePath", "")
+
+    def cli_version(self) -> Optional[str]:
+        fname = self._find_in_files("config.yaml")
+        if fname is None:
+            return
+
+        with open(fname) as f:
+            result = yaml.safe_load(f)
+            return result.get("_wandb", {}).get("value", {}).get("cli_version")
+
+    def files(self) -> Optional[Iterable[Tuple[str, str]]]:
+        run_dir = f"./wandb-importer/{self.run_id()}"
+        base_path = f"{run_dir}/files"
         files = self.run.files()
         for f in tqdm(files, "Files", leave=False, unit="file"):
             try:
@@ -139,49 +217,13 @@ class WandbRun(ImporterRun):
             else:
                 yield (result.name, "now")
 
-    def host(self):
-        fname = self._find_in_files("wandb-metadata.json")
-        if fname is None:
-            return
-
-        with open(fname) as f:
-            result = json.loads(f.read())
-            return result.get("host")
-
-    def logs(self):
+    def logs(self) -> Optional[Iterable[str]]:
         fname = self._find_in_files("output.log")
         if fname is None:
             return
 
         with open(fname) as f:
             yield from f.readlines()
-
-    def code_path(self):
-        fname = self._find_in_files("wandb-metadata.json")
-        if fname is None:
-            return
-
-        with open(fname) as f:
-            result = json.loads(f.read())
-            return "code/" + result.get("codePath", "")
-
-    def cli_version(self):
-        fname = self._find_in_files("config.yaml")
-        if fname is None:
-            return
-
-        with open(fname) as f:
-            result = yaml.safe_load(f)
-            return result.get("_wandb", {}).get("value", {}).get("cli_version")
-
-    def python_version(self):
-        fname = self._find_in_files("wandb-metadata.json")
-        if fname is None:
-            return
-
-        with open(fname) as f:
-            result = json.loads(f.read())
-            return result.get("python")
 
     def _modify_table_artifact_paths(self, row):
         table_keys = []
