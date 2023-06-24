@@ -11,6 +11,14 @@ SERVICES_API_PORT = "8083"
 FIXTURE_SERVICE_PORT = "9015"
 
 
+def get_free_port():
+    import socket
+
+    sock = socket.socket()
+    sock.bind(("", 0))
+    return str(sock.getsockname()[1])
+
+
 @dataclass
 class UserFixtureCommand:
     command: Literal["up", "down", "down_all", "logout", "login", "password"]
@@ -77,6 +85,13 @@ class MlflowServerSettings:
 
     base_url: str = "http://localhost:4040"
     health_endpoint: str = "health"
+
+    # helper if port is blocked
+    new_port: Optional[str] = None
+
+    def __post_init__(self):
+        self.new_port = get_free_port()
+        self.base_url = self.base_url.replace("4040", self.new_port)
 
 
 @dataclass

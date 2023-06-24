@@ -37,21 +37,9 @@ from ..helpers import (
     WandbServerUser,
 )
 
-MLFLOW_BASE_URL = "http://localhost:4040"
-MLFLOW_HEALTH_ENDPOINT = "health"
-EXPERIMENTS = 2
-RUNS_PER_EXPERIMENT = 3
-STEPS = 1000
-N_ROOT_FILES = 5
-N_SUBDIRS = 3
-N_SUBDIR_FILES = 2
-LOGGING_BATCH_SIZE = 50
-
 SECONDS_FROM_2023_01_01 = 1672549200
 
 mlflow_version = Version(mlflow.__version__)
-
-Path = str
 
 
 # def make_nested_run():
@@ -125,8 +113,8 @@ def make_metrics(n_steps):
 
 
 def make_artifacts_dir(
-    root_dir: Path, n_root_files: int, n_subdirs: int, n_subdir_files: int
-) -> Path:
+    root_dir: str, n_root_files: int, n_subdirs: int, n_subdir_files: int
+) -> str:
     # Ensure root_dir exists
     os.makedirs(root_dir, exist_ok=True)
 
@@ -230,14 +218,6 @@ def mlflow_artifacts_destination(request):
     yield request.getfixturevalue(request.param)
 
 
-def get_free_port():
-    import socket
-
-    sock = socket.socket()
-    sock.bind(("", 0))
-    return str(sock.getsockname()[1])
-
-
 @pytest.fixture
 def mlflow_server_settings(mlflow_artifacts_destination, mlflow_backend):
     return MlflowServerSettings(
@@ -260,17 +240,12 @@ def mlflow_logging_config():
 
 @pytest.fixture
 def new_mlflow_server(mlflow_server_settings):
-    new_port = get_free_port()
-    mlflow_server_settings.base_url = mlflow_server_settings.base_url.replace(
-        "4040", new_port
-    )
-
     if mlflow_version < Version("2.0.0"):
         start_cmd = [
             "mlflow",
             "server",
             "-p",
-            new_port,
+            mlflow_server_settings.new_port,
             # no sqlite
             # no --artifacts-destination flag
         ]
@@ -279,7 +254,7 @@ def new_mlflow_server(mlflow_server_settings):
             "mlflow",
             "server",
             "-p",
-            new_port,
+            mlflow_server_settings.new_port,
             "--backend-store-uri",
             mlflow_server_settings.metrics_backend,
             "--artifacts-destination",
@@ -288,7 +263,9 @@ def new_mlflow_server(mlflow_server_settings):
 
     process = subprocess.Popen(start_cmd)  # process
     healthy = _check_mlflow_server_health(
-        mlflow_server_settings.base_url, MLFLOW_HEALTH_ENDPOINT, num_retries=30
+        mlflow_server_settings.base_url,
+        mlflow_server_settings.health_endpoint,
+        num_retries=30,
     )
 
     if healthy:
