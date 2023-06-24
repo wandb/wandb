@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 )
 
 type Header struct {
@@ -32,11 +32,11 @@ func (x *Tokenizer) split(data []byte, _ bool) (advance int, token []byte, err e
 		buf := bytes.NewReader(data)
 		err := binary.Read(buf, binary.LittleEndian, &x.header)
 		if err != nil {
-			log.Error(err)
+			LogError("cant read token", err)
 			return 0, nil, err
 		}
 		if x.header.Magic != uint8('W') {
-			log.Error("Invalid magic byte in header")
+			slog.Error("Invalid magic byte in header")
 		}
 		x.headerValid = true
 		advance += x.headerLength

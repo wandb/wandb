@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/wandb/wandb/nexus/pkg/leveldb"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
@@ -19,7 +18,7 @@ type Store struct {
 func NewStore(fileName string) *Store {
 	f, err := os.Create(fileName)
 	if err != nil {
-		log.Error(err)
+		LogError("cant create store", err)
 	}
 	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
 	s := &Store{writer: writer, db: f}
@@ -37,10 +36,10 @@ func (s *Store) addHeader() {
 	ident := [4]byte{byte(':'), byte('W'), byte('&'), byte('B')}
 	head := Header{ident: ident, magic: 0xBEE1, version: 0}
 	if err := binary.Write(buf, binary.LittleEndian, &head); err != nil {
-		log.Error(err)
+		LogError("cant write header", err)
 	}
 	if _, err := s.db.Write(buf.Bytes()); err != nil {
-		log.Error(err)
+		LogError("cant write data", err)
 	}
 }
 
@@ -52,14 +51,14 @@ func (s *Store) Close() error {
 func (s *Store) storeRecord(msg *service.Record) {
 	writer, err := s.writer.Next()
 	if err != nil {
-		log.Error(err)
+		LogError("cant get next record", err)
 	}
 	out, err := proto.Marshal(msg)
 	if err != nil {
-		log.Error(err)
+		LogError("cant marshal", err)
 	}
 
 	if _, err = writer.Write(out); err != nil {
-		log.Error(err)
+		LogError("cant write rec", err)
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"golang.org/x/exp/slog"
 )
 
 type Writer struct {
@@ -32,11 +32,11 @@ func (w *Writer) Deliver(msg *service.Record) {
 func (w *Writer) start(wg *sync.WaitGroup) {
 	defer wg.Done()
 	for msg := range w.inChan {
-		log.WithFields(log.Fields{"record": msg}).Debug("write: got msg")
+		LogRecord("write: got msg", msg)
 		w.writeRecord(msg)
 	}
 	w.close()
-	log.Debug("writer: started and closed")
+	slog.Debug("writer: started and closed")
 }
 
 func (w *Writer) close() {
@@ -56,7 +56,7 @@ func (w *Writer) writeRecord(rec *service.Record) {
 	case *service.Record_Request:
 		w.sendRecord(rec)
 	case nil:
-		log.Error("nil record type")
+		slog.Error("nil record type")
 	default:
 		w.store.storeRecord(rec)
 		w.sendRecord(rec)
@@ -65,11 +65,11 @@ func (w *Writer) writeRecord(rec *service.Record) {
 
 func (w *Writer) sendRecord(rec *service.Record) {
 	control := rec.GetControl()
-	log.Debug("WRITER: sendRecord", control, rec)
+	LogRecord("WRITER: sendRecord", rec)
 	if w.settings.Offline && control != nil && !control.AlwaysSend {
 		return
 	}
-	log.Debug("WRITER: sendRecord: send")
+	slog.Debug("WRITER: sendRecord: send")
 	w.outChan <- rec
 }
 

@@ -3,7 +3,6 @@ package server
 import (
 	"crypto/rand"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -62,7 +61,7 @@ func ShortID(length int) string {
 	b := make([]byte, length)
 	_, err := rand.Read(b) // generates len(b) random bytes
 	if err != nil {
-		log.Fatalln("rand error", err)
+		LogFatalError("rand error", err)
 	}
 
 	for i := 0; i < length; i++ {

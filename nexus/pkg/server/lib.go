@@ -2,31 +2,11 @@ package server
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
-
-func SetupLogger(toStderr bool) {
-	file, err := os.OpenFile("/tmp/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if toStderr {
-		mw := io.MultiWriter(os.Stderr, file)
-		log.SetOutput(mw)
-	} else {
-		log.SetOutput(file)
-	}
-
-	log.SetFormatter(&log.JSONFormatter{})
-	log.SetReportCaller(true)
-	log.SetLevel(log.DebugLevel)
-}
 
 var m map[int]*NexusStream = make(map[int]*NexusStream)
 

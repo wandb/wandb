@@ -6,13 +6,14 @@ import (
 	// "google.golang.org/protobuf/reflect/protoreflect"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 
-	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 )
 
 const historyFileName = "wandb-history.jsonl"
@@ -43,7 +44,7 @@ func NewFileStream(path string, settings *Settings) *FileStream {
 func (fs *FileStream) start() {
 	defer fs.wg.Done()
 
-	log.Debug("FileStream: OPEN")
+	slog.Debug("FileStream: OPEN")
 
 	if fs.settings.Offline {
 		return
@@ -51,11 +52,11 @@ func (fs *FileStream) start() {
 
 	fs.httpClient = newHttpClient(fs.settings.ApiKey)
 	for msg := range fs.inChan {
-		log.Debug("FileStream *******")
-		log.WithFields(log.Fields{"record": msg}).Debug("FileStream: got record")
+		slog.Debug("FileStream *******")
+		LogRecord("FileStream: got record", msg)
 		fs.streamRecord(msg)
 	}
-	log.Debug("FileStream: finished")
+	slog.Debug("FileStream: finished")
 }
 
 func (fs *FileStream) streamRecord(msg *service.Record) {
@@ -66,9 +67,9 @@ func (fs *FileStream) streamRecord(msg *service.Record) {
 		fs.streamFinish()
 	case nil:
 		// The field is not set.
-		log.Fatal("FileStream: RecordType is nil")
+		LogFatal("FileStream: RecordType is nil")
 	default:
-		log.Fatalf("FileStream: Unknown type %T", x)
+		LogFatal(fmt.Sprintf("FileStream: Unknown type %T", x))
 	}
 }
 
@@ -108,39 +109,39 @@ func (fs *FileStream) stream(rec *service.Record) {
 	if fs.settings.Offline {
 		return
 	}
-	log.Debug("+++++FileStream: stream", rec)
+	LogRecord("+++++FileStream: stream", rec)
 	fs.inChan <- rec
 }
 
 func (fs *FileStream) send(data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		log.Fatalf("json marshal error: %v", err)
+		LogFatalError("json marshal error", err)
 	}
 
 	buffer := bytes.NewBuffer(jsonData)
 	req, err := http.NewRequest(http.MethodPost, fs.path, buffer)
 	if err != nil {
-		log.Fatalf("FileStream: could not create request: %v", err)
+		LogFatalError("FileStream: could not create request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := fs.httpClient.Do(req)
 	if err != nil {
-		log.Fatalf("FileStream: error making HTTP request: %v", err)
+		LogFatalError("FileStream: error making HTTP request", err)
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			log.Errorf("FileStream: error closing response body: %v", err)
+			LogError("FileStream: error closing response body", err)
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		log.Errorf("json decode error: %v", err)
+		LogError("json decode error", err)
 	}
-	log.WithFields(log.Fields{"res": res}).Debug("FileStream: post response")
+	slog.Debug(fmt.Sprintf("FileStream: post response: %v", res))
 }
 
 func jsonify(msg *service.HistoryRecord) string {
@@ -149,20 +150,20 @@ func jsonify(msg *service.HistoryRecord) string {
 	for _, item := range msg.Item {
 		var val interface{}
 		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
-			log.Fatalf("json unmarshal error: %v, items: %v", err, item)
+			LogFatal(fmt.Sprintf("json unmarshal error: %v, items: %v", err, item))
 		}
 		data[item.Key] = val
 	}
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		log.Errorf("json marshal error: %v", err)
+		LogError("json marshal error", err)
 	}
 	return string(jsonData)
 }
 
 func (fs *FileStream) close() {
-	log.Debug("FileStream: CLOSE")
+	slog.Debug("FileStream: CLOSE")
 	close(fs.inChan)
 	fs.wg.Wait()
 }

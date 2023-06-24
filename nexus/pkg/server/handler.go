@@ -6,11 +6,9 @@ import (
 	"strconv"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
-
 	// "time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Handler struct {
@@ -37,7 +35,7 @@ func NewHandler(ctx context.Context, settings *Settings) *Handler {
 
 func (h *Handler) start() {
 	for msg := range h.inChan {
-		log.WithFields(log.Fields{"rec": msg}).Debug("handle: got msg")
+		LogRecord("handle: got msg", msg)
 		h.handleRecord(msg)
 	}
 }
@@ -78,7 +76,7 @@ func (h *Handler) handleRecord(msg *service.Record) {
 	case *service.Record_Preempting:
 		// TODO: handle preempting
 	case *service.Record_Request:
-		log.WithFields(log.Fields{"req": x}).Debug("reqgot")
+		LogRecord("req got", msg)
 		h.handleRequest(msg)
 	case *service.Record_Run:
 		h.handleRun(msg, x.Run)
@@ -91,9 +89,9 @@ func (h *Handler) handleRecord(msg *service.Record) {
 	case *service.Record_Telemetry:
 		// TODO: handle telemetry
 	case nil:
-		log.Fatal("handleRecord: record type is nil")
+		LogFatal("handleRecord: record type is nil")
 	default:
-		log.Fatalf("handleRecord: unknown record type %T", x)
+		LogFatal(fmt.Sprintf("handleRecord: unknown record type %T", x))
 	}
 }
 
@@ -102,7 +100,7 @@ func (h *Handler) handleRequest(rec *service.Record) {
 	ref := req.ProtoReflect()
 	desc := ref.Descriptor()
 	num := ref.WhichOneof(desc.Oneofs().ByName("request_type")).Number()
-	log.WithFields(log.Fields{"type": num}).Debug("PROCESS: REQUEST")
+	slog.Debug(fmt.Sprintf("PROCESS: REQUEST, type:%v", num))
 
 	response := &service.Response{}
 	switch x := req.RequestType.(type) {
@@ -115,19 +113,19 @@ func (h *Handler) handleRequest(rec *service.Record) {
 	case *service.Request_Keepalive:
 	case *service.Request_NetworkStatus:
 	case *service.Request_PartialHistory:
-		log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got partial")
+		LogRecord("PROCESS: got partial", rec)
 		h.handlePartialHistory(rec, x.PartialHistory)
 		return
 	case *service.Request_PollExit:
 	case *service.Request_RunStart:
-		log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got start")
+		LogRecord("PROCESS: got start", rec)
 		h.handleRunStart(rec, x.RunStart)
 	case *service.Request_SampledHistory:
 	case *service.Request_ServerInfo:
 	case *service.Request_Shutdown:
 	case *service.Request_StopStatus:
 	default:
-		log.Fatalf("handleRequest: unknown request type %T", x)
+		LogFatal(fmt.Sprintf("handleRequest: unknown request type %T", x))
 	}
 
 	result := &service.Result{
@@ -152,7 +150,7 @@ func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartReque
 	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
 	h.run, ok = proto.Clone(run).(*service.RunRecord)
 	if !ok {
-		log.Fatal("handleRunStart: failed to clone run")
+		LogFatal("handleRunStart: failed to clone run")
 	}
 	h.sendRecord(rec)
 }
@@ -203,7 +201,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, req *service.PartialHi
 		if items[i].Key == "_timestamp" {
 			val, err := strconv.ParseFloat(items[i].ValueJson, 64)
 			if err != nil {
-				log.Errorf("Error parsing _timestamp: %s", err)
+				LogError("Error parsing _timestamp", err)
 			}
 			runTime = val - h.startTime
 		}

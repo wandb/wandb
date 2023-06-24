@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -53,7 +54,10 @@ func (nc *Connection) receive(wg *sync.WaitGroup) {
 			msg := &service.ServerRequest{}
 			err := proto.Unmarshal(scanner.Bytes(), msg)
 			if err != nil {
-				log.Error("Unmarshalling error: ", err)
+				slog.LogAttrs(context.Background(),
+					slog.LevelError,
+					"Unmarshalling error",
+					slog.String("err", err.Error()))
 				continue
 			}
 			nc.requestChan <- msg
@@ -64,7 +68,7 @@ func (nc *Connection) receive(wg *sync.WaitGroup) {
 	// wait for context to be canceled
 	<-nc.ctx.Done()
 
-	log.Debug("receive: Context canceled")
+	slog.Debug("receive: Context canceled")
 }
 
 func (nc *Connection) transmit(wg *sync.WaitGroup) {
@@ -74,23 +78,23 @@ func (nc *Connection) transmit(wg *sync.WaitGroup) {
 		for msg := range nc.respondChan {
 			out, err := proto.Marshal(msg)
 			if err != nil {
-				log.Error("Error marshalling msg:", err)
+				LogError("Error marshalling msg", err)
 				return
 			}
 
 			writer := bufio.NewWriter(nc.conn)
 			header := Header{Magic: byte('W'), DataLength: uint32(len(out))}
 			if err = binary.Write(writer, binary.LittleEndian, &header); err != nil {
-				log.Error("Error writing header:", err)
+				LogError("Error writing header", err)
 				return
 			}
 			if _, err = writer.Write(out); err != nil {
-				log.Error("Error writing msg:", err)
+				LogError("Error writing msg", err)
 				return
 			}
 
 			if err = writer.Flush(); err != nil {
-				log.Error("Error flushing writer:", err)
+				LogError("Error flusing writer", err)
 				return
 			}
 		}
@@ -98,7 +102,7 @@ func (nc *Connection) transmit(wg *sync.WaitGroup) {
 
 	// wait for context to be canceled
 	<-nc.ctx.Done()
-	log.Debug("transmit: Context canceled")
+	slog.Debug("transmit: Context canceled")
 }
 
 func (nc *Connection) process(wg *sync.WaitGroup) {
@@ -109,7 +113,7 @@ func (nc *Connection) process(wg *sync.WaitGroup) {
 		case msg := <-nc.requestChan:
 			nc.handleMessage(msg)
 		case <-nc.ctx.Done():
-			log.Debug("PROCESS: Context canceled")
+			slog.Debug("PROCESS: Context canceled")
 			return
 		}
 	}
@@ -126,7 +130,7 @@ func handleConnection(ctx context.Context, cancel context.CancelFunc, swg *sync.
 		swg.Done()
 		err := connection.conn.Close()
 		if err != nil {
-			log.Error(err)
+			LogError("problem closing connection", err)
 		}
 		// close(connection.requestChan)
 		// close(connection.respondChan)
@@ -141,11 +145,11 @@ func handleConnection(ctx context.Context, cancel context.CancelFunc, swg *sync.
 
 	wg.Wait()
 
-	log.Debug("handleConnection: DONE")
+	slog.Debug("handleConnection: DONE")
 }
 
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
-	log.Debug("connection: handleInformInit: init")
+	slog.Debug("connection: handleInformInit: init")
 	s := msg.XSettingsMap
 	settings := NewSettings(s)
 
@@ -156,7 +160,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 }
 
 func (nc *Connection) handleInformStart(_ *service.ServerInformStartRequest) {
-	log.Debug("handleInformStart: start")
+	slog.Debug("handleInformStart: start")
 }
 
 func (nc *Connection) handleInformRecord(msg *service.Record) {
@@ -165,7 +169,10 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 		ref := msg.ProtoReflect()
 		desc := ref.Descriptor()
 		num := ref.WhichOneof(desc.Oneofs().ByName("record_type")).Number()
-		log.WithFields(log.Fields{"type": num}).Debug("PROCESS: COMM/PUBLISH")
+		slog.LogAttrs(context.Background(),
+			slog.LevelDebug,
+			"PROCESS: COMM/PUBLISH",
+			slog.Int("type", int(num)))
 		// add connection id to control message
 		// so that the stream can send back a response
 		// to the correct connection
@@ -174,31 +181,31 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 		} else {
 			msg.Control = &service.Control{ConnectionId: nc.id}
 		}
-		log.Println("handleInformRecord: ", msg)
+		LogRecord("handleInformRecord", msg)
 		stream.HandleRecord(msg)
 	} else {
-		log.Error("handleInformRecord: stream not found")
+		slog.Error("handleInformRecord: stream not found")
 	}
 }
 
 func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest) {
-	log.Debug("handleInformFinish: finish")
+	slog.Debug("handleInformFinish: finish")
 	streamId := msg.XInfo.StreamId
 	if stream, ok := streamMux.getStream(streamId); ok {
 		stream.MarkFinished()
 	} else {
-		log.Error("handleInformFinish: stream not found")
+		slog.Error("handleInformFinish: stream not found")
 	}
 }
 
 func (nc *Connection) handleInformTeardown(_ *service.ServerInformTeardownRequest) {
-	log.Debug("handleInformTeardown: teardown")
+	slog.Debug("handleInformTeardown: teardown")
 	streamMux.Close()
-	log.Debug("handleInformTeardown: streamMux closed")
+	slog.Debug("handleInformTeardown: streamMux closed")
 	nc.cancel()
-	log.Debug("handleInformTeardown: context canceled")
+	slog.Debug("handleInformTeardown: context canceled")
 	nc.shutdownChan <- true
-	log.Debug("handleInformTeardown: shutdownChan signaled")
+	slog.Debug("handleInformTeardown: shutdownChan signaled")
 }
 
 func (nc *Connection) handleMessage(msg *service.ServerRequest) {
@@ -216,8 +223,8 @@ func (nc *Connection) handleMessage(msg *service.ServerRequest) {
 	case *service.ServerRequest_InformTeardown:
 		nc.handleInformTeardown(x.InformTeardown)
 	case nil:
-		log.Fatal("ServerRequestType is nil")
+		panic("ServerRequestType is nil")
 	default:
-		log.Fatalf("ServerRequestType is unknown, %T", x)
+		panic(fmt.Sprintf("ServerRequestType is unknown, %T", x))
 	}
 }
