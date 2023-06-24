@@ -457,9 +457,9 @@ class Settings:
     _config_dict: Config
     _console: SettingsConsole
     _cuda: str
-    _disable_meta: bool
-    _disable_service: bool
-    _disable_stats: bool
+    _disable_meta: bool  # Do not collect system metadata
+    _disable_service: bool  # Disable wandb-service, spin up internal process the old way
+    _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
@@ -486,6 +486,7 @@ class Settings:
     _platform: str
     _python: str
     _runqueue_item_id: str
+    _require_nexus: bool
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
@@ -508,6 +509,7 @@ class Settings:
     allow_val_change: bool
     anonymous: str
     api_key: str
+    azure_account_url_to_access_key: Dict[str, str]
     base_url: str  # The base url for the wandb api
     code_dir: str
     config_paths: Sequence[str]
@@ -662,6 +664,7 @@ class Settings:
             },
             _sync={"value": False},
             _platform={"value": util.get_platform_name()},
+            _require_nexus={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
                 "value": 30,
@@ -700,6 +703,7 @@ class Settings:
             },
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
+            azure_account_url_to_access_key={"value": {}},
             base_url={
                 "value": "https://api.wandb.ai",
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
@@ -1559,6 +1563,7 @@ class Settings:
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
+            "WANDB_REQUIRE_NEXUS": "_require_nexus",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",
