@@ -11,9 +11,9 @@ import yaml
 from tqdm.auto import tqdm
 
 import wandb
+from wandb.apis.public import Run
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.util import coalesce, remove_keys_with_none_values
-from wandb.apis.public import Run
 
 from .base import (
     ImporterRun,
@@ -35,23 +35,6 @@ class WandbRun(ImporterRun):
             api_key=_thread_local_settings.api_key,
             overrides={"base_url": _thread_local_settings.base_url},
         )
-
-        # download everything up front before switching api keys
-        self._files = self.files()
-        if self._files:
-            self._files = list(self._files)
-
-        self._artifacts = self.artifacts()
-        if self._artifacts:
-            self._artifacts = list(self._artifacts)
-
-        self._used_artifacts = self.used_artifacts()
-        if self._used_artifacts:
-            self._used_artifacts = list(self._used_artifacts)
-
-        self._logs = self.logs()
-        if self._logs:
-            self._logs = list(self._logs)
 
     def run_id(self):
         return self.run.id
@@ -242,7 +225,7 @@ class WandbRun(ImporterRun):
         return row
 
     def _find_in_files(self, name):
-        for path, _ in self._files:
+        for path, _ in self.files():
             if name in path:
                 return path
 
@@ -549,7 +532,7 @@ class WandbParquetRun(WandbRun):
                     yield row
 
     def _make_metadata_files_record(self) -> pb.Record:
-        return self._make_files_record({"files": self._files})
+        return self._make_files_record({"files": self.files()})
 
 
 class WandbParquetImporter(WandbImporter):

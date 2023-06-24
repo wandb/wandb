@@ -37,9 +37,6 @@ class ImporterRun:
     def __init__(self) -> None:
         self.interface = InterfaceQueue()
         self.run_dir = f"./wandb-importer/{self.run_id()}"
-        self._metrics = self.metrics()
-        self._artifacts = self.artifacts()
-        self._used_artifacts = self.used_artifacts()
 
     def run_id(self) -> str:
         ...
@@ -202,7 +199,7 @@ class ImporterRun:
         return self.interface._make_record(summary=summary)
 
     def _make_history_records(self) -> Iterable[pb.Record]:
-        for _, metrics in enumerate(self._metrics):
+        for _, metrics in enumerate(self.metrics()):
             history = pb.HistoryRecord()
             for k, v in metrics.items():
                 item = history.item.add()
@@ -326,7 +323,7 @@ def send_run_with_send_manager(
         sm.send(run._make_run_record())
 
         wandb.termlog(">> Use Artifacts")
-        used_artifacts = run._used_artifacts
+        used_artifacts = run.used_artifacts()
         if used_artifacts is not None:
             for artifact in tqdm(
                 used_artifacts, desc="Used artifacts", unit="artifacts", leave=False
@@ -334,7 +331,7 @@ def send_run_with_send_manager(
                 sm.send(run._make_artifact_record(artifact, use_artifact=True))
 
         wandb.termlog(">> Log Artifacts")
-        artifacts = run._artifacts
+        artifacts = run.artifacts()
         if artifacts is not None:
             for artifact in tqdm(
                 artifacts, desc="Logged artifacts", unit="artifacts", leave=False
@@ -357,11 +354,12 @@ def send_run_with_send_manager(
         sm.send(run._make_summary_record())
 
         wandb.termlog(">> Log Output")
-        if hasattr(run, "_logs"):
-            lines = run._logs
-            if lines is not None:
-                for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
-                    sm.send(run._make_output_record(line))
+        # if hasattr(run, "_logs"):
+        #     lines = run._logs
+        lines = run.logs()
+        if lines is not None:
+            for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
+                sm.send(run._make_output_record(line))
 
         wandb.termlog(">> Log Telem")
         sm.send(run._make_telem_record())
