@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"os"
 
 	"github.com/wandb/wandb/nexus/pkg/server"
 	"golang.org/x/exp/slog"
@@ -19,8 +18,7 @@ func main() {
 
 	flag.Parse()
 
-	logStdErr := os.Getenv("WANDB_NEXUS_DEBUG") != ""
-	server.SetupLogger(logStdErr)
+	server.SetupDefaultLogger()
 
 	slog.LogAttrs(
 		context.Background(),

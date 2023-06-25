@@ -13,14 +13,16 @@ type Writer struct {
 	inChan   chan *service.Record
 	outChan  chan<- *service.Record
 	store    *Store
+	logger   *slog.Logger
 }
 
-func NewWriter(ctx context.Context, settings *Settings) *Writer {
+func NewWriter(ctx context.Context, settings *Settings, logger *slog.Logger) *Writer {
 
 	writer := &Writer{
 		settings: settings,
 		inChan:   make(chan *service.Record),
-		store:    NewStore(settings.SyncFile),
+		store:    NewStore(settings.SyncFile, logger),
+		logger:   logger,
 	}
 	return writer
 }
@@ -32,7 +34,7 @@ func (w *Writer) Deliver(msg *service.Record) {
 func (w *Writer) start(wg *sync.WaitGroup) {
 	defer wg.Done()
 	for msg := range w.inChan {
-		LogRecord("write: got msg", msg)
+		LogRecord(w.logger, "write: got msg", msg)
 		w.writeRecord(msg)
 	}
 	w.close()
@@ -65,7 +67,7 @@ func (w *Writer) writeRecord(rec *service.Record) {
 
 func (w *Writer) sendRecord(rec *service.Record) {
 	control := rec.GetControl()
-	LogRecord("WRITER: sendRecord", rec)
+	LogRecord(w.logger, "WRITER: sendRecord", rec)
 	if w.settings.Offline && control != nil && !control.AlwaysSend {
 		return
 	}

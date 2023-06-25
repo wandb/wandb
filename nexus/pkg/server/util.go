@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"golang.org/x/exp/slog"
 )
 
 type NexusStream struct {
@@ -61,7 +62,7 @@ func ShortID(length int) string {
 	b := make([]byte, length)
 	_, err := rand.Read(b) // generates len(b) random bytes
 	if err != nil {
-		LogFatalError("rand error", err)
+		LogFatalError(slog.Default(), "rand error", err)
 	}
 
 	for i := 0; i < length; i++ {

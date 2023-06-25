@@ -25,7 +25,7 @@ func (sm *StreamMux) addStream(streamId string, settings *Settings) *Stream {
 	defer sm.mutex.RUnlock()
 	stream, ok := sm.mux[streamId]
 	if !ok {
-		stream = NewStream(settings)
+		stream = NewStream(settings, streamId)
 		sm.mux[streamId] = stream
 	}
 	return stream

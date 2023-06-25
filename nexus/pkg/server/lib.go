@@ -41,7 +41,7 @@ func ResultFromServerResponse(serverResponse *service.ServerResponse) *service.R
 }
 
 func LibStart() int {
-	SetupLogger(false)
+	SetupDefaultLogger()
 
 	base_url := os.Getenv("WANDB_BASE_URL")
 	if base_url == "" {
@@ -73,7 +73,7 @@ func LibStartSettings(settings *Settings, run_id string) int {
 	}
 
 	num := 42
-	s := NewStream(settings)
+	s := NewStream(settings, "junk")
 	s.Start()
 
 	c := make(chan *service.Record, 1000)

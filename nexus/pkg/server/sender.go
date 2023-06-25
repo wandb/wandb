@@ -27,13 +27,15 @@ type Sender struct {
 	graphqlClient  graphql.Client
 	fileStream     *FileStream
 	run            *service.RunRecord
+	logger         *slog.Logger
 }
 
 // NewSender creates a new Sender instance
-func NewSender(ctx context.Context, settings *Settings) *Sender {
+func NewSender(ctx context.Context, settings *Settings, logger *slog.Logger) *Sender {
 	sender := &Sender{
 		settings: settings,
 		inChan:   make(chan *service.Record),
+		logger:   logger,
 	}
 	slog.Debug("Sender: start")
 	url := fmt.Sprintf("%s/graphql", settings.BaseURL)
@@ -46,7 +48,7 @@ func (s *Sender) start(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for msg := range s.inChan {
-		LogRecord("sender: got msg", msg)
+		LogRecord(s.logger, "sender: got msg", msg)
 		s.sendRecord(msg)
 	}
 	slog.Debug("sender: started and closed")
@@ -68,14 +70,14 @@ func (s *Sender) sendRecord(msg *service.Record) {
 	case *service.Record_Files:
 		s.sendFiles(msg, x.Files)
 	case *service.Record_History:
-		LogRecord("Sender: sendRecord", msg)
+		LogRecord(s.logger, "Sender: sendRecord", msg)
 		s.sendHistory(msg, x.History)
 	case *service.Record_Request:
 		s.sendRequest(msg, x.Request)
 	case nil:
-		LogFatal("sender: sendRecord: nil RecordType")
+		LogFatal(s.logger, "sender: sendRecord: nil RecordType")
 	default:
-		LogFatal(fmt.Sprintf("sender: sendRecord: unexpected type %T", x))
+		LogFatal(s.logger, fmt.Sprintf("sender: sendRecord: unexpected type %T", x))
 	}
 }
 
@@ -94,7 +96,7 @@ func (s *Sender) sendRequest(_ *service.Record, req *service.Request) {
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.BaseURL, s.run.Entity, s.run.Project, s.run.RunId)
-	s.fileStream = NewFileStream(fsPath, s.settings)
+	s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
 	slog.Debug("Sender: sendRunStart: start file stream")
 }
 
@@ -131,7 +133,7 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 
 	run, ok := proto.Clone(record).(*service.RunRecord)
 	if !ok {
-		LogFatal("error")
+		LogFatal(s.logger, "error")
 	}
 
 	ctx := context.Background()
@@ -159,7 +161,7 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 		nil,           // summaryMetrics
 	)
 	if err != nil {
-		LogError("error upserting bucket", err)
+		LogError(s.logger, "error upserting bucket", err)
 	}
 
 	run.DisplayName = *resp.UpsertBucket.Bucket.DisplayName
@@ -172,12 +174,12 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 		Control:    msg.Control,
 		Uuid:       msg.Uuid,
 	}
-	LogResult("sending run result ", result)
+	LogResult(s.logger, "sending run result ", result)
 	s.dispatcherChan.Deliver(result)
 }
 
 func (s *Sender) sendHistory(msg *service.Record, _ *service.HistoryRecord) {
-	LogRecord("sending history result ", msg)
+	LogRecord(s.logger, "sending history result ", msg)
 	if s.fileStream != nil {
 		s.fileStream.stream(msg)
 	}
@@ -185,7 +187,7 @@ func (s *Sender) sendHistory(msg *service.Record, _ *service.HistoryRecord) {
 
 func (s *Sender) sendExit(msg *service.Record, _ *service.RunExitRecord) {
 	// send exit via filestream
-	LogRecord("sending run exit result ", msg)
+	LogRecord(s.logger, "sending run exit result ", msg)
 	s.fileStream.stream(msg)
 
 	result := &service.Result{
@@ -207,7 +209,7 @@ func (s *Sender) sendFiles(msg *service.Record, filesRecord *service.FilesRecord
 	}
 }
 
-func sendData(fileName, urlPath string) error {
+func sendData(fileName, urlPath string, logger *slog.Logger) error {
 	client := &http.Client{
 		Timeout: time.Second * 10,
 	}
@@ -223,7 +225,7 @@ func sendData(fileName, urlPath string) error {
 	}
 	rsp, err := client.Do(req)
 	if rsp.StatusCode != http.StatusOK {
-		LogFatal(fmt.Sprintf("Request failed with response code: %d", rsp.StatusCode))
+		LogFatal(logger, fmt.Sprintf("Request failed with response code: %d", rsp.StatusCode))
 	}
 	if err != nil {
 		return err
@@ -234,7 +236,7 @@ func sendData(fileName, urlPath string) error {
 func (s *Sender) sendFile(_ *service.Record, fileItem *service.FilesItem) {
 
 	if s.run == nil {
-		LogFatal("upsert run not called before send db")
+		LogFatal(s.logger, "upsert run not called before send db")
 	}
 
 	entity := s.run.Entity
@@ -249,14 +251,14 @@ func (s *Sender) sendFile(_ *service.Record, fileItem *service.FilesItem) {
 		nil, // description
 	)
 	if err != nil {
-		LogError("error getting upload urls", err)
+		LogError(s.logger, "error getting upload urls", err)
 	}
 
 	edges := resp.GetModel().GetBucket().GetFiles().GetEdges()
 	for _, e := range edges {
 		url := e.GetNode().GetUrl()
-		if err = sendData(path, *url); err != nil {
-			LogError("error sending data", err)
+		if err = sendData(path, *url, s.logger); err != nil {
+			LogError(s.logger, "error sending data", err)
 		}
 	}
 }

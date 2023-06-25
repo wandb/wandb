@@ -10,8 +10,9 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-func SetupLogger(toStderr bool) {
-	file, err := os.OpenFile("/tmp/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+func setupLogger(fname string) *slog.Logger {
+	toStderr := os.Getenv("WANDB_NEXUS_DEBUG") != ""
+	file, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		fmt.Println("FATAL Problem", err)
 		panic("problem")
@@ -27,41 +28,62 @@ func SetupLogger(toStderr bool) {
 		Level: slog.LevelDebug,
 	}
 	logger := slog.New(slog.NewJSONHandler(writer, opts))
+	return logger
+}
+
+func SetupDefaultLogger() {
+	logger := setupLogger("/tmp/logs.txt")
 	slog.SetDefault(logger)
 	slog.Info("started logging")
 }
 
-func LogError(msg string, err error) {
-	slog.LogAttrs(context.Background(),
+func SetupStreamLogger(logFile string, streamID string) *slog.Logger {
+	logger := setupLogger(logFile)
+	return logger
+	/*
+		toStderr := os.Getenv("WANDB_NEXUS_DEBUG") != ""
+		opts := &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}
+		logger := slog.New(slog.NewJSONHandler(writer, opts))
+		jsonHandler := slog.NewTextHandler(os.Stdout).
+			WithAttrs([]slog.Attr{slog.String("app-version", "v0.0.1-beta")})
+		logger := slog.New(textHandler)
+		return logger
+	*/
+}
+
+func LogError(log *slog.Logger, msg string, err error) {
+	log.LogAttrs(context.Background(),
 		slog.LevelError,
 		msg,
 		slog.String("error", err.Error()))
 }
 
-func LogFatal(msg string) {
-	slog.LogAttrs(context.Background(),
+func LogFatal(log *slog.Logger, msg string) {
+	log.LogAttrs(context.Background(),
 		slog.LevelError,
 		msg)
 	panic(msg)
 }
 
-func LogFatalError(msg string, err error) {
-	slog.LogAttrs(context.Background(),
+func LogFatalError(log *slog.Logger, msg string, err error) {
+	log.LogAttrs(context.Background(),
 		slog.LevelError,
 		msg,
 		slog.String("error", err.Error()))
 	panic(msg)
 }
 
-func LogRecord(msg string, record *service.Record) {
-	slog.LogAttrs(context.Background(),
+func LogRecord(log *slog.Logger, msg string, record *service.Record) {
+	log.LogAttrs(context.Background(),
 		slog.LevelError,
 		msg,
 		slog.String("record", record.String()))
 }
 
-func LogResult(msg string, result *service.Result) {
-	slog.LogAttrs(context.Background(),
+func LogResult(log *slog.Logger, msg string, result *service.Result) {
+	log.LogAttrs(context.Background(),
 		slog.LevelError,
 		msg,
 		slog.String("result", result.String()))

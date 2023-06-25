@@ -27,14 +27,16 @@ type FileStream struct {
 	offset int
 
 	settings   *Settings
+	logger     *slog.Logger
 	httpClient http.Client
 }
 
-func NewFileStream(path string, settings *Settings) *FileStream {
+func NewFileStream(path string, settings *Settings, logger *slog.Logger) *FileStream {
 	fs := FileStream{
 		wg:       &sync.WaitGroup{},
 		path:     path,
 		settings: settings,
+		logger:   logger,
 		inChan:   make(chan *service.Record)}
 	fs.wg.Add(1)
 	go fs.start()
@@ -53,7 +55,7 @@ func (fs *FileStream) start() {
 	fs.httpClient = newHttpClient(fs.settings.ApiKey)
 	for msg := range fs.inChan {
 		slog.Debug("FileStream *******")
-		LogRecord("FileStream: got record", msg)
+		LogRecord(fs.logger, "FileStream: got record", msg)
 		fs.streamRecord(msg)
 	}
 	slog.Debug("FileStream: finished")
@@ -67,9 +69,9 @@ func (fs *FileStream) streamRecord(msg *service.Record) {
 		fs.streamFinish()
 	case nil:
 		// The field is not set.
-		LogFatal("FileStream: RecordType is nil")
+		LogFatal(fs.logger, "FileStream: RecordType is nil")
 	default:
-		LogFatal(fmt.Sprintf("FileStream: Unknown type %T", x))
+		LogFatal(fs.logger, fmt.Sprintf("FileStream: Unknown type %T", x))
 	}
 }
 
@@ -86,7 +88,7 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 
 	chunk := FsChunkData{
 		Offset:  fs.offset,
-		Content: []string{jsonify(msg)}}
+		Content: []string{jsonify(msg, fs.logger)}}
 	fs.offset += 1
 	files := map[string]FsChunkData{
 		historyFileName: chunk,
@@ -109,55 +111,55 @@ func (fs *FileStream) stream(rec *service.Record) {
 	if fs.settings.Offline {
 		return
 	}
-	LogRecord("+++++FileStream: stream", rec)
+	LogRecord(fs.logger, "+++++FileStream: stream", rec)
 	fs.inChan <- rec
 }
 
 func (fs *FileStream) send(data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		LogFatalError("json marshal error", err)
+		LogFatalError(fs.logger, "json marshal error", err)
 	}
 
 	buffer := bytes.NewBuffer(jsonData)
 	req, err := http.NewRequest(http.MethodPost, fs.path, buffer)
 	if err != nil {
-		LogFatalError("FileStream: could not create request", err)
+		LogFatalError(fs.logger, "FileStream: could not create request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := fs.httpClient.Do(req)
 	if err != nil {
-		LogFatalError("FileStream: error making HTTP request", err)
+		LogFatalError(fs.logger, "FileStream: error making HTTP request", err)
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			LogError("FileStream: error closing response body", err)
+			LogError(fs.logger, "FileStream: error closing response body", err)
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		LogError("json decode error", err)
+		LogError(fs.logger, "json decode error", err)
 	}
 	slog.Debug(fmt.Sprintf("FileStream: post response: %v", res))
 }
 
-func jsonify(msg *service.HistoryRecord) string {
+func jsonify(msg *service.HistoryRecord, logger *slog.Logger) string {
 	data := make(map[string]interface{})
 
 	for _, item := range msg.Item {
 		var val interface{}
 		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
-			LogFatal(fmt.Sprintf("json unmarshal error: %v, items: %v", err, item))
+			LogFatal(logger, fmt.Sprintf("json unmarshal error: %v, items: %v", err, item))
 		}
 		data[item.Key] = val
 	}
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		LogError("json marshal error", err)
+		LogError(logger, "json marshal error", err)
 	}
 	return string(jsonData)
 }

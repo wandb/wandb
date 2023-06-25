@@ -14,26 +14,26 @@ func writePortFile(portFile string, port int) {
 	tempFile := fmt.Sprintf("%s.tmp", portFile)
 	f, err := os.Create(tempFile)
 	if err != nil {
-		LogError("fail create", err)
+		LogError(slog.Default(), "fail create", err)
 	}
 	defer func(f *os.File) {
 		_ = f.Close()
 	}(f)
 
 	if _, err = f.WriteString(fmt.Sprintf("sock=%d\n", port)); err != nil {
-		LogError("fail write", err)
+		LogError(slog.Default(), "fail write", err)
 	}
 
 	if _, err = f.WriteString("EOF"); err != nil {
-		LogError("fail write EOF", err)
+		LogError(slog.Default(), "fail write EOF", err)
 	}
 
 	if err = f.Sync(); err != nil {
-		LogError("fail sync", err)
+		LogError(slog.Default(), "fail sync", err)
 	}
 
 	if err = os.Rename(tempFile, portFile); err != nil {
-		LogError("fail rename", err)
+		LogError(slog.Default(), "fail rename", err)
 	}
 }
 
@@ -47,7 +47,7 @@ func tcpServer(portFile string) {
 	addr := "127.0.0.1:0"
 	listen, err := net.Listen("tcp", addr)
 	if err != nil {
-		LogError("cant listen", err)
+		LogError(slog.Default(), "cant listen", err)
 	}
 
 	server := NexusServer{shutdownChan: make(chan bool), listen: listen}
@@ -55,7 +55,7 @@ func tcpServer(portFile string) {
 	defer func() {
 		err := listen.Close()
 		if err != nil {
-			LogError("Error closing listener:", err)
+			LogError(slog.Default(), "Error closing listener:", err)
 		}
 		close(server.shutdownChan)
 	}()
@@ -76,7 +76,7 @@ func tcpServer(portFile string) {
 				if server.shutdown {
 					break // Break when shutdown has been requested
 				}
-				LogError("Failed to accept conn.", err)
+				LogError(slog.Default(), "Failed to accept conn.", err)
 				continue
 			}
 

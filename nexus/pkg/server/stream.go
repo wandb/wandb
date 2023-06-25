@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"golang.org/x/exp/slog"
 )
 
 // Stream is a collection of components that work together to handle incoming
@@ -19,16 +20,20 @@ type Stream struct {
 	writer     *Writer
 	sender     *Sender
 	settings   *Settings
+	logger     *slog.Logger
 	finished   bool
 	done       chan struct{}
 }
 
-func NewStream(settings *Settings) *Stream {
+func NewStream(settings *Settings, streamId string) *Stream {
 	ctx := context.Background()
-	dispatcher := NewDispatcher(ctx)
-	sender := NewSender(ctx, settings)
-	writer := NewWriter(ctx, settings)
-	handler := NewHandler(ctx, settings)
+	logFile := settings.LogInternal
+	logger := SetupStreamLogger(logFile, streamId)
+
+	dispatcher := NewDispatcher(ctx, logger)
+	sender := NewSender(ctx, settings, logger)
+	writer := NewWriter(ctx, settings, logger)
+	handler := NewHandler(ctx, settings, logger)
 
 	// connect the components
 	handler.outChan = writer.inChan
@@ -45,6 +50,7 @@ func NewStream(settings *Settings) *Stream {
 		sender:     sender,
 		writer:     writer,
 		settings:   settings,
+		logger:     logger,
 		done:       make(chan struct{}),
 	}
 

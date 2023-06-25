@@ -78,23 +78,23 @@ func (nc *Connection) transmit(wg *sync.WaitGroup) {
 		for msg := range nc.respondChan {
 			out, err := proto.Marshal(msg)
 			if err != nil {
-				LogError("Error marshalling msg", err)
+				LogError(slog.Default(), "Error marshalling msg", err)
 				return
 			}
 
 			writer := bufio.NewWriter(nc.conn)
 			header := Header{Magic: byte('W'), DataLength: uint32(len(out))}
 			if err = binary.Write(writer, binary.LittleEndian, &header); err != nil {
-				LogError("Error writing header", err)
+				LogError(slog.Default(), "Error writing header", err)
 				return
 			}
 			if _, err = writer.Write(out); err != nil {
-				LogError("Error writing msg", err)
+				LogError(slog.Default(), "Error writing msg", err)
 				return
 			}
 
 			if err = writer.Flush(); err != nil {
-				LogError("Error flusing writer", err)
+				LogError(slog.Default(), "Error flusing writer", err)
 				return
 			}
 		}
@@ -130,7 +130,7 @@ func handleConnection(ctx context.Context, cancel context.CancelFunc, swg *sync.
 		swg.Done()
 		err := connection.conn.Close()
 		if err != nil {
-			LogError("problem closing connection", err)
+			LogError(slog.Default(), "problem closing connection", err)
 		}
 		// close(connection.requestChan)
 		// close(connection.respondChan)
@@ -181,7 +181,7 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 		} else {
 			msg.Control = &service.Control{ConnectionId: nc.id}
 		}
-		LogRecord("handleInformRecord", msg)
+		LogRecord(slog.Default(), "handleInformRecord", msg)
 		stream.HandleRecord(msg)
 	} else {
 		slog.Error("handleInformRecord: stream not found")

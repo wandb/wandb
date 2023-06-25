@@ -3,9 +3,9 @@ package server
 import (
 	"strings"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
-
 	"github.com/wandb/wandb/nexus/pkg/auth"
+	"github.com/wandb/wandb/nexus/pkg/service"
+	"golang.org/x/exp/slog"
 )
 
 type Settings struct {
@@ -39,7 +39,7 @@ func (s *Settings) parseNetrc() {
 
 	netlist, err := auth.ReadNetrc()
 	if err != nil {
-		LogFatalError("cant read netrc", err)
+		LogFatalError(slog.Default(), "cant read netrc", err)
 	}
 
 	for i := 0; i < len(netlist); i++ {
