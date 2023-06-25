@@ -1,7 +1,7 @@
 import json
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Protocol, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Protocol, Tuple, Union
 from unittest.mock import patch
 
 from tqdm import tqdm
@@ -13,6 +13,8 @@ from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
 from wandb.util import cast_dictlike_to_dict, coalesce
+
+from wandb.sdk.internal.settings_static import SettingsDict
 
 with patch("click.echo"):
     from wandb.apis.reports import Report
@@ -180,7 +182,7 @@ class RecordMaker:
 
         runtime = self.run.runtime()
         if runtime is not None:
-            run.runtime = self.run.runtime()
+            run.runtime = runtime
 
         run_group = self.run.run_group()
         if run_group is not None:
@@ -275,7 +277,7 @@ class RecordMaker:
 
         return self.interface._make_record(telemetry=telem)
 
-    def _make_metadata_file(self) -> None:
+    def _make_metadata_file(self) -> str:
         missing_text = "This data was not captured"
 
         d = {}
@@ -309,7 +311,7 @@ class RecordMaker:
 def send_run_with_send_manager(
     run: ImporterRun,
     overrides: Optional[Dict[str, Any]] = None,
-    settings_override=None,
+    settings_override: Optional[SettingsDict] = None,
 ) -> None:
     # does this need to be here for pmap?
     if overrides:

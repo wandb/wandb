@@ -1754,7 +1754,7 @@ def coalesce(*arg: Any) -> Any:
     return next((a for a in arg if a is not None), None)
 
 
-def cast_dictlike_to_dict(d: MutableMapping[str, Any]) -> Dict[str, Any]:
+def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
     for k, v in d.items():
         if isinstance(v, dict):
             cast_dictlike_to_dict(v)
@@ -1766,7 +1766,7 @@ def cast_dictlike_to_dict(d: MutableMapping[str, Any]) -> Dict[str, Any]:
 
 def remove_keys_with_none_values(
     d: Union[Dict[str, Any], Any]
-) -> Optional[Dict[str, Any]]:
+) -> Union[Dict[str, Any], Any]:
     # otherwise iterrows will create a bunch of ugly charts
     if not isinstance(d, dict):
         return d

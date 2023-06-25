@@ -6,6 +6,7 @@ import os
 import queue
 import threading
 import time
+import traceback
 from collections import defaultdict
 from datetime import datetime
 from queue import Queue
@@ -18,6 +19,7 @@ from typing import (
     NewType,
     Optional,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -314,7 +316,7 @@ class SendManager:
         files_dir = os.path.join(root_dir, "files")
         _settings_override: SettingsDict = util.coalesce(settings_override, {})
 
-        default_settings = dict(
+        default_settings: SettingsDict = dict(
             files_dir=files_dir,
             root_dir=root_dir,
             _start_time=0,
@@ -343,6 +345,7 @@ class SendManager:
 
         # TODO(settings) replace with wandb.Settings
         sd: SettingsDict = {**default_settings, **_settings_override}
+        # sd.update(_settings_override)
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
@@ -362,11 +365,17 @@ class SendManager:
     def __enter__(self) -> "SendManager":
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[traceback.TracebackException],
+    ) -> Literal[False]:
         while self:
             data = next(self)
             self.send(data)
         self.finish()
+        return False
 
     def retry_callback(self, status: int, response_text: str) -> None:
         response = wandb_internal_pb2.HttpResponse()

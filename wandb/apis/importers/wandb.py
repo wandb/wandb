@@ -3,10 +3,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple, Union
 from unittest.mock import patch
 
-import polars as pl
+import polars as pl  # type: ignore
 import requests
 import yaml
 from tqdm.auto import tqdm
@@ -14,6 +14,8 @@ from tqdm.auto import tqdm
 import wandb
 from wandb.apis.public import Run
 from wandb.util import coalesce, remove_keys_with_none_values
+
+from wandb.sdk.internal.settings_static import SettingsDict
 
 from .base import (
     _thread_local_settings,
@@ -136,7 +138,7 @@ class WandbRun:
     def python_version(self) -> Optional[str]:
         fname = self._find_in_files("wandb-metadata.json")
         if fname is None:
-            return
+            return None
 
         with open(fname) as f:
             result = json.loads(f.read())
@@ -151,7 +153,7 @@ class WandbRun:
     def host(self) -> Optional[str]:
         fname = self._find_in_files("wandb-metadata.json")
         if fname is None:
-            return
+            return None
 
         with open(fname) as f:
             result = json.loads(f.read())
@@ -188,7 +190,7 @@ class WandbRun:
     def code_path(self) -> Optional[str]:
         fname = self._find_in_files("wandb-metadata.json")
         if fname is None:
-            return
+            return None
 
         with open(fname) as f:
             result = json.loads(f.read())
@@ -197,7 +199,7 @@ class WandbRun:
     def cli_version(self) -> Optional[str]:
         fname = self._find_in_files("config.yaml")
         if fname is None:
-            return
+            return None
 
         with open(fname) as f:
             result = yaml.safe_load(f)
@@ -268,9 +270,15 @@ class WandbRun:
         return row
 
     def _find_in_files(self, name: str) -> Optional[str]:
-        for path, _ in self.files():
+        files = self.files()
+        if files is None:
+            return None
+
+        for path, _ in files:
             if name in path:
                 return path
+
+        return None
 
 
 class WandbImporter:
@@ -333,14 +341,15 @@ class WandbImporter:
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         _overrides: Dict[str, Any] = coalesce(overrides, {})
+        settings_override: SettingsDict = {
+            "api_key": self.dst_api_key,
+            "base_url": self.dst_base_url,
+        }
 
         send_run_with_send_manager(
             run,
             overrides=_overrides,
-            settings_override={
-                "api_key": self.dst_api_key,
-                "base_url": self.dst_base_url,
-            },
+            settings_override=settings_override,
         )
 
     def import_runs(
@@ -435,7 +444,7 @@ class WandbImporter:
 
     def import_reports(
         self,
-        reports: List[Report],
+        reports: Iterable[Report],
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:

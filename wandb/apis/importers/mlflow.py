@@ -1,10 +1,10 @@
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from unittest.mock import patch
 
-from packaging.version import Version
+from packaging.version import Version  # type: ignore
 from tqdm.auto import tqdm
 
 import wandb
@@ -45,17 +45,14 @@ class MlflowRun:
         return self.run.data.metrics
 
     def metrics(self) -> Iterable[Dict[str, float]]:
-        d = defaultdict(dict)
-        metrics = (
-            self.mlflow_client.get_metric_history(self.run.info.run_id, k)
-            for k in self.run.data.metrics.keys()
-        )
-        for metric in metrics:
+        d: Dict[int, Dict[str, float]] = defaultdict(dict)
+        for k in self.run.data.metrics.keys():
+            metric = self.mlflow_client.get_metric_history(self.run.info.run_id, k)
             for item in metric:
                 d[item.step][item.key] = item.value
 
-        flattened = ({"_step": k, **v} for k, v in d.items())
-        return flattened
+        for k, v in d.items():
+            yield {"_step": k, **v}
 
     def run_group(self) -> Optional[str]:
         # this is nesting?  Parent at `run.info.tags.get("mlflow.parentRunId")`
@@ -74,9 +71,10 @@ class MlflowRun:
         return self.run.data.tags.get("mlflow.note.content")
 
     def tags(self) -> Optional[List[str]]:
-        return {
+        mlflow_tags = {
             k: v for k, v in self.run.data.tags.items() if not k.startswith("mlflow.")
         }
+        return [f"{k}={v}" for k, v in mlflow_tags.items()]
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:
         if mlflow_version < Version("2.0.0"):
