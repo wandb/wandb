@@ -21,6 +21,7 @@ import psutil
 import pytest
 import requests
 import wandb
+import wandb.apis.reports as wr
 from hypothesis.errors import NonInteractiveExampleWarning
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
@@ -320,7 +321,12 @@ def determine_scope(fixture_name, config):
 
 @pytest.fixture(scope="session")
 def wandb_logging_config():
-    return WandbLoggingConfig(n_steps=250, n_metrics=2, n_experiments=3)
+    return WandbLoggingConfig(
+        n_steps=250,
+        n_metrics=2,
+        n_experiments=3,
+        n_reports=5,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -358,7 +364,8 @@ def wandb_server_dst(wandb_server, user):
 def wandb_server_src(wandb_server2, user2, wandb_logging_config):
     for _ in range(wandb_logging_config.n_experiments):
         with wandb.init(
-            project="test", settings={"console": "off", "save_code": False}
+            project=wandb_logging_config.project_name,
+            settings={"console": "off", "save_code": False},
         ) as run:
             data = generate_random_data(
                 wandb_logging_config.n_steps, wandb_logging_config.n_metrics
@@ -379,6 +386,12 @@ def wandb_server_src(wandb_server2, user2, wandb_logging_config):
                     "mol": create_random_molecule(),
                 }
             )
+
+    for _ in range(wandb_logging_config.n_reports):
+        wr.Report(
+            project=wandb_logging_config.project_name,
+            blocks=[],
+        ).save()
 
     return WandbServerUser(wandb_server2, user2)
 

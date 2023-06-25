@@ -2,6 +2,7 @@ import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from unittest.mock import patch
 
 from packaging.version import Version
 from tqdm.auto import tqdm
@@ -11,6 +12,9 @@ from wandb import Artifact
 from wandb.util import coalesce, get_module
 
 from .base import ImporterRun, send_run_with_send_manager
+
+with patch("click.echo"):
+    from wandb.apis.reports import Report
 
 mlflow = get_module(
     "mlflow",
@@ -190,7 +194,7 @@ class MlflowImporter:
         runs: Iterable[ImporterRun],
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         _overrides = coalesce(overrides, {})
         _pool_kwargs = coalesce(pool_kwargs, {})
         runs = list(self.collect_runs())
@@ -220,9 +224,9 @@ class MlflowImporter:
         limit: Optional[int] = None,
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         runs = self.collect_runs(limit)
         self.import_runs(runs, overrides, pool_kwargs)
 
-    def import_report(self):
+    def import_report(self, report: Report):
         raise NotImplementedError("MLFlow does not have a reports concept")

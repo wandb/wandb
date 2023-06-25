@@ -39,15 +39,17 @@ class Report(Base):
         description="",
         width="readable",
         blocks=None,
+        _api=None,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._viewspec = self._default_viewspec()
         self._orig_viewspec = deepcopy(self._viewspec)
+        self._api = PublicApi() if _api is None else _api
 
         self.project = project
-        self.entity = coalesce(entity, PublicApi().default_entity, "")
+        self.entity = coalesce(entity, self._api.default_entity, "")
         self.title = title
         self.description = description
         self.width = width
@@ -58,7 +60,9 @@ class Report(Base):
         if api is None:
             api = PublicApi()
         report_id = cls._url_to_report_id(url)
+        print("before view")
         r = api.client.execute(VIEW_REPORT, variable_values={"reportId": report_id})
+        print("after view")
         viewspec = r["view"]
         viewspec["spec"] = json.loads(viewspec["spec"])
         return cls.from_json(viewspec)
@@ -149,7 +153,7 @@ class Report(Base):
 
     @property
     def client(self) -> "RetryingClient":
-        return PublicApi().client
+        return self._api.client
 
     @property
     def id(self) -> str:
@@ -173,7 +177,7 @@ class Report(Base):
         title = re.sub(r"-+", "-", title)
         title = urllib.parse.quote(title)
         id = self.id.replace("=", "")
-        app_url = PublicApi().client.app_url
+        app_url = self._api.client.app_url
         if not app_url.endswith("/"):
             app_url = app_url + "/"
         return f"{app_url}{self.entity}/{self.project}/reports/{title}--{id}"
@@ -183,7 +187,7 @@ class Report(Base):
             termwarn("Report has not been modified")
 
         # create project if not exists
-        PublicApi().create_project(self.project, self.entity)
+        self._api.create_project(self.project, self.entity)
 
         # All panel grids must have at least one runset
         for pg in self.panel_grids:
@@ -193,10 +197,10 @@ class Report(Base):
         # Check runsets with `None` for project and replace with the report's project.
         # We have to do this here because RunSets don't know about their report until they're added to it.
         for rs in self.runsets:
-            rs.entity = coalesce(rs.entity, PublicApi().default_entity)
+            rs.entity = coalesce(rs.entity, self._api.default_entity)
             rs.project = coalesce(rs.project, self.project)
 
-        r = PublicApi().client.execute(
+        r = self._api.client.execute(
             UPSERT_VIEW,
             variable_values={
                 "id": None if clone or not self.id else self.id,

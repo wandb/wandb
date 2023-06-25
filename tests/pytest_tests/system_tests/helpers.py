@@ -64,6 +64,9 @@ class WandbLoggingConfig:
     n_steps: int
     n_metrics: int
     n_experiments: int
+    n_reports: int
+
+    project_name: str = "test"
 
 
 @dataclass

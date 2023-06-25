@@ -14,10 +14,10 @@ def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
     )
 
     importer.import_all_runs(
-        wandb_server_src.user,
+        entity=wandb_server_src.user,
         overrides={
             "entity": wandb_server_dst.user,
-            "project": "test",
+            "project": wandb_logging_config.project_name,
         },
     )
 
@@ -27,7 +27,10 @@ def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
         api_key=wandb_server_dst.user,
         overrides={"base_url": wandb_server_dst.server.base_url},
     )
-    runs = api.runs(f"{wandb_server_dst.user}/test")
+    entity = wandb_server_dst.user
+    project = wandb_logging_config.project_name
+
+    runs = api.runs(f"{entity}/{project}")
     runs = list(runs)
 
     assert len(runs) == wandb_logging_config.n_experiments
@@ -46,3 +49,35 @@ def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
             wandb_logging_config.n_metrics,
         )
         assert media_df.shape == (1, 7)
+
+
+@pytest.mark.timeout(300)
+def test_wandb_reports(wandb_server_src, wandb_server_dst, wandb_logging_config):
+    importer = WandbParquetImporter(
+        src_base_url=wandb_server_src.server.base_url,
+        src_api_key=wandb_server_src.user,
+        dst_base_url=wandb_server_dst.server.base_url,
+        dst_api_key=wandb_server_dst.user,
+    )
+
+    importer.import_all_reports(
+        entity=wandb_server_src.user,
+        overrides={
+            "entity": wandb_server_dst.user,
+            "project": wandb_logging_config.project_name,
+        },
+    )
+
+    ###
+
+    api = wandb.Api(
+        api_key=wandb_server_dst.user,
+        overrides={"base_url": wandb_server_dst.server.base_url},
+    )
+    entity = wandb_server_dst.user
+    project = wandb_logging_config.project_name
+
+    reports = api.reports(f"{entity}/{project}")
+    reports = list(reports)
+
+    assert len(reports) == wandb_logging_config.n_reports

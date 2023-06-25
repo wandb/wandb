@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
 import polars as pl
+import requests
 import yaml
 from tqdm.auto import tqdm
 
@@ -282,22 +283,22 @@ class WandbImporter:
         dst_base_url: str,
         dst_api_key: str,
     ):
-        self.source_base_url = src_base_url
-        self.source_api_key = src_api_key
-        self.dest_base_url = dst_base_url
-        self.dest_api_key = dst_api_key
+        self.src_base_url = src_base_url
+        self.src_api_key = src_api_key
+        self.dst_base_url = dst_base_url
+        self.dst_api_key = dst_api_key
 
-        # There is probably a less redundant way of doing this
-        set_thread_local_settings(src_api_key, src_base_url)
-
-        self.source_api = wandb.Api(
+        self.src_api = wandb.Api(
             api_key=src_api_key,
             overrides={"base_url": src_base_url},
         )
-        self.dest_api = wandb.Api(
+        self.dst_api = wandb.Api(
             api_key=dst_api_key,
             overrides={"base_url": dst_base_url},
         )
+
+        # There is probably a less redundant way of doing this
+        set_thread_local_settings(src_api_key, src_base_url)
 
     def collect_runs(
         self,
@@ -313,7 +314,7 @@ class WandbImporter:
         if start_date is not None:
             filters["createdAt"] = {"$gte": start_date}
 
-        api = self.source_api
+        api = self.src_api
         projects = self._projects(entity, project)
 
         runs = (
@@ -324,57 +325,37 @@ class WandbImporter:
         for i, run in enumerate(runs):
             if limit and i >= limit:
                 break
-            yield run
+            yield self.DefaultRunClass(run)
 
     def import_run(
         self,
-        entity: str,
-        project: str,
-        id: str,
+        run: WandbRun,
         overrides: Optional[Dict[str, Any]] = None,
-    ):
-        wandb.termlog("START")
-        if overrides is None:
-            overrides = {}
+    ) -> None:
+        _overrides: Dict[str, Any] = coalesce(overrides, {})
 
-        wandb.termlog("GETTING SOURCE RUN")
-        api = self.source_api
-        run = api.run(f"{entity}/{project}/{id}")
-
-        # set threadlocal here?
-        set_thread_local_settings(self.dest_api_key, self.dest_base_url)
-        run = self.DefaultRunClass(run)
-
-        wandb.termlog("UPLOADING TO DEST")
         send_run_with_send_manager(
             run,
-            overrides=overrides,
+            overrides=_overrides,
             settings_override={
-                "api_key": self.dest_api_key,
-                "base_url": self.dest_base_url,
+                "api_key": self.dst_api_key,
+                "base_url": self.dst_base_url,
             },
         )
-        wandb.termlog("DONE")
 
     def import_runs(
         self,
-        runs: List[Run],
+        runs: Iterable[WandbRun],
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         _overrides: Dict[str, Any] = coalesce(overrides, {})
         _pool_kwargs: Dict[str, Any] = coalesce(pool_kwargs, {})
         runs = list(runs)
 
         with ThreadPoolExecutor(**_pool_kwargs) as exc:
             futures = {
-                exc.submit(
-                    self.import_run,
-                    run.entity,
-                    run.project,
-                    run.id,
-                    overrides=_overrides,
-                ): run
+                exc.submit(self.import_run, run, overrides=_overrides): run
                 for run in runs
             }
             with tqdm(desc="Importing runs", total=len(futures), unit="run") as pbar:
@@ -385,7 +366,7 @@ class WandbImporter:
                     except Exception as e:
                         wandb.termerror(f"Import problem: {e}")
                     else:
-                        pbar.set_postfix({"id": run.id})
+                        pbar.set_postfix({"id": run.run.id})
                     finally:
                         pbar.update(1)
 
@@ -403,7 +384,7 @@ class WandbImporter:
     def collect_reports(
         self, entity: str, project: Optional[str] = None, limit: Optional[int] = None
     ):
-        api = self.source_api
+        api = self.src_api
         projects = self._projects(entity, project)
 
         reports = (
@@ -421,23 +402,33 @@ class WandbImporter:
         report_url: str,
         overrides: Optional[Dict[str, Any]] = None,
     ):
-        overrides2: Dict[str, Any] = coalesce(overrides, {})
+        _overrides: Dict[str, Any] = coalesce(overrides, {})
 
-        report = wr.Report.from_url(report_url)
-        name = overrides2.get("name", report.name)
-        entity = overrides2.get("entity", report.entity)
-        project = overrides2.get("project", report.project)
-        title = overrides2.get("title", report.title)
-        description = overrides2.get("description", report.description)
+        report = wr.Report.from_url(report_url, api=self.src_api)
+        name = _overrides.get("name", report.name)
+        entity = _overrides.get("entity", report.entity)
+        project = _overrides.get("project", report.project)
+        title = _overrides.get("title", report.title)
+        description = _overrides.get("description", report.description)
 
-        api = self.dest_api
+        api = self.dst_api
+        wandb.termlog("creating project")
 
-        api.create_project(project, entity)
+        # Hack: To support multithreading import_report
+        # We shouldn't need to upsert the project for every
+        # single report.  Maybe fix this later ;)
+        try:
+            api.create_project(project, entity)
+        except requests.exceptions.HTTPError as e:
+            wandb.termwarn("The following error is probably safe if you see HTTP409")
+            wandb.termwarn(f"{e}")
 
+        wandb.termlog("upserting")
         api.client.execute(
-            wr.Report.UPSERT_VIEW,
+            wr.report.UPSERT_VIEW,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
+                # "id": report.id,
                 "name": name,
                 "entityName": entity,
                 "projectName": project,
@@ -447,6 +438,7 @@ class WandbImporter:
                 "spec": json.dumps(report.spec),
             },
         )
+        wandb.termlog("done")
 
     def import_reports(
         self,
@@ -536,13 +528,13 @@ class WandbImporter:
             f.write(now)
 
     def _get_ids_in_dst(self, entity: str):
-        api = self.dest_api
+        api = self.dst_api
         for project in api.projects(entity):
             for run in api.runs(f"{project.entity}/{project.name}"):
                 yield run.id
 
     def _projects(self, entity: str, project: Optional[str]):
-        api = self.source_api
+        api = self.src_api
         if project is None:
             return api.projects(entity)
         return [api.project(project, entity)]
