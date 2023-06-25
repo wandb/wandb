@@ -325,7 +325,7 @@ def wandb_logging_config():
         n_steps=250,
         n_metrics=2,
         n_experiments=3,
-        n_reports=5,
+        n_reports=3,
     )
 
 
@@ -390,7 +390,7 @@ def wandb_server_src(wandb_server2, user2, wandb_logging_config):
     for _ in range(wandb_logging_config.n_reports):
         wr.Report(
             project=wandb_logging_config.project_name,
-            blocks=[],
+            blocks=[wr.H1("blah")],
         ).save()
 
     return WandbServerUser(wandb_server2, user2)

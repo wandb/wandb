@@ -60,9 +60,7 @@ class Report(Base):
         if api is None:
             api = PublicApi()
         report_id = cls._url_to_report_id(url)
-        print("before view")
         r = api.client.execute(VIEW_REPORT, variable_values={"reportId": report_id})
-        print("after view")
         viewspec = r["view"]
         viewspec["spec"] = json.loads(viewspec["spec"])
         return cls.from_json(viewspec)

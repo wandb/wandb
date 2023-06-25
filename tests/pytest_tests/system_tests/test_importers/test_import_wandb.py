@@ -6,6 +6,7 @@ from wandb.apis.importers import WandbParquetImporter
 
 @pytest.mark.timeout(300)
 def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
+    # Import
     importer = WandbParquetImporter(
         src_base_url=wandb_server_src.server.base_url,
         src_api_key=wandb_server_src.user,
@@ -21,8 +22,7 @@ def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
         },
     )
 
-    ###
-
+    # Check if import was successful
     api = wandb.Api(
         api_key=wandb_server_dst.user,
         overrides={"base_url": wandb_server_dst.server.base_url},
@@ -37,7 +37,6 @@ def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
     for run in runs:
         history = run.scan_history()
         df = pd.DataFrame(history)
-        # print(f"{df.columns=}")
         metric_cols = df.columns.str.startswith("metric")
         media_cols = ["df", "img", "audio", "pc", "html", "plotly_fig", "mol"]
 
@@ -53,6 +52,7 @@ def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
 
 @pytest.mark.timeout(300)
 def test_wandb_reports(wandb_server_src, wandb_server_dst, wandb_logging_config):
+    # Import
     importer = WandbParquetImporter(
         src_base_url=wandb_server_src.server.base_url,
         src_api_key=wandb_server_src.user,
@@ -68,8 +68,7 @@ def test_wandb_reports(wandb_server_src, wandb_server_dst, wandb_logging_config)
         },
     )
 
-    ###
-
+    # Check if import was successful
     api = wandb.Api(
         api_key=wandb_server_dst.user,
         overrides={"base_url": wandb_server_dst.server.base_url},

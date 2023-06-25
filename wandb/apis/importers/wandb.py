@@ -412,23 +412,18 @@ class WandbImporter:
         description = _overrides.get("description", report.description)
 
         api = self.dst_api
-        wandb.termlog("creating project")
 
-        # Hack: To support multithreading import_report
-        # We shouldn't need to upsert the project for every
-        # single report.  Maybe fix this later ;)
+        # Testing Hack: To support multithreading import_report
+        # We shouldn't need to upsert the project for every report
         try:
             api.create_project(project, entity)
         except requests.exceptions.HTTPError as e:
-            wandb.termwarn("The following error is probably safe if you see HTTP409")
-            wandb.termwarn(f"{e}")
+            wandb.termwarn(f"{e} (Error 409 is probably safe)")
 
-        wandb.termlog("upserting")
         api.client.execute(
             wr.report.UPSERT_VIEW,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
-                # "id": report.id,
                 "name": name,
                 "entityName": entity,
                 "projectName": project,
@@ -438,7 +433,6 @@ class WandbImporter:
                 "spec": json.dumps(report.spec),
             },
         )
-        wandb.termlog("done")
 
     def import_reports(
         self,
