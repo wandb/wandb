@@ -404,7 +404,6 @@ class WandbImporter:
         for i, report in enumerate(reports):
             if limit and i >= limit:
                 break
-            print(report.url)
             yield wr.Report.from_url(report.url, api=api)
 
     def import_report(
