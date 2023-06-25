@@ -7,6 +7,7 @@ from packaging.version import Version
 from tqdm.auto import tqdm
 
 import wandb
+from wandb import Artifact
 from wandb.util import coalesce, get_module
 
 from .base import ImporterRun, send_run_with_send_manager
@@ -73,7 +74,7 @@ class MlflowRun:
             k: v for k, v in self.run.data.tags.items() if not k.startswith("mlflow.")
         }
 
-    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
+    def artifacts(self) -> Optional[Iterable[Artifact]]:
         if mlflow_version < Version("2.0.0"):
             dir_path = self.mlflow_client.download_artifacts(
                 run_id=self.run.info.run_id, path=""
@@ -81,13 +82,13 @@ class MlflowRun:
         else:
             dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
 
-        artifact_name = _handle_incompatible_strings(self.display_name())
+        artifact_name = self._handle_incompatible_strings(self.display_name())
         art = wandb.Artifact(artifact_name, "imported-artifacts")
         art.add_dir(dir_path)
 
         return [art]
 
-    def used_artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
+    def used_artifacts(self) -> Optional[Iterable[Artifact]]:
         ...
 
     def os_version(self) -> Optional[str]:
@@ -143,12 +144,12 @@ class MlflowRun:
     def logs(self) -> Optional[Iterable[str]]:
         ...
 
+    @staticmethod
+    def _handle_incompatible_strings(s: str) -> str:
+        valid_chars = r"[^a-zA-Z0-9_\-\.]"
+        replacement = "__"
 
-def _handle_incompatible_strings(s):
-    valid_chars = r"[^a-zA-Z0-9_\-\.]"
-    replacement = "__"
-
-    return re.sub(valid_chars, replacement, s)
+        return re.sub(valid_chars, replacement, s)
 
 
 class MlflowImporter:

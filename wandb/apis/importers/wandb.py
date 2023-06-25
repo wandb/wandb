@@ -225,7 +225,7 @@ class WandbRun:
         with open(fname) as f:
             yield from f.readlines()
 
-    def _modify_table_artifact_paths(self, row):
+    def _modify_table_artifact_paths(self, row: Dict[str, Any]) -> Dict[str, Any]:
         table_keys = []
         for k, v in row.items():
             if (
@@ -266,7 +266,7 @@ class WandbRun:
 
         return row
 
-    def _find_in_files(self, name):
+    def _find_in_files(self, name: str) -> Optional[str]:
         for path, _ in self.files():
             if name in path:
                 return path
