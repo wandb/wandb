@@ -3,7 +3,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
 import polars as pl
@@ -282,7 +282,7 @@ class WandbImporter:
         src_api_key: str,
         dst_base_url: str,
         dst_api_key: str,
-    ):
+    ) -> None:
         self.src_base_url = src_base_url
         self.src_api_key = src_api_key
         self.dst_base_url = dst_base_url
@@ -307,7 +307,7 @@ class WandbImporter:
         limit: Optional[int] = None,
         skip_ids: Optional[List[str]] = None,
         start_date: Optional[str] = None,
-    ) -> Iterable[WandbRun]:
+    ) -> Generator[WandbRun, None, None]:
         filters: Dict[str, Any] = {}
         if skip_ids is not None:
             filters["name"] = {"$nin": skip_ids}
@@ -377,13 +377,13 @@ class WandbImporter:
         limit: Optional[int] = None,
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         runs = self.collect_runs(entity, project, limit)
         self.import_runs(runs, overrides, pool_kwargs)
 
     def collect_reports(
         self, entity: str, project: Optional[str] = None, limit: Optional[int] = None
-    ):
+    ) -> Generator[Report, None, None]:
         api = self.src_api
         projects = self._projects(entity, project)
 
@@ -395,16 +395,15 @@ class WandbImporter:
         for i, report in enumerate(reports):
             if limit and i >= limit:
                 break
-            yield report
+            yield wr.Report.from_url(report.url, api=api)
 
     def import_report(
         self,
-        report_url: str,
+        report: Report,
         overrides: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         _overrides: Dict[str, Any] = coalesce(overrides, {})
 
-        report = wr.Report.from_url(report_url, api=self.src_api)
         name = _overrides.get("name", report.name)
         entity = _overrides.get("entity", report.entity)
         project = _overrides.get("project", report.project)
@@ -439,27 +438,27 @@ class WandbImporter:
         reports: List[Report],
         overrides: Optional[Dict[str, Any]] = None,
         pool_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         _overrides = coalesce(overrides, {})
         _pool_kwargs = coalesce(pool_kwargs, {})
         reports = list(reports)
 
         with ThreadPoolExecutor(**_pool_kwargs) as exc:
             futures = {
-                exc.submit(self.import_report, report.url, overrides=_overrides): report
+                exc.submit(self.import_report, report, overrides=_overrides): report
                 for report in reports
             }
             with tqdm(
                 desc="Importing reports", total=len(futures), unit="report"
             ) as pbar:
                 for future in as_completed(futures):
-                    report = futures[future]
+                    _report = futures[future]
                     try:
                         future.result()
                     except Exception as e:
                         wandb.termerror(f"Import problem: {e}")
                     else:
-                        pbar.set_postfix({"id": report.id})
+                        pbar.set_postfix({"id": _report.id})
                     finally:
                         pbar.update(1)
 
@@ -469,7 +468,7 @@ class WandbImporter:
         project: Optional[str] = None,
         limit: Optional[int] = None,
         overrides: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         reports = self.collect_reports(entity, project, limit)
         self.import_reports(reports, overrides)
 
@@ -478,7 +477,7 @@ class WandbImporter:
         entity: str,
         project: Optional[str] = None,
         overrides: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         overrides = coalesce(overrides, {})
 
         # Actually there is a bug here.  If the project is deleted, the ids still appear to be here even though they are not!
@@ -498,7 +497,7 @@ class WandbImporter:
         entity: str,
         project: Optional[str] = None,
         overrides: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         # instead of using ids, just use the last run timestamp
         from datetime import datetime as dt
 
@@ -535,7 +534,7 @@ class WandbImporter:
 
 
 class WandbParquetRun(WandbRun):
-    def metrics(self):
+    def metrics(self) -> Iterable[Dict[str, float]]:
         self.history_paths = []
         for art in self.run.logged_artifacts():
             if art.type != "wandb-history":
