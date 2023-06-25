@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
 from packaging.version import Version  # type: ignore

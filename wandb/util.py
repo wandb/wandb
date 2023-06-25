@@ -46,9 +46,8 @@ from typing import (
     Set,
     TextIO,
     Tuple,
-    Union,
-    MutableMapping,
     TypeVar,
+    Union,
 )
 
 import requests

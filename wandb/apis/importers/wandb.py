@@ -3,7 +3,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
 import polars as pl  # type: ignore
@@ -13,9 +13,8 @@ from tqdm.auto import tqdm
 
 import wandb
 from wandb.apis.public import Run
-from wandb.util import coalesce, remove_keys_with_none_values
-
 from wandb.sdk.internal.settings_static import SettingsDict
+from wandb.util import coalesce, remove_keys_with_none_values
 
 from .base import (
     _thread_local_settings,

@@ -1,7 +1,8 @@
 import json
+import sys
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Protocol, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
 from tqdm import tqdm
@@ -12,9 +13,14 @@ from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.internal.settings_static import SettingsDict
 from wandb.util import cast_dictlike_to_dict, coalesce
 
-from wandb.sdk.internal.settings_static import SettingsDict
+if sys.version_info >= (3, 8):
+    from typing import Protocol
+else:
+    from typing_extensions import Protocol
+
 
 with patch("click.echo"):
     from wandb.apis.reports import Report

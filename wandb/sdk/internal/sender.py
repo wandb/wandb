@@ -60,7 +60,6 @@ else:
     from typing_extensions import Literal
 
 if TYPE_CHECKING:
-
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactManifest,
         ArtifactRecord,
