@@ -276,8 +276,17 @@ class WandbImporter:
     DefaultRunClass = WandbRun
 
     def __init__(
-        self, src_base_url: str, src_api_key: str, dst_base_url: str, dst_api_key: str
+        self,
+        src_base_url: str,
+        src_api_key: str,
+        dst_base_url: str,
+        dst_api_key: str,
     ):
+        self.source_base_url = src_base_url
+        self.source_api_key = src_api_key
+        self.dest_base_url = dst_base_url
+        self.dest_api_key = dst_api_key
+
         # There is probably a less redundant way of doing this
         set_thread_local_settings(src_api_key, src_base_url)
 
@@ -289,10 +298,6 @@ class WandbImporter:
             api_key=dst_api_key,
             overrides={"base_url": dst_base_url},
         )
-        self.source_base_url = src_base_url
-        self.source_api_key = src_api_key
-        self.dest_base_url = dst_base_url
-        self.dest_api_key = dst_api_key
 
     def collect_runs(
         self,
@@ -301,7 +306,7 @@ class WandbImporter:
         limit: Optional[int] = None,
         skip_ids: Optional[List[str]] = None,
         start_date: Optional[str] = None,
-    ):
+    ) -> Iterable[WandbRun]:
         filters: Dict[str, Any] = {}
         if skip_ids is not None:
             filters["name"] = {"$nin": skip_ids}

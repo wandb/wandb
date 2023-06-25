@@ -142,10 +142,10 @@ class ImporterRun(Protocol):
 
 
 class Importer(Protocol):
-    def collect_runs(self) -> Iterable[ImporterRun]:
+    def collect_runs(self, *args, **kwargs) -> Iterable[ImporterRun]:
         ...
 
-    def collect_reports(self) -> Iterable[Report]:
+    def collect_reports(self, *args, **kwargs) -> Iterable[Report]:
         ...
 
     def import_run(self, run: ImporterRun) -> None:
@@ -318,8 +318,7 @@ def send_run_with_send_manager(
             # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
             setattr(run, k, lambda v=v: v)
 
-    interface = InterfaceQueue()
-    rm = RecordMaker(run, interface)
+    rm = RecordMaker(run)
 
     with SendManager.setup(
         rm.run_dir, resume=False, settings_override=settings_override
