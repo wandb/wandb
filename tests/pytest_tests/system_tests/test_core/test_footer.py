@@ -1,4 +1,5 @@
 """footer tests."""
+import re
 
 import numpy as np
 import pytest
@@ -117,3 +118,19 @@ def test_footer_history(wandb_init, check_output_fn):
     run.log(dict(a=3))
     run.finish()
     check_output_fn(exp_summary=[], exp_history=["a", "d", "🚀"])
+
+
+def test_footer_job_output(wandb_init, capsys, monkeypatch):
+    """Test that footer includes job info when a job is created."""
+    monkeypatch.setenv("WANDB_DOCKER", "hello-world")  # Needed to trigger job creation.
+    run = wandb_init()
+    run.log({"a": 1})
+    run.finish()
+    captured = capsys.readouterr()
+    lines = captured.err.splitlines()
+    job_oubput = lines[18]
+    match = re.match(
+        r"wandb: ⚡️ View job at http://localhost:8080/user-master-\w+/uncategorized/jobs/\w+/version_details/latest",
+        job_oubput,
+    )
+    assert match
