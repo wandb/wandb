@@ -69,6 +69,5 @@ class StoragePolicy:
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
-        allow_missing_references: bool = False,
-    ) -> Optional[Union[FilePathStr, URIStr]]:
+    ) -> Union[FilePathStr, URIStr]:
         raise NotImplementedError

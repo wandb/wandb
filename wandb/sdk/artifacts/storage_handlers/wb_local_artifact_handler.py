@@ -29,8 +29,7 @@ class WBLocalArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-        allow_missing_references: bool = False,
-    ) -> Optional[Union[URIStr, FilePathStr]]:
+    ) -> Union[URIStr, FilePathStr]:
         raise NotImplementedError(
             "Should not be loading a path for an artifact entry with unresolved client id."
         )

@@ -3,10 +3,8 @@ import base64
 import os
 import random
 from multiprocessing import Pool
-from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
-import botocore.exceptions
 import pytest
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -246,54 +244,6 @@ def test_s3_storage_handler_load_path_uses_cache(cache):
         local=True,
     )
     assert local_path == path
-
-
-def test_s3_storage_handler_load_path_missing_reference(monkeypatch):
-    entry = ArtifactManifestEntry(
-        path="foo/bar/is/missing",
-        ref="s3://some-bucket/path/to/file.json",
-        digest="unmatched tag",
-        size=123,
-    )
-
-    handler = S3Handler()
-    handler._s3 = MagicMock()
-    handler._botocore = botocore
-
-    def bad_request(*args, **kwargs):
-        raise botocore.exceptions.ClientError(
-            operation_name="Client.HeadObject",
-            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
-        )
-
-    monkeypatch.setattr(handler, "_etag_from_obj", bad_request)
-
-    with pytest.raises(FileNotFoundError, match="Missing reference"):
-        handler.load_path(entry, local=True)
-
-
-def test_s3_storage_handler_load_path_missing_reference_allowed(monkeypatch):
-    entry = ArtifactManifestEntry(
-        path="foo/bar/is/missing",
-        ref="s3://some-bucket/path/to/file.json",
-        digest="unmatched tag",
-        size=123,
-    )
-
-    handler = S3Handler()
-    handler._s3 = MagicMock()
-    handler._botocore = botocore
-
-    def bad_request(*args, **kwargs):
-        raise botocore.exceptions.ClientError(
-            operation_name="Client.HeadObject",
-            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
-        )
-
-    monkeypatch.setattr(handler, "_etag_from_obj", bad_request)
-
-    local_path = handler.load_path(entry, local=True, allow_missing_references=True)
-    assert local_path is None
 
 
 def test_gcs_storage_handler_load_path_nonlocal():

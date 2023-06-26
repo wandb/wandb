@@ -25,14 +25,12 @@ class StorageHandler:
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
-        allow_missing_references: bool = False,
-    ) -> Optional[Union[URIStr, FilePathStr]]:
+    ) -> Union[URIStr, FilePathStr]:
         """Load a file or directory given the corresponding index entry.
 
         Args:
             manifest_entry: The index entry to load
             local: Whether to load the file locally or not
-            allow_missing_references: Whether to allow missing reference files
 
         Returns:
             A path to the file represented by `index_entry`

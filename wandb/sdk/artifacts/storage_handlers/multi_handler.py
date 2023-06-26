@@ -34,15 +34,10 @@ class MultiHandler(StorageHandler):
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
-        allow_missing_references: bool = False,
-    ) -> Optional[Union[URIStr, FilePathStr]]:
+    ) -> Union[URIStr, FilePathStr]:
         assert manifest_entry.ref is not None
         handler = self._get_handler(manifest_entry.ref)
-        return handler.load_path(
-            manifest_entry,
-            local=local,
-            allow_missing_references=allow_missing_references,
-        )
+        return handler.load_path(manifest_entry, local=local)
 
     def store_path(
         self,

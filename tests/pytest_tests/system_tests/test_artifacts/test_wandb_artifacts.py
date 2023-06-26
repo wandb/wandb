@@ -1340,25 +1340,52 @@ def test_http_storage_handler_uses_etag_for_digest(
 
 
 def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
+    # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact)
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     with wandb_init(project="test") as run:
         run.log_artifact(artifact)
+    artifact.wait()
 
-    artifact.download()
+    # Patch the S3 handler to return a 404 error when checking the ETag.
+    def bad_request(*args, **kwargs):
+        raise util.get_module("botocore").exceptions.ClientError(
+            operation_name="HeadObject",
+            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+        )
 
-    # def bad_request(*args, **kwargs):
-    #     raise botocore.exceptions.ClientError(
-    #         operation_name="Client.HeadObject",
-    #         error_response={"Error": {"Code": "404", "Message": "Not Found"}},
-    #     )
+    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    # monkeypatch.setattr(handler, "_etag_from_obj", bad_request)
+    with pytest.raises(FileNotFoundError, match="Unable to find"):
+        artifact.download()
 
-    # with pytest.raises(FileNotFoundError, match="Unable to find"):
-    #     artifact.download()
+
+def test_s3_storage_handler_load_path_missing_reference_allowed(
+    monkeypatch, wandb_init, caplog
+):
+    # Create an artifact that references a non-existent S3 object.
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Patch the S3 handler to return a 404 error when checking the ETag.
+    def bad_request(*args, **kwargs):
+        raise util.get_module("botocore").exceptions.ClientError(
+            operation_name="HeadObject",
+            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+        )
+
+    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+
+    artifact.download(allow_missing_references=True)
+    # It should still log a warning about skipping the missing reference.
+    assert any("Unable to find my_object.pb" in r.message for r in caplog.records)
 
 
 def test_s3_storage_handler_load_path_uses_cache(tmp_path):

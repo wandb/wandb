@@ -63,8 +63,7 @@ class GCSHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-        allow_missing_references: bool = False,
-    ) -> Optional[Union[URIStr, FilePathStr]]:
+    ) -> Union[URIStr, FilePathStr]:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -85,7 +84,6 @@ class GCSHandler(StorageHandler):
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
         if version is not None:
-            # TODO(hugh): respect allow_missing_references=True and skip 404s
             obj = self._client.bucket(bucket).get_blob(key, generation=version)
 
         if obj is None:

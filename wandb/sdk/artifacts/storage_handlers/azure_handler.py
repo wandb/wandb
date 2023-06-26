@@ -29,8 +29,7 @@ class AzureHandler(StorageHandler):
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
-        allow_missing_references: bool = False,
-    ) -> Optional[Union[URIStr, FilePathStr]]:
+    ) -> Union[URIStr, FilePathStr]:
         assert manifest_entry.ref is not None
         if not local:
             return manifest_entry.ref
@@ -56,7 +55,6 @@ class AzureHandler(StorageHandler):
         if version_id is None:
             # Try current version, then all versions.
             try:
-                # TODO(hugh): respect allow_missing_references=True and skip 404s
                 downloader = blob_client.download_blob(
                     etag=manifest_entry.digest,
                     match_condition=self._get_module(

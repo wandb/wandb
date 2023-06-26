@@ -45,13 +45,8 @@ class __S3BucketPolicy(StoragePolicy):  # noqa: N801
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-        allow_missing_references: bool = False,
-    ) -> Optional[Union[URIStr, FilePathStr]]:
-        return self._handler.load_path(
-            manifest_entry,
-            local=local,
-            allow_missing_references=allow_missing_references,
-        )
+    ) -> Union[URIStr, FilePathStr]:
+        return self._handler.load_path(manifest_entry, local=local)
 
     def store_path(
         self,

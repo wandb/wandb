@@ -1549,8 +1549,6 @@ class Artifact:
             root: The directory in which to download this artifact's files.
             recursive: If true, then all dependent artifacts are eagerly downloaded.
                 Otherwise, the dependent artifacts are downloaded as needed.
-            allow_missing_references: Emit warnings instead of failing the download
-                if remote reference files are missing.
 
         Returns:
             The path to the downloaded contents.
