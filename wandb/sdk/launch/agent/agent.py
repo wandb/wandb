@@ -539,6 +539,7 @@ class LaunchAgent:
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         run = backend.run(project, builder, job_tracker)
+
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
