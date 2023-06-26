@@ -37,6 +37,7 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
@@ -702,7 +703,6 @@ class Settings:
             },
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
-            azure_account_url_to_access_key={"value": {}},
             base_url={
                 "value": "https://api.wandb.ai",
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
@@ -1474,6 +1474,27 @@ class Settings:
             k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)
         }
         return attributes
+
+    def to_proto(self) -> wandb_settings_pb2.Settings:
+        """Generate a protobuf representation of the settings."""
+        settings = wandb_settings_pb2.Settings()
+        for k, v in self.make_static().items():
+            if isinstance(v, (bool, int, float, str)):
+                setattr(settings, k, v)
+            elif isinstance(v, (list, set, tuple)):
+                getattr(settings, k).extend(v)
+            elif isinstance(v, dict):
+                for key, value in v.items():
+                    getattr(settings, k)[key] = value
+            elif isinstance(v, datetime):
+                getattr(settings, k).FromDatetime(v)
+            elif v is None:
+                # None is the default value for all settings, so we don't need to set it,
+                # i.e. None means that the value was not set.
+                pass
+            else:
+                raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+        return settings
 
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
