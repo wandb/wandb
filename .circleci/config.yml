@@ -610,6 +610,8 @@ jobs:
       image: ubuntu-2204:2023.04.2
       docker_layer_caching: true
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run:
           name: Start first wandb server
@@ -640,7 +642,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox run -c project/tox.ini -v -e <<parameters.toxenv>>  \
+            tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
