@@ -130,7 +130,7 @@ def test_footer_job_output(wandb_init, capsys, monkeypatch):
     lines = captured.err.splitlines()
     job_oubput = lines[18]
     match = re.match(
-        r"wandb: ⚡️ View job at http://[\w\.:]+/user-master-\w+/uncategorized/jobs/\w+/version_details/latest",
+        r"wandb: ⚡️ View job at http://wandb.ai/wandb-sdk/\w+/jobs/[\w=]+/version_details/latest",
         job_oubput,
     )
-    assert match
+    assert match == job_oubput
