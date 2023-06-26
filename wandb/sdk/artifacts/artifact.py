@@ -1476,6 +1476,7 @@ class Artifact:
         # Get the ArtifactManifestEntry
         item = self.get_path(entry.path)
         item_path = item.download()
+        assert item_path is not None
 
         # Load the object from the JSON blob
         result = None
@@ -1533,7 +1534,10 @@ class Artifact:
     # Downloading.
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
+        self,
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1545,6 +1549,8 @@ class Artifact:
             root: The directory in which to download this artifact's files.
             recursive: If true, then all dependent artifacts are eagerly downloaded.
                 Otherwise, the dependent artifacts are downloaded as needed.
+            allow_missing_references: Emit warnings instead of failing the download
+                if remote reference files are missing.
 
         Returns:
             The path to the downloaded contents.
@@ -1614,8 +1620,11 @@ class Artifact:
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
 
-            entry.download(root)
-            download_logger.notify_downloaded()
+            result_path = entry.download(root)(
+                root, allow_missing_references=allow_missing_references
+            )
+            if result_path:
+                download_logger.notify_downloaded()
 
         download_entry = partial(
             _download_entry,
@@ -1771,7 +1780,9 @@ class Artifact:
                 'all files or call .get_path("filename").download()'
             )
 
-        return self.get_path(list(self.manifest.entries)[0]).download(root)
+        path = self.get_path(list(self.manifest.entries)[0]).download(root)
+        assert path is not None  # Missing references raise; this is just for mypy.
+        return path
 
     def files(
         self, names: Optional[List[str]] = None, per_page: int = 50

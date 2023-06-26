@@ -41,7 +41,8 @@ class WBArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+        allow_missing_references: bool = False,
+    ) -> Optional[Union[URIStr, FilePathStr]]:
         """Load the file in the specified artifact given its corresponding entry.
 
         Download the referenced artifact; create and return a new symlink to the caller.
@@ -68,9 +69,13 @@ class WBArtifactHandler(StorageHandler):
         assert dep_artifact is not None
         link_target_path: Union[URIStr, FilePathStr]
         if local:
-            link_target_path = dep_artifact.get_path(artifact_file_path).download()
+            link_target_path = dep_artifact.get_path(artifact_file_path).download(
+                allow_missing_references=allow_missing_references
+            )
         else:
-            link_target_path = dep_artifact.get_path(artifact_file_path).ref_target()
+            link_target_path = dep_artifact.get_path(artifact_file_path).ref_target(
+                allow_missing_references=allow_missing_references
+            )
 
         return link_target_path
 

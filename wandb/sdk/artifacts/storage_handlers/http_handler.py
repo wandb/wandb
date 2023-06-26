@@ -31,7 +31,8 @@ class HTTPHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+        allow_missing_references: bool = False,
+    ) -> Optional[Union[URIStr, FilePathStr]]:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -52,6 +53,7 @@ class HTTPHandler(StorageHandler):
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         )
+        # TODO(hugh): respect allow_missing_references=True and skip 404s
         response.raise_for_status()
 
         digest: Optional[Union[ETag, FilePathStr, URIStr]]

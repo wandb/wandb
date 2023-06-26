@@ -58,6 +58,7 @@ def _load_dir_from_artifact(source_artifact: "Artifact", path: str) -> str:
     for p, _ in source_artifact.manifest.entries.items():
         if p.startswith(path):
             example_path = source_artifact.get_path(p).download()
+            assert example_path is not None
             if dl_path is None:
                 root = example_path[: -len(p)]
                 dl_path = os.path.join(root, path)

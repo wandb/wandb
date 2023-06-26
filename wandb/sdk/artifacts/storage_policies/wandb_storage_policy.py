@@ -156,8 +156,11 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
-    ) -> Union[FilePathStr, URIStr]:
-        return self._handler.load_path(manifest_entry, local)
+        allow_missing_references: bool = False,
+    ) -> Optional[Union[FilePathStr, URIStr]]:
+        return self._handler.load_path(
+            manifest_entry, local, allow_missing_references=allow_missing_references
+        )
 
     def _file_url(
         self,

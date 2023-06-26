@@ -8,7 +8,7 @@ from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
 from wandb.errors import CommError
-from wandb.errors.term import termlog
+from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
@@ -83,7 +83,8 @@ class S3Handler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+        allow_missing_references: bool = False,
+    ) -> Optional[Union[URIStr, FilePathStr]]:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -108,7 +109,23 @@ class S3Handler(StorageHandler):
             # We don't have version information so just get the latest version
             # and fallback to listing all versions if we don't have a match.
             obj = self._s3.Object(bucket, key)
-            etag = self._etag_from_obj(obj)
+            try:
+                etag = self._etag_from_obj(obj)
+            except self._botocore.exceptions.ClientError as e:
+                if not allow_missing_references:
+                    termerror(
+                        "Unable to load reference. To ignore this error, download with "
+                        "`allow_missing_references=True`"
+                    )
+                    raise FileNotFoundError(
+                        f"Missing reference {manifest_entry.path} s3://{bucket}/{key}"
+                    ) from e
+                if e.response["Error"]["Code"] == "404":
+                    termwarn(f"{manifest_entry.path} not found at s3://{bucket}/{key}")
+                    return None
+                else:
+                    raise
+
             if etag != manifest_entry.digest:
                 if self.versioning_enabled(bucket):
                     # Fallback to listing versions

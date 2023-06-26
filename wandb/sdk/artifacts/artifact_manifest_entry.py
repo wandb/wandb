@@ -72,7 +72,9 @@ class ArtifactManifestEntry:
             raise NotImplementedError
         return self._parent_artifact
 
-    def download(self, root: Optional[str] = None) -> FilePathStr:
+    def download(
+        self, root: Optional[str] = None, allow_missing_references: bool = False
+    ) -> Optional[FilePathStr]:
         """Download this artifact entry to the specified root path.
 
         Arguments:
@@ -96,24 +98,31 @@ class ArtifactManifestEntry:
 
         if self.ref is not None:
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
-                self, local=True
+                self, local=True, allow_missing_references=allow_missing_references
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
                 self._parent_artifact, self
             )
+        if cache_path is None:
+            assert allow_missing_references
+            return None
         return FilePathStr(
             str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
         )
 
-    def ref_target(self) -> Union[FilePathStr, URIStr]:
+    def ref_target(
+        self, allow_missing_references: bool = False
+    ) -> Optional[Union[FilePathStr, URIStr]]:
         """Get the reference URL that is targeted by this artifact entry.
 
         Returns:
             (str): The reference URL of this artifact entry.
+            None: If the reference is missing and allow_missing_references is True.
 
         Raises:
             ValueError: If this artifact entry was not a reference.
+            FileNotFoundError: If the file does not exist at the reference URI.
         """
         if self.ref is None:
             raise ValueError("Only reference entries support ref_target().")
@@ -122,6 +131,7 @@ class ArtifactManifestEntry:
         return self._parent_artifact.manifest.storage_policy.load_reference(
             self._parent_artifact.manifest.entries[self.path],
             local=False,
+            allow_missing_references=allow_missing_references,
         )
 
     def ref_url(self) -> str:
