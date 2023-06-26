@@ -514,6 +514,23 @@ class LaunchAgent:
         thread_id: int,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
+        # don't launch sweep runs if the sweep isn't healthy
+        if launch_spec.get("sweep_id"):
+            try:
+                state = api.get_sweep_state(
+                    sweep=launch_spec["sweep_id"],
+                    entity=launch_spec["entity"],
+                    project=launch_spec["project"],
+                )
+            except Exception as e:
+                _logger.debug(f"Fetch sweep state error: {e}")
+                state = None
+
+            if state and state != "RUNNING":
+                raise Exception(
+                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
+                )
+
         project = create_project_from_spec(launch_spec, api)
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
