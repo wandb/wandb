@@ -1,21 +1,19 @@
+import json
+import logging
+import os
+import sys
 import tempfile
-from typing import Any, Dict, Tuple, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.internal.job_builder import JobBuilder
+from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.github_reference import GitHubReference
 from wandb.sdk.launch.utils import _is_git_uri
-from wandb.sdk.launch.builder.build import get_current_python_version
-from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.artifacts.artifact import Artifact
-from wandb.util import make_artifact_name_safe
-import wandb
-import logging
-import sys
-
 from wandb.sdk.lib import filesystem
-import json
-
-import os
-
+from wandb.util import make_artifact_name_safe
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger("wandb")
@@ -28,7 +26,7 @@ def create_job(
     name: Optional[str] = None,
     job_type: Optional[str] = None,
     description: Optional[str] = None,
-    aliases: Optional[List[str]] = [],
+    aliases: List[str] = [],
     runtime: Optional[str] = None,
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
@@ -96,12 +94,11 @@ def _create_job(
     name: Optional[str] = None,
     job_type: Optional[str] = None,
     description: Optional[str] = None,
-    aliases: Optional[List[str]] = [],
+    aliases: List[str] = [],
     runtime: Optional[str] = None,
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
-    aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
     metadata = {"_proto": "v0"}  # seed metadata with special proto key
     requirements: List[str] = []
