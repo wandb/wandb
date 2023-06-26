@@ -74,7 +74,7 @@ class MlflowLoggingConfig:
 
     @property
     def total_files(self):
-        return self.n_root_files + self.n_subdirs * self.
+        return self.n_root_files + self.n_subdirs * self.n_subdir_files
 
 
 # def make_nested_run():
