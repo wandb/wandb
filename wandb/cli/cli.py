@@ -1601,6 +1601,7 @@ def describe(job):
     "aliases",
     help="Alias for the job",
     multiple=True,
+    default=tuple(),
 )
 @click.option(
     "--entry-point",
@@ -1653,7 +1654,7 @@ def create(
         name=name,
         job_type=job_type,
         description=description,
-        aliases=list(aliases or []),
+        aliases=list(aliases),
         entrypoint=entrypoint,
         git_hash=git_hash,
     )

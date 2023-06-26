@@ -26,7 +26,7 @@ def create_job(
     name: Optional[str] = None,
     job_type: Optional[str] = None,
     description: Optional[str] = None,
-    aliases: List[str] = [],
+    aliases: Optional[List[str]] = None,
     runtime: Optional[str] = None,
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
@@ -94,11 +94,12 @@ def _create_job(
     name: Optional[str] = None,
     job_type: Optional[str] = None,
     description: Optional[str] = None,
-    aliases: List[str] = [],
+    aliases: Optional[List[str]] = None,
     runtime: Optional[str] = None,
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
+    aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
     metadata = {"_proto": "v0"}  # seed metadata with special proto key
     requirements: List[str] = []
