@@ -1013,17 +1013,16 @@ def test_wandb_dir_run(mock_run):
 
 def test_console_run(mock_run):
     run = mock_run(settings={"console": "auto", "mode": "offline"})
-    assert run._settings.console == "auto"
-    assert run._settings._console == wandb_settings.SettingsConsole.WRAP
+    assert run._settings.console == "wrap"
 
 
 def test_console(test_settings):
     test_settings = test_settings()
-    assert test_settings._console == wandb_settings.SettingsConsole.OFF
+    assert test_settings.console == "off"
     test_settings.update({"console": "redirect"}, source=Source.BASE)
-    assert test_settings._console == wandb_settings.SettingsConsole.REDIRECT
+    assert test_settings.console == "redirect"
     test_settings.update({"console": "wrap"}, source=Source.BASE)
-    assert test_settings._console == wandb_settings.SettingsConsole.WRAP
+    assert test_settings.console == "wrap"
 
 
 def test_code_saving_save_code_env_false(mock_run, test_settings):
