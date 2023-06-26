@@ -1,5 +1,6 @@
 """Mock Server for simple calls the cli and public api make"""
 
+import base64
 import functools
 import gzip
 import json
@@ -1536,12 +1537,15 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 6, "name": "model"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactByName(" in body["query"]:
+            _id = "QXJ0aWZhY3Q6NTI1MDk4"
             _type = "dataset"
             if "job" in body["variables"]["name"]:
                 _type = "job"
+            if body["variables"]["name"] == "dummy:v0":
+                _id = "DUMMY_V0"
             art = artifact2(
                 ctx,
-                _id="QXJ0aWZhY3Q6NTI1MDk4",
+                _id=_id,
                 entity=body["variables"]["entityName"],
                 project=body["variables"]["projectName"],
                 name=body["variables"]["name"].split(":")[0],
@@ -1579,6 +1583,39 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query ArtifactFileURLs(" in body["query"]:
+            _id = body["variables"]["id"]
+            response = app.test_client().get(
+                f"/storage?file=wandb_manifest.json&id={_id}"
+            )
+            manifest = json.loads(response.text)
+            edges = [
+                {
+                    "node": {
+                        "name": name,
+                        "directUrl": (
+                            base_url
+                            + "/artifacts/entity/"
+                            + base64.standard_b64decode(entry["digest"]).hex()
+                        ),
+                    }
+                }
+                for name, entry in manifest["contents"].items()
+                if entry.get("ref") is None
+            ]
+            return {
+                "data": {
+                    "artifact": {
+                        "files": {
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": "DUMMY_CURSOR",
+                            },
+                            "edges": edges,
+                        }
+                    }
+                }
+            }
         # Project() is backward compatible for 0.12.10 and below
         if ("query Project(" in body["query"] and "runQueues" in body["query"]) or (
             "query ProjectRunQueues(" in body["query"] and "runQueues" in body["query"]
@@ -2052,10 +2089,7 @@ def create_app(user_ctx=None):
                         },
                     },
                 }
-            elif (
-                len(ctx.get("graphql", [])) >= 3
-                and ctx["graphql"][2].get("variables", {}).get("name", "") == "dummy:v0"
-            ) or request.args.get("name") == "dummy:v0":
+            elif _id == "DUMMY_V0" or request.args.get("name") == "dummy:v0":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",

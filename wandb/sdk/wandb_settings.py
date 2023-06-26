@@ -457,9 +457,9 @@ class Settings:
     _config_dict: Config
     _console: SettingsConsole
     _cuda: str
-    _disable_meta: bool
-    _disable_service: bool
-    _disable_stats: bool
+    _disable_meta: bool  # Do not collect system metadata
+    _disable_service: bool  # Disable wandb-service, spin up internal process the old way
+    _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
@@ -509,6 +509,7 @@ class Settings:
     allow_val_change: bool
     anonymous: str
     api_key: str
+    azure_account_url_to_access_key: Dict[str, str]
     base_url: str  # The base url for the wandb api
     code_dir: str
     config_paths: Sequence[str]
@@ -702,6 +703,7 @@ class Settings:
             },
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
+            azure_account_url_to_access_key={"value": {}},
             base_url={
                 "value": "https://api.wandb.ai",
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
