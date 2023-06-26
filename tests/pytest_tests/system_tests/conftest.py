@@ -418,6 +418,26 @@ class AddAdminAndEnsureNoDefaultUser:
     method: Literal["put"] = "put"
 
 
+@dataclasses.dataclass
+class WandbServerSettings:
+    name: str
+    volume: str
+    local_base_port: str
+    services_api_port: str
+    fixture_service_port: str
+    wandb_server_pull: str
+    wandb_server_tag: str
+    internal_local_base_port: str = "8080"
+    internal_local_services_api_port: str = "8083"
+    internal_fixture_service_port: str = "9015"
+    url: str = "http://localhost"
+
+    base_url: Optional[str] = None
+
+    def __post_init__(self):
+        self.base_url = f"{self.url}:{self.local_base_port}"
+
+
 def pytest_addoption(parser):
     # note: we default to "function" scope to ensure the environment is
     # set up properly when running the tests in parallel with pytest-xdist.
