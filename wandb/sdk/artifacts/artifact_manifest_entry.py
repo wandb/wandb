@@ -106,7 +106,7 @@ class ArtifactManifestEntry:
             str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
         )
 
-    def ref_target(self) -> Union[URIStr, FilePathStr]:
+    def ref_target(self) -> Union[FilePathStr, URIStr]:
         """Get the reference URL that is targeted by this artifact entry.
 
         Returns:

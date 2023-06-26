@@ -1476,7 +1476,6 @@ class Artifact:
         # Get the ArtifactManifestEntry
         item = self.get_path(entry.path)
         item_path = item.download()
-        assert item_path is not None
 
         # Load the object from the JSON blob
         result = None
@@ -1624,8 +1623,7 @@ class Artifact:
                 if allow_missing_references:
                     wandb.termwarn(str(e))
                     return
-                else:
-                    raise
+                raise
             download_logger.notify_downloaded()
 
         download_entry = partial(
@@ -1782,9 +1780,7 @@ class Artifact:
                 'all files or call .get_path("filename").download()'
             )
 
-        path = self.get_path(list(self.manifest.entries)[0]).download(root)
-        assert path is not None  # Missing references raise; this is just for mypy.
-        return path
+        return self.get_path(list(self.manifest.entries)[0]).download(root)
 
     def files(
         self, names: Optional[List[str]] = None, per_page: int = 50

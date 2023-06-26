@@ -86,9 +86,7 @@ class Html(BatchableMedia):
     def from_json(
         cls: Type["Html"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Html":
-        path = source_artifact.get_path(json_obj["path"]).download()
-        assert path is not None
-        return cls(path, inject=False)
+        return cls(source_artifact.get_path(json_obj["path"]).download(), inject=False)
 
     @classmethod
     def seq_to_json(
