@@ -763,7 +763,7 @@ The `Settings` object:
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 - Note that individual settings may depend on other settings through validator methods and runtime hooks,
   but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `tox -e generate` -- it will also automatically
+  modification order list with `tox -e auto-codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated
