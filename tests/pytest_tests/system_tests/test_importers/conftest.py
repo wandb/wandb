@@ -274,7 +274,7 @@ def mlflow_logging_config():
 
 
 @pytest.fixture
-def new_mlflow_server(mlflow_server_settings):
+def mlflow_server(mlflow_server_settings):
     if mlflow_version < Version("2.0.0"):
         start_cmd = [
             "mlflow",
@@ -312,12 +312,12 @@ def new_mlflow_server(mlflow_server_settings):
 
 
 @pytest.fixture
-def new_prelogged_mlflow_server(new_mlflow_server, mlflow_logging_config):
+def prelogged_mlflow_server(mlflow_server, mlflow_logging_config):
     config = mlflow_logging_config
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
-        mlflow.set_tracking_uri(new_mlflow_server.base_url)
+        mlflow.set_tracking_uri(mlflow_server.base_url)
 
         # Experiments
         for _ in range(config.n_experiments):
@@ -346,4 +346,4 @@ def new_prelogged_mlflow_server(new_mlflow_server, mlflow_logging_config):
                         )
                         mlflow.log_artifact(artifacts_dir)
 
-    return new_mlflow_server
+    return mlflow_server
