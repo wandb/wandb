@@ -494,6 +494,7 @@ message Request {
     KeepaliveRequest      keepalive = 17;
     CancelRequest         cancel = 18;
     RespondRequest        respond = 19;
+    MetadataRequest       metadata = 20;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -867,4 +868,45 @@ message RespondRequest {
   Result result = 1;
 
   // Internal message, no _info field needed
+}
+
+/*
+ * MetadataRequest
+ */
+message MetaDiskInfo {
+  float total = 1;
+  float used = 2;
+}
+
+message MetaGpuAppleInfo {
+  string gpuType = 1;
+  string vendor = 2;
+}
+
+message MetaMemInfo {
+  float total = 1;
+}
+
+message MetadataRequest {
+  string os = 1;
+  string python = 2;
+  google.protobuf.Timestamp heartbeatAt = 3;
+  google.protobuf.Timestamp startedAt = 4;
+  string docker = 5;
+  string cuda = 6;
+  repeated string args = 7;
+  string state = 8;
+  string program = 9;
+  string codePath = 10;
+  GitRepoRecord git = 11;
+  string email = 12;
+  string root = 13;
+  string host = 14;
+  string username = 15;
+  string executable = 16;
+  int32 cpu_count = 17 [json_name="cpu_count"];
+  int32 cpu_count_logical = 18 [json_name="cpu_count_logical"];
+  MetaDiskInfo disk = 19;
+  MetaGpuAppleInfo gpuapple = 20;
+  MetaMemInfo memory = 21;
 }

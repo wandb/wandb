@@ -6,7 +6,7 @@ require (
 	github.com/Khan/genqlient v0.5.0
 	github.com/stretchr/testify v1.8.3
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.31.0
 )
 
 require (
