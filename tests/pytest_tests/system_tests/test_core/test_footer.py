@@ -128,9 +128,11 @@ def test_footer_job_output(wandb_init, capsys, monkeypatch):
     run.finish()
     captured = capsys.readouterr()
     lines = captured.err.splitlines()
-    job_oubput = lines[18]
-    match = re.match(
-        r"wandb: ⚡️ View job at http://wandb.ai/wandb-sdk/\w+/jobs/[\w=]+/version_details/latest",
-        job_oubput,
-    )
-    assert match == job_oubput
+    for line in lines:
+        if re.match(
+            r"wandb: ⚡️ View job at http://localhost:8080/user-\w+-\w+/uncategorized/jobs/[\w=]+/version_details/latest",
+            line,
+        ):
+            break
+    else:
+        raise AssertionError(f"Job URL not found in footer: {captured.err}")
