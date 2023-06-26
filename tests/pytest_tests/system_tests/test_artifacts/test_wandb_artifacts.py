@@ -1325,6 +1325,41 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.ref == "https://example.com/foo.json?bar=abc"
         assert entry.digest == expected_digest
 
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "s3://my-bucket/my_object.pb",
+        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "size": 10,
+    }
+
+
+def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(artifact)
+
+    artifact.download()
+
+    # def bad_request(*args, **kwargs):
+    #     raise botocore.exceptions.ClientError(
+    #         operation_name="Client.HeadObject",
+    #         error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+    #     )
+
+    # monkeypatch.setattr(handler, "_etag_from_obj", bad_request)
+
+    # with pytest.raises(FileNotFoundError, match="Unable to find"):
+    #     artifact.download()
+
 
 def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"

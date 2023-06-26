@@ -1620,11 +1620,15 @@ class Artifact:
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
 
-            result_path = entry.download(root)(
-                root, allow_missing_references=allow_missing_references
-            )
-            if result_path:
-                download_logger.notify_downloaded()
+            try:
+                entry.download(root)
+            except FileNotFoundError as e:
+                if allow_missing_references:
+                    wandb.termwarn(str(e))
+                    return
+                else:
+                    raise
+            download_logger.notify_downloaded()
 
         download_entry = partial(
             _download_entry,
