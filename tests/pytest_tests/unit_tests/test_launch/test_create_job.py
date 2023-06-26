@@ -99,8 +99,8 @@ def test_dump_metadata_and_requirements():
     assert os.path.exists(os.path.join(path, "requirements.txt"))
     assert os.path.exists(os.path.join(path, "wandb-metadata.json"))
 
-    with open(os.path.join(path, "requirements.txt"), "r") as f:
+    with open(os.path.join(path, "requirements.txt")) as f:
         assert f.read().strip().splitlines() == requirements
 
-    m = json.load(open(os.path.join(path, "wandb-metadata.json"), "r"))
+    m = json.load(open(os.path.join(path, "wandb-metadata.json")))
     assert metadata == m
