@@ -87,7 +87,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_settings import ConsoleValue, Settings
+from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -1994,7 +1994,7 @@ class Run:
         self,
         stdout_slave_fd: Optional[int],
         stderr_slave_fd: Optional[int],
-        console: Optional[ConsoleValue] = None,
+        console: Optional[str] = None,
     ) -> None:
         if console is None:
             console = self._settings.console
