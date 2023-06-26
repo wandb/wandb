@@ -151,4 +151,6 @@ message Settings {
   string tmp_dir = 140;
   string username = 141;
   string wandb_dir = 142;
+  // todo?
+  //  map<string, int32> _sources = 500;
 }

@@ -1494,7 +1494,15 @@ class Settings:
                 pass
             else:
                 raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+        # TODO: store property sources in the protobuf so that we can reconstruct the
+        #  settings object from the protobuf
         return settings
+
+    @staticmethod
+    def from_proto(settings: wandb_settings_pb2.Settings) -> "Settings":
+        """Generate a Settings object from a protobuf representation."""
+        # TODO(dd)
+        pass
 
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
