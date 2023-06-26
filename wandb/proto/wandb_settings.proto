@@ -9,6 +9,8 @@ message Settings {
   bool _aws_lambda = 2;
   int32 _async_upload_concurrency_limit = 3;
   bool _cli_only_mode = 4;
+  // todo? store potentially nested config dict?
+  // map<string, string> = _config_dict = 5;
   bool _colab = 5;
   string _cuda = 6;
   bool _disable_meta = 7;

@@ -40,7 +40,6 @@ from wandb.errors import UsageError
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
-from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
@@ -265,13 +264,15 @@ class Source(enum.IntEnum):
     RUN: int = 14
 
 
-@enum.unique
-class SettingsConsole(enum.IntEnum):
-    OFF = 0
-    WRAP = 1
-    REDIRECT = 2
-    WRAP_RAW = 3
-    WRAP_EMU = 4
+ConsoleValue = {
+    "auto",
+    "off",
+    "wrap",
+    "redirect",
+    # internal console states
+    "wrap_raw",
+    "wrap_emu",
+}
 
 
 class Property:
@@ -454,8 +455,7 @@ class Settings:
     _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
-    _config_dict: Config
-    _console: SettingsConsole
+    # _config_dict: Config
     _cuda: str
     _disable_meta: bool  # Do not collect system metadata
     _disable_service: bool  # Disable wandb-service, spin up internal process the old way
@@ -626,7 +626,6 @@ class Settings:
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
             },
-            _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
             _ipython={
@@ -709,8 +708,13 @@ class Settings:
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
-            config_paths={"prepocessor": _str_as_tuple},
-            console={"value": "auto", "validator": self._validate_console},
+            config_paths={"preprocessor": _str_as_tuple},
+            console={
+                "value": "auto",
+                "validator": self._validate_console,
+                "hook": lambda x: self._convert_console(x),
+                "auto_hook": True,
+            },
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
@@ -926,16 +930,7 @@ class Settings:
 
     @staticmethod
     def _validate_console(value: str) -> bool:
-        # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
-        choices: Set[str] = {
-            "auto",
-            "redirect",
-            "off",
-            "wrap",
-            # internal console states
-            "wrap_emu",
-            "wrap_raw",
-        }
+        choices = ConsoleValue
         if value not in choices:
             # do not advertise internal console states
             choices -= {"wrap_emu", "wrap_raw"}
@@ -1140,15 +1135,7 @@ class Settings:
         """Join path and apply os.path.expanduser to it."""
         return os.path.expanduser(os.path.join(*args))
 
-    def _convert_console(self) -> SettingsConsole:
-        convert_dict: Dict[str, SettingsConsole] = dict(
-            off=SettingsConsole.OFF,
-            wrap=SettingsConsole.WRAP,
-            wrap_raw=SettingsConsole.WRAP_RAW,
-            wrap_emu=SettingsConsole.WRAP_EMU,
-            redirect=SettingsConsole.REDIRECT,
-        )
-        console: str = str(self.console)
+    def _convert_console(self, console: str) -> str:
         if console == "auto":
             if (
                 self._jupyter
@@ -1159,8 +1146,7 @@ class Settings:
                 console = "wrap"
             else:
                 console = "redirect"
-        convert: SettingsConsole = convert_dict[console]
-        return convert
+        return console
 
     def _get_url_query_string(self) -> str:
         # TODO(settings) use `wandb_setting` (if self.anonymous != "true":)
