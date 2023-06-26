@@ -6,8 +6,8 @@ import time
 import urllib.parse
 import uuid
 import warnings
-from typing import Iterable, List, Literal, Optional
 from dataclasses import dataclass
+from typing import Iterable, List, Optional
 
 import hypothesis.strategies as st
 import mlflow
@@ -23,6 +23,12 @@ from wandb.util import batched
 SECONDS_FROM_2023_01_01 = 1672549200
 
 mlflow_version = Version(mlflow.__version__)
+
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
+
 
 @dataclass
 class MlflowServerSettings:
