@@ -167,9 +167,12 @@ class JobBuilder:
             },
         }
 
-        name = self._settings.run_job_name or make_artifact_name_safe(
-            f"job-{remote}_{program_relpath}"
-        )
+        if hasattr(self._settings, "run_job_name") and self._settings.run_job_name:
+            name = self._settings.run_job_name
+        else:
+            name = self._settings.run_job_name or make_artifact_name_safe(
+                f"job-{remote}_{program_relpath}"
+            )
 
         artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
@@ -209,7 +212,10 @@ class JobBuilder:
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
 
-        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+        if hasattr(self._settings, "run_job_name") and self._settings.run_job_name:
+            name = self._settings.run_job_name
+        else:
+            name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         artifact = JobArtifact(name)
         return artifact, source
@@ -225,7 +231,10 @@ class JobBuilder:
             raw_image_name, tag = image_name.split(":")
             self._aliases += [tag]
 
-        name = make_artifact_name_safe(f"job-{raw_image_name}")
+        if hasattr(self._settings, "run_job_name") and self._settings.run_job_name:
+            name = self._settings.run_job_name
+        else:
+            name = make_artifact_name_safe(f"job-{raw_image_name}")
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
