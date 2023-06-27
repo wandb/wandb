@@ -1,7 +1,8 @@
 import json
-import tempfile
 import os
+import tempfile
 from unittest import mock
+
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
