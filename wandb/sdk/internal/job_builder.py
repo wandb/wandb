@@ -25,7 +25,6 @@ if TYPE_CHECKING:
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
 JOB_ARTIFACT_TYPE = "job"
-PROTO_FILE = "wandb-proto"
 
 
 class GitInfo(TypedDict):

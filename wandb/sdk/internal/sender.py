@@ -1497,6 +1497,7 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
+
         self._job_builder._set_logged_code_artifact(res, artifact)
         return res
 
@@ -1601,7 +1602,6 @@ class SendManager:
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
         artifact = self._job_builder.build()
-
         if artifact is not None and self._run is not None:
             proto_artifact = self._interface._make_artifact(artifact)
             proto_artifact.run_id = self._run.run_id
