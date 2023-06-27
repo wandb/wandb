@@ -22,6 +22,7 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+const CliVersion string = "0.0.1a1"
 const MetaFilename string = "wandb-metadata.json"
 
 type Sender struct {
@@ -163,6 +164,16 @@ func (s *Sender) parseConfigUpdate(config *service.ConfigRecord) map[string]inte
 	return datas
 }
 
+func (s *Sender) updateConfigTelemetry(config map[string]interface{}) {
+	got := config["_wandb"]
+	switch v := got.(type) {
+	case map[string]interface{}:
+		v["cli_version"] = CliVersion
+	default:
+		LogFatal(s.logger, fmt.Sprintf("can not parse config _wandb, saw: %v", v))
+	}
+}
+
 func (s *Sender) getValueConfig(config map[string]interface{}) map[string]map[string]interface{} {
 	datas := make(map[string]map[string]interface{})
 
@@ -181,6 +192,7 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 	}
 
 	config := s.parseConfigUpdate(record.Config)
+	s.updateConfigTelemetry(config)
 	valueConfig := s.getValueConfig(config)
 	configJson, err := json.Marshal(valueConfig)
 	if err != nil {
