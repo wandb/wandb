@@ -170,9 +170,7 @@ class JobBuilder:
         if hasattr(self._settings, "run_job_name") and self._settings.run_job_name:
             name = self._settings.run_job_name
         else:
-            name = self._settings.run_job_name or make_artifact_name_safe(
-                f"job-{remote}_{program_relpath}"
-            )
+            name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
         artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
