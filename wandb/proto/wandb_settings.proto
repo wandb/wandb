@@ -114,7 +114,7 @@ message Settings {
   google.protobuf.StringValue log_symlink_user = 88;
   google.protobuf.StringValue log_user = 89;
   google.protobuf.DoubleValue login_timeout = 90;
-  google.protobuf.StringValue magic = 91;
+  google.protobuf.BoolValue magic = 91;
   google.protobuf.StringValue mode = 92;
   google.protobuf.StringValue notebook_name = 93;
   google.protobuf.StringValue problem = 94;

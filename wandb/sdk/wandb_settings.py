@@ -549,7 +549,8 @@ class Settings:
     log_symlink_user: str
     log_user: str
     login_timeout: float
-    magic: Union[str, bool, dict]
+    # magic: Union[str, bool, dict]
+    magic: bool
     mode: str
     notebook_name: str
     problem: str
@@ -561,7 +562,7 @@ class Settings:
     reinit: bool
     relogin: bool
     # todo: add a preprocessing step to convert this to string
-    resume: Union[str, int, bool]
+    resume: Union[str, bool]
     resume_fname: str
     resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
     root_dir: str

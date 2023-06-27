@@ -309,7 +309,7 @@ class SendManager:
         settings = wandb.Settings(
             files_dir=files_dir,
             root_dir=root_dir,
-            _start_time=0,
+            # _start_time=0,
             resume=resume,
             # ignore_globs=(),
             _sync=True,
@@ -987,7 +987,7 @@ class SendManager:
         )
         # TODO: we don't want to create jobs in sweeps, since the
         # executable doesn't appear to be consistent
-        if hasattr(self._settings, "sweep_id") and self._settings.sweep_id:
+        if self._settings.sweep_id:
             self._job_builder.disable = True
 
         self._server_messages = server_messages or []

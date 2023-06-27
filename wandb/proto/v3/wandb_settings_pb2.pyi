@@ -414,7 +414,7 @@ class Settings(google.protobuf.message.Message):
     @property
     def login_timeout(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
-    def magic(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    def magic(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def mode(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
@@ -613,7 +613,7 @@ class Settings(google.protobuf.message.Message):
         log_symlink_user: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_user: google.protobuf.wrappers_pb2.StringValue | None = ...,
         login_timeout: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        magic: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        magic: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         mode: google.protobuf.wrappers_pb2.StringValue | None = ...,
         notebook_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
         problem: google.protobuf.wrappers_pb2.StringValue | None = ...,
