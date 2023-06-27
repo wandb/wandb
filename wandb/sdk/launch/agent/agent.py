@@ -581,7 +581,7 @@ class LaunchAgent:
             status = run.get_status().state
             if status in ["stopped", "failed", "finished"]:
                 if job_tracker.is_scheduler:
-                    wandb.termlog(f"{LOG_PREFIX}Scheduler '{status}' with ID: {run.id}")
+                    wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
                     if status == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
                         try:
