@@ -1,8 +1,6 @@
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Iterable
 
 from wandb.proto import wandb_settings_pb2
-
-SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
 
 class SettingsStatic:
@@ -18,23 +16,20 @@ class SettingsStatic:
         raise AttributeError("Error: SettingsStatic is a readonly object")
 
     def keys(self) -> "Iterable[str]":
-        return (
-            k
-            for k in self.proto.DESCRIPTOR.fields_by_name.keys()
-            if self.proto.HasField(k)
-        )
+        return (k for k in self.proto.DESCRIPTOR.fields_by_name.keys())
 
-    # def items(self) -> "Iterable[Any]":
-    #     return self.proto.DESCRIPTOR.fields_by_name.items()
+    def __getitem__(self, key: str) -> Any:
+        if key not in self.keys():
+            raise KeyError(key)
+        return getattr(self.proto, key).value if self.proto.HasField(key) else None
 
-    def __getitem__(self, key: str) -> "Any":
-        return getattr(self.proto, key)
+    def __getattr__(self, name: str) -> Any:
+        if name not in self.keys():
+            raise AttributeError(f"SettingsStatic has no attribute {name}")
+        return getattr(self.proto, name).value if self.proto.HasField(name) else None
 
     def __str__(self) -> str:
         return self.proto.__str__()
 
     def __contains__(self, key: str) -> bool:
         return key in self.keys()
-
-    def get(self, key: str, default: Optional[Any] = None) -> Any:
-        return getattr(self.proto, key, default)

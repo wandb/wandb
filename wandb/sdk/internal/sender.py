@@ -1574,7 +1574,7 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
-        if self._job_builder.disable or self._settings.get("_offline", False):
+        if self._job_builder.disable or self._settings._offline:
             return
         self._job_builder.set_config(
             {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}

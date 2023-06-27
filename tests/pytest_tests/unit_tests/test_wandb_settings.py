@@ -928,7 +928,7 @@ def test_settings_static():
 
     static_settings = SettingsStatic(Settings().make_static())
     assert "base_url" in static_settings
-    assert static_settings.get("base_url") == "https://api.wandb.ai"
+    assert static_settings.base_url == "https://api.wandb.ai"
 
 
 # --------------------------

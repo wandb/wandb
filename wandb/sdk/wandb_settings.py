@@ -1497,13 +1497,12 @@ class Settings:
             elif isinstance(v, (list, set, tuple)):
                 # we only support sequences of strings for now
                 sequence = getattr(settings, k)
-                for value in v:
-                    sequence.append(StringValue(value=value))
+                sequence.value.extend(v)
             elif isinstance(v, dict):
                 mapping = getattr(settings, k)
                 for key, value in v.items():
                     # we only support dicts with string values for now
-                    mapping[key].CopyFrom(StringValue(value=value))
+                    mapping.value[key] = value
             elif isinstance(v, datetime):
                 getattr(settings, k).FromDatetime(v)
             elif v is None:
