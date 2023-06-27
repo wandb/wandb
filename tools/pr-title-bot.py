@@ -124,7 +124,7 @@ def check_pr_title(
         messages=messages,
     )
     print(response.choices[0]["message"]["content"])
-    is_compliant = response.choices[0]["message"]["content"]
+    is_compliant = response.choices[0]["message"]["content"].lower()
 
     return is_compliant == "yes"
 
