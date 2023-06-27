@@ -82,7 +82,7 @@ parameters:
     default: true
   wandb_server_tag:
     type: string
-    default: "7c35d958ee3efe22fda8779ab5655d64e323f57f"
+    default: "master"
 
 commands:
   save-test-results:
