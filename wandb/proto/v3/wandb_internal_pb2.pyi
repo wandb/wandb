@@ -312,6 +312,7 @@ class RunRecord(google.protobuf.message.Message):
     CONFIG_FIELD_NUMBER: builtins.int
     SUMMARY_FIELD_NUMBER: builtins.int
     RUN_GROUP_FIELD_NUMBER: builtins.int
+    JOB_NAME_FIELD_NUMBER: builtins.int
     JOB_TYPE_FIELD_NUMBER: builtins.int
     DISPLAY_NAME_FIELD_NUMBER: builtins.int
     NOTES_FIELD_NUMBER: builtins.int
@@ -335,6 +336,7 @@ class RunRecord(google.protobuf.message.Message):
     @property
     def summary(self) -> global___SummaryRecord: ...
     run_group: builtins.str
+    job_name: builtins.str
     job_type: builtins.str
     display_name: builtins.str
     notes: builtins.str
@@ -365,6 +367,7 @@ class RunRecord(google.protobuf.message.Message):
         config: global___ConfigRecord | None = ...,
         summary: global___SummaryRecord | None = ...,
         run_group: builtins.str = ...,
+        job_name: builtins.str = ...,
         job_type: builtins.str = ...,
         display_name: builtins.str = ...,
         notes: builtins.str = ...,
@@ -382,7 +385,7 @@ class RunRecord(google.protobuf.message.Message):
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "git", b"git", "settings", b"settings", "start_time", b"start_time", "summary", b"summary", "telemetry", b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "display_name", b"display_name", "entity", b"entity", "git", b"git", "host", b"host", "job_type", b"job_type", "notes", b"notes", "project", b"project", "resumed", b"resumed", "run_group", b"run_group", "run_id", b"run_id", "runtime", b"runtime", "settings", b"settings", "start_time", b"start_time", "starting_step", b"starting_step", "storage_id", b"storage_id", "summary", b"summary", "sweep_id", b"sweep_id", "tags", b"tags", "telemetry", b"telemetry"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "display_name", b"display_name", "entity", b"entity", "git", b"git", "host", b"host", "job_name", b"job_name", "job_type", b"job_type", "notes", b"notes", "project", b"project", "resumed", b"resumed", "run_group", b"run_group", "run_id", b"run_id", "runtime", b"runtime", "settings", b"settings", "start_time", b"start_time", "starting_step", b"starting_step", "storage_id", b"storage_id", "summary", b"summary", "sweep_id", b"sweep_id", "tags", b"tags", "telemetry", b"telemetry"]) -> None: ...
 
 global___RunRecord = RunRecord
 
