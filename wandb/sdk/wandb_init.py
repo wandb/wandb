@@ -913,6 +913,7 @@ def _attach(
 
 
 def init(
+    job: Optional[str] = None,
     job_type: Optional[str] = None,
     dir: Optional[StrPath] = None,
     config: Union[Dict, str, None] = None,

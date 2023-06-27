@@ -167,7 +167,9 @@ class JobBuilder:
             },
         }
 
-        name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
+        name = self._settings.run_job_name or make_artifact_name_safe(
+            f"job-{remote}_{program_relpath}"
+        )
 
         artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
