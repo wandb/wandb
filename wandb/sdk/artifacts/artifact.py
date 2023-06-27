@@ -107,8 +107,8 @@ class Artifact:
         ```
     """
 
-    TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
-    GQL_FRAGMENT = """
+    _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
+    _GQL_FRAGMENT = """
       fragment ArtifactFragment on Artifact {
           id
           artifactSequence {
@@ -213,7 +213,7 @@ class Artifact:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
-    def from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
+    def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
         artifact = get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
@@ -231,7 +231,7 @@ class Artifact:
                 }
             }
             """
-            + cls.GQL_FRAGMENT
+            + cls._GQL_FRAGMENT
         )
         response = client.execute(
             query,
@@ -243,10 +243,10 @@ class Artifact:
         entity = attrs["artifactSequence"]["project"]["entityName"]
         project = attrs["artifactSequence"]["project"]["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
-        return cls.from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
-    def from_name(
+    def _from_name(
         cls, entity: str, project: str, name: str, client: RetryingClient
     ) -> "Artifact":
         query = gql(
@@ -263,7 +263,7 @@ class Artifact:
                 }
             }
             """
-            + cls.GQL_FRAGMENT
+            + cls._GQL_FRAGMENT
         )
         response = client.execute(
             query,
@@ -278,10 +278,10 @@ class Artifact:
             raise ValueError(
                 f"Unable to fetch artifact with name {entity}/{project}/{name}"
             )
-        return cls.from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
-    def from_attrs(
+    def _from_attrs(
         cls,
         entity: str,
         project: str,
@@ -1310,7 +1310,7 @@ class Artifact:
             f.write(json.dumps(val, sort_keys=True))
 
         if is_tmp_name:
-            file_path = os.path.join(self.TMP_DIR.name, str(id(self)), name)
+            file_path = os.path.join(self._TMP_DIR.name, str(id(self)), name)
             folder_path, _ = os.path.split(file_path)
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
@@ -1448,7 +1448,7 @@ class Artifact:
             # Run using the artifact
             with wandb.init() as r:
                 artifact = r.use_artifact("my_dataset:latest")
-                table = r.get("my_table")
+                table = artifact.get("my_table")
             ```
         """
         if self._state == ArtifactState.PENDING:
@@ -2030,7 +2030,7 @@ class Artifact:
         return util.artifact_to_json(self)
 
     @staticmethod
-    def expected_type(
+    def _expected_type(
         entity_name: str, project_name: str, name: str, client: RetryingClient
     ) -> Optional[str]:
         """Returns the expected type for a given artifact name and project."""
