@@ -548,6 +548,7 @@ class Run:
         launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._settings = settings
+        print(settings.run_job_name)
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
@@ -745,6 +746,8 @@ class Run:
             self._group = settings.run_group
         if settings.run_job_type is not None:
             self._job_type = settings.run_job_type
+        if settings.run_job_name is not None:
+            self._job_name = settings.run_job_name
         if settings.run_name is not None:
             self._name = settings.run_name
         if settings.run_notes is not None:
@@ -1038,6 +1041,11 @@ class Run:
     @_run_decorator._attach
     def job_type(self) -> str:
         return self._run_obj.job_type if self._run_obj else ""
+
+    @property
+    @_run_decorator._attach
+    def job_name(self) -> str:
+        return self._run_obj.job_name if self._run_obj else ""
 
     @property
     @_run_decorator._attach
