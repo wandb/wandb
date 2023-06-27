@@ -163,10 +163,16 @@ class JobBuilder:
 
         else:
             full_program_path = program_relpath
+
+        executable = metadata.get("python") or os.path.basename(sys.executable)
+        if "python" not in executable:
+            # if the executable comes from a manually created job, its just the version
+            executable = f"python{executable}"
+
         # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
             "entrypoint": [
-                os.path.basename(sys.executable),
+                executable,
                 full_program_path,
             ],
             "notebook": self._is_notebook_run(),
@@ -175,7 +181,6 @@ class JobBuilder:
                 "commit": commit,
             },
         }
-
         if not name:
             name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 

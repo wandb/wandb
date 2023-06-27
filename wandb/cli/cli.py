@@ -1613,13 +1613,28 @@ def describe(job):
     type=str,
     help="Hash to a specific git commit.",
 )
+@click.option(
+    "--runtime",
+    "-r",
+    type=str,
+    help="Python runtime to execute the job",
+)
 @click.argument("path")
 @click.argument(
     "job_type",
     type=click.Choice(("repo", "artifact", "image")),
 )
 def create(
-    path, project, entity, name, job_type, description, aliases, entrypoint, git_hash
+    path,
+    project,
+    entity,
+    name,
+    job_type,
+    description,
+    aliases,
+    entrypoint,
+    git_hash,
+    runtime,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1654,6 +1669,7 @@ def create(
         aliases=list(aliases),
         entrypoint=entrypoint,
         git_hash=git_hash,
+        runtime=runtime,
     )
     if not artifact:
         wandb.termerror("Job creation failed")

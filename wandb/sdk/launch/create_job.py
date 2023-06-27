@@ -268,6 +268,13 @@ def _create_repo_metadata(
             major, minor = get_current_python_version()
             python_version = f"{major}.{minor}"
 
+    # remove micro if present
+    if python_version.count(".") > 1:
+        python_version = ".".join(python_version.split(".")[:2])
+        wandb.termwarn(
+            f"Micro python versions not currently supported. Now: {python_version}"
+        )
+
     if not os.path.exists(os.path.join(src_dir, "requirements.txt")):
         wandb.termerror(
             f"Could not find requirements.txt file in repo at: {ref.directory}/requirements.txt"
@@ -281,15 +288,24 @@ def _create_repo_metadata(
             wandb.termerror("Entrypoint not valid, specify one in the path or use -E")
             return None
 
-    return {
+    if entrypoint.strip().count(" ") > 0:
+        # multi-word entrypoint implies command + codePath
+        wandb.termerror(
+            "For repo artifacts, the entrypoint must be only a path to a python file. Define the python runtime either by specifying it manually, or including a .python-version file in the repo root"
+        )
+        return None
+
+    metadata = {
         "git": {
             "commit": commit,
             "remote": ref.url,
         },
         "root": ref.repo,
         "codePath": entrypoint,
-        "python": python_version,
+        "python": python_version,  # used to build container
     }
+
+    return metadata
 
 
 def _create_artifact_metadata(
