@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from wandb.data_types import _json_helper
+import wandb.data_types
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
 
@@ -142,7 +142,7 @@ def _fallback_serialize(obj: Any) -> str:
 def _safe_serialize(obj: dict) -> str:
     try:
         return json.dumps(
-            _json_helper(obj, None),
+            wandb.data_types._json_helper(obj, None),
             skipkeys=True,
             default=_fallback_serialize,
         )
