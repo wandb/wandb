@@ -30,7 +30,7 @@ import wandb
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import tracelog
-from . import context, handler, internal_util, sender, settings_static, writer
+from . import context, handler, internal_util, sender, writer
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -39,14 +39,14 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
 
     from .internal_util import RecordLoopThread
-    from .settings_static import SettingsDict, SettingsStatic
+    from .settings_static import SettingsStatic
 
 
 logger = logging.getLogger(__name__)
 
 
 def wandb_internal(
-    settings: "SettingsDict",
+    settings: "SettingsStatic",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
     port: Optional[int] = None,
@@ -57,7 +57,7 @@ def wandb_internal(
     Read from record queue and dispatch work to various threads.
 
     Arguments:
-        settings: dictionary of configuration parameters.
+        settings: settings object
         record_q: records to be handled
         result_q: for sending results back
 
@@ -76,7 +76,7 @@ def wandb_internal(
         logger.info("Internal process exited")
 
     # Let's make sure we don't modify settings so use a static object
-    _settings = settings_static.SettingsStatic(settings)
+    _settings = settings
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 

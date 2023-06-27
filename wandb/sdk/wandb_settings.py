@@ -3,6 +3,7 @@ import configparser
 import enum
 import getpass
 import json
+import logging
 import multiprocessing
 import os
 import platform
@@ -31,6 +32,8 @@ from typing import (
     no_type_check,
 )
 from urllib.parse import quote, urlencode, urlparse, urlsplit
+
+from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 
 import wandb
 import wandb.env
@@ -467,8 +470,8 @@ class Settings:
     _extra_http_headers: Mapping[str, str]
     _flow_control_custom: bool
     _flow_control_disabled: bool
-    _internal_check_process: Union[int, float]
-    _internal_queue_timeout: Union[int, float]
+    _internal_check_process: float
+    _internal_queue_timeout: float
     _ipython: bool
     _jupyter: bool
     _jupyter_name: str
@@ -502,6 +505,7 @@ class Settings:
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    # todo: add a preprocessing step to convert the first format to the second format
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _tmp_code_dir: str
     _tracelog: str
@@ -556,6 +560,7 @@ class Settings:
     quiet: bool
     reinit: bool
     relogin: bool
+    # todo: add a preprocessing step to convert this to string
     resume: Union[str, int, bool]
     resume_fname: str
     resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
@@ -627,8 +632,8 @@ class Settings:
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
             },
-            _internal_check_process={"value": 8},
-            _internal_queue_timeout={"value": 2},
+            _internal_check_process={"value": 8, "preprocessor": float},
+            _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
                 "hook": lambda _: _get_python_type() == "ipython",
                 "auto_hook": True,
@@ -638,6 +643,7 @@ class Settings:
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
+            _log_level={"value": logging.DEBUG},
             _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
             _notebook={
                 "hook": lambda _: self._ipython
@@ -1479,13 +1485,25 @@ class Settings:
         """Generate a protobuf representation of the settings."""
         settings = wandb_settings_pb2.Settings()
         for k, v in self.make_static().items():
-            if isinstance(v, (bool, int, float, str)):
-                setattr(settings, k, v)
+            # print(k, v)
+            if isinstance(v, bool):
+                getattr(settings, k).CopyFrom(BoolValue(value=v))
+            elif isinstance(v, int):
+                getattr(settings, k).CopyFrom(Int32Value(value=v))
+            elif isinstance(v, float):
+                getattr(settings, k).CopyFrom(DoubleValue(value=v))
+            elif isinstance(v, str):
+                getattr(settings, k).CopyFrom(StringValue(value=v))
             elif isinstance(v, (list, set, tuple)):
-                getattr(settings, k).extend(v)
+                # we only support sequences of strings for now
+                sequence = getattr(settings, k)
+                for value in v:
+                    sequence.append(StringValue(value=value))
             elif isinstance(v, dict):
+                mapping = getattr(settings, k)
                 for key, value in v.items():
-                    getattr(settings, k)[key] = value
+                    # we only support dicts with string values for now
+                    mapping[key].CopyFrom(StringValue(value=value))
             elif isinstance(v, datetime):
                 getattr(settings, k).FromDatetime(v)
             elif v is None:

@@ -880,9 +880,9 @@ def _attach(
     settings.update(
         {
             "run_id": attach_id,
-            "_start_time": response["_start_time"],
-            "_start_datetime": response["_start_datetime"],
-            "_offline": response["_offline"],
+            "_start_time": response._start_time,
+            "_start_datetime": response._start_datetime,  # todo: fixme
+            "_offline": response._offline,
         },
         source=Source.INIT,
     )

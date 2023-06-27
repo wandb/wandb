@@ -36,7 +36,7 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import (
     config_util,
     filenames,
@@ -48,7 +48,6 @@ from wandb.sdk.lib import (
     tracelog,
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
-from wandb.sdk.lib.proto_util import message_to_dict
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
@@ -307,34 +306,16 @@ class SendManager:
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
-        # TODO(settings) replace with wandb.Settings
-        sd: SettingsDict = dict(
+        settings = wandb.Settings(
             files_dir=files_dir,
             root_dir=root_dir,
             _start_time=0,
-            git_remote=None,
             resume=resume,
-            program=None,
-            ignore_globs=(),
-            run_id=None,
-            entity=None,
-            project=None,
-            run_group=None,
-            job_type=None,
-            run_tags=None,
-            run_name=None,
-            run_notes=None,
-            save_code=None,
-            email=None,
-            silent=None,
-            _offline=None,
+            # ignore_globs=(),
             _sync=True,
-            _live_policy_rate_limit=None,
-            _live_policy_wait_time=None,
             disable_job_creation=False,
-            _async_upload_concurrency_limit=None,
         )
-        settings = SettingsStatic(sd)
+        settings = SettingsStatic(settings.to_proto())
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
@@ -1088,8 +1069,10 @@ class SendManager:
 
         # hack to merge run_settings and self._settings object together
         # so that fields like entity or project are available to be attached to Sentry events.
-        run_settings = message_to_dict(self._run)
-        self._settings = SettingsStatic({**dict(self._settings), **run_settings})
+        # todo: fixme
+        #  !!!!
+        # run_settings = message_to_dict(self._run)
+        # self._settings = self._settings.merge_from(run_settings)
         wandb._sentry.configure_scope(settings=self._settings)
 
         self._fs.start()

@@ -8,6 +8,7 @@ import google.protobuf.descriptor
 import google.protobuf.internal.containers
 import google.protobuf.message
 import google.protobuf.timestamp_pb2
+import google.protobuf.wrappers_pb2
 import sys
 
 if sys.version_info >= (3, 8):
@@ -28,14 +29,21 @@ class Settings(google.protobuf.message.Message):
         KEY_FIELD_NUMBER: builtins.int
         VALUE_FIELD_NUMBER: builtins.int
         key: builtins.str
-        value: builtins.str
+        @property
+        def value(self) -> google.protobuf.wrappers_pb2.StringValue: ...
         def __init__(
             self,
             *,
             key: builtins.str = ...,
-            value: builtins.str = ...,
+            value: google.protobuf.wrappers_pb2.StringValue | None = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+        def HasField(
+            self, field_name: typing_extensions.Literal["value", b"value"]
+        ) -> builtins.bool: ...
+        def ClearField(
+            self,
+            field_name: typing_extensions.Literal["key", b"key", "value", b"value"],
+        ) -> None: ...
 
     @typing_extensions.final
     class StatsOpenMetricsEndpointsEntry(google.protobuf.message.Message):
@@ -44,14 +52,21 @@ class Settings(google.protobuf.message.Message):
         KEY_FIELD_NUMBER: builtins.int
         VALUE_FIELD_NUMBER: builtins.int
         key: builtins.str
-        value: builtins.str
+        @property
+        def value(self) -> google.protobuf.wrappers_pb2.StringValue: ...
         def __init__(
             self,
             *,
             key: builtins.str = ...,
-            value: builtins.str = ...,
+            value: google.protobuf.wrappers_pb2.StringValue | None = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+        def HasField(
+            self, field_name: typing_extensions.Literal["value", b"value"]
+        ) -> builtins.bool: ...
+        def ClearField(
+            self,
+            field_name: typing_extensions.Literal["key", b"key", "value", b"value"],
+        ) -> None: ...
 
     @typing_extensions.final
     class AzureAccountUrlToAccessKeyEntry(google.protobuf.message.Message):
@@ -60,14 +75,21 @@ class Settings(google.protobuf.message.Message):
         KEY_FIELD_NUMBER: builtins.int
         VALUE_FIELD_NUMBER: builtins.int
         key: builtins.str
-        value: builtins.str
+        @property
+        def value(self) -> google.protobuf.wrappers_pb2.StringValue: ...
         def __init__(
             self,
             *,
             key: builtins.str = ...,
-            value: builtins.str = ...,
+            value: google.protobuf.wrappers_pb2.StringValue | None = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+        def HasField(
+            self, field_name: typing_extensions.Literal["value", b"value"]
+        ) -> builtins.bool: ...
+        def ClearField(
+            self,
+            field_name: typing_extensions.Literal["key", b"key", "value", b"value"],
+        ) -> None: ...
 
     _ARGS_FIELD_NUMBER: builtins.int
     _AWS_LAMBDA_FIELD_NUMBER: builtins.int
@@ -212,310 +234,1070 @@ class Settings(google.protobuf.message.Message):
     USERNAME_FIELD_NUMBER: builtins.int
     WANDB_DIR_FIELD_NUMBER: builtins.int
     @property
-    def _args(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    _aws_lambda: builtins.bool
-    _async_upload_concurrency_limit: builtins.int
-    _cli_only_mode: builtins.bool
-    _colab: builtins.bool
-    """todo? store potentially nested config dict?
-    map<string, string> = _config_dict = 5;
-    """
-    _cuda: builtins.str
-    _disable_meta: builtins.bool
-    _disable_service: builtins.bool
-    _disable_stats: builtins.bool
-    _disable_viewer: builtins.bool
-    _except_exit: builtins.bool
-    _executable: builtins.str
+    def _args(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        google.protobuf.wrappers_pb2.StringValue
+    ]: ...
     @property
-    def _extra_http_headers(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
-    _flow_control_custom: builtins.bool
-    _flow_control_disabled: builtins.bool
-    _internal_check_process: builtins.float
-    _internal_queue_timeout: builtins.float
-    _ipython: builtins.bool
-    _jupyter: builtins.bool
-    _jupyter_name: builtins.str
-    _jupyter_path: builtins.str
-    _jupyter_root: builtins.str
-    _kaggle: builtins.bool
-    _live_policy_rate_limit: builtins.int
-    _live_policy_wait_time: builtins.int
-    _log_level: builtins.int
-    _network_buffer: builtins.int
-    _noop: builtins.bool
-    _notebook: builtins.bool
-    _offline: builtins.bool
-    _sync: builtins.bool
-    _os: builtins.str
-    _platform: builtins.str
-    _python: builtins.str
-    _runqueue_item_id: builtins.str
-    _require_nexus: builtins.bool
-    _save_requirements: builtins.bool
-    _service_transport: builtins.str
-    _service_wait: builtins.float
+    def _aws_lambda(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _async_upload_concurrency_limit(
+        self,
+    ) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def _cli_only_mode(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _colab(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """todo? store potentially nested config dict?
+        map<google.protobuf.StringValue, google.protobuf.StringValue> = _config_dict = 5;
+        """
+    @property
+    def _cuda(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _disable_meta(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _disable_service(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _disable_stats(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _disable_viewer(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _except_exit(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _executable(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _extra_http_headers(
+        self,
+    ) -> google.protobuf.internal.containers.MessageMap[
+        builtins.str, google.protobuf.wrappers_pb2.StringValue
+    ]: ...
+    @property
+    def _flow_control_custom(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _flow_control_disabled(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _internal_check_process(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
+    @property
+    def _internal_queue_timeout(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
+    @property
+    def _ipython(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _jupyter(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _jupyter_name(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _jupyter_path(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _jupyter_root(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _kaggle(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _live_policy_rate_limit(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def _live_policy_wait_time(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def _log_level(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def _network_buffer(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def _noop(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _notebook(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _offline(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _sync(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _os(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _platform(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _python(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _runqueue_item_id(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _require_nexus(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _save_requirements(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _service_transport(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _service_wait(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
     def _start_datetime(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-    _start_time: builtins.float
-    _stats_pid: builtins.int
-    _stats_sample_rate_seconds: builtins.float
-    _stats_samples_to_average: builtins.int
-    _stats_join_assets: builtins.bool
-    _stats_neuron_monitor_config_path: builtins.str
     @property
-    def _stats_open_metrics_endpoints(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
+    def _start_time(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
-    def _stats_open_metrics_filters(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
+    def _stats_pid(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def _stats_sample_rate_seconds(
+        self,
+    ) -> google.protobuf.wrappers_pb2.DoubleValue: ...
+    @property
+    def _stats_samples_to_average(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def _stats_join_assets(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def _stats_neuron_monitor_config_path(
+        self,
+    ) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def _stats_open_metrics_endpoints(
+        self,
+    ) -> google.protobuf.internal.containers.MessageMap[
+        builtins.str, google.protobuf.wrappers_pb2.StringValue
+    ]: ...
+    @property
+    def _stats_open_metrics_filters(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        google.protobuf.wrappers_pb2.StringValue
+    ]:
         """_stats_open_metrics_filters representation needs further refinement
-        oneof repeated string | map<string, map<string, string>> _stats_open_metrics_filters = 48;
+        oneof repeated google.protobuf.StringValue | map<string, map<google.protobuf.StringValue, google.protobuf.StringValue>> _stats_open_metrics_filters = 48;
         """
-    _tmp_code_dir: builtins.str
-    _tracelog: builtins.str
     @property
-    def _unsaved_keys(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    _windows: builtins.bool
-    allow_val_change: builtins.bool
-    anonymous: builtins.str
-    api_key: builtins.str
+    def _tmp_code_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
-    def azure_account_url_to_access_key(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
-    base_url: builtins.str
-    code_dir: builtins.str
+    def _tracelog(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
-    def config_paths(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    console: builtins.str
-    deployment: builtins.str
-    disable_code: builtins.bool
-    disable_git: builtins.bool
-    disable_hints: builtins.bool
-    disable_job_creation: builtins.bool
-    disabled: builtins.bool
-    docker: builtins.str
-    email: builtins.str
-    entity: builtins.str
-    files_dir: builtins.str
-    force: builtins.bool
-    git_commit: builtins.str
-    git_remote: builtins.str
-    git_remote_url: builtins.str
-    git_root: builtins.str
-    heartbeat_seconds: builtins.int
-    host: builtins.str
+    def _unsaved_keys(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        google.protobuf.wrappers_pb2.StringValue
+    ]: ...
     @property
-    def ignore_globs(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    init_timeout: builtins.float
-    is_local: builtins.bool
-    job_source: builtins.str
-    label_disable: builtins.bool
-    launch: builtins.bool
-    launch_config_path: builtins.str
-    log_dir: builtins.str
-    log_internal: builtins.str
-    log_symlink_internal: builtins.str
-    log_symlink_user: builtins.str
-    log_user: builtins.str
-    login_timeout: builtins.float
-    magic: builtins.str
-    mode: builtins.str
-    notebook_name: builtins.str
-    problem: builtins.str
-    program: builtins.str
-    program_relpath: builtins.str
-    project: builtins.str
-    project_url: builtins.str
-    quiet: builtins.bool
-    reinit: builtins.bool
-    relogin: builtins.bool
-    resume: builtins.str
-    resume_fname: builtins.str
-    resumed: builtins.bool
-    root_dir: builtins.str
-    run_group: builtins.str
-    run_id: builtins.str
-    run_job_type: builtins.str
-    run_mode: builtins.str
-    run_name: builtins.str
-    run_notes: builtins.str
+    def _windows(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
-    def run_tags(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    run_url: builtins.str
-    sagemaker_disable: builtins.bool
-    save_code: builtins.bool
-    settings_system: builtins.str
-    settings_workspace: builtins.str
-    show_colors: builtins.bool
-    show_emoji: builtins.bool
-    show_errors: builtins.bool
-    show_info: builtins.bool
-    show_warnings: builtins.bool
-    silent: builtins.bool
-    start_method: builtins.str
-    strict: builtins.bool
-    summary_errors: builtins.int
-    summary_timeout: builtins.int
-    summary_warnings: builtins.int
-    sweep_id: builtins.str
-    sweep_param_path: builtins.str
-    sweep_url: builtins.str
-    symlink: builtins.bool
-    sync_dir: builtins.str
-    sync_file: builtins.str
-    sync_symlink_latest: builtins.str
-    system_sample: builtins.int
-    system_sample_seconds: builtins.int
-    table_raise_on_max_row_limit_exceeded: builtins.bool
-    timespec: builtins.str
-    tmp_dir: builtins.str
-    username: builtins.str
-    wandb_dir: builtins.str
+    def allow_val_change(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def anonymous(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def api_key(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def azure_account_url_to_access_key(
+        self,
+    ) -> google.protobuf.internal.containers.MessageMap[
+        builtins.str, google.protobuf.wrappers_pb2.StringValue
+    ]: ...
+    @property
+    def base_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def code_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def config_paths(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        google.protobuf.wrappers_pb2.StringValue
+    ]: ...
+    @property
+    def console(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def deployment(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def disable_code(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def disable_git(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def disable_hints(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def disable_job_creation(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def disabled(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def docker(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def email(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def entity(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def force(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def git_commit(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def git_remote(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def git_remote_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def git_root(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def heartbeat_seconds(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def host(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def ignore_globs(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        google.protobuf.wrappers_pb2.StringValue
+    ]: ...
+    @property
+    def init_timeout(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
+    @property
+    def is_local(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def job_source(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def label_disable(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def launch(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def launch_config_path(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def log_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def log_internal(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def log_symlink_internal(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def log_symlink_user(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def log_user(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def login_timeout(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
+    @property
+    def magic(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def mode(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def notebook_name(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def problem(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def program(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def program_relpath(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def project(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def project_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def quiet(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def reinit(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def relogin(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def resume(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def resume_fname(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def resumed(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def root_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def run_group(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def run_id(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def run_job_type(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def run_mode(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def run_name(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def run_notes(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def run_tags(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        google.protobuf.wrappers_pb2.StringValue
+    ]: ...
+    @property
+    def run_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def sagemaker_disable(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def save_code(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def settings_system(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def settings_workspace(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def show_colors(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def show_emoji(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def show_errors(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def show_info(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def show_warnings(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def silent(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def start_method(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def strict(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def summary_errors(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def summary_timeout(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def summary_warnings(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def sweep_id(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def sweep_param_path(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def sweep_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def symlink(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def sync_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def sync_file(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def sync_symlink_latest(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def system_sample(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def system_sample_seconds(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
+    @property
+    def table_raise_on_max_row_limit_exceeded(
+        self,
+    ) -> google.protobuf.wrappers_pb2.BoolValue: ...
+    @property
+    def timespec(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def tmp_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def username(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    @property
+    def wandb_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """todo?
+        map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources = 500;
+        """
     def __init__(
         self,
         *,
-        _args: collections.abc.Iterable[builtins.str] | None = ...,
-        _aws_lambda: builtins.bool = ...,
-        _async_upload_concurrency_limit: builtins.int = ...,
-        _cli_only_mode: builtins.bool = ...,
-        _colab: builtins.bool = ...,
-        _cuda: builtins.str = ...,
-        _disable_meta: builtins.bool = ...,
-        _disable_service: builtins.bool = ...,
-        _disable_stats: builtins.bool = ...,
-        _disable_viewer: builtins.bool = ...,
-        _except_exit: builtins.bool = ...,
-        _executable: builtins.str = ...,
-        _extra_http_headers: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
-        _flow_control_custom: builtins.bool = ...,
-        _flow_control_disabled: builtins.bool = ...,
-        _internal_check_process: builtins.float = ...,
-        _internal_queue_timeout: builtins.float = ...,
-        _ipython: builtins.bool = ...,
-        _jupyter: builtins.bool = ...,
-        _jupyter_name: builtins.str = ...,
-        _jupyter_path: builtins.str = ...,
-        _jupyter_root: builtins.str = ...,
-        _kaggle: builtins.bool = ...,
-        _live_policy_rate_limit: builtins.int = ...,
-        _live_policy_wait_time: builtins.int = ...,
-        _log_level: builtins.int = ...,
-        _network_buffer: builtins.int = ...,
-        _noop: builtins.bool = ...,
-        _notebook: builtins.bool = ...,
-        _offline: builtins.bool = ...,
-        _sync: builtins.bool = ...,
-        _os: builtins.str = ...,
-        _platform: builtins.str = ...,
-        _python: builtins.str = ...,
-        _runqueue_item_id: builtins.str = ...,
-        _require_nexus: builtins.bool = ...,
-        _save_requirements: builtins.bool = ...,
-        _service_transport: builtins.str = ...,
-        _service_wait: builtins.float = ...,
+        _args: collections.abc.Iterable[google.protobuf.wrappers_pb2.StringValue]
+        | None = ...,
+        _aws_lambda: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _async_upload_concurrency_limit: google.protobuf.wrappers_pb2.Int32Value
+        | None = ...,
+        _cli_only_mode: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _colab: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _cuda: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _disable_meta: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _disable_service: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _disable_stats: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _disable_viewer: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _except_exit: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _executable: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _extra_http_headers: collections.abc.Mapping[
+            builtins.str, google.protobuf.wrappers_pb2.StringValue
+        ]
+        | None = ...,
+        _flow_control_custom: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _flow_control_disabled: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _internal_check_process: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _internal_queue_timeout: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _ipython: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _jupyter: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _jupyter_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _jupyter_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _jupyter_root: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _kaggle: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _live_policy_rate_limit: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _live_policy_wait_time: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _log_level: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _network_buffer: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _noop: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _notebook: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _offline: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _sync: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _os: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _platform: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _python: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _runqueue_item_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _require_nexus: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _save_requirements: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _service_transport: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _service_wait: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _start_datetime: google.protobuf.timestamp_pb2.Timestamp | None = ...,
-        _start_time: builtins.float = ...,
-        _stats_pid: builtins.int = ...,
-        _stats_sample_rate_seconds: builtins.float = ...,
-        _stats_samples_to_average: builtins.int = ...,
-        _stats_join_assets: builtins.bool = ...,
-        _stats_neuron_monitor_config_path: builtins.str = ...,
-        _stats_open_metrics_endpoints: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
-        _stats_open_metrics_filters: collections.abc.Iterable[builtins.str] | None = ...,
-        _tmp_code_dir: builtins.str = ...,
-        _tracelog: builtins.str = ...,
-        _unsaved_keys: collections.abc.Iterable[builtins.str] | None = ...,
-        _windows: builtins.bool = ...,
-        allow_val_change: builtins.bool = ...,
-        anonymous: builtins.str = ...,
-        api_key: builtins.str = ...,
-        azure_account_url_to_access_key: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
-        base_url: builtins.str = ...,
-        code_dir: builtins.str = ...,
-        config_paths: collections.abc.Iterable[builtins.str] | None = ...,
-        console: builtins.str = ...,
-        deployment: builtins.str = ...,
-        disable_code: builtins.bool = ...,
-        disable_git: builtins.bool = ...,
-        disable_hints: builtins.bool = ...,
-        disable_job_creation: builtins.bool = ...,
-        disabled: builtins.bool = ...,
-        docker: builtins.str = ...,
-        email: builtins.str = ...,
-        entity: builtins.str = ...,
-        files_dir: builtins.str = ...,
-        force: builtins.bool = ...,
-        git_commit: builtins.str = ...,
-        git_remote: builtins.str = ...,
-        git_remote_url: builtins.str = ...,
-        git_root: builtins.str = ...,
-        heartbeat_seconds: builtins.int = ...,
-        host: builtins.str = ...,
-        ignore_globs: collections.abc.Iterable[builtins.str] | None = ...,
-        init_timeout: builtins.float = ...,
-        is_local: builtins.bool = ...,
-        job_source: builtins.str = ...,
-        label_disable: builtins.bool = ...,
-        launch: builtins.bool = ...,
-        launch_config_path: builtins.str = ...,
-        log_dir: builtins.str = ...,
-        log_internal: builtins.str = ...,
-        log_symlink_internal: builtins.str = ...,
-        log_symlink_user: builtins.str = ...,
-        log_user: builtins.str = ...,
-        login_timeout: builtins.float = ...,
-        magic: builtins.str = ...,
-        mode: builtins.str = ...,
-        notebook_name: builtins.str = ...,
-        problem: builtins.str = ...,
-        program: builtins.str = ...,
-        program_relpath: builtins.str = ...,
-        project: builtins.str = ...,
-        project_url: builtins.str = ...,
-        quiet: builtins.bool = ...,
-        reinit: builtins.bool = ...,
-        relogin: builtins.bool = ...,
-        resume: builtins.str = ...,
-        resume_fname: builtins.str = ...,
-        resumed: builtins.bool = ...,
-        root_dir: builtins.str = ...,
-        run_group: builtins.str = ...,
-        run_id: builtins.str = ...,
-        run_job_type: builtins.str = ...,
-        run_mode: builtins.str = ...,
-        run_name: builtins.str = ...,
-        run_notes: builtins.str = ...,
-        run_tags: collections.abc.Iterable[builtins.str] | None = ...,
-        run_url: builtins.str = ...,
-        sagemaker_disable: builtins.bool = ...,
-        save_code: builtins.bool = ...,
-        settings_system: builtins.str = ...,
-        settings_workspace: builtins.str = ...,
-        show_colors: builtins.bool = ...,
-        show_emoji: builtins.bool = ...,
-        show_errors: builtins.bool = ...,
-        show_info: builtins.bool = ...,
-        show_warnings: builtins.bool = ...,
-        silent: builtins.bool = ...,
-        start_method: builtins.str = ...,
-        strict: builtins.bool = ...,
-        summary_errors: builtins.int = ...,
-        summary_timeout: builtins.int = ...,
-        summary_warnings: builtins.int = ...,
-        sweep_id: builtins.str = ...,
-        sweep_param_path: builtins.str = ...,
-        sweep_url: builtins.str = ...,
-        symlink: builtins.bool = ...,
-        sync_dir: builtins.str = ...,
-        sync_file: builtins.str = ...,
-        sync_symlink_latest: builtins.str = ...,
-        system_sample: builtins.int = ...,
-        system_sample_seconds: builtins.int = ...,
-        table_raise_on_max_row_limit_exceeded: builtins.bool = ...,
-        timespec: builtins.str = ...,
-        tmp_dir: builtins.str = ...,
-        username: builtins.str = ...,
-        wandb_dir: builtins.str = ...,
+        _start_time: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _stats_pid: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _stats_sample_rate_seconds: google.protobuf.wrappers_pb2.DoubleValue
+        | None = ...,
+        _stats_samples_to_average: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _stats_join_assets: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _stats_neuron_monitor_config_path: google.protobuf.wrappers_pb2.StringValue
+        | None = ...,
+        _stats_open_metrics_endpoints: collections.abc.Mapping[
+            builtins.str, google.protobuf.wrappers_pb2.StringValue
+        ]
+        | None = ...,
+        _stats_open_metrics_filters: collections.abc.Iterable[
+            google.protobuf.wrappers_pb2.StringValue
+        ]
+        | None = ...,
+        _tmp_code_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _tracelog: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _unsaved_keys: collections.abc.Iterable[
+            google.protobuf.wrappers_pb2.StringValue
+        ]
+        | None = ...,
+        _windows: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        allow_val_change: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        anonymous: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        api_key: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        azure_account_url_to_access_key: collections.abc.Mapping[
+            builtins.str, google.protobuf.wrappers_pb2.StringValue
+        ]
+        | None = ...,
+        base_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        code_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        config_paths: collections.abc.Iterable[google.protobuf.wrappers_pb2.StringValue]
+        | None = ...,
+        console: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        deployment: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        disable_code: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        disable_git: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        disable_hints: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        disable_job_creation: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        disabled: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        docker: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        email: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        entity: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        force: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        git_commit: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        git_remote: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        git_remote_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        git_root: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        heartbeat_seconds: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        host: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        ignore_globs: collections.abc.Iterable[google.protobuf.wrappers_pb2.StringValue]
+        | None = ...,
+        init_timeout: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        is_local: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        job_source: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        label_disable: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        launch: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        launch_config_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        log_symlink_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        log_symlink_user: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        log_user: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        login_timeout: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        magic: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        mode: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        notebook_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        problem: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        program: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        program_relpath: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        project: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        project_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        quiet: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        reinit: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        relogin: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        resume: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        resume_fname: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        resumed: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        root_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_group: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_job_type: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_mode: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_notes: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_tags: collections.abc.Iterable[google.protobuf.wrappers_pb2.StringValue]
+        | None = ...,
+        run_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        sagemaker_disable: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        save_code: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        settings_system: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        settings_workspace: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        show_colors: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        show_emoji: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        show_errors: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        show_info: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        show_warnings: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        silent: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        start_method: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        strict: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        summary_errors: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        summary_timeout: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        summary_warnings: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        sweep_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        sweep_param_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        sweep_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        symlink: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        sync_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        sync_file: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        sync_symlink_latest: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        system_sample: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        system_sample_seconds: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        table_raise_on_max_row_limit_exceeded: google.protobuf.wrappers_pb2.BoolValue
+        | None = ...,
+        timespec: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        tmp_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        username: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        wandb_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_start_datetime", b"_start_datetime"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_args", b"_args", "_async_upload_concurrency_limit", b"_async_upload_concurrency_limit", "_aws_lambda", b"_aws_lambda", "_cli_only_mode", b"_cli_only_mode", "_colab", b"_colab", "_cuda", b"_cuda", "_disable_meta", b"_disable_meta", "_disable_service", b"_disable_service", "_disable_stats", b"_disable_stats", "_disable_viewer", b"_disable_viewer", "_except_exit", b"_except_exit", "_executable", b"_executable", "_extra_http_headers", b"_extra_http_headers", "_flow_control_custom", b"_flow_control_custom", "_flow_control_disabled", b"_flow_control_disabled", "_internal_check_process", b"_internal_check_process", "_internal_queue_timeout", b"_internal_queue_timeout", "_ipython", b"_ipython", "_jupyter", b"_jupyter", "_jupyter_name", b"_jupyter_name", "_jupyter_path", b"_jupyter_path", "_jupyter_root", b"_jupyter_root", "_kaggle", b"_kaggle", "_live_policy_rate_limit", b"_live_policy_rate_limit", "_live_policy_wait_time", b"_live_policy_wait_time", "_log_level", b"_log_level", "_network_buffer", b"_network_buffer", "_noop", b"_noop", "_notebook", b"_notebook", "_offline", b"_offline", "_os", b"_os", "_platform", b"_platform", "_python", b"_python", "_require_nexus", b"_require_nexus", "_runqueue_item_id", b"_runqueue_item_id", "_save_requirements", b"_save_requirements", "_service_transport", b"_service_transport", "_service_wait", b"_service_wait", "_start_datetime", b"_start_datetime", "_start_time", b"_start_time", "_stats_join_assets", b"_stats_join_assets", "_stats_neuron_monitor_config_path", b"_stats_neuron_monitor_config_path", "_stats_open_metrics_endpoints", b"_stats_open_metrics_endpoints", "_stats_open_metrics_filters", b"_stats_open_metrics_filters", "_stats_pid", b"_stats_pid", "_stats_sample_rate_seconds", b"_stats_sample_rate_seconds", "_stats_samples_to_average", b"_stats_samples_to_average", "_sync", b"_sync", "_tmp_code_dir", b"_tmp_code_dir", "_tracelog", b"_tracelog", "_unsaved_keys", b"_unsaved_keys", "_windows", b"_windows", "allow_val_change", b"allow_val_change", "anonymous", b"anonymous", "api_key", b"api_key", "azure_account_url_to_access_key", b"azure_account_url_to_access_key", "base_url", b"base_url", "code_dir", b"code_dir", "config_paths", b"config_paths", "console", b"console", "deployment", b"deployment", "disable_code", b"disable_code", "disable_git", b"disable_git", "disable_hints", b"disable_hints", "disable_job_creation", b"disable_job_creation", "disabled", b"disabled", "docker", b"docker", "email", b"email", "entity", b"entity", "files_dir", b"files_dir", "force", b"force", "git_commit", b"git_commit", "git_remote", b"git_remote", "git_remote_url", b"git_remote_url", "git_root", b"git_root", "heartbeat_seconds", b"heartbeat_seconds", "host", b"host", "ignore_globs", b"ignore_globs", "init_timeout", b"init_timeout", "is_local", b"is_local", "job_source", b"job_source", "label_disable", b"label_disable", "launch", b"launch", "launch_config_path", b"launch_config_path", "log_dir", b"log_dir", "log_internal", b"log_internal", "log_symlink_internal", b"log_symlink_internal", "log_symlink_user", b"log_symlink_user", "log_user", b"log_user", "login_timeout", b"login_timeout", "magic", b"magic", "mode", b"mode", "notebook_name", b"notebook_name", "problem", b"problem", "program", b"program", "program_relpath", b"program_relpath", "project", b"project", "project_url", b"project_url", "quiet", b"quiet", "reinit", b"reinit", "relogin", b"relogin", "resume", b"resume", "resume_fname", b"resume_fname", "resumed", b"resumed", "root_dir", b"root_dir", "run_group", b"run_group", "run_id", b"run_id", "run_job_type", b"run_job_type", "run_mode", b"run_mode", "run_name", b"run_name", "run_notes", b"run_notes", "run_tags", b"run_tags", "run_url", b"run_url", "sagemaker_disable", b"sagemaker_disable", "save_code", b"save_code", "settings_system", b"settings_system", "settings_workspace", b"settings_workspace", "show_colors", b"show_colors", "show_emoji", b"show_emoji", "show_errors", b"show_errors", "show_info", b"show_info", "show_warnings", b"show_warnings", "silent", b"silent", "start_method", b"start_method", "strict", b"strict", "summary_errors", b"summary_errors", "summary_timeout", b"summary_timeout", "summary_warnings", b"summary_warnings", "sweep_id", b"sweep_id", "sweep_param_path", b"sweep_param_path", "sweep_url", b"sweep_url", "symlink", b"symlink", "sync_dir", b"sync_dir", "sync_file", b"sync_file", "sync_symlink_latest", b"sync_symlink_latest", "system_sample", b"system_sample", "system_sample_seconds", b"system_sample_seconds", "table_raise_on_max_row_limit_exceeded", b"table_raise_on_max_row_limit_exceeded", "timespec", b"timespec", "tmp_dir", b"tmp_dir", "username", b"username", "wandb_dir", b"wandb_dir"]) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_async_upload_concurrency_limit",
+            b"_async_upload_concurrency_limit",
+            "_aws_lambda",
+            b"_aws_lambda",
+            "_cli_only_mode",
+            b"_cli_only_mode",
+            "_colab",
+            b"_colab",
+            "_cuda",
+            b"_cuda",
+            "_disable_meta",
+            b"_disable_meta",
+            "_disable_service",
+            b"_disable_service",
+            "_disable_stats",
+            b"_disable_stats",
+            "_disable_viewer",
+            b"_disable_viewer",
+            "_except_exit",
+            b"_except_exit",
+            "_executable",
+            b"_executable",
+            "_flow_control_custom",
+            b"_flow_control_custom",
+            "_flow_control_disabled",
+            b"_flow_control_disabled",
+            "_internal_check_process",
+            b"_internal_check_process",
+            "_internal_queue_timeout",
+            b"_internal_queue_timeout",
+            "_ipython",
+            b"_ipython",
+            "_jupyter",
+            b"_jupyter",
+            "_jupyter_name",
+            b"_jupyter_name",
+            "_jupyter_path",
+            b"_jupyter_path",
+            "_jupyter_root",
+            b"_jupyter_root",
+            "_kaggle",
+            b"_kaggle",
+            "_live_policy_rate_limit",
+            b"_live_policy_rate_limit",
+            "_live_policy_wait_time",
+            b"_live_policy_wait_time",
+            "_log_level",
+            b"_log_level",
+            "_network_buffer",
+            b"_network_buffer",
+            "_noop",
+            b"_noop",
+            "_notebook",
+            b"_notebook",
+            "_offline",
+            b"_offline",
+            "_os",
+            b"_os",
+            "_platform",
+            b"_platform",
+            "_python",
+            b"_python",
+            "_require_nexus",
+            b"_require_nexus",
+            "_runqueue_item_id",
+            b"_runqueue_item_id",
+            "_save_requirements",
+            b"_save_requirements",
+            "_service_transport",
+            b"_service_transport",
+            "_service_wait",
+            b"_service_wait",
+            "_start_datetime",
+            b"_start_datetime",
+            "_start_time",
+            b"_start_time",
+            "_stats_join_assets",
+            b"_stats_join_assets",
+            "_stats_neuron_monitor_config_path",
+            b"_stats_neuron_monitor_config_path",
+            "_stats_pid",
+            b"_stats_pid",
+            "_stats_sample_rate_seconds",
+            b"_stats_sample_rate_seconds",
+            "_stats_samples_to_average",
+            b"_stats_samples_to_average",
+            "_sync",
+            b"_sync",
+            "_tmp_code_dir",
+            b"_tmp_code_dir",
+            "_tracelog",
+            b"_tracelog",
+            "_windows",
+            b"_windows",
+            "allow_val_change",
+            b"allow_val_change",
+            "anonymous",
+            b"anonymous",
+            "api_key",
+            b"api_key",
+            "base_url",
+            b"base_url",
+            "code_dir",
+            b"code_dir",
+            "console",
+            b"console",
+            "deployment",
+            b"deployment",
+            "disable_code",
+            b"disable_code",
+            "disable_git",
+            b"disable_git",
+            "disable_hints",
+            b"disable_hints",
+            "disable_job_creation",
+            b"disable_job_creation",
+            "disabled",
+            b"disabled",
+            "docker",
+            b"docker",
+            "email",
+            b"email",
+            "entity",
+            b"entity",
+            "files_dir",
+            b"files_dir",
+            "force",
+            b"force",
+            "git_commit",
+            b"git_commit",
+            "git_remote",
+            b"git_remote",
+            "git_remote_url",
+            b"git_remote_url",
+            "git_root",
+            b"git_root",
+            "heartbeat_seconds",
+            b"heartbeat_seconds",
+            "host",
+            b"host",
+            "init_timeout",
+            b"init_timeout",
+            "is_local",
+            b"is_local",
+            "job_source",
+            b"job_source",
+            "label_disable",
+            b"label_disable",
+            "launch",
+            b"launch",
+            "launch_config_path",
+            b"launch_config_path",
+            "log_dir",
+            b"log_dir",
+            "log_internal",
+            b"log_internal",
+            "log_symlink_internal",
+            b"log_symlink_internal",
+            "log_symlink_user",
+            b"log_symlink_user",
+            "log_user",
+            b"log_user",
+            "login_timeout",
+            b"login_timeout",
+            "magic",
+            b"magic",
+            "mode",
+            b"mode",
+            "notebook_name",
+            b"notebook_name",
+            "problem",
+            b"problem",
+            "program",
+            b"program",
+            "program_relpath",
+            b"program_relpath",
+            "project",
+            b"project",
+            "project_url",
+            b"project_url",
+            "quiet",
+            b"quiet",
+            "reinit",
+            b"reinit",
+            "relogin",
+            b"relogin",
+            "resume",
+            b"resume",
+            "resume_fname",
+            b"resume_fname",
+            "resumed",
+            b"resumed",
+            "root_dir",
+            b"root_dir",
+            "run_group",
+            b"run_group",
+            "run_id",
+            b"run_id",
+            "run_job_type",
+            b"run_job_type",
+            "run_mode",
+            b"run_mode",
+            "run_name",
+            b"run_name",
+            "run_notes",
+            b"run_notes",
+            "run_url",
+            b"run_url",
+            "sagemaker_disable",
+            b"sagemaker_disable",
+            "save_code",
+            b"save_code",
+            "settings_system",
+            b"settings_system",
+            "settings_workspace",
+            b"settings_workspace",
+            "show_colors",
+            b"show_colors",
+            "show_emoji",
+            b"show_emoji",
+            "show_errors",
+            b"show_errors",
+            "show_info",
+            b"show_info",
+            "show_warnings",
+            b"show_warnings",
+            "silent",
+            b"silent",
+            "start_method",
+            b"start_method",
+            "strict",
+            b"strict",
+            "summary_errors",
+            b"summary_errors",
+            "summary_timeout",
+            b"summary_timeout",
+            "summary_warnings",
+            b"summary_warnings",
+            "sweep_id",
+            b"sweep_id",
+            "sweep_param_path",
+            b"sweep_param_path",
+            "sweep_url",
+            b"sweep_url",
+            "symlink",
+            b"symlink",
+            "sync_dir",
+            b"sync_dir",
+            "sync_file",
+            b"sync_file",
+            "sync_symlink_latest",
+            b"sync_symlink_latest",
+            "system_sample",
+            b"system_sample",
+            "system_sample_seconds",
+            b"system_sample_seconds",
+            "table_raise_on_max_row_limit_exceeded",
+            b"table_raise_on_max_row_limit_exceeded",
+            "timespec",
+            b"timespec",
+            "tmp_dir",
+            b"tmp_dir",
+            "username",
+            b"username",
+            "wandb_dir",
+            b"wandb_dir",
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_args",
+            b"_args",
+            "_async_upload_concurrency_limit",
+            b"_async_upload_concurrency_limit",
+            "_aws_lambda",
+            b"_aws_lambda",
+            "_cli_only_mode",
+            b"_cli_only_mode",
+            "_colab",
+            b"_colab",
+            "_cuda",
+            b"_cuda",
+            "_disable_meta",
+            b"_disable_meta",
+            "_disable_service",
+            b"_disable_service",
+            "_disable_stats",
+            b"_disable_stats",
+            "_disable_viewer",
+            b"_disable_viewer",
+            "_except_exit",
+            b"_except_exit",
+            "_executable",
+            b"_executable",
+            "_extra_http_headers",
+            b"_extra_http_headers",
+            "_flow_control_custom",
+            b"_flow_control_custom",
+            "_flow_control_disabled",
+            b"_flow_control_disabled",
+            "_internal_check_process",
+            b"_internal_check_process",
+            "_internal_queue_timeout",
+            b"_internal_queue_timeout",
+            "_ipython",
+            b"_ipython",
+            "_jupyter",
+            b"_jupyter",
+            "_jupyter_name",
+            b"_jupyter_name",
+            "_jupyter_path",
+            b"_jupyter_path",
+            "_jupyter_root",
+            b"_jupyter_root",
+            "_kaggle",
+            b"_kaggle",
+            "_live_policy_rate_limit",
+            b"_live_policy_rate_limit",
+            "_live_policy_wait_time",
+            b"_live_policy_wait_time",
+            "_log_level",
+            b"_log_level",
+            "_network_buffer",
+            b"_network_buffer",
+            "_noop",
+            b"_noop",
+            "_notebook",
+            b"_notebook",
+            "_offline",
+            b"_offline",
+            "_os",
+            b"_os",
+            "_platform",
+            b"_platform",
+            "_python",
+            b"_python",
+            "_require_nexus",
+            b"_require_nexus",
+            "_runqueue_item_id",
+            b"_runqueue_item_id",
+            "_save_requirements",
+            b"_save_requirements",
+            "_service_transport",
+            b"_service_transport",
+            "_service_wait",
+            b"_service_wait",
+            "_start_datetime",
+            b"_start_datetime",
+            "_start_time",
+            b"_start_time",
+            "_stats_join_assets",
+            b"_stats_join_assets",
+            "_stats_neuron_monitor_config_path",
+            b"_stats_neuron_monitor_config_path",
+            "_stats_open_metrics_endpoints",
+            b"_stats_open_metrics_endpoints",
+            "_stats_open_metrics_filters",
+            b"_stats_open_metrics_filters",
+            "_stats_pid",
+            b"_stats_pid",
+            "_stats_sample_rate_seconds",
+            b"_stats_sample_rate_seconds",
+            "_stats_samples_to_average",
+            b"_stats_samples_to_average",
+            "_sync",
+            b"_sync",
+            "_tmp_code_dir",
+            b"_tmp_code_dir",
+            "_tracelog",
+            b"_tracelog",
+            "_unsaved_keys",
+            b"_unsaved_keys",
+            "_windows",
+            b"_windows",
+            "allow_val_change",
+            b"allow_val_change",
+            "anonymous",
+            b"anonymous",
+            "api_key",
+            b"api_key",
+            "azure_account_url_to_access_key",
+            b"azure_account_url_to_access_key",
+            "base_url",
+            b"base_url",
+            "code_dir",
+            b"code_dir",
+            "config_paths",
+            b"config_paths",
+            "console",
+            b"console",
+            "deployment",
+            b"deployment",
+            "disable_code",
+            b"disable_code",
+            "disable_git",
+            b"disable_git",
+            "disable_hints",
+            b"disable_hints",
+            "disable_job_creation",
+            b"disable_job_creation",
+            "disabled",
+            b"disabled",
+            "docker",
+            b"docker",
+            "email",
+            b"email",
+            "entity",
+            b"entity",
+            "files_dir",
+            b"files_dir",
+            "force",
+            b"force",
+            "git_commit",
+            b"git_commit",
+            "git_remote",
+            b"git_remote",
+            "git_remote_url",
+            b"git_remote_url",
+            "git_root",
+            b"git_root",
+            "heartbeat_seconds",
+            b"heartbeat_seconds",
+            "host",
+            b"host",
+            "ignore_globs",
+            b"ignore_globs",
+            "init_timeout",
+            b"init_timeout",
+            "is_local",
+            b"is_local",
+            "job_source",
+            b"job_source",
+            "label_disable",
+            b"label_disable",
+            "launch",
+            b"launch",
+            "launch_config_path",
+            b"launch_config_path",
+            "log_dir",
+            b"log_dir",
+            "log_internal",
+            b"log_internal",
+            "log_symlink_internal",
+            b"log_symlink_internal",
+            "log_symlink_user",
+            b"log_symlink_user",
+            "log_user",
+            b"log_user",
+            "login_timeout",
+            b"login_timeout",
+            "magic",
+            b"magic",
+            "mode",
+            b"mode",
+            "notebook_name",
+            b"notebook_name",
+            "problem",
+            b"problem",
+            "program",
+            b"program",
+            "program_relpath",
+            b"program_relpath",
+            "project",
+            b"project",
+            "project_url",
+            b"project_url",
+            "quiet",
+            b"quiet",
+            "reinit",
+            b"reinit",
+            "relogin",
+            b"relogin",
+            "resume",
+            b"resume",
+            "resume_fname",
+            b"resume_fname",
+            "resumed",
+            b"resumed",
+            "root_dir",
+            b"root_dir",
+            "run_group",
+            b"run_group",
+            "run_id",
+            b"run_id",
+            "run_job_type",
+            b"run_job_type",
+            "run_mode",
+            b"run_mode",
+            "run_name",
+            b"run_name",
+            "run_notes",
+            b"run_notes",
+            "run_tags",
+            b"run_tags",
+            "run_url",
+            b"run_url",
+            "sagemaker_disable",
+            b"sagemaker_disable",
+            "save_code",
+            b"save_code",
+            "settings_system",
+            b"settings_system",
+            "settings_workspace",
+            b"settings_workspace",
+            "show_colors",
+            b"show_colors",
+            "show_emoji",
+            b"show_emoji",
+            "show_errors",
+            b"show_errors",
+            "show_info",
+            b"show_info",
+            "show_warnings",
+            b"show_warnings",
+            "silent",
+            b"silent",
+            "start_method",
+            b"start_method",
+            "strict",
+            b"strict",
+            "summary_errors",
+            b"summary_errors",
+            "summary_timeout",
+            b"summary_timeout",
+            "summary_warnings",
+            b"summary_warnings",
+            "sweep_id",
+            b"sweep_id",
+            "sweep_param_path",
+            b"sweep_param_path",
+            "sweep_url",
+            b"sweep_url",
+            "symlink",
+            b"symlink",
+            "sync_dir",
+            b"sync_dir",
+            "sync_file",
+            b"sync_file",
+            "sync_symlink_latest",
+            b"sync_symlink_latest",
+            "system_sample",
+            b"system_sample",
+            "system_sample_seconds",
+            b"system_sample_seconds",
+            "table_raise_on_max_row_limit_exceeded",
+            b"table_raise_on_max_row_limit_exceeded",
+            "timespec",
+            b"timespec",
+            "tmp_dir",
+            b"tmp_dir",
+            "username",
+            b"username",
+            "wandb_dir",
+            b"wandb_dir",
+        ],
+    ) -> None: ...
 
 global___Settings = Settings
