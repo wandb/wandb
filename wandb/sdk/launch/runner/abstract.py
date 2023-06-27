@@ -39,7 +39,7 @@ State = Literal[
     "finished",
     "stopping",
     "stopped",
-    "disconnected",
+    "preempted",
 ]
 
 

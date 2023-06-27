@@ -160,7 +160,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 raise
             # 404 = Pod/job not reachable
             wandb.termlog(f"{LOG_PREFIX}Job or pod disconnected for job: {self.name}")
-            return Status("disconnected")
+            return Status("preempted")
 
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
@@ -184,7 +184,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 wandb.termlog(
                     f"{LOG_PREFIX}Job or pod disconnected for job: {self.name}"
                 )
-                return_status = Status("disconnected")
+                return_status = Status("preempted")
             else:
                 return_status = Status("failed")
         elif status.active == 1:

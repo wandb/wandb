@@ -589,18 +589,18 @@ class LaunchAgent:
         try:
             run = job_tracker.run
             status = run.get_status().state
-            if status in ["stopped", "failed", "finished", "disconnected"]:
+            if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
                     job_tracker.completed_status = status
-                if status == "disconnected":
+                if status == "preempted":
                     config = launch_spec.copy()
                     config["run_id"] = job_tracker.run_id
-                    config["resume"] = config.get("resume", 0) + 1
-                    if config["resume"] > MAX_RESUME_COUNT:
+                    config["_resume_count"] = config.get("_resume_count", 0) + 1
+                    if config["_resume_count"] > MAX_RESUME_COUNT:
                         wandb.termlog(
                             f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
                         )
