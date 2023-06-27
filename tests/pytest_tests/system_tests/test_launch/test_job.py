@@ -1,5 +1,12 @@
+import json
+import tempfile
+import os
+from unittest import mock
+import wandb
 from wandb.apis.public import Api as PublicApi
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.launch.create_job import _create_job
 
 
 def test_job_call(relay_server, user, wandb_init, test_settings):
@@ -33,3 +40,165 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
         assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{docker_image}:v0"
         assert rqi["runSpec"]["project"] == proj
         run.finish()
+
+
+def test_create_job_artifact(runner, user, wandb_init, test_settings):
+    proj = "test-p"
+    settings = test_settings({"project": proj})
+    wandb_init(settings=settings).finish()  # create proj
+
+    internal_api = InternalApi()
+    public_api = PublicApi()
+
+    # create code artifact dir
+    source_dir = "./" + tempfile.TemporaryDirectory().name
+    os.makedirs(source_dir)
+
+    with open(f"{source_dir}/test.py", "w") as f:
+        f.write("print('hello world')")
+
+    # dump requirements.txt
+    with open(f"{source_dir}/requirements.txt", "w") as f:
+        f.write("wandb")
+
+    artifact, action, aliases = _create_job(
+        api=internal_api,
+        path=source_dir,
+        project=proj,
+        entity=user,
+        job_type="artifact",
+        description="This is a description",
+        entrypoint="test.py",
+        name="test-job-9999",
+        runtime="3.8.9",  # micro will get stripped
+    )
+
+    assert isinstance(artifact, Artifact)
+    assert artifact.name == "test-job-9999:v0"
+    assert action == "Created"
+    assert aliases == ["latest"]
+
+    assert "_proto" in artifact.metadata
+    assert artifact.metadata["python"] == "3.8"
+    assert artifact.metadata["codePath"] == "test.py"
+
+    # Now use artifact as input, assert it gets upgraded
+    artifact_env = json.dumps({"_wandb_job": artifact.name})
+    with runner.isolated_filesystem(), mock.patch.dict(
+        "os.environ", WANDB_ARTIFACTS=artifact_env
+    ):
+        settings.update(
+            {
+                "job_source": "artifact",
+                "launch": True,
+            }
+        )
+        run2 = wandb_init(settings=settings, config={"input1": 1})
+        run2.log({"x": 2})
+        run2.finish()
+
+    # now get the job, the version should be v1
+    v1_job = artifact.name.split(":")[0] + ":v1"
+    job = public_api.job(f"{user}/{proj}/{v1_job}")
+
+    assert job
+    assert not job._proto
+    assert job._entrypoint == ["python", "test.py"]
+    assert (
+        str(job._output_types)
+        == "{'x': Number, '_timestamp': Number, '_runtime': Number, '_step': Number}"
+    )
+    assert str(job._input_types) == "{'input1': Number}"
+
+
+def test_create_job_image(user, wandb_init, test_settings):
+    proj = "test-p1"
+    settings = test_settings({"project": proj})
+    wandb_init(settings=settings).finish()  # create proj
+
+    internal_api = InternalApi()
+    public_api = PublicApi()
+
+    artifact, action, aliases = _create_job(
+        api=internal_api,
+        path="test/docker-image-path:alias1",
+        project=proj,
+        entity=user,
+        job_type="image",
+        description="This is a description",
+        name="test-job-1111",
+    )
+
+    assert isinstance(artifact, Artifact)
+    assert artifact.name == "test-job-1111:v0"
+    assert action == "Created"
+    assert aliases == ["alias1", "latest"]
+
+    job = public_api.job(f"{user}/{proj}/{artifact.name}")
+    assert job
+    assert job._proto
+
+
+def test_create_job_repo(user, wandb_init, test_settings, monkeypatch):
+    proj = "test-p2"
+    settings = test_settings({"project": proj})
+    wandb_init(settings=settings).finish()  # create proj
+
+    internal_api = InternalApi()
+    public_api = PublicApi()
+
+    # create code artifact dir
+    source_dir = tempfile.TemporaryDirectory().name
+    os.makedirs(source_dir)
+
+    with open(f"{source_dir}/test.py", "w") as f:
+        f.write("print('hello world')")
+
+    # dump requirements.txt
+    with open(f"{source_dir}/requirements.txt", "w") as f:
+        f.write("wandb")
+
+    with open(f"{source_dir}/.python-version", "w") as f:
+        f.write("3.11.1")
+
+    def mock_reference():
+        m = mock.Mock(
+            spec=wandb.sdk.launch.github_reference.GitHubReference, return_value="test/"
+        )
+        m.directory = source_dir
+        m.url = "https://github.com/FooBar/examples.git"
+        m.repo = "examples"
+        return m
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.github_reference.GitHubReference",
+        mock_reference,
+    )
+
+    artifact, action, aliases = _create_job(
+        api=internal_api,
+        path="https://github.com/FooBar/examples.git/test/main.py",
+        project=proj,
+        entity=user,
+        job_type="repo",
+        description="This is a description",
+        name="test-job-2222",
+        git_hash="1234567890",
+        entrypoint="main.py",
+    )
+
+    assert isinstance(artifact, Artifact)
+    assert artifact.name == "test-job-2222:v0"
+    assert action == "Created"
+    assert aliases == ["latest"]
+
+    job = public_api.job(f"{user}/{proj}/{artifact.name}")
+    assert job._proto
+
+    assert job._job_info["runtime"] == "3.11"
+    assert job._job_info["source"]["entrypoint"] == ["python3.11", "main.py"]
+    assert job._job_info["source"]["git"]["commit"] == "1234567890"
+    assert (
+        job._job_info["source"]["git"]["remote"]
+        == "https://github.com/FooBar/examples.git"
+    )

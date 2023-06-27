@@ -272,6 +272,7 @@ class JobBuilder:
         ] = None
 
         if self._proto and self._proto.job_name:
+            # Creating a normal job, out of a proto job
             name, alias = self._proto.job_name.split(":")
             source_type = self._proto.source.type
             runtime = self._proto.source.runtime
@@ -365,6 +366,13 @@ class JobBuilder:
             "output_types": output_types,
             "runtime": runtime,
         }
+
+        # If the job is a proto job, dump _proto into the job file
+        if metadata.get("_proto"):
+            assert (
+                not self._proto
+            ), "A proto job should never create a proto job as output"
+            source_info["_proto"] = metadata.get("_proto")
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:

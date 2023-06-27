@@ -110,11 +110,11 @@ def _create_job(
 
     if job_type == "repo":
         repo_metadata = _create_repo_metadata(
-            path,
-            tempdir.name,
-            entrypoint,
-            git_hash,
-            runtime,
+            path=path,
+            tempdir=tempdir.name,
+            entrypoint=entrypoint,
+            git_hash=git_hash,
+            runtime=runtime,
         )
         if not repo_metadata:
             tempdir.cleanup()  # otherwise git can pollute
@@ -128,13 +128,19 @@ def _create_job(
             )
             return None, "", []
         artifact_metadata, requirements = _create_artifact_metadata(
-            path=path, entrypoint=entrypoint
+            path=path, entrypoint=entrypoint, runtime=runtime
         )
         if not artifact_metadata:
             return None, "", []
         metadata.update(artifact_metadata)
     elif job_type == "image":
-        metadata.update({"python": "", "docker": path})
+        if runtime:
+            wandb.termwarn("Runtime is not supported for image jobs, ignoring runtime")
+        if entrypoint:
+            wandb.termwarn(
+                "Entrypoint is not supported for image jobs, ignoring entrypoint"
+            )
+        metadata.update({"python": runtime or "", "docker": path})
     else:
         wandb.termerror(f"Invalid job type: {job_type}")
         return None, "", []
@@ -182,7 +188,10 @@ def _create_job(
         run.log_artifact(code_artifact)
         code_artifact.wait()
         job_builder._set_logged_code_artifact(res, code_artifact)
-        name = code_artifact.name.replace("code", "job").split(":")[0]
+        if name:
+            name = code_artifact.name.replace("code-", "").split(":")[0]
+        else:
+            name = code_artifact.name.replace("code", "job").split(":")[0]
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build()
@@ -268,12 +277,7 @@ def _create_repo_metadata(
             major, minor = get_current_python_version()
             python_version = f"{major}.{minor}"
 
-    # remove micro if present
-    if python_version.count(".") > 1:
-        python_version = ".".join(python_version.split(".")[:2])
-        wandb.termwarn(
-            f"Micro python versions not currently supported. Now: {python_version}"
-        )
+    python_version = _clean_python_version(python_version)
 
     if not os.path.exists(os.path.join(src_dir, "requirements.txt")):
         wandb.termerror(
@@ -282,10 +286,14 @@ def _create_repo_metadata(
         return None
 
     if not entrypoint:
-        if os.path.exists(os.path.join(ref_dir, path.split("/")[-1])):
-            entrypoint = os.path.join(ref_dir, path.split("/")[-1])
+        temp_path = os.path.join(src_dir, path.split("/")[-1])
+        if os.path.exists(temp_path):
+            repo_path = os.path.join(ref_dir, path.split("/")[-1])
+            entrypoint = repo_path
         else:
-            wandb.termerror("Entrypoint not valid, specify one in the path or use -E")
+            wandb.termerror(
+                f"Entrypoint {os.path.join(ref_dir, path.split('/')[-1])} not valid, specify one in the path or use -E"
+            )
             return None
 
     if entrypoint.strip().count(" ") > 0:
@@ -324,7 +332,11 @@ def _create_artifact_metadata(
     with open(os.path.join(path, "requirements.txt")) as f:
         requirements = f.read().splitlines()
 
-    python_version = runtime or ".".join(get_current_python_version())
+    if runtime:
+        python_version = _clean_python_version(runtime)
+    else:
+        python_version = ".".join(get_current_python_version())
+
     metadata = {"python": python_version, "codePath": entrypoint}
     return metadata, requirements
 
@@ -381,3 +393,13 @@ def dump_metadata_and_requirements(
 
     with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
         f.write("\n".join(requirements))
+
+
+def _clean_python_version(python_version: str) -> str:
+    # remove micro if present
+    if python_version.count(".") > 1:
+        python_version = ".".join(python_version.split(".")[:2])
+        wandb.termwarn(
+            f"Micro python versions not currently supported. Now: {python_version}"
+        )
+    return python_version
