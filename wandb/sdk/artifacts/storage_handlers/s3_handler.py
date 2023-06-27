@@ -135,7 +135,7 @@ class S3Handler(StorageHandler):
                     extra_args["VersionId"] = object_version.version_id
                     break
             if obj is None:
-                raise ValueError(
+                raise FileNotFoundError(
                     "Couldn't find object version for {}/{} matching etag {}".format(
                         bucket, key, manifest_entry.extra.get("etag")
                     )

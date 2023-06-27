@@ -114,7 +114,6 @@ class ArtifactManifestEntry:
 
         Raises:
             ValueError: If this artifact entry was not a reference.
-            FileNotFoundError: If the file does not exist at the reference URI.
         """
         if self.ref is None:
             raise ValueError("Only reference entries support ref_target().")
