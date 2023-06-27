@@ -1936,6 +1936,7 @@ class Api:
         files: Union[List[str], Dict[str, IO]],
         run: Optional[str] = None,
         entity: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
         """Generate temporary resumable upload urls.
 
@@ -1959,9 +1960,14 @@ class Api:
                     ]
                 }
         """
+        run_name = run or self.current_run_id
+        assert run_name, "run must be specified"
+        entity = entity or self.settings("entity")
+        assert entity, "entity must be specified"
+
         has_create_run_files_mutation = self.create_run_files_introspection()
         if not has_create_run_files_mutation:
-            return self.legacy_upload_urls(project, files, run, entity)
+            return self.legacy_upload_urls(project, files, run, entity, description)
 
         query = gql(
             """
@@ -1977,11 +1983,6 @@ class Api:
         }
         """
         )
-
-        run_name = run or self.current_run_id
-        assert run_name, "run must be specified"
-        entity = entity or self.settings("entity")
-        assert entity, "entity must be specified"
 
         query_result = self.gql(
             query,
@@ -2008,6 +2009,7 @@ class Api:
         files: Union[List[str], Dict[str, IO]],
         run: Optional[str] = None,
         entity: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
         """Generate temporary resumable upload urls.
 
@@ -2016,9 +2018,9 @@ class Api:
         """
         query = gql(
             """
-        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!) {
+        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
-                bucket(name: $run) {
+                bucket(name: $run, desc: $description) {
                     id
                     files(names: $files) {
                         uploadHeaders
@@ -2045,6 +2047,7 @@ class Api:
                 "run": run_id,
                 "entity": entity,
                 "files": [file for file in files],
+                "description": description,
             },
         )
 
