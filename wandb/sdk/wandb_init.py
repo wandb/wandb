@@ -877,12 +877,17 @@ def _attach(
         raise UsageError(f"Unable to attach to run {attach_id}")
 
     settings: Settings = copy.copy(_wl._settings)
+
+    from datetime import datetime
+
     settings.update(
         {
             "run_id": attach_id,
-            "_start_time": response._start_time,
-            "_start_datetime": response._start_datetime,  # todo: fixme
-            "_offline": response._offline,
+            "_start_time": response._start_time.value,
+            "_start_datetime": datetime.fromisoformat(
+                response._start_datetime.value
+            ),  # todo: fixme
+            "_offline": response._offline.value,
         },
         source=Source.INIT,
     )
