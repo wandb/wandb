@@ -155,9 +155,10 @@ class KubernetesSubmittedRun(AbstractRun):
             pod = self.core_api.read_namespaced_pod(
                 name=self.pod_names[0], namespace=self.namespace
             )
-        except ApiException:
-            # Pod/job not reachable
-            # TODO: determine specific error when machine goes down
+        except ApiException as e:
+            if "(404)" not in str(e):
+                raise
+            # 404 = Pod/job not reachable
             wandb.termlog(f"{LOG_PREFIX}Job or pod disconnected for job: {self.name}")
             return Status("disconnected")
 
@@ -179,7 +180,13 @@ class KubernetesSubmittedRun(AbstractRun):
         if status.succeeded == 1:
             return_status = Status("finished")
         elif status.failed is not None and status.failed >= 1:
-            return_status = Status("failed")
+            if status.conditions[0].reason == "BackoffLimitExceeded":
+                wandb.termlog(
+                    f"{LOG_PREFIX}Job or pod disconnected for job: {self.name}"
+                )
+                return_status = Status("disconnected")
+            else:
+                return_status = Status("failed")
         elif status.active == 1:
             return Status("running")
         elif status.conditions is not None and status.conditions[0].type == "Suspended":

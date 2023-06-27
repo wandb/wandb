@@ -36,6 +36,8 @@ HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_THREADS = 64
 
+MAX_RESUME_COUNT = 5
+
 _logger = logging.getLogger(__name__)
 
 
@@ -597,10 +599,13 @@ class LaunchAgent:
                 if status == "disconnected":
                     config = launch_spec.copy()
                     config["run_id"] = job_tracker.run_id
-                    config["resume"] = True
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Requeueing run id {job_tracker.run_id}, job spec: {launch_spec}"
-                    )
+                    config["resume"] = config.get("resume", 0) + 1
+                    if config["resume"] > MAX_RESUME_COUNT:
+                        wandb.termlog(
+                            f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
+                        )
+                        return True
+                    wandb.termlog(f"{LOG_PREFIX}Requeueing run {job_tracker.run_id}.")
                     launch_add(
                         config=config,
                         project_queue=self._project,
