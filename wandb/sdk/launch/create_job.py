@@ -399,7 +399,5 @@ def _clean_python_version(python_version: str) -> str:
     # remove micro if present
     if python_version.count(".") > 1:
         python_version = ".".join(python_version.split(".")[:2])
-        wandb.termwarn(
-            f"Micro python versions not currently supported. Now: {python_version}"
-        )
+        _logger.debug(f"micro python version stripped. Now: {python_version}")
     return python_version

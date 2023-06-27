@@ -1619,11 +1619,11 @@ def describe(job):
     type=str,
     help="Python runtime to execute the job",
 )
-@click.argument("path")
 @click.argument(
     "job_type",
     type=click.Choice(("repo", "artifact", "image")),
 )
+@click.argument("path")
 def create(
     path,
     project,
