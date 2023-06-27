@@ -786,6 +786,7 @@ class Settings:
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
+            resume={"preprocessor": lambda x: None if x is False else x},
             resume_fname={
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
