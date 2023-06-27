@@ -1504,7 +1504,9 @@ class Settings:
                     # we only support dicts with string values for now
                     mapping.value[key] = value
             elif isinstance(v, datetime):
-                getattr(settings, k).FromDatetime(v)
+                time = getattr(settings, k)
+                time.timestamp.FromDatetime(v)
+                time.value = v.isoformat()
             elif v is None:
                 # None is the default value for all settings, so we don't need to set it,
                 # i.e. None means that the value was not set.

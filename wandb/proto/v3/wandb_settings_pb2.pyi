@@ -63,6 +63,25 @@ class MapStringKeyStringValue(google.protobuf.message.Message):
 
 global___MapStringKeyStringValue = MapStringKeyStringValue
 
+class Timestamp(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    TIMESTAMP_FIELD_NUMBER: builtins.int
+    VALUE_FIELD_NUMBER: builtins.int
+    @property
+    def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    value: builtins.str
+    def __init__(
+        self,
+        *,
+        timestamp: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        value: builtins.str = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["timestamp", b"timestamp"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["timestamp", b"timestamp", "value", b"value"]) -> None: ...
+
+global___Timestamp = Timestamp
+
 class Settings(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -290,7 +309,7 @@ class Settings(google.protobuf.message.Message):
     @property
     def _service_wait(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
-    def _start_datetime(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    def _start_datetime(self) -> global___Timestamp: ...
     @property
     def _start_time(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
@@ -543,7 +562,7 @@ class Settings(google.protobuf.message.Message):
         _save_requirements: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _service_transport: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _service_wait: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        _start_datetime: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        _start_datetime: global___Timestamp | None = ...,
         _start_time: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _stats_pid: google.protobuf.wrappers_pb2.Int32Value | None = ...,
         _stats_sample_rate_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,

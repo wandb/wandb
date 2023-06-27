@@ -208,7 +208,8 @@ class Api:
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
-        self.default_settings.update(default_settings or {})  # type: ignore
+        default_settings = default_settings or {}
+        self.default_settings.update(default_settings)  # type: ignore
         self.retry_uploads = 10
         self._settings = Settings(
             load_settings=load_settings,

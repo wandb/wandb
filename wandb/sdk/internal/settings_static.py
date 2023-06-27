@@ -33,3 +33,6 @@ class SettingsStatic:
 
     def __contains__(self, key: str) -> bool:
         return key in self.keys()
+
+    def __dict__(self) -> dict:
+        return self.proto.__dict__()
