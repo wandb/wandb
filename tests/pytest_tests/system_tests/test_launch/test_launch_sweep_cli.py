@@ -121,11 +121,7 @@ def test_launch_sweep_scheduler_resources(
     json.dump(config, open("s.yaml", "w"))
 
     cmd = ["wandb", "launch-sweep", "-e", user, "-p", "p", "s.yaml"]
-    if msg == "Scheduler added to launch queue":
-        _run_cmd_check_msg(cmd, msg)
-    # else:
-    #     with pytest.raises(subprocess.CalledProcessError):
-    #         _run_cmd_check_msg(cmd, msg)
+    _run_cmd_check_msg(cmd, msg)
 
 
 @pytest.mark.parametrize(
