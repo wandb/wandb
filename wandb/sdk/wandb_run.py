@@ -3443,7 +3443,6 @@ class Run:
                     f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
                     f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
                 )
-
             printer.display(info)
 
     @staticmethod
