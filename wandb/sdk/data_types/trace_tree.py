@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
+import wandb
 from wandb.data_types import _json_helper
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
@@ -148,3 +149,173 @@ def _safe_serialize(obj: dict) -> str:
         )
     except Exception:
         return "{}"
+
+
+class Trace:
+    """A simplification of WBTraceTree and Span to manage a trace - a collection of spans, their metadata and hierarchy.
+
+    Arguments:
+        name: (str) The name of the root span.
+        kind: (str, optional) The kind of the root span.
+        status_code: (str, optional) The status of the root span, either "error" or "success".
+        status_message: (str, optional) Any status message associated with the root span.
+        metadata: (dict, optional) Any additional metadata for the root span.
+        start_time_ms: (int, optional) The start time of the root span in milliseconds.
+        end_time_ms: (int, optional) The end time of the root span in milliseconds.
+        inputs: (dict, optional) The named inputs of the root span.
+        outputs: (dict, optional) The named outputs of the root span.
+        model_dict: (dict, optional) A json serializable dictionary containing the model architecture details.
+
+    Example:
+        .. code-block:: python
+        ```
+        trace = Trace(
+            name="My awesome Model",
+            kind="LLM",
+            status_code= "SUCCESS",
+            metadata={"attr_1": 1, "attr_2": 2,},
+            start_time_ms=int(round(time.time() * 1000)),
+            end_time_ms=int(round(time.time() * 1000))+1000,
+            inputs={"user": "How old is google?"},
+            outputs={"assistant": "25 years old"},
+            model_dict={"_kind": "openai", "api_type": "azure"}
+              )
+        run = wandb.init(project=<my_awesome_project>,)
+        trace.log("my_trace")
+        wandb.finish()
+        ```
+    """
+
+    def __init__(
+        self,
+        name: str,
+        kind: Optional[str] = None,
+        status_code: Optional[str] = None,
+        status_message: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        start_time_ms: Optional[int] = None,
+        end_time_ms: Optional[int] = None,
+        inputs: Optional[dict] = None,
+        outputs: Optional[dict] = None,
+        model_dict: Optional[dict] = None,
+    ):
+        self._span = self._assert_and_create_span(
+            name=name,
+            kind=kind,
+            status_code=status_code,
+            status_message=status_message,
+            metadata=metadata,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+            inputs=inputs,
+            outputs=outputs,
+        )
+        if model_dict is not None:
+            assert isinstance(model_dict, dict), "Model dict must be a dictionary"
+        self._model_dict = model_dict
+
+    def _assert_and_create_span(
+        self,
+        name: str,
+        kind: Optional[str] = None,
+        status_code: Optional[str] = None,
+        status_message: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        start_time_ms: Optional[int] = None,
+        end_time_ms: Optional[int] = None,
+        inputs: Optional[dict] = None,
+        outputs: Optional[dict] = None,
+    ) -> Span:
+        """Utility to assert the validity of the span parameters and create a span object.
+
+        :param name: The name of the span
+        :param kind: The kind of the span, can be one of 'LLM', 'AGENT', 'CHAIN', 'TOOL'
+        :param status_code: The status code of the span, can be one of 'SUCCESS' or 'ERROR'
+        :param status_message: The status message of the span
+        :param metadata: Dictionary of metadata to be logged with the span
+        :param start_time_ms: Start time of the span in milliseconds
+        :param end_time_ms: End time of the span in milliseconds
+        :param inputs: Dictionary of inputs to be logged with the span
+        :param outputs: Dictionary of outputs to be logged with the span
+        :return: A Span object
+        """
+        if kind is not None:
+            assert (
+                kind.upper() in SpanKind.__members__
+            ), "Invalid span kind, can be one of 'LLM', 'AGENT', 'CHAIN', 'TOOL'"
+            kind = SpanKind(kind.upper())
+        if status_code is not None:
+            assert (
+                status_code.upper() in StatusCode.__members__
+            ), "Invalid status code, can be one of 'SUCCESS' or 'ERROR'"
+            status_code = StatusCode(status_code.upper())
+        if inputs is not None and outputs is not None:
+            assert isinstance(inputs, dict), "Inputs must be a dictionary"
+            assert isinstance(outputs, dict), "Outputs must be a dictionary"
+            result = Result(inputs=inputs, outputs=outputs)
+        else:
+            result = None
+
+        return Span(
+            name=name,
+            span_kind=kind,
+            status_code=status_code,
+            status_message=status_message,
+            attributes=metadata,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+            results=[result] if result else None,
+        )
+
+    def add_child(
+        self,
+        child: "Trace",
+    ) -> "Trace":
+        """Utility to add a child span to the current span of the trace.
+
+        :param child: The child span to be added to the current span of the trace.
+        :return: The current trace object with the child span added to it.
+        """
+        self._span.add_child_span(child._span)
+        if self._model_dict is not None and child._model_dict is not None:
+            self._model_dict.update({child._span.name: child._model_dict})
+        return self
+
+    def add_metadata(self, metadata: dict) -> "Trace":
+        """Add metadata to the span of the current trace.
+
+        :param metadata: Dictionary of metadata to be logged with the span
+        :return: The current trace object with the metadata added to it.
+        """
+        if self._span.attributes is None:
+            self._span.attributes = metadata
+        else:
+            self._span.attributes.update(metadata)
+        return self
+
+    def add_inputs_and_outputs(self, inputs: dict, outputs: dict) -> "Trace":
+        """Add a result to the span of the current trace.
+
+        :param inputs: Dictionary of inputs to be logged with the span
+        :param outputs: Dictionary of outputs to be logged with the span
+        :return: The current trace object with the result added to it.
+        """
+        if self._span.results is None:
+            result = Result(inputs=inputs, outputs=outputs)
+            self._span.results = [result]
+        else:
+            result = Result(inputs=inputs, outputs=outputs)
+            self._span.results.append(result)
+        return self
+
+    def log(self, name: str) -> None:
+        """Log the trace to a wandb run.
+
+        :param name: The name of the trace to be logged
+        :return: None
+        """
+        trace_tree = WBTraceTree(self._span, self._model_dict)
+        assert (
+            wandb.run is not None
+        ), "You must call wandb.init() before logging a trace"
+        wandb.run.log({name: trace_tree})
