@@ -205,7 +205,7 @@ class SystemInfo:
         data["docker"] = self.settings.docker
 
         data["cuda"] = self.settings._cuda
-        data["args"] = list(self.settings._args)
+        data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
 
         if self.settings.program is not None:
