@@ -47,6 +47,7 @@ from .sdk.data_types.molecule import Molecule
 from .sdk.data_types.object_3d import Object3D
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
+from .sdk.data_types.trace_tree import WBTraceTree
 from .sdk.data_types.video import Video
 from .sdk.lib import runid
 
@@ -67,6 +68,7 @@ __all__ = [
     "Object3D",
     "Plotly",
     "Video",
+    "WBTraceTree",
     "_SavedModel",
     # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
