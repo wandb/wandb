@@ -1350,7 +1350,7 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
-    monkeypatch, wandb_init, caplog
+    monkeypatch, wandb_init, capsys
 ):
     # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -1371,8 +1371,9 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
     artifact.download(allow_missing_references=True)
+
     # It should still log a warning about skipping the missing reference.
-    assert any("Unable to find my_object.pb" in r.message for r in caplog.records)
+    assert "Unable to find my_object.pb" in capsys.readouterr().err
 
 
 def test_s3_storage_handler_load_path_uses_cache(tmp_path):
