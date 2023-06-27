@@ -271,49 +271,13 @@ class JobBuilder:
         ] = None
 
         if self._proto and self._proto.job_name:
-            # Creating a normal job, out of a proto job
-            name, alias = self._proto.job_name.split(":")
             source_type = self._proto.source.type
             runtime = self._proto.source.runtime
-
-            if self._proto.source.type == "artifact":
-                self._logged_code_artifact = ArtifactInfoForJob(
-                    {
-                        "id": self._proto.source.artifactSource.artifact.split(
-                            "wandb-artifact://_id/"
-                        )[1],
-                        "name": self._proto.source.artifactSource.name,
-                    }
-                )
-
-                artifact, source = self._build_artifact_job(
-                    metadata=metadata,
-                    program_relpath=self._proto.source.artifactSource.program,
-                    name=name,
-                )
-            elif self._proto.source.type == "repo":
-                assert program_relpath is not None
-
-                # update current metadata from proto, where we downloaded the previous
-                # proto-artifacts real repo metadata
-                metadata.update(
-                    {
-                        "git": {
-                            "remote": self._proto.source.gitSource.remote,
-                            "commit": self._proto.source.gitSource.commit,
-                        }
-                    }
-                )
-
-                artifact, source = self._build_repo_job(
-                    metadata=metadata,
-                    program_relpath=program_relpath,
-                    root=self._proto.source.gitSource.root,
-                    name=name,
-                )
-            elif self._proto.source.type == "image":
-                artifact, source = self._build_image_job(metadata, name=name)
-
+            artifact, source, new_metadata = self._build_artifact_job_from_proto(
+                metadata
+            )
+            if new_metadata:
+                metadata.update(new_metadata)
         else:
             # can't build a job without a python version
             if runtime is None:
@@ -383,6 +347,65 @@ class JobBuilder:
         )
 
         return artifact
+
+    def _build_artifact_job_from_proto(
+        self, metadata: Dict[str, Any]
+    ) -> Tuple[
+        Artifact,
+        Union[ArtifactSourceDict, ImageSourceDict, GitSourceDict],
+        Optional[Dict[str, Any]],
+    ]:
+        # Creating a normal job, out of a proto job
+        assert self._proto
+        name, _alias = self._proto.job_name.split(":")
+
+        if self._proto.source.type == "artifact":
+            self._logged_code_artifact = ArtifactInfoForJob(
+                {
+                    "id": self._proto.source.artifactSource.artifact.split(
+                        "wandb-artifact://_id/"
+                    )[1],
+                    "name": self._proto.source.artifactSource.name,
+                }
+            )
+
+            artifact, artifact_source = self._build_artifact_job(
+                metadata=metadata,
+                program_relpath=self._proto.source.artifactSource.program,
+                name=name,
+            )
+            if not artifact or not artifact_source:
+                raise Exception("Failed to build artifact job from proto")
+            return artifact, artifact_source, None
+        if self._proto.source.type == "repo":
+            # update current metadata from proto, where we downloaded the previous
+            # proto-artifacts real repo metadata
+            metadata.update(
+                {
+                    "git": {
+                        "remote": self._proto.source.gitSource.remote,
+                        "commit": self._proto.source.gitSource.commit,
+                    }
+                }
+            )
+            program_relpath = metadata.get("codePath")
+            assert program_relpath is not None
+            artifact, repo_source = self._build_repo_job(
+                metadata=metadata,
+                program_relpath=program_relpath,
+                root=self._proto.source.gitSource.root,
+                name=name,
+            )
+            if not artifact or not repo_source:
+                raise Exception("Failed to build artifact job from proto")
+            return artifact, repo_source, metadata
+
+        if self._proto.source.type == "image":
+            artifact, image_source = self._build_image_job(metadata, name=name)
+            if not artifact or not image_source:
+                raise Exception("Failed to build artifact job from proto")
+            return artifact, image_source, None
+        raise Exception("Unknown proto source type")
 
     def _handle_metadata_file(
         self,
