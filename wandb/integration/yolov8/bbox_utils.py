@@ -82,33 +82,34 @@ def create_prediction_metadata_map(model_predictions):
     return pred_metadata_map
 
 
-def plot_ground_truth(dataloader, class_label_map):
+def plot_validation_results(dataloader, class_label_map):
     class_label_dict = {
         idx: class_label_map[idx] for idx in range(len(class_label_map))
     }
-    images = []
+    table = wandb.Table(columns=["Index", "Images"])
+    images, data_idx = [], 0
     for batch_idx, batch in enumerate(dataloader):
         for img_idx, image_path in enumerate(batch["im_file"]):
             try:
                 ground_truth_data = get_ground_truth_annotations(
                     img_idx, image_path, batch, class_label_map
                 )
-                images.append(
-                    wandb.Image(
-                        image_path,
-                        boxes={
-                            "ground_truth": {
-                                "box_data": ground_truth_data,
-                                "class_labels": class_label_dict,
-                            }
-                        },
-                    )
+                wandb_image = wandb.Image(
+                    image_path,
+                    boxes={
+                        "ground_truth": {
+                            "box_data": ground_truth_data,
+                            "class_labels": class_label_dict,
+                        }
+                    },
                 )
+                table.add_data(data_idx, wandb_image)
+                data_idx += 1
             except TypeError:
                 pass
         if batch_idx + 1 == 1:
             break
-    wandb.log({"ground_truth": images}, commit=False)
+    wandb.log({"Validation-Table": table})
 
 
 def plot_predictions(result: Results, table: wandb.Table) -> wandb.Table:
