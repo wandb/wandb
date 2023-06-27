@@ -6,8 +6,10 @@ SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
 
 class SettingsStatic:
+    proto: wandb_settings_pb2.Settings
+
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
-        self.proto = proto
+        object.__setattr__(self, "proto", proto)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
@@ -16,7 +18,11 @@ class SettingsStatic:
         raise AttributeError("Error: SettingsStatic is a readonly object")
 
     def keys(self) -> "Iterable[str]":
-        return self.proto.DESCRIPTOR.fields_by_name.keys()
+        return (
+            k
+            for k in self.proto.DESCRIPTOR.fields_by_name.keys()
+            if self.proto.HasField(k)
+        )
 
     # def items(self) -> "Iterable[Any]":
     #     return self.proto.DESCRIPTOR.fields_by_name.items()
