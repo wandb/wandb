@@ -3,11 +3,10 @@ import os
 import random
 import string
 
-from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
+from google.protobuf.wrappers_pb2 import BoolValue, StringValue
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.wandb_settings import Settings
 from wandb.util import make_artifact_name_safe
 
 
