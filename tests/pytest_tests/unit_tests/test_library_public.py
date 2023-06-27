@@ -164,6 +164,7 @@ def test_library_root():
 
 # normal run symbols
 SYMBOLS_RUN = {
+    "job_name",
     "job_type",
     "group",
     "entity",
@@ -267,6 +268,7 @@ def test_library_config():
 
 
 SYMBOLS_WANDB_INIT = {
+    "job",
     "force",
     "settings",
     "project",
