@@ -78,6 +78,7 @@ _Setting = Literal[
     "disable_git",
     "disable_hints",
     "disable_job_creation",
+    "disable_setproctitle",
     "disabled",
     "docker",
     "email",
