@@ -21,10 +21,10 @@ _logger = logging.getLogger("wandb")
 
 def create_job(
     path: str,
+    job_type: str = None,
     entity: Optional[str] = None,
     project: Optional[str] = None,
     name: Optional[str] = None,
-    job_type: Optional[str] = None,
     description: Optional[str] = None,
     aliases: Optional[List[str]] = None,
     runtime: Optional[str] = None,
@@ -34,16 +34,16 @@ def create_job(
     """Create a job from a path, not as the output of a run.
 
     Arguments:
-        path (str): Path to the job directory.
-        entity (str): Entity to create the job under.
-        project (str): Project to create the job under.
-        name (str): Name of the job.
         job_type (str): Type of the job. One of "repo", "artifact", or "image".
-        description (str): Description of the job.
-        aliases (List[str]): Aliases for the job.
-        runtime (str): Python runtime of the job, like 3.9.
-        entrypoint (str): Entrypoint of the job.
-        git_hash (str): Git hash of a specific commit, when using repo type jobs.
+        path (str): Path to the job directory.
+        entity (Optional[str]): Entity to create the job under.
+        project (Optional[str]): Project to create the job under.
+        name (Optional[str]): Name of the job.
+        description (Optional[str]): Description of the job.
+        aliases (Optional[List[str]]): Aliases for the job.
+        runtime (Optional[str]): Python runtime of the job, like 3.9.
+        entrypoint (Optional[str]): Entrypoint of the job.
+        git_hash (Optional[str]): Git hash of a specific commit, when using repo type jobs.
 
 
     Returns:
@@ -53,11 +53,11 @@ def create_job(
     Example:
         ```python
         artifact_job = wandb.create_job(
+            job_type="artifact",
             path=".",
             entity="wandb",
             project="jobs",
             name="my-train-job",
-            job_type="artifact",
             description="My training job",
             aliases=["train"],
             runtime="3.9",
@@ -71,11 +71,11 @@ def create_job(
 
     artifact_job, _action, _aliases = _create_job(
         api,
+        job_type,
         path,
         entity,
         project,
         name,
-        job_type,
         description,
         aliases,
         runtime,
@@ -88,11 +88,11 @@ def create_job(
 
 def _create_job(
     api: Api,
+    job_type: str,
     path: str,
     entity: Optional[str] = None,
     project: Optional[str] = None,
     name: Optional[str] = None,
-    job_type: Optional[str] = None,
     description: Optional[str] = None,
     aliases: Optional[List[str]] = None,
     runtime: Optional[str] = None,
@@ -103,10 +103,6 @@ def _create_job(
     tempdir = tempfile.TemporaryDirectory()
     metadata = {"_proto": "v0"}  # seed metadata with special proto key
     requirements: List[str] = []
-
-    # format relpaths, otherwise they can be interpreted as images
-    if path[0] == "/":
-        path = path[1:]
 
     if job_type == "repo":
         repo_metadata = _create_repo_metadata(
@@ -281,7 +277,7 @@ def _create_repo_metadata(
 
     if not os.path.exists(os.path.join(src_dir, "requirements.txt")):
         wandb.termerror(
-            f"Could not find requirements.txt file in repo at: {ref.directory}/requirements.txt"
+            f"Could not find requirements.txt file in repo at: {ref_dir}/requirements.txt"
         )
         return None
 

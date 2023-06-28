@@ -270,10 +270,11 @@ class JobBuilder:
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
 
-        if self._proto and self._proto.job_name:
+        if self._proto is not None:
+            assert self._proto.job_name, "job_name always required"
             source_type = self._proto.source.type
             runtime = self._proto.source.runtime
-            artifact, source, new_metadata = self._build_artifact_job_from_proto(
+            artifact, source, new_metadata = self._build_job_from_proto(
                 metadata
             )
             if new_metadata:
@@ -348,7 +349,7 @@ class JobBuilder:
 
         return artifact
 
-    def _build_artifact_job_from_proto(
+    def _build_job_from_proto(
         self, metadata: Dict[str, Any]
     ) -> Tuple[
         Artifact,

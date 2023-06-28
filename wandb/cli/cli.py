@@ -1549,14 +1549,12 @@ def _list(project, entity):
             if len(aliases) == 1:
                 # no custom alias, just verison, skip
                 continue
-            print(full_name, aliases)
+            wandb.termlog(f"{full_name} {aliases}")
 
 
 @job.command()
 @click.argument("job")
 def describe(job):
-    wandb.termlog(f"Describing job: {job}")
-
     public_api = PublicApi()
     job = public_api.job(name=job)
 
@@ -1650,12 +1648,12 @@ def create(
     api = _get_cling_api()
     entity = entity or os.getenv("WANDB_ENTITY") or api.default_entity
     if not entity:
-        wandb.termerror("No entity provided")
+        wandb.termerror("No entity provided, use --entity or set WANDB_ENTITY")
         return
 
     project = project or os.getenv("WANDB_PROJECT")
     if not project:
-        wandb.termerror("No project provided")
+        wandb.termerror("No project provided, use --project or set WANDB_PROJECT")
         return
 
     artifact, action, aliases = _create_job(
@@ -1685,7 +1683,7 @@ def create(
         msg += f", with aliases: {alias_str}"
 
     wandb.termlog(msg)
-    web_url = api.settings().get("base_url").replace("api.", "")
+    web_url = util.app_url(api.settings().get("base_url"))
     url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 
