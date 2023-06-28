@@ -1602,7 +1602,6 @@ class Artifact:
 
         with concurrent.futures.ThreadPoolExecutor(64) as executor:
             active_futures = set()
-            # Download files.
             has_next_page = True
             cursor = None
             while has_next_page:
@@ -1621,10 +1620,6 @@ class Artifact:
                         active_futures.remove(future)
                         if len(active_futures) <= max_backlog:
                             break
-            # Download references.
-            for entry in self.manifest.entries.values():
-                if entry.ref is not None:
-                    active_futures.add(executor.submit(download_entry, entry))
             # Check for errors.
             for future in concurrent.futures.as_completed(active_futures):
                 future.result()
