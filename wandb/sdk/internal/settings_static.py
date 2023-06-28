@@ -4,6 +4,12 @@ from wandb.proto import wandb_settings_pb2
 
 
 class SettingsStatic:
+    """A readonly object that wraps a protobuf Settings message.
+
+    Implements the mapping protocol, so you can access settings as
+    attributes or items.
+    """
+
     proto: wandb_settings_pb2.Settings
 
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
