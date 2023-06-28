@@ -554,7 +554,6 @@ class HandleManager:
             if step < self._step:
                 message = f"Step {step} < {self._step}. Dropping entry: {history_dict}."
                 self._internal_messages.warning.append(message)
-                # print(self._internal_messages)
                 return
             elif step > self._step:
                 self._flush_partial_history()
