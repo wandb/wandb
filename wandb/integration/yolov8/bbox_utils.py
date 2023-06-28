@@ -35,6 +35,8 @@ def get_ground_truth_annotations(img_idx, image_path, batch, class_name_map=None
     bboxes = batch["bboxes"][indices]
     cls_labels = batch["cls"][indices].squeeze(1).tolist()
 
+    class_name_map_reverse = {v: k for k, v in class_name_map.items()}
+
     if len(bboxes) == 0:
         wandb.termwarn(f"Image: {image_path} has no bounding boxes labels")
         return None
@@ -64,7 +66,7 @@ def get_ground_truth_annotations(img_idx, image_path, batch, class_name_map=None
                     "height": int(box[3]),
                 },
                 "domain": "pixel",
-                "class_id": cls_labels.index(label),
+                "class_id": class_name_map_reverse[label],
                 "box_caption": label,
             }
         )
@@ -83,9 +85,6 @@ def create_prediction_metadata_map(model_predictions):
 
 
 def plot_validation_results(dataloader, class_label_map):
-    class_label_dict = {
-        idx: class_label_map[idx] for idx in range(len(class_label_map))
-    }
     table = wandb.Table(columns=["Index", "Images"])
     images, data_idx = [], 0
     for batch_idx, batch in enumerate(dataloader):
@@ -99,7 +98,7 @@ def plot_validation_results(dataloader, class_label_map):
                     boxes={
                         "ground_truth": {
                             "box_data": ground_truth_data,
-                            "class_labels": class_label_dict,
+                            "class_labels": class_label_map,
                         }
                     },
                 )
