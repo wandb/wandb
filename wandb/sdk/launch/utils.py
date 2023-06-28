@@ -114,7 +114,7 @@ def set_project_entity_defaults(
         config_project = None
         if launch_config:
             config_project = launch_config.get("project")
-        project = config_project or source_uri or ""
+        project = config_project or source_uri or None
     if entity is None:
         config_entity = None
         if launch_config:
