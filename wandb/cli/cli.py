@@ -1036,7 +1036,7 @@ def launch_sweep(
         sweep_config=sweep_config,
         queue=queue,
         project=project,
-        author=entity,
+        author=wandb.Settings().get("username"),
     )
     if not args:
         return
