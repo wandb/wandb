@@ -85,7 +85,7 @@ class ArtifactPatch(Artifact):
 
 
 def make_local_artifact_public(art):
-    pub = ArtifactPatch.from_attrs(
+    pub = ArtifactPatch._from_attrs(
         "FAKE_ENTITY",
         "FAKE_PROJECT",
         "FAKE_NAME",
