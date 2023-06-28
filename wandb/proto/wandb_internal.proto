@@ -943,7 +943,7 @@ message UseArtifactRecord {
   string type = 2;
   string name = 3;
 
-  ProtoJobArtifact proto = 4;
+  ProtoJobArtifact partial = 4;
 
   _RecordInfo     _info = 200;
 }

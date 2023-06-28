@@ -1398,9 +1398,9 @@ class SendManager:
         This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
-        self._job_builder._proto = record.use_artifact.proto
+        self._job_builder._partial = record.use_artifact.partial
 
-        if use.type == "job" and not record.use_artifact.proto.job_name:
+        if use.type == "job" and not record.use_artifact.partial.job_name:
             self._job_builder.disable = True
 
     def send_request_log_artifact(self, record: "Record") -> None:

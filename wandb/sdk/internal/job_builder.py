@@ -56,7 +56,7 @@ class JobSourceDict(TypedDict, total=False):
     input_types: Dict[str, Any]
     output_types: Dict[str, Any]
     runtime: Optional[str]
-    _proto: Optional[str]
+    _partial: Optional[str]  # partial job
 
 
 class ArtifactInfoForJob(TypedDict):
@@ -78,7 +78,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
-    _proto: Optional["UseArtifactRecord"]
+    _partial: Optional["UseArtifactRecord"]
     _aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):
@@ -89,7 +89,7 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
-        self._proto = None
+        self._partial = None
         self._aliases = []
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
@@ -273,11 +273,11 @@ class JobBuilder:
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
 
-        if self._proto is not None:
-            assert self._proto.job_name, "job_name always required"
-            source_type = self._proto.source.type
-            runtime = self._proto.source.runtime
-            artifact, source, new_metadata = self._build_job_from_proto(metadata)
+        if self._partial is not None:
+            assert self._partial.job_name, "job_name always required"
+            source_type = self._partial.source.type
+            runtime = self._partial.source.runtime
+            artifact, source, new_metadata = self._build_job_from_partial(metadata)
             if new_metadata:
                 metadata.update(new_metadata)
         else:
@@ -332,12 +332,12 @@ class JobBuilder:
             "runtime": runtime,
         }
 
-        # If the job is a proto job, dump _proto into the job file
-        if metadata.get("_proto"):
+        # If the job is a partial job, dump _partial into the job file
+        if metadata.get("_partial"):
             assert (
-                not self._proto
-            ), "A proto job should never create a proto job as output"
-            source_info["_proto"] = metadata.get("_proto")
+                not self._partial
+            ), "A partial job should never create a partial job as output"
+            source_info["_partial"] = metadata.get("_partial")
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:
@@ -350,43 +350,43 @@ class JobBuilder:
 
         return artifact
 
-    def _build_job_from_proto(
+    def _build_job_from_partial(
         self, metadata: Dict[str, Any]
     ) -> Tuple[
         Artifact,
         Union[ArtifactSourceDict, ImageSourceDict, GitSourceDict],
         Optional[Dict[str, Any]],
     ]:
-        # Creating a normal job, out of a proto job
-        assert self._proto
-        name, _alias = self._proto.job_name.split(":")
+        # Creating a normal job, out of a partial job
+        assert self._partial
+        name, _alias = self._partial.job_name.split(":")
 
-        if self._proto.source.type == "artifact":
+        if self._partial.source.type == "artifact":
             self._logged_code_artifact = ArtifactInfoForJob(
                 {
-                    "id": self._proto.source.artifactSource.artifact.split(
+                    "id": self._partial.source.artifactSource.artifact.split(
                         "wandb-artifact://_id/"
                     )[1],
-                    "name": self._proto.source.artifactSource.name,
+                    "name": self._partial.source.artifactSource.name,
                 }
             )
 
             artifact, artifact_source = self._build_artifact_job(
                 metadata=metadata,
-                program_relpath=self._proto.source.artifactSource.program,
+                program_relpath=self._partial.source.artifactSource.program,
                 name=name,
             )
             if not artifact or not artifact_source:
-                raise Exception("Failed to build artifact job from proto")
+                raise Exception("Failed to build artifact job from partial")
             return artifact, artifact_source, None
-        if self._proto.source.type == "repo":
-            # update current metadata from proto, where we downloaded the previous
-            # proto-artifacts real repo metadata
+        if self._partial.source.type == "repo":
+            # update current metadata from partial, where we downloaded the previous
+            # partial-artifacts real repo metadata
             metadata.update(
                 {
                     "git": {
-                        "remote": self._proto.source.gitSource.remote,
-                        "commit": self._proto.source.gitSource.commit,
+                        "remote": self._partial.source.gitSource.remote,
+                        "commit": self._partial.source.gitSource.commit,
                     }
                 }
             )
@@ -395,19 +395,19 @@ class JobBuilder:
             artifact, repo_source = self._build_repo_job(
                 metadata=metadata,
                 program_relpath=program_relpath,
-                root=self._proto.source.gitSource.root,
+                root=self._partial.source.gitSource.root,
                 name=name,
             )
             if not artifact or not repo_source:
-                raise Exception("Failed to build artifact job from proto")
+                raise Exception("Failed to build artifact job from partial")
             return artifact, repo_source, metadata
 
-        if self._proto.source.type == "image":
+        if self._partial.source.type == "image":
             artifact, image_source = self._build_image_job(metadata, name=name)
             if not artifact or not image_source:
-                raise Exception("Failed to build artifact job from proto")
+                raise Exception("Failed to build artifact job from partial")
             return artifact, image_source, None
-        raise Exception("Unknown proto source type")
+        raise Exception("Unknown partial job source type")
 
     def _handle_metadata_file(
         self,

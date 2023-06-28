@@ -2900,13 +2900,13 @@ class UseArtifactRecord(google.protobuf.message.Message):
     ID_FIELD_NUMBER: builtins.int
     TYPE_FIELD_NUMBER: builtins.int
     NAME_FIELD_NUMBER: builtins.int
-    PROTO_FIELD_NUMBER: builtins.int
+    PARTIAL_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     id: builtins.str
     type: builtins.str
     name: builtins.str
     @property
-    def proto(self) -> global___ProtoJobArtifact: ...
+    def partial(self) -> global___ProtoJobArtifact: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -2915,11 +2915,11 @@ class UseArtifactRecord(google.protobuf.message.Message):
         id: builtins.str = ...,
         type: builtins.str = ...,
         name: builtins.str = ...,
-        proto: global___ProtoJobArtifact | None = ...,
+        partial: global___ProtoJobArtifact | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "proto", b"proto"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "id", b"id", "name", b"name", "proto", b"proto", "type", b"type"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "partial", b"partial"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "id", b"id", "name", b"name", "partial", b"partial", "type", b"type"]) -> None: ...
 
 global___UseArtifactRecord = UseArtifactRecord
 

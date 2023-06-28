@@ -101,7 +101,7 @@ def _create_job(
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
-    metadata = {"_proto": "v0"}  # seed metadata with special proto key
+    metadata = {"_partial": "v0"}  # seed metadata with special partial key
     requirements: List[str] = []
 
     if job_type == "repo":
@@ -156,7 +156,7 @@ def _create_job(
         project=project,
         job_type="cli_create_job",
     )
-    job_builder = _configure_job_builder_for_proto(tempdir.name, job_source=job_type)
+    job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "artifact":
         full_path = os.path.join(path, entrypoint or "")
         artifact_name = make_code_artifact_name(full_path, name)
@@ -347,7 +347,7 @@ def _handle_artifact_entrypoint(
     return path, entrypoint
 
 
-def _configure_job_builder_for_proto(tmpdir: str, job_source: str) -> JobBuilder:
+def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuilder:
     """Configure job builder with temp dir and job source."""
     settings = wandb.Settings()
     settings.update({"files_dir": tmpdir, "job_source": job_source})

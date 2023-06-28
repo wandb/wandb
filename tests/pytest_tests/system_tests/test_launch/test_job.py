@@ -79,7 +79,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert action == "Created"
     assert aliases == ["latest"]
 
-    assert "_proto" in artifact.metadata
+    assert "_partial" in artifact.metadata
     assert artifact.metadata["python"] == "3.8"
     assert artifact.metadata["codePath"] == "test.py"
 
@@ -103,7 +103,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     job = public_api.job(f"{user}/{proj}/{v1_job}")
 
     assert job
-    assert not job._proto
+    assert not job._partial
     assert job._entrypoint == ["python", "test.py"]
     assert (
         str(job._output_types)
@@ -137,7 +137,7 @@ def test_create_job_image(user, wandb_init, test_settings):
 
     job = public_api.job(f"{user}/{proj}/{artifact.name}")
     assert job
-    assert job._proto
+    assert job._partial
 
 
 def test_create_job_repo(user, wandb_init, test_settings, monkeypatch):
@@ -194,7 +194,7 @@ def test_create_job_repo(user, wandb_init, test_settings, monkeypatch):
     assert aliases == ["latest"]
 
     job = public_api.job(f"{user}/{proj}/{artifact.name}")
-    assert job._proto
+    assert job._partial
 
     assert job._job_info["runtime"] == "3.11"
     assert job._job_info["source"]["entrypoint"] == ["python3.11", "main.py"]
