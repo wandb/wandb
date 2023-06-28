@@ -107,8 +107,8 @@ class Artifact:
         ```
     """
 
-    TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
-    GQL_FRAGMENT = """
+    _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
+    _GQL_FRAGMENT = """
       fragment ArtifactFragment on Artifact {
           id
           artifactSequence {
@@ -213,7 +213,7 @@ class Artifact:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
-    def from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
+    def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
         artifact = get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
@@ -231,7 +231,7 @@ class Artifact:
                 }
             }
             """
-            + cls.GQL_FRAGMENT
+            + cls._GQL_FRAGMENT
         )
         response = client.execute(
             query,
@@ -243,10 +243,10 @@ class Artifact:
         entity = attrs["artifactSequence"]["project"]["entityName"]
         project = attrs["artifactSequence"]["project"]["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
-        return cls.from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
-    def from_name(
+    def _from_name(
         cls, entity: str, project: str, name: str, client: RetryingClient
     ) -> "Artifact":
         query = gql(
@@ -263,7 +263,7 @@ class Artifact:
                 }
             }
             """
-            + cls.GQL_FRAGMENT
+            + cls._GQL_FRAGMENT
         )
         response = client.execute(
             query,
@@ -278,10 +278,10 @@ class Artifact:
             raise ValueError(
                 f"Unable to fetch artifact with name {entity}/{project}/{name}"
             )
-        return cls.from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
-    def from_attrs(
+    def _from_attrs(
         cls,
         entity: str,
         project: str,
@@ -1310,7 +1310,7 @@ class Artifact:
             f.write(json.dumps(val, sort_keys=True))
 
         if is_tmp_name:
-            file_path = os.path.join(self.TMP_DIR.name, str(id(self)), name)
+            file_path = os.path.join(self._TMP_DIR.name, str(id(self)), name)
             folder_path, _ = os.path.split(file_path)
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
@@ -1448,7 +1448,7 @@ class Artifact:
             # Run using the artifact
             with wandb.init() as r:
                 artifact = r.use_artifact("my_dataset:latest")
-                table = r.get("my_table")
+                table = artifact.get("my_table")
             ```
         """
         if self._state == ArtifactState.PENDING:
@@ -1533,7 +1533,10 @@ class Artifact:
     # Downloading.
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
+        self,
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1571,39 +1574,6 @@ class Artifact:
             start_time = datetime.datetime.now()
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
-        @retry.retriable(
-            retry_timedelta=datetime.timedelta(minutes=3),
-            retryable_exceptions=(requests.RequestException),
-        )
-        def fetch_file_urls(cursor: Optional[str]) -> Any:
-            query = gql(
-                """
-                query ArtifactFileURLs($id: ID!, $cursor: String) {
-                    artifact(id: $id) {
-                        files(after: $cursor, first: 5000) {
-                            pageInfo {
-                                hasNextPage
-                                endCursor
-                            }
-                            edges {
-                                node {
-                                    name
-                                    directUrl
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={"id": self.id, "cursor": cursor},
-                timeout=60,
-            )
-            return response["artifact"]["files"]
-
         def _download_entry(
             entry: ArtifactManifestEntry,
             api_key: Optional[str],
@@ -1614,7 +1584,13 @@ class Artifact:
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
 
-            entry.download(root)
+            try:
+                entry.download(root)
+            except FileNotFoundError as e:
+                if allow_missing_references:
+                    wandb.termwarn(str(e))
+                    return
+                raise
             download_logger.notify_downloaded()
 
         download_entry = partial(
@@ -1630,7 +1606,7 @@ class Artifact:
             has_next_page = True
             cursor = None
             while has_next_page:
-                attrs = fetch_file_urls(cursor)
+                attrs = self._fetch_file_urls(cursor)
                 has_next_page = attrs["pageInfo"]["hasNextPage"]
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
@@ -1668,6 +1644,39 @@ class Artifact:
                 prefix=False,
             )
         return FilePathStr(root)
+
+    @retry.retriable(
+        retry_timedelta=datetime.timedelta(minutes=3),
+        retryable_exceptions=(requests.RequestException),
+    )
+    def _fetch_file_urls(self, cursor: Optional[str]) -> Any:
+        query = gql(
+            """
+            query ArtifactFileURLs($id: ID!, $cursor: String) {
+                artifact(id: $id) {
+                    files(after: $cursor, first: 5000) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                directUrl
+                            }
+                        }
+                    }
+                }
+            }
+            """
+        )
+        assert self._client is not None
+        response = self._client.execute(
+            query,
+            variable_values={"id": self.id, "cursor": cursor},
+            timeout=60,
+        )
+        return response["artifact"]["files"]
 
     def checkout(self, root: Optional[str] = None) -> str:
         """Replace the specified root directory with the contents of the artifact.
@@ -2030,7 +2039,7 @@ class Artifact:
         return util.artifact_to_json(self)
 
     @staticmethod
-    def expected_type(
+    def _expected_type(
         entity_name: str, project_name: str, name: str, client: RetryingClient
     ) -> Optional[str]:
         """Returns the expected type for a given artifact name and project."""

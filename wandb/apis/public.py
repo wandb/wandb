@@ -923,7 +923,9 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = wandb.Artifact.from_name(entity, project, artifact_name, self.client)
+        artifact = wandb.Artifact._from_name(
+            entity, project, artifact_name, self.client
+        )
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
@@ -3868,7 +3870,7 @@ class RunArtifacts(Paginator):
             }
             %s
             """
-            % wandb.Artifact.GQL_FRAGMENT
+            % wandb.Artifact._GQL_FRAGMENT
         )
 
         input_query = gql(
@@ -3896,7 +3898,7 @@ class RunArtifacts(Paginator):
             }
             %s
             """
-            % wandb.Artifact.GQL_FRAGMENT
+            % wandb.Artifact._GQL_FRAGMENT
         )
 
         self.run = run
@@ -3944,7 +3946,7 @@ class RunArtifacts(Paginator):
 
     def convert_objects(self):
         return [
-            wandb.Artifact.from_attrs(
+            wandb.Artifact._from_attrs(
                 self.run.entity,
                 self.run.project,
                 "{}:v{}".format(
@@ -4198,7 +4200,7 @@ class ArtifactVersions(Paginator):
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
-                wandb.Artifact.GQL_FRAGMENT,
+                wandb.Artifact._GQL_FRAGMENT,
             )
         )
         super().__init__(client, variables, per_page)
@@ -4234,7 +4236,7 @@ class ArtifactVersions(Paginator):
         if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
         return [
-            wandb.Artifact.from_attrs(
+            wandb.Artifact._from_attrs(
                 self.entity,
                 self.project,
                 self.collection_name + ":" + a["version"],
@@ -4390,7 +4392,7 @@ class Job:
     def _get_code_artifact(self, artifact_string):
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
-            code_artifact = wandb.Artifact.from_id(artifact_string, self._api._client)
+            code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
         else:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
