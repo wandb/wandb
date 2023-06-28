@@ -49,7 +49,7 @@ def test_handle_artifact_entrypoint():
     os.makedirs(path)
 
     out_path, out_entrypoint = _handle_artifact_entrypoint(path, None)
-    assert out_path == path and not out_entrypoint
+    assert out_path == None  # path isn't to file and entrypoint is None
 
     out_path, out_entrypoint = _handle_artifact_entrypoint(path, entrypoint)
     assert out_path == path and out_entrypoint == entrypoint
