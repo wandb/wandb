@@ -1971,7 +1971,7 @@ class Api:
 
         query = gql(
             """
-        mutation createRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
+        mutation CreateRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
             createRunFiles(input: {entityName: $entity, projectName: $project, runName: $run, files: $files}) {
                 runID
                 uploadHeaders

@@ -309,21 +309,16 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict) or not isinstance(response_data, dict):
             return None
-        query = "RunUploadUrls" in request_data.get("query", "")
+
+        query = "CreateRunFiles" in request_data.get("query", "")
         if query:
-            # todo: refactor this 🤮🤮🤮🤮🤮 eventually?
-            name = request_data["variables"]["run"]
+            run_name = request_data["variables"]["run"]
             files = (
-                response_data.get("data", {})
-                .get("model", {})
-                .get("bucket", {})
-                .get("files", {})
-                .get("edges", [])
+                response_data.get("data", {}).get("createRunFiles", {}).get("files", {})
             )
-            # note: we count all attempts to upload files
             post_processed_data = {
-                "name": name,
-                "uploaded": [files[0].get("node", {}).get("name")] if files else [""],
+                "name": run_name,
+                "uploaded": [file["name"] for file in files] if files else [""],
             }
             return post_processed_data
         return None
