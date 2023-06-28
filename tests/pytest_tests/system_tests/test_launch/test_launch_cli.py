@@ -412,7 +412,7 @@ def test_create_job(path, job_type, runner, user):
 
         result = runner.invoke(
             cli.job,
-            ["create", path, job_type, "--entity", user, "--project", "proj"],
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
         )
         print(result.output)
         assert "Created job:" in result.output
@@ -433,7 +433,7 @@ def test_create_job_no_reqs(path, job_type, runner, user):
 
         result = runner.invoke(
             cli.job,
-            ["create", path, job_type, "--entity", user, "--project", "proj"],
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
         )
         print(result.output)
         assert "Could not find requirements.txt file" in result.output
