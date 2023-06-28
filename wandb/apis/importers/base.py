@@ -1,4 +1,6 @@
 import json
+import os
+import queue
 import sys
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -11,6 +13,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsDict
 from wandb.util import cast_dictlike_to_dict, coalesce
