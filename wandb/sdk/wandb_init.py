@@ -870,15 +870,11 @@ def _attach(
 
     settings: Settings = copy.copy(_wl._settings)
 
-    from datetime import datetime
-
     settings.update(
         {
             "run_id": attach_id,
             "_start_time": response._start_time.value,
-            "_start_datetime": datetime.fromisoformat(
-                response._start_datetime.value
-            ),  # todo: fixme
+            "_start_datetime": response._start_datetime.value,
             "_offline": response._offline.value,
         },
         source=Source.INIT,

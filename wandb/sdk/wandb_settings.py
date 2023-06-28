@@ -458,7 +458,7 @@ class Settings:
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
-    _start_datetime: datetime
+    _start_datetime: str
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
     _stats_sample_rate_seconds: float
@@ -750,6 +750,7 @@ class Settings:
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
+            # todo: hack to make to_proto() always happy
             resume={"preprocessor": lambda x: None if x is False else x},
             resume_fname={
                 "value": "wandb-resume.json",
@@ -822,13 +823,7 @@ class Settings:
                 "preprocessor": _str_as_bool,
             },
             timespec={
-                "hook": (
-                    lambda _: (
-                        datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
-                        if self._start_datetime
-                        else None
-                    )
-                ),
+                "hook": lambda _: self._start_datetime,
                 "auto_hook": True,
             },
             tmp_dir={
@@ -1161,10 +1156,11 @@ class Settings:
         """
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
-        object.__setattr__(self, "_Settings_start_datetime", datetime_now)
+        datetime_now_str = datetime.strftime(datetime_now, "%Y%m%d_%H%M%S")
+        object.__setattr__(self, "_Settings_start_datetime", datetime_now_str)
         object.__setattr__(self, "_Settings_start_time", time_stamp)
         self.update(
-            _start_datetime=datetime_now,
+            _start_datetime=datetime_now_str,
             _start_time=time_stamp,
             source=source,
         )
@@ -1429,10 +1425,6 @@ class Settings:
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
-            elif isinstance(v, datetime):
-                time = getattr(settings, k)
-                time.timestamp.FromDatetime(v)
-                time.value = v.isoformat()
             elif v is None:
                 # None is the default value for all settings, so we don't need to set it,
                 # i.e. None means that the value was not set.

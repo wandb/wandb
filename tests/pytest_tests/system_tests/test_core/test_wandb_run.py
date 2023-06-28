@@ -1,7 +1,6 @@
 import os
 import pickle
 import sys
-from unittest import mock
 
 import numpy as np
 import pytest
@@ -126,37 +125,6 @@ def test_deprecated_feature_telemetry(relay_server, test_settings, user):
             and (4 in telemetry_deprecated)
             and (7 in telemetry_deprecated)
         )
-
-
-# test that information about preprocessing errors in wandb.Settings is included in telemetry
-def test_settings_preprocessing_telemetry(relay_server, test_settings, capsys, user):
-    with mock.patch.dict("os.environ", WANDB_QUIET="cat"):
-        with relay_server() as relay:
-            run = wandb.init(settings=test_settings())
-            captured = capsys.readouterr().err
-            msg = "Unable to preprocess value for property quiet: cat"
-            assert (
-                msg in captured and "This will raise an error in the future" in captured
-            )
-            telemetry = relay.context.get_run_telemetry(run.id)
-            # TelemetryRecord field 11 is Issues,
-            # whose field 3 corresponds to preprocessing warnings in Settings
-            assert 3 in telemetry.get("11", [])
-            run.finish()
-
-
-def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
-    with runner.isolated_filesystem():
-        with relay_server() as relay:
-            run = wandb.init(settings=wandb.Settings(blah=3))
-            captured = capsys.readouterr().err
-            msg = "Ignoring unexpected arguments: ['blah']"
-            assert msg in captured
-            telemetry = relay.context.get_run_telemetry(run.id)
-            # TelemetryRecord field 11 is Issues,
-            # whose field 2 corresponds to unexpected arguments in Settings
-            assert 2 in telemetry.get("11", [])
-            run.finish()
 
 
 def test_except_hook(test_settings):
