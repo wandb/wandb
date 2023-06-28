@@ -458,10 +458,10 @@ def test_create_job_bad_type(path, job_type, runner, user):
 
         result = runner.invoke(
             cli.job,
-            ["create", path, job_type, "--entity", user, "--project", "proj"],
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
         )
         print(result.output)
         assert (
             "ERROR" in result.output
-            or "Usage: job create [OPTIONS] PATH" in result.output
+            or "Usage: job create [OPTIONS] {repo|artifact|image} PATH" in result.output
         )
