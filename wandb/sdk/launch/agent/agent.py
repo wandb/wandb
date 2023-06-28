@@ -598,9 +598,6 @@ class LaunchAgent:
                     job_tracker.completed_status = status
                 if status == "preempted":
                     config = launch_spec.copy()
-                    # remove resource args, they'll be reinjected by the queue
-                    # TODO: ensure all runners don't modify the received launch spec
-                    config.pop("resource_args")
                     config["run_id"] = job_tracker.run_id
                     config["_resume_count"] = config.get("_resume_count", 0) + 1
                     if config["_resume_count"] > MAX_RESUME_COUNT:
