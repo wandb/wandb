@@ -129,7 +129,7 @@ class WandbServer:
             return
         _startup_debug.print_message(message)
 
-    def _setup_proctitle(self) -> None:
+    def _setup_proctitle(self, grpc_port: Optional[int], sock_port: Optional[int]) -> None:
         # TODO: similar to _setup_tracelog, the internal_process should have
         # a better way to have access to settings.
         disable_setproctitle = os.environ.get("WANDB_DISABLE_SETPROCTITLE")
@@ -159,7 +159,7 @@ class WandbServer:
         self._startup_debug_print("after_network")
         self._inform_used_ports(grpc_port=grpc_port, sock_port=sock_port)
         self._startup_debug_print("after_inform")
-        self._setup_proctitle()
+        self._setup_proctitle(grpc_port=grpc_port, sock_port=sock_port)
         self._startup_debug_print("before_loop")
         mux.loop()
         self._stop_servers()

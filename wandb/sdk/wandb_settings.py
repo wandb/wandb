@@ -719,7 +719,7 @@ class Settings:
             disable_code={"preprocessor": _str_as_bool},
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
-            disable_setproctitle={"preprocessor": _str_as_bool},
+            disable_setproctitle={"value": False, "preprocessor": _str_as_bool},
             disable_job_creation={"value": False, "preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
