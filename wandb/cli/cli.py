@@ -1644,8 +1644,9 @@ def create(
     """
     from wandb.sdk.launch.create_job import _create_job
 
-    wandb._sentry.configure_scope(process_context="job_create")
     api = _get_cling_api()
+    wandb._sentry.configure_scope(process_context="job_create")
+
     entity = entity or os.getenv("WANDB_ENTITY") or api.default_entity
     if not entity:
         wandb.termerror("No entity provided, use --entity or set WANDB_ENTITY")

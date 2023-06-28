@@ -21,7 +21,7 @@ _logger = logging.getLogger("wandb")
 
 def create_job(
     path: str,
-    job_type: str = None,
+    job_type: str,
     entity: Optional[str] = None,
     project: Optional[str] = None,
     name: Optional[str] = None,
@@ -123,6 +123,7 @@ def _create_job(
                 "Artifact jobs must have an entrypoint, either included in the path or specified with -E"
             )
             return None, "", []
+
         artifact_metadata, requirements = _create_artifact_metadata(
             path=path, entrypoint=entrypoint, runtime=runtime
         )
@@ -155,7 +156,7 @@ def _create_job(
         project=project,
         job_type="cli_create_job",
     )
-    job_builder = _configure_job_builder(tempdir.name, job_source=job_type)
+    job_builder = _configure_job_builder_for_proto(tempdir.name, job_source=job_type)
     if job_type == "artifact":
         full_path = os.path.join(path, entrypoint or "")
         artifact_name = make_code_artifact_name(full_path, name)
@@ -292,13 +293,6 @@ def _create_repo_metadata(
             )
             return None
 
-    if entrypoint.strip().count(" ") > 0:
-        # multi-word entrypoint implies command + codePath
-        wandb.termerror(
-            "For repo artifacts, the entrypoint must be only a path to a python file. Define the python runtime either by specifying it manually, or including a .python-version file in the repo root"
-        )
-        return None
-
     metadata = {
         "git": {
             "commit": commit,
@@ -320,7 +314,7 @@ def _create_artifact_metadata(
         return {}, []
 
     if not os.path.exists(os.path.join(path, "requirements.txt")):
-        wandb.termerror("Could not find requirements.txt file in local root")
+        wandb.termerror(f"Could not find requirements.txt file in: {path}")
         return {}, []
 
     # read local requirements.txt and dump to temp dir for builder
@@ -341,14 +335,19 @@ def _handle_artifact_entrypoint(
     path: str, entrypoint: Optional[str] = None
 ) -> Tuple[str, Optional[str]]:
     if os.path.isfile(path):
-        if entrypoint:
-            wandb.termwarn("Ignoring entrypoint as path is to a file")
+        if entrypoint and path.split("/")[-1] != entrypoint:
+            wandb.termwarn(
+                "Ignoring passed in entrypoint, as 'path' is to a file, which will be used as the entrypoint"
+            )
         entrypoint = path.split("/")[-1]
         path = "/".join(path.split("/")[:-1]) or "."
+    elif not entrypoint:
+        wandb.termerror("Entrypoint not valid")
+        return "", None
     return path, entrypoint
 
 
-def _configure_job_builder(tmpdir: str, job_source: str) -> JobBuilder:
+def _configure_job_builder_for_proto(tmpdir: str, job_source: str) -> JobBuilder:
     """Configure job builder with temp dir and job source."""
     settings = wandb.Settings()
     settings.update({"files_dir": tmpdir, "job_source": job_source})

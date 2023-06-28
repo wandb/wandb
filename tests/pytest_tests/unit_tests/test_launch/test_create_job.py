@@ -5,7 +5,7 @@ import tempfile
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.create_job import (
-    _configure_job_builder,
+    _configure_job_builder_for_proto,
     _create_artifact_metadata,
     _handle_artifact_entrypoint,
     dump_metadata_and_requirements,
@@ -63,11 +63,11 @@ def test_handle_artifact_entrypoint():
     assert out_path == path, out_entrypoint == entrypoint
 
 
-def test_configure_job_builder():
+def test_configure_job_builder_for_proto():
     dir = tempfile.TemporaryDirectory().name
     job_source = "repo"
 
-    builder = _configure_job_builder(dir, job_source)
+    builder = _configure_job_builder_for_proto(dir, job_source)
     assert isinstance(builder, JobBuilder)
     assert builder._config == {}
     assert builder._summary == {}

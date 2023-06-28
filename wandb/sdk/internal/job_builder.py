@@ -181,7 +181,8 @@ class JobBuilder:
             },
         }
         if not name:
-            name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
+            name = f"job-{remote}_{program_relpath}"
+        name = make_artifact_name_safe(name)
 
         artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
@@ -223,7 +224,8 @@ class JobBuilder:
         }
 
         if not name:
-            name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+            name = f"job-{self._logged_code_artifact['name']}"
+        name = make_artifact_name_safe(name)
 
         artifact = JobArtifact(name, metadata=metadata)
         return artifact, source
@@ -239,7 +241,8 @@ class JobBuilder:
             if ":" in image_name:
                 raw_image_name, tag = image_name.split(":")
                 self._aliases += [tag]
-            name = make_artifact_name_safe(f"job-{raw_image_name}")
+            name = f"job-{raw_image_name}"
+        name = make_artifact_name_safe(name)
 
         artifact = JobArtifact(name)
         source: ImageSourceDict = {
@@ -274,9 +277,7 @@ class JobBuilder:
             assert self._proto.job_name, "job_name always required"
             source_type = self._proto.source.type
             runtime = self._proto.source.runtime
-            artifact, source, new_metadata = self._build_job_from_proto(
-                metadata
-            )
+            artifact, source, new_metadata = self._build_job_from_proto(metadata)
             if new_metadata:
                 metadata.update(new_metadata)
         else:
