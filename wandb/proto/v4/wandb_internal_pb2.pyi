@@ -2912,7 +2912,7 @@ global___KeepaliveResponse = KeepaliveResponse
 @typing_extensions.final
 class ArtifactInfo(google.protobuf.message.Message):
     """
-    Job info specific for Proto -> Job upgrade
+    Job info specific for Partial -> Job upgrade
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -2986,7 +2986,7 @@ class JobSource(google.protobuf.message.Message):
 global___JobSource = JobSource
 
 @typing_extensions.final
-class ProtoJobArtifact(google.protobuf.message.Message):
+class PartialJobArtifact(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     JOB_NAME_FIELD_NUMBER: builtins.int
@@ -3003,7 +3003,7 @@ class ProtoJobArtifact(google.protobuf.message.Message):
     def HasField(self, field_name: typing_extensions.Literal["source", b"source"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["job_name", b"job_name", "source", b"source"]) -> None: ...
 
-global___ProtoJobArtifact = ProtoJobArtifact
+global___PartialJobArtifact = PartialJobArtifact
 
 @typing_extensions.final
 class UseArtifactRecord(google.protobuf.message.Message):
@@ -3022,7 +3022,7 @@ class UseArtifactRecord(google.protobuf.message.Message):
     type: builtins.str
     name: builtins.str
     @property
-    def partial(self) -> global___ProtoJobArtifact: ...
+    def partial(self) -> global___PartialJobArtifact: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -3031,7 +3031,7 @@ class UseArtifactRecord(google.protobuf.message.Message):
         id: builtins.str = ...,
         type: builtins.str = ...,
         name: builtins.str = ...,
-        partial: global___ProtoJobArtifact | None = ...,
+        partial: global___PartialJobArtifact | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "partial", b"partial"]) -> builtins.bool: ...

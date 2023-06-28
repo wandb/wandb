@@ -454,31 +454,31 @@ class InterfaceBase:
         job_info: Dict[str, Any],
         metadata: Dict[str, Any],
     ) -> pb.UseArtifactRecord:
-        use_artifact.proto.job_name = job_name
-        use_artifact.proto.source.runtime = metadata.get("python", "")
-        use_artifact.proto.source.type = job_info.get("source_type", "")
+        use_artifact.partial.job_name = job_name
+        use_artifact.partial.source.runtime = metadata.get("python", "")
+        use_artifact.partial.source.type = job_info.get("source_type", "")
 
         if job_info.get("source_type") == "artifact":
-            use_artifact.proto.source.artifactSource.artifact = job_info.get(
+            use_artifact.partial.source.artifactSource.artifact = job_info.get(
                 "source", {}
             ).get("artifact", "")
-            use_artifact.proto.source.artifactSource.program = metadata.get(
+            use_artifact.partial.source.artifactSource.program = metadata.get(
                 "codePath", ""
             )
-            use_artifact.proto.source.artifactSource.notebook = job_info.get(
+            use_artifact.partial.source.artifactSource.notebook = job_info.get(
                 "source", {}
             ).get("notebook", False)
-            use_artifact.proto.source.artifactSource.name = job_info.get(
+            use_artifact.partial.source.artifactSource.name = job_info.get(
                 "source", {}
             ).get("artifact_name", "")
         elif job_info.get("source_type") == "repo":
-            use_artifact.proto.source.gitSource.remote = metadata.get("git", {}).get(
+            use_artifact.partial.source.gitSource.remote = metadata.get("git", {}).get(
                 "remote", ""
             )
-            use_artifact.proto.source.gitSource.commit = metadata.get("git", {}).get(
+            use_artifact.partial.source.gitSource.commit = metadata.get("git", {}).get(
                 "commit", ""
             )
-            use_artifact.proto.source.gitSource.root = metadata.get("root", "")
+            use_artifact.partial.source.gitSource.root = metadata.get("root", "")
         elif job_info.get("source_type") == "image":
             # no extra handling for image, just need the job_name
             pass
@@ -497,8 +497,8 @@ class InterfaceBase:
             name=artifact.name,
         )
 
-        if "_proto" in artifact.metadata:
-            # Download source info from logged proto job artifact
+        if "_partial" in artifact.metadata:
+            # Download source info from logged partial job artifact
             job_info = {}
             try:
                 path = artifact.get_path("wandb-job.json").download()
@@ -506,7 +506,7 @@ class InterfaceBase:
                     job_info = json.load(f)
             except Exception as e:
                 logger.warning(
-                    f"Failed to download proto job info from artifact {artifact}, : {e}"
+                    f"Failed to download partial job info from artifact {artifact}, : {e}"
                 )
             use_artifact = self._make_proto_use_artifact(
                 use_artifact=use_artifact,
