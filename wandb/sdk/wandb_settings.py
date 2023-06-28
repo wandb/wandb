@@ -67,6 +67,18 @@ else:
         return dict(obj.__annotations__) if hasattr(obj, "__annotations__") else dict()
 
 
+class SettingsPreprocessingError(UsageError):
+    """Raised when the value supplied to a wandb.Settings() setting does not pass preprocessing."""
+
+
+class SettingsValidationError(UsageError):
+    """Raised when the value supplied to a wandb.Settings() setting does not pass validation."""
+
+
+class SettingsUnexpectedArgsError(UsageError):
+    """Raised when unexpected arguments are passed to wandb.Settings()."""
+
+
 def _get_wandb_dir(root_dir: str) -> str:
     """Get the full path to the wandb directory.
 
@@ -90,7 +102,6 @@ def _get_wandb_dir(root_dir: str) -> str:
     return os.path.expanduser(path)
 
 
-# todo: should either return bool or error out. fix once confident.
 def _str_as_bool(val: Union[str, bool]) -> bool:
     """Parse a string as a bool."""
     if isinstance(val, bool):
@@ -101,11 +112,6 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     except (AttributeError, ValueError):
         pass
 
-    # todo: remove this and only raise error once we are confident.
-    wandb.termwarn(
-        f"Could not parse value {val} as a bool. ",
-        repeat=False,
-    )
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
@@ -118,11 +124,6 @@ def _str_as_json(val: Union[str, Dict[str, Any]]) -> Any:
     except (AttributeError, ValueError):
         pass
 
-    # todo: remove this and only raise error once we are confident.
-    wandb.termwarn(
-        f"Could not parse value {val} as JSON. ",
-        repeat=False,
-    )
     raise UsageError(f"Could not parse value {val} as JSON.")
 
 
@@ -291,25 +292,6 @@ class Property:
     E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
 
-    # todo: this is a temporary measure to bypass validation of the settings
-    #  whose validation was not previously enforced to make sure we don't brake anything.
-    __strict_validate_settings = {
-        "project",
-        "start_method",
-        "mode",
-        "console",
-        "problem",
-        "anonymous",
-        "strict",
-        "silent",
-        "show_info",
-        "show_warnings",
-        "show_errors",
-        "base_url",
-        "login_timeout",
-        "_async_upload_concurrency_limit",
-    }
-
     def __init__(  # pylint: disable=unused-argument
         self,
         name: str,
@@ -333,10 +315,6 @@ class Property:
         self._auto_hook = auto_hook
         self._is_policy = is_policy
         self._source = source
-
-        # todo: this is a temporary measure to collect stats on failed preprocessing and validation
-        self.__failed_preprocessing: bool = False
-        self.__failed_validation: bool = False
 
         # preprocess and validate value
         self._value = self._validate(self._preprocess(value))
@@ -371,38 +349,24 @@ class Property:
             for p in _preprocessor:
                 try:
                     value = p(value)
-                except (UsageError, ValueError):
-                    wandb.termwarn(
-                        f"Unable to preprocess value for property {self.name}: {value}. "
-                        "This will raise an error in the future.",
-                        repeat=False,
+                except Exception:
+                    raise SettingsPreprocessingError(
+                        f"Unable to preprocess value for property {self.name}: {value}."
                     )
-                    self.__failed_preprocessing = True
-                    break
         return value
 
     def _validate(self, value: Any) -> Any:
-        self.__failed_validation = False  # todo: this is a temporary measure
         if value is not None and self._validator is not None:
             _validator = (
                 [self._validator] if callable(self._validator) else self._validator
             )
             for v in _validator:
                 if not v(value):
-                    # todo: this is a temporary measure to bypass validation of certain settings.
-                    #  remove this once we are confident
-                    if self.name in self.__strict_validate_settings:
-                        raise ValueError(
-                            f"Invalid value for property {self.name}: {value}"
-                        )
-                    else:
-                        wandb.termwarn(
-                            f"Invalid value for property {self.name}: {value}. "
-                            "This will raise an error in the future.",
-                            repeat=False,
-                        )
-                        self.__failed_validation = True
-                        break
+                    # failed validation will likely cause a downstream error
+                    # when trying to convert to protobuf, so we raise a hard error
+                    raise SettingsValidationError(
+                        f"Invalid value for property {self.name}: {value}."
+                    )
         return value
 
     def update(self, value: Any, source: int = Source.OVERRIDE) -> None:
@@ -1220,12 +1184,6 @@ class Settings:
 
         self.__modification_order = SETTINGS_TOPOLOGICALLY_SORTED
 
-        # todo: this is collect telemetry on validation errors and unexpected args
-        # values are stored as strings to avoid potential json serialization errors down the line
-        self.__preprocessing_warnings: Dict[str, str] = dict()
-        self.__validation_warnings: Dict[str, str] = dict()
-        self.__unexpected_args: Set[str] = set()
-
         # Set default settings values
         # We start off with the class attributes and `default_props` dicts
         # and then create Property objects.
@@ -1270,26 +1228,13 @@ class Settings:
                     ),
                 )
 
-            # todo: this is to collect stats on preprocessing and validation errors
-            if self.__dict__[prop].__dict__["_Property__failed_preprocessing"]:
-                self.__preprocessing_warnings[prop] = str(self.__dict__[prop]._value)
-            if self.__dict__[prop].__dict__["_Property__failed_validation"]:
-                self.__validation_warnings[prop] = str(self.__dict__[prop]._value)
-
         # update overridden defaults from kwargs
         unexpected_arguments = [k for k in kwargs.keys() if k not in self.__dict__]
         # allow only explicitly defined arguments
         if unexpected_arguments:
-            # todo: remove this and raise error instead once we are confident
-            self.__unexpected_args.update(unexpected_arguments)
-            wandb.termwarn(
-                f"Ignoring unexpected arguments: {unexpected_arguments}. "
-                "This will raise an error in the future."
+            raise SettingsUnexpectedArgsError(
+                f"Got unexpected arguments: {unexpected_arguments}. "
             )
-            for k in unexpected_arguments:
-                kwargs.pop(k)
-
-            # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
 
         # automatically inspect setting validators and runtime hooks and topologically sort them
         # so that we can safely update them. throw error if there are cycles.
@@ -1411,15 +1356,6 @@ class Settings:
                 if isinstance(v, Property):
                     if v._value != defaults.__dict__[k]._value:
                         settings_dict[k] = v._value
-            # todo: store warnings from the passed Settings object, if any,
-            #  to collect telemetry on validation errors and unexpected args.
-            #  remove this once strict checking is enforced.
-            for attr in (
-                "_Settings__unexpected_args",
-                "_Settings__preprocessing_warnings",
-                "_Settings__validation_warnings",
-            ):
-                getattr(self, attr).update(getattr(settings, attr))
             # replace with the generated dict
             settings = settings_dict
 
@@ -1437,7 +1373,7 @@ class Settings:
         # only if all keys are valid, update them
 
         # store settings to be updated in a dict to preserve stats on preprocessing and validation errors
-        updated_settings = settings.copy()
+        settings.copy()
 
         # update properties that have deps or are dependent on in the topologically-sorted order
         for key in self.__modification_order:
@@ -1447,18 +1383,6 @@ class Settings:
         # update the remaining properties
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
-
-        for key in updated_settings.keys():
-            # todo: this is to collect stats on preprocessing and validation errors
-            if self.__dict__[key].__dict__["_Property__failed_preprocessing"]:
-                self.__preprocessing_warnings[key] = str(self.__dict__[key]._value)
-            else:
-                self.__preprocessing_warnings.pop(key, None)
-
-            if self.__dict__[key].__dict__["_Property__failed_validation"]:
-                self.__validation_warnings[key] = str(self.__dict__[key]._value)
-            else:
-                self.__validation_warnings.pop(key, None)
 
     def items(self) -> ItemsView[str, Any]:
         return self.make_static().items()
@@ -1546,12 +1470,6 @@ class Settings:
         for k, v in attributes.items():
             # note that only the same/higher priority settings are propagated
             self.update({k: v._value}, source=v.source)
-
-        # todo: this is to pass on info on unexpected args in settings
-        if settings.__dict__["_Settings__unexpected_args"]:
-            self.__dict__["_Settings__unexpected_args"].update(
-                settings.__dict__["_Settings__unexpected_args"]
-            )
 
     @staticmethod
     def _load_config_file(file_name: str, section: str = "default") -> dict:

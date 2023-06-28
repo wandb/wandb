@@ -128,24 +128,7 @@ def test_deprecated_feature_telemetry(relay_server, test_settings, user):
         )
 
 
-# test that information about validation errors in wandb.Settings is included in telemetry
-def test_settings_validation_telemetry(relay_server, test_settings, capsys, user):
-    test_settings = test_settings()
-    test_settings.update(api_key=123)
-    captured = capsys.readouterr().err
-    msg = "Invalid value for property api_key: 123"
-    assert msg in captured
-
-    with relay_server() as relay:
-        run = wandb.init(settings=test_settings)
-        telemetry = relay.context.get_run_telemetry(run.id)
-        # TelemetryRecord field 11 is Issues,
-        # whose field 1 corresponds to validation warnings in Settings
-        assert 1 in telemetry.get("11", [])
-        run.finish()
-
-
-# test that information about validation errors in wandb.Settings is included in telemetry
+# test that information about preprocessing errors in wandb.Settings is included in telemetry
 def test_settings_preprocessing_telemetry(relay_server, test_settings, capsys, user):
     with mock.patch.dict("os.environ", WANDB_QUIET="cat"):
         with relay_server() as relay:

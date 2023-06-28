@@ -1,5 +1,4 @@
 import copy
-import inspect
 import json
 import os
 import subprocess
@@ -32,7 +31,7 @@ is_instance_recursive = wandb_settings.is_instance_recursive
 
 
 def test_multiproc_strict_bad(test_settings):
-    with pytest.raises(ValueError):
+    with pytest.raises(wandb_settings.SettingsPreprocessingError):
         test_settings(dict(strict="bad"))
 
 
@@ -122,21 +121,10 @@ def test_property_multiple_validators():
 
 
 # fixme: remove this once full validation is restored
-def test_property_strict_validation(capsys):
-    attributes = inspect.getmembers(Property, lambda a: not (inspect.isroutine(a)))
-    strict_validate_settings = [
-        a for a in attributes if a[0] == "_Property__strict_validate_settings"
-    ][0][1]
-    for name in strict_validate_settings:
-        p = Property(name=name, validator=lambda x: isinstance(x, int))
-        with pytest.raises(ValueError):
-            p.update(value="rubbish")
-
+def test_property_strict_validation():
     p = Property(name="api_key", validator=lambda x: isinstance(x, str))
-    p.update(value=31415926)
-    captured = capsys.readouterr().err
-    msg = "Invalid value for property api_key: 31415926"
-    assert msg in captured
+    with pytest.raises(wandb_settings.SettingsValidationError):
+        p.update(value=31415926)
 
 
 def test_settings_validator_method_names():
@@ -297,35 +285,20 @@ def test_default_props_match_class_attributes():
     assert set(default_props) - set(class_attributes) == set()
 
 
-# fixme: remove this once full validation is restored
-def test_settings_strict_validation(capsys):
-    s = Settings(api_key=271828, lol=True)
-    assert s.api_key == 271828
-    with pytest.raises(AttributeError):
-        s.lol  # noqa: B018
-    captured = capsys.readouterr().err
-    msgs = (
-        "Ignoring unexpected arguments: ['lol']",
-        "Invalid value for property api_key: 271828",
-    )
-    for msg in msgs:
-        assert msg in captured
+def test_settings_strict_validation():
+    with pytest.raises(wandb_settings.SettingsUnexpectedArgsError):
+        Settings(api_key=271828, lol=True)
+
+
+def test_settings_strict_validation_2():
+    with pytest.raises(wandb_settings.SettingsValidationError):
+        Settings(api_key=271828)
 
 
 def test_static_settings_json_dump():
     s = Settings()
     static_settings = s.make_static()
     assert json.dumps(static_settings)
-
-
-# fixme: remove this once full validation is restored
-def test_no_repeat_warnings(capsys):
-    s = Settings(api_key=234)
-    assert s.api_key == 234
-    s.update(api_key=234)
-    captured = capsys.readouterr().err
-    msg = "Invalid value for property api_key: 234"
-    assert captured.count(msg) == 1
 
 
 def test_program_python_m():
