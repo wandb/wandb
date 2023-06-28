@@ -29,6 +29,7 @@ FAILED_PACKAGES_REGEX = re.compile(
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -619,12 +620,23 @@ def make_name_dns_safe(name: str) -> str:
     return resp
 
 
-def warn_failed_packages_from_build_logs(log: str, image_uri: str) -> None:
+def warn_failed_packages_from_build_logs(
+    log: str, image_uri: str, api: Api, job_tracker: Optional["JobAndRunStatusTracker"]
+) -> None:
     match = FAILED_PACKAGES_REGEX.search(log)
     if match:
-        wandb.termwarn(
-            f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
-        )
+        _msg = f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
+        wandb.termwarn(_msg)
+        if job_tracker is not None:
+            res = job_tracker.saver.save_contents(
+                _msg, "failed-packages.log", "warning"
+            )
+            api.update_run_queue_item_warning(
+                job_tracker.run_queue_item_id,
+                "Some packages were not successfully installed during the build",
+                "build",
+                res,
+            )
 
 
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
