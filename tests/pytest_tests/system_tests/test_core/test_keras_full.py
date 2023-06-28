@@ -221,7 +221,6 @@ def test_keras_image_output(dummy_model, dummy_data, relay_server, wandb_init):
 
 
 def test_dataset_functional(relay_server, wandb_init):
-
     with relay_server() as relay:
         run = wandb_init()
 

@@ -25,7 +25,6 @@ def test_telemetry_finish(relay_server, wandb_init):
 
 
 def test_telemetry_imports(relay_server, wandb_init):
-
     with relay_server() as relay:
         transformers_mock = mock.MagicMock()
         transformers_mock.__name__ = "transformers"

@@ -13,12 +13,13 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from wandb.data_types import _json_helper
+import wandb.data_types
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
 
@@ -102,7 +103,7 @@ class WBTraceTree(Media):
     def get_media_subdir(cls) -> str:
         return "media/wb_trace_tree"
 
-    def to_json(self, run: Optional[Union["LocalRun", "LocalArtifact"]]) -> dict:
+    def to_json(self, run: Optional[Union["LocalRun", "Artifact"]]) -> dict:
         res = {}
         res["_type"] = self._log_type
         # Here we use `dumps` to put things into string format. This is because
@@ -141,7 +142,7 @@ def _fallback_serialize(obj: Any) -> str:
 def _safe_serialize(obj: dict) -> str:
     try:
         return json.dumps(
-            _json_helper(obj, None),
+            wandb.data_types._json_helper(obj, None),
             skipkeys=True,
             default=_fallback_serialize,
         )

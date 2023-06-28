@@ -186,7 +186,7 @@ def internal_wm(
         with runner.isolated_filesystem():
             wandb_file = settings.sync_file
 
-            # this is hacky, but we dont have a clean rundir always
+            # this is hacky, but we don't have a clean rundir always
             # so lets at least make sure we can write to this dir
             run_dir = Path(wandb_file).parent
             os.makedirs(run_dir)
@@ -535,7 +535,7 @@ def check_server_up(
             "wandb-local",
             "--platform",
             "linux/amd64",
-            f"gcr.io/wandb-production/local-testcontainer:{wandb_server_tag}",
+            f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{wandb_server_tag}",
         ]
         subprocess.Popen(command)
         # wait for the server to start

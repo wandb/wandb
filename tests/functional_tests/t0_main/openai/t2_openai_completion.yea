@@ -1,4 +1,4 @@
-id: 0.openai.02-completion
+id: 0.llm-openai.03-completion
 plugin:
   - wandb
 tag:
@@ -9,12 +9,24 @@ depend:
     requirements:
         - "openai>=0.27.4"
 assert:
-    - :wandb:runs_len: 1
-    - :wandb:runs[0][exitcode]: 0
-    - :wandb:runs[0][summary][trace][_type]: wb_trace_tree
-    - :op:contains:
-        - :wandb:runs[0][summary][trace]
-        - root_span_dumps
-    - :op:contains:
-        - :wandb:runs[0][summary][trace]
-        - model_dict_dumps
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[0][history][0][trace][_type]: wb_trace_tree
+  - :wandb:runs[0][summary][stats][_type]: table-file
+  - :wandb:runs[0][summary][stats][nrows]: 1
+  - :wandb:runs[0][summary][stats][ncols]: 12
+  - :op:contains:
+      - :wandb:runs[0][history][0][trace]
+      - root_span_dumps
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - usage/completion_tokens
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - usage/prompt_tokens
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - usage/total_tokens
+  - :op:contains:
+      - :wandb:runs[0][history][0][trace]
+      - model_dict_dumps
