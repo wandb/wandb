@@ -10,6 +10,7 @@ from .run_queue_item_file_saver import RunQueueItemFileSaver
 @dataclass
 class JobAndRunStatusTracker:
     run_queue_item_id: str
+    queue: str
     saver: RunQueueItemFileSaver
     run_id: Optional[str] = None
     project: Optional[str] = None
