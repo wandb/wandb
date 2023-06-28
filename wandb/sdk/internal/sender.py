@@ -1482,7 +1482,7 @@ class SendManager:
             history_step=history_step,
         )
 
-        self._job_builder._set_logged_code_artifact(res, artifact)
+        # self._job_builder._set_logged_code_artifact(res, artifact)
         return res
 
     def send_alert(self, record: "Record") -> None:
