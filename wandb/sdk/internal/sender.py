@@ -306,16 +306,14 @@ class SendManager:
         cls,
         root_dir: str,
         resume: Union[None, bool, str],
-        settings_override: Optional[SettingsDict] = None,
     ) -> "SendManager":
         """Set up a standalone SendManager.
 
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
-        _settings_override: SettingsDict = util.coalesce(settings_override, {})
-
-        default_settings: SettingsDict = dict(
+        # TODO(settings) replace with wandb.Settings
+        sd: SettingsDict = dict(
             files_dir=files_dir,
             root_dir=root_dir,
             _start_time=0,
@@ -341,10 +339,6 @@ class SendManager:
             disable_job_creation=False,
             _async_upload_concurrency_limit=None,
         )
-
-        # TODO(settings) replace with wandb.Settings
-        sd: SettingsDict = {**default_settings, **_settings_override}
-        # sd.update(_settings_override)
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
