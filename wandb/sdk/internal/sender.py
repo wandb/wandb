@@ -339,7 +339,6 @@ class SendManager:
             disable_job_creation=False,
             _async_upload_concurrency_limit=None,
         )
-        # sd.update(_settings_override)
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
