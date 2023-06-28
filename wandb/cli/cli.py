@@ -949,6 +949,9 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
+    # get personal username, not team name or service account, default to entity
+    author = api.viewer().get("username") or entity
+
     # if not sweep_config XOR resume_id
     if not (config or resume_id):
         wandb.termerror("'config' and/or 'resume_id' required")
@@ -1036,7 +1039,7 @@ def launch_sweep(
         sweep_config=sweep_config,
         queue=queue,
         project=project,
-        author=entity,
+        author=author,
     )
     if not args:
         return
