@@ -623,7 +623,7 @@ class Run:
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
         wandb._sentry.configure_scope(
-            settings=self._settings,
+            settings=self._settings.to_dict(),
             process_context="user",
         )
 
@@ -1479,7 +1479,7 @@ class Run:
 
         wandb._sentry.configure_scope(
             process_context="user",
-            settings=self._settings,
+            settings=self._settings.to_dict(),
         )
 
     def _add_singleton(

@@ -134,6 +134,13 @@ def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
     return tuple(val)
 
 
+def _datetime_as_str(val: Union[datetime, str]) -> str:
+    """Parse a datetime object as a string."""
+    if isinstance(val, datetime):
+        return datetime.strftime(val, "%Y%m%d_%H%M%S")
+    return val
+
+
 def _redact_dict(
     d: Dict[str, Any],
     unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
@@ -642,6 +649,7 @@ class Settings:
                 "preprocessor": float,
                 "validator": self._validate__service_wait,
             },
+            _start_datetime={"preprocessor": _datetime_as_str},
             _stats_sample_rate_seconds={
                 "value": 2.0,
                 "preprocessor": float,
@@ -1156,7 +1164,7 @@ class Settings:
         """
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
-        datetime_now_str = datetime.strftime(datetime_now, "%Y%m%d_%H%M%S")
+        datetime_now_str = _datetime_as_str(datetime_now)
         object.__setattr__(self, "_Settings_start_datetime", datetime_now_str)
         object.__setattr__(self, "_Settings_start_time", time_stamp)
         self.update(
@@ -1314,14 +1322,14 @@ class Settings:
         object.__setattr__(self, key, value)
 
     def __iter__(self) -> Iterable:
-        return iter(self.make_static())
+        return iter(self.to_dict())
 
     def copy(self) -> "Settings":
         return self.__copy__()
 
     # implement the Mapping interface
     def keys(self) -> Iterable[str]:
-        return self.make_static().keys()
+        return self.to_dict().keys()
 
     @no_type_check  # this is a hack to make mypy happy
     def __getitem__(self, name: str) -> Any:
@@ -1381,10 +1389,10 @@ class Settings:
             self.__dict__[key].update(value, source)
 
     def items(self) -> ItemsView[str, Any]:
-        return self.make_static().items()
+        return self.to_dict().items()
 
     def get(self, key: str, default: Optional[Any] = None) -> Any:
-        return self.make_static().get(key, default)
+        return self.to_dict().get(key, default)
 
     def freeze(self) -> None:
         object.__setattr__(self, "_Settings__frozen", True)
@@ -1395,8 +1403,8 @@ class Settings:
     def is_frozen(self) -> bool:
         return self.__frozen
 
-    def make_static(self) -> Dict[str, Any]:
-        """Generate a static, serializable version of the settings."""
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a dict representation of the settings."""
         # get attributes that are instances of the Property class:
         attributes = {
             k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)
@@ -1406,7 +1414,7 @@ class Settings:
     def to_proto(self) -> wandb_settings_pb2.Settings:
         """Generate a protobuf representation of the settings."""
         settings = wandb_settings_pb2.Settings()
-        for k, v in self.make_static().items():
+        for k, v in self.to_dict().items():
             # print(k, v)
             if isinstance(v, bool):
                 getattr(settings, k).CopyFrom(BoolValue(value=v))

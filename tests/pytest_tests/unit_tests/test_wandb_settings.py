@@ -297,7 +297,7 @@ def test_settings_strict_validation_2():
 
 def test_static_settings_json_dump():
     s = Settings()
-    static_settings = s.make_static()
+    static_settings = s.to_dict()
     assert json.dumps(static_settings)
 
 

@@ -48,6 +48,7 @@ from wandb.sdk.lib import (
     tracelog,
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
+from wandb.sdk.lib.proto_util import message_to_dict
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
@@ -986,8 +987,8 @@ class SendManager:
             commit=run.git.commit or None,
         )
         # TODO: we don't want to create jobs in sweeps, since the
-        # executable doesn't appear to be consistent
-        if self._settings.sweep_id:
+        #  executable doesn't appear to be consistent
+        if run.sweep_id:
             self._job_builder.disable = True
 
         self._server_messages = server_messages or []
@@ -1069,11 +1070,10 @@ class SendManager:
 
         # hack to merge run_settings and self._settings object together
         # so that fields like entity or project are available to be attached to Sentry events.
-        # todo: fixme
-        #  !!!!
-        # run_settings = message_to_dict(self._run)
-        # self._settings = self._settings.merge_from(run_settings)
-        wandb._sentry.configure_scope(settings=self._settings)
+        run_settings = message_to_dict(self._run)
+        _settings = dict(self._settings)
+        _settings.update(run_settings)
+        wandb._sentry.configure_scope(settings=_settings)
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
