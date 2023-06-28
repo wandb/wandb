@@ -1128,9 +1128,9 @@ def launch_sweep(
     "-E",
     metavar="NAME",
     default=None,
-    help="""Entry point within project. [default: main]. If the entry point is not found, 
-    attempts to run the project file with the specified name as a script, 
-    using 'python' to run .py files and the default shell (specified by 
+    help="""Entry point within project. [default: main]. If the entry point is not found,
+    attempts to run the project file with the specified name as a script,
+    using 'python' to run .py files and the default shell (specified by
     environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.""",
 )
 @click.option(
@@ -1143,7 +1143,7 @@ def launch_sweep(
 @click.option(
     "--name",
     envvar="WANDB_NAME",
-    help="""Name of the run under which to launch the run. If not 
+    help="""Name of the run under which to launch the run. If not
     specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.""",
 )
 @click.option(
@@ -1159,7 +1159,7 @@ def launch_sweep(
     "-p",
     metavar="(str)",
     default=None,
-    help="""Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri 
+    help="""Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri
     or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.""",
 )
 @click.option(
@@ -1167,8 +1167,8 @@ def launch_sweep(
     "-r",
     metavar="BACKEND",
     default=None,
-    help="""Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'. 
-    This is now a required parameter if pushing to a queue with no resource configuration. 
+    help="""Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'.
+    This is now a required parameter if pushing to a queue with no resource configuration.
     If passed in, will override the resource value passed in using a config file.""",
 )
 @click.option(
@@ -1183,7 +1183,7 @@ def launch_sweep(
     "--config",
     "-c",
     metavar="FILE",
-    help="""Path to JSON file (must end in '.json') or JSON string which will be passed 
+    help="""Path to JSON file (must end in '.json') or JSON string which will be passed
     as a launch config. Dictation how the launched run will be configured.""",
 )
 @click.option(
