@@ -262,6 +262,17 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_internal_messages(
+        self, status: pb.InternalMessagesRequest
+    ) -> MailboxHandle:
+        assert self._stub
+        self._assign(status)
+        internal_messages_response = pb.InternalMessagesResponse()
+        response = pb.Response(internal_messages_response=internal_messages_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def _communicate_stop_status(
         self, status: pb.StopStatusRequest
     ) -> Optional[pb.StopStatusResponse]:
