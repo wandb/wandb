@@ -8,6 +8,7 @@ class SettingsStatic:
     # TODO(jhr): figure out how to share type defs with sdk/wandb_settings.py
     _offline: Optional[bool]
     _sync: bool
+    _disable_setproctitle: bool
     _disable_stats: Optional[bool]
     _disable_meta: Optional[bool]
     _flow_control: bool
@@ -63,7 +64,6 @@ class SettingsStatic:
     _flow_control_disabled: bool
     _flow_control_custom: bool
     disable_job_creation: bool
-    disable_setproctitle: bool
     _async_upload_concurrency_limit: Optional[int]
     _extra_http_headers: Optional[Mapping[str, str]]
     job_source: Optional[str]
