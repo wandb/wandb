@@ -509,6 +509,7 @@ class Settings:
     allow_val_change: bool
     anonymous: str
     api_key: str
+    azure_account_url_to_access_key: Dict[str, str]
     base_url: str  # The base url for the wandb api
     code_dir: str
     config_paths: Sequence[str]
@@ -702,6 +703,7 @@ class Settings:
             },
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
+            azure_account_url_to_access_key={"value": {}},
             base_url={
                 "value": "https://api.wandb.ai",
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
