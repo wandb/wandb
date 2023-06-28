@@ -63,6 +63,7 @@ class SettingsStatic:
     _flow_control_disabled: bool
     _flow_control_custom: bool
     disable_job_creation: bool
+    disable_setproctitle: bool
     _async_upload_concurrency_limit: Optional[int]
     _extra_http_headers: Optional[Mapping[str, str]]
     job_source: Optional[str]
