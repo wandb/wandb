@@ -103,6 +103,7 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
         GetSummaryResponse,
+        InternalMessagesResponse,
         SampledHistoryResponse,
     )
 
@@ -534,6 +535,7 @@ class Run:
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
+    _internal_messages_response: Optional["InternalMessagesResponse"]
 
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
@@ -636,6 +638,7 @@ class Run:
         self._final_summary = None
         self._poll_exit_response = None
         self._server_info_response = None
+        self._internal_messages_response = None
         self._poll_exit_handle = None
 
         # Initialize telemetry object
@@ -2399,8 +2402,8 @@ class Run:
 
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)
-        for message in result.response.internal_messages_response.messages.warning:
-            wandb.termwarn(message)
+        assert result
+        self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
@@ -2448,6 +2451,7 @@ class Run:
             self._poll_exit_response,
             self._server_info_response,
             self._check_version,
+            self._internal_messages_response,
             self._reporter,
             self._quiet,
             settings=self._settings,
@@ -3240,7 +3244,8 @@ class Run:
         final_summary: Optional["GetSummaryResponse"] = None,
         poll_exit_response: Optional[PollExitResponse] = None,
         server_info_response: Optional[ServerInfoResponse] = None,
-        check_version: Optional["CheckVersionResponse"] = None,
+        check_version_response: Optional["CheckVersionResponse"] = None,
+        internal_messages_response: Optional["InternalMessagesResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3263,10 +3268,19 @@ class Run:
         )
         Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
         Run._footer_version_check_info(
-            check_version=check_version, quiet=quiet, settings=settings, printer=printer
+            check_version=check_version_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
         )
         Run._footer_local_warn(
             server_info_response=server_info_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+        Run._footer_internal_messages(
+            internal_messages_response=internal_messages_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3576,6 +3590,23 @@ class Run:
                     f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
                     level="warn",
                 )
+
+    @staticmethod
+    def _footer_internal_messages(
+        internal_messages_response: Optional["InternalMessagesResponse"] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if not internal_messages_response:
+            return
+
+        for message in internal_messages_response.messages.warning:
+            printer.display(message, level="warn")
 
     @staticmethod
     def _footer_server_messages(

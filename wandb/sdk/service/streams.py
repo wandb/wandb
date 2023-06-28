@@ -328,6 +328,11 @@ class StreamMux:
             server_info_handle = stream.interface.deliver_request_server_info()
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
+            internal_messages_handle = stream.interface.deliver_internal_messages()
+
+            result = internal_messages_handle.wait(timeout=-1)
+            assert result
+            internal_messages_response = result.response.internal_messages_response
 
             # wait for them, it's ok to do this serially but this can be improved
             result = poll_exit_handle.wait(timeout=-1)
@@ -351,6 +356,7 @@ class StreamMux:
                 final_summary,
                 poll_exit_response,
                 server_info_response,
+                internal_messages_response=internal_messages_response,
                 settings=stream._settings,  # type: ignore
                 printer=printer,
             )
