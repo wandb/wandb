@@ -16,9 +16,8 @@ from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.internal.settings_static import SettingsDict
+from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
 from wandb.util import cast_dictlike_to_dict, coalesce
-
 if sys.version_info >= (3, 8):
     from typing import Protocol
 else:
@@ -336,30 +335,15 @@ def send_run_with_send_manager(
         "files_dir": os.path.join(root_dir, "files"),
         "root_dir": root_dir,
         "_start_time": 0,
-        "git_remote": None,
         "resume": False,
         "program": None,
         "ignore_globs": (),
-        "run_id": None,
-        "entity": None,
-        "project": None,
-        "run_group": None,
-        "job_type": None,
-        "run_tags": None,
-        "run_name": None,
-        "run_notes": None,
-        "save_code": None,
-        "email": None,
         "silent": None,
-        "_offline": None,
         "_sync": True,
-        "_live_policy_rate_limit": None,
-        "_live_policy_wait_time": None,
         "disable_job_creation": False,
         "_async_upload_concurrency_limit": None,
     }
-    settings = {**default_settings, **_settings_override}
-
+    settings = SettingsStatic({**default_settings, **_settings_override})
     record_q = queue.Queue()
     result_q = queue.Queue()
     interface = InterfaceQueue(record_q=record_q)
