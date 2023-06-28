@@ -23,6 +23,7 @@ from typing import (
 
 from wandb.proto.wandb_internal_pb2 import (
     HistoryRecord,
+    InternalMessages,
     MetricRecord,
     Record,
     Result,
@@ -119,6 +120,7 @@ class HandleManager:
         self._metric_globs = defaultdict(MetricRecord)
         self._metric_track = dict()
         self._metric_copy = dict()
+        self._internal_messages = InternalMessages()
 
         # TODO: implement release protocol to clean this up
         self._artifact_xid_done = dict()
@@ -550,9 +552,9 @@ class HandleManager:
         history_dict = proto_util.dict_from_proto_list(partial_history.item)
         if step is not None:
             if step < self._step:
-                logger.warning(
-                    f"Step {step} < {self._step}. Dropping entry: {history_dict}."
-                )
+                message = f"Step {step} < {self._step}. Dropping entry: {history_dict}."
+                self._internal_messages.warning.append(message)
+                # print(self._internal_messages)
                 return
             elif step > self._step:
                 self._flush_partial_history()
@@ -739,6 +741,14 @@ class HandleManager:
 
     def handle_request_network_status(self, record: Record) -> None:
         self._dispatch_record(record)
+
+    def handle_request_internal_messages(self, record: Record) -> None:
+        result = proto_util._result_from_record(record)
+        result.response.internal_messages_response.messages.CopyFrom(
+            self._internal_messages
+        )
+        self._internal_messages.Clear()
+        self._respond_result(result)
 
     def handle_request_status(self, record: Record) -> None:
         # TODO(mempressure): do something better?

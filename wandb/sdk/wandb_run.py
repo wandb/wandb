@@ -161,6 +161,8 @@ class RunStatusChecker:
     _stop_status_handle: Optional[MailboxHandle]
     _network_status_lock: threading.Lock
     _network_status_handle: Optional[MailboxHandle]
+    _internal_messages_lock: threading.Lock
+    _internal_messages_handle: Optional[MailboxHandle]
 
     def __init__(
         self,
@@ -190,9 +192,18 @@ class RunStatusChecker:
             daemon=True,
         )
 
+        self._internal_messages_lock = threading.Lock()
+        self._internal_messages_handle = None
+        self._internal_messages_thread = threading.Thread(
+            target=self.check_internal_messages,
+            name="IntMsgThr",
+            daemon=True,
+        )
+
     def start(self) -> None:
         self._stop_thread.start()
         self._network_status_thread.start()
+        self._internal_messages_thread.start()
 
     def _loop_check_status(
         self,
@@ -278,6 +289,20 @@ class RunStatusChecker:
             process=_process_stop_status,
         )
 
+    def check_internal_messages(self) -> None:
+        def _process_internal_messages(result: Result) -> None:
+            internal_messages = result.response.internal_messages_response
+            for msg in internal_messages.messages.warning:
+                wandb.termwarn(msg)
+
+        self._loop_check_status(
+            lock=self._internal_messages_lock,
+            set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+            timeout=1,
+            request=self._interface.deliver_internal_messages,
+            process=_process_internal_messages,
+        )
+
     def stop(self) -> None:
         self._join_event.set()
         with self._stop_status_lock:
@@ -286,11 +311,15 @@ class RunStatusChecker:
         with self._network_status_lock:
             if self._network_status_handle:
                 self._network_status_handle.abandon()
+        with self._internal_messages_lock:
+            if self._internal_messages_handle:
+                self._internal_messages_handle.abandon()
 
     def join(self) -> None:
         self.stop()
         self._stop_thread.join()
         self._network_status_thread.join()
+        self._internal_messages_thread.join()
 
 
 class _run_decorator:  # noqa: N801
@@ -2367,6 +2396,11 @@ class Run:
         )
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
+
+        internal_messages_handle = self._backend.interface.deliver_internal_messages()
+        result = internal_messages_handle.wait(timeout=-1)
+        for message in result.response.internal_messages_response.messages.warning:
+            wandb.termwarn(message)
 
         # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
