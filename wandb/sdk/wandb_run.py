@@ -1291,7 +1291,7 @@ class Run:
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = Artifact.from_id(val["id"], public_api.client)
+            artifact = Artifact._from_id(val["id"], public_api.client)
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
@@ -1304,7 +1304,7 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = Artifact.from_id(artifact_string, public_api._client)
+                artifact = Artifact._from_id(artifact_string, public_api._client)
             else:
                 artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
@@ -2952,7 +2952,7 @@ class Run:
         if not self._settings._offline:
             try:
                 public_api = self._public_api()
-                expected_type = Artifact.expected_type(
+                expected_type = Artifact._expected_type(
                     public_api.settings["entity"],
                     public_api.settings["project"],
                     artifact.name,
