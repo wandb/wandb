@@ -1730,7 +1730,7 @@ class Settings:
                         f"Ignored wandb.init() arg {key} when running a sweep."
                     )
         if self.launch:
-            if self.project and init_settings.pop("project", None):
+            if self.project is not None and init_settings.pop("project", None):
                 wandb.termwarn(
                     "Project is ignored when running from wandb launch context. "
                     "Ignored wandb.init() arg project when running running from launch.",
