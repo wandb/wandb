@@ -81,6 +81,7 @@ class Retry(Generic[_R]):
         self, wait_seconds: float, cancel_event: Optional[threading.Event]
     ) -> bool:
         if not cancel_event:
+            logger.warning("Sleeping for %s seconds", wait_seconds)
             SLEEP_FN(wait_seconds)
             return False
         cancelled = cancel_event.wait(wait_seconds)

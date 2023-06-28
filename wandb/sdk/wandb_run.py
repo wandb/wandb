@@ -208,7 +208,10 @@ class RunStatusChecker:
         while not join_requested:
             time_probe = time.monotonic()
             if not local_handle:
-                local_handle = request()
+                try:
+                    local_handle = request()
+                except BrokenPipeError:
+                    return  # background process has exited, unfortunate timing
             assert local_handle
 
             with lock:
@@ -218,10 +221,10 @@ class RunStatusChecker:
             try:
                 result = local_handle.wait(timeout=timeout)
             except MailboxError:
-                # background threads are oportunistically getting results
+                # background threads are opportunistically getting results
                 # from the internal process but the internal process could
                 # be shutdown at any time.  In this case assume that the
-                # thread should exit silently.   This is possible
+                # thread should exit silently.  This is possible
                 # because we do not have an atexit handler for the user
                 # process which quiesces active threads.
                 break

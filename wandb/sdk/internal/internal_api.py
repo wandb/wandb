@@ -29,6 +29,7 @@ from typing import (
 
 import click
 import requests
+import urllib3
 import yaml
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
@@ -130,6 +131,16 @@ else:
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
+
+
+_REQUEST_RETRY_STRATEGY = urllib3.util.retry.Retry(
+    backoff_factor=1,
+    total=3,
+    status_forcelist=(408, 409, 429, 500, 502, 503, 504),
+)
+_REQUEST_POOL_CONNECTIONS = 4
+_REQUEST_POOL_MAXSIZE = 4
+_REQUEST_TIMEOUT = 60
 
 
 def check_httpx_exc_retriable(exc: Exception) -> bool:
@@ -266,7 +277,19 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
-        self._upload_file_session = requests.Session()
+
+        session = requests.Session()
+
+        adapter = requests.adapters.HTTPAdapter(
+            max_retries=_REQUEST_RETRY_STRATEGY,
+            pool_connections=_REQUEST_POOL_CONNECTIONS,
+            pool_maxsize=_REQUEST_POOL_MAXSIZE,
+        )
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+
+        self._upload_file_session = session
+
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -2278,9 +2301,14 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
+                print("uploading file", progress.bytes_read, progress.len)
                 response = self._upload_file_session.put(
-                    url, data=progress, headers=extra_headers
+                    # response = requests.put(
+                    url,
+                    data=progress,
+                    headers=extra_headers,
                 )
+                print("uploaded file", progress.bytes_read, progress.len)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -2295,7 +2323,7 @@ class Api:
                 and status_code == 400
                 and "RequestTimeout" in str(response_content)
             )
-            # We need to rewind the file for the next retry (the file passed in is seeked to 0)
+            # We need to rewind the file for the next retry (the file passed in is `seek`'ed to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
             if (
@@ -2824,18 +2852,20 @@ class Api:
                 print(f"{file_name} does not exist")
                 continue
             if progress is False:
-                responses.append(
-                    self.upload_file_retry(
-                        file_info["url"], open_file, extra_headers=extra_headers
-                    )
+                print(f"push:: {file_name}")
+                response = self.upload_file_retry(
+                    file_info["url"], open_file, extra_headers=extra_headers
                 )
+                print(f"push done:: {file_name}")
+                responses.append(response)
             else:
                 if callable(progress):
-                    responses.append(  # type: ignore
-                        self.upload_file_retry(
-                            file_url, open_file, progress, extra_headers=extra_headers
-                        )
+                    print(f"push:: {file_name}")
+                    response = self.upload_file_retry(
+                        file_url, open_file, progress, extra_headers=extra_headers
                     )
+                    print(f"push done:: {file_name}")
+                    responses.append(response)
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(

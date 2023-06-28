@@ -124,12 +124,14 @@ class UploadJob:
                 upload_url = f"{self._api.api_url}{upload_url}"
             try:
                 with open(self.save_path, "rb") as f:
+                    print("upload_job::", self.save_path)
                     self._api.upload_file_retry(
                         upload_url,
                         f,
                         lambda _, t: self.progress(t),
                         extra_headers=extra_headers,
                     )
+                    print("upload_job::", self.save_path)
                 logger.info("Uploaded file %s", self.save_path)
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)

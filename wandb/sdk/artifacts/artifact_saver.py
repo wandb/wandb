@@ -243,11 +243,13 @@ class ArtifactSaver:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
             with open(path, "rb") as fp2:
+                print("uploading manifest")
                 self._api.upload_file_retry(
                     upload_url,
                     fp2,
                     extra_headers=extra_headers,
                 )
+                print("done uploading manifest")
 
         commit_result: "concurrent.futures.Future[None]" = concurrent.futures.Future()
 
