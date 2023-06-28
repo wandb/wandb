@@ -509,7 +509,6 @@ class Settings:
     allow_val_change: bool
     anonymous: str
     api_key: str
-    azure_account_url_to_access_key: Dict[str, str]
     base_url: str  # The base url for the wandb api
     code_dir: str
     config_paths: Sequence[str]
@@ -703,7 +702,6 @@ class Settings:
             },
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
-            azure_account_url_to_access_key={"value": {}},
             base_url={
                 "value": "https://api.wandb.ai",
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
@@ -1730,17 +1728,14 @@ class Settings:
                         f"Ignored wandb.init() arg {key} when running a sweep."
                     )
         if self.launch:
-            if self.project:
-                val = init_settings.pop("project", None)
-                if val:
-                    wandb.termwarn(
-                        "Project is ignored when running from wandb launch context. "
-                        "Ignored wandb.init() arg project when running running from launch.",
-                    )
+            if self.project and init_settings.pop("project", None):
+                wandb.termwarn(
+                    "Project is ignored when running from wandb launch context. "
+                    "Ignored wandb.init() arg project when running running from launch.",
+                )
             for key in ("entity", "id"):
                 # Init settings cannot override launch settings.
-                val = init_settings.pop(key, None)
-                if val:
+                if init_settings.pop(key, None):
                     wandb.termwarn(
                         "Project, entity and id are ignored when running from wandb launch context. "
                         f"Ignored wandb.init() arg {key} when running running from launch.",
