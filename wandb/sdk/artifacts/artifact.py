@@ -1533,7 +1533,10 @@ class Artifact:
     # Downloading.
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
+        self,
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1571,39 +1574,6 @@ class Artifact:
             start_time = datetime.datetime.now()
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
-        @retry.retriable(
-            retry_timedelta=datetime.timedelta(minutes=3),
-            retryable_exceptions=(requests.RequestException),
-        )
-        def fetch_file_urls(cursor: Optional[str]) -> Any:
-            query = gql(
-                """
-                query ArtifactFileURLs($id: ID!, $cursor: String) {
-                    artifact(id: $id) {
-                        files(after: $cursor, first: 5000) {
-                            pageInfo {
-                                hasNextPage
-                                endCursor
-                            }
-                            edges {
-                                node {
-                                    name
-                                    directUrl
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={"id": self.id, "cursor": cursor},
-                timeout=60,
-            )
-            return response["artifact"]["files"]
-
         def _download_entry(
             entry: ArtifactManifestEntry,
             api_key: Optional[str],
@@ -1614,7 +1584,13 @@ class Artifact:
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
 
-            entry.download(root)
+            try:
+                entry.download(root)
+            except FileNotFoundError as e:
+                if allow_missing_references:
+                    wandb.termwarn(str(e))
+                    return
+                raise
             download_logger.notify_downloaded()
 
         download_entry = partial(
@@ -1630,7 +1606,7 @@ class Artifact:
             has_next_page = True
             cursor = None
             while has_next_page:
-                attrs = fetch_file_urls(cursor)
+                attrs = self._fetch_file_urls(cursor)
                 has_next_page = attrs["pageInfo"]["hasNextPage"]
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
@@ -1668,6 +1644,39 @@ class Artifact:
                 prefix=False,
             )
         return FilePathStr(root)
+
+    @retry.retriable(
+        retry_timedelta=datetime.timedelta(minutes=3),
+        retryable_exceptions=(requests.RequestException),
+    )
+    def _fetch_file_urls(self, cursor: Optional[str]) -> Any:
+        query = gql(
+            """
+            query ArtifactFileURLs($id: ID!, $cursor: String) {
+                artifact(id: $id) {
+                    files(after: $cursor, first: 5000) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                directUrl
+                            }
+                        }
+                    }
+                }
+            }
+            """
+        )
+        assert self._client is not None
+        response = self._client.execute(
+            query,
+            variable_values={"id": self.id, "cursor": cursor},
+            timeout=60,
+        )
+        return response["artifact"]["files"]
 
     def checkout(self, root: Optional[str] = None) -> str:
         """Replace the specified root directory with the contents of the artifact.
