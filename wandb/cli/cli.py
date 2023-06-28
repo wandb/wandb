@@ -949,7 +949,7 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
-    # get personal username, not team name or service account, default entity
+    # get personal username, not team name or service account, default to entity
     author = api.viewer().get("username") or entity
 
     # if not sweep_config XOR resume_id
