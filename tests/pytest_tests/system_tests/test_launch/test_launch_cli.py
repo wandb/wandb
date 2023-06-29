@@ -396,9 +396,9 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 @pytest.mark.parametrize(
     "path,job_type,entrypoint",
     [
-        ("./test.py", "artifact", ""),
-        ("test.py", "artifact", ""),
-        (".", "artifact", "test.py"),
+        ("./test.py", "code", ""),
+        ("test.py", "code", ""),
+        (".", "code", "test.py"),
         ("docker.io/wandb-examples:latest", "image", ""),
     ],
 )
@@ -425,8 +425,8 @@ def test_create_job(path, job_type, entrypoint, runner, user):
 @pytest.mark.parametrize(
     "path,job_type",
     [
-        ("./test.py", "artifact"),
-        ("test.py", "artifact"),
+        ("./test.py", "code"),
+        ("test.py", "code"),
     ],
 )
 def test_create_job_no_reqs(path, job_type, runner, user):
@@ -448,7 +448,7 @@ def test_create_job_no_reqs(path, job_type, runner, user):
         ("./test.py", "123"),
         ("./test.py", ""),
         (".test.py", "docker"),
-        (".test.py", "git"),
+        (".test.py", "repo"),
     ],
 )
 def test_create_job_bad_type(path, job_type, runner, user):
@@ -466,5 +466,5 @@ def test_create_job_bad_type(path, job_type, runner, user):
         print(result.output)
         assert (
             "ERROR" in result.output
-            or "Usage: job create [OPTIONS] {git|artifact|image} PATH" in result.output
+            or "Usage: job create [OPTIONS] {git|code|image} PATH" in result.output
         )

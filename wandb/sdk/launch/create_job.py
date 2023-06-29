@@ -34,7 +34,7 @@ def create_job(
     """Create a job from a path, not as the output of a run.
 
     Arguments:
-        job_type (str): Type of the job. One of "git", "artifact", or "image".
+        job_type (str): Type of the job. One of "git", "code", or "image".
         path (str): Path to the job directory.
         entity (Optional[str]): Entity to create the job under.
         project (Optional[str]): Project to create the job under.
@@ -53,7 +53,7 @@ def create_job(
     Example:
         ```python
         artifact_job = wandb.create_job(
-            job_type="artifact",
+            job_type="code",
             path=".",
             entity="wandb",
             project="jobs",
@@ -116,7 +116,7 @@ def _create_job(
             tempdir.cleanup()  # otherwise git can pollute
             return None, "", []
         metadata.update(repo_metadata)
-    elif job_type == "artifact":
+    elif job_type == "code":
         path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
         if not entrypoint:
             wandb.termerror(
@@ -157,7 +157,7 @@ def _create_job(
         job_type="cli_create_job",
     )
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
-    if job_type == "artifact":
+    if job_type == "code":
         full_path = os.path.join(path, entrypoint or "")
         artifact_name = make_code_artifact_name(full_path, name)
         code_artifact = wandb.Artifact(
@@ -371,6 +371,10 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     # adjust git source to repo
     if job_source == "git":
         job_source = "repo"
+
+    # adjust code source to artifact
+    if job_source == "code":
+        job_source = "artifact"
 
     settings = wandb.Settings()
     settings.update({"files_dir": tmpdir, "job_source": job_source})

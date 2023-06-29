@@ -3,7 +3,6 @@ import os
 import tempfile
 from unittest import mock
 
-import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -67,7 +66,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
         path=source_dir,
         project=proj,
         entity=user,
-        job_type="artifact",
+        job_type="code",
         description="This is a description",
         entrypoint="test.py",
         name="test-job-9999",
