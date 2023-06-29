@@ -129,15 +129,15 @@ class WandbServer:
             return
         _startup_debug.print_message(message)
 
-    def serve(self) -> None:
-        self._setup_tracelog()
-        mux = StreamMux()
-        self._startup_debug_print("before_network")
-        grpc_port = self._start_grpc(mux=mux) if self._serve_grpc else None
-        sock_port = self._start_sock(mux=mux) if self._serve_sock else None
-        self._startup_debug_print("after_network")
-        self._inform_used_ports(grpc_port=grpc_port, sock_port=sock_port)
-        self._startup_debug_print("after_inform")
+    def _setup_proctitle(
+        self, grpc_port: Optional[int], sock_port: Optional[int]
+    ) -> None:
+        # TODO: similar to _setup_tracelog, the internal_process should have
+        # a better way to have access to settings.
+        disable_setproctitle = os.environ.get("WANDB__DISABLE_SETPROCTITLE")
+        if disable_setproctitle:
+            return
+
         setproctitle = wandb.util.get_optional_module("setproctitle")
         if setproctitle:
             service_ver = 2
@@ -148,7 +148,20 @@ class WandbServer:
             # (consider unifying this in the future)
             service_id = f"{service_ver}-{pid}-{transport}-{port}"
             proc_title = f"wandb-service({service_id})"
+            self._startup_debug_print("before_setproctitle")
             setproctitle.setproctitle(proc_title)
+            self._startup_debug_print("after_setproctitle")
+
+    def serve(self) -> None:
+        self._setup_tracelog()
+        mux = StreamMux()
+        self._startup_debug_print("before_network")
+        grpc_port = self._start_grpc(mux=mux) if self._serve_grpc else None
+        sock_port = self._start_sock(mux=mux) if self._serve_sock else None
+        self._startup_debug_print("after_network")
+        self._inform_used_ports(grpc_port=grpc_port, sock_port=sock_port)
+        self._startup_debug_print("after_inform")
+        self._setup_proctitle(grpc_port=grpc_port, sock_port=sock_port)
         self._startup_debug_print("before_loop")
         mux.loop()
         self._stop_servers()
