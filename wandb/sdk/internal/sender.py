@@ -380,11 +380,11 @@ class SendManager:
         finally:
             self._api.clear_local_context()
 
-    def send_preempting(self, record: "Record") -> None:
+    def send_preempting(self, _: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_request_sender_mark(self, record: "Record") -> None:
+    def send_request_sender_mark(self, _: "Record") -> None:
         self._maybe_report_status(always=True)
 
     def send_request(self, record: "Record") -> None:
@@ -1069,6 +1069,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
+            timeout=self._settings._file_stream_timeout_seconds,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
