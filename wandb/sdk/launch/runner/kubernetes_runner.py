@@ -466,12 +466,20 @@ class KubernetesRunner(AbstractRunner):
         Returns:
             Tuple[Dict[str, Any], Optional["V1Secret"]]: The resource args and secret.
         """
+        secret = None
+        entry_point = launch_project.get_single_entry_point()
+        if launch_project.docker_image:
+            image_uri = launch_project.docker_image
+        else:
+            assert builder
+            assert entry_point
+            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
+        launch_project.fill_macros(image_uri)
         job: Dict[str, Any] = {
             "apiVersion": "batch/v1",
             "kind": "Job",
         }
         job.update(resource_args)
-
         job_metadata: Dict[str, Any] = job.get("metadata", {})
         job_spec: Dict[str, Any] = {"backoffLimit": 0, "ttlSecondsAfterFinished": 60}
         job_spec.update(job.get("spec", {}))
@@ -496,30 +504,20 @@ class KubernetesRunner(AbstractRunner):
                     "seccompProfile": {"type": "RuntimeDefault"},
                 }
 
-        secret = None
-        entry_point = launch_project.get_single_entry_point()
         if launch_project.docker_image:
             if len(containers) > 1:
                 raise LaunchError(
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
-            # dont specify run id if user provided image, could have multiple runs
-            image_uri = launch_project.docker_image
             containers[0]["image"] = image_uri
-            launch_project.fill_macros(image_uri)
-            # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
                     "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
-            assert entry_point is not None
-            assert builder is not None
-            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
-            image_uri = image_uri.replace("https://", "")
-            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
+            assert builder
             if not builder.registry:
                 raise LaunchError(
                     "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
