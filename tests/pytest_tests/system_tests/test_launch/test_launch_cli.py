@@ -10,6 +10,34 @@ IMAGE_CONST = "fake-image"
 QUEUE_NAME = "test_queue"
 
 
+@pytest.mark.flaky
+@pytest.mark.parametrize(
+    "path,job_type,entrypoint",
+    [
+        (".", "code", "test.py"),
+        ("docker.io/wandb-examples:latest", "image", ""),
+    ],
+)
+def test_create_job(path, job_type, entrypoint, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        with open("requirements.txt", "w") as f:
+            f.write("wandb\n")
+
+        cmd = ["create", job_type, path, "--entity", user, "--project", "proj"]
+        if entrypoint:
+            cmd += ["-E", entrypoint]
+
+        result = runner.invoke(
+            cli.job,
+            cmd,
+        )
+        print(result.output)
+        assert "Created job:" in result.output
+
+
 def _setup(mocker):
     pass
 
@@ -391,34 +419,6 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         print(result.output)
         assert "blah blah" in result.output
         assert "except caught, failed item" in result.output
-
-
-@pytest.mark.flaky
-@pytest.mark.parametrize(
-    "path,job_type,entrypoint",
-    [
-        (".", "code", "test.py"),
-        ("docker.io/wandb-examples:latest", "image", ""),
-    ],
-)
-def test_create_job(path, job_type, entrypoint, runner, user):
-    with runner.isolated_filesystem():
-        with open("test.py", "w") as f:
-            f.write("print('hello world')\n")
-
-        with open("requirements.txt", "w") as f:
-            f.write("wandb\n")
-
-        cmd = ["create", job_type, path, "--entity", user, "--project", "proj"]
-        if entrypoint:
-            cmd += ["-E", entrypoint]
-
-        result = runner.invoke(
-            cli.job,
-            cmd,
-        )
-        print(result.output)
-        assert "Created job:" in result.output
 
 
 @pytest.mark.parametrize(
