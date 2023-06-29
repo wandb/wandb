@@ -34,7 +34,7 @@ def create_job(
     """Create a job from a path, not as the output of a run.
 
     Arguments:
-        job_type (str): Type of the job. One of "repo", "artifact", or "image".
+        job_type (str): Type of the job. One of "git", "artifact", or "image".
         path (str): Path to the job directory.
         entity (Optional[str]): Entity to create the job under.
         project (Optional[str]): Project to create the job under.
@@ -43,7 +43,7 @@ def create_job(
         aliases (Optional[List[str]]): Aliases for the job.
         runtime (Optional[str]): Python runtime of the job, like 3.9.
         entrypoint (Optional[str]): Entrypoint of the job.
-        git_hash (Optional[str]): Git hash of a specific commit, when using repo type jobs.
+        git_hash (Optional[str]): Git hash of a specific commit, when using git type jobs.
 
 
     Returns:
@@ -104,7 +104,7 @@ def _create_job(
     metadata = {"_partial": "v0"}  # seed metadata with special partial key
     requirements: List[str] = []
 
-    if job_type == "repo":
+    if job_type == "git":
         repo_metadata = _create_repo_metadata(
             path=path,
             tempdir=tempdir.name,
@@ -199,7 +199,6 @@ def _create_job(
 
     if not name:
         name = artifact.name
-        wandb.termlog(f"No name provided, using default: {name}")
 
     aliases += job_builder._aliases
     if "latest" not in aliases:
@@ -260,15 +259,17 @@ def _create_repo_metadata(
             wandb.termerror("Could not find git commit hash")
             return None
         commit = ref.commit_hash
-    ref_dir = ref.directory or ""
-    src_dir = os.path.join(tempdir, ref_dir)
+
+    local_dir = os.path.join(tempdir, ref.directory or "")
+    src_dir = ref.directory or ""
+
     python_version = runtime
     if not python_version:
-        if os.path.exists(os.path.join(src_dir, "runtime.txt")):
-            with open(os.path.join(src_dir, "runtime.txt")) as f:
+        if os.path.exists(os.path.join(local_dir, "runtime.txt")):
+            with open(os.path.join(local_dir, "runtime.txt")) as f:
                 python_version = f.read().strip()
-        elif os.path.exists(os.path.join(src_dir, ".python-version")):
-            with open(os.path.join(src_dir, ".python-version")) as f:
+        elif os.path.exists(os.path.join(local_dir, ".python-version")):
+            with open(os.path.join(local_dir, ".python-version")) as f:
                 python_version = f.read().strip().splitlines()[0]
         else:
             major, minor = get_current_python_version()
@@ -276,22 +277,33 @@ def _create_repo_metadata(
 
     python_version = _clean_python_version(python_version)
 
-    if not os.path.exists(os.path.join(src_dir, "requirements.txt")):
+    if not os.path.exists(os.path.join(local_dir, "requirements.txt")):
         wandb.termerror(
-            f"Could not find requirements.txt file in repo at: {ref_dir}/requirements.txt"
+            f"Could not find requirements.txt file in git repo at: {src_dir}/requirements.txt"
         )
         return None
 
-    if not entrypoint:
-        temp_path = os.path.join(src_dir, path.split("/")[-1])
-        if os.path.exists(temp_path):
-            repo_path = os.path.join(ref_dir, path.split("/")[-1])
-            entrypoint = repo_path
-        else:
+    # check if entrypoint is valid
+    if entrypoint:
+        if not os.path.exists(os.path.join(local_dir, entrypoint)):
+            wandb.termerror(f"Invalid entrypoint: {entrypoint}")
+            return None
+        # prepend working dir (specified in path)
+        entrypoint = os.path.join(src_dir, entrypoint)
+    elif not ref.file:
+        wandb.termerror(f"Entrypoint not specified, use -E or specify one in the path")
+        return None
+    else:  # try to make one from the path, assumes working dir is parent of file
+        rel_entrypoint = os.path.join(src_dir, ref.file)
+        if rel_entrypoint[0] == "/":
+            rel_entrypoint = rel_entrypoint[1:]
+
+        if not os.path.exists(os.path.join(tempdir, rel_entrypoint)):
             wandb.termerror(
-                f"Entrypoint {os.path.join(ref_dir, path.split('/')[-1])} not valid, specify one in the path or use -E"
+                f"Entrypoint {rel_entrypoint} not valid, specify one in the path or use -E"
             )
             return None
+        entrypoint = rel_entrypoint
 
     metadata = {
         "git": {
@@ -349,6 +361,10 @@ def _handle_artifact_entrypoint(
 
 def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuilder:
     """Configure job builder with temp dir and job source."""
+    # adjust git source to repo
+    if job_source == "git":
+        job_source = "repo"
+
     settings = wandb.Settings()
     settings.update({"files_dir": tmpdir, "job_source": job_source})
     job_builder = JobBuilder(

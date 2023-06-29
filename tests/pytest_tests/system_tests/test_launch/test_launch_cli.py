@@ -394,15 +394,15 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 
 
 @pytest.mark.parametrize(
-    "path,job_type",
+    "path,job_type,entrypoint",
     [
-        ("./test.py", "artifact"),
-        ("/test.py", "artifact"),
-        ("test.py", "artifact"),
-        ("docker.io/wandb-examples:latest", "image"),
+        ("./test.py", "artifact", ""),
+        ("test.py", "artifact", ""),
+        (".", "artifact", "test.py"),
+        ("docker.io/wandb-examples:latest", "image", ""),
     ],
 )
-def test_create_job(path, job_type, runner, user):
+def test_create_job(path, job_type, entrypoint, runner, user):
     with runner.isolated_filesystem():
         with open("test.py", "w") as f:
             f.write("print('hello world')\n")
@@ -410,9 +410,13 @@ def test_create_job(path, job_type, runner, user):
         with open("requirements.txt", "w") as f:
             f.write("wandb\n")
 
+        cmd = ["create", job_type, path, "--entity", user, "--project", "proj"]
+        if entrypoint:
+            cmd += ["-E", entrypoint]
+
         result = runner.invoke(
             cli.job,
-            ["create", job_type, path, "--entity", user, "--project", "proj"],
+            cmd,
         )
         print(result.output)
         assert "Created job:" in result.output
@@ -422,7 +426,6 @@ def test_create_job(path, job_type, runner, user):
     "path,job_type",
     [
         ("./test.py", "artifact"),
-        ("/test.py", "artifact"),
         ("test.py", "artifact"),
     ],
 )
@@ -445,7 +448,7 @@ def test_create_job_no_reqs(path, job_type, runner, user):
         ("./test.py", "123"),
         ("./test.py", ""),
         (".test.py", "docker"),
-        (".test.py", "repo"),
+        (".test.py", "git"),
     ],
 )
 def test_create_job_bad_type(path, job_type, runner, user):
@@ -463,5 +466,5 @@ def test_create_job_bad_type(path, job_type, runner, user):
         print(result.output)
         assert (
             "ERROR" in result.output
-            or "Usage: job create [OPTIONS] {repo|artifact|image} PATH" in result.output
+            or "Usage: job create [OPTIONS] {git|artifact|image} PATH" in result.output
         )

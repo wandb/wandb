@@ -1622,7 +1622,7 @@ def describe(job):
 )
 @click.argument(
     "job_type",
-    type=click.Choice(("repo", "artifact", "image")),
+    type=click.Choice(("git", "artifact", "image")),
 )
 @click.argument("path")
 def create(
@@ -1639,9 +1639,9 @@ def create(
 ):
     """Create a job from a source, without a wandb run.
 
-    Jobs can be of three types, repo, artifact, or image.
+    Jobs can be of three types, git, artifact, or image.
 
-    repo: A git source, with an entrypoint pointing to the main python executable.
+    git: A git source, with an entrypoint pointing to the main python executable.
     artifact: A code path, containing a requirements.txt file.
     image: A docker image.
     """
