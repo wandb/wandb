@@ -450,7 +450,17 @@ def test_create_job_code(runner, user):
         with open("requirements.txt", "w") as f:
             f.write("wandb\n")
 
-        cmd = ["create", "code", ".", "--entity", user, "--project", "proj", "-E", "test.py"]
+        cmd = [
+            "create",
+            "code",
+            ".",
+            "--entity",
+            user,
+            "--project",
+            "proj",
+            "-E",
+            "test.py",
+        ]
 
         result = runner.invoke(
             cli.job,
@@ -463,8 +473,15 @@ def test_create_job_code(runner, user):
 def test_create_job_image(runner, user):
     with runner.isolated_filesystem():
         result = runner.invoke(
-            cli.job
-            ["create", "image", "docker.io/wandb-examples:latest", "--entity", user, "--project", "proj"]
+            cli.job[
+                "create",
+                "image",
+                "docker.io/wandb-examples:latest",
+                "--entity",
+                user,
+                "--project",
+                "proj",
+            ]
         )
         print(result.output)
         assert "Created job:" in result.output
