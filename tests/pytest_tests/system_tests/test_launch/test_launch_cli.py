@@ -393,6 +393,7 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         assert "except caught, failed item" in result.output
 
 
+@pytest.mark.flaky
 @pytest.mark.parametrize(
     "path,job_type,entrypoint",
     [

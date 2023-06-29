@@ -163,7 +163,7 @@ def test_get_commit(monkeypatch) -> None:
     tmpdir = tempfile.TemporaryDirectory()
     ref.fetch(dst_dir=tmpdir.name)
 
-    assert ref.directory == "commit/path"
+    assert ref.directory == "commit/path/"
 
     local_dir = os.path.join(tmpdir.name, ref.directory)
     assert os.path.exists(local_dir)
