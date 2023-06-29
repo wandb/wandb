@@ -4,7 +4,7 @@ import queue
 import sys
 from dataclasses import dataclass
 import threading
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, TYPE_CHECKING
 from unittest.mock import patch
 
 from tqdm import tqdm
@@ -18,6 +18,8 @@ from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
 from wandb.util import cast_dictlike_to_dict, coalesce
+
+
 if sys.version_info >= (3, 8):
     from typing import Protocol
 else:
@@ -27,6 +29,9 @@ else:
 with patch("click.echo"):
     from wandb.apis.reports import Report
 
+if TYPE_CHECKING:
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+    
 
 @dataclass
 class ThreadLocalSettings(threading.local):
@@ -331,7 +336,7 @@ def send_run_with_send_manager(
     rm = RecordMaker(run)
 
     root_dir = rm.run_dir
-    default_settings = {
+    default_settings: SettingsDict = {
         "files_dir": os.path.join(root_dir, "files"),
         "root_dir": root_dir,
         "_start_time": 0,
@@ -344,8 +349,8 @@ def send_run_with_send_manager(
         "_async_upload_concurrency_limit": None,
     }
     settings = SettingsStatic({**default_settings, **_settings_override})
-    record_q = queue.Queue()
-    result_q = queue.Queue()
+    record_q: "queue.Queue[Record]" =  queue.Queue()
+    result_q: "queue.Queue[Result]" = queue.Queue()
     interface = InterfaceQueue(record_q=record_q)
     context_keeper = context.ContextKeeper()
 

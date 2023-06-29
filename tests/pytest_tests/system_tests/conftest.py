@@ -558,6 +558,8 @@ def wandb_server_factory():
                 f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
                 "-p",
                 f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
+                "-p",
+                f"{settings.db_port}:{settings.internal_db_port}",
                 "-e",
                 "WANDB_ENABLE_TEST_CONTAINER=true",
                 "--name",
@@ -616,15 +618,7 @@ def fixture_fn_factory():
             response = getattr(requests, cmd.method)(
                 endpoint,
                 json=data,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
-                    "Accept-Encoding": "*",
-                    "Connection": "keep-alive",
-                    # "Content-Type": "application/json",
-                    # "accept": "application/json",
-                },
             )
-            print(response)
             if response.status_code != 200:
                 print(response.json())
                 return False
@@ -650,6 +644,7 @@ def wandb_server(wandb_server_factory):
         local_base_port="8080",
         services_api_port="8083",
         fixture_service_port="9015",
+        db_port="3306",
         wandb_server_pull="missing",
         wandb_server_tag="master",
     )

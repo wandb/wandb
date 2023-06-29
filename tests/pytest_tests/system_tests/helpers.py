@@ -46,11 +46,13 @@ class WandbServerSettings:
     local_base_port: str
     services_api_port: str
     fixture_service_port: str
+    db_port: str
     wandb_server_pull: str
     wandb_server_tag: str
     internal_local_base_port: str = "8080"
     internal_local_services_api_port: str = "8083"
     internal_fixture_service_port: str = "9015"
+    internal_db_port: str = "3306"
     url: str = "http://localhost"
 
     base_url: Optional[str] = None

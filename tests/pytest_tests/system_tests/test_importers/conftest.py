@@ -337,6 +337,7 @@ def wandb_server2(wandb_server_factory):
         local_base_port="9180",
         services_api_port="9183",
         fixture_service_port="9115",
+        db_port="3307",
         wandb_server_pull="missing",
         wandb_server_tag="master",
     )
