@@ -164,7 +164,7 @@ def test_library_root():
 
 # normal run symbols
 SYMBOLS_RUN = {
-    "job_name",
+    # "job_name",
     "job_type",
     "group",
     "entity",

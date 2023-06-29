@@ -114,15 +114,14 @@ message RunRecord {
   ConfigRecord              config = 4;
   SummaryRecord             summary = 5;
   string                    run_group = 6;
-  string                    job_name = 7;
-  string                    job_type = 8;
-  string                    display_name = 9;
-  string                    notes = 10;
-  repeated string           tags = 11;
-  SettingsRecord            settings = 12;
-  string                    sweep_id = 13;
-  string                    host = 14;
-  int64                     starting_step = 15;
+  string                    job_type = 7;
+  string                    display_name = 8;
+  string                    notes = 9;
+  repeated string           tags = 10;
+  SettingsRecord            settings = 11;
+  string                    sweep_id = 12;
+  string                    host = 13;
+  int64                     starting_step = 14;
 
   string                    storage_id = 16;
   google.protobuf.Timestamp start_time = 17;

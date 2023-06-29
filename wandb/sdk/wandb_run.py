@@ -471,7 +471,7 @@ class Run:
     _entity: Optional[str]
     _project: Optional[str]
     _group: Optional[str]
-    _job_name: Optional[str]
+    # _job_name: Optional[str]
     _job_type: Optional[str]
     _name: Optional[str]
     _notes: Optional[str]
