@@ -17,3 +17,5 @@ trigger:
       time: 60
       skip: 10
       one_shot: 1
+      # on the 10th filestream request, inject a one_shot delay of 60 seconds
+      # this will cause a retry (with the new filestream logic that is being added)
