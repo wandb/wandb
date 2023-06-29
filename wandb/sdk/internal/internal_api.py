@@ -1945,6 +1945,7 @@ class Api:
             files (list or dict): The filenames to upload
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.
+            description (str, optional): description
 
         Returns:
             (run_id, upload_headers, file_info)
