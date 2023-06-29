@@ -471,7 +471,6 @@ class Run:
     _entity: Optional[str]
     _project: Optional[str]
     _group: Optional[str]
-    # _job_name: Optional[str]
     _job_type: Optional[str]
     _name: Optional[str]
     _notes: Optional[str]
@@ -576,7 +575,6 @@ class Run:
         self._project = None
         self._group = None
         self._job_type = None
-        self._job_name = None
         self._run_id = self._settings.run_id
         self._starting_step = 0
         self._name = None
@@ -745,8 +743,6 @@ class Run:
             self._group = settings.run_group
         if settings.run_job_type is not None:
             self._job_type = settings.run_job_type
-        if settings.run_job_name is not None:
-            self._job_name = settings.run_job_name
         if settings.run_name is not None:
             self._name = settings.run_name
         if settings.run_notes is not None:
@@ -762,8 +758,6 @@ class Run:
             run.project = self._project
         if self._group is not None:
             run.run_group = self._group
-        if self._job_name is not None:
-            run.job_name = self._job_name
         if self._job_type is not None:
             run.job_type = self._job_type
         if self._run_id is not None:
@@ -1040,11 +1034,6 @@ class Run:
     @_run_decorator._attach
     def job_type(self) -> str:
         return self._run_obj.job_type if self._run_obj else ""
-
-    @property
-    @_run_decorator._attach
-    def job_name(self) -> str:
-        return self._run_obj.job_name if self._run_obj else ""
 
     @property
     @_run_decorator._attach
