@@ -252,9 +252,10 @@ def _create_repo_metadata(
         wandb.termerror("Could not parse git URI")
         return None
 
+    ref.fetch(tempdir)
+
     commit = git_hash
     if not commit:
-        ref.fetch(tempdir)
         if not ref.commit_hash:
             wandb.termerror("Could not find git commit hash")
             return None
@@ -262,6 +263,9 @@ def _create_repo_metadata(
 
     local_dir = os.path.join(tempdir, ref.directory or "")
     src_dir = ref.directory or ""
+    filename = ref.file
+    if not filename and path.endswith(".py"):
+        filename = os.path.basename(path)
 
     python_version = runtime
     if not python_version:
@@ -284,7 +288,7 @@ def _create_repo_metadata(
             return None
         # prepend working dir (specified in path)
         entrypoint = os.path.join(src_dir, entrypoint)
-    elif not ref.file:
+    elif not filename:
         if path.endswith(".py"):
             wandb.termerror("Invalid entrypoint provided in path")
         else:
@@ -293,8 +297,8 @@ def _create_repo_metadata(
             )
         return None
     else:  # try to make one from the path, assumes working dir is parent of file
-        rel_entrypoint = os.path.join(src_dir, ref.file)
-        if rel_entrypoint[0] == "/":
+        rel_entrypoint = os.path.join(src_dir, filename)
+        if rel_entrypoint.startswith("/"):
             rel_entrypoint = rel_entrypoint[1:]
 
         if not os.path.exists(os.path.join(tempdir, rel_entrypoint)):
@@ -319,6 +323,7 @@ def _create_repo_metadata(
         },
         "root": ref.repo,
         "codePath": entrypoint,
+        "entrypoint": [f"python{python_version}", entrypoint],
         "python": python_version,  # used to build container
     }
 

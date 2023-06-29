@@ -126,6 +126,8 @@ class JobBuilder:
         program_relpath: str,
         root: Optional[str],
         name: Optional[str] = None,
+        entrypoint: Optional[List[str]] = None,
+        is_notebook_run: Optional[bool] = None,
     ) -> Tuple[Optional[Artifact], Optional[GitSourceDict]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
@@ -163,18 +165,16 @@ class JobBuilder:
         else:
             full_program_path = program_relpath
 
-        executable = metadata.get("python") or os.path.basename(sys.executable)
-        if "python" not in executable:
-            # if the executable comes from a manually created job, its just the version
-            executable = f"python{executable}"
+        if not entrypoint:
+            entrypoint = [os.path.basename(sys.executable), full_program_path]
+
+        if is_notebook_run is None:
+            is_notebook_run = self._is_notebook_run()
 
         # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
-            "entrypoint": [
-                executable,
-                full_program_path,
-            ],
-            "notebook": self._is_notebook_run(),
+            "entrypoint": entrypoint,
+            "notebook": is_notebook_run,
             "git": {
                 "remote": remote,
                 "commit": commit,
@@ -274,7 +274,7 @@ class JobBuilder:
         ] = None
 
         if self._partial is not None:
-            assert self._partial.job_name, "job_name always required"
+            # Trying to build full job from previous partial
             source_type = self._partial.source.type
             runtime = self._partial.source.runtime
             artifact, source, new_metadata = self._build_job_from_partial(metadata)
@@ -309,7 +309,11 @@ class JobBuilder:
             if source_type == "repo":
                 assert program_relpath is not None
                 artifact, source = self._build_repo_job(
-                    metadata, program_relpath, metadata.get("root")
+                    metadata,
+                    program_relpath,
+                    metadata.get("root"),
+                    entrypoint=metadata.get("entrypoint"),
+                    is_notebook_run=metadata.get("notebook"),
                 )
             elif source_type == "artifact":
                 assert program_relpath is not None
@@ -385,8 +389,8 @@ class JobBuilder:
             metadata.update(
                 {
                     "git": {
-                        "remote": self._partial.source.gitSource.remote,
-                        "commit": self._partial.source.gitSource.commit,
+                        "remote": self._partial.source.gitSource.git.remote,
+                        "commit": self._partial.source.gitSource.git.commit,
                     }
                 }
             )

@@ -472,13 +472,18 @@ class InterfaceBase:
                 "source", {}
             ).get("artifact_name", "")
         elif job_info.get("source_type") == "repo":
-            use_artifact.partial.source.gitSource.remote = metadata.get("git", {}).get(
-                "remote", ""
+            use_artifact.partial.source.gitSource.git.remote = metadata.get(
+                "git", {}
+            ).get("remote", "")
+            use_artifact.partial.source.gitSource.git.commit = metadata.get(
+                "git", {}
+            ).get("commit", "")
+            use_artifact.partial.source.gitSource.entrypoint.extend(
+                metadata.get("entrypoint", [])
             )
-            use_artifact.partial.source.gitSource.commit = metadata.get("git", {}).get(
-                "commit", ""
+            use_artifact.partial.source.gitSource.notebook = metadata.get(
+                "notebook", False
             )
-            use_artifact.partial.source.gitSource.root = metadata.get("root", "")
         elif job_info.get("source_type") == "image":
             # no extra handling for image, just need the job_name
             pass

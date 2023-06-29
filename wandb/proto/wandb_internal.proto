@@ -919,7 +919,12 @@ message ArtifactInfo {
 message GitInfo {
   string remote = 1;
   string commit = 2;
-  string root = 3;
+}
+
+message GitSource {
+  GitInfo git = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
 }
 
 message JobSource {
@@ -927,7 +932,7 @@ message JobSource {
   string runtime = 2;
 
   ArtifactInfo artifactSource = 3;
-  GitInfo gitSource = 4;
+  GitSource gitSource = 4;
 }
 
 message PartialJobArtifact {

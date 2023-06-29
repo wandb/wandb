@@ -2943,20 +2943,41 @@ class GitInfo(google.protobuf.message.Message):
 
     REMOTE_FIELD_NUMBER: builtins.int
     COMMIT_FIELD_NUMBER: builtins.int
-    ROOT_FIELD_NUMBER: builtins.int
     remote: builtins.str
     commit: builtins.str
-    root: builtins.str
     def __init__(
         self,
         *,
         remote: builtins.str = ...,
         commit: builtins.str = ...,
-        root: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["commit", b"commit", "remote", b"remote", "root", b"root"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["commit", b"commit", "remote", b"remote"]) -> None: ...
 
 global___GitInfo = GitInfo
+
+@typing_extensions.final
+class GitSource(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    GIT_FIELD_NUMBER: builtins.int
+    ENTRYPOINT_FIELD_NUMBER: builtins.int
+    NOTEBOOK_FIELD_NUMBER: builtins.int
+    @property
+    def git(self) -> global___GitInfo: ...
+    @property
+    def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    notebook: builtins.bool
+    def __init__(
+        self,
+        *,
+        git: global___GitInfo | None = ...,
+        entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
+        notebook: builtins.bool = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["git", b"git"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["entrypoint", b"entrypoint", "git", b"git", "notebook", b"notebook"]) -> None: ...
+
+global___GitSource = GitSource
 
 @typing_extensions.final
 class JobSource(google.protobuf.message.Message):
@@ -2971,14 +2992,14 @@ class JobSource(google.protobuf.message.Message):
     @property
     def artifactSource(self) -> global___ArtifactInfo: ...
     @property
-    def gitSource(self) -> global___GitInfo: ...
+    def gitSource(self) -> global___GitSource: ...
     def __init__(
         self,
         *,
         type: builtins.str = ...,
         runtime: builtins.str = ...,
         artifactSource: global___ArtifactInfo | None = ...,
-        gitSource: global___GitInfo | None = ...,
+        gitSource: global___GitSource | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitSource", b"gitSource"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitSource", b"gitSource", "runtime", b"runtime", "type", b"type"]) -> None: ...
