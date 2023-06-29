@@ -100,7 +100,7 @@ def set_project_entity_defaults(
     project: Optional[str],
     entity: Optional[str],
     launch_config: Optional[Dict[str, Any]],
-) -> Tuple[str, str]:
+) -> Tuple[Optional[str], str]:
     # set the target project and entity if not provided
     source_uri = None
     if uri is not None:
