@@ -1398,10 +1398,12 @@ class SendManager:
         This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
-        self._job_builder._partial = record.use_artifact.partial
 
-        if use.type == "job" and not record.use_artifact.partial.job_name:
+        if use.type == "job" and not use.partial.job_name:
             self._job_builder.disable = True
+        elif use.partial.job_name:
+            # job is partial, let job builder rebuild job, set record
+            self._job_builder._partial = record.use_artifact.partial
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
