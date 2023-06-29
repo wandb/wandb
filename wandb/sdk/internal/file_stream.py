@@ -1,4 +1,5 @@
 import base64
+import functools
 import itertools
 import logging
 import os
@@ -334,8 +335,11 @@ class FileStreamApi:
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
+        self._client.timeout = self.HTTP_TIMEOUT
         # todo: actually use the timeout once more thorough error injection in testing covers it
-        # self._client.post = functools.partial(self._client.post, timeout=self.HTTP_TIMEOUT)
+        self._client.post = functools.partial(
+            self._client.post, timeout=self.HTTP_TIMEOUT
+        )
         self._client.auth = api.client.transport.session.auth
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
