@@ -1,0 +1,19 @@
+plugin:
+  - wandb
+tag:
+  shards:
+    - standalone-mitm
+option:
+  - :wandb:mitm
+command:
+  program: fs_inject.py
+assert:
+  - :wandb:runs_len: 1
+trigger:
+  - file_stream:
+      command: pause
+      service: file_stream
+      count: 1
+      time: 60
+      skip: 10
+      one_shot: 1
