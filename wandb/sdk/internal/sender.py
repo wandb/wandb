@@ -333,6 +333,7 @@ class SendManager:
             _live_policy_wait_time=None,
             disable_job_creation=False,
             _async_upload_concurrency_limit=None,
+            _file_stream_timeout_seconds=0,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()

@@ -335,9 +335,8 @@ class FileStreamApi:
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
-        # todo: actually use the timeout once more thorough error injection in testing covers it
         if timeout > 0:
-            self._client.post = functools.partial(self._client.post, timeout=timeout)
+            self._client.post = functools.partial(self._client.post, timeout=timeout)  # type: ignore[method-assign]
         self._client.auth = api.client.transport.session.auth
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
