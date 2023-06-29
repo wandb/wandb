@@ -453,18 +453,6 @@ def base_url(request):
     return request.config.getoption("--base-url")
 
 
-# @pytest.fixture(scope="session")
-# def wandb_server_tag(request):
-#     return request.config.getoption("--wandb-server-tag")
-
-
-# @pytest.fixture(scope="session")
-# def wandb_server_pull(request):
-#     if request.config.getoption("--wandb-server-pull"):
-#         return "always"
-#     return "missing"
-
-
 @pytest.fixture(scope="session")
 def wandb_debug(request):
     return request.config.getoption("--wandb-debug", default=False)
