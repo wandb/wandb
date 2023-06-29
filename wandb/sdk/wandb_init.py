@@ -913,7 +913,7 @@ def _attach(
 
 
 def init(
-    job: Optional[str] = None,
+    job_name: Optional[str] = None,
     job_type: Optional[str] = None,
     dir: Optional[StrPath] = None,
     config: Union[Dict, str, None] = None,
@@ -1011,7 +1011,7 @@ def init(
             organize runs together into a larger whole, and you can toggle this
             on and off in the UI. For more details, see our
             [guide to grouping runs](https://docs.wandb.com/guides/runs/grouping).
-        job: (str, optional) Specify a name for a job Artifact created from this
+        job_name: (str, optional) Specify a name for a job Artifact created from this
             run. If a job is created from this run and no name has been specified,
             the job name will be [generated automatically](https://docs.wandb.ai/guides/launch/create-job#job-naming-conventions).
         job_type: (str, optional) Specify the type of run, which is useful when
