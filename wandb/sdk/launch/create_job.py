@@ -286,10 +286,10 @@ def _create_repo_metadata(
         entrypoint = os.path.join(src_dir, entrypoint)
     elif not ref.file:
         if path.endswith(".py"):
-            wandb.termerror(f"Invalid entrypoint provided in path")
+            wandb.termerror("Invalid entrypoint provided in path")
         else:
             wandb.termerror(
-                f"Invalid entrypoint. Provide an entrypoint in the path or use -E"
+                "Invalid entrypoint. Provide an entrypoint in the path or use -E"
             )
         return None
     else:  # try to make one from the path, assumes working dir is parent of file
@@ -306,7 +306,6 @@ def _create_repo_metadata(
 
     # check if requirements.txt exists
     if not os.path.exists(os.path.join(local_dir, "requirements.txt")):
-        wandb.termlog(f"{entrypoint=}")
         repo_formd = path.replace(entrypoint, "")
         wandb.termerror(
             f"Could not find requirements.txt file in git repo at: {repo_formd}/requirements.txt"
