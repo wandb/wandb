@@ -14,7 +14,7 @@ from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
-from wandb.sdk.launch.sweeps.scheduler import Scheduler
+from wandb.sdk.launch.sweeps.scheduler import RunState, Scheduler
 from wandb.sdk.lib import runid
 
 from .. import loader
@@ -589,6 +589,20 @@ class LaunchAgent:
         try:
             run = job_tracker.run
             status = run.get_status().state
+
+            # Ensure run was not stopped intentionally
+            try:
+                run_state = RunState(
+                    self._api.get_run_state(
+                        self._entity, job_tracker.project, job_tracker.run_id
+                    )
+                )
+                if status == "preempted" and not run_state.is_alive:
+                    status = "stopped"
+            except wandb.CommError:
+                # Run doesn't exist yet
+                status = "stopped"
+
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
