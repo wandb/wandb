@@ -39,6 +39,7 @@
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.4...v0.15.5
 
 ## 0.15.4 (June 6, 2023)
+
 ### :magic_wand: Enhancements
 * feat(sdk): set job source in settings by @TimH98 in https://github.com/wandb/wandb/pull/5442
 * feat(sweeps): launch sweeps controlled by wandb run by @gtarpenning in https://github.com/wandb/wandb/pull/5456
