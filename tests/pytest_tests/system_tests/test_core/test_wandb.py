@@ -291,7 +291,7 @@ def test_run_job_name_env(wandb_init):
 
 def test_run_job_name_arg(wandb_init):
     with mock.patch.dict("os.environ", {"WANDB_DOCKER": "image-name"}):
-        run = wandb_init(job="name1")
+        run = wandb_init(job_name="name1")
         run.finish()
         assert run.job_name == "name1"
 
