@@ -78,9 +78,11 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert action == "Created"
     assert aliases == ["latest"]
 
-    assert "_partial" in artifact.metadata
     assert artifact.metadata["python"] == "3.8"
     assert artifact.metadata["codePath"] == "test.py"
+
+    job_v0 = public_api.job(f"{user}/{proj}/{artifact.name}")
+    assert job_v0._partial
 
     # Now use artifact as input, assert it gets upgraded
     artifact_env = json.dumps({"_wandb_job": artifact.name})
