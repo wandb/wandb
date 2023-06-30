@@ -319,6 +319,7 @@ class JobBuilder:
         assert name is not None
         if metadata.get("_partial"):
             assert not self._partial_source, "partial job has partial output"
+            source_info.update({"_partial": metadata["_partial"]})
 
         artifact = JobArtifact(name)
 
