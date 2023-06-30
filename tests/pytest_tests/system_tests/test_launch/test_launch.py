@@ -11,8 +11,11 @@ from wandb.sdk.launch.launch import run
 
 
 def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_settings):
-    proj = MagicMock()
-    proj.get_single_entry_point.return_value = EntryPoint("blah", ["python", "test.py"])
+    launch_project = MagicMock()
+    launch_project.get_single_entry_point.return_value = EntryPoint(
+        "blah", ["python", "test.py"]
+    )
+    proj = "test1"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     settings = test_settings({"project": proj})
@@ -20,7 +23,7 @@ def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_se
 
     monkeypatch.setattr(
         "wandb.sdk.launch.launch.fetch_and_validate_project",
-        lambda _1, _2: "something",
+        lambda _1, _2: launch_project,
     )
 
     monkeypatch.setattr(
