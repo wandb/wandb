@@ -58,7 +58,13 @@ if TYPE_CHECKING:
 
     class Resolver(TypedDict):
         name: ResolverName
-        resolver: Callable[[Any], Optional[Dict[str, Any]]]
+        resolver: Callable[[Any], Optional[Resolved]]
+
+
+@dataclasses.dataclass
+class Resolved:
+    data: Dict[str, Any]
+    response_data: Optional[Dict[str, Any]] = None
 
 
 class DeliberateHTTPError(Exception):
@@ -269,7 +275,7 @@ class QueryResolver:
         if query:
             data = response_data["data"]["upsertBucket"].get("bucket")
             data["config"] = json.loads(data["config"])
-            return data
+            return Resolved(data)
         return None
 
     @staticmethod
@@ -300,7 +306,7 @@ class QueryResolver:
                 else [],
                 "files": files,
             }
-            return post_processed_data
+            return Resolved(post_processed_data)
         return None
 
     @staticmethod
@@ -320,20 +326,26 @@ class QueryResolver:
                 .get("files", {})
                 .get("edges", [])
             )
-            print("FILES#############", files)
-            print("RESP#############", response_data)
-            # {'data': {'model': {'bucket': {'id': 'UnVuOnYxOjBncnVydnZsOndhbmRiLXRlc3RzX3N0YW5kYWxvbmVfdGVzdHNfbWl0bV90ZXN0czpqZWZmcg==', 'files': {'uploadHeaders': [], 'edges': [{'node': {'name': 'wandb-summary.json', 'url': 'https://storage.googleapis.com/wandb-production.appspot.com/jeffr/wandb-tests_standalone_tests_mitm_tests/0grurvvl/wandb-summary.json?Expires=1688170259&GoogleAccessId=wandb-production%40appspot.gserviceaccount.com&Signature=b4ggpmIe%2F21r%2FWkdT%2F0NFblxiTVy9zXws%2BzEjq0v5ymIVYyVf7TOjfMaDLUNSxY2V5ZjYkru8qjv6Wjghcog5IPXHoOeQYrGZbbnAeTPQnAGZA59QB43QcrMNdmc%2F%2Bbw1kIRs5W%2B%2BbeLLBxaG2lVQ1JPnyuewLbA10ShqxLZWgT8kaUsH2weX1ieYIJpYc%2Br%2BQxAxC6YPM6XZ7gKikjxfm%2FmLd4VyqBCse6z1pYIRwyUDPYDbbhsKIu3%2FVDNm3GgBzyZyDOPGOhnJR19B6tXVeMmWygXuU%2F0KMPTP6bVveoT94nP7d9VyFaJsOc6kuq%2BELSXR71lyiVZNOlOy73LqQ%3D%3D', 'updatedAt': None}}]}}}}}
-            # FILES############# [{'node': {'name': 'wandb-summary.json', 'url': 'https://storage.googleapis.com/wandb-production.appspot.com/jeffr/wandb-tests_standalone_tests_mitm_tests/uy9r3u0k/wandb-summary.json?Expires=1688172951&GoogleAccessId=wandb-production%40appspot.gserviceaccount.com&Signature=A7611BJ1Y71%2FSsKU8%2Fb%2BLXM0kb3xRDODF2lkt5sTmjghAaHT6PlljtGIRPukz%2F8ymaty0lgf7%2Fj6XjlpcmQ2Aa4901%2Fx9YiRd1oM6lzzAfnipc0SZsjSvv77VyOIdfX4ZgVFa0AuTtUGmeQ%2BqKbZxi69gMrYu5Rvyf1vl%2Fv3Hx0j8m%2Bg6H0d7npBl70%2FwzKYzxibQ730uNIyIPDe1MWDUiqtmezUO1lB3oX7b2BWebB0oQWM1tyQFEHvdf96n32pNMAE%2B%2BKf%2Brk3%2BXLvK5yJUiwGGQ7zOeTRf4X5DGJ8HTbcLD%2B7Jqs8NEfMJd1vFgCLqy2ynyLVhN2Sn1P0a0LsYg%3D%3D', 'updatedAt': None}}]
 
-            # TODO: replace storage urls with relay storage urls so we can snoop on it
-            # FIXME: walk into files list.. changing the url values
+            # alter response data urls so we can intercept file requests through the relay
+            for n, edge in enumerate(files):
+                node = edge.get("node")
+                if not node:
+                    continue
+                url = node.get("url")
+                if not url:
+                    continue
+                relay_url = kwargs.get("relay_url")
+                assert relay_url, "Must provide relay_url to resolver"
+                url_params = urllib.parse.urlencode(dict(name=node.get("name"), original_url=url))
+                node["url"] = relay_url + "/storage?" + url_params
 
             # note: we count all attempts to upload files
             post_processed_data = {
                 "name": name,
                 "uploaded": [files[0].get("node", {}).get("name")] if files else [""],
             }
-            return post_processed_data
+            return Resolved(post_processed_data, response_data)
         return None
 
     @staticmethod
@@ -349,7 +361,7 @@ class QueryResolver:
                 "name": name,
                 "preempting": [request_data["preempting"]],
             }
-            return post_processed_data
+            return Resolved(post_processed_data)
         return None
 
     @staticmethod
@@ -361,7 +373,7 @@ class QueryResolver:
         query = response_data.get("data", {}).get("upsertSweep") is not None
         if query:
             data = response_data["data"]["upsertSweep"].get("sweep")
-            return data
+            return Resolved(data)
         return None
 
     def resolve_create_artifact(
@@ -385,7 +397,7 @@ class QueryResolver:
                     }
                 ],
             }
-            return post_processed_data
+            return Resolved(post_processed_data)
         return None
 
     def resolve(
@@ -393,7 +405,7 @@ class QueryResolver:
         request_data: Dict[str, Any],
         response_data: Dict[str, Any],
         **kwargs: Any,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[Resolved]:
         for resolver in self.resolvers:
             result = resolver.get("resolver")(request_data, response_data, **kwargs)
             if result is not None:
@@ -596,21 +608,32 @@ class RelayServer:
     def relay(
         self,
         request: "flask.Request",
+        url: Optional[str] = None,
     ) -> Union["responses.Response", "requests.Response"]:
         # replace the relay url with the real backend url (self.base_url)
-        url = (
+        url = url or (
             urllib.parse.urlparse(request.url)
             ._replace(netloc=self.base_url.netloc, scheme=self.base_url.scheme)
             .geturl()
         )
         headers = {key: value for (key, value) in request.headers if key != "Host"}
-        prepared_relayed_request = requests.Request(
-            method=request.method,
-            url=url,
-            headers=headers,
-            data=request.get_data(),
-            json=request.get_json(),
-        ).prepare()
+        try:
+            request_data = request.get_data()
+            request_json = request.get_json() if request.headers.get("content-type") == "application/json" else None
+        except Exception as e:
+            print("ERROR", e, url)
+            raise
+        try:
+            prepared_relayed_request = requests.Request(
+                method=request.method,
+                url=url,
+                headers=headers,
+                data=request_data,
+                json=request_json,
+            ).prepare()
+        except Exception as e:
+            print("ERROR", e, url)
+            raise
 
         for injected_response in self.inject:
             # where are we in the application pattern?
@@ -628,7 +651,12 @@ class RelayServer:
                         return relayed_response
 
         # normal case: no injected response matches the request
-        relayed_response = self.session.send(prepared_relayed_request)
+        try:
+            relayed_response = self.session.send(prepared_relayed_request)
+        except Exception as e:
+            print("ERROR", url, e)
+            raise
+
         return relayed_response
 
     def snoop_context(
@@ -637,9 +665,13 @@ class RelayServer:
         response: "requests.Response",
         time_elapsed: float,
         **kwargs: Any,
-    ) -> None:
-        request_data = request.get_json()
-        response_data = response.json() or {}
+    ) -> Optional[responses.Response]:
+        if request.headers.get("content-type") == "application/json":
+            request_data = request.get_json()
+            response_data = response.json() or {}
+        else:
+            request_data = {}
+            response_data = {}
 
         if self.relay_control:
             self.relay_control.process(request)
@@ -657,6 +689,7 @@ class RelayServer:
             snooped_context = self.resolver.resolve(
                 request_data,
                 response_data,
+                relay_url=self.relay_url,
                 **kwargs,
             )
         except Exception as e:
@@ -665,7 +698,8 @@ class RelayServer:
             snooped_context = None
 
         if snooped_context is not None:
-            self.context.upsert(snooped_context)
+            self.context.upsert(snooped_context.data)
+            return snooped_context.response_data
 
         return None
 
@@ -680,14 +714,14 @@ class RelayServer:
         # print(relayed_response.status_code, relayed_response.json())
         # print("*****************")
         # snoop work to extract the context
-        self.snoop_context(request, relayed_response, timer.elapsed)
+        response_data = self.snoop_context(request, relayed_response, timer.elapsed)
         # print("*****************")
         # print("SNOOPED CONTEXT:")
         # print(self.context.entries)
         # print(len(self.context.raw_data))
         # print("*****************")
 
-        return relayed_response.json()
+        return response_data or relayed_response.json()
 
     def file_stream(self, path) -> Mapping[str, str]:
         request = flask.request
@@ -704,14 +738,16 @@ class RelayServer:
         # print(relayed_response.status_code, relayed_response.json())
         # print("*****************")
 
-        self.snoop_context(request, relayed_response, timer.elapsed, path=path)
+        response_data = self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
-        return relayed_response.json()
+        return response_data or relayed_response.json()
 
     def storage(self) -> Mapping[str, str]:
         request = flask.request
+        name = request.args.get("name")
+        original_url = request.args.get("original_url")
         with Timer() as timer:
-            relayed_response = self.relay(request)
+            relayed_response = self.relay(request, url=original_url)
         # print("*****************")
         # print("STORAGE REQUEST:")
         # print(request.get_json())
@@ -719,9 +755,9 @@ class RelayServer:
         # print(relayed_response.status_code, relayed_response.json())
         # print("*****************")
 
-        self.snoop_context(request, relayed_response, timer.elapsed)
+        response_data = self.snoop_context(request, relayed_response, timer.elapsed)
 
-        return relayed_response.json()
+        return {}
 
     def storage_file(self, path) -> Mapping[str, str]:
         request = flask.request
@@ -737,9 +773,9 @@ class RelayServer:
         # print(relayed_response.json())
         # print("*****************")
 
-        self.snoop_context(request, relayed_response, timer.elapsed, path=path)
+        response_data = self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
-        return relayed_response.json()
+        return response_data or relayed_response.json()
 
     def control(self) -> Mapping[str, str]:
         assert self.relay_control
