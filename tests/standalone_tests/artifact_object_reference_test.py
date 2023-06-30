@@ -9,7 +9,7 @@ from math import cos, pi, sin
 import numpy as np
 import wandb
 from bokeh.plotting import figure
-from wandb.sdk.interface import artifacts
+from wandb.sdk import artifacts
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:
@@ -498,7 +498,7 @@ def test_adding_artifact_by_object():
 
 
 def _cleanup():
-    artifacts.get_artifacts_cache()._artifacts_by_id = {}
+    artifacts.artifacts_cache.get_artifacts_cache()._artifacts_by_id = {}
     if os.path.isdir("wandb"):
         shutil.rmtree("wandb")
     if os.path.isdir("artifacts"):
