@@ -17,6 +17,7 @@ def _create_wandb_and_aws_secrets(
     aws_token: str,
     namespace: str,
 ) -> None:
+    subprocess.Popen(["kubectl", "create", "namespace", namespace])
     secrets = [
         ("wandb-api-key", wandb_api_key),
         ("aws-access-key-id", aws_id),
