@@ -534,7 +534,7 @@ class LaunchAgent:
                 _logger.debug(f"Fetch sweep state error: {e}")
                 state = None
 
-            if state and state != "RUNNING":
+            if state and state != "RUNNING" and state != "PAUSED":
                 raise Exception(
                     f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
                 )
