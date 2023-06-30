@@ -78,11 +78,14 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert action == "Created"
     assert aliases == ["latest"]
 
-    assert artifact.metadata["python"] == "3.8"
-    assert artifact.metadata["codePath"] == "test.py"
-
     job_v0 = public_api.job(f"{user}/{proj}/{artifact.name}")
+
     assert job_v0._partial
+    assert job_v0._job_info["runtime"] == "3.8"
+    assert job_v0._job_info["_version"] == "v0"
+    assert job_v0._job_info["source"]["artifact_name"] == "code-test-job-9999:v0"
+    assert job_v0._job_info["source"]["entrypoint"] == ["python", "test.py"]
+    assert job_v0._job_info["source"]["notebook"] == False
 
     # Now use artifact as input, assert it gets upgraded
     artifact_env = json.dumps({"_wandb_job": artifact.name})
@@ -104,8 +107,9 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     job = public_api.job(f"{user}/{proj}/{v1_job}")
 
     assert job
+
+    # assert updates to partial, and input/output types
     assert not job._partial
-    assert job._entrypoint == ["python", "test.py"]
     assert (
         str(job._output_types)
         == "{'x': Number, '_timestamp': Number, '_runtime': Number, '_step': Number}"
