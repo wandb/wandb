@@ -14,8 +14,6 @@ from wandb.apis.internal import Api
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
-from ..agent.job_status_tracker import JobAndRunStatusTracker
-from ..builder.abstract import AbstractBuilder
 from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
@@ -91,10 +89,7 @@ class VertexRunner(AbstractRunner):
         self.environment = environment
 
     def run(
-        self,
-        launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
         aiplatform = get_module(  # noqa: F811
@@ -134,13 +129,6 @@ class VertexRunner(AbstractRunner):
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
         entry_point = launch_project.get_single_entry_point()
-
-        if launch_project.docker_image:
-            image_uri = launch_project.docker_image
-        else:
-            assert entry_point is not None
-            assert builder is not None
-            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
 
         launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
