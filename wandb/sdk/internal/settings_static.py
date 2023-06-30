@@ -1,19 +1,23 @@
+from dataclasses import fields
 from typing import Any, Iterable
 
 from wandb.proto import wandb_settings_pb2
+from wandb.sdk.wandb_settings import SettingsData
 
 
-class SettingsStatic:
+class SettingsStatic(SettingsData):
     """A readonly object that wraps a protobuf Settings message.
 
     Implements the mapping protocol, so you can access settings as
     attributes or items.
     """
 
-    proto: wandb_settings_pb2.Settings
-
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
-        object.__setattr__(self, "proto", proto)
+        for field in fields(SettingsData):
+            key = field.name
+            if proto.HasField(key):  # type: ignore[arg-type]
+                value = getattr(proto, key).value
+                object.__setattr__(self, key, value)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
@@ -22,20 +26,19 @@ class SettingsStatic:
         raise AttributeError("Error: SettingsStatic is a readonly object")
 
     def keys(self) -> "Iterable[str]":
-        return (k for k in self.proto.DESCRIPTOR.fields_by_name.keys())
+        return self.__dict__.keys()
 
     def __getitem__(self, key: str) -> Any:
-        if key not in self.keys():
-            raise KeyError(key)
-        return getattr(self.proto, key).value if self.proto.HasField(key) else None  # type: ignore [arg-type]
+        return self.__dict__[key]
 
     def __getattr__(self, name: str) -> Any:
-        if name not in self.keys():
+        try:
+            return self.__dict__[name]
+        except KeyError:
             raise AttributeError(f"SettingsStatic has no attribute {name}")
-        return getattr(self.proto, name).value if self.proto.HasField(name) else None  # type: ignore [arg-type]
 
     def __str__(self) -> str:
-        return self.proto.__str__()
+        return str(self.__dict__)
 
     def __contains__(self, key: str) -> bool:
-        return key in self.keys()
+        return key in self.__dict__

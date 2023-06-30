@@ -13,6 +13,7 @@ import socket
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from distutils.util import strtobool
 from functools import reduce
@@ -287,144 +288,10 @@ ConsoleValue = {
 }
 
 
-class Property:
-    """A class to represent attributes (individual settings) of the Settings object.
+@dataclass()
+class SettingsData:
+    """Settings for the W&B SDK."""
 
-    - Encapsulates the logic of how to preprocess and validate values of settings
-    throughout the lifetime of a class instance.
-    - Allows for runtime modification of settings with hooks, e.g. in the case when
-    a setting depends on another setting.
-    - The update() method is used to update the value of a setting.
-    - The `is_policy` attribute determines the source priority when updating the property value.
-    E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
-    """
-
-    def __init__(  # pylint: disable=unused-argument
-        self,
-        name: str,
-        value: Optional[Any] = None,
-        preprocessor: Union[Callable, Sequence[Callable], None] = None,
-        # validators allow programming by contract
-        validator: Union[Callable, Sequence[Callable], None] = None,
-        # runtime converter (hook): properties can be e.g. tied to other properties
-        hook: Union[Callable, Sequence[Callable], None] = None,
-        # always apply hook even if value is None. can be used to replace @property's
-        auto_hook: bool = False,
-        is_policy: bool = False,
-        frozen: bool = False,
-        source: int = Source.BASE,
-        **kwargs: Any,
-    ):
-        self.name = name
-        self._preprocessor = preprocessor
-        self._validator = validator
-        self._hook = hook
-        self._auto_hook = auto_hook
-        self._is_policy = is_policy
-        self._source = source
-
-        # preprocess and validate value
-        self._value = self._validate(self._preprocess(value))
-
-        self.__frozen = frozen
-
-    @property
-    def value(self) -> Any:
-        """Apply the runtime modifier(s) (if any) and return the value."""
-        _value = self._value
-        if (_value is not None or self._auto_hook) and self._hook is not None:
-            _hook = [self._hook] if callable(self._hook) else self._hook
-            for h in _hook:
-                _value = h(_value)
-        return _value
-
-    @property
-    def is_policy(self) -> bool:
-        return self._is_policy
-
-    @property
-    def source(self) -> int:
-        return self._source
-
-    def _preprocess(self, value: Any) -> Any:
-        if value is not None and self._preprocessor is not None:
-            _preprocessor = (
-                [self._preprocessor]
-                if callable(self._preprocessor)
-                else self._preprocessor
-            )
-            for p in _preprocessor:
-                try:
-                    value = p(value)
-                except Exception:
-                    raise SettingsPreprocessingError(
-                        f"Unable to preprocess value for property {self.name}: {value}."
-                    )
-        return value
-
-    def _validate(self, value: Any) -> Any:
-        if value is not None and self._validator is not None:
-            _validator = (
-                [self._validator] if callable(self._validator) else self._validator
-            )
-            for v in _validator:
-                if not v(value):
-                    # failed validation will likely cause a downstream error
-                    # when trying to convert to protobuf, so we raise a hard error
-                    raise SettingsValidationError(
-                        f"Invalid value for property {self.name}: {value}."
-                    )
-        return value
-
-    def update(self, value: Any, source: int = Source.OVERRIDE) -> None:
-        """Update the value of the property."""
-        if self.__frozen:
-            raise TypeError("Property object is frozen")
-        # - always update value if source == Source.OVERRIDE
-        # - if not previously overridden:
-        #   - update value if source is lower than or equal to current source and property is policy
-        #   - update value if source is higher than or equal to current source and property is not policy
-        if (
-            (source == Source.OVERRIDE)
-            or (
-                self._is_policy
-                and self._source != Source.OVERRIDE
-                and source <= self._source
-            )
-            or (
-                not self._is_policy
-                and self._source != Source.OVERRIDE
-                and source >= self._source
-            )
-        ):
-            # self.__dict__["_value"] = self._validate(self._preprocess(value))
-            self._value = self._validate(self._preprocess(value))
-            self._source = source
-
-    def __setattr__(self, key: str, value: Any) -> None:
-        if "_Property__frozen" in self.__dict__ and self.__frozen:
-            raise TypeError(f"Property object {self.name} is frozen")
-        if key == "value":
-            raise AttributeError("Use update() to update property value")
-        self.__dict__[key] = value
-
-    def __str__(self) -> str:
-        return f"{self.value!r}" if isinstance(self.value, str) else f"{self.value}"
-
-    def __repr__(self) -> str:
-        return (
-            f"<Property {self.name}: value={self.value} "
-            f"_value={self._value} source={self._source} is_policy={self._is_policy}>"
-        )
-        # return f"<Property {self.name}: value={self.value}>"
-        # return self.__dict__.__repr__()
-
-
-class Settings:
-    """Settings for the wandb client."""
-
-    # settings are declared as class attributes for static type checking purposes
-    # and to help with IDE autocomplete.
     _args: Sequence[str]
     _aws_lambda: bool
     _async_upload_concurrency_limit: int
@@ -434,6 +301,7 @@ class Settings:
     _cuda: str
     _disable_meta: bool  # Do not collect system metadata
     _disable_service: bool  # Disable wandb-service, spin up internal process the old way
+    _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
@@ -575,6 +443,143 @@ class Settings:
     tmp_dir: str
     username: str
     wandb_dir: str
+
+
+class Property:
+    """A class to represent attributes (individual settings) of the Settings object.
+
+    - Encapsulates the logic of how to preprocess and validate values of settings
+    throughout the lifetime of a class instance.
+    - Allows for runtime modification of settings with hooks, e.g. in the case when
+    a setting depends on another setting.
+    - The update() method is used to update the value of a setting.
+    - The `is_policy` attribute determines the source priority when updating the property value.
+    E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
+    """
+
+    def __init__(  # pylint: disable=unused-argument
+        self,
+        name: str,
+        value: Optional[Any] = None,
+        preprocessor: Union[Callable, Sequence[Callable], None] = None,
+        # validators allow programming by contract
+        validator: Union[Callable, Sequence[Callable], None] = None,
+        # runtime converter (hook): properties can be e.g. tied to other properties
+        hook: Union[Callable, Sequence[Callable], None] = None,
+        # always apply hook even if value is None. can be used to replace @property's
+        auto_hook: bool = False,
+        is_policy: bool = False,
+        frozen: bool = False,
+        source: int = Source.BASE,
+        **kwargs: Any,
+    ):
+        self.name = name
+        self._preprocessor = preprocessor
+        self._validator = validator
+        self._hook = hook
+        self._auto_hook = auto_hook
+        self._is_policy = is_policy
+        self._source = source
+
+        # preprocess and validate value
+        self._value = self._validate(self._preprocess(value))
+
+        self.__frozen = frozen
+
+    @property
+    def value(self) -> Any:
+        """Apply the runtime modifier(s) (if any) and return the value."""
+        _value = self._value
+        if (_value is not None or self._auto_hook) and self._hook is not None:
+            _hook = [self._hook] if callable(self._hook) else self._hook
+            for h in _hook:
+                _value = h(_value)
+        return _value
+
+    @property
+    def is_policy(self) -> bool:
+        return self._is_policy
+
+    @property
+    def source(self) -> int:
+        return self._source
+
+    def _preprocess(self, value: Any) -> Any:
+        if value is not None and self._preprocessor is not None:
+            _preprocessor = (
+                [self._preprocessor]
+                if callable(self._preprocessor)
+                else self._preprocessor
+            )
+            for p in _preprocessor:
+                try:
+                    value = p(value)
+                except Exception:
+                    raise SettingsPreprocessingError(
+                        f"Unable to preprocess value for property {self.name}: {value}."
+                    )
+        return value
+
+    def _validate(self, value: Any) -> Any:
+        if value is not None and self._validator is not None:
+            _validator = (
+                [self._validator] if callable(self._validator) else self._validator
+            )
+            for v in _validator:
+                if not v(value):
+                    # failed validation will likely cause a downstream error
+                    # when trying to convert to protobuf, so we raise a hard error
+                    raise SettingsValidationError(
+                        f"Invalid value for property {self.name}: {value}."
+                    )
+        return value
+
+    def update(self, value: Any, source: int = Source.OVERRIDE) -> None:
+        """Update the value of the property."""
+        if self.__frozen:
+            raise TypeError("Property object is frozen")
+        # - always update value if source == Source.OVERRIDE
+        # - if not previously overridden:
+        #   - update value if source is lower than or equal to current source and property is policy
+        #   - update value if source is higher than or equal to current source and property is not policy
+        if (
+            (source == Source.OVERRIDE)
+            or (
+                self._is_policy
+                and self._source != Source.OVERRIDE
+                and source <= self._source
+            )
+            or (
+                not self._is_policy
+                and self._source != Source.OVERRIDE
+                and source >= self._source
+            )
+        ):
+            # self.__dict__["_value"] = self._validate(self._preprocess(value))
+            self._value = self._validate(self._preprocess(value))
+            self._source = source
+
+    def __setattr__(self, key: str, value: Any) -> None:
+        if "_Property__frozen" in self.__dict__ and self.__frozen:
+            raise TypeError(f"Property object {self.name} is frozen")
+        if key == "value":
+            raise AttributeError("Use update() to update property value")
+        self.__dict__[key] = value
+
+    def __str__(self) -> str:
+        return f"{self.value!r}" if isinstance(self.value, str) else f"{self.value}"
+
+    def __repr__(self) -> str:
+        return (
+            f"<Property {self.name}: value={self.value} "
+            f"_value={self._value} source={self._source} is_policy={self._is_policy}>"
+        )
+        # return f"<Property {self.name}: value={self.value}>"
+        # return self.__dict__.__repr__()
+
+
+class Settings(SettingsData):
+    """A class to represent modifiable settings."""
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -1200,7 +1205,7 @@ class Settings:
         # Type hints of class attributes are used to generate a type validator function
         # for runtime checks for each attribute.
         # These are defaults, using Source.BASE for non-policy attributes and Source.RUN for policies.
-        for prop, type_hint in get_type_hints(Settings).items():
+        for prop, type_hint in get_type_hints(SettingsData).items():
             validators = [self._validator_factory(type_hint)]
 
             if prop in default_props:
