@@ -21,6 +21,7 @@ _Setting = Literal[
     "_disable_service",
     "_disable_stats",
     "_disable_viewer",
+    "_disable_setproctitle",
     "_except_exit",
     "_executable",
     "_extra_http_headers",

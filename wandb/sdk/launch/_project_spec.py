@@ -82,7 +82,7 @@ class LaunchProject:
         # runner, so we need to pop the builder key out
         resource_args_build = resource_args.get(resource, {}).pop("builder", {})
         self.resource = resource
-        self.resource_args = resource_args
+        self.resource_args = resource_args.copy()
         self.sweep_id = sweep_id
         self.python_version: Optional[str] = launch_spec.get("python_version")
         self.accelerator_base_image: Optional[str] = resource_args_build.get(

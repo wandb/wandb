@@ -436,6 +436,7 @@ class Settings:
     _disable_service: bool  # Disable wandb-service, spin up internal process the old way
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
+    _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
@@ -596,6 +597,7 @@ class Settings:
                 "preprocessor": _str_as_bool,
                 "is_policy": True,
             },
+            _disable_setproctitle={"value": False, "preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
