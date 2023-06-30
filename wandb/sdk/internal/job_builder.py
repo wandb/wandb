@@ -20,7 +20,7 @@ else:
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import ArtifactRecord, UseArtifactRecord
+    from wandb.proto.wandb_internal_pb2 import ArtifactRecord
 
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
@@ -78,7 +78,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
-    _partial: Optional["UseArtifactRecord"]
+    _partial: Optional[JobSourceDict]
     _aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):
@@ -119,8 +119,8 @@ class JobBuilder:
                     "name": artifact.name,
                 }
             )
-
-    def _build_repo_job(
+    
+    def _build_repo_job_source(
         self,
         metadata: Dict[str, Any],
         program_relpath: str,
@@ -128,7 +128,7 @@ class JobBuilder:
         name: Optional[str] = None,
         entrypoint: Optional[List[str]] = None,
         is_notebook_run: Optional[bool] = None,
-    ) -> Tuple[Optional[Artifact], Optional[GitSourceDict]]:
+    ) -> Tuple[Optional[JobSourceDict], Optional[str]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
@@ -180,21 +180,16 @@ class JobBuilder:
                 "commit": commit,
             },
         }
+
         if not name:
             name = f"job-{remote}_{program_relpath}"
         name = make_artifact_name_safe(name)
 
-        artifact = JobArtifact(name)
-        if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
-            artifact.add_file(
-                os.path.join(self._settings.files_dir, DIFF_FNAME),
-                name=DIFF_FNAME,
-            )
-        return artifact, source
+        return source, name
 
-    def _build_artifact_job(
-        self, metadata: Dict[str, Any], program_relpath: str, name: Optional[str] = None
-    ) -> Tuple[Optional[Artifact], Optional[ArtifactSourceDict]]:
+    def _build_artifact_job_source(
+        self, program_relpath: str, name: Optional[str] = None
+    ) -> Tuple[Optional[Artifact], Optional[str]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run() and not self._is_colab_run():
@@ -227,12 +222,11 @@ class JobBuilder:
             name = f"job-{self._logged_code_artifact['name']}"
         name = make_artifact_name_safe(name)
 
-        artifact = JobArtifact(name, metadata=metadata)
-        return artifact, source
+        return source, name
 
-    def _build_image_job(
+    def _build_image_job_source(
         self, metadata: Dict[str, Any], name: Optional[str] = None
-    ) -> Tuple[Artifact, ImageSourceDict]:
+    ) -> Tuple[ImageSourceDict, str]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
 
@@ -244,11 +238,10 @@ class JobBuilder:
             name = f"job-{raw_image_name}"
         name = make_artifact_name_safe(name)
 
-        artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
         }
-        return artifact, source
+        return source, name
 
     def _is_notebook_run(self) -> bool:
         return hasattr(self._settings, "_jupyter") and bool(self._settings._jupyter)
@@ -273,42 +266,38 @@ class JobBuilder:
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
 
+        # can't build a job without a python version
+        if runtime is None:
+            return None
+
+        source_type = self._source_type
+
+        if self._is_notebook_run():
+            _logger.info("run is notebook based run")
+            program_relpath = metadata.get("program")
+
+        if not source_type:
+            if self._has_git_job_ingredients(metadata, program_relpath):
+                _logger.info("is repo sourced job")
+                source_type = "repo"
+            elif self._has_artifact_job_ingredients(program_relpath):
+                _logger.info("is artifact sourced job")
+                source_type = "artifact"
+            elif self._has_image_job_ingredients(metadata):
+                _logger.info("is image sourced job")
+                source_type = "image"
+
+        if not source_type:
+            _logger.info("no source found")
+            return None
+
         if self._partial is not None:
-            # Trying to build full job from previous partial
-            source_type = self._partial.source.type
-            runtime = self._partial.source.runtime
-            artifact, source, new_metadata = self._build_job_from_partial(metadata)
-            if new_metadata:
-                metadata.update(new_metadata)
+            # construct source from downloaded partial job metadata
+            source = self._partial.source
         else:
-            # can't build a job without a python version
-            if runtime is None:
-                return None
-
-            source_type = self._source_type
-
-            if self._is_notebook_run():
-                _logger.info("run is notebook based run")
-                program_relpath = metadata.get("program")
-
-            if not source_type:
-                if self._has_git_job_ingredients(metadata, program_relpath):
-                    _logger.info("is repo sourced job")
-                    source_type = "repo"
-                elif self._has_artifact_job_ingredients(program_relpath):
-                    _logger.info("is artifact sourced job")
-                    source_type = "artifact"
-                elif self._has_image_job_ingredients(metadata):
-                    _logger.info("is image sourced job")
-                    source_type = "image"
-
-            if not source_type:
-                _logger.info("no source found")
-                return None
-
             if source_type == "repo":
                 assert program_relpath is not None
-                artifact, source = self._build_repo_job(
+                source, name = self._build_repo_job_source(
                     metadata,
                     program_relpath,
                     metadata.get("root"),
@@ -317,10 +306,11 @@ class JobBuilder:
                 )
             elif source_type == "artifact":
                 assert program_relpath is not None
-                artifact, source = self._build_artifact_job(metadata, program_relpath)
+                source, name = self._build_artifact_job_source(program_relpath, name)
             elif source_type == "image":
-                artifact, source = self._build_image_job(metadata)
-
+                source, name = self._build_image_job_source(metadata, name)
+        
+        artifact = JobArtifact(name)
         if artifact is None or source_type is None or source is None:
             return None
 
@@ -352,66 +342,75 @@ class JobBuilder:
             name=FROZEN_REQUIREMENTS_FNAME,
         )
 
+        if source_type == "repo":
+            # add diff
+            if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
+                artifact.add_file(
+                    os.path.join(self._settings.files_dir, DIFF_FNAME),
+                    name=DIFF_FNAME,
+                )
+
         return artifact
 
-    def _build_job_from_partial(
-        self, metadata: Dict[str, Any]
-    ) -> Tuple[
-        Artifact,
-        Union[ArtifactSourceDict, ImageSourceDict, GitSourceDict],
-        Optional[Dict[str, Any]],
-    ]:
-        # Creating a normal job, out of a partial job
-        assert self._partial
-        name, _alias = self._partial.job_name.split(":")
+    # def _build_job_from_partial(
+    #     self, metadata: Dict[str, Any]
+    # ) -> Tuple[
+    #     Artifact,
+    #     Union[ArtifactSourceDict, ImageSourceDict, GitSourceDict],
+    #     Optional[Dict[str, Any]],
+    # ]:
+    #     # Creating a normal job, out of a partial job
+    #     assert self._partial
+    #     name, _alias = self._partial.job_name.split(":")
 
-        if self._partial.source.type == "artifact":
-            self._logged_code_artifact = ArtifactInfoForJob(
-                {
-                    "id": self._partial.source.artifactSource.artifact.split(
-                        "wandb-artifact://_id/"
-                    )[1],
-                    "name": self._partial.source.artifactSource.name,
-                }
-            )
+    #     if self._partial.source.type == "artifact":
+    #         self._logged_code_artifact = ArtifactInfoForJob(
+    #             {
+    #                 "id": self._partial.source.artifactSource.artifact.split(
+    #                     "wandb-artifact://_id/"
+    #                 )[1],
+    #                 "name": self._partial.source.artifactSource.name,
+    #             }
+    #         )
 
-            artifact, artifact_source = self._build_artifact_job(
-                metadata=metadata,
-                program_relpath=self._partial.source.artifactSource.program,
-                name=name,
-            )
-            if not artifact or not artifact_source:
-                raise Exception("Failed to build artifact job from partial")
-            return artifact, artifact_source, None
-        if self._partial.source.type == "repo":
-            # update current metadata from partial, where we downloaded the previous
-            # partial-artifacts real repo metadata
-            metadata.update(
-                {
-                    "git": {
-                        "remote": self._partial.source.gitSource.git.remote,
-                        "commit": self._partial.source.gitSource.git.commit,
-                    }
-                }
-            )
-            program_relpath = metadata.get("codePath")
-            assert program_relpath is not None
-            artifact, repo_source = self._build_repo_job(
-                metadata=metadata,
-                program_relpath=program_relpath,
-                root=self._partial.source.gitSource.root,
-                name=name,
-            )
-            if not artifact or not repo_source:
-                raise Exception("Failed to build artifact job from partial")
-            return artifact, repo_source, metadata
+    #         artifact, artifact_source = self._build_artifact_job(
+    #             metadata=metadata,
+    #             program_relpath=self._partial.source.artifactSource.program,
+    #             name=name,
+    #         )
+    #         if not artifact or not artifact_source:
+    #             raise Exception("Failed to build artifact job from partial")
+    #         return artifact, artifact_source, None
+    #     if self._partial.source.type == "repo":
+    #         # update current metadata from partial, where we downloaded the previous
+    #         # partial-artifacts real repo metadata
+    #         metadata.update(
+    #             {
+    #                 "git": {
+    #                     "remote": self._partial.source.gitSource.git.remote,
+    #                     "commit": self._partial.source.gitSource.git.commit,
+    #                 }
+    #             }
+    #         )
+    #         program_relpath = metadata.get("codePath")
+    #         assert program_relpath is not None
+    #         repo_source = self._build_repo_job_source(
+    #             metadata=metadata,
+    #             program_relpath=program_relpath,
+    #             root=self._partial.source.gitSource.root,
+    #             name=name,
+    #         )
+    #         artifact = self._build_repo_job(name)
+    #         if not artifact or not repo_source:
+    #             raise Exception("Failed to build artifact job from partial")
+    #         return artifact, repo_source, metadata
 
-        if self._partial.source.type == "image":
-            artifact, image_source = self._build_image_job(metadata, name=name)
-            if not artifact or not image_source:
-                raise Exception("Failed to build artifact job from partial")
-            return artifact, image_source, None
-        raise Exception("Unknown partial job source type")
+    #     if self._partial.source.type == "image":
+    #         artifact, image_source = self._build_image_job(metadata, name=name)
+    #         if not artifact or not image_source:
+    #             raise Exception("Failed to build artifact job from partial")
+    #         return artifact, image_source, None
+    #     raise Exception("Unknown partial job source type")
 
     def _handle_metadata_file(
         self,
