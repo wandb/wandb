@@ -235,7 +235,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     env_vars["WANDB_BASE_URL"] = api.settings("base_url")
     override_api_key = launch_project.launch_spec.get("_wandb_api_key")
     env_vars["WANDB_API_KEY"] = override_api_key or api.api_key
-    env_vars["WANDB_PROJECT"] = launch_project.target_project
+    if launch_project.target_project:
+        env_vars["WANDB_PROJECT"] = launch_project.target_project
     env_vars["WANDB_ENTITY"] = launch_project.target_entity
     env_vars["WANDB_LAUNCH"] = "True"
     env_vars["WANDB_RUN_ID"] = launch_project.run_id
