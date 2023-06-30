@@ -15,7 +15,6 @@ from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject
@@ -23,7 +22,7 @@ from .._project_spec import LaunchProject
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
+    pass
 
 
 if sys.version_info >= (3, 8):
@@ -159,8 +158,7 @@ class AbstractRunner(ABC):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
-        job_tracker: Optional["JobAndRunStatusTracker"] = None,
+        image_uri: str,
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 

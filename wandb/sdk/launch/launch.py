@@ -162,20 +162,26 @@ def _run(
     validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)
     launch_project = fetch_and_validate_project(launch_project, api)
+    entrypoint = launch_project.get_single_entry_point()
+    image_uri = launch_project.docker_image  # Either set by user or None.
 
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
     config = launch_config or {}
+    print(launch_config)
     build_config, registry_config = construct_builder_args(config)
 
     environment = loader.environment_from_config(config.get("environment", {}))
     registry = loader.registry_from_config(registry_config, environment)
     builder = loader.builder_from_config(build_config, environment, registry)
+    if not launch_project.docker_image:
+        assert entrypoint
+        image_uri = builder.build_image(launch_project, entrypoint)
     backend = loader.runner_from_config(resource, api, runner_config, environment)
     if backend:
-        submitted_run = backend.run(launch_project, builder, None)
+        submitted_run = backend.run(launch_project, image_uri)
         # this check will always pass, run is only optional in the agent case where
         # a run queue id is present on the backend config
         assert submitted_run
