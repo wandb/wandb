@@ -1536,30 +1536,41 @@ def job() -> None:
 )
 def _list(project, entity):
     wandb.termlog(f"Listing jobs in {entity}/{project}")
-
     public_api = PublicApi()
     try:
         jobs = public_api.list_jobs(entity=entity, project=project)
-    except wandb.errors.CommError:
-        wandb.termerror(f"Error listing jobs for entity/project: {entity}/{project}")
+    except wandb.errors.CommError as e:
+        wandb.termerror(f"{e}")
+        return
+
+    if len(jobs) == 0:
+        wandb.termlog("No jobs found")
         return
 
     for job in jobs:
+        aliases = []
+        if len(job["edges"]) == 0:
+            # deleted?
+            continue
+
+        name = job["edges"][0]["node"]["artifactSequence"]["name"]
         for version in job["edges"]:
-            name = version["node"]["artifactSequence"]["name"]
-            full_name = f"{entity}/{project}/{name}"
-            aliases = [x["alias"] for x in version["node"]["aliases"]]
-            if len(aliases) == 1:
-                # no custom alias, just verison, skip
-                continue
-            wandb.termlog(f"{full_name} {aliases}")
+            aliases += [x["alias"] for x in version["node"]["aliases"]]
+
+        # only list the most recent 10 job versions
+        aliases_str = ",".join(aliases[::-1])
+        wandb.termlog(f"{name} -- versions ({len(aliases)}): {aliases_str}")
 
 
 @job.command()
 @click.argument("job")
 def describe(job):
     public_api = PublicApi()
-    job = public_api.job(name=job)
+    try:
+        job = public_api.job(name=job)
+    except wandb.errors.CommError as e:
+        wandb.termerror(f"{e}")
+        return
 
     for key in job._job_info:
         if key.startswith("_"):
@@ -1642,7 +1653,7 @@ def create(
     Jobs can be of three types, git, code, or image.
 
     git: A git source, with an entrypoint pointing to the main python executable.
-    artifact: A code path, containing a requirements.txt file.
+    code: A code path, containing a requirements.txt file.
     image: A docker image.
     """
     from wandb.sdk.launch.create_job import _create_job

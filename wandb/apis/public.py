@@ -985,14 +985,19 @@ class Api:
         )
 
         try:
-            artifacts = self._client.execute(
+            artifact_query = self._client.execute(
                 query,
                 {
                     "projectName": project,
                     "entityName": entity,
                     "artifactTypeName": "job",
                 },
-            )["project"]["artifactType"]["artifactCollections"]["edges"]
+            )["project"]
+
+            if artifact_query["artifactType"] is None:
+                return []
+
+            artifacts = artifact_query["artifactType"]["artifactCollections"]["edges"]
 
             return [x["node"]["artifacts"] for x in artifacts]
         except requests.exceptions.HTTPError:
