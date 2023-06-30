@@ -34,6 +34,7 @@ from wandb.sdk.artifacts import artifact_saver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
+from wandb.sdk.internal import job_builder
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
@@ -1402,8 +1403,8 @@ class SendManager:
         if use.type == "job" and not use.partial.job_name:
             self._job_builder.disable = True
         elif use.partial.job_name:
-            # job is partial, let job builder rebuild job, set record
-            self._job_builder._partial = record.use_artifact.partial
+            # job is partial, let job builder rebuild job, set job source dict
+            self._job_builder._partial = job_builder.convert_use_artifact_to_job_source(record.use_artifact)
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp

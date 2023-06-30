@@ -454,39 +454,44 @@ class InterfaceBase:
         job_info: Dict[str, Any],
         metadata: Dict[str, Any],
     ) -> pb.UseArtifactRecord:
+        import wandb
+        wandb.termlog(f"{job_name=} {job_info=} {metadata=}")
         use_artifact.partial.job_name = job_name
-        use_artifact.partial.source.runtime = metadata.get("python", "")
-        use_artifact.partial.source.type = job_info.get("source_type", "")
-
+        use_artifact.partial.source_info._version = job_info.get("_version", "")
+        use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
+        use_artifact.partial.source_info.runtime = job_info.get("runtime", "")
+        
+        # construct JobSourceDict.source
         if job_info.get("source_type") == "artifact":
-            use_artifact.partial.source.artifactSource.artifact = job_info.get(
+            use_artifact.partial.source_info.source.artifact.artifact = job_info.get(
                 "source", {}
             ).get("artifact", "")
-            use_artifact.partial.source.artifactSource.program = metadata.get(
-                "codePath", ""
-            )
-            use_artifact.partial.source.artifactSource.notebook = job_info.get(
-                "source", {}
-            ).get("notebook", False)
-            use_artifact.partial.source.artifactSource.name = job_info.get(
+            use_artifact.partial.source_info.source.artifact.name = job_info.get(
                 "source", {}
             ).get("artifact_name", "")
+            use_artifact.partial.source_info.source.artifact.entrypoint.extend(
+                job_info.get("entrypoint", [])
+            )
+            use_artifact.partial.source_info.source.artifact.notebook = job_info.get(
+                "source", {}
+            ).get("notebook", False)
         elif job_info.get("source_type") == "repo":
-            use_artifact.partial.source.gitSource.git.remote = metadata.get(
+            use_artifact.partial.source_info.source.git.git_info.remote = metadata.get(
                 "git", {}
             ).get("remote", "")
-            use_artifact.partial.source.gitSource.git.commit = metadata.get(
+            use_artifact.partial.source_info.source.git.git_info.commit = metadata.get(
                 "git", {}
             ).get("commit", "")
-            use_artifact.partial.source.gitSource.entrypoint.extend(
+            use_artifact.partial.source_info.source.git.entrypoint.extend(
                 metadata.get("entrypoint", [])
             )
-            use_artifact.partial.source.gitSource.notebook = metadata.get(
+            use_artifact.partial.source_info.source.git.notebook = metadata.get(
                 "notebook", False
             )
         elif job_info.get("source_type") == "image":
-            # no extra handling for image, just need the job_name
-            pass
+            use_artifact.partial.source_info.source.image.image = metadata.get(
+                "image", ""
+            )
 
         return use_artifact
 

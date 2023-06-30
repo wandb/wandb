@@ -20,7 +20,7 @@ else:
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import ArtifactRecord
+    from wandb.proto.wandb_internal_pb2 import ArtifactRecord, UseArtifactRecord
 
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
@@ -270,31 +270,23 @@ class JobBuilder:
         if runtime is None:
             return None
 
-        source_type = self._source_type
-
         if self._is_notebook_run():
             _logger.info("run is notebook based run")
             program_relpath = metadata.get("program")
 
-        if not source_type:
-            if self._has_git_job_ingredients(metadata, program_relpath):
-                _logger.info("is repo sourced job")
-                source_type = "repo"
-            elif self._has_artifact_job_ingredients(program_relpath):
-                _logger.info("is artifact sourced job")
-                source_type = "artifact"
-            elif self._has_image_job_ingredients(metadata):
-                _logger.info("is image sourced job")
-                source_type = "image"
-
-        if not source_type:
-            _logger.info("no source found")
-            return None
-
         if self._partial is not None:
             # construct source from downloaded partial job metadata
-            source = self._partial.source
+            name = self._partial.pop("name")
+            source_info = self._partial
+            artifact = JobArtifact(name)
+            # set source_type to determine whether to add diff file to artifact
+            source_type = source_info["source_type"]
         else:
+            # configure job from environment
+            source_type = self._get_source_type(metadata, program_relpath)
+            if not source_type:
+                return None
+
             if source_type == "repo":
                 assert program_relpath is not None
                 source, name = self._build_repo_job_source(
@@ -306,25 +298,25 @@ class JobBuilder:
                 )
             elif source_type == "artifact":
                 assert program_relpath is not None
-                source, name = self._build_artifact_job_source(program_relpath, name)
+                source, name = self._build_artifact_job_source(program_relpath)
             elif source_type == "image":
-                source, name = self._build_image_job_source(metadata, name)
+                source, name = self._build_image_job_source(metadata)
         
-        artifact = JobArtifact(name)
-        if artifact is None or source_type is None or source is None:
-            return None
+            artifact = JobArtifact(name)
+            if artifact is None or source_type is None or source is None:
+                return None
 
-        input_types = TypeRegistry.type_of(self._config).to_json()
-        output_types = TypeRegistry.type_of(self._summary).to_json()
+            input_types = TypeRegistry.type_of(self._config).to_json()
+            output_types = TypeRegistry.type_of(self._summary).to_json()
 
-        source_info: JobSourceDict = {
-            "_version": "v0",
-            "source_type": source_type,
-            "source": source,
-            "input_types": input_types,
-            "output_types": output_types,
-            "runtime": runtime,
-        }
+            source_info: JobSourceDict = {
+                "_version": "v0",
+                "source_type": source_type,
+                "source": source,
+                "input_types": input_types,
+                "output_types": output_types,
+                "runtime": runtime,
+            }
 
         # If the job is a partial job, dump _partial into the job file
         if metadata.get("_partial"):
@@ -412,6 +404,25 @@ class JobBuilder:
     #         return artifact, image_source, None
     #     raise Exception("Unknown partial job source type")
 
+    def _get_source_type(self, metadata: Dict[str, Any], relpath: str) -> Optional[str]:
+        if self._source_type:
+            return self._source_type
+
+        if self._has_git_job_ingredients(metadata, relpath):
+            _logger.info("is repo sourced job")
+            return "repo" 
+        
+        if self._has_artifact_job_ingredients(relpath):
+            _logger.info("is artifact sourced job")
+            return "artifact"
+        
+        if self._has_image_job_ingredients(metadata):
+            _logger.info("is image sourced job")
+            return "image"
+        
+        _logger.info("no source found")
+        return None
+
     def _handle_metadata_file(
         self,
     ) -> Optional[Dict]:
@@ -437,3 +448,15 @@ class JobBuilder:
 
     def _has_image_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
         return metadata.get("docker") is not None
+
+
+def convert_use_artifact_to_job_source(use_artifact: "UseArtifactRecord") -> JobSourceDict:
+    source_info = use_artifact.partial.source_info
+    import wandb
+    wandb.termlog(f"{source_info=}")
+    wandb.termlog(f"{dict(source_info)=}")
+
+    return {
+        "name": use_artifact.partial.job_name,
+        "source_info": source_info,
+    }

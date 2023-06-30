@@ -2918,22 +2918,23 @@ class ArtifactInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     ARTIFACT_FIELD_NUMBER: builtins.int
-    PROGRAM_FIELD_NUMBER: builtins.int
+    ARTIFACT_NAME_FIELD_NUMBER: builtins.int
+    ENTRYPOINT_FIELD_NUMBER: builtins.int
     NOTEBOOK_FIELD_NUMBER: builtins.int
-    NAME_FIELD_NUMBER: builtins.int
     artifact: builtins.str
-    program: builtins.str
+    artifact_name: builtins.str
+    @property
+    def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     notebook: builtins.bool
-    name: builtins.str
     def __init__(
         self,
         *,
         artifact: builtins.str = ...,
-        program: builtins.str = ...,
+        artifact_name: builtins.str = ...,
+        entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
         notebook: builtins.bool = ...,
-        name: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "name", b"name", "notebook", b"notebook", "program", b"program"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "artifact_name", b"artifact_name", "entrypoint", b"entrypoint", "notebook", b"notebook"]) -> None: ...
 
 global___ArtifactInfo = ArtifactInfo
 
@@ -2959,50 +2960,93 @@ global___GitInfo = GitInfo
 class GitSource(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    GIT_FIELD_NUMBER: builtins.int
+    GIT_INFO_FIELD_NUMBER: builtins.int
     ENTRYPOINT_FIELD_NUMBER: builtins.int
     NOTEBOOK_FIELD_NUMBER: builtins.int
     @property
-    def git(self) -> global___GitInfo: ...
+    def git_info(self) -> global___GitInfo: ...
     @property
     def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     notebook: builtins.bool
     def __init__(
         self,
         *,
-        git: global___GitInfo | None = ...,
+        git_info: global___GitInfo | None = ...,
         entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
         notebook: builtins.bool = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["git", b"git"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["entrypoint", b"entrypoint", "git", b"git", "notebook", b"notebook"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["git_info", b"git_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["entrypoint", b"entrypoint", "git_info", b"git_info", "notebook", b"notebook"]) -> None: ...
 
 global___GitSource = GitSource
 
 @typing_extensions.final
-class JobSource(google.protobuf.message.Message):
+class ImageSource(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    TYPE_FIELD_NUMBER: builtins.int
-    RUNTIME_FIELD_NUMBER: builtins.int
-    ARTIFACTSOURCE_FIELD_NUMBER: builtins.int
-    GITSOURCE_FIELD_NUMBER: builtins.int
-    type: builtins.str
-    runtime: builtins.str
-    @property
-    def artifactSource(self) -> global___ArtifactInfo: ...
-    @property
-    def gitSource(self) -> global___GitSource: ...
+    IMAGE_FIELD_NUMBER: builtins.int
+    image: builtins.str
     def __init__(
         self,
         *,
-        type: builtins.str = ...,
-        runtime: builtins.str = ...,
-        artifactSource: global___ArtifactInfo | None = ...,
-        gitSource: global___GitSource | None = ...,
+        image: builtins.str = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitSource", b"gitSource"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifactSource", b"artifactSource", "gitSource", b"gitSource", "runtime", b"runtime", "type", b"type"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["image", b"image"]) -> None: ...
+
+global___ImageSource = ImageSource
+
+@typing_extensions.final
+class Source(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    GIT_FIELD_NUMBER: builtins.int
+    ARTIFACT_FIELD_NUMBER: builtins.int
+    IMAGE_FIELD_NUMBER: builtins.int
+    @property
+    def git(self) -> global___GitSource: ...
+    @property
+    def artifact(self) -> global___ArtifactInfo: ...
+    @property
+    def image(self) -> global___ImageSource: ...
+    def __init__(
+        self,
+        *,
+        git: global___GitSource | None = ...,
+        artifact: global___ArtifactInfo | None = ...,
+        image: global___ImageSource | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "git", b"git", "image", b"image"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "git", b"git", "image", b"image"]) -> None: ...
+
+global___Source = Source
+
+@typing_extensions.final
+class JobSource(google.protobuf.message.Message):
+    """
+    Mirrors JobSourceDict:
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    _VERSION_FIELD_NUMBER: builtins.int
+    SOURCE_TYPE_FIELD_NUMBER: builtins.int
+    SOURCE_FIELD_NUMBER: builtins.int
+    RUNTIME_FIELD_NUMBER: builtins.int
+    _version: builtins.str
+    source_type: builtins.str
+    @property
+    def source(self) -> global___Source: ...
+    runtime: builtins.str
+    def __init__(
+        self,
+        *,
+        _version: builtins.str = ...,
+        source_type: builtins.str = ...,
+        source: global___Source | None = ...,
+        runtime: builtins.str = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["source", b"source"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_version", b"_version", "runtime", b"runtime", "source", b"source", "source_type", b"source_type"]) -> None: ...
 
 global___JobSource = JobSource
 
@@ -3011,18 +3055,18 @@ class PartialJobArtifact(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     JOB_NAME_FIELD_NUMBER: builtins.int
-    SOURCE_FIELD_NUMBER: builtins.int
+    SOURCE_INFO_FIELD_NUMBER: builtins.int
     job_name: builtins.str
     @property
-    def source(self) -> global___JobSource: ...
+    def source_info(self) -> global___JobSource: ...
     def __init__(
         self,
         *,
         job_name: builtins.str = ...,
-        source: global___JobSource | None = ...,
+        source_info: global___JobSource | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["source", b"source"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["job_name", b"job_name", "source", b"source"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["source_info", b"source_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["job_name", b"job_name", "source_info", b"source_info"]) -> None: ...
 
 global___PartialJobArtifact = PartialJobArtifact
 
