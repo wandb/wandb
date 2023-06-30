@@ -4344,7 +4344,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
     _notebook_job: bool
-    _partial: bool
+    _partial_job: bool
 
     def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
@@ -4367,7 +4367,7 @@ class Job:
         self._notebook_job = source_info.get("notebook", False)
         self._entrypoint = source_info.get("entrypoint")
         self._args = source_info.get("args")
-        self._partial = self._job_info.get("_partial", False)
+        self._partial_job = self._job_info.get("_partial_job", False)
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
             self._job_info.get("input_types")
@@ -4474,7 +4474,7 @@ class Job:
         run_config.update(config)
 
         assigned_config_type = self._input_types.assign(run_config)
-        if self._partial:
+        if self._partial_job:
             wandb.termwarn(
                 "Launching manually created job for the first time, can't verify types"
             )

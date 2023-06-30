@@ -101,7 +101,7 @@ def _create_job(
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
-    metadata = {"_partial": "v0"}  # seed metadata with special partial key
+    metadata = {"_partial": "v0"}
     requirements: List[str] = []
 
     if job_type == "git":

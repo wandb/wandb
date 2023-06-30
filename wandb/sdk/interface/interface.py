@@ -454,8 +454,6 @@ class InterfaceBase:
         job_info: Dict[str, Any],
         metadata: Dict[str, Any],
     ) -> pb.UseArtifactRecord:
-        import wandb
-        wandb.termlog(f"{job_name=} {job_info=} {metadata=}")
         use_artifact.partial.job_name = job_name
         use_artifact.partial.source_info._version = job_info.get("_version", "")
         use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
@@ -466,11 +464,11 @@ class InterfaceBase:
             use_artifact.partial.source_info.source.artifact.artifact = job_info.get(
                 "source", {}
             ).get("artifact", "")
-            use_artifact.partial.source_info.source.artifact.name = job_info.get(
+            use_artifact.partial.source_info.source.artifact.artifact_name = job_info.get(
                 "source", {}
             ).get("artifact_name", "")
             use_artifact.partial.source_info.source.artifact.entrypoint.extend(
-                job_info.get("entrypoint", [])
+                job_info.get("source", {}).get("entrypoint", [])
             )
             use_artifact.partial.source_info.source.artifact.notebook = job_info.get(
                 "source", {}
@@ -483,7 +481,7 @@ class InterfaceBase:
                 "git", {}
             ).get("commit", "")
             use_artifact.partial.source_info.source.git.entrypoint.extend(
-                metadata.get("entrypoint", [])
+                job_info.get("source", {}).get("entrypoint", [])
             )
             use_artifact.partial.source_info.source.git.notebook = metadata.get(
                 "notebook", False

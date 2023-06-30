@@ -56,7 +56,7 @@ class JobSourceDict(TypedDict, total=False):
     input_types: Dict[str, Any]
     output_types: Dict[str, Any]
     runtime: Optional[str]
-    _partial: Optional[str]  # partial job
+    _partial_job: Optional[str]
 
 
 class ArtifactInfoForJob(TypedDict):
@@ -274,10 +274,15 @@ class JobBuilder:
             _logger.info("run is notebook based run")
             program_relpath = metadata.get("program")
 
+        input_types = TypeRegistry.type_of(self._config).to_json()
+        output_types = TypeRegistry.type_of(self._summary).to_json()
+
         if self._partial is not None:
             # construct source from downloaded partial job metadata
-            name = self._partial.pop("name")
+            name = self._partial.pop("job_name")
             source_info = self._partial
+            # add input/output types now that we are actually running a run
+            source_info.update({"input_types": input_types, "output_types": output_types})
             artifact = JobArtifact(name)
             # set source_type to determine whether to add diff file to artifact
             source_type = source_info["source_type"]
@@ -306,9 +311,6 @@ class JobBuilder:
             if artifact is None or source_type is None or source is None:
                 return None
 
-            input_types = TypeRegistry.type_of(self._config).to_json()
-            output_types = TypeRegistry.type_of(self._summary).to_json()
-
             source_info: JobSourceDict = {
                 "_version": "v0",
                 "source_type": source_type,
@@ -318,12 +320,10 @@ class JobBuilder:
                 "runtime": runtime,
             }
 
-        # If the job is a partial job, dump _partial into the job file
         if metadata.get("_partial"):
             assert (
                 not self._partial
             ), "A partial job should never create a partial job as output"
-            source_info["_partial"] = metadata.get("_partial")
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:
@@ -452,11 +452,41 @@ class JobBuilder:
 
 def convert_use_artifact_to_job_source(use_artifact: "UseArtifactRecord") -> JobSourceDict:
     source_info = use_artifact.partial.source_info
-    import wandb
-    wandb.termlog(f"{source_info=}")
-    wandb.termlog(f"{dict(source_info)=}")
-
-    return {
-        "name": use_artifact.partial.job_name,
-        "source_info": source_info,
+    source_info_dict = {
+        "_version": "v0",
+        "source_type": source_info.source_type,
+        "runtime": source_info.runtime,
+        "job_name": use_artifact.partial.job_name.split(":")[0],
     }
+    if source_info.source_type == "repo":
+        entrypoint = [str(x) for x in source_info.source.git.entrypoint]
+        source: GitSourceDict = {
+            "git": {
+                "remote": source_info.source.git.git_info.remote,
+                "commit": source_info.source.git.git_info.commit,
+            },
+            "entrypoint": entrypoint,
+            "notebook": source_info.source.git.notebook,
+        }
+        source_info_dict.update({"source": source})
+        return source_info_dict
+    
+    if source_info.source_type == "artifact":
+        entrypoint = [str(x) for x in source_info.source.artifact.entrypoint]
+        source: ArtifactSourceDict = {
+            "artifact": source_info.source.artifact.artifact,
+            "artifact_name": source_info.source.artifact.artifact_name,
+            "entrypoint": entrypoint,
+            "notebook": source_info.source.artifact.notebook,
+        }
+        source_info_dict.update({"source": source})
+        return source_info_dict
+
+    if source_info.source_type == "image":
+        source: ImageSourceDict = {
+            "image": source_info.source.image.image,
+        }
+        source_info_dict.update({"source": source}) 
+        return source_info_dict
+    
+    raise Exception("Unknown source type")
