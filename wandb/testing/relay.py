@@ -320,6 +320,11 @@ class QueryResolver:
                 .get("files", {})
                 .get("edges", [])
             )
+            print("FILES#############", files)
+            print("RESP#############", response_data)
+            # {'data': {'model': {'bucket': {'id': 'UnVuOnYxOjBncnVydnZsOndhbmRiLXRlc3RzX3N0YW5kYWxvbmVfdGVzdHNfbWl0bV90ZXN0czpqZWZmcg==', 'files': {'uploadHeaders': [], 'edges': [{'node': {'name': 'wandb-summary.json', 'url': 'https://storage.googleapis.com/wandb-production.appspot.com/jeffr/wandb-tests_standalone_tests_mitm_tests/0grurvvl/wandb-summary.json?Expires=1688170259&GoogleAccessId=wandb-production%40appspot.gserviceaccount.com&Signature=b4ggpmIe%2F21r%2FWkdT%2F0NFblxiTVy9zXws%2BzEjq0v5ymIVYyVf7TOjfMaDLUNSxY2V5ZjYkru8qjv6Wjghcog5IPXHoOeQYrGZbbnAeTPQnAGZA59QB43QcrMNdmc%2F%2Bbw1kIRs5W%2B%2BbeLLBxaG2lVQ1JPnyuewLbA10ShqxLZWgT8kaUsH2weX1ieYIJpYc%2Br%2BQxAxC6YPM6XZ7gKikjxfm%2FmLd4VyqBCse6z1pYIRwyUDPYDbbhsKIu3%2FVDNm3GgBzyZyDOPGOhnJR19B6tXVeMmWygXuU%2F0KMPTP6bVveoT94nP7d9VyFaJsOc6kuq%2BELSXR71lyiVZNOlOy73LqQ%3D%3D', 'updatedAt': None}}]}}}}}
+            # TODO: replace storage urls with relay storage urls so we can snoop on it
+
             # note: we count all attempts to upload files
             post_processed_data = {
                 "name": name,
