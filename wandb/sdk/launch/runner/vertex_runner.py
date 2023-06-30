@@ -17,6 +17,7 @@ from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
+from ..registry.abstract import AbstractRegistry
 from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -82,11 +83,16 @@ class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun."""
 
     def __init__(
-        self, api: Api, backend_config: Dict[str, Any], environment: GcpEnvironment
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+        environment: GcpEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Initialize a VertexRunner instance."""
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def run(
         self, launch_project: LaunchProject, image_uri: str

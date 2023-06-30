@@ -191,6 +191,7 @@ def runner_from_config(
     api: Api,
     runner_config: Dict[str, Any],
     environment: AbstractEnvironment,
+    registry: AbstractRegistry,
 ) -> AbstractRunner:
     """Create a runner from a config.
 

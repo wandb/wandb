@@ -351,7 +351,11 @@ class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
     def __init__(
-        self, api: Api, backend_config: Dict[str, Any], environment: AbstractEnvironment
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Create a Kubernetes runner.
 
@@ -365,6 +369,7 @@ class KubernetesRunner(AbstractRunner):
         """
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def wait_job_launch(
         self,
@@ -437,6 +442,8 @@ class KubernetesRunner(AbstractRunner):
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
         image_uri: str,
+        namespace: str,
+        core_api: "CoreV1Api",
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
         """Apply our default values, return job dict and secret.
 
@@ -505,17 +512,17 @@ class KubernetesRunner(AbstractRunner):
             containers[0]["image"] = image_uri
             launch_project.fill_macros(image_uri)
 
-        # if not builder.registry:
-        #     raise LaunchError(
-        #         "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
-        #     )
-        # secret = maybe_create_imagepull_secret(
-        #     core_api, builder.registry, launch_project.run_id, namespace
-        # )
-        # if secret is not None:
-        #     pod_spec["imagePullSecrets"] = [
-        #         {"name": f"regcred-{launch_project.run_id}"}
-        #     ]
+        if not self.registry:
+            raise LaunchError(
+                "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
+            )
+        secret = maybe_create_imagepull_secret(
+            core_api, self.registry, launch_project.run_id, namespace
+        )
+        if secret is not None:
+            pod_spec["imagePullSecrets"] = [
+                {"name": f"regcred-{launch_project.run_id}"}
+            ]
 
         inject_entrypoint_and_args(
             containers,
@@ -631,7 +638,9 @@ class KubernetesRunner(AbstractRunner):
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
         namespace = self.get_namespace(resource_args, context)
-        job, secret = self._inject_defaults(resource_args, launch_project, image_uri)
+        job, secret = self._inject_defaults(
+            resource_args, launch_project, image_uri, namespace, core_api
+        )
         msg = "Creating Kubernetes job"
         if "name" in resource_args:
             msg += f": {resource_args['name']}"

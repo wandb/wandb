@@ -125,7 +125,11 @@ class AbstractRunner(ABC):
     (e.g. to run projects against your team's in-house cluster or job scheduler).
     """
 
-    def __init__(self, api: Api, backend_config: Dict[str, Any]) -> None:
+    def __init__(
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+    ) -> None:
         self._settings = Settings()
         self._api = api
         self.backend_config = backend_config

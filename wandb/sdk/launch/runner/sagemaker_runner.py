@@ -13,6 +13,7 @@ from wandb.sdk.launch.errors import LaunchError
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
+from ..registry.abstract import AbstractRegistry
 from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, to_camel_case
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -107,7 +108,11 @@ class SageMakerRunner(AbstractRunner):
     """Runner class, uses a project to create a SagemakerSubmittedRun."""
 
     def __init__(
-        self, api: Api, backend_config: Dict[str, Any], environment: AwsEnvironment
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+        environment: AwsEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Initialize the SagemakerRunner.
 
@@ -121,6 +126,7 @@ class SageMakerRunner(AbstractRunner):
         """
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def run(
         self,

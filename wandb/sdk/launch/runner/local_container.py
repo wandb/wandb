@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
@@ -95,9 +96,11 @@ class LocalContainerRunner(AbstractRunner):
         api: wandb.apis.internal.Api,
         backend_config: Dict[str, Any],
         environment: AbstractEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def _populate_docker_args(self, launch_project: LaunchProject) -> Dict[str, Any]:
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
