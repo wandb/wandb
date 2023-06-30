@@ -323,7 +323,10 @@ class QueryResolver:
             print("FILES#############", files)
             print("RESP#############", response_data)
             # {'data': {'model': {'bucket': {'id': 'UnVuOnYxOjBncnVydnZsOndhbmRiLXRlc3RzX3N0YW5kYWxvbmVfdGVzdHNfbWl0bV90ZXN0czpqZWZmcg==', 'files': {'uploadHeaders': [], 'edges': [{'node': {'name': 'wandb-summary.json', 'url': 'https://storage.googleapis.com/wandb-production.appspot.com/jeffr/wandb-tests_standalone_tests_mitm_tests/0grurvvl/wandb-summary.json?Expires=1688170259&GoogleAccessId=wandb-production%40appspot.gserviceaccount.com&Signature=b4ggpmIe%2F21r%2FWkdT%2F0NFblxiTVy9zXws%2BzEjq0v5ymIVYyVf7TOjfMaDLUNSxY2V5ZjYkru8qjv6Wjghcog5IPXHoOeQYrGZbbnAeTPQnAGZA59QB43QcrMNdmc%2F%2Bbw1kIRs5W%2B%2BbeLLBxaG2lVQ1JPnyuewLbA10ShqxLZWgT8kaUsH2weX1ieYIJpYc%2Br%2BQxAxC6YPM6XZ7gKikjxfm%2FmLd4VyqBCse6z1pYIRwyUDPYDbbhsKIu3%2FVDNm3GgBzyZyDOPGOhnJR19B6tXVeMmWygXuU%2F0KMPTP6bVveoT94nP7d9VyFaJsOc6kuq%2BELSXR71lyiVZNOlOy73LqQ%3D%3D', 'updatedAt': None}}]}}}}}
+            # FILES############# [{'node': {'name': 'wandb-summary.json', 'url': 'https://storage.googleapis.com/wandb-production.appspot.com/jeffr/wandb-tests_standalone_tests_mitm_tests/uy9r3u0k/wandb-summary.json?Expires=1688172951&GoogleAccessId=wandb-production%40appspot.gserviceaccount.com&Signature=A7611BJ1Y71%2FSsKU8%2Fb%2BLXM0kb3xRDODF2lkt5sTmjghAaHT6PlljtGIRPukz%2F8ymaty0lgf7%2Fj6XjlpcmQ2Aa4901%2Fx9YiRd1oM6lzzAfnipc0SZsjSvv77VyOIdfX4ZgVFa0AuTtUGmeQ%2BqKbZxi69gMrYu5Rvyf1vl%2Fv3Hx0j8m%2Bg6H0d7npBl70%2FwzKYzxibQ730uNIyIPDe1MWDUiqtmezUO1lB3oX7b2BWebB0oQWM1tyQFEHvdf96n32pNMAE%2B%2BKf%2Brk3%2BXLvK5yJUiwGGQ7zOeTRf4X5DGJ8HTbcLD%2B7Jqs8NEfMJd1vFgCLqy2ynyLVhN2Sn1P0a0LsYg%3D%3D', 'updatedAt': None}}]
+
             # TODO: replace storage urls with relay storage urls so we can snoop on it
+            # FIXME: walk into files list.. changing the url values
 
             # note: we count all attempts to upload files
             post_processed_data = {
