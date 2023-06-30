@@ -56,7 +56,7 @@ class JobSourceDict(TypedDict, total=False):
     input_types: Dict[str, Any]
     output_types: Dict[str, Any]
     runtime: Optional[str]
-    _partial_job: Optional[str]
+    _partial: Optional[str]
 
 
 class ArtifactInfoForJob(TypedDict):
