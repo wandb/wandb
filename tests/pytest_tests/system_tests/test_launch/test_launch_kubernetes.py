@@ -39,8 +39,6 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project.job = "testjob"
 
         environment = loader.environment_from_config({})
-        registry = loader.registry_from_config({}, environment)
-        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
         api = Api()
         runner = loader.runner_from_config(
             runner_name="kubernetes",
@@ -48,7 +46,7 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
             runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
             environment=environment,
         )
-        run = runner.run(launch_project=project, builder=builder)
+        run = runner.run(project, project.docker_image)
 
     assert run.name == expected_run_name
     assert run.job["metadata"]["generateName"] == expected_generate_name
@@ -68,8 +66,6 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
     with relay_server():
         api = Api()
         environment = loader.environment_from_config({})
-        registry = loader.registry_from_config({}, environment)
-        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
         api = Api()
         runner = loader.runner_from_config(
             runner_name="kubernetes",
@@ -99,7 +95,7 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
         project.override_config = {}
         project.override_args = ["-a", "2"]
         project.job = "testjob"
-        run = runner.run(launch_project=project, builder=builder)
+        run = runner.run(project, project.docker_image)
     assert run.name == expected_run_name
     assert run.job["metadata"]["generateName"] == expected_generate_name
     assert run.job["metadata"]["annotations"] == {"x": "y"}

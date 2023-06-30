@@ -5,6 +5,7 @@ import pytest
 import wandb
 from wandb.errors import CommError
 from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.launch.builder.build import EntryPoint
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.launch import run
 
@@ -12,7 +13,9 @@ from wandb.sdk.launch.launch import run
 def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_settings):
     proj = "test1"
     uri = "https://github.com/wandb/examples.git"
-    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    entry_point = EntryPoint(
+        "_", ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    )
     settings = test_settings({"project": proj})
     api = InternalApi()
 

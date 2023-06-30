@@ -61,7 +61,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
             {"type": "local-container", "SYNCHRONOUS": False},
             environment,
         )
-        command = runner.run(launch_project=project, builder=builder)
+        command = runner.run(project, project.docker_image)
         assert (
             f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
             in command
@@ -70,6 +70,6 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         # test with no user provided image
         project.docker_image = None
         project.image_name = None
-        command = runner.run(launch_project=project, builder=builder)
+        command = runner.run(project, builder)
         assert f"WANDB_ARGS='{string_args}'" in command
         assert f"WANDB_ARGS='{string_args}'" in command
