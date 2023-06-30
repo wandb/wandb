@@ -591,17 +591,18 @@ class LaunchAgent:
             status = run.get_status().state
 
             # Ensure run was not stopped intentionally
-            try:
-                run_state = RunState(
-                    self._api.get_run_state(
-                        self._entity, job_tracker.project, job_tracker.run_id
+            if status == "preempted":
+                try:
+                    run_state = RunState(
+                        self._api.get_run_state(
+                            self._entity, job_tracker.project, job_tracker.run_id
+                        )
                     )
-                )
-                if status == "preempted" and not run_state.is_alive:
-                    status = "stopped"
-            except wandb.CommError:
-                # Run doesn't exist yet
-                status = "stopped"
+                    if not run_state.is_alive:
+                        status = "stopped"
+                except wandb.CommError:
+                    # Run doesn't exist yet
+                    status = "failed"
 
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
