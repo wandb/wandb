@@ -1732,9 +1732,14 @@ class Settings:
                         f"Ignored wandb.init() arg {key} when running a sweep."
                     )
         if self.launch:
-            for key in ("project", "entity", "id"):
-                val = init_settings.pop(key, None)
-                if val:
+            if self.project is not None and init_settings.pop("project", None):
+                wandb.termwarn(
+                    "Project is ignored when running from wandb launch context. "
+                    "Ignored wandb.init() arg project when running running from launch.",
+                )
+            for key in ("entity", "id"):
+                # Init settings cannot override launch settings.
+                if init_settings.pop(key, None):
                     wandb.termwarn(
                         "Project, entity and id are ignored when running from wandb launch context. "
                         f"Ignored wandb.init() arg {key} when running running from launch.",
