@@ -56,7 +56,12 @@ class JobSourceDict(TypedDict, total=False):
     input_types: Dict[str, Any]
     output_types: Dict[str, Any]
     runtime: Optional[str]
-    _partial: Optional[str]
+    _partial: Optional[str]  # flag to indicate incomplete job
+
+
+class PartialJobSourceDict(TypedDict):
+    job_name: str
+    job_source_info: JobSourceDict
 
 
 class ArtifactInfoForJob(TypedDict):
@@ -78,7 +83,7 @@ class JobBuilder:
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
-    _partial: Optional[JobSourceDict]
+    _partial_source: Optional[PartialJobSourceDict]
     _aliases: List[str]
 
     def __init__(self, settings: SettingsStatic):
@@ -89,7 +94,7 @@ class JobBuilder:
         self._summary = None
         self._logged_code_artifact = None
         self._disable = settings.disable_job_creation
-        self._partial = None
+        self._partial_source = None
         self._aliases = []
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
@@ -119,16 +124,13 @@ class JobBuilder:
                     "name": artifact.name,
                 }
             )
-    
+
     def _build_repo_job_source(
         self,
         metadata: Dict[str, Any],
         program_relpath: str,
         root: Optional[str],
-        name: Optional[str] = None,
-        entrypoint: Optional[List[str]] = None,
-        is_notebook_run: Optional[bool] = None,
-    ) -> Tuple[Optional[JobSourceDict], Optional[str]]:
+    ) -> Tuple[Optional[GitSourceDict], Optional[str]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
@@ -165,31 +167,25 @@ class JobBuilder:
         else:
             full_program_path = program_relpath
 
-        if not entrypoint:
-            entrypoint = [os.path.basename(sys.executable), full_program_path]
-
-        if is_notebook_run is None:
-            is_notebook_run = self._is_notebook_run()
-
         # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
-            "entrypoint": entrypoint,
-            "notebook": is_notebook_run,
+            "entrypoint": [
+                os.path.basename(sys.executable),
+                full_program_path,
+            ],
+            "notebook": self._is_notebook_run(),
             "git": {
                 "remote": remote,
                 "commit": commit,
             },
         }
-
-        if not name:
-            name = f"job-{remote}_{program_relpath}"
-        name = make_artifact_name_safe(name)
+        name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
         return source, name
 
     def _build_artifact_job_source(
-        self, program_relpath: str, name: Optional[str] = None
-    ) -> Tuple[Optional[Artifact], Optional[str]]:
+        self, program_relpath: str
+    ) -> Tuple[Optional[ArtifactSourceDict], Optional[str]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run() and not self._is_colab_run():
@@ -217,27 +213,21 @@ class JobBuilder:
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
             "artifact_name": self._logged_code_artifact["name"],
         }
-
-        if not name:
-            name = f"job-{self._logged_code_artifact['name']}"
-        name = make_artifact_name_safe(name)
+        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         return source, name
 
     def _build_image_job_source(
-        self, metadata: Dict[str, Any], name: Optional[str] = None
+        self, metadata: Dict[str, Any]
     ) -> Tuple[ImageSourceDict, str]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
 
-        if not name:
-            raw_image_name = image_name
-            if ":" in image_name:
-                raw_image_name, tag = image_name.split(":")
-                self._aliases += [tag]
-            name = f"job-{raw_image_name}"
-        name = make_artifact_name_safe(name)
-
+        raw_image_name = image_name
+        if ":" in image_name:
+            raw_image_name, tag = image_name.split(":")
+            self._aliases += [tag]
+        name = make_artifact_name_safe(f"job-{raw_image_name}")
         source: ImageSourceDict = {
             "image": image_name,
         }
@@ -261,11 +251,6 @@ class JobBuilder:
 
         runtime: Optional[str] = metadata.get("python")
         program_relpath: Optional[str] = metadata.get("codePath")
-        artifact = None
-        source: Optional[
-            Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
-        ] = None
-
         # can't build a job without a python version
         if runtime is None:
             return None
@@ -277,41 +262,51 @@ class JobBuilder:
         input_types = TypeRegistry.type_of(self._config).to_json()
         output_types = TypeRegistry.type_of(self._summary).to_json()
 
-        if self._partial is not None:
+        name: Optional[str] = None
+        source_info: Optional[JobSourceDict] = None
+
+        if self._partial_source is not None:
             # construct source from downloaded partial job metadata
-            name = self._partial.pop("job_name")
-            source_info = self._partial
+            name = self._partial_source["job_name"]
+            source_info = self._partial_source["job_source_info"]
             # add input/output types now that we are actually running a run
-            source_info.update({"input_types": input_types, "output_types": output_types})
-            artifact = JobArtifact(name)
+            source_info.update(
+                {"input_types": input_types, "output_types": output_types}
+            )
             # set source_type to determine whether to add diff file to artifact
-            source_type = source_info["source_type"]
+            source_type = source_info.get("source_type")
         else:
             # configure job from environment
             source_type = self._get_source_type(metadata, program_relpath)
             if not source_type:
                 return None
 
+            source: Union[
+                Optional[GitSourceDict],
+                Optional[ArtifactSourceDict],
+                Optional[ImageSourceDict],
+            ] = None
+
+            # make source dict
             if source_type == "repo":
                 assert program_relpath is not None
                 source, name = self._build_repo_job_source(
                     metadata,
                     program_relpath,
                     metadata.get("root"),
-                    entrypoint=metadata.get("entrypoint"),
-                    is_notebook_run=metadata.get("notebook"),
                 )
             elif source_type == "artifact":
                 assert program_relpath is not None
                 source, name = self._build_artifact_job_source(program_relpath)
             elif source_type == "image":
                 source, name = self._build_image_job_source(metadata)
-        
-            artifact = JobArtifact(name)
-            if artifact is None or source_type is None or source is None:
+            else:
+                source = None
+
+            if source is None:
                 return None
 
-            source_info: JobSourceDict = {
+            source_info = {
                 "_version": "v0",
                 "source_type": source_type,
                 "source": source,
@@ -320,10 +315,12 @@ class JobBuilder:
                 "runtime": runtime,
             }
 
+        assert source_info is not None
+        assert name is not None
         if metadata.get("_partial"):
-            assert (
-                not self._partial
-            ), "A partial job should never create a partial job as output"
+            assert not self._partial_source, "partial job has partial output"
+
+        artifact = JobArtifact(name)
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:
@@ -344,82 +341,24 @@ class JobBuilder:
 
         return artifact
 
-    # def _build_job_from_partial(
-    #     self, metadata: Dict[str, Any]
-    # ) -> Tuple[
-    #     Artifact,
-    #     Union[ArtifactSourceDict, ImageSourceDict, GitSourceDict],
-    #     Optional[Dict[str, Any]],
-    # ]:
-    #     # Creating a normal job, out of a partial job
-    #     assert self._partial
-    #     name, _alias = self._partial.job_name.split(":")
-
-    #     if self._partial.source.type == "artifact":
-    #         self._logged_code_artifact = ArtifactInfoForJob(
-    #             {
-    #                 "id": self._partial.source.artifactSource.artifact.split(
-    #                     "wandb-artifact://_id/"
-    #                 )[1],
-    #                 "name": self._partial.source.artifactSource.name,
-    #             }
-    #         )
-
-    #         artifact, artifact_source = self._build_artifact_job(
-    #             metadata=metadata,
-    #             program_relpath=self._partial.source.artifactSource.program,
-    #             name=name,
-    #         )
-    #         if not artifact or not artifact_source:
-    #             raise Exception("Failed to build artifact job from partial")
-    #         return artifact, artifact_source, None
-    #     if self._partial.source.type == "repo":
-    #         # update current metadata from partial, where we downloaded the previous
-    #         # partial-artifacts real repo metadata
-    #         metadata.update(
-    #             {
-    #                 "git": {
-    #                     "remote": self._partial.source.gitSource.git.remote,
-    #                     "commit": self._partial.source.gitSource.git.commit,
-    #                 }
-    #             }
-    #         )
-    #         program_relpath = metadata.get("codePath")
-    #         assert program_relpath is not None
-    #         repo_source = self._build_repo_job_source(
-    #             metadata=metadata,
-    #             program_relpath=program_relpath,
-    #             root=self._partial.source.gitSource.root,
-    #             name=name,
-    #         )
-    #         artifact = self._build_repo_job(name)
-    #         if not artifact or not repo_source:
-    #             raise Exception("Failed to build artifact job from partial")
-    #         return artifact, repo_source, metadata
-
-    #     if self._partial.source.type == "image":
-    #         artifact, image_source = self._build_image_job(metadata, name=name)
-    #         if not artifact or not image_source:
-    #             raise Exception("Failed to build artifact job from partial")
-    #         return artifact, image_source, None
-    #     raise Exception("Unknown partial job source type")
-
-    def _get_source_type(self, metadata: Dict[str, Any], relpath: str) -> Optional[str]:
+    def _get_source_type(
+        self, metadata: Dict[str, Any], relpath: Optional[str]
+    ) -> Optional[str]:
         if self._source_type:
             return self._source_type
 
         if self._has_git_job_ingredients(metadata, relpath):
             _logger.info("is repo sourced job")
-            return "repo" 
-        
+            return "repo"
+
         if self._has_artifact_job_ingredients(relpath):
             _logger.info("is artifact sourced job")
             return "artifact"
-        
+
         if self._has_image_job_ingredients(metadata):
             _logger.info("is image sourced job")
             return "image"
-        
+
         _logger.info("no source found")
         return None
 
@@ -450,17 +389,18 @@ class JobBuilder:
         return metadata.get("docker") is not None
 
 
-def convert_use_artifact_to_job_source(use_artifact: "UseArtifactRecord") -> JobSourceDict:
+def convert_use_artifact_to_job_source(
+    use_artifact: "UseArtifactRecord",
+) -> PartialJobSourceDict:
     source_info = use_artifact.partial.source_info
-    source_info_dict = {
+    source_info_dict: JobSourceDict = {
         "_version": "v0",
         "source_type": source_info.source_type,
         "runtime": source_info.runtime,
-        "job_name": use_artifact.partial.job_name.split(":")[0],
     }
     if source_info.source_type == "repo":
         entrypoint = [str(x) for x in source_info.source.git.entrypoint]
-        source: GitSourceDict = {
+        git_source: GitSourceDict = {
             "git": {
                 "remote": source_info.source.git.git_info.remote,
                 "commit": source_info.source.git.git_info.commit,
@@ -468,25 +408,24 @@ def convert_use_artifact_to_job_source(use_artifact: "UseArtifactRecord") -> Job
             "entrypoint": entrypoint,
             "notebook": source_info.source.git.notebook,
         }
-        source_info_dict.update({"source": source})
-        return source_info_dict
-    
-    if source_info.source_type == "artifact":
+        source_info_dict.update({"source": git_source})
+    elif source_info.source_type == "artifact":
         entrypoint = [str(x) for x in source_info.source.artifact.entrypoint]
-        source: ArtifactSourceDict = {
+        artifact_source: ArtifactSourceDict = {
             "artifact": source_info.source.artifact.artifact,
             "artifact_name": source_info.source.artifact.artifact_name,
             "entrypoint": entrypoint,
             "notebook": source_info.source.artifact.notebook,
         }
-        source_info_dict.update({"source": source})
-        return source_info_dict
-
-    if source_info.source_type == "image":
-        source: ImageSourceDict = {
+        source_info_dict.update({"source": artifact_source})
+    elif source_info.source_type == "image":
+        image_source: ImageSourceDict = {
             "image": source_info.source.image.image,
         }
-        source_info_dict.update({"source": source}) 
-        return source_info_dict
-    
-    raise Exception("Unknown source type")
+        source_info_dict.update({"source": image_source})
+
+    partal_job_source_dict: PartialJobSourceDict = {
+        "job_name": use_artifact.partial.job_name.split(":")[0],
+        "job_source_info": source_info_dict,
+    }
+    return partal_job_source_dict

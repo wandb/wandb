@@ -458,15 +458,15 @@ class InterfaceBase:
         use_artifact.partial.source_info._version = job_info.get("_version", "")
         use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
         use_artifact.partial.source_info.runtime = job_info.get("runtime", "")
-        
+
         # construct JobSourceDict.source
         if job_info.get("source_type") == "artifact":
             use_artifact.partial.source_info.source.artifact.artifact = job_info.get(
                 "source", {}
             ).get("artifact", "")
-            use_artifact.partial.source_info.source.artifact.artifact_name = job_info.get(
-                "source", {}
-            ).get("artifact_name", "")
+            use_artifact.partial.source_info.source.artifact.artifact_name = (
+                job_info.get("source", {}).get("artifact_name", "")
+            )
             use_artifact.partial.source_info.source.artifact.entrypoint.extend(
                 job_info.get("source", {}).get("entrypoint", [])
             )
