@@ -15,9 +15,8 @@ class SettingsStatic(SettingsData):
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
         for field in fields(SettingsData):
             key = field.name
-            if proto.HasField(key):  # type: ignore[arg-type]
-                value = getattr(proto, key).value
-                object.__setattr__(self, key, value)
+            value = getattr(proto, key).value if proto.HasField(key) else None  # type: ignore[arg-type]
+            object.__setattr__(self, key, value)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
