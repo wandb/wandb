@@ -478,7 +478,7 @@ class InterfaceBase:
                 "git", {}
             ).get("commit", "")
             use_artifact.partial.source_info.source.git.entrypoint.extend(
-                job_info.get("source", {}).get("entrypoint", [])
+                metadata.get("entrypoint", [])
             )
             use_artifact.partial.source_info.source.git.notebook = metadata.get(
                 "notebook", False

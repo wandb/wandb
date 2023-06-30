@@ -168,17 +168,27 @@ class JobBuilder:
 
         # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
+            "git": {
+                "remote": remote,
+                "commit": commit,
+            },
             "entrypoint": [
                 os.path.basename(sys.executable),
                 full_program_path,
             ],
             "notebook": self._is_notebook_run(),
-            "git": {
-                "remote": remote,
-                "commit": commit,
-            },
         }
         name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
+
+        # if job is a partial repo job, don't construct local entrypoint or notebook flag
+        #    entrypoint should be already set in metadata
+        if metadata.get("_partial"):
+            source.update(
+                {
+                    "entrypoint": metadata.get("entrypoint", []),
+                    "notebook": metadata.get("notebook", False),
+                }
+            )
 
         return source, name
 
