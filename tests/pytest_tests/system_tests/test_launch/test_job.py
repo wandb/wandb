@@ -83,7 +83,6 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert job_v0._partial
     assert job_v0._job_info["runtime"] == "3.8"
     assert job_v0._job_info["_version"] == "v0"
-    assert job_v0._job_info["source"]["artifact_name"] == "code-test-job-9999:v0"
     assert job_v0._job_info["source"]["entrypoint"] == ["python", "test.py"]
     assert job_v0._job_info["source"]["notebook"] == False
 

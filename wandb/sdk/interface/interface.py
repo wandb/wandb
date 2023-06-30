@@ -464,9 +464,6 @@ class InterfaceBase:
             use_artifact.partial.source_info.source.artifact.artifact = job_info.get(
                 "source", {}
             ).get("artifact", "")
-            use_artifact.partial.source_info.source.artifact.artifact_name = (
-                job_info.get("source", {}).get("artifact_name", "")
-            )
             use_artifact.partial.source_info.source.artifact.entrypoint.extend(
                 job_info.get("source", {}).get("entrypoint", [])
             )

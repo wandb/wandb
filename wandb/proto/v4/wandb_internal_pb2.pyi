@@ -2918,11 +2918,9 @@ class ArtifactInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     ARTIFACT_FIELD_NUMBER: builtins.int
-    ARTIFACT_NAME_FIELD_NUMBER: builtins.int
     ENTRYPOINT_FIELD_NUMBER: builtins.int
     NOTEBOOK_FIELD_NUMBER: builtins.int
     artifact: builtins.str
-    artifact_name: builtins.str
     @property
     def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     notebook: builtins.bool
@@ -2930,11 +2928,10 @@ class ArtifactInfo(google.protobuf.message.Message):
         self,
         *,
         artifact: builtins.str = ...,
-        artifact_name: builtins.str = ...,
         entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
         notebook: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "artifact_name", b"artifact_name", "entrypoint", b"entrypoint", "notebook", b"notebook"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "entrypoint", b"entrypoint", "notebook", b"notebook"]) -> None: ...
 
 global___ArtifactInfo = ArtifactInfo
 

@@ -40,7 +40,6 @@ class GitSourceDict(TypedDict):
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
-    artifact_name: str
     entrypoint: List[str]
     notebook: bool
 
@@ -211,7 +210,6 @@ class JobBuilder:
             "entrypoint": entrypoint,
             "notebook": self._is_notebook_run(),
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
-            "artifact_name": self._logged_code_artifact["name"],
         }
         name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
@@ -414,7 +412,6 @@ def convert_use_artifact_to_job_source(
         entrypoint = [str(x) for x in source_info.source.artifact.entrypoint]
         artifact_source: ArtifactSourceDict = {
             "artifact": source_info.source.artifact.artifact,
-            "artifact_name": source_info.source.artifact.artifact_name,
             "entrypoint": entrypoint,
             "notebook": source_info.source.artifact.notebook,
         }

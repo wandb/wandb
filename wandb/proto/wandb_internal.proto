@@ -910,9 +910,8 @@ message KeepaliveResponse {
  */
 message ArtifactInfo {
   string artifact = 1;
-  string artifact_name = 2;
-  repeated string entrypoint = 3;
-  bool notebook = 4;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
 }
 
 message GitInfo {
