@@ -45,6 +45,7 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
             api=api,
             runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
             environment=environment,
+            registry=MagicMock(),
         )
         run = runner.run(project, project.docker_image)
 
@@ -72,6 +73,7 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
             api=api,
             runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
             environment=environment,
+            registry=MagicMock(),
         )
 
         entity_name = "testentity"

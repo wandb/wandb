@@ -58,6 +58,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
             api,
             {"type": "local-container", "SYNCHRONOUS": False},
             environment,
+            MagicMock(),
         )
         command = runner.run(project, project.docker_image)
         assert (
