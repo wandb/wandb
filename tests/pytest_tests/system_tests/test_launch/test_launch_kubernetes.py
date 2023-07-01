@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import kubernetes
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
+from wandb.sdk.launch.runner import kubernetes_runner
 from wandb.sdk.launch.utils import make_name_dns_safe
 
 
@@ -48,7 +49,8 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
             registry=MagicMock(),
         )
         monkeypatch.setattr(
-            "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+            kubernetes_runner,
+            "maybe_create_imagepull_secret",
             lambda *args, **kwargs: None,
         )
         run = runner.run(project, project.docker_image)
