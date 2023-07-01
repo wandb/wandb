@@ -103,6 +103,11 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
         project.override_config = {}
         project.override_args = ["-a", "2"]
         project.job = "testjob"
+        monkeypatch.setattr(
+            kubernetes_runner,
+            "maybe_create_imagepull_secret",
+            lambda *args, **kwargs: None,
+        )
         run = runner.run(project, project.docker_image)
     assert run.name == expected_run_name
     assert run.job["metadata"]["generateName"] == expected_generate_name
