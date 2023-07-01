@@ -556,7 +556,9 @@ class LaunchAgent:
         if not project.docker_image:
             assert entrypoint is not None
             image_uri = builder.build_image(project, entrypoint, job_tracker)
-        backend = loader.runner_from_config(resource, api, backend_config, environment)
+        backend = loader.runner_from_config(
+            resource, api, backend_config, environment, registry
+        )
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         assert image_uri
