@@ -1,0 +1,1 @@
+google.golang.org/protobuf/cmd/protoc-gen-go v1.30.0
