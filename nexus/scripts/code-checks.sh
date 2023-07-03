@@ -8,6 +8,7 @@ usage()
     echo "Usage: $PROG [COMMANDS] [OPTIONS]"
     echo "  COMMANDS:"
     echo "    check   - run hooks"
+    echo "    update  - update tools"
     echo "    install - install hooks"
     echo "  OPTIONS:"
     echo "    --all     s        - check all files (not just changed files)"
@@ -16,12 +17,18 @@ usage()
     echo "    --stage HOOK_STAGE - specify hook stage"
 }
 
+BASE=$(dirname $(dirname $(readlink -f $0)))
+
 PARAMS=""
 CHECK=false
 CHECK_ALL=false
 NOCOMMAND=true
 CHECK_HOOK=""
 HOOK_STAGE="pre-push"
+
+update_dev_env() {
+    $BASE/scripts/update-dev-env.sh
+}
 
 while (( "$#" )); do
   case "$1" in
@@ -30,13 +37,14 @@ while (( "$#" )); do
       NOCOMMAND=false
       shift
       ;;
+    update)
+      update_dev_env
+      NOCOMMAND=false
+      shift
+      ;;
     install)
+      update_dev_env
       pre-commit install -t pre-push
-      go install -v golang.org/x/tools/cmd/goimports@latest
-      # not recommended, see https://golangci-lint.run/usage/install/#local-installation
-      # go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-      go install -v github.com/go-critic/go-critic/cmd/gocritic@latest
-      go install -v github.com/fzipp/gocyclo/cmd/gocyclo@latest
       NOCOMMAND=false
       shift
       ;;
