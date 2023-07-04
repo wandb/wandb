@@ -287,6 +287,7 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
+        self.fail_run_queue_item_input_info: Optional[List[str]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -586,13 +587,103 @@ class Api:
         return "failRunQueueItem" in mutations
 
     @normalize_exceptions
-    def fail_run_queue_item(self, run_queue_item_id: str) -> bool:
+    def fail_run_queue_item_fields_introspection(self) -> List:
+        if self.fail_run_queue_item_input_info:
+            return self.fail_run_queue_item_input_info
+        query_string = """
+           query ProbeServerFailRunQueueItemInput {
+                FailRunQueueItemInputInfoType: __type(name:"FailRunQueueItemInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+
+        self.fail_run_queue_item_input_info = [
+            field.get("name", "")
+            for field in res.get("FailRunQueueItemInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+        ]
+        return self.fail_run_queue_item_input_info
+
+    @normalize_exceptions
+    def fail_run_queue_item(
+        self,
+        run_queue_item_id: str,
+        message: str,
+        stage: str,
+        file_paths: Optional[List[str]] = None,
+    ) -> bool:
+        if not self.fail_run_queue_item_introspection():
+            return False
+        variable_values: Dict[str, Union[str, Optional[List[str]]]] = {
+            "runQueueItemId": run_queue_item_id,
+        }
+        if "message" in self.fail_run_queue_item_fields_introspection():
+            variable_values.update({"message": message, "stage": stage})
+            if file_paths is not None:
+                variable_values["filePaths"] = file_paths
+            mutation_string = """
+            mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
+                failRunQueueItem(
+                    input: {
+                        runQueueItemId: $runQueueItemId
+                        message: $message
+                        stage: $stage
+                        filePaths: $filePaths
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+        else:
+            mutation_string = """
+            mutation failRunQueueItem($runQueueItemId: ID!) {
+                failRunQueueItem(
+                    input: {
+                        runQueueItemId: $runQueueItemId
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+
+        mutation = gql(mutation_string)
+        response = self.gql(mutation, variable_values=variable_values)
+        result: bool = response["failRunQueueItem"]["success"]
+        return result
+
+    @normalize_exceptions
+    def update_run_queue_item_warning_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "updateRunQueueItemWarning" in mutations
+
+    @normalize_exceptions
+    def update_run_queue_item_warning(
+        self,
+        run_queue_item_id: str,
+        message: str,
+        stage: str,
+        file_paths: Optional[List[str]] = None,
+    ) -> bool:
+        if not self.update_run_queue_item_warning_introspection():
+            return False
         mutation = gql(
             """
-        mutation failRunQueueItem($runQueueItemId: ID!) {
-            failRunQueueItem(
+        mutation updateRunQueueItemWarning($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
+            updateRunQueueItemWarning(
                 input: {
                     runQueueItemId: $runQueueItemId
+                    message: $message
+                    stage: $stage
+                    filePaths: $filePaths
                 }
             ) {
                 success
@@ -604,9 +695,12 @@ class Api:
             mutation,
             variable_values={
                 "runQueueItemId": run_queue_item_id,
+                "message": message,
+                "stage": stage,
+                "filePaths": file_paths,
             },
         )
-        result: bool = response["failRunQueueItem"]["success"]
+        result: bool = response["updateRunQueueItemWarning"]["success"]
         return result
 
     @normalize_exceptions
@@ -617,6 +711,7 @@ class Api:
             viewer {
                 id
                 entity
+                username
                 flags
                 teams {
                     edges {

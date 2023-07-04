@@ -28,19 +28,22 @@ media_requirements = [
 ]
 launch_requirements = [
     "awscli",
-    "nbconvert",
-    "nbformat",
-    "chardet",
-    "iso8601",
-    "typing_extensions",
+    "azure-identity",
+    "azure-containerregistry",
+    "azure-storage-blob",
     "boto3",
     "botocore",
+    "chardet",
     "google-auth",
+    "google-cloud-artifact-registry",
     "google-cloud-compute",
     "google-cloud-storage",
-    "google-cloud-artifact-registry",
+    "iso8601",
     "kubernetes",
     "optuna",
+    "nbconvert",
+    "nbformat",
+    "typing_extensions",
 ]
 
 models_requirements = ["cloudpickle"]
@@ -52,7 +55,7 @@ async_requirements = [
 
 setup(
     name="wandb",
-    version="0.15.5.dev1",
+    version="0.15.6.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

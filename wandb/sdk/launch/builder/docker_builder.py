@@ -1,10 +1,11 @@
 """Implementation of the docker builder."""
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import wandb
 import wandb.docker as docker
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -111,6 +112,7 @@ class DockerBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         """Build the image for the given project.
 
@@ -159,9 +161,14 @@ class DockerBuilder(AbstractBuilder):
                 context_path=build_ctx_path,
                 platform=self.config.get("platform"),
             )
-            warn_failed_packages_from_build_logs(output, image_uri)
+
+            warn_failed_packages_from_build_logs(
+                output, image_uri, launch_project.api, job_tracker
+            )
 
         except docker.DockerError as e:
+            if job_tracker:
+                job_tracker.set_err_stage("build")
             raise LaunchDockerError(f"Error communicating with docker client: {e}")
 
         try:

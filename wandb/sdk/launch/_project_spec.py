@@ -82,12 +82,12 @@ class LaunchProject:
         # runner, so we need to pop the builder key out
         resource_args_build = resource_args.get(resource, {}).pop("builder", {})
         self.resource = resource
-        self.resource_args = resource_args
+        self.resource_args = resource_args.copy()
         self.sweep_id = sweep_id
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda_base_image: Optional[str] = resource_args_build.get("cuda", {}).get(
-            "base_image"
-        )
+        self.accelerator_base_image: Optional[str] = resource_args_build.get(
+            "accelerator", {}
+        ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
         self._base_image: Optional[str] = launch_spec.get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
