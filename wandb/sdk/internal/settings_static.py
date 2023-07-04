@@ -8,6 +8,7 @@ class SettingsStatic:
     # TODO(jhr): figure out how to share type defs with sdk/wandb_settings.py
     _offline: Optional[bool]
     _sync: bool
+    _disable_setproctitle: bool
     _disable_stats: Optional[bool]
     _disable_meta: Optional[bool]
     _flow_control: bool
