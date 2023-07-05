@@ -308,6 +308,7 @@ class SettingsData:
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
+    _file_stream_timeout_seconds: float
     _flow_control_custom: bool
     _flow_control_disabled: bool
     _internal_check_process: float
@@ -638,6 +639,10 @@ class Settings(SettingsData):
                     else False
                 ),
                 "auto_hook": True,
+            },
+            _file_stream_timeout_seconds={
+                "value": 60,
+                "preprocessor": float,
             },
             _flow_control_disabled={
                 "hook": lambda _: self._network_buffer == 0,

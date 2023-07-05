@@ -25,6 +25,7 @@ _Setting = Literal[
     "_except_exit",
     "_executable",
     "_extra_http_headers",
+    "_file_stream_timeout_seconds",
     "_flow_control_custom",
     "_flow_control_disabled",
     "_internal_check_process",
