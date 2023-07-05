@@ -893,7 +893,6 @@ def sweep(
 
 @cli.command(
     context_settings=CONTEXT,
-    no_args_is_help=True,
     help="Run a W&B launch sweep (Experimental).",
 )
 @click.option(
