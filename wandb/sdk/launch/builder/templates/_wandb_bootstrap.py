@@ -100,7 +100,7 @@ def main() -> None:
                     if req.startswith("wandb==") and "dev1" in req:
                         req = "wandb"
                     match = re.match(
-                        r"torch(vision|audio)?==\d+\.\d+\.\d+(\+(?:cu[\d]{2,3})|(?:cpu))?",
+                        r"torch(vision|audio)?==\d+\.\d+\.\d+\+?(\+(?:cu[\d]{2,3})|(?:cpu))?",
                         req,
                     )
                     if match:
