@@ -2,12 +2,12 @@
 
 Arguments can come from a launch spec or call to wandb launch.
 """
-from copy import deepcopy
 import enum
 import json
 import logging
 import os
 import tempfile
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
