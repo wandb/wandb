@@ -84,7 +84,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert job_v0._job_info["runtime"] == "3.8"
     assert job_v0._job_info["_version"] == "v0"
     assert job_v0._job_info["source"]["entrypoint"] == ["python", "test.py"]
-    assert job_v0._job_info["source"]["notebook"] == False
+    assert job_v0._job_info["source"]["notebook"] is False
 
     # Now use artifact as input, assert it gets upgraded
     artifact_env = json.dumps({"_wandb_job": artifact.name})
