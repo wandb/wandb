@@ -502,6 +502,7 @@ class InterfaceBase:
             name=artifact.name,
         )
 
+        # TODO(gst): move to internal process
         if "_partial" in artifact.metadata:
             # Download source info from logged partial job artifact
             job_info = {}

@@ -1652,7 +1652,7 @@ def create(
 
     Jobs can be of three types, git, code, or image.
 
-    git: A git source, with an entrypoint pointing to the main python executable.
+    git: A git source, with an entrypoint either in the path or provided explicitly pointing to the main python executable.
     code: A code path, containing a requirements.txt file.
     image: A docker image.
     """

@@ -34,8 +34,8 @@ def create_job(
     """Create a job from a path, not as the output of a run.
 
     Arguments:
-        job_type (str): Type of the job. One of "git", "code", or "image".
         path (str): Path to the job directory.
+        job_type (str): Type of the job. One of "git", "code", or "image".
         entity (Optional[str]): Entity to create the job under.
         project (Optional[str]): Project to create the job under.
         name (Optional[str]): Name of the job.
@@ -133,9 +133,10 @@ def _create_job(
     elif job_type == "image":
         if runtime:
             wandb.termwarn("Runtime is not supported for image jobs, ignoring runtime")
+        # TODO(gst): support entrypoint for image based jobs
         if entrypoint:
             wandb.termwarn(
-                "Entrypoint is not supported for image jobs, ignoring entrypoint"
+                "Setting an entrypoint is not currently supported for image jobs, ignoring entrypoint argument"
             )
         metadata.update({"python": runtime or "", "docker": path})
     else:
@@ -221,8 +222,12 @@ def _create_job(
     )
     action = "No changes detected for"
     if not res.get("artifactSequence", {}).get("latestArtifact"):
+        # When there is no latestArtifact, we are creating new
         action = "Created"
     elif res.get("state") == "PENDING":
+        # updating an existing artifafct, state is pending awaiting call to
+        # log_artifact to upload and finalize artifact. If not pending, digest
+        # is the same as latestArtifact, so no changes detected
         action = "Updated"
 
     run.log_artifact(artifact, aliases=aliases)
@@ -359,15 +364,21 @@ def _handle_artifact_entrypoint(
     path: str, entrypoint: Optional[str] = None
 ) -> Tuple[str, Optional[str]]:
     if os.path.isfile(path):
-        if entrypoint and path.split("/")[-1] != entrypoint:
+        if entrypoint and path.endswith(entrypoint):
+            path = path.replace(entrypoint, "")
             wandb.termwarn(
-                "Ignoring passed in entrypoint, as 'path' is to a file, which will be used as the entrypoint"
+                f"Both entrypoint provided and path contains file. Using provided entrypoint: {entrypoint}, path is now: {path}"
+            )
+        elif entrypoint:
+            wandb.termwarn(
+                f"Ignoring passed in entrypoint as it does not match file path found in 'path'. Path entrypoint: {path.split('/')[-1]}"
             )
         entrypoint = path.split("/")[-1]
-        path = "/".join(path.split("/")[:-1]) or "."
+        path = "/".join(path.split("/")[:-1])
     elif not entrypoint:
         wandb.termerror("Entrypoint not valid")
         return "", None
+    path = path or "."  # when path is just an entrypoint, use cdw
     return path, entrypoint
 
 

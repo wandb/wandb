@@ -180,13 +180,15 @@ class JobBuilder:
         }
         name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
-        # if job is a partial repo job, don't construct local entrypoint or notebook flag
-        #    entrypoint should be already set in metadata
+        # if building a partial job from CLI, don't construct local entrypoint
+        # or notebook flag entrypoint should already be in metadata from create_job
         if metadata.get("_partial"):
+            assert metadata.get("entrypoint")
+            assert metadata.get("notebook")
             source.update(
                 {
-                    "entrypoint": metadata.get("entrypoint", []),
-                    "notebook": metadata.get("notebook", False),
+                    "entrypoint": metadata["entrypoint"],
+                    "notebook": metadata["notebook"],
                 }
             )
 
