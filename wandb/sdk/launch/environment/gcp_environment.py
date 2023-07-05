@@ -175,15 +175,7 @@ class GcpEnvironment(AbstractEnvironment):
             None
         """
         _logger.debug("Verifying GCP environment")
-        creds = self.get_credentials()
-        try:
-            # Check if the region is available using the compute API.
-            compute_client = google.cloud.compute_v1.RegionsClient(credentials=creds)
-            compute_client.get(project=self.project, region=self.region)
-        except google.api_core.exceptions.NotFound as e:
-            raise LaunchError(
-                f"Region {self.region} is not available in project {self.project}."
-            ) from e
+        self.get_credentials()
 
     def verify_storage_uri(self, uri: str) -> None:
         """Verify that a storage URI is valid.
