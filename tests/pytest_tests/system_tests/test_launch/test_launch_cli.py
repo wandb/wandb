@@ -410,6 +410,12 @@ def test_launch_supplied_docker_image(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch,
