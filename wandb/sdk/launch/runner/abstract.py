@@ -32,14 +32,7 @@ else:
     from typing_extensions import Literal
 
 State = Literal[
-    "unknown",
-    "starting",
-    "running",
-    "failed",
-    "finished",
-    "stopping",
-    "stopped",
-    "preempted",
+    "unknown", "starting", "running", "failed", "finished", "stopping", "stopped"
 ]
 
 

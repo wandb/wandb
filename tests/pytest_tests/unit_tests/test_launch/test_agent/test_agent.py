@@ -79,7 +79,7 @@ def test_run_job_secure_mode(mocker):
     mock_file_saver = MagicMock()
     for job, error in zip(jobs, errors):
         with pytest.raises(ValueError, match=error):
-            agent.run_job(job, "test-queue", mock_file_saver)
+            agent.run_job(job, mock_file_saver)
 
 
 def test_team_entity_warning(mocker):
@@ -166,7 +166,7 @@ def test_thread_finish_no_fail(mocker):
     mocker.api.get_run_info = MagicMock(return_value=lambda x: {"program": "blah"})
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
-    job = JobAndRunStatusTracker("run_queue_item_id", "queue", mock_saver)
+    job = JobAndRunStatusTracker("run_queue_item_id", mock_saver)
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
@@ -186,7 +186,7 @@ def test_thread_finish_sweep_fail(mocker):
     mocker.api.get_run_info = MagicMock(return_value=None)
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
-    job = JobAndRunStatusTracker("run_queue_item_id", "queue", mock_saver)
+    job = JobAndRunStatusTracker("run_queue_item_id", mock_saver)
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
@@ -206,7 +206,7 @@ def test_thread_finish_run_fail(mocker):
     mocker.api.get_run_info = MagicMock(side_effect=[CommError("failed")])
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
-    job = JobAndRunStatusTracker("run_queue_item_id", "queue", mock_saver)
+    job = JobAndRunStatusTracker("run_queue_item_id", mock_saver)
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
@@ -225,7 +225,7 @@ def test_thread_finish_run_fail_start(mocker):
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
-    job = JobAndRunStatusTracker("run_queue_item_id", "queue", mock_saver)
+    job = JobAndRunStatusTracker("run_queue_item_id", mock_saver)
     job.run_id = "test_run_id"
     agent._jobs = {"thread_1": job}
     agent._jobs_lock = MagicMock()
@@ -245,7 +245,7 @@ def test_thread_finish_run_fail_start_old_server(mocker):
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     agent._gorilla_supports_fail_run_queue_items = False
     mock_saver = MagicMock()
-    job = JobAndRunStatusTracker("run_queue_item_id", "queue", mock_saver)
+    job = JobAndRunStatusTracker("run_queue_item_id", mock_saver)
     job.run_id = "test_run_id"
     agent._jobs_lock = MagicMock()
     agent._jobs = {"thread_1": job}
@@ -264,7 +264,7 @@ def test_thread_finish_run_fail_different_entity(mocker):
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
-    job = JobAndRunStatusTracker("run_queue_item_id", "queue", mock_saver)
+    job = JobAndRunStatusTracker("run_queue_item_id", mock_saver)
     job.run_id = "test_run_id"
     job.project = "test-project"
     job.entity = "other-entity"
