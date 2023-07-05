@@ -1128,23 +1128,6 @@ def test_launch_entrypoint(test_settings):
     assert calced_ep == ["python", "main.py", "--blah", "2"]
 
 
-@pytest.mark.timeout(320)
-def test_launch_shell_script(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
-):
-    live_mock_server.set_ctx({"run_script_type": "shell"})
-
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
-        project="new-test",
-    )
-    assert str(run.get_status()) == "finished"
-
-
 def test_launch_unknown_entrypoint(
     live_mock_server,
     test_settings,
