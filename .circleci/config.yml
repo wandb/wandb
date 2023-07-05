@@ -1476,6 +1476,20 @@ workflows:
       - tox-base:
           requires:
             - "functional-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 9 ]
+              shard:
+                - "mitm"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/standalone_tests"
+
+      - tox-base:
+          requires:
+            - "functional-tests"
           context: sdk-third-party-api
           matrix:
             parameters:
@@ -1486,7 +1500,6 @@ workflows:
                 - "docs"
                 - "llm"
                 - "noml"
-                - "mitm"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
