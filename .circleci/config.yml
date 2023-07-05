@@ -1486,6 +1486,7 @@ workflows:
                 - "docs"
                 - "llm"
                 - "noml"
+                - "mitm"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
