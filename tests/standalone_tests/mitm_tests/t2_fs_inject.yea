@@ -1,14 +1,14 @@
 plugin:
   - wandb
 tag:
-  shards:
-    - mitm
+  shard: mitm
 option:
   - :wandb:mitm
 command:
   program: fs_inject.py
 assert:
   - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
 env:
   - WANDB__FILE_STREAM_TIMEOUT_SECONDS: "10"
   - SHOULD_RETRY: "true"
