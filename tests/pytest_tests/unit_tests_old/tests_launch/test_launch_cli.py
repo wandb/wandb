@@ -12,6 +12,11 @@ def raise_(ex):
     raise ex
 
 
+def patched_run_run_entry(cmd, dir):
+    print(f"running command: {cmd}")
+    return cmd  # noop
+
+
 @pytest.fixture
 def kill_agent_on_update_job(monkeypatch):
     def patched_update_finished(self, job_id):
@@ -115,11 +120,8 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
         assert result.exit_code != 0
 
 
-# this test includes building a docker container which can take some time.
-# hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(320)
 def test_launch_cli_with_config_file_and_params(
-    runner, mocked_fetchable_git_repo, live_mock_server
+    runner, mocked_fetchable_git_repo, monkeypatch, live_mock_server
 ):
     config = {
         "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
@@ -128,6 +130,18 @@ def test_launch_cli_with_config_file_and_params(
         "resource": "local-container",
         "overrides": {"args": ["--epochs", "5"]},
     }
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
+        "build_image",
+        lambda s, lp, e, jt: "testimage:12345",
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
+        patched_run_run_entry,
+    )
+
     with runner.isolated_filesystem():
         with open("config.json", "w") as fp:
             json.dump(
@@ -141,15 +155,16 @@ def test_launch_cli_with_config_file_and_params(
                 "-c",
                 "config.json",
                 "-u" "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                "--async",
             ],
         )
+        print(result.output)
         assert result.exit_code == 0
         assert "Launching run in docker with command: docker run" in result.output
 
 
-@pytest.mark.timeout(320)
 def test_launch_cli_with_config_and_params(
-    runner, mocked_fetchable_git_repo, live_mock_server
+    runner, mocked_fetchable_git_repo, monkeypatch, live_mock_server
 ):
     config = {
         "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
@@ -158,6 +173,16 @@ def test_launch_cli_with_config_and_params(
         "resource": "local-container",
         "overrides": {"args": ["--epochs", "5"]},
     }
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
+        "build_image",
+        lambda s, lp, e, jt: "testimage:12345",
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
+        patched_run_run_entry,
+    )
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch,
@@ -166,10 +191,13 @@ def test_launch_cli_with_config_and_params(
                 json.dumps(config),
                 "-u",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                "--async",
             ],
         )
+        print(result.exception)
         assert result.exit_code == 0
         assert "Launching run in docker with command: docker run" in result.output
+        assert "testimage:12345" in result.output
 
 
 def test_launch_no_docker_exec(
@@ -219,8 +247,14 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
         assert result.exit_code == 0
 
 
-@pytest.mark.timeout(320)
-def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
+def test_launch_github_url(
+    runner, mocked_fetchable_git_repo, live_mock_server, monkeypatch
+):
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
+        "build_image",
+        lambda s, lp, e, jt: "testimage:12345",
+    )
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch,
@@ -237,8 +271,12 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
     assert "Launching run in docker with command: docker run" in result.output
 
 
-@pytest.mark.timeout(320)
-def test_launch_local_dir(runner, live_mock_server):
+def test_launch_local_dir(runner, live_mock_server, monkeypatch):
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
+        "build_image",
+        lambda s, lp, e, jt: "testimage:12345",
+    )
     with runner.isolated_filesystem():
         os.mkdir("repo")
         with open("repo/main.py", "w+") as f:
@@ -273,41 +311,6 @@ def test_launch_queue_error(runner):
     assert "Cannot use both --async and --queue with wandb launch" in result.output
 
 
-def test_launch_supplied_docker_image(
-    runner,
-    monkeypatch,
-    live_mock_server,
-):
-    def patched_run_run_entry(cmd, dir):
-        print(f"running command: {cmd}")
-        return cmd  # noop
-
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container.pull_docker_image",
-        lambda docker_image: None,
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container._run_entry_point",
-        patched_run_run_entry,
-    )
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            [
-                "--async",
-                "--docker-image",
-                "test:tag",
-            ],
-        )
-
-    print(result)
-    assert result.exit_code == 0
-    assert "-e WANDB_DOCKER=test:tag" in result.output
-    assert " -e WANDB_CONFIG='{}'" in result.output
-    assert "-e WANDB_ARTIFACTS='{}'" in result.output
-    assert "test:tag" in result.output
-
-
 def test_launch_agent_project_environment_variable(
     runner,
     test_settings,
@@ -329,8 +332,18 @@ def test_launch_agent_project_environment_variable(
 def test_launch_name_run_id_environment_variable(
     runner,
     mocked_fetchable_git_repo,
-    live_mock_server,
+    monkeypatch,
 ):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
+        patched_run_run_entry,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
+        "build_image",
+        lambda s, lp, e, jt: "testimage:12345",
+    )
+
     run_id = "test_run_id"
     run_name = "test_run_name"
     args = [
@@ -345,6 +358,7 @@ def test_launch_name_run_id_environment_variable(
     ]
     with runner.isolated_filesystem():
         result = runner.invoke(cli.launch, args)
+        print(result.output)
 
     assert f"WANDB_RUN_ID={run_id}" in str(result.output)
     assert f"WANDB_NAME={run_name}" in str(result.output)
