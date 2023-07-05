@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
-from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
@@ -35,8 +34,6 @@ AGENT_KILLED = "KILLED"
 HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_THREADS = 64
-
-MAX_RESUME_COUNT = 5
 
 _logger = logging.getLogger(__name__)
 
@@ -338,9 +335,7 @@ class LaunchAgent:
         if job.job_completed:
             self.finish_thread_id(thread_id)
 
-    def run_job(
-        self, job: Dict[str, Any], queue: str, file_saver: RunQueueItemFileSaver
-    ) -> None:
+    def run_job(self, job: Dict[str, Any], file_saver: RunQueueItemFileSaver) -> None:
         """Set up project and run the job.
 
         Arguments:
@@ -366,7 +361,6 @@ class LaunchAgent:
                 job,
                 self.default_config,
                 self._api,
-                queue,
                 file_saver,
             ),
         )
@@ -436,7 +430,7 @@ class LaunchAgent:
                                     continue
 
                             try:
-                                self.run_job(job, queue, file_saver)
+                                self.run_job(job, file_saver)
                             except Exception as e:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
@@ -489,17 +483,16 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
-        queue: str,
         file_saver: RunQueueItemFileSaver,
     ) -> None:
         thread_id = threading.current_thread().ident
         assert thread_id is not None
-        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], file_saver)
         with self._jobs_lock:
             self._jobs[thread_id] = job_tracker
         try:
             self._thread_run_job(
-                launch_spec, job, default_config, api, queue, thread_id, job_tracker
+                launch_spec, job, default_config, api, thread_id, job_tracker
             )
         except LaunchDockerError as e:
             wandb.termerror(
@@ -518,10 +511,26 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
-        queue: str,
         thread_id: int,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
+        # don't launch sweep runs if the sweep isn't healthy
+        if launch_spec.get("sweep_id"):
+            try:
+                state = api.get_sweep_state(
+                    sweep=launch_spec["sweep_id"],
+                    entity=launch_spec["entity"],
+                    project=launch_spec["project"],
+                )
+            except Exception as e:
+                _logger.debug(f"Fetch sweep state error: {e}")
+                state = None
+
+            if state and state != "RUNNING" and state != "PAUSED":
+                raise Exception(
+                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
+                )
+
         project = create_project_from_spec(launch_spec, api)
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
@@ -562,7 +571,7 @@ class LaunchAgent:
         with self._jobs_lock:
             job_tracker.run = run
         while self._jobs_event.is_set():
-            if self._check_run_finished(job_tracker, launch_spec):
+            if self._check_run_finished(job_tracker):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
@@ -570,9 +579,7 @@ class LaunchAgent:
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
             run._command_proc.kill()
 
-    def _check_run_finished(
-        self, job_tracker: JobAndRunStatusTracker, launch_spec: Dict[str, Any]
-    ) -> bool:
+    def _check_run_finished(self, job_tracker: JobAndRunStatusTracker) -> bool:
         if job_tracker.completed_status:
             return True
 
@@ -589,28 +596,13 @@ class LaunchAgent:
         try:
             run = job_tracker.run
             status = run.get_status().state
-            if status in ["stopped", "failed", "finished", "preempted"]:
+            if status in ["stopped", "failed", "finished"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
                     job_tracker.completed_status = status
-                if status == "preempted":
-                    config = launch_spec.copy()
-                    config["run_id"] = job_tracker.run_id
-                    config["_resume_count"] = config.get("_resume_count", 0) + 1
-                    if config["_resume_count"] > MAX_RESUME_COUNT:
-                        wandb.termlog(
-                            f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
-                        )
-                        return True
-                    wandb.termlog(f"{LOG_PREFIX}Requeueing run {job_tracker.run_id}.")
-                    launch_add(
-                        config=config,
-                        project_queue=self._project,
-                        queue_name=job_tracker.queue,
-                    )
                 return True
             return False
         except LaunchError as e:
