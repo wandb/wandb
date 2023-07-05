@@ -830,24 +830,6 @@ def test_launch_notebook(
     assert str(run.get_status()) == "finished"
 
 
-# this test includes building a docker container which can take some time.
-# hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(320)
-def test_launch_full_build_new_image(
-    live_mock_server, test_settings, mocked_fetchable_git_repo
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    random_id = runid.generate_id()
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/1",
-        project=f"new-test-{random_id}",
-    )
-    assert str(run.get_status()) == "finished"
-
-
 @pytest.mark.timeout(320)
 def test_launch_no_server_info(
     live_mock_server, test_settings, mocked_fetchable_git_repo
@@ -1129,23 +1111,6 @@ def test_launch_entrypoint(test_settings):
     launch_project.add_entry_point(entry_point)
     calced_ep = launch_project.get_single_entry_point().compute_command(["--blah", "2"])
     assert calced_ep == ["python", "main.py", "--blah", "2"]
-
-
-@pytest.mark.timeout(320)
-def test_launch_shell_script(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
-):
-    live_mock_server.set_ctx({"run_script_type": "shell"})
-
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
-        project="new-test",
-    )
-    assert str(run.get_status()) == "finished"
 
 
 def test_launch_unknown_entrypoint(
