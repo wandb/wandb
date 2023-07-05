@@ -146,22 +146,14 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         """Return the run status."""
-        try:
-            job_response = self.batch_api.read_namespaced_job_status(
-                name=self.name, namespace=self.namespace
-            )
-            status = job_response.status
+        job_response = self.batch_api.read_namespaced_job_status(
+            name=self.name, namespace=self.namespace
+        )
+        status = job_response.status
 
-            pod = self.core_api.read_namespaced_pod(
-                name=self.pod_names[0], namespace=self.namespace
-            )
-        except ApiException as e:
-            if "(404)" not in str(e):
-                raise
-            # 404 = Pod/job not reachable
-            wandb.termlog(f"{LOG_PREFIX}Job or pod disconnected for job: {self.name}")
-            return Status("preempted")
-
+        pod = self.core_api.read_namespaced_pod(
+            name=self.pod_names[0], namespace=self.namespace
+        )
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
@@ -180,13 +172,7 @@ class KubernetesSubmittedRun(AbstractRun):
         if status.succeeded == 1:
             return_status = Status("finished")
         elif status.failed is not None and status.failed >= 1:
-            if status.conditions[0].reason == "BackoffLimitExceeded":
-                wandb.termlog(
-                    f"{LOG_PREFIX}Job or pod disconnected for job: {self.name}"
-                )
-                return_status = Status("preempted")
-            else:
-                return_status = Status("failed")
+            return_status = Status("failed")
         elif status.active == 1:
             return Status("running")
         elif status.conditions is not None and status.conditions[0].type == "Suspended":
