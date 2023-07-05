@@ -601,6 +601,24 @@ class LaunchAgent:
             run = job_tracker.run
             status = run.get_status().state
 
+            if status == "preempted" and job_tracker.entity == self._entity:
+                config = launch_spec.copy()
+                config["run_id"] = job_tracker.run_id
+                config["_resume_count"] = config.get("_resume_count", 0) + 1
+                if config["_resume_count"] > MAX_RESUME_COUNT:
+                    wandb.termlog(
+                        f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
+                    )
+                    return True
+                wandb.termlog(
+                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
+                )
+                launch_add(
+                    config=config,
+                    project_queue=self._project,
+                    queue_name=job_tracker.queue,
+                )
+                return True
             # TODO change these statuses to an enum
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
@@ -609,21 +627,6 @@ class LaunchAgent:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
                     job_tracker.completed_status = status
-                if status == "preempted" and job_tracker.entity == self._entity:
-                    config = launch_spec.copy()
-                    config["run_id"] = job_tracker.run_id
-                    config["_resume_count"] = config.get("_resume_count", 0) + 1
-                    if config["_resume_count"] > MAX_RESUME_COUNT:
-                        wandb.termlog(
-                            f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
-                        )
-                        return True
-                    wandb.termlog(f"{LOG_PREFIX}Requeueing run {job_tracker.run_id}.")
-                    launch_add(
-                        config=config,
-                        project_queue=self._project,
-                        queue_name=job_tracker.queue,
-                    )
                 return True
             return False
         except LaunchError as e:

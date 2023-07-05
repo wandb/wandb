@@ -175,12 +175,18 @@ class KubernetesSubmittedRun(AbstractRun):
             return_status = Status("failed")
         elif status.active == 1:
             return Status("running")
-        elif status.conditions is not None:
-            if (
-                status.conditions[0].type == "DisruptionTarget"
-                and status.conditions[0].reason == "EvictionByEvictionAPI"
-            ):
-                return_status = Status("preempted")
+        elif (
+            status.hasattr("conditions")
+            and status.conditions is not None
+            and status.conditions[0].type == "DisruptionTarget"
+            and status.conditions[0].reason
+            in [
+                "EvictionByEvictionAPI",
+                "PreemptionByScheduler",
+                "TerminationByKubelet",
+            ]
+        ):
+            return_status = Status("preempted")
         elif status.conditions is not None and status.conditions[0].type == "Suspended":
             return_status = Status("stopped")
         else:
