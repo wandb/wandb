@@ -2,6 +2,7 @@ import ast
 import asyncio
 import base64
 import datetime
+import functools
 import json
 import logging
 import os
@@ -171,7 +172,7 @@ class Api:
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = env.get_http_timeout(10)
+    HTTP_TIMEOUT = env.get_http_timeout(60)
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
@@ -267,6 +268,10 @@ class Api:
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
         self._upload_file_session = requests.Session()
+        self._upload_file_session.put = functools.partial(
+            self._upload_file_session.put,
+            timeout=self.HTTP_TIMEOUT,
+        )
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
