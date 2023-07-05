@@ -365,7 +365,7 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.run_job",
-        lambda a, b, c, d: raise_(LaunchError("blah blah")),
+        lambda a, b, c: raise_(LaunchError("blah blah")),
     )
 
     monkeypatch.setattr(
