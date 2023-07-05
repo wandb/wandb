@@ -17,6 +17,7 @@ class SettingsStatic:
     _stats_pid: int
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
+    _file_stream_timeout_seconds: float
     _stats_join_assets: bool
     _stats_neuron_monitor_config_path: Optional[str]
     _stats_open_metrics_endpoints: Mapping[str, str]
