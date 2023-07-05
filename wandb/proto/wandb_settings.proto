@@ -161,7 +161,7 @@ message Settings {
   google.protobuf.StringValue wandb_dir = 142;
 
   google.protobuf.BoolValue _disable_setproctitle = 143;
-  google.protobuf.DoubleValue _file_stream_timeout_seconds = 144;
+//  google.protobuf.DoubleValue _file_stream_timeout_seconds = 144;
 
   // todo?
   //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources = 500;
