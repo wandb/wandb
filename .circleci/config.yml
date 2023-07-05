@@ -613,7 +613,7 @@ jobs:
       - run:
           name: pull base docker images
           command: |
-            docker pull nvidia/cuda:10.0-runtime
+            docker pull nvidia/cuda:11.0.3-runtime-ubuntu20.04
             docker pull python:3.7-buster
       - run:
           name: Run tests
