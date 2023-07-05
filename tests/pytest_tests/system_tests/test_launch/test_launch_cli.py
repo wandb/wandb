@@ -393,15 +393,15 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         assert "except caught, failed item" in result.output
 
 
+def patched_run_run_entry(cmd, dir):
+    print(f"running command: {cmd}")
+    return cmd  # noop
+
+
 def test_launch_supplied_docker_image(
     runner,
     monkeypatch,
-    live_mock_server,
 ):
-    def patched_run_run_entry(cmd, dir):
-        print(f"running command: {cmd}")
-        return cmd  # noop
-
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container.pull_docker_image",
         lambda docker_image: None,
