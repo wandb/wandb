@@ -12,8 +12,9 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
-from wandb.sdk.launch.sweeps.scheduler import RunState, Scheduler
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
 
 from .. import loader
@@ -34,6 +35,7 @@ AGENT_KILLED = "KILLED"
 HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_THREADS = 64
+MAX_RESUME_COUNT = 5
 
 _logger = logging.getLogger(__name__)
 
@@ -571,7 +573,7 @@ class LaunchAgent:
         with self._jobs_lock:
             job_tracker.run = run
         while self._jobs_event.is_set():
-            if self._check_run_finished(job_tracker):
+            if self._check_run_finished(job_tracker, launch_spec):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
@@ -579,7 +581,9 @@ class LaunchAgent:
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
             run._command_proc.kill()
 
-    def _check_run_finished(self, job_tracker: JobAndRunStatusTracker) -> bool:
+    def _check_run_finished(
+        self, job_tracker: JobAndRunStatusTracker, launch_spec: Dict[str, Any]
+    ) -> bool:
         if job_tracker.completed_status:
             return True
 
@@ -597,20 +601,7 @@ class LaunchAgent:
             run = job_tracker.run
             status = run.get_status().state
 
-            # Ensure run was not stopped intentionally
-            if status == "preempted":
-                try:
-                    run_state = RunState(
-                        self._api.get_run_state(
-                            self._entity, job_tracker.project, job_tracker.run_id
-                        )
-                    )
-                    if not run_state.is_alive:
-                        status = "stopped"
-                except wandb.CommError:
-                    # Run doesn't exist yet
-                    status = "failed"
-
+            # TODO change these statuses to an enum
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
@@ -618,6 +609,21 @@ class LaunchAgent:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
                     job_tracker.completed_status = status
+                if status == "preempted" and job_tracker.entity == self._entity:
+                    config = launch_spec.copy()
+                    config["run_id"] = job_tracker.run_id
+                    config["_resume_count"] = config.get("_resume_count", 0) + 1
+                    if config["_resume_count"] > MAX_RESUME_COUNT:
+                        wandb.termlog(
+                            f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
+                        )
+                        return True
+                    wandb.termlog(f"{LOG_PREFIX}Requeueing run {job_tracker.run_id}.")
+                    launch_add(
+                        config=config,
+                        project_queue=self._project,
+                        queue_name=job_tracker.queue,
+                    )
                 return True
             return False
         except LaunchError as e:
