@@ -1602,9 +1602,9 @@ workflows:
 #          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 #          parallelism: 1
 #          xdist: 1
-#
-# functional tests with different executors
-#
+      #
+      # functional tests with different executors
+      #
       - tox-base:
           requires:
             - "executor-tests"
