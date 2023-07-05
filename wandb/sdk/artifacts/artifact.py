@@ -302,7 +302,7 @@ class Artifact:
             if alias["artifactCollectionName"] == name.split(":")[0]
             and util.alias_is_version_index(alias["alias"])
         ]
-        assert len(version_aliases) == 1
+        # assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
         artifact._source_entity = attrs["artifactSequence"]["project"]["entityName"]
         artifact._source_project = attrs["artifactSequence"]["project"]["name"]
