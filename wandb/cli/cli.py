@@ -939,12 +939,29 @@ def launch_sweep(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    entity = entity or env.get("WANDB_ENTITY") or api.settings("entity")
+    # if not sweep_config XOR resume_id
+    if not (config or resume_id):
+        wandb.termerror("'config' and/or 'resume_id' required")
+        return
+
+    parsed_user_config = sweep_utils.load_launch_sweep_config(config)
+
+    entity = (
+        entity
+        or parsed_user_config.get("entity")
+        or env.get("WANDB_ENTITY")
+        or api.settings("entity")
+    )
     if entity is None:
         wandb.termerror("Must specify entity when using launch")
         return
 
-    project = project or env.get("WANDB_PROJECT") or api.settings("project")
+    project = (
+        project
+        or parsed_user_config.get("project")
+        or env.get("WANDB_PROJECT")
+        or api.settings("project")
+    )
     if project is None:
         wandb.termerror("A project must be configured when using launch")
         return
@@ -952,22 +969,12 @@ def launch_sweep(
     # get personal username, not team name or service account, default to entity
     author = api.viewer().get("username") or entity
 
-    # if not sweep_config XOR resume_id
-    if not (config or resume_id):
-        wandb.termerror("'config' and/or 'resume_id' required")
-        return
-
-    parsed_user_config = sweep_utils.load_launch_sweep_config(config)
     # Rip special keys out of config, store in scheduler run_config
     launch_args: Dict[str, Any] = parsed_user_config.pop("launch", {})
     scheduler_args: Dict[str, Any] = parsed_user_config.pop("scheduler", {})
     settings: Dict[str, Any] = scheduler_args.pop("settings", {})
 
     scheduler_job: Optional[str] = scheduler_args.get("job")
-    if scheduler_job:
-        wandb.termwarn(
-            "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
-        )
     queue: Optional[str] = queue or launch_args.get("queue")
 
     sweep_config, sweep_obj_id = None, None
@@ -982,13 +989,13 @@ def launch_sweep(
             # TODO(gst): Check if using Anaconda2
             wandb.termwarn(
                 "Use 'method': 'custom' in the sweep config when using scheduler jobs, "
-                "or omit it entirely. For jobs using the wandb optimization engine (WandbScheduler), "
+                "or omit it entirely. For jobs using the wandb optimization engine (wandb/sweep-jobs/job-wandb-sweep-scheduler) "
                 "set the method in the sweep config under scheduler.settings.method "
             )
             settings["method"] = method
 
         if settings.get("method"):
-            # assume WandbScheduler, and user is using this right
+            # assume wandb/sweep-jobs/job-wandb-sweep-scheduler, and user is using this right
             sweep_config["method"] = settings["method"]
 
     else:  # Resuming an existing sweep
@@ -1033,6 +1040,14 @@ def launch_sweep(
         )
         return
 
+    # validate training job existence
+    if not sweep_utils.check_job_exists(PublicApi(), sweep_config.get("job")):
+        return False
+
+    # validate scheduler job existence, if present
+    if not sweep_utils.check_job_exists(PublicApi(), scheduler_job):
+        return False
+
     entrypoint = Scheduler.ENTRYPOINT if not scheduler_job else None
     args = sweep_utils.construct_scheduler_args(
         return_job=scheduler_job is not None,
@@ -1043,14 +1058,6 @@ def launch_sweep(
     )
     if not args:
         return
-
-    # validate training job existence
-    if not sweep_utils.check_job_exists(PublicApi(), sweep_config.get("job")):
-        return False
-
-    # validate scheduler job existence, if present
-    if not sweep_utils.check_job_exists(PublicApi(), scheduler_job):
-        return False
 
     # Set run overrides for the Scheduler
     overrides = {"run_config": {}}
@@ -1067,10 +1074,7 @@ def launch_sweep(
         overrides["args"] = args
 
     # set name of scheduler
-    prefix = "sweep" if scheduler_job else "wandb"
-    name = f"{prefix}-scheduler-WANDB_SWEEP_ID"
-    if scheduler_args.get("name"):
-        name = scheduler_args["name"]
+    name = scheduler_args.get("name") or "scheduler.WANDB_SWEEP_ID"
 
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
