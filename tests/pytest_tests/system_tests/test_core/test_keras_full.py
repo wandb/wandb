@@ -113,7 +113,10 @@ def test_keras_image_binary(dummy_model, dummy_data, relay_server, wandb_init):
             batch_size=36,
             validation_data=dummy_data,
             callbacks=[
-                WandbCallback(data_type="image"),
+                WandbCallback(
+                    input_type="image",
+                    validation_data=dummy_data,
+                ),
             ],
         )
         run.finish()
@@ -131,7 +134,12 @@ def test_keras_image_binary_captions(dummy_model, dummy_data, relay_server, wand
             batch_size=36,
             validation_data=dummy_data,
             callbacks=[
-                WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice"])
+                WandbCallback(
+                    input_type="image",
+                    predictions=10,
+                    labels=["Rad", "Nice"],
+                    validation_data=dummy_data,
+                )
             ],
         )
         run.finish()
@@ -149,7 +157,13 @@ def test_keras_image_multiclass(dummy_model, dummy_data, relay_server, wandb_ini
             epochs=2,
             batch_size=36,
             validation_data=dummy_data,
-            callbacks=[WandbCallback(data_type="image", predictions=10)],
+            callbacks=[
+                WandbCallback(
+                    input_type="image",
+                    predictions=10,
+                    validation_data=dummy_data,
+                )
+            ],
         )
         run.finish()
 
@@ -170,7 +184,7 @@ def test_keras_image_multiclass_captions(
             validation_data=dummy_data,
             callbacks=[
                 WandbCallback(
-                    data_type="image",
+                    input_type="image",
                     predictions=10,
                     labels=[
                         "Rad",
@@ -184,6 +198,7 @@ def test_keras_image_multiclass_captions(
                         "Fun",
                         "Rad",
                     ],
+                    validation_data=dummy_data,
                 )
             ],
         )
@@ -208,8 +223,9 @@ def test_keras_image_output(dummy_model, dummy_data, relay_server, wandb_init):
             validation_data=dummy_data,
             callbacks=[
                 WandbCallback(
-                    data_type="image",
+                    input_type="image",
                     predictions=10,
+                    validation_data=dummy_data,
                 ),
             ],
         )
@@ -326,6 +342,7 @@ def test_keras_dsviz(dummy_model, dummy_data, wandb_init):
         callbacks=[
             WandbCallback(
                 log_evaluation=True,
+                validation_data=dummy_data,
             ),
         ],
     )

@@ -80,7 +80,11 @@ def patch_tf_keras():
     from pkg_resources import parse_version
     from tensorflow.python.eager import context
 
-    if parse_version(tf.__version__) >= parse_version("2.6.0"):
+    if (
+        parse_version("2.6.0")
+        <= parse_version(tf.__version__)
+        < parse_version("2.13.0")
+    ):
         keras_engine = "keras.engine"
         try:
             from keras.engine import training
