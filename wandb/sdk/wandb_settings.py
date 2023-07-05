@@ -658,7 +658,7 @@ class Settings:
                 "auto_hook": True,
             },
             _file_stream_timeout_seconds={
-                "value": 30,
+                "value": 60,
                 "preprocessor": float,
             },
             _flow_control_disabled={
