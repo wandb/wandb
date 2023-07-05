@@ -1059,6 +1059,11 @@ def launch_sweep(
     if not args:
         return
 
+    # set name of scheduler
+    name = scheduler_args.get("name") or "scheduler.WANDB_SWEEP_ID"
+    if scheduler_args.get("name"):
+        settings["name"] = name
+
     # Set run overrides for the Scheduler
     overrides = {"run_config": {}}
     if launch_args:
@@ -1072,9 +1077,6 @@ def launch_sweep(
         overrides["run_config"]["sweep_args"] = args
     else:
         overrides["args"] = args
-
-    # set name of scheduler
-    name = scheduler_args.get("name") or "scheduler.WANDB_SWEEP_ID"
 
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
