@@ -1494,9 +1494,9 @@ class SendManager:
             if res["artifactSequence"]["latestArtifact"] is None:
                 self._job_builder._job_version_alias = "v0"
             elif res["artifactSequence"]["latestArtifact"]["id"] == res["id"]:
-                self._job_builder._job_version_alias = res["artifactSequence"][
-                    "latestArtifact"
-                ]["versionIndex"]
+                self._job_builder._job_version_alias = (
+                    f"v{res['artifactSequence']['latestArtifact']['versionIndex']}"
+                )
             else:
                 self._job_builder._job_version_alias = (
                     f"v{res['artifactSequence']['latestArtifact']['versionIndex'] + 1}"
