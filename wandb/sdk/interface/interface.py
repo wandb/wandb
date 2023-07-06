@@ -854,7 +854,7 @@ class InterfaceBase:
 
     def deliver_request_job_info(self) -> MailboxHandle:
         job_info = pb.JobInfoRequest()
-        return self._deliver_request_job_info(job_link)
+        return self._deliver_request_job_info(job_info)
 
     @abstractmethod
     def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
