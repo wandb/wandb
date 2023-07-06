@@ -316,6 +316,7 @@ class SendManager:
             _sync=True,
             disable_job_creation=False,
             _async_upload_concurrency_limit=None,
+            _file_stream_timeout_seconds=0,
         )
         settings = SettingsStatic(settings.to_proto())
         record_q: "Queue[Record]" = queue.Queue()
@@ -1063,6 +1064,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
+            timeout=self._settings._file_stream_timeout_seconds,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
