@@ -129,7 +129,7 @@ def test_footer_job_output(wandb_init, capsys, monkeypatch):
     captured = capsys.readouterr()
     lines = captured.err.splitlines()
     for line in lines:
-        if re.match(
+        if re.search(
             r"View job at http://localhost:8080/user-\w+-\w+/uncategorized/jobs/[\w=]+/version_details/v0",
             line,
         ):
