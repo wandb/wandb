@@ -952,6 +952,9 @@ def test_launch_project_spec_docker_image(
 def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
     monkeypatch.setattr("wandb.sdk.launch.utils.docker_image_exists", lambda x: True)
     monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.pull_docker_image", lambda x: True
+    )
+    monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, project_dir: (cmd, project_dir),
     )
