@@ -609,6 +609,8 @@ class LaunchAgent:
                 config = launch_spec.copy()
                 config["run_id"] = job_tracker.run_id
                 config["_resume_count"] = config.get("_resume_count", 0) + 1
+                with self._jobs_lock:
+                    job_tracker.completed_status = status
                 if config["_resume_count"] > MAX_RESUME_COUNT:
                     wandb.termlog(
                         f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
@@ -617,8 +619,6 @@ class LaunchAgent:
                 wandb.termlog(
                     f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
                 )
-                with self._jobs_lock:
-                    job_tracker.completed_status = status
                 launch_add(
                     config=config,
                     project_queue=self._project,
