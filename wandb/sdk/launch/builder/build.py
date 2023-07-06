@@ -67,7 +67,6 @@ DOCKERFILE_TEMPLATE = """
 FROM {py_build_image} as build
 
 # requirements section depends on pip vs conda, and presence of buildx
-ENV PIP_PROGRESS_BAR off
 {requirements_section}
 
 # ----- stage 2: base -----
