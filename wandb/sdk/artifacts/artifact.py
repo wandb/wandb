@@ -125,7 +125,13 @@ class Artifact:
           description
           metadata
           aliases {
-              artifactCollectionName
+              artifactCollection {
+                  project {
+                      entityName
+                      name
+                  }
+                  name
+              }
               alias
           }
           state
@@ -296,11 +302,15 @@ class Artifact:
         artifact._entity = entity
         artifact._project = project
         artifact._name = name
-        version_aliases = [
+        aliases = [
             alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == name.split(":")[0]
-            and util.alias_is_version_index(alias["alias"])
+            for alias in attrs["aliases"]
+            if alias["artifactCollection"]["project"]["entityName"] == entity
+            and alias["artifactCollection"]["project"]["name"] == project
+            and alias["artifactCollection"]["name"] == name.split(":")[0]
+        ]
+        version_aliases = [
+            alias for alias in aliases if util.alias_is_version_index(alias)
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
@@ -316,10 +326,7 @@ class Artifact:
             json.loads(attrs["metadata"] or "{}")
         )
         artifact._aliases = [
-            alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == name.split(":")[0]
-            and not util.alias_is_version_index(alias["alias"])
+            alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
         artifact._saved_aliases = copy(artifact._aliases)
         artifact._state = ArtifactState(attrs["state"])
@@ -724,7 +731,13 @@ class Artifact:
                     }
                     versionIndex
                     aliases {
-                        artifactCollectionName
+                        artifactCollection {
+                            project {
+                                entityName
+                                name
+                            }
+                            name
+                        }
                         alias
                     }
                     state
@@ -762,8 +775,10 @@ class Artifact:
         self._source_version = self._version
         self._aliases = [
             alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == self._name.split(":")[0]
+            for alias in attrs["aliases"]
+            if alias["artifactCollection"]["project"]["entityName"] == self._entity
+            and alias["artifactCollection"]["project"]["name"] == self._project
+            and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
         ]
         self._state = ArtifactState(attrs["state"])
