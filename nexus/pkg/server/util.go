@@ -11,8 +11,8 @@ type NexusStream struct {
 	Send     chan *service.Record
 	Recv     chan *service.Result
 	Run      *service.RunRecord
-	Settings *Settings
-	Callback func(run *service.RunRecord, settings *Settings, result *service.Result)
+	Settings *service.Settings
+	Callback func(run *service.RunRecord, settings *service.Settings, result *service.Result)
 }
 
 func (ns *NexusStream) SendRecord(r *service.Record) {
@@ -21,7 +21,7 @@ func (ns *NexusStream) SendRecord(r *service.Record) {
 
 // func ResultCallback(ns *server.NexusStream, result *service.Result) {
 
-func (ns *NexusStream) SetResultCallback(cb func(run *service.RunRecord, settings *Settings, result *service.Result)) {
+func (ns *NexusStream) SetResultCallback(cb func(run *service.RunRecord, settings *service.Settings, result *service.Result)) {
 	ns.Callback = cb
 }
 

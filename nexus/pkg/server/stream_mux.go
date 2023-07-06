@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/wandb/wandb/nexus/pkg/service"
 	"sync"
 )
 
@@ -20,7 +21,7 @@ func NewStreamMux() *StreamMux {
 }
 
 // addStream adds a stream to the mux if it doesn't already exist.
-func (sm *StreamMux) addStream(streamId string, settings *Settings) *Stream {
+func (sm *StreamMux) addStream(streamId string, settings *service.Settings) *Stream {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	stream, ok := sm.mux[streamId]

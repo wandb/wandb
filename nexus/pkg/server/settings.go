@@ -24,20 +24,20 @@ type Settings struct {
 	Program string
 }
 
-func NewSettings(s map[string]*service.SettingsValue) *Settings {
+func NewSettings(s *service.Settings) *Settings {
 	settings := Settings{
-		BaseURL:     s["base_url"].GetStringValue(),
-		ApiKey:      s["api_key"].GetStringValue(),
-		Offline:     s["offline"].GetBoolValue(),
-		SyncFile:    s["sync_file"].GetStringValue(),
-		LogInternal: s["log_internal"].GetStringValue(),
-		FilesDir:    s["files_dir"].GetStringValue(),
-		XPython:     s["_python"].GetStringValue(),
-		XOs:         s["_os"].GetStringValue(),
-		XCuda:       s["_cuda"].GetStringValue(),
+		BaseURL:     s.GetBaseUrl().GetValue(),
+		ApiKey:      s.GetApiKey().GetValue(),
+		Offline:     s.GetXOffline().GetValue(),
+		SyncFile:    s.GetSyncFile().GetValue(),
+		LogInternal: s.GetLogInternal().GetValue(),
+		FilesDir:    s.GetFilesDir().GetValue(),
+		XPython:     s.GetXPython().GetValue(),
+		XOs:         s.GetXOs().GetValue(),
+		XCuda:       s.GetXCuda().GetValue(),
 		// XArgs:       s["_args"].GetTupleValue(),
-		Host:    s["host"].GetStringValue(),
-		Program: s["program"].GetStringValue(),
+		Host:    s.GetHost().GetValue(),
+		Program: s.GetProgram().GetValue(),
 	}
 
 	settings.parseNetrc()

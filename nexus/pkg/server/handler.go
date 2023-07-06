@@ -12,7 +12,7 @@ import (
 )
 
 type Handler struct {
-	settings *Settings
+	settings *service.Settings
 	inChan   chan *service.Record
 	outChan  chan<- *service.Record
 
@@ -25,7 +25,7 @@ type Handler struct {
 	logger      *slog.Logger
 }
 
-func NewHandler(ctx context.Context, settings *Settings, logger *slog.Logger) *Handler {
+func NewHandler(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Handler {
 	handler := Handler{
 		inChan:   make(chan *service.Record),
 		settings: settings,
@@ -156,11 +156,11 @@ func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartReque
 		RecordType: &service.Record_Request{
 			Request: &service.Request{RequestType: &service.Request_Metadata{
 				Metadata: &service.MetadataRequest{
-					Os:        h.settings.XOs,
-					Python:    h.settings.XPython,
-					Host:      h.settings.Host,
-					Cuda:      h.settings.XCuda,
-					Program:   h.settings.Program,
+					Os:        h.settings.GetXOs().GetValue(),
+					Python:    h.settings.GetXPython().GetValue(),
+					Host:      h.settings.GetHost().GetValue(),
+					Cuda:      h.settings.GetXCuda().GetValue(),
+					Program:   h.settings.GetProgram().GetValue(),
 					StartedAt: run.StartTime}}}}}
 
 	h.sendRecord(&meta)

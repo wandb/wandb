@@ -26,12 +26,12 @@ type FileStream struct {
 	// FIXME this should be per db
 	offset int
 
-	settings   *Settings
+	settings   *service.Settings
 	logger     *slog.Logger
 	httpClient http.Client
 }
 
-func NewFileStream(path string, settings *Settings, logger *slog.Logger) *FileStream {
+func NewFileStream(path string, settings *service.Settings, logger *slog.Logger) *FileStream {
 	fs := FileStream{
 		wg:       &sync.WaitGroup{},
 		path:     path,
@@ -48,11 +48,11 @@ func (fs *FileStream) start() {
 
 	slog.Debug("FileStream: OPEN")
 
-	if fs.settings.Offline {
+	if fs.settings.GetXOffline().GetValue() {
 		return
 	}
 
-	fs.httpClient = newHttpClient(fs.settings.ApiKey)
+	fs.httpClient = newHttpClient(fs.settings.GetApiKey().GetValue())
 	for msg := range fs.inChan {
 		slog.Debug("FileStream *******")
 		LogRecord(fs.logger, "FileStream: got record", msg)
@@ -108,7 +108,7 @@ func (fs *FileStream) streamFinish() {
 }
 
 func (fs *FileStream) stream(rec *service.Record) {
-	if fs.settings.Offline {
+	if fs.settings.GetXOffline().GetValue() {
 		return
 	}
 	LogRecord(fs.logger, "+++++FileStream: stream", rec)

@@ -9,19 +9,19 @@ import (
 )
 
 type Writer struct {
-	settings *Settings
+	settings *service.Settings
 	inChan   chan *service.Record
 	outChan  chan<- *service.Record
 	store    *Store
 	logger   *slog.Logger
 }
 
-func NewWriter(ctx context.Context, settings *Settings, logger *slog.Logger) *Writer {
+func NewWriter(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Writer {
 
 	writer := &Writer{
 		settings: settings,
 		inChan:   make(chan *service.Record),
-		store:    NewStore(settings.SyncFile, logger),
+		store:    NewStore(settings.GetSyncFile().GetValue(), logger),
 		logger:   logger,
 	}
 	return writer
@@ -68,7 +68,7 @@ func (w *Writer) writeRecord(rec *service.Record) {
 func (w *Writer) sendRecord(rec *service.Record) {
 	control := rec.GetControl()
 	LogRecord(w.logger, "WRITER: sendRecord", rec)
-	if w.settings.Offline && control != nil && !control.AlwaysSend {
+	if w.settings.GetXOffline().GetValue() && control != nil && !control.AlwaysSend {
 		return
 	}
 	slog.Debug("WRITER: sendRecord: send")

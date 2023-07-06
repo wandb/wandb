@@ -19,15 +19,15 @@ type Stream struct {
 	dispatcher *Dispatcher
 	writer     *Writer
 	sender     *Sender
-	settings   *Settings
+	settings   *service.Settings
 	logger     *slog.Logger
 	finished   bool
 	done       chan struct{}
 }
 
-func NewStream(settings *Settings, streamId string) *Stream {
+func NewStream(settings *service.Settings, streamId string) *Stream {
 	ctx := context.Background()
-	logFile := settings.LogInternal
+	logFile := settings.GetLogInternal().GetValue()
 	logger := SetupStreamLogger(logFile, streamId)
 
 	dispatcher := NewDispatcher(ctx, logger)
@@ -99,7 +99,7 @@ func (s *Stream) IsFinished() bool {
 	return s.finished
 }
 
-func (s *Stream) GetSettings() *Settings {
+func (s *Stream) GetSettings() *service.Settings {
 	return s.settings
 }
 

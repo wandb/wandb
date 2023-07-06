@@ -7,6 +7,7 @@
 package auth
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -110,4 +111,17 @@ func ReadNetrc() ([]netrcLine, error) {
 
 	netrc = parseNetrc(string(data))
 	return netrc, nil
+}
+
+func GetNetrcLogin(machine string) (string, string, error) {
+	netrcLines, err := ReadNetrc()
+	if err != nil {
+		return "", "", err
+	}
+	for _, l := range netrcLines {
+		if l.Machine == machine {
+			return l.Login, l.Password, nil
+		}
+	}
+	return "", "", fmt.Errorf("no entry for %s in %s", machine, netrcLines)
 }

@@ -5,6 +5,7 @@ package wandb_internal;
 import "wandb_base.proto";
 import "wandb_internal.proto";
 import "wandb_telemetry.proto";
+import "wandb_settings.proto";
 
 
 service InternalService {
@@ -69,24 +70,8 @@ message ServerStatusRequest {
 message ServerStatusResponse {
 }
 
-message StringTupleValue {
-    repeated string string_values = 1;
-}
-
-message SettingsValue {
-  oneof value_type {
-    int64 int_value = 1;
-    string string_value = 2;
-    double float_value = 3;
-    bool bool_value = 4;
-    bool null_value = 5;
-    StringTupleValue tuple_value = 6;
-    string timestamp_value = 7;
-  }
-}
-
 message ServerInformInitRequest {
-  map<string, SettingsValue> _settings_map = 50;
+  Settings settings = 1;
   _RecordInfo _info = 200;
 }
 
@@ -94,7 +79,7 @@ message ServerInformInitResponse {
 }
 
 message ServerInformStartRequest {
-  map<string, SettingsValue> _settings_map = 50;
+  Settings settings = 1;
   _RecordInfo _info = 200;
 }
 
@@ -113,7 +98,7 @@ message ServerInformAttachRequest {
 }
 
 message ServerInformAttachResponse {
-  map<string, SettingsValue> _settings_map = 50;
+  Settings settings = 1;
   _RecordInfo _info = 200;
 }
 

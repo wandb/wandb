@@ -26,7 +26,7 @@ const CliVersion string = "0.0.1a1"
 const MetaFilename string = "wandb-metadata.json"
 
 type Sender struct {
-	settings       *Settings
+	settings       *service.Settings
 	inChan         chan *service.Record
 	outChan        chan<- *service.Record
 	dispatcherChan dispatchChannel
@@ -37,15 +37,15 @@ type Sender struct {
 }
 
 // NewSender creates a new Sender instance
-func NewSender(ctx context.Context, settings *Settings, logger *slog.Logger) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Sender {
 	sender := &Sender{
 		settings: settings,
 		inChan:   make(chan *service.Record),
 		logger:   logger,
 	}
 	slog.Debug("Sender: start")
-	url := fmt.Sprintf("%s/graphql", settings.BaseURL)
-	sender.graphqlClient = newGraphqlClient(url, settings.ApiKey)
+	url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
+	sender.graphqlClient = newGraphqlClient(url, settings.GetApiKey().GetValue())
 	return sender
 }
 
@@ -103,7 +103,7 @@ func (s *Sender) sendRequest(_ *service.Record, req *service.Request) {
 
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-		s.settings.BaseURL, s.run.Entity, s.run.Project, s.run.RunId)
+		s.settings.GetBaseUrl().GetValue(), s.run.Entity, s.run.Project, s.run.RunId)
 	s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
 	slog.Debug("Sender: sendRunStart: start file stream")
 }
@@ -117,7 +117,7 @@ func (s *Sender) sendMetadata(req *service.MetadataRequest) {
 		// EmitUnpopulated: true,
 	}
 	jsonBytes, _ := mo.Marshal(req)
-	_ = os.WriteFile(filepath.Join(s.settings.FilesDir, MetaFilename), jsonBytes, 0644)
+	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
 
 	s.sendFile(MetaFilename)
 }
@@ -299,7 +299,7 @@ func sendData(fileName, urlPath string, logger *slog.Logger) error {
 
 func (s *Sender) sendFile(path string) {
 
-	fullPath := filepath.Join(s.settings.FilesDir, path)
+	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), path)
 	if s.run == nil {
 		LogFatal(s.logger, "upsert run not called before send db")
 	}
