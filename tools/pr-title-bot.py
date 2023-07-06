@@ -123,8 +123,8 @@ def check_pr_title(
         model=model,
         messages=messages,
     )
-    print(response.choices[0]["message"]["content"])
-    is_compliant = response.choices[0]["message"]["content"].lower()
+    is_compliant = response.choices[0]["message"]["content"].lower().strip()
+    print(is_compliant)
 
     return is_compliant == "yes"
 

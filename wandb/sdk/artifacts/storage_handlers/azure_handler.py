@@ -162,6 +162,7 @@ class AzureHandler(StorageHandler):
     ) -> Union["azure.identity.DefaultAzureCredential", str]:
         if (
             wandb.run
+            and wandb.run.settings.azure_account_url_to_access_key is not None
             and account_url in wandb.run.settings.azure_account_url_to_access_key
         ):
             return wandb.run.settings.azure_account_url_to_access_key[account_url]
