@@ -499,6 +499,7 @@ message Request {
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
     ServerInfoRequest     server_info = 67;
+    JobInfoRequest        job_info = 73;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -525,6 +526,7 @@ message Response {
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
     ServerInfoResponse     server_info_response = 67;
+    JobInfoResponse        job_info_response = 68;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -639,6 +641,18 @@ message PollExitResponse {
   RunExitResult   exit_result = 2;
   FilePusherStats pusher_stats = 3;
   FileCounts      file_counts = 4;
+}
+
+/*
+* JobInfo:
+*/
+message JobInfoRequest {
+  _RequestInfo _info = 200;
+}
+
+message JobInfoResponse {
+  string sequenceId = 1;
+  string version = 2;
 }
 
 /*

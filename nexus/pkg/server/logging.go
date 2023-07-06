@@ -77,14 +77,14 @@ func LogFatalError(log *slog.Logger, msg string, err error) {
 
 func LogRecord(log *slog.Logger, msg string, record *service.Record) {
 	log.LogAttrs(context.Background(),
-		slog.LevelError,
+		slog.LevelDebug,
 		msg,
 		slog.String("record", record.String()))
 }
 
 func LogResult(log *slog.Logger, msg string, result *service.Result) {
 	log.LogAttrs(context.Background(),
-		slog.LevelError,
+		slog.LevelDebug,
 		msg,
 		slog.String("result", result.String()))
 }
