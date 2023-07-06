@@ -97,7 +97,7 @@ class JobBuilder:
         self._aliases = []
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
-        ] = settings.get("job_source")
+        ] = settings.job_source  # type: ignore[assignment]
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config

@@ -37,7 +37,7 @@ from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
-from wandb import __version__, env, util
+from wandb import env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError
@@ -487,7 +487,7 @@ class Api:
 
     @property
     def user_agent(self):
-        return "W&B Public Client %s" % __version__
+        return "W&B Public Client %s" % wandb.__version__
 
     @property
     def api_key(self):

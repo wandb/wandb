@@ -34,7 +34,7 @@ from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
-from wandb import __version__, env, util
+from wandb import env, util
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -208,7 +208,8 @@ class Api:
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
-        self.default_settings.update(default_settings or {})  # type: ignore
+        default_settings = default_settings or {}
+        self.default_settings.update(default_settings)  # type: ignore
         self.retry_uploads = 10
         self._settings = Settings(
             load_settings=load_settings,
@@ -339,7 +340,7 @@ class Api:
 
     @property
     def user_agent(self) -> str:
-        return f"W&B Internal Client {__version__}"
+        return f"W&B Internal Client {wandb.__version__}"
 
     @property
     def api_key(self) -> Optional[str]:

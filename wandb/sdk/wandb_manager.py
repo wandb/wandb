@@ -14,7 +14,6 @@ from wandb import env, trigger
 from wandb.errors import Error
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
-from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
 
 if TYPE_CHECKING:
     from wandb.sdk.service import service
@@ -217,7 +216,7 @@ class _Manager:
             response = svc_iface._svc_inform_attach(attach_id=attach_id)
         except Exception:
             return None
-        return settings_dict_from_pbmap(response._settings_map)
+        return response.settings
 
     def _inform_finish(self, run_id: Optional[str] = None) -> None:
         svc_iface = self._get_service_interface()

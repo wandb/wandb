@@ -680,14 +680,6 @@ class _WandbInit:
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
-            # todo: detected issues with settings.
-            if self.settings.__dict__["_Settings__preprocessing_warnings"]:
-                tel.issues.settings__preprocessing_warnings = True
-            if self.settings.__dict__["_Settings__validation_warnings"]:
-                tel.issues.settings__validation_warnings = True
-            if self.settings.__dict__["_Settings__unexpected_args"]:
-                tel.issues.settings__unexpected_args = True
-
         if not self.settings.label_disable:
             if self.notebook:
                 run._label_probe_notebook(self.notebook)
@@ -877,12 +869,13 @@ def _attach(
         raise UsageError(f"Unable to attach to run {attach_id}")
 
     settings: Settings = copy.copy(_wl._settings)
+
     settings.update(
         {
             "run_id": attach_id,
-            "_start_time": response["_start_time"],
-            "_start_datetime": response["_start_datetime"],
-            "_offline": response["_offline"],
+            "_start_time": response._start_time.value,
+            "_start_datetime": response._start_datetime.value,
+            "_offline": response._offline.value,
         },
         source=Source.INIT,
     )

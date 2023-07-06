@@ -43,7 +43,7 @@ from wandb.sdk.internal import (
 )
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import (
     config_util,
     filenames,
@@ -314,34 +314,17 @@ class SendManager:
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
-        # TODO(settings) replace with wandb.Settings
-        sd: SettingsDict = dict(
+        settings = wandb.Settings(
             files_dir=files_dir,
             root_dir=root_dir,
-            _start_time=0,
-            git_remote=None,
+            # _start_time=0,
             resume=resume,
-            program=None,
-            ignore_globs=(),
-            run_id=None,
-            entity=None,
-            project=None,
-            run_group=None,
-            job_type=None,
-            run_tags=None,
-            run_name=None,
-            run_notes=None,
-            save_code=None,
-            email=None,
-            silent=None,
-            _offline=None,
+            # ignore_globs=(),
             _sync=True,
-            _live_policy_rate_limit=None,
-            _live_policy_wait_time=None,
             disable_job_creation=False,
             _async_upload_concurrency_limit=None,
         )
-        settings = SettingsStatic(sd)
+        settings = SettingsStatic(settings.to_proto())
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
@@ -1012,8 +995,8 @@ class SendManager:
             commit=run.git.commit or None,
         )
         # TODO: we don't want to create jobs in sweeps, since the
-        # executable doesn't appear to be consistent
-        if hasattr(self._settings, "sweep_id") and self._settings.sweep_id:
+        #  executable doesn't appear to be consistent
+        if run.sweep_id:
             self._job_builder.disable = True
 
         self._server_messages = server_messages or []
@@ -1096,8 +1079,9 @@ class SendManager:
         # hack to merge run_settings and self._settings object together
         # so that fields like entity or project are available to be attached to Sentry events.
         run_settings = message_to_dict(self._run)
-        self._settings = SettingsStatic({**dict(self._settings), **run_settings})
-        wandb._sentry.configure_scope(settings=self._settings)
+        _settings = dict(self._settings)
+        _settings.update(run_settings)
+        wandb._sentry.configure_scope(tags=_settings, process_context="internal")
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
@@ -1604,7 +1588,7 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
-        if self._job_builder.disable or self._settings.get("_offline", False):
+        if self._job_builder.disable or self._settings._offline:
             return
         self._job_builder.set_config(
             {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
