@@ -337,7 +337,9 @@ class LaunchAgent:
         if job.job_completed:
             self.finish_thread_id(thread_id)
 
-    def run_job(self, job: Dict[str, Any], file_saver: RunQueueItemFileSaver) -> None:
+    def run_job(
+        self, job: Dict[str, Any], queue: str, file_saver: RunQueueItemFileSaver
+    ) -> None:
         """Set up project and run the job.
 
         Arguments:
@@ -363,6 +365,7 @@ class LaunchAgent:
                 job,
                 self.default_config,
                 self._api,
+                queue,
                 file_saver,
             ),
         )
@@ -432,7 +435,7 @@ class LaunchAgent:
                                     continue
 
                             try:
-                                self.run_job(job, file_saver)
+                                self.run_job(job, queue, file_saver)
                             except Exception as e:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
@@ -485,11 +488,12 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
+        queue: str,
         file_saver: RunQueueItemFileSaver,
     ) -> None:
         thread_id = threading.current_thread().ident
         assert thread_id is not None
-        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], file_saver)
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
         with self._jobs_lock:
             self._jobs[thread_id] = job_tracker
         try:
