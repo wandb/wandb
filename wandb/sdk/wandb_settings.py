@@ -24,7 +24,6 @@ from typing import (
     FrozenSet,
     ItemsView,
     Iterable,
-    Literal,
     Mapping,
     Optional,
     Sequence,
@@ -54,10 +53,11 @@ from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
 if sys.version_info >= (3, 8):
-    from typing import get_args, get_origin, get_type_hints
+    from typing import Literal, get_args, get_origin, get_type_hints
 elif sys.version_info >= (3, 7):
-    from typing_extensions import get_args, get_origin, get_type_hints
+    from typing_extensions import Literal, get_args, get_origin, get_type_hints
 else:
+    from typing_extensions import Literal
 
     def get_args(obj: Any) -> Optional[Any]:
         return obj.__args__ if hasattr(obj, "__args__") else None
