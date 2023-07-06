@@ -114,6 +114,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         assert result  # TODO: handle errors
         return result
 
+    def JobInfo(  # noqa: N802
+        self, job_info: pb.JobInfoRequest, context: grpc.ServicerContext
+    ) -> pb.JobInfoResponse:
+        stream_id = job_info._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        result = iface._deliver_request_job_info(job_info)
+        response = result.wait(timeout=-1)
+        assert response
+        return response.response.job_info_response
+
     def Shutdown(  # noqa: N802
         self, shutdown: pb.ShutdownRequest, context: grpc.ServicerContext
     ) -> pb.ShutdownResponse:
