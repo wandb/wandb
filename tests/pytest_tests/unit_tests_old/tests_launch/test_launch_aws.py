@@ -216,6 +216,13 @@ def test_launch_aws_sagemaker_launch_fail(
         "environment_from_config",
         lambda *args: mock_env,
     )
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
+        "build_image",
+        lambda *args: "testimage:12345",
+    )
+
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
