@@ -1,5 +1,5 @@
 from dataclasses import fields
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence, Tuple
 
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.wandb_settings import SettingsData
@@ -13,11 +13,13 @@ class SettingsStatic(SettingsData):
     """
 
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
+        self._from_proto(proto)
         object.__setattr__(self, "_proto", proto)
 
+    def _from_proto(self, proto: wandb_settings_pb2.Settings) -> None:
         for field in fields(SettingsData):
             key = field.name
-
+            value : Any = None
             if key == "_stats_open_metrics_filters":
                 # todo: it's an underscored field, refactor into
                 #  something more elegant?
@@ -25,7 +27,7 @@ class SettingsStatic(SettingsData):
                 # Do not try to repeat this at home.
                 value_type = getattr(proto, key).WhichOneof("value")
                 if value_type == "sequence":
-                    value = getattr(proto, key).sequence.value
+                    value = list(getattr(proto, key).sequence.value)
                 elif value_type == "mapping":
                     unpacked_mapping = {}
                     for outer_key, outer_value in getattr(
@@ -37,8 +39,16 @@ class SettingsStatic(SettingsData):
                         unpacked_mapping[outer_key] = unpacked_inner
                     value = unpacked_mapping
             else:
-                value = getattr(proto, key).value if proto.HasField(key) else None  # type: ignore[arg-type]
+                if proto.HasField(key): # type: ignore [arg-type]
+                    value = getattr(proto, key).value
+                    if field.type == Sequence[str]:
+                        value = list(value)
+                    elif field.type == Tuple[str]:
+                        value = tuple(value)
+                else:
+                    value = None
             object.__setattr__(self, key, value)
+
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")

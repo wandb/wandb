@@ -1422,8 +1422,12 @@ class Settings(SettingsData):
 
     def to_proto(self) -> wandb_settings_pb2.Settings:
         """Generate a protobuf representation of the settings."""
+        from dataclasses import fields
+
         settings = wandb_settings_pb2.Settings()
-        for k, v in self.to_dict().items():
+        for field in fields(SettingsData):
+            k = field.name
+            v = getattr(self, k)
             # special case for _stats_open_metrics_filters
             if k == "_stats_open_metrics_filters":
                 if isinstance(v, (list, set, tuple)):
@@ -1465,11 +1469,6 @@ class Settings(SettingsData):
         #  settings object from the protobuf
         return settings
 
-    @staticmethod
-    def from_proto(settings: wandb_settings_pb2.Settings) -> None:
-        """Generate a Settings object from a protobuf representation."""
-        # TODO(dd)
-        pass
 
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
