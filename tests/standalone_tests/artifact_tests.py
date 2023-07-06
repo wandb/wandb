@@ -33,7 +33,10 @@ def _run_eq(run_a, run_b):
     )
 
 
-def _runs_eq(runs_a, runs_b):
+def _runs_eq(runs_a, runs_b, sort=True):
+    if sort:
+        runs_a = sorted(runs_a, key=lambda run: run.id)
+        runs_b = sorted(runs_b, key=lambda run: run.id)
     return all([_run_eq(run_a, run_b) for run_a, run_b in zip(runs_a, runs_b)])
 
 
