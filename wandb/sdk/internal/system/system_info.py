@@ -35,7 +35,7 @@ class SystemInfo:
         self.backend_interface = interface
         self.git = GitRepo(
             root=self.settings.git_root,
-            remote=self.settings.git_remote,  # type: ignore
+            remote=self.settings.git_remote,
             remote_url=self.settings.git_remote_url,
             commit=self.settings.git_commit,
         )
@@ -205,7 +205,7 @@ class SystemInfo:
         data["docker"] = self.settings.docker
 
         data["cuda"] = self.settings._cuda
-        data["args"] = self.settings._args
+        data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
 
         if self.settings.program is not None:
