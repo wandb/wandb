@@ -304,7 +304,6 @@ class SettingsData:
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
-    _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
