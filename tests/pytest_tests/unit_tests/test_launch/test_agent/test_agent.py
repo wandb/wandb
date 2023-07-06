@@ -15,12 +15,10 @@ def _setup(mocker):
     mocker.termwarn = MagicMock()
     mocker.termerror = MagicMock()
     mocker.wandb_init = MagicMock()
-    mocker.launch_add = MagicMock()
     mocker.patch("wandb.termlog", mocker.termlog)
     mocker.patch("wandb.termwarn", mocker.termwarn)
     mocker.patch("wandb.termerror", mocker.termerror)
     mocker.patch("wandb.init", mocker.wandb_init)
-    mocker.patch("wandb.sdk.launch.launch_add.launch_add", mocker.launch_add)
 
 
 def test_loop_capture_stack_trace(mocker):
@@ -84,11 +82,8 @@ def test_run_job_secure_mode(mocker):
             agent.run_job(job, "test-queue", mock_file_saver)
 
 
-# WIP
-@pytest.mark.timeout(60)
-def test_requeue_on_preemption(mocker):
+def _setup_requeue(mocker):
     _setup(mocker)
-
     mocker.event = MagicMock()
     mocker.event.is_set = MagicMock(return_value=True)
 
@@ -104,7 +99,7 @@ def test_requeue_on_preemption(mocker):
     mocker.job_tracker = MagicMock()
     mocker.job_tracker.completed_status = None
     mocker.job_tracker.entity = "test-entity"
-    # mock_tracker.run = mock_run
+    mocker.launch_add = MagicMock()
 
     mocker.patch("wandb.sdk.launch.agent.agent.threading", MagicMock())
     mocker.patch("multiprocessing.Event", mocker.event)
@@ -121,6 +116,14 @@ def test_requeue_on_preemption(mocker):
         return_value=mocker.job_tracker,
     )
     mocker.api.fail_run_queue_item = MagicMock()
+    mocker.patch("wandb.sdk.launch.agent.agent.launch_add", mocker.launch_add)
+
+
+def test_requeue_on_preemption(mocker):
+    _setup_requeue(mocker)
+    mocker.job_tracker.run_id = "test-run-id"
+    mocker.job_tracker.queue = "test-queue"
+
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
@@ -129,7 +132,7 @@ def test_requeue_on_preemption(mocker):
         "runQueueItemId": "test-id",
     }
     mock_launch_spec = {}
-    mocker.file_saver = MagicMock()
+
     agent = LaunchAgent(api=mocker.api, config=mock_config)
 
     agent.thread_run_job(
@@ -138,11 +141,13 @@ def test_requeue_on_preemption(mocker):
         default_config={},
         api=mocker.api,
         queue="test-queue",
-        file_saver=mocker.file_saver,
+        file_saver=MagicMock(),
     )
 
+    expected_config = {"run_id": "test-run-id", "_resume_count": 1}
+
     mocker.launch_add.assert_called_once_with(
-        config=mock_config, project_queue="test-project", queue_name="test-queue"
+        config=expected_config, project_queue="test-project", queue_name="test-queue"
     )
 
 
