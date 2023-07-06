@@ -99,6 +99,8 @@ def _create_job(
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
+    wandb.termlog(f"Creating launch job of type: {job_type}...")
+
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
     metadata = {"_partial": "v0"}
@@ -155,15 +157,20 @@ def _create_job(
         requirements=requirements,
     )
 
-    # init hidden wandb run with job building disabled (handled manually)
-    run = wandb.init(
-        dir=tempdir.name,
-        settings={"silent": True, "disable_job_creation": True},
-        entity=entity,
-        project=project,
-        job_type="cli_create_job",
-        job_name=name,
-    )
+    try:
+        # init hidden wandb run with job building disabled (handled manually)
+        run = wandb.init(
+            dir=tempdir.name,
+            settings={"silent": True, "disable_job_creation": True},
+            entity=entity,
+            project=project,
+            job_type="cli_create_job",
+            job_name=name,
+        )
+    except Exception:
+        # Error printed by wandb.init
+        return None, "", []
+
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
         full_path = os.path.join(path, entrypoint or "")
