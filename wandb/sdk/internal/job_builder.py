@@ -182,8 +182,8 @@ class JobBuilder:
         # if building a partial job from CLI, don't construct local entrypoint
         # or notebook flag entrypoint should already be in metadata from create_job
         if metadata.get("_partial"):
-            assert metadata.get("entrypoint")
-            assert metadata.get("notebook")
+            assert "entrypoint" in metadata
+            assert "notebook" in metadata
             source.update(
                 {
                     "entrypoint": metadata["entrypoint"],

@@ -1590,7 +1590,6 @@ def describe(job):
 @click.option(
     "--entity",
     "-e",
-    default="models",
     envvar=env.ENTITY,
     help="The entity the jobs belong to",
 )

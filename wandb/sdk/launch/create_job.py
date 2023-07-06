@@ -337,7 +337,7 @@ def _create_repo_metadata(
         "codePath": entrypoint,
         "entrypoint": [f"python{python_version}", entrypoint],
         "python": python_version,  # used to build container
-        "notebook": entrypoint.endswith(".ipynb"),
+        "notebook": False,  # partial jobs from notebooks not supported
     }
 
     return metadata
