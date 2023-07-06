@@ -108,6 +108,10 @@ def _setup_requeue(mocker):
         "wandb.sdk.launch.agent.agent.create_project_from_spec", mocker.project
     )
     mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.builder_from_config",
+        return_value=MagicMock(),
+    )
+    mocker.patch(
         "wandb.sdk.launch.agent.agent.loader.runner_from_config",
         return_value=mocker.runner,
     )
