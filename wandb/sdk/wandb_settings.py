@@ -461,9 +461,11 @@ class Settings:
     _disable_service: bool  # Disable wandb-service, spin up internal process the old way
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
+    _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
+    _file_stream_timeout_seconds: float
     _flow_control_custom: bool
     _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
@@ -618,6 +620,7 @@ class Settings:
                 "preprocessor": _str_as_bool,
                 "is_policy": True,
             },
+            _disable_setproctitle={"value": False, "preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
@@ -653,6 +656,10 @@ class Settings:
                     else False
                 ),
                 "auto_hook": True,
+            },
+            _file_stream_timeout_seconds={
+                "value": 60,
+                "preprocessor": float,
             },
             _flow_control_disabled={
                 "hook": lambda _: self._network_buffer == 0,
@@ -1730,9 +1737,14 @@ class Settings:
                         f"Ignored wandb.init() arg {key} when running a sweep."
                     )
         if self.launch:
-            for key in ("project", "entity", "id"):
-                val = init_settings.pop(key, None)
-                if val:
+            if self.project is not None and init_settings.pop("project", None):
+                wandb.termwarn(
+                    "Project is ignored when running from wandb launch context. "
+                    "Ignored wandb.init() arg project when running running from launch.",
+                )
+            for key in ("entity", "id"):
+                # Init settings cannot override launch settings.
+                if init_settings.pop(key, None):
                     wandb.termwarn(
                         "Project, entity and id are ignored when running from wandb launch context. "
                         f"Ignored wandb.init() arg {key} when running running from launch.",
