@@ -112,8 +112,8 @@ class JobBuilder:
     def _handle_server_artifact(
         self, res: Optional[Dict], artifact: "ArtifactRecord"
     ) -> None:
-        try:
-            if artifact.type == "job" and res is not None:
+        if artifact.type == "job" and res is not None:
+            try:
                 if res["artifactSequence"]["latestArtifact"] is None:
                     self._job_version_alias = "v0"
                 elif res["artifactSequence"]["latestArtifact"]["id"] == res["id"]:
@@ -123,8 +123,8 @@ class JobBuilder:
                 else:
                     self._job_version_alias = f"v{res['artifactSequence']['latestArtifact']['versionIndex'] + 1}"
                 self._job_seq_id = res["artifactSequence"]["id"]
-        except KeyError as e:
-            _logger.info(f"Malformed response from ArtifactSaver.save {e}")
+            except KeyError as e:
+                _logger.info(f"Malformed response from ArtifactSaver.save {e}")
         if artifact.type == "code" and res is not None:
             self._logged_code_artifact = ArtifactInfoForJob(
                 {
