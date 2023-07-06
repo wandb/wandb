@@ -1469,7 +1469,6 @@ class Settings(SettingsData):
         #  settings object from the protobuf
         return settings
 
-
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
     def _apply_settings(

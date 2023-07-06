@@ -19,7 +19,7 @@ class SettingsStatic(SettingsData):
     def _from_proto(self, proto: wandb_settings_pb2.Settings) -> None:
         for field in fields(SettingsData):
             key = field.name
-            value : Any = None
+            value: Any = None
             if key == "_stats_open_metrics_filters":
                 # todo: it's an underscored field, refactor into
                 #  something more elegant?
@@ -39,7 +39,7 @@ class SettingsStatic(SettingsData):
                         unpacked_mapping[outer_key] = unpacked_inner
                     value = unpacked_mapping
             else:
-                if proto.HasField(key): # type: ignore [arg-type]
+                if proto.HasField(key):  # type: ignore [arg-type]
                     value = getattr(proto, key).value
                     if field.type == Sequence[str]:
                         value = list(value)
@@ -48,7 +48,6 @@ class SettingsStatic(SettingsData):
                 else:
                     value = None
             object.__setattr__(self, key, value)
-
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
