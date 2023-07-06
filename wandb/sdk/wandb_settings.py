@@ -735,6 +735,7 @@ class Settings(SettingsData):
                 ),
                 "auto_hook": True,
             },
+            job_name={"preprocessor": lambda x: str(x)},
             job_source={"validator": self._validate_job_source},
             label_disable={"preprocessor": _str_as_bool},
             launch={"preprocessor": _str_as_bool},
