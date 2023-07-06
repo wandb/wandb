@@ -147,7 +147,7 @@ class SockServerReadThread(threading.Thread):
         self._clients.add_client(self._sock_client)
         inform_attach_response = spb.ServerInformAttachResponse()
         inform_attach_response.settings.CopyFrom(
-            self._mux._streams[stream_id]._settings.proto,
+            self._mux._streams[stream_id]._settings._proto,
         )
         response = spb.ServerResponse(inform_attach_response=inform_attach_response)
         self._sock_client.send_server_response(response)

@@ -13,6 +13,8 @@ class SettingsStatic(SettingsData):
     """
 
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
+        object.__setattr__(self, "_proto", proto)
+
         for field in fields(SettingsData):
             key = field.name
 
@@ -22,7 +24,6 @@ class SettingsStatic(SettingsData):
                 # I'm really about this. It's ugly, but it works.
                 # Do not try to repeat this at home.
                 value_type = getattr(proto, key).WhichOneof("value")
-                print(field, value_type)
                 if value_type == "sequence":
                     value = getattr(proto, key).sequence.value
                 elif value_type == "mapping":

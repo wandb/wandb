@@ -1425,8 +1425,6 @@ class Settings(SettingsData):
         """Generate a protobuf representation of the settings."""
         settings = wandb_settings_pb2.Settings()
         for k, v in self.to_dict().items():
-            # print(k, v)
-
             # special case for _stats_open_metrics_filters
             if k == "_stats_open_metrics_filters":
                 if isinstance(v, (list, set, tuple)):
