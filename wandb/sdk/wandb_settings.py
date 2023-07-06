@@ -24,6 +24,7 @@ from typing import (
     FrozenSet,
     ItemsView,
     Iterable,
+    Literal,
     Mapping,
     Optional,
     Sequence,
@@ -378,7 +379,7 @@ class SettingsData:
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
-    job_source: str
+    job_source: Optional[Literal["repo", "artifact", "image"]]
     label_disable: bool
     launch: bool
     launch_config_path: str
@@ -393,7 +394,7 @@ class SettingsData:
     notebook_name: str
     problem: str
     program: str
-    program_relpath: str
+    program_relpath: Optional[str]
     project: str
     project_url: str
     quiet: bool
@@ -1466,7 +1467,7 @@ class Settings(SettingsData):
         return settings
 
     @staticmethod
-    def from_proto(settings: wandb_settings_pb2.Settings) -> "Settings":
+    def from_proto(settings: wandb_settings_pb2.Settings) -> None:
         """Generate a Settings object from a protobuf representation."""
         # TODO(dd)
         pass

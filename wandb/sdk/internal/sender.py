@@ -1076,7 +1076,7 @@ class SendManager:
         run_settings = message_to_dict(self._run)
         _settings = dict(self._settings)
         _settings.update(run_settings)
-        wandb._sentry.configure_scope(settings=_settings)
+        wandb._sentry.configure_scope(tags=_settings, process_context="internal")
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)

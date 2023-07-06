@@ -184,7 +184,7 @@ class Backend:
 
         start_method = settings.start_method
 
-        settings = SettingsStatic(settings.to_proto())
+        settings_static = SettingsStatic(settings.to_proto())
         user_pid = os.getpid()
 
         if start_method == "thread":
@@ -194,7 +194,7 @@ class Backend:
             wandb_thread = BackendThread(
                 target=wandb_internal,
                 kwargs=dict(
-                    settings=settings,
+                    settings=settings_static,
                     record_q=self.record_q,
                     result_q=self.result_q,
                     user_pid=user_pid,
@@ -208,7 +208,7 @@ class Backend:
             self.wandb_process = self._multiprocessing.Process(  # type: ignore
                 target=wandb_internal,
                 kwargs=dict(
-                    settings=settings,
+                    settings=settings_static,
                     record_q=self.record_q,
                     result_q=self.result_q,
                     user_pid=user_pid,
