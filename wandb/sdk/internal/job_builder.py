@@ -109,7 +109,7 @@ class JobBuilder:
     def disable(self, val: bool) -> None:
         self._disable = val
 
-    def _set_logged_code_artifact(
+    def _handle_server_artifact(
         self, res: Optional[Dict], artifact: "ArtifactRecord"
     ) -> None:
         try:
