@@ -1699,6 +1699,9 @@ class Settings(SettingsData):
         self.update(user_settings, source=Source.USER)
 
     def _apply_init(self, init_settings: Dict[str, Union[str, int, None]]) -> None:
+        # pop magic from init settings
+        init_settings.pop("magic", None)
+
         # prevent setting project, entity if in sweep
         # TODO(jhr): these should be locked elements in the future
         if self.sweep_id:
