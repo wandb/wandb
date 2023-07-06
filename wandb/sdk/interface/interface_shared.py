@@ -145,6 +145,7 @@ class InterfaceShared(InterfaceBase):
         cancel: Optional[pb.CancelRequest] = None,
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
+        job_info: Optional[pb.JobInfoRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -201,6 +202,8 @@ class InterfaceShared(InterfaceBase):
             request.summary_record.CopyFrom(summary_record)
         elif telemetry_record:
             request.telemetry_record.CopyFrom(telemetry_record)
+        elif job_info:
+            request.job_info.CopyFrom(job_info)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -616,6 +619,10 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
+        return self._deliver_record(record)
+
+    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
+        record = self._make_request(job_info=job_info)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

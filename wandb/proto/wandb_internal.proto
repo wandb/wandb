@@ -505,6 +505,7 @@ message Request {
     StatusReportRequest   status_report = 70;
     SummaryRecordRequest  summary_record = 71;
     TelemetryRecordRequest telemetry_record = 72;
+    JobInfoRequest      job_info = 73;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -532,6 +533,7 @@ message Response {
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
     ServerInfoResponse     server_info_response = 67;
+    JobInfoResponse        job_info_response = 68;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -842,6 +844,19 @@ message CheckVersionResponse {
   string upgrade_message = 1;
   string yank_message = 2;
   string delete_message = 3;
+}
+
+
+/*
+* JobInfo:
+*/
+message JobInfoRequest {
+    _RequestInfo _info = 200;
+}
+
+message JobInfoResponse {
+  string sequenceId = 1;
+  string version = 2;
 }
 
 /*

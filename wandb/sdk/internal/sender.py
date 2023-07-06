@@ -712,6 +712,17 @@ class SendManager:
             )
         self._respond_result(result)
 
+    def send_request_job_info(self, record: "Record") -> None:
+        """Respond to a request for a job link."""
+        result = proto_util._result_from_record(record)
+        result.response.job_info_response.sequenceId = (
+            self._job_builder._job_seq_id or ""
+        )
+        result.response.job_info_response.version = (
+            self._job_builder._job_version_alias or ""
+        )
+        self._respond_result(result)
+
     def _maybe_setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
@@ -1493,7 +1504,7 @@ class SendManager:
             history_step=history_step,
         )
 
-        self._job_builder._set_logged_code_artifact(res, artifact)
+        self._job_builder._handle_server_artifact(res, artifact)
         return res
 
     def send_alert(self, record: "Record") -> None:
