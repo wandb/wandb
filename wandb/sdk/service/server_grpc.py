@@ -411,7 +411,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
     ) -> spb.ServerInformAttachResponse:
         stream_id = request._info.stream_id
         result = spb.ServerInformAttachResponse()
-        result.settings.CopyFrom(self._mux._streams[stream_id]._settings.proto)
+        result.settings.CopyFrom(self._mux._streams[stream_id]._settings._proto)
         return result
 
     def ServerInformDetach(  # noqa: N802
