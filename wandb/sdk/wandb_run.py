@@ -87,7 +87,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_settings import Settings, SettingsConsole
+from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -623,7 +623,7 @@ class Run:
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
         wandb._sentry.configure_scope(
-            settings=self._settings,
+            tags=dict(self._settings),
             process_context="user",
         )
 
@@ -1479,7 +1479,7 @@ class Run:
 
         wandb._sentry.configure_scope(
             process_context="user",
-            settings=self._settings,
+            tags=dict(self._settings),
         )
 
     def _add_singleton(
@@ -1994,23 +1994,23 @@ class Run:
         self,
         stdout_slave_fd: Optional[int],
         stderr_slave_fd: Optional[int],
-        console: Optional[SettingsConsole] = None,
+        console: Optional[str] = None,
     ) -> None:
         if console is None:
-            console = self._settings._console
+            console = self._settings.console
         # only use raw for service to minimize potential changes
-        if console == SettingsConsole.WRAP:
+        if console == "wrap":
             if not self._settings._disable_service:
-                console = SettingsConsole.WRAP_RAW
+                console = "wrap_raw"
             else:
-                console = SettingsConsole.WRAP_EMU
+                console = "wrap_emu"
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
 
         # raw output handles the output_log writing in the internal process
-        if console in {SettingsConsole.REDIRECT, SettingsConsole.WRAP_EMU}:
+        if console in {"redirect", "wrap_emu"}:
             output_log_path = os.path.join(
                 self._settings.files_dir, filenames.OUTPUT_FNAME
             )
@@ -2020,7 +2020,7 @@ class Run:
                     open(output_log_path, "wb")
                 )
 
-        if console == SettingsConsole.REDIRECT:
+        if console == "redirect":
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
@@ -2049,10 +2049,10 @@ class Run:
                         "wrapping stdout/err."
                     )
                     wandb.termlog(msg)
-                    self._redirect(None, None, console=SettingsConsole.WRAP)
+                    self._redirect(None, None, console="wrap")
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == SettingsConsole.WRAP_EMU:
+        elif console == "wrap_emu":
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
@@ -2068,7 +2068,7 @@ class Run:
                     self._output_writer.write,  # type: ignore
                 ],
             )
-        elif console == SettingsConsole.WRAP_RAW:
+        elif console == "wrap_raw":
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamRawWrapper(
                 src="stdout",
@@ -2082,7 +2082,7 @@ class Run:
                     lambda data: self._console_raw_callback("stderr", data),
                 ],
             )
-        elif console == SettingsConsole.OFF:
+        elif console == "off":
             return
         else:
             raise ValueError("unhandled console")
