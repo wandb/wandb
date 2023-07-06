@@ -617,6 +617,8 @@ class LaunchAgent:
                 wandb.termlog(
                     f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
                 )
+                with self._jobs_lock:
+                    job_tracker.completed_status = status
                 launch_add(
                     config=config,
                     project_queue=self._project,
