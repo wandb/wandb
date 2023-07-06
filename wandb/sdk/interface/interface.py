@@ -447,6 +447,30 @@ class InterfaceBase:
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         raise NotImplementedError
 
+    @staticmethod
+    def _make_partial_source_str(
+        source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
+    ) -> str:
+        """construct use_artifact.partial.source_info.sourc as str."""
+        source_type = job_info.get("source_type", "").strip()
+        if source_type == "artifact":
+            info_source = job_info.get("source", {})
+            source.artifact.artifact = info_source.get("artifact", "")
+            source.artifact.entrypoint.extend(info_source.get("entrypoint", []))
+            source.artifact.notebook = info_source.get("notebook", False)
+        elif source_type == "repo":
+            source.git.git_info.remote = metadata.get("git", {}).get("remote", "")
+            source.git.git_info.commit = metadata.get("git", {}).get("commit", "")
+            source.git.entrypoint.extend(metadata.get("entrypoint", []))
+            source.git.notebook = metadata.get("notebook", False)
+        elif source_type == "image":
+            source.image.image = metadata.get("image", "")
+        else:
+            raise ValueError("Invalid source type")
+
+        source_str: str = source.SerializeToString()
+        return source_str
+
     def _make_proto_use_artifact(
         self,
         use_artifact: pb.UseArtifactRecord,
@@ -459,34 +483,12 @@ class InterfaceBase:
         use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
         use_artifact.partial.source_info.runtime = job_info.get("runtime", "")
 
-        # construct JobSourceDict.source
-        if job_info.get("source_type") == "artifact":
-            use_artifact.partial.source_info.source.artifact.artifact = job_info.get(
-                "source", {}
-            ).get("artifact", "")
-            use_artifact.partial.source_info.source.artifact.entrypoint.extend(
-                job_info.get("source", {}).get("entrypoint", [])
-            )
-            use_artifact.partial.source_info.source.artifact.notebook = job_info.get(
-                "source", {}
-            ).get("notebook", False)
-        elif job_info.get("source_type") == "repo":
-            use_artifact.partial.source_info.source.git.git_info.remote = metadata.get(
-                "git", {}
-            ).get("remote", "")
-            use_artifact.partial.source_info.source.git.git_info.commit = metadata.get(
-                "git", {}
-            ).get("commit", "")
-            use_artifact.partial.source_info.source.git.entrypoint.extend(
-                metadata.get("entrypoint", [])
-            )
-            use_artifact.partial.source_info.source.git.notebook = metadata.get(
-                "notebook", False
-            )
-        elif job_info.get("source_type") == "image":
-            use_artifact.partial.source_info.source.image.image = metadata.get(
-                "image", ""
-            )
+        src_str = self._make_partial_source_str(
+            source=use_artifact.partial.source_info.source,
+            job_info=job_info,
+            metadata=metadata,
+        )
+        use_artifact.partial.source_info.source.ParseFromString(src_str)
 
         return use_artifact
 

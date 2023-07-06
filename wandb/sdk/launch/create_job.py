@@ -104,6 +104,12 @@ def _create_job(
     metadata = {"_partial": "v0"}
     requirements: List[str] = []
 
+    if name and name != make_artifact_name_safe(name):
+        wandb.termerror(
+            f"Artifact names may only contain alphanumeric characters, dashes, underscores, and dots. Did you mean: {make_artifact_name_safe(name)}"
+        )
+        return None, "", []
+
     if job_type == "git":
         repo_metadata = _create_repo_metadata(
             path=path,
@@ -189,9 +195,7 @@ def _create_job(
         job_builder._set_logged_code_artifact(res, code_artifact)
 
         # code artifacts have "code" prefix, remove it and alias
-        if name:
-            name = code_artifact.name.replace("code-", "").split(":")[0]
-        else:
+        if not name:
             name = code_artifact.name.replace("code", "job").split(":")[0]
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
