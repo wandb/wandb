@@ -197,7 +197,7 @@ class PrinterTerm(_Printer):
                 rocket="🚀",
                 gorilla="🦍",
                 turtle="🐢",
-                lightning="⚡️",
+                lightning="️⚡",
             )
 
         return emojis.get(name, "")
