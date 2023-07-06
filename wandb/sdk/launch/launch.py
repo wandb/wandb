@@ -177,7 +177,7 @@ def _run(
     builder = loader.builder_from_config(build_config, environment, registry)
     if not launch_project.docker_image:
         assert entrypoint
-        image_uri = builder.build_image(launch_project, entrypoint)
+        image_uri = builder.build_image(launch_project, entrypoint, None)
     backend = loader.runner_from_config(
         resource, api, runner_config, environment, registry
     )
