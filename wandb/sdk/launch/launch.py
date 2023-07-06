@@ -170,7 +170,6 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
     config = launch_config or {}
-    print(launch_config)
     build_config, registry_config = construct_builder_args(config)
 
     environment = loader.environment_from_config(config.get("environment", {}))
