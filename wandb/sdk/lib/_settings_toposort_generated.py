@@ -103,7 +103,6 @@ _Setting = Literal[
     "log_symlink_user",
     "log_user",
     "login_timeout",
-    "magic",
     "mode",
     "notebook_name",
     "problem",
