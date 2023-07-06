@@ -15,7 +15,28 @@ class SettingsStatic(SettingsData):
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
         for field in fields(SettingsData):
             key = field.name
-            value = getattr(proto, key).value if proto.HasField(key) else None  # type: ignore[arg-type]
+
+            if key == "_stats_open_metrics_filters":
+                # todo: it's an underscored field, refactor into
+                #  something more elegant?
+                # I'm really about this. It's ugly, but it works.
+                # Do not try to repeat this at home.
+                value_type = getattr(proto, key).WhichOneof("value")
+                print(field, value_type)
+                if value_type == "sequence":
+                    value = getattr(proto, key).sequence.value
+                elif value_type == "mapping":
+                    unpacked_mapping = {}
+                    for outer_key, outer_value in getattr(
+                        proto, key
+                    ).mapping.value.items():
+                        unpacked_inner = {}
+                        for inner_key, inner_value in outer_value.value.items():
+                            unpacked_inner[inner_key] = inner_value
+                        unpacked_mapping[outer_key] = unpacked_inner
+                    value = unpacked_mapping
+            else:
+                value = getattr(proto, key).value if proto.HasField(key) else None  # type: ignore[arg-type]
             object.__setattr__(self, key, value)
 
     def __setattr__(self, name: str, value: object) -> None:

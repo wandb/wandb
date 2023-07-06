@@ -12,6 +12,17 @@ message MapStringKeyStringValue{
   map<string, string> value = 1;
 }
 
+message MapStringKeyMapStringKeyStringValue{
+  map<string, MapStringKeyStringValue> value = 1;
+}
+
+message OpenMetricsFilters{
+  oneof value {
+    ListStringValue sequence = 1;
+    MapStringKeyMapStringKeyStringValue mapping = 2;
+  }
+}
+
 message Settings {
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
@@ -23,11 +34,13 @@ message Settings {
   google.protobuf.StringValue _cuda = 6;
   google.protobuf.BoolValue _disable_meta = 7;
   google.protobuf.BoolValue _disable_service = 8;
+  google.protobuf.BoolValue _disable_setproctitle = 9;
   google.protobuf.BoolValue _disable_stats = 9;
   google.protobuf.BoolValue _disable_viewer = 10;
   google.protobuf.BoolValue _except_exit = 11;
   google.protobuf.StringValue _executable = 12;
   MapStringKeyStringValue _extra_http_headers = 13;
+  google.protobuf.DoubleValue _file_stream_timeout_seconds = 144;
   google.protobuf.BoolValue _flow_control_custom = 14;
   google.protobuf.BoolValue _flow_control_disabled = 15;
   google.protobuf.DoubleValue _internal_check_process = 16;
@@ -62,9 +75,7 @@ message Settings {
   google.protobuf.BoolValue _stats_join_assets = 45;
   google.protobuf.StringValue _stats_neuron_monitor_config_path = 46;
   MapStringKeyStringValue _stats_open_metrics_endpoints = 47;
-  // _stats_open_metrics_filters representation needs further refinement
-  //oneof repeated google.protobuf.StringValue | map<string, map<google.protobuf.StringValue, google.protobuf.StringValue>> _stats_open_metrics_filters = 48;
-  ListStringValue _stats_open_metrics_filters = 48;
+  OpenMetricsFilters _stats_open_metrics_filters = 48;
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.StringValue _tracelog = 50;
   ListStringValue _unsaved_keys = 51;
@@ -107,7 +118,6 @@ message Settings {
   google.protobuf.StringValue log_symlink_user = 88;
   google.protobuf.StringValue log_user = 89;
   google.protobuf.DoubleValue login_timeout = 90;
-  google.protobuf.BoolValue magic = 91;
   google.protobuf.StringValue mode = 92;
   google.protobuf.StringValue notebook_name = 93;
   google.protobuf.StringValue problem = 94;
@@ -159,9 +169,6 @@ message Settings {
   google.protobuf.StringValue tmp_dir = 140;
   google.protobuf.StringValue username = 141;
   google.protobuf.StringValue wandb_dir = 142;
-
-  google.protobuf.BoolValue _disable_setproctitle = 143;
-  google.protobuf.DoubleValue _file_stream_timeout_seconds = 144;
 
   // todo?
   //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources = 500;

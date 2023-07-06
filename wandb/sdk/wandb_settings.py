@@ -346,7 +346,6 @@ class SettingsData:
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
-    # todo: add a preprocessing step to convert the first format to the second format
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _tmp_code_dir: str
     _tracelog: str
@@ -390,8 +389,7 @@ class SettingsData:
     log_symlink_user: str
     log_user: str
     login_timeout: float
-    # magic: Union[str, bool, dict]
-    magic: bool
+    # magic: Union[str, bool, dict]  # never used in code, deprecated
     mode: str
     notebook_name: str
     problem: str
@@ -1428,6 +1426,21 @@ class Settings(SettingsData):
         settings = wandb_settings_pb2.Settings()
         for k, v in self.to_dict().items():
             # print(k, v)
+
+            # special case for _stats_open_metrics_filters
+            if k == "_stats_open_metrics_filters":
+                if isinstance(v, (list, set, tuple)):
+                    setting = getattr(settings, k)
+                    setting.sequence.value.extend(v)
+                elif isinstance(v, dict):
+                    setting = getattr(settings, k)
+                    for key, value in v.items():
+                        for kk, vv in value.items():
+                            setting.mapping.value[key].value[kk] = vv
+                else:
+                    raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+                continue
+
             if isinstance(v, bool):
                 getattr(settings, k).CopyFrom(BoolValue(value=v))
             elif isinstance(v, int):
