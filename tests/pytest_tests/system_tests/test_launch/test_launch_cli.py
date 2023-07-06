@@ -439,3 +439,44 @@ def test_create_job_bad_type(path, job_type, runner, user):
             "ERROR" in result.output
             or "Usage: job create [OPTIONS] {git|code|image} PATH" in result.output
         )
+
+
+def patched_run_run_entry(cmd, dir):
+    print(f"running command: {cmd}")
+    return cmd  # noop
+
+
+def test_launch_supplied_docker_image(
+    runner,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.pull_docker_image",
+        lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
+        patched_run_run_entry,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "--async",
+                "--docker-image",
+                "test:tag",
+            ],
+        )
+
+    print(result)
+    assert result.exit_code == 0
+    assert "-e WANDB_DOCKER=test:tag" in result.output
+    assert " -e WANDB_CONFIG='{}'" in result.output
+    assert "-e WANDB_ARTIFACTS='{}'" in result.output
+    assert "test:tag" in result.output
