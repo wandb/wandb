@@ -85,70 +85,65 @@ def test_run_job_secure_mode(mocker):
 
 
 # WIP
-# @pytest.mark.timeout(60)
-# def test_requeue_on_preemption(mocker):
-#     print("\n" * 10)
-#     _setup(mocker)
+@pytest.mark.timeout(60)
+def test_requeue_on_preemption(mocker):
+    _setup(mocker)
 
-#     mock_event = MagicMock()
-#     mock_event.is_set = MagicMock(return_value=True)
+    mocker.event = MagicMock()
+    mocker.event.is_set = MagicMock(return_value=True)
 
-#     mock_project = MagicMock()
+    mocker.project = MagicMock()
 
-#     mock_status = MagicMock()
-#     mock_status.state = "preempted"
-#     mock_run = MagicMock()
-#     mock_run.get_status = MagicMock(return_value=mock_status)
-#     mock_runner = MagicMock()
-#     mock_runner.run = MagicMock(return_value=mock_run)
+    mocker.status = MagicMock()
+    mocker.status.state = "preempted"
+    mocker.run = MagicMock()
+    mocker.run.get_status = MagicMock(return_value=mocker.status)
+    mocker.runner = MagicMock()
+    mocker.runner.run = MagicMock(return_value=mocker.run)
 
-#     mock_tracker = MagicMock()
-#     mock_tracker.completed_status = None
-#     # mock_tracker.run = mock_run
+    mocker.job_tracker = MagicMock()
+    mocker.job_tracker.completed_status = None
+    mocker.job_tracker.entity = "test-entity"
+    # mock_tracker.run = mock_run
 
-#     print(f"{mock_status=}")
-#     print(f"{mock_run=}")
-#     print(f"{mock_runner=}")
-#     print(f"{mock_tracker=}")
+    mocker.patch("wandb.sdk.launch.agent.agent.threading", MagicMock())
+    mocker.patch("multiprocessing.Event", mocker.event)
+    mocker.patch("multiprocessing.pool.ThreadPool", MagicMock())
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.create_project_from_spec", mocker.project
+    )
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.runner_from_config",
+        return_value=mocker.runner,
+    )
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.JobAndRunStatusTracker",
+        return_value=mocker.job_tracker,
+    )
+    mocker.api.fail_run_queue_item = MagicMock()
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    mock_job = {
+        "runQueueItemId": "test-id",
+    }
+    mock_launch_spec = {}
+    mocker.file_saver = MagicMock()
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
 
-#     mocker.patch("wandb.sdk.launch.agent.agent.threading", MagicMock())
-#     mocker.patch("multiprocessing.Event", mock_event)
-#     mocker.patch("multiprocessing.pool.ThreadPool", MagicMock())
-#     mocker.patch("wandb.sdk.launch.agent.agent.create_project_from_spec", mock_project)
-#     mocker.patch("wandb.sdk.launch.agent.agent.loader.runner_from_config", mock_runner)
-#     mocker.patch(
-#         "wandb.sdk.launch.agent.agent.JobAndRunStatusTracker", return_value=mock_tracker
-#     )
-#     mocker.api.fail_run_queue_item = MagicMock()
-#     mock_config = {
-#         "entity": "test-entity",
-#         "project": "test-project",
-#     }
-#     mock_job = {
-#         # "runSpec": {
-#         #     "resource_args": {
-#         #         "kubernetes": {"spec": {"template": {"spec": {"hostPID": True}}}}
-#         #     }
-#         # },
-#         "runQueueItemId": "test-id",
-#     }
-#     mock_launch_spec = {}
-#     mock_file_saver = MagicMock()
-#     agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent.thread_run_job(
+        launch_spec=mock_launch_spec,
+        job=mock_job,
+        default_config={},
+        api=mocker.api,
+        queue="test-queue",
+        file_saver=mocker.file_saver,
+    )
 
-#     print("X" + "=" * 20)
-#     agent.thread_run_job(
-#         launch_spec=mock_launch_spec,
-#         job=mock_job,
-#         default_config={},
-#         api=mocker.api,
-#         file_saver=mock_file_saver,
-#     )
-#     # agent.thread_run_job(mock_job, "test-queue", mock_file_saver)
-
-#     mocker.launch_add.assert_called_once_with(
-#         config=mock_config, project_queue="test-project", queue_name=""
-#     )
+    mocker.launch_add.assert_called_once_with(
+        config=mock_config, project_queue="test-project", queue_name="test-queue"
+    )
 
 
 def test_team_entity_warning(mocker):
