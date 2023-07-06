@@ -1829,9 +1829,19 @@ class Run:
             # We overwrite symlinks because namespaces can change in Tensorboard
             if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
                 os.remove(wandb_path)
-                os.symlink(abs_path, wandb_path)
+                try:
+                    os.symlink(abs_path, wandb_path)
+                except OSError as e:
+                    logger.error("symlink failed: %s", e)
+                    # probably the filesystem doesn't support symlinks, try a hardlink
+                    os.link(abs_path, wandb_path)
             elif not os.path.exists(wandb_path):
-                os.symlink(abs_path, wandb_path)
+                try:
+                    os.symlink(abs_path, wandb_path)
+                except OSError as e:
+                    logger.error("symlink failed: %s", e)
+                    # probably the filesystem doesn't support symlinks, try a hardlink
+                    os.link(abs_path, wandb_path)
             files.append(wandb_path)
         if warn:
             file_str = "%i file" % len(files)
