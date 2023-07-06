@@ -77,6 +77,8 @@ class JobBuilder:
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
     _aliases: List[str]
+    _job_seq_id: Optional[str]
+    _job_version_alias: Optional[str]
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -85,6 +87,8 @@ class JobBuilder:
         self._config = None
         self._summary = None
         self._logged_code_artifact = None
+        self._job_seq_id = None
+        self._job_version_alias = None
         self._disable = settings.disable_job_creation
         self._aliases = []
         self._source_type: Optional[

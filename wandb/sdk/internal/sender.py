@@ -200,8 +200,6 @@ class SendManager:
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
     _context_keeper: context.ContextKeeper
-    _job_seq_id: Optional[str]
-    _job_version_alias: Optional[str]
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: Optional["file_stream.FileStreamApi"]
@@ -297,8 +295,6 @@ class SendManager:
 
         # job builder
         self._job_builder = JobBuilder(settings)
-        self._job_seq_id = None
-        self._job_version_alias = None
 
         time_now = time.monotonic()
         self._debounce_config_time = time_now
@@ -320,7 +316,6 @@ class SendManager:
             _sync=True,
             disable_job_creation=False,
             _async_upload_concurrency_limit=None,
-            _file_stream_timeout_seconds=0,
         )
         settings = SettingsStatic(settings.to_proto())
         record_q: "Queue[Record]" = queue.Queue()
@@ -368,11 +363,11 @@ class SendManager:
         finally:
             self._api.clear_local_context()
 
-    def send_preempting(self, _: "Record") -> None:
+    def send_preempting(self, record: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_request_sender_mark(self, _: "Record") -> None:
+    def send_request_sender_mark(self, record: "Record") -> None:
         self._maybe_report_status(always=True)
 
     def send_request(self, record: "Record") -> None:
@@ -713,8 +708,12 @@ class SendManager:
     def send_request_job_info(self, record: "Record") -> None:
         """Respond to a request for a job link."""
         result = proto_util._result_from_record(record)
-        result.response.job_info_response.sequenceId = self._job_seq_id or ""
-        result.response.job_info_response.version = self._job_version_alias or ""
+        result.response.job_info_response.sequenceId = (
+            self._job_builder._job_seq_id or ""
+        )
+        result.response.job_info_response.version = (
+            self._job_builder._job_version_alias or ""
+        )
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -1064,7 +1063,6 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
-            timeout=self._settings._file_stream_timeout_seconds,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
@@ -1494,17 +1492,18 @@ class SendManager:
         )
         if artifact.type == "job" and res is not None:
             if res["artifactSequence"]["latestArtifact"] is None:
-                self._job_version_alias = "v0"
+                self._job_builder._job_version_alias = "v0"
             elif res["artifactSequence"]["latestArtifact"]["id"] == res["id"]:
-                self._job_version_alias = res["artifactSequence"]["latestArtifact"][
-                    "versionIndex"
-                ]
+                self._job_builder._job_version_alias = res["artifactSequence"][
+                    "latestArtifact"
+                ]["versionIndex"]
             else:
-                self._job_version_alias = (
+                self._job_builder._job_version_alias = (
                     f"v{res['artifactSequence']['latestArtifact']['versionIndex'] + 1}"
                 )
-            self._job_seq_id = res["artifactSequence"]["id"]
+            self._job_builder._job_seq_id = res["artifactSequence"]["id"]
         self._job_builder._set_logged_code_artifact(res, artifact)
+
         return res
 
     def send_alert(self, record: "Record") -> None:
