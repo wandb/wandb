@@ -711,6 +711,7 @@ class Api:
             viewer {
                 id
                 entity
+                username
                 flags
                 teams {
                     edges {

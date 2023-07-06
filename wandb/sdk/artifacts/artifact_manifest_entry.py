@@ -120,8 +120,7 @@ class ArtifactManifestEntry:
         if self._parent_artifact is None:
             return self.ref
         return self._parent_artifact.manifest.storage_policy.load_reference(
-            self._parent_artifact.manifest.entries[self.path],
-            local=False,
+            self._parent_artifact.manifest.entries[self.path], local=False
         )
 
     def ref_url(self) -> str:
