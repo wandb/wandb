@@ -126,7 +126,7 @@ def make_api(**kwargs: Any) -> Mock:
 
 def make_async_settings(concurrency_limit: Optional[int]) -> SettingsStatic:
     return SettingsStatic(
-        Settings(_async_upload_concurrency_limit=concurrency_limit).make_static()
+        Settings(_async_upload_concurrency_limit=concurrency_limit).to_proto()
     )
 
 

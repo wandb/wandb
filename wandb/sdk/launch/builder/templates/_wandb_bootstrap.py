@@ -20,6 +20,8 @@ if len(ONLY_INCLUDE) == 0:
 else:
     OPTS.append("--force")
 
+TORCH_DEP_REGEX = r"torch(vision|audio)?==\d+\.\d+\.\d+(\+(?:cu[\d]{2,3})|(?:\+cpu))?"
+
 
 def install_deps(
     deps: List[str],
@@ -100,7 +102,7 @@ def main() -> None:
                     if req.startswith("wandb==") and "dev1" in req:
                         req = "wandb"
                     match = re.match(
-                        r"torch(vision|audio)?==\d+\.\d+\.\d+(\+(?:cu[\d]{2,3})|(?:cpu))?",
+                        TORCH_DEP_REGEX,
                         req,
                     )
                     if match:
