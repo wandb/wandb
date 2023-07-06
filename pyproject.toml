@@ -2,6 +2,29 @@
 requires = ['setuptools']
 build-backend = "setuptools.build_meta"
 
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-vvv"
+markers = [
+    "image_output",
+    "multiclass",
+    "wandb_args",
+    "flaky",
+]
+testpaths = "tests"
+timeout = 60
+filterwarnings = "ignore::DeprecationWarning"
+
+log_format = "%(asctime)s %(levelname)s %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+
+norecursedirs = [
+    "build/",
+    "tests/functional_tests",
+    "tests/standalone_tests",
+]
+
+
 [tool.black]
 line-length = 88
 target-version = ['py36', 'py37', 'py38', 'py39', 'py310', 'py311']
@@ -24,25 +47,6 @@ profile = "black"
 skip = ["wandb/__init__.py"]
 extend_skip_glob = ["wandb/vendor/**", "wandb/proto/**"]
 skip_gitignore = "True"
-
-
-[tool.commitizen]
-name = "cz_conventional_commits"
-major_version_zero = true
-version = "0.15.6.dev1"
-version_files = ["setup.py", "setup.cfg", "wandb/__init__.py"]
-tag_format = "v$major.$minor.$patch$prerelease"
-changelog_incremental = true
-#post_bump_hooks = [
-#  "tools/cz_version_to_dev.sh",
-#]
-
-[tool.commitizen.change_type_map]
-"feat" = ":sparkles: Enhancements"
-"fix" = ":hammer: Fixes"
-"refactor" = ":nail_care: Cleanup"
-"perf" = ":rocket: Performance"
-security = ":lock: Security"
 
 
 [tool.ruff]
