@@ -364,11 +364,11 @@ class SendManager:
         finally:
             self._api.clear_local_context()
 
-    def send_preempting(self, record: "Record") -> None:
+    def send_preempting(self, _: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_request_sender_mark(self, record: "Record") -> None:
+    def send_request_sender_mark(self, _: "Record") -> None:
         self._maybe_report_status(always=True)
 
     def send_request(self, record: "Record") -> None:
@@ -1492,8 +1492,8 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
-        self._job_builder._set_logged_code_artifact(res, artifact)
 
+        self._job_builder._set_logged_code_artifact(res, artifact)
         return res
 
     def send_alert(self, record: "Record") -> None:
