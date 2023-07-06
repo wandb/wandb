@@ -267,6 +267,7 @@ def test_library_config():
 
 
 SYMBOLS_WANDB_INIT = {
+    "job_name",
     "force",
     "settings",
     "project",

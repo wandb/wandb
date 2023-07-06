@@ -156,6 +156,7 @@ def _create_job(
         entity=entity,
         project=project,
         job_type="cli_create_job",
+        job_name=name,
     )
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
@@ -186,6 +187,8 @@ def _create_job(
         run.log_artifact(code_artifact)
         code_artifact.wait()
         job_builder._set_logged_code_artifact(res, code_artifact)
+
+        # code artifacts have "code" prefix, remove it and alias
         if name:
             name = code_artifact.name.replace("code-", "").split(":")[0]
         else:
