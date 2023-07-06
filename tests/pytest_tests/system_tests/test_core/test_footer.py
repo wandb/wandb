@@ -130,7 +130,7 @@ def test_footer_job_output(wandb_init, capsys, monkeypatch):
     lines = captured.err.splitlines()
     for line in lines:
         if re.match(
-            r"wandb: ⚡ View job at http://localhost:8080/user-\w+-\w+/uncategorized/jobs/[\w=]+/version_details/v0",
+            r"View job at http://localhost:8080/user-\w+-\w+/uncategorized/jobs/[\w=]+/version_details/v0",
             line,
         ):
             break

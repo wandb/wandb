@@ -122,7 +122,7 @@ class JobBuilder:
                     )
                 else:
                     self._job_version_alias = f"v{res['artifactSequence']['latestArtifact']['versionIndex'] + 1}"
-            self._job_seq_id = res["artifactSequence"]["id"]
+                self._job_seq_id = res["artifactSequence"]["id"]
         except KeyError as e:
             _logger.info(f"Malformed response from ArtifactSaver.save {e}")
         if artifact.type == "code" and res is not None:
