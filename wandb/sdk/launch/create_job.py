@@ -509,9 +509,9 @@ def _dump_metadata_and_requirements(
     with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
         json.dump(metadata, f)
 
-    if requirements:
-        with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
-            f.write("\n".join(requirements))
+    requirements = requirements or []
+    with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
+        f.write("\n".join(requirements))
 
 
 def _clean_python_version(python_version: str) -> str:
