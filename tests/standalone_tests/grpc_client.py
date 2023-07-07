@@ -1,27 +1,20 @@
 #!/usr/bin/env python
 """WIP wandb grpc test client.
 
-This is a very internal test client, it is only for testing to verify base functionality is preserved.
-
+This is a very internal test client.
+It is only for testing to verify base functionality is preserved.
 """
 
 
-import datetime  # noqa: I001
-import enum
 import json
 import logging
 import os
 import time
-from typing import TYPE_CHECKING, Any, Dict
 
 import grpc
 import wandb
-from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.proto import wandb_server_pb2_grpc  # type: ignore
-from wandb.proto import wandb_server_pb2 as spb  # type: ignore
-
-if TYPE_CHECKING:
-    from google.protobuf.internal.containers import MessageMap
+from wandb.proto import wandb_internal_pb2, wandb_server_pb2_grpc
+from wandb.proto import wandb_server_pb2 as spb
 
 
 def make_exit_data(data):
@@ -48,32 +41,8 @@ def make_config(config_dict, obj=None):
     return config
 
 
-def _pbmap_apply_dict(
-    m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
-) -> None:
-    for k, v in d.items():
-        if isinstance(v, datetime.datetime):
-            continue
-        if isinstance(v, enum.Enum):
-            continue
-        sv = spb.SettingsValue()
-        if v is None:
-            sv.null_value = True
-        elif isinstance(v, int):
-            sv.int_value = v
-        elif isinstance(v, float):
-            sv.float_value = v
-        elif isinstance(v, str):
-            sv.string_value = v
-        elif isinstance(v, bool):
-            sv.bool_value = v
-        elif isinstance(v, tuple):
-            sv.tuple_value.string_values.extend(v)
-        m[k].CopyFrom(sv)
-
-
-def make_settings(settings_dict, obj):
-    _pbmap_apply_dict(obj, settings_dict)
+def make_settings(settings, obj):
+    obj.CopyFrom(settings.to_proto())
 
 
 def make_run_data(data):
@@ -93,7 +62,6 @@ def make_run_data(data):
     job_type = data.get("job_type")
     if job_type:
         rdata.job_type = job_type
-    config_dict = data.get("config")
     config_dict = data.get("config")
     if config_dict:
         make_config(config_dict, obj=rdata.config)
@@ -146,12 +114,10 @@ class WandbInternalClient:
         assert run_id
         self._stream_id = run_id
 
-        settings_dict = dict(settings)
-        settings_dict["_log_level"] = logging.DEBUG
-
         req = spb.ServerInformInitRequest()
-        make_settings(settings_dict, req._settings_map)
+        make_settings(settings, req.settings)
         self._apply_stream(req)
+        assert self._stub is not None
         _ = self._stub.ServerInformInit(req)
 
     def run_start(self, run_id):
@@ -203,19 +169,6 @@ class WandbInternalClient:
         req = spb.ServerShutdownRequest()
         _ = self._stub.ServerShutdown(req)
 
-    # def run_get(self, run_id):
-    #     req = wandb_internal_pb2.RunGetRequest(id=run_id)
-    #     result = self._stub.RunGet(req)
-    #     return result
-
-    # def run_update(self, run_dict):
-    #    run = wandb_internal_pb2.Run()
-    #    run.run_id = run_dict['run_id']
-    #    run.config_json = json.dumps(run_dict.get('config', {}))
-    #    req = wandb_internal_pb2.RunUpdateRequest(run=run)
-    #    result = self._stub.RunUpdate(req)
-    #    return result
-
 
 def main():
     wic = WandbInternalClient()
@@ -223,7 +176,6 @@ def main():
 
     def_id = "junk123"
     run_id = os.environ.get("WANDB_RUN_ID", def_id)
-    entity = os.environ.get("WANDB_ENTITY")  # noqa: F841
     project = os.environ.get("WANDB_PROJECT")
     group = os.environ.get("WANDB_RUN_GROUP")
     job_type = os.environ.get("WANDB_JOB_TYPE")
@@ -254,9 +206,7 @@ def main():
     print("delay for 30 seconds...")
     time.sleep(30)
     print(
-        "Your run ({}) is complete: {}/{}/{}/runs/{}".format(
-            run.display_name, base_url, run.entity, run.project, run.run_id
-        )
+        f"Your run ({run.display_name}) is complete: {base_url}/{run.entity}/{run.project}/runs/{run.run_id}"
     )
     wic.exit(dict(exit_code=0))
 
