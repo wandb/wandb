@@ -49,7 +49,6 @@ from wandb.sdk.lib import (
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
-from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import sys
