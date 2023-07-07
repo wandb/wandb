@@ -34,6 +34,7 @@ service InternalService {
   rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
   rpc LinkArtifact(LinkArtifactRecord) returns (LinkArtifactResult) {}
   rpc UseArtifact(UseArtifactRecord) returns (UseArtifactResult) {}
+  rpc JobInfo(JobInfoRequest) returns (JobInfoResponse) {}
 
   // rpc messages for async operations: Send, Poll, Cancel, Release
   rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}

@@ -365,7 +365,7 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.run_job",
-        lambda a, b, c: raise_(LaunchError("blah blah")),
+        lambda a, b, c, d: raise_(LaunchError("blah blah")),
     )
 
     monkeypatch.setattr(
@@ -404,6 +404,10 @@ def test_launch_supplied_docker_image(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container.pull_docker_image",
+        lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.docker_image_exists",
         lambda docker_image: None,
     )
     monkeypatch.setattr(
