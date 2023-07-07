@@ -26,6 +26,7 @@ norecursedirs = [
 
 
 [tool.black]
+line-length = 88
 target-version = ['py36', 'py37', 'py38', 'py39', 'py310', 'py311']
 include = '\.pyi?$'
 exclude = '''
@@ -44,7 +45,6 @@ wandb/vendor/
 [tool.ruff]
 exclude = ["wandb/__init__.py"]
 extend-exclude = ["wandb/vendor/**", "wandb/proto/**"]
-line-length = 88
 select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
