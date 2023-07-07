@@ -4,11 +4,13 @@ import tempfile
 
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
-from wandb.sdk.launch.create_job import (_configure_job_builder_for_partial,
-                                         _create_artifact_metadata,
-                                         _dump_metadata_and_requirements,
-                                         _handle_artifact_entrypoint,
-                                         _make_code_artifact_name)
+from wandb.sdk.launch.create_job import (
+    _configure_job_builder_for_partial,
+    _create_artifact_metadata,
+    _dump_metadata_and_requirements,
+    _handle_artifact_entrypoint,
+    _make_code_artifact_name,
+)
 
 
 def test_create_artifact_metadata():
