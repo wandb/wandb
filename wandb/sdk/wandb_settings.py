@@ -138,7 +138,7 @@ def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
 def _datetime_as_str(val: Union[datetime, str]) -> str:
     """Parse a datetime object as a string."""
     if isinstance(val, datetime):
-        return datetime.strftime(val, "%Y%m%d_%H%M%S")
+        return datetime.strftime(val, "%Y%m%d_%H%M%S_%f")
     return val
 
 
