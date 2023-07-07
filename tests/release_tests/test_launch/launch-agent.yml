@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: launch-agent-release-testing
-  namespace: wandb
+  namespace: wandb-release-testing
 spec:
   replicas: 1
   selector:

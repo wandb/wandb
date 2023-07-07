@@ -1,8 +1,18 @@
 import os
+import subprocess
 from netrc import netrc
 from typing import Optional
 
 import wandb
+
+
+def run_cmd(command: str):
+    subprocess.Popen(command.split(" ")).wait()
+
+
+def run_cmd_async(command: str):
+    # Returns process. Terminate with process.kill()
+    return subprocess.Popen(command.split(" "))
 
 
 def get_wandb_api_key(base_url: Optional[str]):

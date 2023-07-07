@@ -9,64 +9,63 @@ from kubernetes import client, config, watch
 from utils import get_wandb_api_key
 from wandb.sdk.launch.launch_add import launch_add
 
+NAMESPACE = "wandb-release-testing"
 
-def _create_wandb_and_aws_secrets(
-    wandb_api_key: str,
-    aws_id: str,
-    aws_secret: str,
-    aws_token: str,
-    namespace: str,
-) -> None:
-    subprocess.Popen(["kubectl", "create", "namespace", namespace])
-    secrets = [
-        ("wandb-api-key", wandb_api_key),
-        ("aws-access-key-id", aws_id),
-        ("aws-secret-access-key", aws_secret),
-        ("aws-session-token", aws_token),
-    ]
-    for key, password in secrets:
-        # Delete if already existing
-        subprocess.Popen(
-            [
-                "kubectl",
-                "-n",
-                namespace,
-                "delete",
-                "secret",
-                "generic",
-                key,
-                "--ignore-not-found",
-            ]
-        ).wait()
-        subprocess.Popen(
-            [
-                "kubectl",
-                "-n",
-                namespace,
-                "create",
-                "secret",
-                "generic",
-                key,
-                f"--from-literal=password={password}",
-            ]
-        ).wait()
-
-
-def _wait_for_job_completion(entity: str, project: str) -> Tuple[str, str]:
-    config.load_kube_config()
-    v1 = client.CoreV1Api()
-    w = watch.Watch()
-    status = None
-    pod_name = None
-    for event in w.stream(
-        v1.list_namespaced_pod, namespace="wandb", timeout_seconds=300
-    ):
-        if event["object"].metadata.name.startswith(f"launch-{entity}-{project}-"):
-            pod_name = event["object"].metadata.name
-            status = event["object"].status.phase
-            if status == "Succeeded":
-                w.stop()
-    return pod_name, status
+CONFIG = {
+    "resource_args": {
+        "kubernetes": {
+            "namespace": NAMESPACE,
+            "spec": {
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {
+                                "env": [
+                                    {
+                                        "name": "WANDB_API_KEY",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "wandb-api-key",
+                                                "key": "password",
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "name": "AWS_ACCESS_KEY_ID",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "aws-access-key-id",
+                                                "key": "password",
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "name": "AWS_SECRET_ACCESS_KEY",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "aws-secret-access-key",
+                                                "key": "password",
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "name": "AWS_SESSION_TOKEN",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "aws-session-token",
+                                                "key": "password",
+                                            }
+                                        },
+                                    },
+                                ]
+                            }
+                        ]
+                    }
+                }
+            },
+        }
+    },
+}
 
 
 def test_kubernetes_agent_on_local_process():
@@ -93,34 +92,8 @@ def test_kubernetes_agent_on_local_process():
         subprocess.Popen(["rm", "-r", "artifacts"]).wait()
 
 
-def _cleanup_deployment(pod_name: Optional[str] = None):
-    subprocess.Popen(
-        [
-            "kubectl",
-            "-n",
-            "wandb",
-            "delete",
-            "deploy",
-            "launch-agent",
-        ]
-    ).wait()
-    if pod_name:
-        subprocess.Popen(
-            [
-                "kubectl",
-                "-n",
-                "wandb",
-                "delete",
-                "pod",
-                pod_name,
-            ]
-        ).wait()
-    subprocess.Popen(["helm", "uninstall", "release-testing"])
-
-
-@pytest.mark.timeout(300)
+@pytest.mark.timeout(180)
 def test_kubernetes_agent_in_cluster(api_key, base_url):
-    print("\n" * 20)
     entity = "launch-release-testing"
     project = "release-testing"
     queue = "kubernetes-queue"
@@ -134,39 +107,14 @@ def test_kubernetes_agent_in_cluster(api_key, base_url):
     aws_id = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
     aws_token = os.getenv("AWS_SESSION_TOKEN")
-    _create_wandb_and_aws_secrets(api_key, aws_id, aws_secret, aws_token, "wandb")
+    _create_wandb_and_aws_secrets(api_key, aws_id, aws_secret, aws_token)
 
     subprocess.Popen(
-        ["helm", "repo", "add", "wandb", "https://wandb.github.io/helm-charts"]
-    )
-    process = subprocess.Popen(
-        [
-            "helm",
-            "install",
-            "release-testing",
-            "wandb/launch-agent",
-            "--set",
-            f"agent.apiKey={api_key}",
-            "--set-file",
-            "launchConfig=tests/release_tests/test_launch/launch-config.yaml",
-        ]
-    )
-    process.wait()
-    print(process.returncode)
-
-    # TODO
-    # helm repo add wandb https://wandb.github.io/helm-charts
-    # helm install {some custom name} wandb/launch-agent --set agent.apiKey={wandb api key} --set-file launchConfig=launch-config.yaml
-    # remove .yml files, not needed anymore
-    # note: LICENSE=eyJhbGciOiJSUzI1NiIsImtpZCI6InUzaHgyQjQyQWhEUXM1M0xQY09yNnZhaTdoSlduYnF1bTRZTlZWd1VwSWM9In0.eyJjb25jdXJyZW50QWdlbnRzIjoxLCJ0cmlhbCI6ZmFsc2UsIm1heFN0b3JhZ2VHYiI6MTAsIm1heFRlYW1zIjowLCJtYXhVc2VycyI6MSwibWF4Vmlld09ubHlVc2VycyI6MCwibWF4UmVnaXN0ZXJlZE1vZGVscyI6MiwiZXhwaXJlc0F0IjoiMjAyNC0wNi0wOVQyMzozMTo0MS4wMzFaIiwiZGVwbG95bWVudElkIjoiM2UzZGI0NTAtNzdlNC00NGE0LThiZTQtYjdjZjg2YTA5MjQ2IiwiZmxhZ3MiOltdLCJhY2Nlc3NLZXkiOiI5ZjExMGEyMy1kNjA4LTQyZmYtYWIxZC1mMzU3ZWFmYjdkNjYiLCJzZWF0cyI6MSwidmlld09ubHlTZWF0cyI6MCwidGVhbXMiOjAsInJlZ2lzdGVyZWRNb2RlbHMiOjIsInN0b3JhZ2VHaWdzIjoxMCwiZXhwIjoxNzE3OTc1OTAxfQ.jfWHTcLLcpgF_h7yCsEoZdipa9Q4XmzNiYwHajZExC6zh6zAp2cJJKk73sjBKTM_D4SU3qIHivIPZT-K6DrIbjpcAyOYF2VLbIW4rz7jht8kOLtPLfCuD312pwqtdL-8nbSsFgNQM9eeon6-CKwHxuhC9W9j2cReWLAln56ovdN09kcAuVZkCz6YyZqKAP6nEN3Ul9YtLMyAfHE-A2e2KPBTTPNm6fIhihMwgxAqFNa33aYHPScOVHhfZfJgL8QwOZKIa3DYHp9VTSdqohx1YUZTctVv6avSTNJ5pbkWdOehjmbDWWN1i8M2JOxPmfdBVJRespcEHb29ne_HYB2I_A
-    # license is needed for helm download
-
-    # subprocess.Popen(
-    #     ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-config.yml"]
-    # ).wait()
-    # subprocess.Popen(
-    #     ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-agent.yml"]
-    # ).wait()
+        ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-config.yml"]
+    ).wait()
+    subprocess.Popen(
+        ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-agent.yml"]
+    ).wait()
 
     # Capture sigint so cleanup occurs even on ctrl-C
     sigint = signal.getsignal(signal.SIGINT)
@@ -181,12 +129,11 @@ def test_kubernetes_agent_in_cluster(api_key, base_url):
     pod_name = None
     try:
         # Start run
-        cfg = {"resource_args": {"kubernetes": {"namespace": "wandb"}}}
         launch_add(
             job=f"{entity}/{project}/{job_name}",
             queue_name=queue,
             entity=entity,
-            config=cfg,
+            config=CONFIG,
         )
 
         # Wait to finish. Can't use W&B wait_until_finished() because it's an image-based job
@@ -196,6 +143,87 @@ def test_kubernetes_agent_in_cluster(api_key, base_url):
             status == "Succeeded"
         ), "Kubernetes job didn't succeed. Check Kubernetes pods and Docker container output."
     finally:
-        pass
         # Cleanup
-        # _cleanup_deployment(pod_name)
+        _cleanup_deployment(pod_name)
+
+
+def _cleanup_deployment(pod_name: Optional[str] = None):
+    subprocess.Popen(
+        [
+            "kubectl",
+            "-n",
+            NAMESPACE,
+            "delete",
+            "deploy",
+            "launch-agent-release-testing",
+        ]
+    ).wait()
+    if pod_name:
+        subprocess.Popen(
+            [
+                "kubectl",
+                "-n",
+                NAMESPACE,
+                "delete",
+                "pod",
+                pod_name,
+            ]
+        ).wait()
+
+
+def _create_wandb_and_aws_secrets(
+    wandb_api_key: str,
+    aws_id: str,
+    aws_secret: str,
+    aws_token: str,
+) -> None:
+    subprocess.Popen(["kubectl", "create", "namespace", NAMESPACE]).wait()
+    secrets = [
+        ("wandb-api-key", wandb_api_key),
+        ("aws-access-key-id", aws_id),
+        ("aws-secret-access-key", aws_secret),
+        ("aws-session-token", aws_token),
+    ]
+    for key, password in secrets:
+        # Delete if already existing
+        subprocess.Popen(
+            [
+                "kubectl",
+                "-n",
+                NAMESPACE,
+                "delete",
+                "secret",
+                "generic",
+                key,
+                "--ignore-not-found",
+            ]
+        ).wait()
+        subprocess.Popen(
+            [
+                "kubectl",
+                "-n",
+                NAMESPACE,
+                "create",
+                "secret",
+                "generic",
+                key,
+                f"--from-literal=password={password}",
+            ]
+        ).wait()
+
+
+def _wait_for_job_completion(entity: str, project: str) -> Tuple[str, str]:
+    config.load_kube_config()
+    v1 = client.CoreV1Api()
+    w = watch.Watch()
+    status = None
+    pod_name = None
+    for event in w.stream(
+        v1.list_namespaced_pod, namespace=NAMESPACE, timeout_seconds=300
+    ):
+        if event["object"].metadata.name.startswith(f"launch-{entity}-{project}-"):
+            pod_name = event["object"].metadata.name
+            status = event["object"].status.phase
+            if status == "Succeeded":
+                w.stop()
+    return pod_name, status

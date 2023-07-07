@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: wandb
+  name: wandb-release-testing
   labels:
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/enforce-version: latest
@@ -12,7 +12,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: wandb
+  namespace: wandb-release-testing
   name: wandb-launch-agent
 rules:
   - apiGroups: [""]
@@ -39,18 +39,18 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: wandb-launch-serviceaccount
-  namespace: wandb
+  namespace: wandb-release-testing
 ---
 # role binding for namespaced role
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: wandb-launch-role-binding
-  namespace: wandb
+  namespace: wandb-release-testing
 subjects:
   - kind: ServiceAccount
     name: wandb-launch-serviceaccount
-    namespace: wandb
+    namespace: wandb-release-testing
 roleRef:
   kind: Role
   name: wandb-launch-agent
@@ -61,11 +61,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: wandb-launch-cluster-role-binding
-  namespace: wandb # Optional: Set to desired namespace to launch runs into
+  namespace: wandb-release-testing # Optional: Set to desired namespace to launch runs into
 subjects:
   - kind: ServiceAccount
     name: wandb-launch-serviceaccount
-    namespace: wandb
+    namespace: wandb-release-testing
 roleRef:
   kind: ClusterRole
   name: job-creator
@@ -75,7 +75,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: wandb-launch-configmap
-  namespace: wandb
+  namespace: wandb-release-testing
 data:
   launch-config.yaml: |
     base_url: https://api.wandb.ai
