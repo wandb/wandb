@@ -192,6 +192,7 @@ class Artifact:
         self._type: str = type
         self._description: Optional[str] = description
         self._metadata: dict = self._normalize_metadata(metadata)
+        self._ttl_duration_seconds: Optional[int] = None
         self._aliases: List[str] = []
         self._saved_aliases: List[str] = []
         self._distributed_id: Optional[str] = None
@@ -628,6 +629,28 @@ class Artifact:
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
+    @property
+    def ttl_duration_seconds(self) -> Optional[int]:
+        """User-defined artifact ttl(time to live) duration in seconds.
+
+        Once the artifact's created_at is older than the ttl, the artifact is marked as deleted.
+        EX: Artifact.created_at = 1/1/2000, ttl_duration_timedelta=10*24*60*60(10 days).
+            This artifact will be marked for deletion on 1/11/2000.
+        """
+        return self._ttl_duration_seconds
+
+    @ttl_duration_seconds.setter
+    def ttl_duration_seconds(self, ttl_duration_seconds: Optional[int]) -> None:
+        """User-defined artifact ttl(time to live) duration.
+        Note:
+            This ttl is set on the artifact version level.
+
+        Arguments:
+            ttl_duration_seconds: How long the artifact will live after creation.
+            If you want to turn off previously set artifact TTL, set the duration to None.
+        """
+        self._ttl_duration_seconds = ttl_duration_seconds
+
     # State management.
 
     def finalize(self) -> None:
@@ -883,6 +906,7 @@ class Artifact:
                         artifactID: $artifactID,
                         description: $description,
                         metadata: $metadata,
+                        ttlDurationSeconds: $ttlDurationSeconds
                         aliases: $aliases
                     }
                 ) {
@@ -900,6 +924,7 @@ class Artifact:
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
+                "ttlDurationSeconds": self.ttl_duration_timedelta,
                 "aliases": aliases,
             },
         )

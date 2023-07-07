@@ -3035,6 +3035,7 @@ class Api:
         description: Optional[str] = None,
         labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
+        ttl_duration_seconds: Optional[int] = None,
         aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
@@ -3070,6 +3071,7 @@ class Api:
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
+            $ttlDurationSeconds: int,
             {}
             {}
             {}
@@ -3088,6 +3090,7 @@ class Api:
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                ttlDurationSeconds: $ttlDurationSeconds,
                 {}
                 {}
                 {}
@@ -3159,6 +3162,7 @@ class Api:
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
+                "ttlDurationSeconds": ttl_duration_seconds,
                 "distributedID": distributed_id,
                 "enableDigestDeduplication": enable_digest_deduplication,
                 "historyStep": history_step,
