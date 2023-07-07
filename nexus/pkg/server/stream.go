@@ -15,6 +15,7 @@ import (
 // data to Stream.sender, which sends it to the W&B server. Stream.dispatcher
 // handles dispatching responses to the appropriate client responders.
 type Stream struct {
+	ctx        context.Context
 	handler    *Handler
 	dispatcher *Dispatcher
 	writer     *Writer
@@ -45,6 +46,7 @@ func NewStream(settings *service.Settings, streamId string) *Stream {
 	sender.dispatcherChan = dispatcher
 
 	stream := &Stream{
+		ctx:        ctx,
 		dispatcher: dispatcher,
 		handler:    handler,
 		sender:     sender,

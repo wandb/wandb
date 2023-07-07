@@ -9,6 +9,7 @@ import (
 )
 
 type Writer struct {
+	ctx      context.Context
 	settings *service.Settings
 	inChan   chan *service.Record
 	outChan  chan<- *service.Record
@@ -19,6 +20,7 @@ type Writer struct {
 func NewWriter(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Writer {
 
 	writer := &Writer{
+		ctx:      ctx,
 		settings: settings,
 		inChan:   make(chan *service.Record),
 		store:    NewStore(settings.GetSyncFile().GetValue(), logger),

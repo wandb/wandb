@@ -8,6 +8,7 @@ import (
 )
 
 type Dispatcher struct {
+	ctx        context.Context
 	inChan     chan *service.Result
 	responders map[string]Responder
 	logger     *slog.Logger
@@ -15,6 +16,7 @@ type Dispatcher struct {
 
 func NewDispatcher(ctx context.Context, logger *slog.Logger) *Dispatcher {
 	dispatcher := &Dispatcher{
+		ctx:        ctx,
 		inChan:     make(chan *service.Result),
 		responders: make(map[string]Responder),
 		logger:     logger,
@@ -27,7 +29,7 @@ func (d *Dispatcher) AddResponder(responderId string, responder Responder) {
 		d.responders[responderId] = responder
 	} else {
 		slog.LogAttrs(
-			context.Background(),
+			d.ctx,
 			slog.LevelError,
 			"Responder already exists",
 			slog.String("responder", responderId))

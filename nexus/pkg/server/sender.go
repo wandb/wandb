@@ -26,6 +26,7 @@ const CliVersion string = "0.0.1a1"
 const MetaFilename string = "wandb-metadata.json"
 
 type Sender struct {
+	ctx            context.Context
 	settings       *service.Settings
 	inChan         chan *service.Record
 	outChan        chan<- *service.Record
@@ -39,6 +40,7 @@ type Sender struct {
 // NewSender creates a new Sender instance
 func NewSender(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Sender {
 	sender := &Sender{
+		ctx:      ctx,
 		settings: settings,
 		inChan:   make(chan *service.Record),
 		logger:   logger,
@@ -200,10 +202,10 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 	}
 	configString := string(configJson)
 
-	ctx := context.Background()
 	var tags []string
 	resp, err := UpsertBucket(
-		ctx, s.graphqlClient,
+		s.ctx,
+		s.graphqlClient,
 		nil,           // id
 		&record.RunId, // name
 		nil,           // project
@@ -306,7 +308,7 @@ func (s *Sender) sendFile(path string) {
 
 	entity := s.run.Entity
 	resp, err := RunUploadUrls(
-		context.Background(),
+		s.ctx,
 		s.graphqlClient,
 		s.run.Project,
 		[]*string{&path},

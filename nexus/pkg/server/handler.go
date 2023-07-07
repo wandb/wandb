@@ -12,6 +12,7 @@ import (
 )
 
 type Handler struct {
+	ctx      context.Context
 	settings *service.Settings
 	inChan   chan *service.Record
 	outChan  chan<- *service.Record
@@ -27,6 +28,7 @@ type Handler struct {
 
 func NewHandler(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Handler {
 	handler := Handler{
+		ctx:      ctx,
 		inChan:   make(chan *service.Record),
 		settings: settings,
 		summary:  make(map[string]string),
