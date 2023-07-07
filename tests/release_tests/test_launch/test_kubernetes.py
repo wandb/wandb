@@ -1,11 +1,12 @@
 import os
-import pytest
 import signal
 import sys
 from typing import Optional, Tuple
 
+import pytest
 from kubernetes import client, config, watch
-from utils import get_wandb_api_key, run_cmd_async, run_cmd
+from utils import get_wandb_api_key, run_cmd, run_cmd_async
+
 from wandb.sdk.launch.launch_add import launch_add
 
 NAMESPACE = "wandb-release-testing"
