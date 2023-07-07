@@ -8,8 +8,8 @@ from wandb.sdk.launch.create_job import (
     _configure_job_builder_for_partial,
     _create_artifact_metadata,
     _handle_artifact_entrypoint,
-    dump_metadata_and_requirements,
-    make_code_artifact_name,
+    _dump_metadata_and_requirements,
+    _make_code_artifact_name,
 )
 
 
@@ -78,15 +78,15 @@ def test_configure_job_builder_for_partial():
 def test_make_code_artifact_name():
     name = "karen"
 
-    assert make_code_artifact_name("./test", name) == f"code-{name}"
-    assert make_code_artifact_name("./test", None) == "code-test"
-    assert make_code_artifact_name("test", None) == "code-test"
-    assert make_code_artifact_name("/test", None) == "code-test"
-    assert make_code_artifact_name("/test/", None) == "code-test"
-    assert make_code_artifact_name("./test/", None) == "code-test"
+    assert _make_code_artifact_name("./test", name) == f"code-{name}"
+    assert _make_code_artifact_name("./test", None) == "code-test"
+    assert _make_code_artifact_name("test", None) == "code-test"
+    assert _make_code_artifact_name("/test", None) == "code-test"
+    assert _make_code_artifact_name("/test/", None) == "code-test"
+    assert _make_code_artifact_name("./test/", None) == "code-test"
 
-    assert make_code_artifact_name("/test/dir", None) == "code-test_dir"
-    assert make_code_artifact_name("./test/dir/", None) == "code-test_dir"
+    assert _make_code_artifact_name("/test/dir", None) == "code-test_dir"
+    assert _make_code_artifact_name("./test/dir/", None) == "code-test_dir"
 
 
 def test_dump_metadata_and_requirements():
@@ -94,7 +94,7 @@ def test_dump_metadata_and_requirements():
     metadata = {"testing": "123"}
     requirements = ["wandb", "optuna"]
 
-    dump_metadata_and_requirements(path, metadata, requirements)
+    _dump_metadata_and_requirements(path, metadata, requirements)
 
     assert os.path.exists(os.path.join(path, "requirements.txt"))
     assert os.path.exists(os.path.join(path, "wandb-metadata.json"))
