@@ -247,6 +247,10 @@ class QueryResolver:
                 "resolver": self.resolve_uploaded_files,
             },
             {
+                "name": "uploaded_files_legacy",
+                "resolver": self.resolve_uploaded_files_legacy,
+            },
+            {
                 "name": "preempting",
                 "resolver": self.resolve_preempting,
             },
@@ -309,6 +313,30 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict) or not isinstance(response_data, dict):
             return None
+
+        query = "CreateRunFiles" in request_data.get("query", "")
+        if query:
+            run_name = request_data["variables"]["run"]
+            files = (
+                response_data.get("data", {}).get("createRunFiles", {}).get("files", {})
+            )
+            post_processed_data = {
+                "name": run_name,
+                "uploaded": [file["name"] for file in files] if files else [""],
+            }
+            return post_processed_data
+        return None
+
+    @staticmethod
+    def resolve_uploaded_files_legacy(
+        request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
+        # This is a legacy resolver for uploaded files
+        # No longer used by tests but leaving it here in case we need it in the future
+        # Please refer to upload_urls() in internal_api.py for more details
+        if not isinstance(request_data, dict) or not isinstance(response_data, dict):
+            return None
+
         query = "RunUploadUrls" in request_data.get("query", "")
         if query:
             # todo: refactor this 🤮🤮🤮🤮🤮 eventually?
