@@ -101,57 +101,26 @@ def _create_job(
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
-    aliases = aliases or []
-    tempdir = tempfile.TemporaryDirectory()
-    metadata = {"_partial": "v0"}
-    requirements: List[str] = []
-
     if name and name != make_artifact_name_safe(name):
         wandb.termerror(
             f"Artifact names may only contain alphanumeric characters, dashes, underscores, and dots. Did you mean: {make_artifact_name_safe(name)}"
         )
         return None, "", []
 
-    if job_type == "git":
-        repo_metadata = _create_repo_metadata(
-            path=path,
-            tempdir=tempdir.name,
-            entrypoint=entrypoint,
-            git_hash=git_hash,
-            runtime=runtime,
-        )
-        if not repo_metadata:
-            tempdir.cleanup()  # otherwise git can pollute
-            return None, "", []
-        metadata.update(repo_metadata)
-    elif job_type == "code":
-        path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
-        if not entrypoint:
-            wandb.termerror(
-                "Artifact jobs must have an entrypoint, either included in the path or specified with -E"
-            )
-            return None, "", []
-
-        artifact_metadata, requirements = _create_artifact_metadata(
-            path=path, entrypoint=entrypoint, runtime=runtime
-        )
-        if not artifact_metadata:
-            return None, "", []
-        metadata.update(artifact_metadata)
-    elif job_type == "image":
-        if runtime:
-            wandb.termwarn("Runtime is not supported for image jobs, ignoring runtime")
-        # TODO(gst): support entrypoint for image based jobs
-        if entrypoint:
-            wandb.termwarn(
-                "Setting an entrypoint is not currently supported for image jobs, ignoring entrypoint argument"
-            )
-        metadata.update({"python": runtime or "", "docker": path})
-    else:
-        wandb.termerror(f"Invalid job type: {job_type}")
+    aliases = aliases or []
+    tempdir = tempfile.TemporaryDirectory()
+    metadata, requirements = _make_metadata_for_partial_job(
+        job_type=job_type,
+        tempdir=tempdir,
+        git_hash=git_hash,
+        runtime=runtime,
+        path=path,
+        entrypoint=entrypoint,
+    )
+    if not metadata:
         return None, "", []
 
-    dump_metadata_and_requirements(
+    _dump_metadata_and_requirements(
         metadata=metadata,
         tmp_path=tempdir.name,
         requirements=requirements,
@@ -173,37 +142,19 @@ def _create_job(
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
-        full_path = os.path.join(path, entrypoint or "")
-        artifact_name = make_code_artifact_name(full_path, name)
-        code_artifact = wandb.Artifact(
-            name=artifact_name,
-            type="code",
-            description="Code artifact for job",
+        job_name = _make_code_artifact(
+            api=api,
+            job_builder=job_builder,
+            path=path,
+            entrypoint=entrypoint,
+            run=run,
+            entity=entity,
+            project=project,
+            name=name,
         )
-        code_artifact.add_dir(path)
-        res, _ = api.create_artifact(
-            artifact_type_name="code",
-            artifact_collection_name=artifact_name,
-            digest=code_artifact.digest,
-            client_id=code_artifact._client_id,
-            sequence_client_id=code_artifact._sequence_client_id,
-            entity_name=entity,
-            project_name=project,
-            run_name=run.id,  # run will be deleted after creation
-            description="Code artifact for job",
-            metadata={"codePath": path, "entrypoint": entrypoint},
-            is_user_created=True,
-            aliases=[
-                {"artifactCollectionName": artifact_name, "alias": a} for a in aliases
-            ],
-        )
-        run.log_artifact(code_artifact)
-        code_artifact.wait()
-        job_builder._set_logged_code_artifact(res, code_artifact)
-
-        # code artifacts have "code" prefix, remove it and alias
-        if not name:
-            name = code_artifact.name.replace("code", "job").split(":")[0]
+        if not job_name:
+            return None, "", []
+        name = job_name
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build()
@@ -253,6 +204,63 @@ def _create_job(
     _run.delete()
 
     return artifact, action, aliases
+
+
+def _make_metadata_for_partial_job(
+    job_type: str,
+    tempdir: tempfile.TemporaryDirectory,
+    git_hash: Optional[str],
+    runtime: Optional[str],
+    path: str,
+    entrypoint: Optional[str],
+) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
+    """Create metadata for partial jobs, return metadata and requirements."""
+    metadata = {"_partial": "v0"}
+    if job_type == "git":
+        repo_metadata = _create_repo_metadata(
+            path=path,
+            tempdir=tempdir.name,
+            entrypoint=entrypoint,
+            git_hash=git_hash,
+            runtime=runtime,
+        )
+        if not repo_metadata:
+            tempdir.cleanup()  # otherwise git can pollute
+            return None, None
+        metadata.update(repo_metadata)
+        return metadata, None
+
+    if job_type == "code":
+        path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
+        if not entrypoint:
+            wandb.termerror(
+                "Artifact jobs must have an entrypoint, either included in the path or specified with -E"
+            )
+            return None, None
+
+        artifact_metadata, requirements = _create_artifact_metadata(
+            path=path, entrypoint=entrypoint, runtime=runtime
+        )
+        if not artifact_metadata:
+            return None, None
+        metadata.update(artifact_metadata)
+        return metadata, requirements
+
+    if job_type == "image":
+        if runtime:
+            wandb.termwarn(
+                "Setting runtime is not supported for image jobs, ignoring runtime"
+            )
+        # TODO(gst): support entrypoint for image based jobs
+        if entrypoint:
+            wandb.termwarn(
+                "Setting an entrypoint is not currently supported for image jobs, ignoring entrypoint argument"
+            )
+        metadata.update({"python": runtime or "", "docker": path})
+        return metadata, None
+
+    wandb.termerror(f"Invalid job type: {job_type}")
+    return None, None
 
 
 def _create_repo_metadata(
@@ -418,7 +426,64 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     return job_builder
 
 
-def make_code_artifact_name(path: str, name: Optional[str]) -> str:
+def _make_code_artifact(
+    api: Api,
+    job_builder: JobBuilder,
+    run: "wandb.sdk.wandb_run.Run",
+    path: str,
+    entrypoint: Optional[str],
+    entity: Optional[str],
+    project: Optional[str],
+    name: Optional[str],
+) -> Optional[str]:
+    """Helper for creating and logging code artifacts.
+
+    Returns the name of the eventual job.
+    """
+    artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint or ""), name)
+    code_artifact = wandb.Artifact(
+        name=artifact_name,
+        type="code",
+        description="Code artifact for job",
+    )
+    try:
+        code_artifact.add_dir(path)
+    except Exception as e:
+        if os.path.islink(path):
+            wandb.termerror(
+                "Symlinks are not supported for code artifact jobs, please copy the code into a directory and try again"
+            )
+        wandb.termerror(f"Error adding to code artifact: {e}")
+        return None
+
+    res, _ = api.create_artifact(
+        artifact_type_name="code",
+        artifact_collection_name=artifact_name,
+        digest=code_artifact.digest,
+        client_id=code_artifact._client_id,
+        sequence_client_id=code_artifact._sequence_client_id,
+        entity_name=entity,
+        project_name=project,
+        run_name=run.id,  # run will be deleted after creation
+        description="Code artifact for job",
+        metadata={"codePath": path, "entrypoint": entrypoint},
+        is_user_created=True,
+        aliases=[
+            {"artifactCollectionName": artifact_name, "alias": a} for a in ["latest"]
+        ],
+    )
+    run.log_artifact(code_artifact)
+    code_artifact.wait()
+    job_builder._handle_server_artifact(res, code_artifact)
+
+    # code artifacts have "code" prefix, remove it and alias
+    if not name:
+        name = code_artifact.name.replace("code", "job").split(":")[0]
+
+    return name
+
+
+def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
     """Make a code artifact name from a path and user provided name."""
     if name:
         return f"code-{name}"
@@ -433,8 +498,8 @@ def make_code_artifact_name(path: str, name: Optional[str]) -> str:
     return path_name
 
 
-def dump_metadata_and_requirements(
-    tmp_path: str, metadata: Dict[str, Any], requirements: List[str]
+def _dump_metadata_and_requirements(
+    tmp_path: str, metadata: Dict[str, Any], requirements: Optional[List[str]]
 ) -> None:
     """Dump manufactured metadata and requirements.txt.
 
@@ -444,8 +509,9 @@ def dump_metadata_and_requirements(
     with open(os.path.join(tmp_path, "wandb-metadata.json"), "w") as f:
         json.dump(metadata, f)
 
-    with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
-        f.write("\n".join(requirements))
+    if requirements:
+        with open(os.path.join(tmp_path, "requirements.txt"), "w") as f:
+            f.write("\n".join(requirements))
 
 
 def _clean_python_version(python_version: str) -> str:
