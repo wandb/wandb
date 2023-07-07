@@ -48,32 +48,8 @@ def make_config(config_dict, obj=None):
     return config
 
 
-def _pbmap_apply_dict(
-    m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
-) -> None:
-    for k, v in d.items():
-        if isinstance(v, datetime.datetime):
-            continue
-        if isinstance(v, enum.Enum):
-            continue
-        sv = spb.SettingsValue()
-        if v is None:
-            sv.null_value = True
-        elif isinstance(v, int):
-            sv.int_value = v
-        elif isinstance(v, float):
-            sv.float_value = v
-        elif isinstance(v, str):
-            sv.string_value = v
-        elif isinstance(v, bool):
-            sv.bool_value = v
-        elif isinstance(v, tuple):
-            sv.tuple_value.string_values.extend(v)
-        m[k].CopyFrom(sv)
-
-
-def make_settings(settings_dict, obj):
-    _pbmap_apply_dict(obj, settings_dict)
+def make_settings(settings, obj):
+    obj.CopyFrom(settings.to_proto())
 
 
 def make_run_data(data):
@@ -146,12 +122,10 @@ class WandbInternalClient:
         assert run_id
         self._stream_id = run_id
 
-        settings_dict = dict(settings)
-        settings_dict["_log_level"] = logging.DEBUG
-
         req = spb.ServerInformInitRequest()
-        make_settings(settings_dict, req._settings_map)
+        make_settings(settings, req.settings)
         self._apply_stream(req)
+        assert self._stub is not None
         _ = self._stub.ServerInformInit(req)
 
     def run_start(self, run_id):
