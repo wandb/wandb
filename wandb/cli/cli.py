@@ -1068,6 +1068,22 @@ def launch_sweep(
     if scheduler_args.get("name"):
         name = scheduler_args["name"]
 
+    # configure scheduler job resource
+    resource = scheduler_args.get("resource")
+    if resource:
+        if resource == "local-process" and scheduler_job:
+            wandb.termerror(
+                "Scheduler jobs cannot be run with the 'local-process' resource"
+            )
+            return
+        if resource == "local-process" and scheduler_args.get("docker_image"):
+            wandb.termerror(
+                "Scheduler jobs cannot be run with the 'local-process' resource and a docker image"
+            )
+            return
+    else:  # no resource set, default local-process if not scheduler job, else container
+        resource = "local-process" if not scheduler_job else "local-container"
+
     # Launch job spec for the Scheduler
     launch_scheduler_spec = launch_utils.construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
@@ -1076,7 +1092,7 @@ def launch_sweep(
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
-        resource=scheduler_args.get("resource", "local-process"),
+        resource=resource,
         entry_point=entrypoint,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
