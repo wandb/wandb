@@ -6,16 +6,16 @@ from typing import Optional
 import wandb
 
 
-def run_cmd(command: str):
+def run_cmd(command: str) -> None:
     subprocess.Popen(command.split(" ")).wait()
 
 
-def run_cmd_async(command: str):
+def run_cmd_async(command: str) -> subprocess.Popen:
     # Returns process. Terminate with process.kill()
     return subprocess.Popen(command.split(" "))
 
 
-def get_wandb_api_key(base_url: Optional[str]):
+def get_wandb_api_key(base_url: Optional[str]) -> str:
     if not base_url:
         base_url = "api.wandb.ai"
     if os.getenv("WANDB_API_KEY"):

@@ -1,12 +1,11 @@
 import os
 import pytest
 import signal
-import subprocess
 import sys
 from typing import Optional, Tuple
 
 from kubernetes import client, config, watch
-from utils import get_wandb_api_key
+from utils import get_wandb_api_key, run_cmd_async, run_cmd
 from wandb.sdk.launch.launch_add import launch_add
 
 NAMESPACE = "wandb-release-testing"
@@ -76,8 +75,7 @@ def test_kubernetes_agent_on_local_process():
 
     try:
         # Start launch agent
-        agent_cmd = ["wandb", "launch-agent", "-q", queue, "-e", entity]
-        agent_process = subprocess.Popen(agent_cmd)
+        agent_process = run_cmd_async(f"wandb launch-agent -q {queue} -e {entity}")
 
         # Start run
         queued_run = launch_add(
@@ -89,7 +87,7 @@ def test_kubernetes_agent_on_local_process():
         assert run.state == "finished"
     finally:
         agent_process.kill()
-        subprocess.Popen(["rm", "-r", "artifacts"]).wait()
+        run_cmd("rm -r artifacts")
 
 
 @pytest.mark.timeout(180)
@@ -109,12 +107,8 @@ def test_kubernetes_agent_in_cluster(api_key, base_url):
     aws_token = os.getenv("AWS_SESSION_TOKEN")
     _create_wandb_and_aws_secrets(api_key, aws_id, aws_secret, aws_token)
 
-    subprocess.Popen(
-        ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-config.yml"]
-    ).wait()
-    subprocess.Popen(
-        ["kubectl", "apply", "-f", "tests/release_tests/test_launch/launch-agent.yml"]
-    ).wait()
+    run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
+    run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml")
 
     # Capture sigint so cleanup occurs even on ctrl-C
     sigint = signal.getsignal(signal.SIGINT)
@@ -148,27 +142,9 @@ def test_kubernetes_agent_in_cluster(api_key, base_url):
 
 
 def _cleanup_deployment(pod_name: Optional[str] = None):
-    subprocess.Popen(
-        [
-            "kubectl",
-            "-n",
-            NAMESPACE,
-            "delete",
-            "deploy",
-            "launch-agent-release-testing",
-        ]
-    ).wait()
+    run_cmd(f"kubectl -n {NAMESPACE} delete deploy launch-agent-release-testing")
     if pod_name:
-        subprocess.Popen(
-            [
-                "kubectl",
-                "-n",
-                NAMESPACE,
-                "delete",
-                "pod",
-                pod_name,
-            ]
-        ).wait()
+        run_cmd(f"kubectl -n {NAMESPACE} delete pod {pod_name}")
 
 
 def _create_wandb_and_aws_secrets(
@@ -177,7 +153,7 @@ def _create_wandb_and_aws_secrets(
     aws_secret: str,
     aws_token: str,
 ) -> None:
-    subprocess.Popen(["kubectl", "create", "namespace", NAMESPACE]).wait()
+    run_cmd(f"kubectl create namespace {NAMESPACE}")
     secrets = [
         ("wandb-api-key", wandb_api_key),
         ("aws-access-key-id", aws_id),
@@ -186,30 +162,12 @@ def _create_wandb_and_aws_secrets(
     ]
     for key, password in secrets:
         # Delete if already existing
-        subprocess.Popen(
-            [
-                "kubectl",
-                "-n",
-                NAMESPACE,
-                "delete",
-                "secret",
-                "generic",
-                key,
-                "--ignore-not-found",
-            ]
-        ).wait()
-        subprocess.Popen(
-            [
-                "kubectl",
-                "-n",
-                NAMESPACE,
-                "create",
-                "secret",
-                "generic",
-                key,
-                f"--from-literal=password={password}",
-            ]
-        ).wait()
+        run_cmd(
+            f"kubectl -n {NAMESPACE} delete secret generic {key} --ignore-not-found"
+        )
+        run_cmd(
+            f"kubectl -n {NAMESPACE} create secret generic {key} --from-literal=password={password}"
+        )
 
 
 def _wait_for_job_completion(entity: str, project: str) -> Tuple[str, str]:
