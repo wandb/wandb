@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from wandb.data_types import Table
 from wandb.errors import Error
@@ -95,8 +95,10 @@ def custom_chart(
     vega_spec_name: str,
     data_table: Table,
     fields: Dict[str, Any],
-    string_fields: Dict[str, Any] = {},
+    string_fields: Optional[Dict[str, Any]] = None,
 ) -> CustomChart:
+    if string_fields is None:
+        string_fields = {}
     if not isinstance(data_table, Table):
         raise Error(
             f"Expected `data_table` to be `wandb.Table` type, instead got {type(data_table).__name__}"

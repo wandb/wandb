@@ -407,6 +407,10 @@ def test_launch_supplied_docker_image(
         lambda docker_image: None,
     )
     monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.docker_image_exists",
+        lambda docker_image: None,
+    )
+    monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
