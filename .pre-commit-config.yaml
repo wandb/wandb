@@ -17,6 +17,7 @@ repos:
     rev: 23.3.0
     hooks:
       - id: black-jupyter
+        exclude: '(_pb2|_pb2_grpc)\.py'
   - repo: https://github.com/asottile/blacken-docs
     rev: 1.13.0
     hooks:
