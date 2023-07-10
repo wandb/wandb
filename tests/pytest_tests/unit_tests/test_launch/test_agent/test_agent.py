@@ -365,7 +365,7 @@ def test_agent_fails_sweep_state(mocker):
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
-    job = JobAndRunStatusTracker("run_queue_item_id", mock_saver)
+    job = JobAndRunStatusTracker("run_queue_item_id", "_queue", mock_saver)
     job.completed_status = False
     job.run_id = "test-sweep-id"
     job.is_scheduler = True
