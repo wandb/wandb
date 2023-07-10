@@ -1,18 +1,19 @@
 import asyncio
 import functools
 import queue
+import shutil
+import unittest.mock as mock
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Optional
 from unittest.mock import Mock
 
 import pytest
+import requests
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
-from wandb.sdk.wandb_artifacts import (
-    Artifact,
-    ArtifactManifestEntry,
-    ArtifactsCache,
-    WandbStoragePolicy,
-)
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache
+from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
     import sys
@@ -73,9 +74,12 @@ def singleton_queue(x):
 def dummy_response_prepare(spec):
     name = spec["name"]
     return ResponsePrepare(
+        birth_artifact_id=f"artifact-id-{name}",
         upload_url=f"http://wandb-test/upload-url-{name}",
         upload_headers=["x-my-header-key:my-header-val"],
-        birth_artifact_id=f"artifact-id-{name}",
+        upload_id=None,
+        storage_path="wandb_artifact/123456789",
+        multipart_upload_urls=None,
     )
 
 
@@ -99,6 +103,15 @@ def mock_preparer(**kwargs):
         "prepare_async", Mock(wraps=mock_prepare_sync_to_async(kwargs["prepare_sync"]))
     )
     return Mock(**kwargs)
+
+
+def test_capped_cache(artifacts_cache):
+    for i in range(51):
+        art = Artifact(f"foo-{i}", type="test")
+        art._id = f"foo-{i}"
+        art._state = "COMMITTED"
+        artifacts_cache.store_artifact(art)
+    assert len(artifacts_cache._artifacts_by_id) == 50
 
 
 class TestStoreFile:
@@ -189,6 +202,8 @@ class TestStoreFile:
         """
         upload_file_retry = Mock()
         upload_file_retry_async = Mock(wraps=asyncify(Mock()))
+        upload_multipart_file_chunk_retry = Mock()
+        complete_multipart_upload_artifact = Mock()
         upload_method = {
             "sync": upload_file_retry,
             "async": upload_file_retry_async,
@@ -198,6 +213,8 @@ class TestStoreFile:
             upload_file_retry=upload_file_retry,
             upload_file_retry_async=upload_file_retry_async,
             upload_method=upload_method,
+            upload_multipart_file_chunk_retry=upload_multipart_file_chunk_retry,
+            complete_multipart_upload_artifact=complete_multipart_upload_artifact,
         )
 
     def test_smoke(self, store_file: "StoreFileFixture", api, tmp_path: Path):
@@ -334,8 +351,145 @@ class TestStoreFile:
                 store()
             assert not is_cache_hit(artifacts_cache, "my-digest", f.stat().st_size)
 
+    @pytest.mark.parametrize(
+        [
+            "upload_url",
+            "multipart_upload_urls",
+            "expect_single_upload",
+            "expect_multipart_upload",
+            "expect_deduped",
+        ],
+        [
+            (
+                "http://wandb-test/dst",
+                {
+                    1: "http://wandb-test/part=1",
+                    2: "http://wandb-test/part=2",
+                    3: "http://wandb-test/part=3",
+                },
+                False,
+                True,
+                False,
+            ),
+            (
+                None,
+                {
+                    1: "http://wandb-test/part=1",
+                    2: "http://wandb-test/part=2",
+                    3: "http://wandb-test/part=3",
+                },
+                False,
+                False,
+                True,
+            ),  # super weird case but shouldn't happen, upload url should always be generated
+            ("http://wandb-test/dst", None, True, False, False),
+            (None, None, False, False, True),
+        ],
+    )
+    @mock.patch(
+        "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.WandbStoragePolicy."
+        "s3_multipart_file_upload"
+    )
+    def test_multipart_upload_handle_response(
+        self,
+        mock_s3_multipart_file_upload,
+        api,
+        tmp_path: Path,
+        upload_url: Optional[str],
+        multipart_upload_urls: Optional[dict],
+        expect_multipart_upload: bool,
+        expect_single_upload: bool,
+        expect_deduped: bool,
+    ):
+        # Tests if we handle uploading correctly depending on what response we get from CreateArtifactFile.
+        test_file = some_file(tmp_path)
+        preparer = mock_preparer(
+            prepare_sync=lambda spec: singleton_queue(
+                dummy_response_prepare(spec)._replace(
+                    upload_url=upload_url, multipart_upload_urls=multipart_upload_urls
+                )
+            )
+        )
+        policy = WandbStoragePolicy(api=api)
+        # Mock minimum size for multipart so that we can test multipart
+        with mock.patch(
+            "wandb.sdk.artifacts.storage_policies.wandb_storage_policy."
+            "S3_MIN_MULTI_UPLOAD_SIZE",
+            test_file.stat().st_size,
+        ):
+            # We don't use the store_file fixture since multipart is not available in async
+            deduped = self._store_file_sync(
+                policy, entry_local_path=some_file(tmp_path), preparer=preparer
+            )
+            assert deduped == expect_deduped
+
+            if expect_multipart_upload:
+                mock_s3_multipart_file_upload.assert_called_once()
+                api.complete_multipart_upload_artifact.assert_called_once()
+                api.upload_file_retry.assert_not_called()
+            elif expect_single_upload:
+                api.upload_file_retry.assert_called_once()
+                api.upload_multipart_file_chunk_retry.assert_not_called()
+            else:
+                api.upload_file_retry.assert_not_called()
+                api.upload_multipart_file_chunk_retry.assert_not_called()
+
+    def test_s3_multipart_file_upload(
+        self,
+        api,
+        tmp_path: Path,
+    ):
+        # Tests that s3 multipart calls upload on every part and retrieves the etag for every part
+        multipart_parts = {
+            1: "http://wandb-test/part=1",
+            2: "http://wandb-test/part=2",
+            3: "http://wandb-test/part=3",
+        }
+        hex_digests = {1: "abc1", 2: "abc2", 3: "abc3"}
+        chunk_size = 1
+        test_file = some_file(tmp_path)
+        policy = WandbStoragePolicy(api=api)
+        responses = []
+        for idx in range(1, len(hex_digests) + 1):
+            etag_response = requests.Response()
+            etag_response.headers = {"ETag": hex_digests[idx]}
+            responses.append(etag_response)
+        api.upload_multipart_file_chunk_retry.side_effect = responses
+
+        with mock.patch("builtins.open", mock.mock_open(read_data="abc")):
+            etags = policy.s3_multipart_file_upload(
+                test_file, chunk_size, hex_digests, multipart_parts, extra_headers={}
+            )
+            assert api.upload_multipart_file_chunk_retry.call_count == 3
+            # Note Etags == hex_digest when there isn't an additional encryption method for uploading.
+            assert len(etags) == len(hex_digests)
+            for etag in etags:
+                assert etag["hexMD5"] == hex_digests[etag["partNumber"]]
+
 
 @pytest.mark.parametrize("type", ["job", "wandb-history", "wandb-foo"])
 def test_invalid_artifact_type(type):
     with pytest.raises(ValueError, match="reserved for internal use"):
         Artifact("foo", type=type)
+
+
+def test_cache_write_failure_is_ignored(monkeypatch, capsys):
+    def bad_write(*args, **kwargs):
+        raise FileNotFoundError("unable to copy from source file")
+
+    monkeypatch.setattr(shutil, "copyfile", bad_write)
+    policy = WandbStoragePolicy()
+    path = Path("foo.txt")
+    path.write_text("hello")
+
+    entry = ArtifactManifestEntry(
+        path=str(path),
+        digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
+        local_path=str(path),
+        size=path.stat().st_size,
+    )
+
+    policy._write_cache(entry)
+
+    captured = capsys.readouterr()
+    assert "Failed to cache" in captured.err

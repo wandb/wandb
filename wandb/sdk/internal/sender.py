@@ -30,19 +30,13 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.sdk.artifacts import artifact_saver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import (
-    artifact_saver,
-    context,
-    datastore,
-    file_stream,
-    internal_api,
-    update,
-)
+from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import (
     config_util,
     filenames,
@@ -55,7 +49,6 @@ from wandb.sdk.lib import (
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
-from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import sys
@@ -313,34 +306,18 @@ class SendManager:
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
-        # TODO(settings) replace with wandb.Settings
-        sd: SettingsDict = dict(
+        settings = wandb.Settings(
             files_dir=files_dir,
             root_dir=root_dir,
-            _start_time=0,
-            git_remote=None,
+            # _start_time=0,
             resume=resume,
-            program=None,
-            ignore_globs=(),
-            run_id=None,
-            entity=None,
-            project=None,
-            run_group=None,
-            job_type=None,
-            run_tags=None,
-            run_name=None,
-            run_notes=None,
-            save_code=None,
-            email=None,
-            silent=None,
-            _offline=None,
+            # ignore_globs=(),
             _sync=True,
-            _live_policy_rate_limit=None,
-            _live_policy_wait_time=None,
             disable_job_creation=False,
             _async_upload_concurrency_limit=None,
+            _file_stream_timeout_seconds=0,
         )
-        settings = SettingsStatic(sd)
+        settings = SettingsStatic(settings.to_proto())
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
@@ -386,11 +363,11 @@ class SendManager:
         finally:
             self._api.clear_local_context()
 
-    def send_preempting(self, record: "Record") -> None:
+    def send_preempting(self, _: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_request_sender_mark(self, record: "Record") -> None:
+    def send_request_sender_mark(self, _: "Record") -> None:
         self._maybe_report_status(always=True)
 
     def send_request(self, record: "Record") -> None:
@@ -484,24 +461,6 @@ class SendManager:
             delete_message = messages.get("delete_message")
             if delete_message:
                 result.response.check_version_response.delete_message = delete_message
-        self._respond_result(result)
-
-    def _send_request_attach(
-        self,
-        req: wandb_internal_pb2.AttachRequest,
-        resp: wandb_internal_pb2.AttachResponse,
-    ) -> None:
-        attach_id = req.attach_id
-        assert attach_id
-        assert self._run
-        resp.run.CopyFrom(self._run)
-
-    def send_request_attach(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
-        result = proto_util._result_from_record(record)
-        self._send_request_attach(
-            record.request.attach, result.response.attach_response
-        )
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
@@ -744,6 +703,17 @@ class SendManager:
                     level=message_level_sanitized,
                 )
             )
+        self._respond_result(result)
+
+    def send_request_job_info(self, record: "Record") -> None:
+        """Respond to a request for a job link."""
+        result = proto_util._result_from_record(record)
+        result.response.job_info_response.sequenceId = (
+            self._job_builder._job_seq_id or ""
+        )
+        result.response.job_info_response.version = (
+            self._job_builder._job_version_alias or ""
+        )
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -1029,8 +999,8 @@ class SendManager:
             commit=run.git.commit or None,
         )
         # TODO: we don't want to create jobs in sweeps, since the
-        # executable doesn't appear to be consistent
-        if hasattr(self._settings, "sweep_id") and self._settings.sweep_id:
+        #  executable doesn't appear to be consistent
+        if run.sweep_id:
             self._job_builder.disable = True
 
         self._server_messages = server_messages or []
@@ -1093,6 +1063,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
+            timeout=self._settings._file_stream_timeout_seconds,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
@@ -1113,14 +1084,13 @@ class SendManager:
         # hack to merge run_settings and self._settings object together
         # so that fields like entity or project are available to be attached to Sentry events.
         run_settings = message_to_dict(self._run)
-        self._settings = SettingsStatic({**dict(self._settings), **run_settings})
-        wandb._sentry.configure_scope(settings=self._settings)
+        _settings = dict(self._settings)
+        _settings.update(run_settings)
+        wandb._sentry.configure_scope(tags=_settings, process_context="internal")
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
-        self._dir_watcher = DirWatcher(
-            cast(Settings, self._settings), self._pusher, file_dir
-        )
+        self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
@@ -1520,7 +1490,7 @@ class SendManager:
             history_step=history_step,
         )
 
-        self._job_builder._set_logged_code_artifact(res, artifact)
+        self._job_builder._handle_server_artifact(res, artifact)
         return res
 
     def send_alert(self, record: "Record") -> None:
@@ -1615,7 +1585,7 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
-        if self._job_builder.disable or self._settings.get("_offline", False):
+        if self._job_builder.disable or self._settings._offline:
             return
         self._job_builder.set_config(
             {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
@@ -1632,6 +1602,10 @@ class SendManager:
             # TODO: this should be removed when the latest tag is handled
             # by the backend (WB-12116)
             proto_artifact.aliases.append("latest")
+            # add docker image tag
+            for alias in self._job_builder._aliases:
+                proto_artifact.aliases.append(alias)
+
             proto_artifact.user_created = True
             proto_artifact.use_after_commit = True
             proto_artifact.finalize = True

@@ -1,9 +1,14 @@
+"""Implementation of the abstract runner class.
+
+This class defines the interface that the W&B launch runner uses to manage the lifecycle
+of runs launched in different environments (e.g. runs launched locally or in a cluster).
+"""
 import logging
 import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
@@ -17,6 +22,9 @@ from .._project_spec import LaunchProject
 
 _logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
+
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -24,7 +32,14 @@ else:
     from typing_extensions import Literal
 
 State = Literal[
-    "unknown", "starting", "running", "failed", "finished", "stopping", "stopped"
+    "unknown",
+    "starting",
+    "running",
+    "failed",
+    "finished",
+    "stopping",
+    "stopped",
+    "preempted",
 ]
 
 
@@ -55,6 +70,11 @@ class AbstractRun(ABC):
     @property
     def status(self) -> Status:
         return self._status
+
+    @abstractmethod
+    def get_logs(self) -> Optional[str]:
+        """Return the logs associated with the run."""
+        pass
 
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
@@ -101,7 +121,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> str:
+    def id(self) -> Optional[str]:
         pass
 
 
@@ -147,6 +167,7 @@ class AbstractRunner(ABC):
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
+        job_tracker: Optional["JobAndRunStatusTracker"] = None,
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 

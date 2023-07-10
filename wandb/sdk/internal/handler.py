@@ -191,6 +191,11 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_run(self, record: Record) -> None:
+        if self._settings._offline:
+            self._run_proto = record.run
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(record.run)
+            self._respond_result(result)
         self._dispatch_record(record)
 
     def handle_stats(self, record: Record) -> None:
@@ -230,7 +235,7 @@ class HandleManager:
             record = Record(summary=summary)
             self._dispatch_record(record)
         elif not self._settings._offline:
-            # Send this summary update as a request since we aren't persisting every update
+            # Send this summary update as a request since we arent persisting every update
             summary_record = SummaryRecordRequest(summary=summary)
             request_record = self._interface._make_request(
                 summary_record=summary_record
@@ -353,7 +358,7 @@ class HandleManager:
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
-        # if the dict has _type key, it's a wandb table object
+        # if the dict has _type key, its a wandb table object
         if isinstance(v, dict) and not handler_util.metric_is_wandb_dict(v):
             updated = False
             for nk, nv in v.items():
@@ -369,7 +374,7 @@ class HandleManager:
         return updated
 
     def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
-        # For now, non-recursive - just top level
+        # For now, non recursive - just top level
         for nk, nv in v.items():
             if (
                 isinstance(nv, dict)
@@ -382,17 +387,17 @@ class HandleManager:
                 v[nk] = nv
         return v
 
-    def _update_summary(self, history_dict: Dict[str, Any]) -> List[str]:
+    def _update_summary(self, history_dict: Dict[str, Any]) -> bool:
         # keep old behavior fast path if no define metrics have been used
         if not self._metric_defines:
             history_dict = self._update_summary_media_objects(history_dict)
             self._consolidated_summary.update(history_dict)
-            return list(history_dict.keys())
-        updated_keys = []
+            return True
+        updated = False
         for k, v in history_dict.items():
             if self._update_summary_list(kl=[k], v=v):
-                updated_keys.append(k)
-        return updated_keys
+                updated = True
+        return updated
 
     def _history_assign_step(
         self,
@@ -506,27 +511,24 @@ class HandleManager:
         self._history_update(record.history, history_dict)
         self._dispatch_record(record)
         self._save_history(record.history)
-        updated_keys = self._update_summary(history_dict)
-        if updated_keys:
-            updated_items = {k: self._consolidated_summary[k] for k in updated_keys}
-            self._save_summary(updated_items)
+        updated = self._update_summary(history_dict)
+        if updated:
+            self._save_summary(self._consolidated_summary)
 
     def _flush_partial_history(
         self,
         step: Optional[int] = None,
     ) -> None:
-        if not self._partial_history:
-            return
-
-        history = HistoryRecord()
-        for k, v in self._partial_history.items():
-            item = history.item.add()
-            item.key = k
-            item.value_json = json.dumps(v)
-        if step is not None:
-            history.step.num = step
-        self.handle_history(Record(history=history))
-        self._partial_history = {}
+        if self._partial_history:
+            history = HistoryRecord()
+            for k, v in self._partial_history.items():
+                item = history.item.add()
+                item.key = k
+                item.value_json = json.dumps(v)
+            if step is not None:
+                history.step.num = step
+            self.handle_history(Record(history=history))
+            self._partial_history = {}
 
     def handle_request_sender_mark_report(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
@@ -627,7 +629,12 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_attach(self, record: Record) -> None:
-        self._dispatch_record(record)
+        result = proto_util._result_from_record(record)
+        attach_id = record.request.attach.attach_id
+        assert attach_id
+        assert self._run_proto
+        result.response.attach_response.run.CopyFrom(self._run_proto)
+        self._respond_result(result)
 
     def handle_request_log_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
@@ -677,6 +684,8 @@ class HandleManager:
         run_start = record.request.run_start
         assert run_start
         assert run_start.run
+
+        self._run_proto = run_start.run
 
         self._run_start_time = run_start.run.start_time.ToMicroseconds() / 1e6
 
@@ -840,6 +849,9 @@ class HandleManager:
         result = proto_util._result_from_record(record)
         self._respond_result(result)
         self._stopped.set()
+
+    def handle_request_job_info(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
 
     def finish(self) -> None:
         logger.info("shutting down handler")

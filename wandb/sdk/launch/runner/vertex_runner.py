@@ -14,10 +14,12 @@ from wandb.apis.internal import Api
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
+from ..agent.job_status_tracker import JobAndRunStatusTracker
 from ..builder.abstract import AbstractBuilder
 from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError, run_shell
+from ..errors import LaunchError
+from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -33,6 +35,10 @@ class VertexSubmittedRun(AbstractRun):
     def id(self) -> str:
         # numeric ID of the custom training job
         return self._job.name  # type: ignore
+
+    def get_logs(self) -> Optional[str]:
+        # TODO: implement
+        return None
 
     @property
     def name(self) -> str:
@@ -88,6 +94,7 @@ class VertexRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: Optional[AbstractBuilder],
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
         aiplatform = get_module(  # noqa: F811
@@ -133,11 +140,9 @@ class VertexRunner(AbstractRunner):
         else:
             assert entry_point is not None
             assert builder is not None
-            image_uri = builder.build_image(
-                launch_project,
-                entry_point,
-            )
+            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
 
+        launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 

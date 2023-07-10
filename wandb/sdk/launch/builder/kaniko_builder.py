@@ -1,15 +1,19 @@
 import base64
 import json
 import logging
+import os
 import tarfile
 import tempfile
 import time
 from typing import Optional
 
 import wandb
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
+from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
@@ -22,9 +26,9 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
-    LaunchError,
     get_kube_context_and_api_client,
     sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
@@ -47,13 +51,21 @@ _logger = logging.getLogger(__name__)
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
+SERVICE_ACCOUNT_NAME = os.environ.get("WANDB_LAUNCH_SERVICE_ACCOUNT_NAME", "default")
+
+if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace"):
+    with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
+        NAMESPACE = f.read().strip()
+else:
+    NAMESPACE = "wandb"
+
 
 def _wait_for_completion(
     batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
 ) -> bool:
     start_time = time.time()
     while True:
-        job = batch_client.read_namespaced_job_status(job_name, "wandb")
+        job = batch_client.read_namespaced_job_status(job_name, NAMESPACE)
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
@@ -75,6 +87,7 @@ class KanikoBuilder(AbstractBuilder):
     build_context_store: str
     secret_name: Optional[str]
     secret_key: Optional[str]
+    image: str
 
     def __init__(
         self,
@@ -84,6 +97,7 @@ class KanikoBuilder(AbstractBuilder):
         build_context_store: str = "",
         secret_name: str = "",
         secret_key: str = "",
+        image: str = "gcr.io/kaniko-project/executor:v1.11.0",
         verify: bool = True,
     ):
         """Initialize a KanikoBuilder.
@@ -110,6 +124,7 @@ class KanikoBuilder(AbstractBuilder):
         self.build_context_store = build_context_store.rstrip("/")
         self.secret_name = secret_name
         self.secret_key = secret_key
+        self.image = image
         if verify:
             self.verify()
 
@@ -148,6 +163,7 @@ class KanikoBuilder(AbstractBuilder):
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
+        image = config.get("kaniko-image", "gcr.io/kaniko-project/executor:v1.11.0")
         return cls(
             environment,
             registry,
@@ -155,6 +171,7 @@ class KanikoBuilder(AbstractBuilder):
             build_job_name=build_job_name,
             secret_name=secret_name,
             secret_key=secret_key,
+            image=image,
             verify=verify,
         )
 
@@ -184,7 +201,7 @@ class KanikoBuilder(AbstractBuilder):
             kind="ConfigMap",
             metadata=client.V1ObjectMeta(
                 name=f"docker-config-{job_name}",
-                namespace="wandb",
+                namespace=NAMESPACE,
             ),
             data={
                 "config.json": json.dumps(
@@ -193,13 +210,13 @@ class KanikoBuilder(AbstractBuilder):
             },
             immutable=True,
         )
-        corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
+        corev1_client.create_namespaced_config_map(NAMESPACE, ecr_config_map)
 
     def _delete_docker_ecr_config_map(
         self, job_name: str, client: client.CoreV1Api
     ) -> None:
         if self.secret_name:
-            client.delete_namespaced_config_map(f"docker-config-{job_name}", "wandb")
+            client.delete_namespaced_config_map(f"docker-config-{job_name}", NAMESPACE)
 
     def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
@@ -217,6 +234,7 @@ class KanikoBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         # TODO: this should probably throw an error if the registry is a local registry
         if not self.registry:
@@ -252,35 +270,52 @@ class KanikoBuilder(AbstractBuilder):
         _, api_client = get_kube_context_and_api_client(
             kubernetes, launch_project.resource_args
         )
+        # TODO: use same client as kuberentes_runner.py
+        batch_v1 = client.BatchV1Api(api_client)
+        core_v1 = client.CoreV1Api(api_client)
+
         build_job_name = f"{self.build_job_name}-{run_id}"
 
         build_context = self._upload_build_context(run_id, context_path)
         build_job = self._create_kaniko_job(
-            build_job_name,
-            repo_uri,
-            image_uri,
-            build_context,
+            build_job_name, repo_uri, image_uri, build_context, core_v1
         )
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
 
-        # TODO: use same client as kuberentes.py
-        batch_v1 = client.BatchV1Api(api_client)
-        core_v1 = client.CoreV1Api(api_client)
-
         try:
+            if isinstance(self.registry, AzureContainerRegistry):
+                dockerfile_config_map = client.V1ConfigMap(
+                    metadata=client.V1ObjectMeta(
+                        name=f"docker-config-{build_job_name}"
+                    ),
+                    data={
+                        "config.json": json.dumps(
+                            {
+                                "credHelpers": {
+                                    f"{self.registry.registry_name}.azurecr.io": "acr-env"
+                                }
+                            }
+                        )
+                    },
+                )
+                core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             # core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             if self.secret_name:
                 self._create_docker_ecr_config_map(build_job_name, core_v1, repo_uri)
-            batch_v1.create_namespaced_job("wandb", build_job)
+            batch_v1.create_namespaced_job(NAMESPACE, build_job)
 
             # wait for double the job deadline since it might take time to schedule
             if not _wait_for_completion(
                 batch_v1, build_job_name, 3 * _DEFAULT_BUILD_TIMEOUT_SECS
             ):
+                if job_tracker:
+                    job_tracker.set_err_stage("build")
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
             try:
-                logs = batch_v1.read_namespaced_job_log(build_job_name, "wandb")
-                warn_failed_packages_from_build_logs(logs, image_uri)
+                logs = batch_v1.read_namespaced_job_log(build_job_name, NAMESPACE)
+                warn_failed_packages_from_build_logs(
+                    logs, image_uri, launch_project.api, job_tracker
+                )
             except Exception as e:
                 wandb.termwarn(
                     f"{LOG_PREFIX}Failed to get logs for kaniko job {build_job_name}: {e}"
@@ -295,9 +330,13 @@ class KanikoBuilder(AbstractBuilder):
             try:
                 # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
                 # core_v1.delete_namespaced_config_map(config_map_name, "wandb")
+                if isinstance(self.registry, AzureContainerRegistry):
+                    core_v1.delete_namespaced_config_map(
+                        f"docker-config-{build_job_name}", "wandb"
+                    )
                 if self.secret_name:
                     self._delete_docker_ecr_config_map(build_job_name, core_v1)
-                batch_v1.delete_namespaced_job(build_job_name, "wandb")
+                batch_v1.delete_namespaced_job(build_job_name, NAMESPACE)
             except Exception as e:
                 raise LaunchError(f"Exception during Kubernetes resource clean up {e}")
 
@@ -309,6 +348,7 @@ class KanikoBuilder(AbstractBuilder):
         repository: str,
         image_tag: str,
         build_context_path: str,
+        core_client: client.CoreV1Api,
     ) -> "client.V1Job":
         env = []
         volume_mounts = []
@@ -325,6 +365,33 @@ class KanikoBuilder(AbstractBuilder):
                     value=self.registry.environment.region,
                 )
             ]
+        # TODO: Refactor all of this environment/registry
+        # specific stuff into methods of those classes.
+        if isinstance(self.environment, AzureEnvironment):
+            # Use the core api to check if the secret exists
+            try:
+                core_client.read_namespaced_secret(
+                    "azure-storage-access-key",
+                    "wandb",
+                )
+            except Exception as e:
+                raise LaunchError(
+                    "Secret azure-storage-access-key does not exist in "
+                    "namespace wandb. Please create it with the key password "
+                    "set to your azure storage access key."
+                ) from e
+            env += [
+                client.V1EnvVar(
+                    name="AZURE_STORAGE_ACCESS_KEY",
+                    value_from=client.V1EnvVarSource(
+                        secret_key_ref=client.V1SecretKeySelector(
+                            name="azure-storage-access-key",
+                            key="password",
+                        )
+                    ),
+                )
+            ]
+
         if self.secret_name and self.secret_key:
             volumes += [
                 client.V1Volume(
@@ -379,31 +446,54 @@ class KanikoBuilder(AbstractBuilder):
                     ),
                 )
             ]
-
+        if isinstance(self.registry, AzureContainerRegistry):
+            # ADd the docker config map
+            volume_mounts += [
+                client.V1VolumeMount(
+                    name="docker-config", mount_path="/kaniko/.docker/"
+                ),
+            ]
+            volumes += [
+                client.V1Volume(
+                    name="docker-config",
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name=f"docker-config-{job_name}",
+                    ),
+                ),
+            ]
+        # Kaniko doesn't want https:// at the begining of the image tag.
+        destination = image_tag
+        if destination.startswith("https://"):
+            destination = destination.replace("https://", "")
         args = [
             f"--context={build_context_path}",
             "--dockerfile=Dockerfile.wandb-autogenerated",
-            f"--destination={image_tag}",
+            f"--destination={destination}",
             "--cache=true",
-            f"--cache-repo={repository}",
+            f"--cache-repo={repository.replace('https://', '')}",
             "--snapshotMode=redo",
             "--compressed-caching=false",
         ]
         container = client.V1Container(
             name="wandb-container-build",
-            image="gcr.io/kaniko-project/executor:v1.8.0",
+            image=self.image,
             args=args,
             volume_mounts=volume_mounts,
             env=env if env else None,
         )
         # Create and configure a spec section
+        labels = {"wandb": "launch"}
+        # This annotation is required to enable azure workload identity.
+        if isinstance(self.registry, AzureContainerRegistry):
+            labels["azure.workload.identity/use"] = "true"
         template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels={"wandb": "launch"}),
+            metadata=client.V1ObjectMeta(labels=labels),
             spec=client.V1PodSpec(
                 restart_policy="Never",
                 active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,
                 containers=[container],
                 volumes=volumes,
+                service_account_name=SERVICE_ACCOUNT_NAME,
             ),
         )
         # Create the specification of job
@@ -412,7 +502,7 @@ class KanikoBuilder(AbstractBuilder):
             api_version="batch/v1",
             kind="Job",
             metadata=client.V1ObjectMeta(
-                name=job_name, namespace="wandb", labels={"wandb": "launch"}
+                name=job_name, namespace=NAMESPACE, labels={"wandb": "launch"}
             ),
             spec=spec,
         )

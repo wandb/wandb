@@ -1,6 +1,7 @@
 pytest
 hypothesis
 pyfakefs
+hypothesis-fspaths
 coverage
 Pillow
 pandas
@@ -13,6 +14,7 @@ kubernetes
 moviepy
 imageio
 ipython
+ipython<8.13; python_version < '3.9'
 ipykernel
 nbclient
 scikit-learn
@@ -68,10 +70,12 @@ sweeps>=0.2.0; sys_platform != 'darwin' or (sys_platform == 'darwin' and platfor
 # .[azure]
 # vvvvvvvvvv - below are for extra azure
 azure-storage-blob
+azure-identity
+azure-containerregistry
 # ^^^^^^^^^^ - above are for extra azure
 
 cloudpickle
 responses
-kfp
+kfp<2.0.0
 
 mlflow

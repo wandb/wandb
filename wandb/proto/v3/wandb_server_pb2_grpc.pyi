@@ -110,6 +110,10 @@ class InternalServiceStub:
         wandb.proto.wandb_internal_pb2.UseArtifactRecord,
         wandb.proto.wandb_internal_pb2.UseArtifactResult,
     ]
+    JobInfo: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.JobInfoRequest,
+        wandb.proto.wandb_internal_pb2.JobInfoResponse,
+    ]
     ArtifactSend: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
         wandb.proto.wandb_internal_pb2.ArtifactSendResponse,
@@ -327,6 +331,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.UseArtifactRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.UseArtifactResult: ...
+    @abc.abstractmethod
+    def JobInfo(
+        self,
+        request: wandb.proto.wandb_internal_pb2.JobInfoRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.JobInfoResponse: ...
     @abc.abstractmethod
     def ArtifactSend(
         self,

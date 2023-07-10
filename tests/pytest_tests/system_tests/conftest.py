@@ -129,7 +129,7 @@ def internal_sm(
     def helper(settings):
         with runner.isolated_filesystem():
             sm = SendManager(
-                settings=SettingsStatic(settings.make_static()),
+                settings=SettingsStatic(settings.to_proto()),
                 record_q=internal_sender_q,
                 result_q=internal_result_q,
                 interface=_internal_sender,
@@ -159,7 +159,7 @@ def internal_hm(
     def helper(settings):
         with runner.isolated_filesystem():
             hm = HandleManager(
-                settings=SettingsStatic(settings.make_static()),
+                settings=SettingsStatic(settings.to_proto()),
                 record_q=internal_record_q,
                 result_q=internal_result_q,
                 stopped=stopped_event,
@@ -186,13 +186,13 @@ def internal_wm(
         with runner.isolated_filesystem():
             wandb_file = settings.sync_file
 
-            # this is hacky, but we dont have a clean rundir always
+            # this is hacky, but we don't have a clean rundir always
             # so lets at least make sure we can write to this dir
             run_dir = Path(wandb_file).parent
             os.makedirs(run_dir)
 
             wm = WriteManager(
-                settings=SettingsStatic(settings.make_static()),
+                settings=SettingsStatic(settings.to_proto()),
                 record_q=internal_writer_q,
                 result_q=internal_result_q,
                 sender_q=internal_sender_q,

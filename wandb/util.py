@@ -21,7 +21,9 @@ import tempfile
 import threading
 import time
 import traceback
+import types
 import urllib
+from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
@@ -50,14 +52,14 @@ import yaml
 import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.paths import FilePathStr, LogicalFilePathStr, StrPath
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import wandb.apis.public
     import wandb.sdk.internal.settings_static
-    import wandb.sdk.wandb_artifacts
     import wandb.sdk.wandb_settings
+    from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -179,25 +181,59 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def import_module_lazy(name: str) -> Any:
+class LazyModuleState:
+    def __init__(self, module: types.ModuleType) -> None:
+        self.module = module
+        self.load_started = False
+        self.lock = threading.RLock()
+
+    def load(self) -> None:
+        with self.lock:
+            if self.load_started:
+                return
+            self.load_started = True
+            assert self.module.__spec__ is not None
+            assert self.module.__spec__.loader is not None
+            self.module.__spec__.loader.exec_module(self.module)
+            self.module.__class__ = types.ModuleType
+
+
+class LazyModule(types.ModuleType):
+    def __getattribute__(self, name: str) -> Any:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        return object.__getattribute__(self, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        object.__delattr__(self, name)
+
+
+def import_module_lazy(name: str) -> types.ModuleType:
     """Import a module lazily, only when it is used.
+
+    Inspired by importlib.util.LazyLoader, but improved so that the module loading is
+    thread-safe. Circular dependency between modules can lead to a deadlock if the two
+    modules are loaded from different threads.
 
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     """
     try:
         return sys.modules[name]
     except KeyError:
-        module_spec = importlib.util.find_spec(name)
-        if not module_spec:
+        spec = importlib.util.find_spec(name)
+        if spec is None:
             raise ModuleNotFoundError
-
-        module = importlib.util.module_from_spec(module_spec)
+        module = importlib.util.module_from_spec(spec)
+        module.__lazy_module_state__ = LazyModuleState(module)  # type: ignore
+        module.__class__ = LazyModule
         sys.modules[name] = module
-
-        assert module_spec.loader is not None
-        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
-        lazy_loader.exec_module(module)
-
         return module
 
 
@@ -595,7 +631,7 @@ def json_friendly(  # noqa: C901
 
 
 def json_friendly_val(val: Any) -> Any:
-    """Make any value (including dict, slice, sequence, etc) JSON friendly."""
+    """Make any value (including dict, slice, sequence, dataclass) JSON friendly."""
     converted: Union[dict, list]
     if isinstance(val, dict):
         converted = {}
@@ -612,6 +648,9 @@ def json_friendly_val(val: Any) -> Any:
         converted = []
         for value in val:
             converted.append(json_friendly_val(value))
+        return converted
+    if is_dataclass(val) and not isinstance(val, type):
+        converted = asdict(val)
         return converted
     else:
         if val.__class__.__module__ not in ("builtins", "__builtin__"):
@@ -1050,31 +1089,53 @@ def image_id_from_k8s() -> Optional[str]:
           fieldPath: metadata.namespace
     """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-    if os.path.exists(token_path):
-        k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
-            os.getenv("KUBERNETES_SERVICE_HOST"),
-            os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
-            os.getenv("KUBERNETES_NAMESPACE", "default"),
-            os.getenv("HOSTNAME"),
+
+    if not os.path.exists(token_path):
+        return None
+
+    try:
+        with open(token_path) as token_file:
+            token = token_file.read()
+    except FileNotFoundError:
+        logger.warning(f"Token file not found at {token_path}.")
+        return None
+    except PermissionError as e:
+        current_uid = os.getuid()
+        warning = (
+            f"Unable to read the token file at {token_path} due to permission error ({e})."
+            f"The current user id is {current_uid}. "
+            "Consider changing the securityContext to run the container as the current user."
         )
-        try:
-            res = requests.get(
-                k8s_server,
-                verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-                timeout=3,
-                headers={"Authorization": f"Bearer {open(token_path).read()}"},
-            )
-            res.raise_for_status()
-        except requests.RequestException:
-            return None
-        try:
-            return str(  # noqa: B005
-                res.json()["status"]["containerStatuses"][0]["imageID"]
-            ).strip("docker-pullable://")
-        except (ValueError, KeyError, IndexError):
-            logger.exception("Error checking kubernetes for image id")
-            return None
-    return None
+        logger.warning(warning)
+        wandb.termwarn(warning)
+        return None
+
+    if not token:
+        return None
+
+    k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
+        os.getenv("KUBERNETES_SERVICE_HOST"),
+        os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
+        os.getenv("KUBERNETES_NAMESPACE", "default"),
+        os.getenv("HOSTNAME"),
+    )
+    try:
+        res = requests.get(
+            k8s_server,
+            verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+            timeout=3,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        res.raise_for_status()
+    except requests.RequestException:
+        return None
+    try:
+        return str(  # noqa: B005
+            res.json()["status"]["containerStatuses"][0]["imageID"]
+        ).strip("docker-pullable://")
+    except (ValueError, KeyError, IndexError):
+        logger.exception("Error checking kubernetes for image id")
+        return None
 
 
 def async_call(
@@ -1224,7 +1285,17 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
-    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
+    auth = None
+    if not _thread_local_api_settings.cookies:
+        auth = ("api", api_key or "")
+    response = requests.get(
+        source_url,
+        auth=auth,
+        headers=_thread_local_api_settings.headers,
+        cookies=_thread_local_api_settings.cookies,
+        stream=True,
+        timeout=5,
+    )
     response.raise_for_status()
 
     if os.sep in dest_path:
@@ -1267,7 +1338,9 @@ def from_human_size(size: str, units: Optional[List[Tuple[str, Any]]] = None) ->
 
 def auto_project_name(program: Optional[str]) -> str:
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = wandb.wandb_sdk.lib.git.GitRepo().root_dir
+    from wandb.sdk.lib.gitlib import GitRepo
+
+    root_dir = GitRepo().root_dir
     if root_dir is None:
         return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows
@@ -1289,10 +1362,10 @@ def auto_project_name(program: Optional[str]) -> str:
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
-def to_forward_slash_path(path: str) -> LogicalFilePathStr:
+def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return LogicalFilePathStr(path)
+    return path
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
@@ -1465,23 +1538,14 @@ def check_windows_valid_filename(path: Union[int, str]) -> bool:
     return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
-def artifact_to_json(
-    artifact: Union["wandb.sdk.wandb_artifacts.Artifact", "wandb.apis.public.Artifact"]
-) -> Dict[str, Any]:
-    # public.Artifact has the _sequence name, instances of wandb.Artifact
-    # just have the name
-    if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name
-    else:
-        sequence_name = artifact.name.split(":")[0]
-
+def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
-        "sequenceName": sequence_name,
-        "usedAs": artifact._use_as,
+        "sequenceName": artifact.source_name.split(":")[0],
+        "usedAs": artifact.use_as,
     }
 
 
@@ -1491,11 +1555,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
             contains_artifacts = check_dict_contains_nested_artifact(item, True)
             if contains_artifacts:
                 return True
-        elif (
-            isinstance(item, wandb.Artifact)
-            or isinstance(item, wandb.apis.public.Artifact)
-            or _is_artifact_string(item)
-        ) and nested:
+        elif (isinstance(item, wandb.Artifact) or _is_artifact_string(item)) and nested:
             return True
     return False
 
@@ -1575,7 +1635,7 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
 
 
 def _is_artifact_object(v: Any) -> bool:
-    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
+    return isinstance(v, wandb.Artifact)
 
 
 def _is_artifact_string(v: Any) -> bool:

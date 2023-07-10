@@ -63,7 +63,7 @@ class _Service:
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
-        _sentry.configure_scope(process_context="service")
+        _sentry.configure_scope(tags=dict(settings), process_context="service")
 
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
@@ -170,9 +170,24 @@ class _Service:
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
-            service_args = [
-                "wandb",
-                "service",
+
+            service_args = []
+            if self._settings._require_nexus:
+                # NOTE: the wandb_core module will be distributed at first as an alpha
+                #       package as "wandb-core-alpha" to avoid polluting the pypi namespace.
+                #       When the package reaches compatibility milestones, it will be released
+                #       as "wandb-core".
+                wandb_nexus = get_module(
+                    "wandb_core",
+                    required="The nexus experiment requires the wandb_core module.",
+                )
+                nexus_path = wandb_nexus.get_nexus_path()
+                service_args.extend([nexus_path])
+                exec_cmd_list = []
+            else:
+                service_args.extend(["wandb", "service"])
+
+            service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
@@ -218,11 +233,15 @@ class _Service:
                     f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
                 )
 
-            internal_proc = subprocess.Popen(
-                exec_cmd_list + service_args,
-                env=os.environ,
-                **kwargs,
-            )
+            try:
+                internal_proc = subprocess.Popen(
+                    exec_cmd_list + service_args,
+                    env=os.environ,
+                    **kwargs,
+                )
+            except Exception as e:
+                _sentry.reraise(e)
+
             self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
