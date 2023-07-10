@@ -118,7 +118,6 @@ if TYPE_CHECKING:
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
-
 # This funny if/else construction is the simplest thing I've found that
 # works at runtime, satisfies Mypy, and gives autocomplete in VSCode:
 if TYPE_CHECKING:
@@ -1930,6 +1929,11 @@ class Api:
         return run_state
 
     @normalize_exceptions
+    def create_run_files_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "createRunFiles" in mutations
+
+    @normalize_exceptions
     def upload_urls(
         self,
         project: str,
@@ -1944,17 +1948,78 @@ class Api:
             project (str): The project to download
             files (list or dict): The filenames to upload
             run (str, optional): The run to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
+            entity (str, optional): The entity to scope this project to.
             description (str, optional): description
 
         Returns:
-            (bucket_id, file_info)
-            bucket_id: id of bucket we uploaded to
-            file_info: A dict of filenames and urls, also indicates if this revision already has uploaded files.
+            (run_id, upload_headers, file_info)
+            run_id: id of run we uploaded files to
+            upload_headers: A list of headers to use when uploading files.
+            file_info: A dict of filenames and urls.
                 {
-                    'weights.h5': { "url": "https://weights.url" },
-                    'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
+                    "run_id": "run_id",
+                    "upload_headers": [""],
+                    "file_info":  [
+                        { "weights.h5": { "uploadUrl": "https://weights.url" } },
+                        { "model.json": { "uploadUrl": "https://model.json" } }
+                    ]
                 }
+        """
+        run_name = run or self.current_run_id
+        assert run_name, "run must be specified"
+        entity = entity or self.settings("entity")
+        assert entity, "entity must be specified"
+
+        has_create_run_files_mutation = self.create_run_files_introspection()
+        if not has_create_run_files_mutation:
+            return self.legacy_upload_urls(project, files, run, entity, description)
+
+        query = gql(
+            """
+        mutation CreateRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
+            createRunFiles(input: {entityName: $entity, projectName: $project, runName: $run, files: $files}) {
+                runID
+                uploadHeaders
+                files {
+                    name
+                    uploadUrl
+                }
+            }
+        }
+        """
+        )
+
+        query_result = self.gql(
+            query,
+            variable_values={
+                "project": project,
+                "run": run_name,
+                "entity": entity,
+                "files": [file for file in files],
+            },
+        )
+
+        result = query_result["createRunFiles"]
+        run_id = result["runID"]
+        if not run_id:
+            raise CommError(
+                f"Error uploading files to {entity}/{project}/{run_name}. Check that this project exists and you have access to this entity and project"
+            )
+        file_name_urls = {file["name"]: file for file in result["files"]}
+        return run_id, result["uploadHeaders"], file_name_urls
+
+    def legacy_upload_urls(
+        self,
+        project: str,
+        files: Union[List[str], Dict[str, IO]],
+        run: Optional[str] = None,
+        entity: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
+        """Generate temporary resumable upload urls.
+
+        A new mutation createRunFiles was introduced after 0.15.4.
+        This function is used to support older versions.
         """
         query = gql(
             """
@@ -1986,13 +2051,20 @@ class Api:
                 "name": project,
                 "run": run_id,
                 "entity": entity,
-                "description": description,
                 "files": [file for file in files],
+                "description": description,
             },
         )
 
         run_obj = query_result["model"]["bucket"]
         if run_obj:
+            for file_node in run_obj["files"]["edges"]:
+                file = file_node["node"]
+                # we previously used "url" field but now use "uploadUrl"
+                # replace the "url" field with "uploadUrl for downstream compatibility
+                if "url" in file and "uploadUrl" not in file:
+                    file["uploadUrl"] = file.pop("url")
+
             result = {
                 file["name"]: file for file in self._flatten_edges(run_obj["files"])
             }
@@ -2799,8 +2871,11 @@ class Api:
         # TODO(adrian): we use a retriable version of self.upload_file() so
         # will never retry self.upload_urls() here. Instead, maybe we should
         # make push itself retriable.
-        run_id, upload_headers, result = self.upload_urls(
-            project, files, run, entity, description
+        _, upload_headers, result = self.upload_urls(
+            project,
+            files,
+            run,
+            entity,
         )
         extra_headers = {}
         for upload_header in upload_headers:
@@ -2808,7 +2883,7 @@ class Api:
             extra_headers[key] = val
         responses = []
         for file_name, file_info in result.items():
-            file_url = file_info["url"]
+            file_url = file_info["uploadUrl"]
 
             # If the upload URL is relative, fill it in with the base URL,
             # since it's a proxied file store like the on-prem VM.
@@ -2830,7 +2905,7 @@ class Api:
             if progress is False:
                 responses.append(
                     self.upload_file_retry(
-                        file_info["url"], open_file, extra_headers=extra_headers
+                        file_info["uploadUrl"], open_file, extra_headers=extra_headers
                     )
                 )
             else:
