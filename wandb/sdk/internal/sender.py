@@ -56,7 +56,6 @@ from wandb.sdk.lib import (
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
-from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import sys
@@ -1098,9 +1097,7 @@ class SendManager:
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
-        self._dir_watcher = DirWatcher(
-            cast(Settings, self._settings), self._pusher, file_dir
-        )
+        self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
