@@ -39,7 +39,7 @@ class WandBUltralyticsCallback:
     from ultralytics.yolo.engine.model import YOLO
 
     import wandb
-    from wandb_addons.ultralytics import add_wandb_callback
+    from wandb.yolov8 import add_wandb_callback
 
     # initialize wandb run
     wandb.init(project="YOLOv8")
@@ -180,6 +180,35 @@ def add_wandb_callback(
 ):
     """Function to add the `WandBUltralyticsCallback` callback to the `YOLO`
     model.
+
+    **Usage:**
+
+    ```python
+    from ultralytics.yolo.engine.model import YOLO
+
+    import wandb
+    from wandb.yolov8 import add_wandb_callback
+
+    # initialize wandb run
+    wandb.init(project="YOLOv8")
+
+    # initialize YOLO model
+    model = YOLO("yolov8n.pt")
+
+    # add wandb callback
+    add_wandb_callback(
+        model, max_validation_batches=2, enable_model_checkpointing=True
+    )
+
+    # train
+    model.train(data="coco128.yaml", epochs=5, imgsz=640)
+
+    # validate
+    model.val()
+
+    # perform inference
+    model(['img1.jpeg', 'img2.jpeg'])
+    ```
 
     Args:
         model: YOLO Model of type `:class:ultralytics.yolo.engine.model.YOLO`.
