@@ -5,6 +5,7 @@ from ultralytics.yolo.utils import ops
 from ultralytics.yolo.v8.detect.predict import DetectionPredictor
 
 import wandb
+import numpy as np
 
 
 def scale_bounding_box_to_original_image_shape(
@@ -98,9 +99,7 @@ def get_mean_confidence_map(
     return confidence_map
 
 
-def plot_predictions(
-    result: Results, table: Optional[wandb.Table] = None
-) -> Union[wandb.Table, Tuple[wandb.Image, Dict, Dict]]:
+def get_boxes(result: Results) -> Tuple[Dict, Dict]:
     boxes = result.boxes.xywh.to("cpu").long().numpy()
     classes = result.boxes.cls.to("cpu").long().numpy()
     confidence = result.boxes.conf.to("cpu").numpy()
@@ -130,9 +129,21 @@ def plot_predictions(
             "class_labels": class_id_to_label,
         },
     }
+    return boxes, mean_confidence_map
+
+
+def plot_predictions(
+    result: Results, table: Optional[wandb.Table] = None
+) -> Union[wandb.Table, Tuple[wandb.Image, Dict, Dict]]:
+    boxes, mean_confidence_map = get_boxes(result)
     image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes)
     if table is not None:
-        table.add_data(image, len(box_data), mean_confidence_map, result.speed)
+        table.add_data(
+            image,
+            len(boxes["predictions"]["box_data"]),
+            mean_confidence_map,
+            result.speed,
+        )
         return table
     return image, boxes["predictions"], mean_confidence_map
 

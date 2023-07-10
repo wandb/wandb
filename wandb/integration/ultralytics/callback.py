@@ -1,6 +1,6 @@
 import copy
 from datetime import datetime
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Union
 
 try:
     import dill as pickle
@@ -17,6 +17,7 @@ try:
     from ultralytics.yolo.v8.detect.predict import DetectionPredictor
     from ultralytics.yolo.v8.detect.train import DetectionTrainer
     from ultralytics.yolo.v8.detect.val import DetectionValidator
+    from ultralytics.yolo.v8.segment.predict import SegmentationPredictor
 except ImportError as e:
     print(e)
 
@@ -162,11 +163,16 @@ class WandBUltralyticsCallback:
                 )
             wandb.log({"Validation-Table": self.validation_table})
 
-    def on_predict_end(self, predictor: DetectionPredictor):
+    def on_predict_end(
+        self, predictor: Union[DetectionPredictor, SegmentationPredictor]
+    ):
         if isinstance(predictor, DetectionPredictor):
             for result in tqdm(predictor.results):
                 self.prediction_table = plot_predictions(result, self.prediction_table)
-            wandb.log({"Prediction-Table": self.prediction_table})
+        elif isinstance(predictor, SegmentationPredictor):
+            for result in tqdm(predictor.results):
+                self.prediction_table = plot_predictions(result, self.prediction_table)
+        wandb.log({"Prediction-Table": self.prediction_table})
 
     @property
     def callbacks(self) -> Dict[str, Callable]:
