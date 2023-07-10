@@ -38,12 +38,7 @@ class WandBUltralyticsCallback:
 
     ```python
     from ultralytics.yolo.engine.model import YOLO
-
-    import wandb
     from wandb.yolov8 import add_wandb_callback
-
-    # initialize wandb run
-    wandb.init(project="YOLOv8")
 
     # initialize YOLO model
     model = YOLO("yolov8n.pt")
@@ -80,13 +75,20 @@ class WandBUltralyticsCallback:
         self.max_validation_batches = max_validation_batches
         self.enable_model_checkpointing = enable_model_checkpointing
         self.train_validation_table = wandb.Table(
-            columns=["Epoch", "Data-Index", "Batch-Index", "Image", "Mean-Confidence"]
+            columns=[
+                "Epoch",
+                "Data-Index",
+                "Batch-Index",
+                "Image",
+                "Mean-Confidence",
+                "Speed",
+            ]
         )
         self.validation_table = wandb.Table(
-            columns=["Data-Index", "Batch-Index", "Image", "Mean-Confidence"]
+            columns=["Data-Index", "Batch-Index", "Image", "Mean-Confidence", "Speed"]
         )
         self.prediction_table = wandb.Table(
-            columns=["Image", "Num-Objects", "Mean-Confidence"]
+            columns=["Image", "Num-Objects", "Mean-Confidence", "Speed"]
         )
         self._make_predictor(model)
 
@@ -193,12 +195,7 @@ def add_wandb_callback(
 
     ```python
     from ultralytics.yolo.engine.model import YOLO
-
-    import wandb
     from wandb.yolov8 import add_wandb_callback
-
-    # initialize wandb run
-    wandb.init(project="YOLOv8")
 
     # initialize YOLO model
     model = YOLO("yolov8n.pt")

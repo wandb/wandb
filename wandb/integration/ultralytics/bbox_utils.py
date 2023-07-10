@@ -132,7 +132,7 @@ def plot_predictions(
     }
     image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes)
     if table is not None:
-        table.add_data(image, len(box_data), mean_confidence_map)
+        table.add_data(image, len(box_data), mean_confidence_map, result.speed)
         return table
     return image, boxes["predictions"], mean_confidence_map
 
@@ -148,8 +148,9 @@ def plot_validation_results(
     data_idx = 0
     for batch_idx, batch in enumerate(dataloader):
         for img_idx, image_path in enumerate(batch["im_file"]):
+            prediction_result = predictor(image_path)[0]
             _, prediction_box_data, mean_confidence_map = plot_predictions(
-                predictor(image_path)[0]
+                prediction_result
             )
             try:
                 ground_truth_data = get_ground_truth_annotations(
@@ -167,11 +168,20 @@ def plot_validation_results(
                 )
                 if epoch is None:
                     table.add_data(
-                        data_idx, batch_idx, wandb_image, mean_confidence_map
+                        data_idx,
+                        batch_idx,
+                        wandb_image,
+                        mean_confidence_map,
+                        prediction_result.speed,
                     )
                 else:
                     table.add_data(
-                        epoch, data_idx, batch_idx, wandb_image, mean_confidence_map
+                        epoch,
+                        data_idx,
+                        batch_idx,
+                        wandb_image,
+                        mean_confidence_map,
+                        prediction_result.speed,
                     )
                 data_idx += 1
             except TypeError:
