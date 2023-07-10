@@ -21,11 +21,11 @@ except ImportError as e:
     print(e)
 
 import wandb
-from wandb.sdk.lib import telemetry
 from wandb.integration.ultralytics.bbox_utils import (
     plot_predictions,
     plot_validation_results,
 )
+from wandb.sdk.lib import telemetry
 
 
 class WandBUltralyticsCallback:
@@ -120,53 +120,57 @@ class WandBUltralyticsCallback:
             tel.feature.ultralytics_yolov8 = True
 
     def on_fit_epoch_end(self, trainer: DetectionTrainer):
-        validator = trainer.validator
-        dataloader = validator.dataloader
-        class_label_map = validator.names
-        with torch.no_grad():
-            self.device = next(trainer.model.parameters()).device
-            trainer.model.to("cpu")
-            self.model = copy.deepcopy(trainer.model).eval().to(self.device)
-            self.predictor.setup_model(model=self.model, verbose=False)
-            self.train_validation_table = plot_validation_results(
-                dataloader=dataloader,
-                class_label_map=class_label_map,
-                predictor=self.predictor,
-                table=self.train_validation_table,
-                max_validation_batches=self.max_validation_batches,
-                epoch=trainer.epoch,
-            )
-        if self.enable_model_checkpointing:
-            self._save_model(trainer)
-        trainer.model.to(self.device)
+        if isinstance(trainer, DetectionTrainer):
+            validator = trainer.validator
+            dataloader = validator.dataloader
+            class_label_map = validator.names
+            with torch.no_grad():
+                self.device = next(trainer.model.parameters()).device
+                trainer.model.to("cpu")
+                self.model = copy.deepcopy(trainer.model).eval().to(self.device)
+                self.predictor.setup_model(model=self.model, verbose=False)
+                self.train_validation_table = plot_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    predictor=self.predictor,
+                    table=self.train_validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                    epoch=trainer.epoch,
+                )
+            if self.enable_model_checkpointing:
+                self._save_model(trainer)
+            trainer.model.to(self.device)
 
     def on_train_end(self, trainer: DetectionTrainer):
         wandb.log({"Train-Validation-Table": self.train_validation_table})
 
     def on_val_end(self, trainer: DetectionValidator):
-        validator = trainer
-        dataloader = validator.dataloader
-        class_label_map = validator.names
-        with torch.no_grad():
-            self.predictor.setup_model(model=self.model, verbose=False)
-            self.validation_table = plot_validation_results(
-                dataloader=dataloader,
-                class_label_map=class_label_map,
-                predictor=self.predictor,
-                table=self.validation_table,
-                max_validation_batches=self.max_validation_batches,
-            )
-        wandb.log({"Validation-Table": self.validation_table})
+        if isinstance(trainer, DetectionValidator):
+            validator = trainer
+            dataloader = validator.dataloader
+            class_label_map = validator.names
+            with torch.no_grad():
+                self.predictor.setup_model(model=self.model, verbose=False)
+                self.validation_table = plot_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    predictor=self.predictor,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            wandb.log({"Validation-Table": self.validation_table})
 
     def on_predict_end(self, predictor: DetectionPredictor):
-        for result in tqdm(predictor.results):
-            self.prediction_table = plot_predictions(result, self.prediction_table)
-        wandb.log({"Prediction-Table": self.prediction_table})
+        if isinstance(predictor, DetectionPredictor):
+            for result in tqdm(predictor.results):
+                self.prediction_table = plot_predictions(result, self.prediction_table)
+            wandb.log({"Prediction-Table": self.prediction_table})
 
     @property
     def callbacks(self) -> Dict[str, Callable]:
         """Property contains all the relevant callbacks to add to the YOLO
-        model for the Weights & Biases logging."""
+        model for the Weights & Biases logging.
+        """
         return {
             "on_train_start": self.on_train_start,
             "on_fit_epoch_end": self.on_fit_epoch_end,
