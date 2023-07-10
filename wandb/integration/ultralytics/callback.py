@@ -168,9 +168,7 @@ class WandBUltralyticsCallback:
 
     @property
     def callbacks(self) -> Dict[str, Callable]:
-        """Property contains all the relevant callbacks to add to the YOLO
-        model for the Weights & Biases logging.
-        """
+        """Property contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging."""
         return {
             "on_train_start": self.on_train_start,
             "on_fit_epoch_end": self.on_fit_epoch_end,

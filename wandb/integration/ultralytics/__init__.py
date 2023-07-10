@@ -1,4 +1,4 @@
-"""Tools for integrating `wandb` with [`ultralytics`](https://docs.ultralytics.com/).
+"""Tools for integrating with [`ultralytics`](https://docs.ultralytics.com/).
 
 Ultralytics is a computer vision framework for training and deploying YOLOv8
 models.
