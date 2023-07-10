@@ -21,6 +21,7 @@ except ImportError as e:
     print(e)
 
 import wandb
+from wandb.sdk.lib import telemetry
 from wandb.integration.ultralytics.bbox_utils import (
     plot_predictions,
     plot_validation_results,
@@ -114,6 +115,10 @@ class WandBUltralyticsCallback:
             model_checkpoint_artifact, aliases=[f"epoch_{trainer.epoch}"]
         )
 
+    def on_train_start(self, trainer: DetectionTrainer):
+        with telemetry.context(run=wandb.run) as tel:
+            tel.feature.ultralytics_yolov8 = True
+
     def on_fit_epoch_end(self, trainer: DetectionTrainer):
         validator = trainer.validator
         dataloader = validator.dataloader
@@ -163,6 +168,7 @@ class WandBUltralyticsCallback:
         """Property contains all the relevant callbacks to add to the YOLO
         model for the Weights & Biases logging."""
         return {
+            "on_train_start": self.on_train_start,
             "on_fit_epoch_end": self.on_fit_epoch_end,
             "on_train_end": self.on_train_end,
             "on_val_end": self.on_val_end,
