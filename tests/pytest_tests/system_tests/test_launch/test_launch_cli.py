@@ -365,7 +365,7 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.run_job",
-        lambda a, b, c: raise_(LaunchError("blah blah")),
+        lambda a, b, c, d: raise_(LaunchError("blah blah")),
     )
 
     monkeypatch.setattr(
@@ -391,3 +391,48 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         print(result.output)
         assert "blah blah" in result.output
         assert "except caught, failed item" in result.output
+
+
+def patched_run_run_entry(cmd, dir):
+    print(f"running command: {cmd}")
+    return cmd  # noop
+
+
+def test_launch_supplied_docker_image(
+    runner,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.pull_docker_image",
+        lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.docker_image_exists",
+        lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
+        patched_run_run_entry,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "--async",
+                "--docker-image",
+                "test:tag",
+            ],
+        )
+
+    print(result)
+    assert result.exit_code == 0
+    assert "-e WANDB_DOCKER=test:tag" in result.output
+    assert " -e WANDB_CONFIG='{}'" in result.output
+    assert "-e WANDB_ARTIFACTS='{}'" in result.output
+    assert "test:tag" in result.output

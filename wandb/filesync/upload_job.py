@@ -107,7 +107,7 @@ class UploadJob:
             project = self._api.get_project()
             _, upload_headers, result = self._api.upload_urls(project, [self.save_name])
             file_info = result[self.save_name]
-            upload_url = file_info["url"]
+            upload_url = file_info["uploadUrl"]
 
         if upload_url is None:
             logger.info("Skipped uploading %s", self.save_path)
