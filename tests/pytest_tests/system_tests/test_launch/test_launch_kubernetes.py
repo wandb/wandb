@@ -37,6 +37,7 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project.target_project = project_name
         project.override_config = {}
         project.job = "testjob"
+        project.launch_spec = {"_resume_count": 0}
 
         environment = loader.environment_from_config({})
         registry = loader.registry_from_config({}, environment)
@@ -99,6 +100,7 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
         project.override_config = {}
         project.override_args = ["-a", "2"]
         project.job = "testjob"
+        project.launch_spec = {"_resume_count": 0}
         run = runner.run(launch_project=project, builder=builder)
     assert run.name == expected_run_name
     assert run.job["metadata"]["generateName"] == expected_generate_name

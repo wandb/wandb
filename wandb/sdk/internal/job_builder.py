@@ -77,6 +77,8 @@ class JobBuilder:
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
     _aliases: List[str]
+    _job_seq_id: Optional[str]
+    _job_version_alias: Optional[str]
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -85,11 +87,13 @@ class JobBuilder:
         self._config = None
         self._summary = None
         self._logged_code_artifact = None
+        self._job_seq_id = None
+        self._job_version_alias = None
         self._disable = settings.disable_job_creation
         self._aliases = []
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
-        ] = settings.get("job_source")
+        ] = settings.job_source  # type: ignore[assignment]
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -105,9 +109,22 @@ class JobBuilder:
     def disable(self, val: bool) -> None:
         self._disable = val
 
-    def _set_logged_code_artifact(
+    def _handle_server_artifact(
         self, res: Optional[Dict], artifact: "ArtifactRecord"
     ) -> None:
+        if artifact.type == "job" and res is not None:
+            try:
+                if res["artifactSequence"]["latestArtifact"] is None:
+                    self._job_version_alias = "v0"
+                elif res["artifactSequence"]["latestArtifact"]["id"] == res["id"]:
+                    self._job_version_alias = (
+                        f"v{res['artifactSequence']['latestArtifact']['versionIndex']}"
+                    )
+                else:
+                    self._job_version_alias = f"v{res['artifactSequence']['latestArtifact']['versionIndex'] + 1}"
+                self._job_seq_id = res["artifactSequence"]["id"]
+            except KeyError as e:
+                _logger.info(f"Malformed response from ArtifactSaver.save {e}")
         if artifact.type == "code" and res is not None:
             self._logged_code_artifact = ArtifactInfoForJob(
                 {
