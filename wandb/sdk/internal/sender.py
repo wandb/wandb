@@ -1488,6 +1488,7 @@ class SendManager:
             finalize=artifact.finalize,
             incremental=artifact.incremental_beta1,
             history_step=history_step,
+            base_id=artifact.base_id or None,
         )
 
         self._job_builder._handle_server_artifact(res, artifact)
