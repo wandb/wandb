@@ -184,7 +184,7 @@ class JobBuilder:
             },
         }
 
-        if hasattr(self._settings, "job_name") and self._settings.job_name:
+        if self._settings.job_name:
             name = self._settings.job_name
         else:
             name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
