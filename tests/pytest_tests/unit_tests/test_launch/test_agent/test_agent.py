@@ -374,6 +374,6 @@ def test_agent_fails_sweep_state(mocker):
     job.run = run
 
     # should detect failed scheduler, set sweep state to CANCELED
-    out = agent._check_run_finished(job)
+    out = agent._check_run_finished(job, {})
     assert job.completed_status == "failed"
     assert out, "True when status successfully updated"
