@@ -508,12 +508,6 @@ class KubernetesRunner(AbstractRunner):
             # so the new job can pull the image
             containers[0]["image"] = image_uri
             launch_project.fill_macros(image_uri)
-
-        if isinstance(self.registry, LocalRegistry):
-            raise LaunchError(
-                "No registry specified. Please configure a registry in your launch config. "
-                "See https://docs.wandb.ai/guides/launch/run-agent#registries for more details."
-            )
         secret = maybe_create_imagepull_secret(
             core_api, self.registry, launch_project.run_id, namespace
         )
