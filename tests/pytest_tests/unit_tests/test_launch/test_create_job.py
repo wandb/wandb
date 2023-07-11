@@ -51,11 +51,11 @@ def test_handle_artifact_entrypoint():
     out_path, out_entrypoint = _handle_artifact_entrypoint(path, None)
     assert not out_path  # path isn't to file and entrypoint is None
 
-    out_path, out_entrypoint = _handle_artifact_entrypoint(path, entrypoint)
-    assert out_path == path and out_entrypoint == entrypoint
-
     with open(os.path.join(path, entrypoint), "w") as f:
         f.write("print('hello world')")
+
+    out_path, out_entrypoint = _handle_artifact_entrypoint(path, entrypoint)
+    assert out_path == path and out_entrypoint == entrypoint
 
     joined_path = os.path.join(path, entrypoint)
     out_path, out_entrypoint = _handle_artifact_entrypoint(joined_path)
