@@ -33,7 +33,7 @@ def test_sweep_scheduler_entity_project_sweep_id(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: Mock(["finish", "config", "id"]),
     )
     with relay_server():
         _entity = user
@@ -52,7 +52,7 @@ def test_sweep_scheduler_entity_project_sweep_id(
 def test_sweep_scheduler_start_failed(user, monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: Mock(["finish", "config", "id"]),
     )
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
     _entity = user
@@ -90,9 +90,11 @@ def test_sweep_scheduler_start_failed(user, monkeypatch):
 
 
 def test_sweep_scheduler_runcap(user, monkeypatch):
+    m = Mock(["finish", "config"])
+    m.id = "sweep-scheduler"
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: m,
     )
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]  # 3 total runs
     sweep_config["run_cap"] = 2
@@ -126,6 +128,8 @@ def test_sweep_scheduler_runcap(user, monkeypatch):
     )
 
     def mock_get_run_state(*args, **kwargs):
+        if args[2] == "sweep-scheduler":
+            return "running"
         return "finished"
 
     # Entity, project, and sweep should be everything you need to create a scheduler
@@ -150,7 +154,7 @@ def test_sweep_scheduler_runcap(user, monkeypatch):
 def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: Mock(["finish", "config", "id"]),
     )
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
 
@@ -210,9 +214,11 @@ def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
 def test_sweep_scheduler_base_scheduler_states(
     user, relay_server, sweep_config, monkeypatch
 ):
+    m = Mock(["finish", "config"])
+    m.id = "sweep-scheduler"
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: m,
     )
     with relay_server():
         _entity = user
@@ -222,6 +228,13 @@ def test_sweep_scheduler_base_scheduler_states(
 
         def mock_run_complete_scheduler(self, *args, **kwargs):
             self.state = SchedulerState.COMPLETED
+
+        def mock_get_run_state(*args, **kwargs):
+            if args[2] == "sweep-scheduler":
+                return "running"
+            return "finished"
+
+        api.get_run_state = mock_get_run_state
 
         monkeypatch.setattr(
             "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
@@ -257,13 +270,9 @@ def test_sweep_scheduler_base_scheduler_states(
         def mock_run_raise_exception(*args, **kwargs):
             raise Exception("Generic exception")
 
-        monkeypatch.setattr(
-            "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
-            mock_run_raise_exception,
-        )
-
         sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+        _scheduler._update_run_states = mock_run_raise_exception
         with pytest.raises(Exception) as e:
             _scheduler.start()
         assert "Generic exception" in str(e.value)
@@ -278,8 +287,14 @@ def test_sweep_scheduler_base_scheduler_states(
             mock_run_exit,
         )
 
+        def mock_get_run_state(*args, **kwargs):
+            if args[0] == "sweep-scheduler":
+                return "running"
+            return "finished"
+
         sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+        _scheduler._get_run_state = mock_get_run_state
         _scheduler.start()
         assert _scheduler.state == SchedulerState.FAILED
         assert _scheduler.is_alive is False
@@ -288,9 +303,11 @@ def test_sweep_scheduler_base_scheduler_states(
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monkeypatch):
+    m = Mock(["finish", "config"])
+    m.id = "sweep-scheduler"
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: m,
     )
     with relay_server():
         _entity = user
@@ -313,6 +330,8 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
         }
 
         def mock_get_run_state(entity, project, run_id, *args, **kwargs):
+            if run_id not in mock_run_states:  # is scheduler
+                return RunState.RUNNING
             return mock_run_states[run_id]
 
         api.get_run_state = mock_get_run_state
@@ -356,9 +375,11 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatch):
+    m = Mock(["finish", "config"])
+    m.id = "sweep-scheduler"
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: m,
     )
     api = internal.Api()
 
@@ -375,6 +396,13 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
         "wandb.sdk.launch.launch_add._launch_add",
         mock_launch_add,
     )
+
+    def mock_get_run_state(*args, **kwargs):
+        if args[2] == "sweep-scheduler":
+            return "running"
+        return "finished"
+
+    api.get_run_state = mock_get_run_state
 
     def mock_run_add_to_launch_queue(self, *args, **kwargs):
         self._runs["foo_run"] = SweepRun(
@@ -448,10 +476,13 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
 def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
+    m = Mock(["finish", "config"])
+    m.id = "sweep-scheduler"
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: m,
     )
+
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
@@ -463,6 +494,13 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
         return [{"type": "stop"}]
 
     api.agent_heartbeat = mock_agent_heartbeat
+
+    def mock_get_run_state(*args, **kwargs):
+        if args[2] == "sweep-scheduler":
+            return "running"
+        return "finished"
+
+    api.get_run_state = mock_get_run_state
 
     _project = "test-project"
     _job = "test-job:latest"
@@ -485,9 +523,11 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
 def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
+    m = Mock(["finish", "config"])
+    m.id = "sweep-scheduler"
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: m,
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
@@ -502,6 +542,13 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
         return [{"type": "foo"}]
 
     api.agent_heartbeat = mock_agent_heartbeat
+
+    def mock_get_run_state(*args, **kwargs):
+        if args[2] == "sweep-scheduler":
+            return "running"
+        return "finished"
+
+    api.get_run_state = mock_get_run_state
 
     with pytest.raises(SchedulerError) as e:
         _scheduler = SweepScheduler(
@@ -522,6 +569,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
         return [{"type": "run"}]  # No run_id should throw error
 
     api.agent_heartbeat = mock_agent_heartbeat
+    api.get_run_state = mock_get_run_state
 
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
     with pytest.raises(SchedulerError) as e:
@@ -545,9 +593,11 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
 def test_sweep_scheduler_sweeps_run_and_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
+    m = Mock(["finish", "config"])
+    m.id = "sweep-scheduler"
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: m,
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
@@ -580,6 +630,8 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     )
 
     def mock_get_run_state(*args, **kwargs):
+        if args[2] == "sweep-scheduler":
+            return "running"
         return "finished"
 
     api.get_run_state = mock_get_run_state
@@ -613,7 +665,7 @@ def test_launch_sweep_scheduler_try_executable_works(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: Mock(["finish", "config", "id"]),
     )
 
     _project = "test-project"
@@ -643,7 +695,7 @@ def test_launch_sweep_scheduler_try_executable_works(
 def test_launch_sweep_scheduler_try_executable_fails(user, monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: Mock(["finish", "config", "id"]),
     )
     _project = "test-project"
     job_name = "nonexistent"
@@ -669,7 +721,7 @@ def test_launch_sweep_scheduler_try_executable_fails(user, monkeypatch):
 def test_launch_sweep_scheduler_try_executable_image(user, monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: Mock(["finish", "config", "id"]),
     )
     _project = "test-project"
     _image_uri = "some-image-wow"
@@ -739,7 +791,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
 def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
-        lambda _x: Mock(["finish", "config"]),
+        lambda _x: Mock(["finish", "config", "id"]),
     )
 
     def mock_launch_add(*args, **kwargs):
