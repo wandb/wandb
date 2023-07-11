@@ -1731,7 +1731,6 @@ class Settings(SettingsData):
             job_type="run_job_type",
             notes="run_notes",
             dir="root_dir",
-            job_name="job_name",
         )
         init_settings = {
             param_map.get(k, k): v for k, v in init_settings.items() if v is not None
