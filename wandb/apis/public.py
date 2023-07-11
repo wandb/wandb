@@ -433,24 +433,22 @@ class Api:
     def create_run_queue(
         self,
         name: str,
-        resource: Literal[
-            "local-container", "local-process", "kubernetes", "sagemaker", "gcp-vertex"
-        ],
-        access: Literal["project", "user"],
+        type: "RunQueueType",
+        access: "RunQueueAccessType",
         entity: Optional[str] = None,
-        config: Optional[dict] = None,
+        config: dict = {},
     ) -> None:
         """Create a new run queue (launch).
 
         Arguments:
             name: (str) Name of the queue to create
             resource: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
-            access: (str) Access level to be used for the queue. One of "project" or "user".
+            access: (str) Access level for the queue. Either "project" or "user".
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             config: (dict) Optional default resource configuration to be used for the queue.
 
         Returns:
-            Boolean indicating success
+            The newly created `RunQueue`
 
         Raises:
             ValueError if any of the parameters are invalid
@@ -468,15 +466,15 @@ class Api:
                 )
 
         if len(name) == 0:
-            raise ValueError("queue_name must be non-empty")
+            raise ValueError("name must be non-empty")
         if len(name) > 64:
-            raise ValueError("queue_name must be less than 64 characters")
+            raise ValueError("name must be less than 64 characters")
 
         access = access.upper()
         if access not in ["PROJECT", "USER"]:
             raise ValueError("access must be one of 'project' or 'user'")
 
-        if resource not in [
+        if type not in [
             "local-container",
             "local-process",
             "kubernetes",
@@ -492,7 +490,7 @@ class Api:
 
         api = InternalApi(
             default_settings={
-                "entity": self.entity,
+                "entity": entity,
                 "project": self.project(LAUNCH_DEFAULT_PROJECT),
             },
             retry_timedelta=RETRY_TIMEDELTA,
@@ -500,9 +498,9 @@ class Api:
 
         # 2. if present, create default resource config, receive config id
         if config is not None:
-            config_json = json.dumps({"resource_args": {[resource]: config}})
+            config_json = json.dumps({"resource_args": {type: config}})
             create_config_result = api.create_default_resource_config(
-                entity, LAUNCH_DEFAULT_PROJECT, resource, config_json
+                entity, LAUNCH_DEFAULT_PROJECT, type, config_json
             )
             if create_config_result["success"] == False:
                 raise wandb.Error("failed to create default resource config")
@@ -517,7 +515,7 @@ class Api:
         if create_queue_result["success"] == False:
             raise wandb.Error("failed to create run queue")
 
-        return True
+        return RunQueue(self.client, name, entity, access, config_id, config)
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """Get report at a given path.
@@ -961,6 +959,20 @@ class Api:
             run_queue_item_id,
             container_job=container_job,
             project_queue=project_queue,
+        )
+
+    def run_queue(
+        self,
+        entity,
+        name,
+    ):
+        """Return the named `RunQueue` for entity.
+        
+        To create a new `RunQueue`, use `wandb.Api().create_run_queue(...)`."""
+        return RunQueue(
+            self.client,
+            name,
+            entity,
         )
 
     @normalize_exceptions
@@ -2338,7 +2350,7 @@ class Run(Attrs):
 
 
 class QueuedRun:
-    """A single queued run associated with an entity and project. Call `run = wait_until_running()` or `run = wait_until_finished()` methods to access the run."""
+    """A single queued run associated with an entity and project. Call `run = queued_run.wait_until_running()` or `run = queued_run.wait_until_finished()` to access the run."""
 
     def __init__(
         self,
@@ -2543,6 +2555,171 @@ class QueuedRun:
 
     def __repr__(self):
         return f"<QueuedRun {self.queue_name} ({self.id})"
+
+
+RunQueueType = Literal[
+    "local-container", "local-process", "kubernetes", "sagemaker", "gcp-vertex"
+]
+RunQueueAccessType = Literal["project", "user"]
+
+
+class RunQueue:
+    def __init__(
+        self,
+        client: RetryingClient,
+        name: str,
+        entity: str,
+        _access: Optional[RunQueueAccessType] = None,
+        _default_resource_config_id: Optional[int] = None,
+        _default_resource_config: Optional[dict] = None,
+    ) -> None:
+        self._name: str = name
+        self._client = client
+        self._entity = entity
+        self._access: RunQueueAccessType = _access
+        self._default_resource_config_id = _default_resource_config_id
+        self._default_resource_config = _default_resource_config
+        self._items = None
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def access(self) -> RunQueueAccessType:
+        if self._access is None:
+            self._get_metadata()
+        return self._access
+
+    @property
+    def default_resource_config(self):
+        if self._default_resource_config is None:
+            if self._default_resource_config_id is None:
+                self._get_metadata()
+            self._get_default_resource_config()
+        return self._default_resource_config
+
+    @property
+    def items(self) -> List[QueuedRun]:
+        """Up to the first 100 queued runs. Modifying this list will not modify the queue or any enqueued items!"""
+
+        if self._items is None:
+            self._get_items()
+        return self._items
+
+    def __repr__(self):
+        return f"<RunQueue {self._entity}/{self._name} ({self._type})>"
+
+    @normalize_exceptions
+    def _get_metadata(self):
+        query = gql(
+            """
+            query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueue) {
+                        access
+                        defaultResourceConfigId
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": LAUNCH_DEFAULT_PROJECT,
+            "entityName": self._entity,
+            "runQueue": self._name,
+        }
+        res = self._client.execute(query, variable_values)
+        self._access = res["project"]["runQueue"]["access"]
+        self._default_resource_config_id = res["project"]["runQueue"][
+            "defaultResourceConfigId"
+        ]
+        if self._default_resource_config_id is None:
+            self._default_resource_config = {}
+
+    @normalize_exceptions
+    def _get_default_resource_config(self):
+        query = gql(
+            """
+            query GetDefaultResourceConfig($projectName: String!, $entityName: String!, $id: ID!) {
+                project(name: $projectName, entityName: $entityName) {
+                    defaultResourceConfig(id: $id) {
+                        config
+                        resource
+                        scope 
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": LAUNCH_DEFAULT_PROJECT,
+            "entityName": self._entity,
+            "id": self._default_resource_config_id,
+        }
+        res = self._client.execute(query, variable_values)
+        self._default_resource_config = res["project"]["defaultResourceConfig"][
+            "config"
+        ]
+
+    @normalize_exceptions
+    def _get_items(self):
+        query = gql(
+            """
+            query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueue) {
+                        runQueueItems(first: 100) {
+                            edges {
+                                node {
+                                    id
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": LAUNCH_DEFAULT_PROJECT,
+            "entityName": self._entity,
+            "runQueue": self._name,
+        }
+        res = self._client.execute(query, variable_values)
+        self._items = []
+        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+            self._items.append(
+                QueuedRun(
+                    self._client,
+                    self._entity,
+                    LAUNCH_DEFAULT_PROJECT,
+                    self._name,
+                    item["node"]["id"],
+                )
+            )
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        resource: "RunQueueType",
+        access: "RunQueueAccessType",
+        entity: Optional[str] = None,
+        config: dict = {},
+    ) -> "RunQueue":
+        public_api = Api()
+        return public_api.create_run_queue(
+            name,
+            resource,
+            access,
+            entity,
+            config,
+        )
 
 
 class Sweep(Attrs):
