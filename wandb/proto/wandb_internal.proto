@@ -922,12 +922,59 @@ message KeepaliveResponse {
 }
 
 /*
+ * Job info specific for Partial -> Job upgrade
+ */
+message ArtifactInfo {
+  string artifact = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
+}
+
+message GitInfo {
+  string remote = 1;
+  string commit = 2;
+}
+
+message GitSource {
+  GitInfo git_info = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
+}
+
+message ImageSource {
+  string image = 1;
+}
+
+message Source {
+  GitSource git = 1;
+  ArtifactInfo artifact = 2;
+  ImageSource image = 3;
+}
+
+/*
+ * Mirrors JobSourceDict:
+ */
+message JobSource {
+  string _version = 1;
+  string source_type = 2;
+  Source source = 3;
+  string runtime = 4;
+}
+
+message PartialJobArtifact {
+  string job_name = 1;
+  JobSource source_info = 2;
+}
+
+/*
  * UseArtifact:
  */
 message UseArtifactRecord {
   string id = 1;
   string type = 2;
   string name = 3;
+
+  PartialJobArtifact partial = 4;
 
   _RecordInfo     _info = 200;
 }
