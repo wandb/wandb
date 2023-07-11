@@ -4,13 +4,12 @@ import pytest
 import yaml
 from utils import (
     cleanup_deployment,
-    create_wandb_and_aws_secrets,
     get_wandb_api_key,
     run_cmd,
     run_cmd_async,
     setup_cleanup_on_exit,
-    wait_for_image_job_completion,
     update_dict,
+    wait_for_image_job_completion,
 )
 from wandb.sdk.launch.launch_add import launch_add
 
