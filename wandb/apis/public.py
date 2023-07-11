@@ -942,6 +942,75 @@ class Api:
             )
         return Job(self, name, path)
 
+    @normalize_exceptions
+    def list_jobs(self, entity, project):
+        if entity is None:
+            raise ValueError("Specify an entity when listing jobs")
+        if project is None:
+            raise ValueError("Specify a project when listing jobs")
+
+        query = gql(
+            """
+        query ArtifactOfType(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactCollections {
+                        edges {
+                            node {
+                                artifacts {
+                                    edges {
+                                        node {
+                                            id
+                                            state
+                                            aliases {
+                                                alias
+                                            }
+                                            artifactSequence {
+                                                name
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+
+        try:
+            artifact_query = self._client.execute(
+                query,
+                {
+                    "projectName": project,
+                    "entityName": entity,
+                    "artifactTypeName": "job",
+                },
+            )
+
+            if not artifact_query or not artifact_query["project"]:
+                wandb.termerror(
+                    f"Project: '{project}' not found in entity: '{entity}' or access denied."
+                )
+                return []
+
+            if artifact_query["project"]["artifactType"] is None:
+                return []
+
+            artifacts = artifact_query["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
+
+            return [x["node"]["artifacts"] for x in artifacts]
+        except requests.exceptions.HTTPError:
+            return False
+
 
 class Attrs:
     def __init__(self, attrs: MutableMapping[str, Any]):
@@ -4288,6 +4357,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
     _notebook_job: bool
+    _partial: bool
 
     def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
@@ -4310,6 +4380,7 @@ class Job:
         self._notebook_job = source_info.get("notebook", False)
         self._entrypoint = source_info.get("entrypoint")
         self._args = source_info.get("args")
+        self._partial = self._job_info.get("_partial", False)
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
             self._job_info.get("input_types")
@@ -4317,7 +4388,6 @@ class Job:
         self._output_types = TypeRegistry.type_from_dict(
             self._job_info.get("output_types")
         )
-
         if self._job_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
         if self._job_info.get("source_type") == "repo":
@@ -4417,8 +4487,13 @@ class Job:
         run_config.update(config)
 
         assigned_config_type = self._input_types.assign(run_config)
-        if isinstance(assigned_config_type, InvalidType):
-            raise TypeError(self._input_types.explain(run_config))
+        if self._partial:
+            wandb.termwarn(
+                "Launching manually created job for the first time, can't verify types"
+            )
+        else:
+            if isinstance(assigned_config_type, InvalidType):
+                raise TypeError(self._input_types.explain(run_config))
 
         queued_run = launch_add.launch_add(
             job=self._name,

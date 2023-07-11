@@ -1,5 +1,4 @@
-"""
-Compatibility keras module.
+"""Compatibility keras module.
 
 In the future use e.g.:
     from wandb.integration.keras import WandbCallback

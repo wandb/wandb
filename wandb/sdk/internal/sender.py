@@ -33,7 +33,14 @@ from wandb.proto import wandb_internal_pb2
 from wandb.sdk.artifacts import artifact_saver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
+from wandb.sdk.internal import (
+    context,
+    datastore,
+    file_stream,
+    internal_api,
+    job_builder,
+    update,
+)
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -49,7 +56,6 @@ from wandb.sdk.lib import (
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
-from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import sys
@@ -1091,9 +1097,7 @@ class SendManager:
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
-        self._dir_watcher = DirWatcher(
-            cast(Settings, self._settings), self._pusher, file_dir
-        )
+        self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
@@ -1395,8 +1399,14 @@ class SendManager:
         This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
-        if use.type == "job":
+
+        if use.type == "job" and not use.partial.job_name:
             self._job_builder.disable = True
+        elif use.partial.job_name:
+            # job is partial, let job builder rebuild job, set job source dict
+            self._job_builder._partial_source = (
+                job_builder.convert_use_artifact_to_job_source(record.use_artifact)
+            )
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1491,6 +1501,7 @@ class SendManager:
             finalize=artifact.finalize,
             incremental=artifact.incremental_beta1,
             history_step=history_step,
+            base_id=artifact.base_id or None,
         )
 
         self._job_builder._handle_server_artifact(res, artifact)

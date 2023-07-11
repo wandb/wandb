@@ -152,6 +152,19 @@ class KubernetesSubmittedRun(AbstractRun):
         pod = self.core_api.read_namespaced_pod(
             name=self.pod_names[0], namespace=self.namespace
         )
+
+        if (
+            hasattr(pod.status, "conditions")
+            and pod.status.conditions is not None
+            and pod.status.conditions[0].type == "DisruptionTarget"
+            and pod.status.conditions[0].reason
+            in [
+                "EvictionByEvictionAPI",
+                "PreemptionByScheduler",
+                "TerminationByKubelet",
+            ]
+        ):
+            return Status("preempted")
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
