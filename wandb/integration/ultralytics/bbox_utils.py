@@ -6,6 +6,7 @@ from ultralytics.yolo.v8.detect.predict import DetectionPredictor
 
 import wandb
 import numpy as np
+from PIL import Image
 
 
 def scale_bounding_box_to_original_image_shape(
@@ -100,9 +101,9 @@ def get_mean_confidence_map(
 
 
 def get_boxes(result: Results) -> Tuple[Dict, Dict]:
-    boxes = result.boxes.xywh.to("cpu").long().numpy()
-    classes = result.boxes.cls.to("cpu").long().numpy()
-    confidence = result.boxes.conf.to("cpu").numpy()
+    boxes = result.boxes.xywh.long().numpy()
+    classes = result.boxes.cls.long().numpy()
+    confidence = result.boxes.conf.numpy()
     class_id_to_label = {int(k): str(v) for k, v in result.names.items()}
     mean_confidence_map = get_mean_confidence_map(
         classes, confidence, class_id_to_label
@@ -132,11 +133,41 @@ def get_boxes(result: Results) -> Tuple[Dict, Dict]:
     return boxes, mean_confidence_map
 
 
+def get_masks(result: Results) -> Dict:
+    instance_masks = result.masks.data.long().numpy()
+    classes = result.boxes.cls.long().numpy()
+    unique_classes = list(set(list(set(classes))))
+    original_image = result.orig_img[:, :, ::-1]
+    class_id_to_label = {int(k): str(v) for k, v in result.names.items()}
+    masks, instance_counter = {}, {unique_class: 0 for unique_class in unique_classes}
+    for idx, class_id in enumerate(classes):
+        instance_mask = np.asarray(
+            Image.fromarray(instance_masks[idx].astype(np.uint8)).resize(
+                size=(original_image.shape[:-1]), resample=Image.NEAREST
+            )
+        )
+        masks.update(
+            {
+                f"prediction-instance-{class_id_to_label[class_id]}#{instance_counter[class_id]}": {
+                    "mask_data": instance_mask,
+                    "class_labels": {
+                        0: "background",
+                        1: f"{class_id_to_label[class_id]}#{instance_counter[class_id]}",
+                    },
+                }
+            }
+        )
+        instance_counter[class_id] += 1
+    return masks
+
+
 def plot_predictions(
     result: Results, table: Optional[wandb.Table] = None
 ) -> Union[wandb.Table, Tuple[wandb.Image, Dict, Dict]]:
+    result = result.to("cpu")
     boxes, mean_confidence_map = get_boxes(result)
-    image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes)
+    masks = get_masks(result)
+    image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes, masks=masks)
     if table is not None:
         table.add_data(
             image,
