@@ -134,7 +134,6 @@ def _create_job(
             entity=entity,
             project=project,
             job_type="cli_create_job",
-            job_name=name,
         )
     except Exception:
         # Error printed by wandb.init

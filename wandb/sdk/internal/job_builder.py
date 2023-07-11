@@ -207,11 +207,7 @@ class JobBuilder:
                     "notebook": metadata["notebook"],
                 }
             )
-
-        if hasattr(self._settings, "job_name") and self._settings.job_name:
-            name = self._settings.job_name
-        else:
-            name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
+        name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
         return source, name
 
@@ -244,11 +240,7 @@ class JobBuilder:
             "notebook": self._is_notebook_run(),
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
-
-        if hasattr(self._settings, "run_job_name") and self._settings.run_job_name:
-            name = self._settings.run_job_name
-        else:
-            name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         return source, name
 
@@ -263,11 +255,7 @@ class JobBuilder:
             raw_image_name, tag = image_name.split(":")
             self._aliases += [tag]
 
-        if hasattr(self._settings, "run_job_name") and self._settings.run_job_name:
-            name = self._settings.run_job_name
-        else:
-            name = make_artifact_name_safe(f"job-{raw_image_name}")
-
+        name = make_artifact_name_safe(f"job-{raw_image_name}")
         source: ImageSourceDict = {
             "image": image_name,
         }
