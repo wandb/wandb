@@ -1,11 +1,12 @@
 import sys
 from typing import Any, Dict, Optional, Union
 
-import tensorflow as tf  # type: ignore
-from tensorflow.keras import callbacks  # type: ignore
+try:
+    import keras_core as keras
+except:
+    from tensorflow import keras
 
 import wandb
-from wandb.integration.keras.keras import patch_tf_keras
 from wandb.sdk.lib import telemetry
 
 if sys.version_info >= (3, 8):
@@ -17,10 +18,7 @@ else:
 LogStrategy = Literal["epoch", "batch"]
 
 
-patch_tf_keras()
-
-
-class WandbMetricsLogger(callbacks.Callback):
+class WandbMetricsLogger(keras.callbacks.Callback):
     """Logger that sends system metrics to W&B.
 
     `WandbMetricsLogger` automatically logs the `logs` dictionary that callback methods
@@ -86,8 +84,9 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
     def _get_lr(self) -> Union[float, None]:
-        if isinstance(self.model.optimizer.learning_rate, tf.Variable):
-            return float(self.model.optimizer.learning_rate.numpy().item())
+        if isinstance(self.model.optimizer, keras.optimizers.Optimizer):
+            if isinstance(self.model.optimizer.learning_rate, keras.backend.common.KerasVariable)
+                return float(self.model.optimizer.learning_rate.numpy().item())
         try:
             return float(
                 self.model.optimizer.learning_rate(step=self.global_step).numpy().item()
