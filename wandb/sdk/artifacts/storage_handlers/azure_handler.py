@@ -4,6 +4,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
+import wandb
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
@@ -12,6 +13,7 @@ from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
+    import azure.identity  # type: ignore
     import azure.storage.blob  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
@@ -45,8 +47,7 @@ class AzureHandler(StorageHandler):
         )
         version_id = manifest_entry.extra.get("versionID")
         blob_service_client = self._get_module("azure.storage.blob").BlobServiceClient(
-            account_url,
-            credential=self._get_module("azure.identity").DefaultAzureCredential(),
+            account_url, credential=self._get_credential(account_url)
         )
         blob_client = blob_service_client.get_blob_client(
             container=container_name, blob=blob_name
@@ -104,8 +105,7 @@ class AzureHandler(StorageHandler):
             ]
 
         blob_service_client = self._get_module("azure.storage.blob").BlobServiceClient(
-            account_url,
-            credential=self._get_module("azure.identity").DefaultAzureCredential(),
+            account_url, credential=self._get_credential(account_url)
         )
         blob_client = blob_service_client.get_blob_client(
             container=container_name, blob=blob_name
@@ -156,6 +156,17 @@ class AzureHandler(StorageHandler):
         )
         assert isinstance(module, ModuleType)
         return module
+
+    def _get_credential(
+        self, account_url: str
+    ) -> Union["azure.identity.DefaultAzureCredential", str]:
+        if (
+            wandb.run
+            and wandb.run.settings.azure_account_url_to_access_key is not None
+            and account_url in wandb.run.settings.azure_account_url_to_access_key
+        ):
+            return wandb.run.settings.azure_account_url_to_access_key[account_url]
+        return self._get_module("azure.identity").DefaultAzureCredential()
 
     def _parse_uri(self, uri: str) -> Tuple[str, str, str, Dict[str, str]]:
         parsed_url = urlparse(uri)

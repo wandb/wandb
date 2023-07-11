@@ -386,6 +386,8 @@ class InterfaceBase:
             proto_artifact.description = artifact.description
         if artifact.metadata:
             proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+        if artifact._base_id:
+            proto_artifact.base_id = artifact._base_id
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -850,4 +852,12 @@ class InterfaceBase:
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_job_info(self) -> MailboxHandle:
+        job_info = pb.JobInfoRequest()
+        return self._deliver_request_job_info(job_info)
+
+    @abstractmethod
+    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
         raise NotImplementedError

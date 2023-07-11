@@ -147,7 +147,7 @@ def test_metrics_monitor(capsys, test_settings):
                 _stats_sample_rate_seconds=0.1,
                 _stats_samples_to_average=2,
             )
-        ).make_static()
+        ).to_proto()
     )
     shutdown_event = threading.Event()
 
@@ -186,7 +186,7 @@ def test_system_monitor(test_settings, join_assets, num_keys):
                 _stats_samples_to_average=2,
                 _stats_join_assets=join_assets,
             )
-        ).make_static()
+        ).to_proto()
     )
 
     # todo: refactor this ugliness into a factory

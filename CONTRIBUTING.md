@@ -1,6 +1,6 @@
 <p align="center">
-  <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
-  <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
+  <img src="./docs/README_images/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./docs/README_images/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
 # Contributing to `wandb`
@@ -624,6 +624,28 @@ TODO: There are lots of cool things we could do with this, currently it just put
 tox -e dev
 ```
 
+### Editable mode:
+
+When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
+
+- During installation, provide the following flags:
+
+  ```shell
+  pip install -e . --config-settings editable_mode=strict
+  ```
+  By doing so, editable mode will correctly identify the relevant files.
+
+
+- Alternatively, you can configure it once using the following command:
+  ```shell
+  pip config set global.config-settings editable_mode=strict
+  ```
+  Once the configuration is in place, you can use the command:
+  ```shell
+  pip install -e .
+  ```
+  without any additional flags, and the strict editable mode will be applied consistently.
+
 ## Library Objectives
 
 ### Supported user interface
@@ -732,6 +754,8 @@ The `Settings` object:
 #### Adding a new setting
 
 - Add a new type-annotated `Settings` class attribute.
+- Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
+  - Run `make proto` to re-generate the python stubs.
 - If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
   the template dictionary that the `Settings._default_props` method returns, using the same key name as
   the corresponding class variable.
@@ -741,7 +765,7 @@ The `Settings` object:
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 - Note that individual settings may depend on other settings through validator methods and runtime hooks,
   but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `tox -e generate` -- it will also automatically
+  modification order list with `tox -e auto-codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated

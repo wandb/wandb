@@ -14,6 +14,7 @@ import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context, datastore, handler, sender, tb_watcher
+from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import filesystem
 from wandb.util import check_and_warn_old
 
@@ -136,7 +137,7 @@ class SyncThread(threading.Thread):
 
     def _send_tensorboard(self, tb_root, tb_logdirs, send_manager):
         if self._entity is None:
-            viewer, server_info = send_manager._api.viewer_server_info()
+            viewer, _ = send_manager._api.viewer_server_info()
             self._entity = viewer.get("entity")
         proto_run = wandb_internal_pb2.RunRecord()
         proto_run.run_id = self._run_id or wandb.util.generate_id()
@@ -174,8 +175,10 @@ class SyncThread(threading.Thread):
             _start_time=time.time(),
         )
 
+        settings_static = SettingsStatic(settings.to_proto())
+
         handle_manager = handler.HandleManager(
-            settings=settings,
+            settings=settings_static,
             record_q=record_q,
             result_q=None,
             stopped=False,

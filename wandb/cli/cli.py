@@ -949,6 +949,9 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
+    # get personal username, not team name or service account, default to entity
+    author = api.viewer().get("username") or entity
+
     # if not sweep_config XOR resume_id
     if not (config or resume_id):
         wandb.termerror("'config' and/or 'resume_id' required")
@@ -993,40 +996,37 @@ def launch_sweep(
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{resume_id}")
             return
+
+        if found.get("state") == "RUNNING":
+            wandb.termerror(
+                f"Cannot resume sweep {entity}/{project}/{resume_id}, it is already running"
+            )
+            return
+
         sweep_obj_id = found["id"]
         sweep_config = yaml.safe_load(found["config"])
         wandb.termlog(f"Resuming from existing sweep {entity}/{project}/{resume_id}")
         if len(parsed_user_config.keys()) > 0:
             wandb.termwarn(
-                "Sweep params loaded from resumed sweep, ignoring provided config"
+                "Sweep parameters loaded from resumed sweep, ignoring provided config"
             )
 
-        # Is the resuming scheduler executing from a job? grab it to confirm
-        # the inputted scheduler job matches the resumed scheduler job
-        raw_scheduler_args = found.get("scheduler") or "{}"
-        prev_sweep_scheduler = json.loads(raw_scheduler_args)
-        prev_sweep_run_spec = json.loads(prev_sweep_scheduler.get("run_spec", "{}"))
-        if prev_sweep_run_spec.get("job"):
-            if scheduler_args and not scheduler_job:
-                wandb.termwarn(
-                    f"Resuming a launch sweep that was previously run from a scheduler job, but no scheduler job found in config. Defaulting to previous scheduler job: {prev_sweep_run_spec['job']}"
-                )
-                scheduler_job = prev_sweep_run_spec["job"]
+        prev_scheduler = json.loads(found.get("scheduler") or "{}")
+        run_spec = json.loads(prev_scheduler.get("run_spec", "{}"))
+        if (
+            scheduler_job
+            and run_spec.get("job")
+            and run_spec.get("job") != scheduler_job
+        ):
+            wandb.termerror(
+                f"Resuming a launch sweep with a different scheduler job is not supported. Job loaded from sweep: {run_spec.get('job')}, job in config: {scheduler_job}"
+            )
+            return
 
-            if scheduler_job and scheduler_job != prev_sweep_run_spec["job"]:
-                wandb.termerror(
-                    f"Resuming a launch sweep with a different scheduler job is not supported. Loaded from sweep: {prev_sweep_run_spec['job']}, Provided in config: {scheduler_job}"
-                )
-                return False
-
-        # grab the queue from previously run scheduler if not specified
-        if not queue and prev_sweep_run_spec.get("overrides", {}).get(
-            "run_config", {}
-        ).get("sweep_args", {}).get("queue"):
-            queue = prev_sweep_run_spec["overrides"]["run_config"]["sweep_args"][
-                "queue"
-            ]
-
+        prev_scheduler_args, prev_settings = sweep_utils.get_previous_args(run_spec)
+        # Passed in scheduler_args and settings override previous
+        scheduler_args.update(prev_scheduler_args)
+        settings.update(prev_settings)
     if not queue:
         wandb.termerror(
             "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in the config"
@@ -1039,7 +1039,7 @@ def launch_sweep(
         sweep_config=sweep_config,
         queue=queue,
         project=project,
-        author=entity,
+        author=author,
     )
     if not args:
         return
@@ -1072,6 +1072,22 @@ def launch_sweep(
     if scheduler_args.get("name"):
         name = scheduler_args["name"]
 
+    # configure scheduler job resource
+    resource = scheduler_args.get("resource")
+    if resource:
+        if resource == "local-process" and scheduler_job:
+            wandb.termerror(
+                "Scheduler jobs cannot be run with the 'local-process' resource"
+            )
+            return
+        if resource == "local-process" and scheduler_args.get("docker_image"):
+            wandb.termerror(
+                "Scheduler jobs cannot be run with the 'local-process' resource and a docker image"
+            )
+            return
+    else:  # no resource set, default local-process if not scheduler job, else container
+        resource = "local-process" if not scheduler_job else "local-container"
+
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
@@ -1080,7 +1096,7 @@ def launch_sweep(
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
-        resource=scheduler_args.get("resource", "local-process"),
+        resource=resource,
         entry_point=entrypoint,
         resource_args=scheduler_args.get("resource_args", {}),
         repository=launch_args.get("registry", {}).get("url", None),
@@ -1131,10 +1147,10 @@ def launch_sweep(
     "-E",
     metavar="NAME",
     default=None,
-    help="Entry point within project. [default: main]. If the entry point is not found, "
-    "attempts to run the project file with the specified name as a script, "
-    "using 'python' to run .py files and the default shell (specified by "
-    "environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.",
+    help="""Entry point within project. [default: main]. If the entry point is not found,
+    attempts to run the project file with the specified name as a script,
+    using 'python' to run .py files and the default shell (specified by
+    environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.""",
 )
 @click.option(
     "--git-version",
@@ -1146,48 +1162,48 @@ def launch_sweep(
 @click.option(
     "--name",
     envvar="WANDB_NAME",
-    help="Name of the run under which to launch the run. If not "
-    "specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.",
+    help="""Name of the run under which to launch the run. If not
+    specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.""",
 )
 @click.option(
     "--entity",
     "-e",
     metavar="(str)",
     default=None,
-    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder."
-    "If passed in, will override the entity value passed in using a config file.",
+    help="""Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.
+    If passed in, will override the entity value passed in using a config file.""",
 )
 @click.option(
     "--project",
     "-p",
     metavar="(str)",
     default=None,
-    help="Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri "
-    "or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.",
+    help="""Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri
+    or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.""",
 )
 @click.option(
     "--resource",
     "-r",
     metavar="BACKEND",
     default=None,
-    help="Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'. "
-    " This is now a required parameter if pushing to a queue with no resource configuration. "
-    " If passed in, will override the resource value passed in using a config file.",
+    help="""Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'.
+    This is now a required parameter if pushing to a queue with no resource configuration.
+    If passed in, will override the resource value passed in using a config file.""",
 )
 @click.option(
     "--docker-image",
     "-d",
     default=None,
     metavar="DOCKER IMAGE",
-    help="Specific docker image you'd like to use. In the form name:tag."
-    " If passed in, will override the docker image value passed in using a config file.",
+    help="""Specific docker image you'd like to use. In the form name:tag.
+    If passed in, will override the docker image value passed in using a config file.""",
 )
 @click.option(
     "--config",
     "-c",
     metavar="FILE",
-    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as a launch config. Dictation how the launched run will be configured. ",
+    help="""Path to JSON file (must end in '.json') or JSON string which will be passed
+    as a launch config. Dictation how the launched run will be configured.""",
 )
 @click.option(
     "--queue",
@@ -1195,25 +1211,25 @@ def launch_sweep(
     is_flag=False,
     flag_value="default",
     default=None,
-    help="Name of run queue to push to. If none, launches single run directly. If supplied without "
-    "an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the "
-    "project and entity supplied.",
+    help="""Name of run queue to push to. If none, launches single run directly. If supplied without
+    an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the
+    project and entity supplied.""",
 )
 @click.option(
     "--async",
     "run_async",
     is_flag=True,
-    help="Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for "
-    "the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be "
-    "set on wandb launch-agent.",
+    help="""Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for
+    the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be
+    set on wandb launch-agent.""",
 )
 @click.option(
     "--resource-args",
     "-R",
     metavar="FILE",
-    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as resource args to the compute resource. The exact content which should be "
-    "provided is different for each execution backend. See documentation for layout of this file.",
+    help="""Path to JSON file (must end in '.json') or JSON string which will be passed
+    as resource args to the compute resource. The exact content which should be
+    provided is different for each execution backend. See documentation for layout of this file.""",
 )
 @click.option(
     "--build",
@@ -1381,8 +1397,8 @@ def launch(
     "--project",
     "-p",
     default=None,
-    help="Name of the project which the agent will watch. "
-    "If passed in, will override the project value passed in using a config file.",
+    help="""Name of the project which the agent will watch.
+    If passed in, will override the project value passed in using a config file.""",
 )
 @click.option(
     "--entity",

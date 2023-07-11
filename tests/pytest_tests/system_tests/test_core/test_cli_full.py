@@ -131,7 +131,7 @@ def test_pull(runner, wandb_init):
 def test_sync_tensorboard(
     runner,
     relay_server,
-    wandb_init,
+    user,
     copy_asset,
     tb_file_name,
     history_length,

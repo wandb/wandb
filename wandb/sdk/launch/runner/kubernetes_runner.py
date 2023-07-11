@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -105,6 +106,22 @@ class KubernetesSubmittedRun(AbstractRun):
         """Return the run id."""
         return self.name
 
+    def get_logs(self) -> Optional[str]:
+        try:
+            logs = self.core_api.read_namespaced_pod_log(
+                name=self.pod_names[0], namespace=self.namespace
+            )
+            if logs:
+                return str(logs)
+            else:
+                wandb.termwarn(
+                    f"Retrieved no logs for kubernetes pod(s): {self.pod_names}"
+                )
+            return None
+        except Exception as e:
+            wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
+            return None
+
     def get_job(self) -> "V1Job":
         """Return the job object."""
         return self.batch_api.read_namespaced_job(
@@ -137,6 +154,19 @@ class KubernetesSubmittedRun(AbstractRun):
         pod = self.core_api.read_namespaced_pod(
             name=self.pod_names[0], namespace=self.namespace
         )
+
+        if (
+            hasattr(pod.status, "conditions")
+            and pod.status.conditions is not None
+            and pod.status.conditions[0].type == "DisruptionTarget"
+            and pod.status.conditions[0].reason
+            in [
+                "EvictionByEvictionAPI",
+                "PreemptionByScheduler",
+                "TerminationByKubelet",
+            ]
+        ):
+            return Status("preempted")
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
@@ -261,6 +291,23 @@ class CrdSubmittedRun(AbstractRun):
     def id(self) -> str:
         """Get the name of the custom object."""
         return self.name
+
+    def get_logs(self) -> Optional[str]:
+        """Get logs for custom object."""
+        # TODO: test more carefully once we release multi-node support
+        logs: Dict[str, Optional[str]] = {}
+        try:
+            for pod_name in self.pod_names:
+                logs[pod_name] = self.core_api.read_namespaced_pod_log(
+                    name=pod_name, namespace=self.namespace
+                )
+        except ApiException as e:
+            wandb.termwarn(f"Failed to get logs for {self.name}: {str(e)}")
+            return None
+        if not logs:
+            return None
+        logs_as_array = [f"Pod {pod_name}:\n{log}" for pod_name, log in logs.items()]
+        return "\n".join(logs_as_array)
 
     def get_status(self) -> Status:
         """Get status of custom object."""
@@ -392,8 +439,11 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         return (  # type: ignore[no-any-return]
-            self.backend_config.get("runner", {}).get("namespace")
-            or resource_args.get("namespace")
+            resource_args.get("metadata", {}).get("namespace")
+            or resource_args.get(
+                "namespace"
+            )  # continue support for malformed namespace
+            or self.backend_config.get("runner", {}).get("namespace")
             or default_namespace
         )
 
@@ -404,6 +454,7 @@ class KubernetesRunner(AbstractRunner):
         builder: Optional[AbstractBuilder],
         namespace: str,
         core_api: "CoreV1Api",
+        job_tracker: Optional[JobAndRunStatusTracker],
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
         """Apply our default values, return job dict and secret.
 
@@ -455,9 +506,10 @@ class KubernetesRunner(AbstractRunner):
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             # dont specify run id if user provided image, could have multiple runs
-            containers[0]["image"] = launch_project.docker_image
+            image_uri = launch_project.docker_image
+            containers[0]["image"] = image_uri
+            launch_project.fill_macros(image_uri)
             # TODO: handle secret pulling image from registry
-            launch_project.fill_macros(launch_project.docker_image)
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
@@ -465,7 +517,7 @@ class KubernetesRunner(AbstractRunner):
                 )
             assert entry_point is not None
             assert builder is not None
-            image_uri = builder.build_image(launch_project, entry_point)
+            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
             image_uri = image_uri.replace("https://", "")
             launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
@@ -512,6 +564,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -547,7 +600,7 @@ class KubernetesRunner(AbstractRunner):
                 image_uri = launch_project.docker_image
             else:
                 assert entrypoint is not None
-                image_uri = builder.build_image(launch_project, entrypoint)
+                image_uri = builder.build_image(launch_project, entrypoint, job_tracker)
             launch_project.fill_macros(image_uri)
             env_vars = get_env_vars_dict(launch_project, self._api)
             # Crawl the resource args and add our env vars to the containers.
@@ -609,11 +662,7 @@ class KubernetesRunner(AbstractRunner):
         namespace = self.get_namespace(resource_args, context)
 
         job, secret = self._inject_defaults(
-            resource_args,
-            launch_project,
-            builder,
-            namespace,
-            core_api,
+            resource_args, launch_project, builder, namespace, core_api, job_tracker
         )
 
         msg = "Creating Kubernetes job"
