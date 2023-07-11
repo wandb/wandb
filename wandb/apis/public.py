@@ -992,12 +992,20 @@ class Api:
                     "entityName": entity,
                     "artifactTypeName": "job",
                 },
-            )["project"]
+            )
 
-            if artifact_query["artifactType"] is None:
+            if not artifact_query or not artifact_query["project"]:
+                wandb.termerror(
+                    f"Project: '{project}' not found in entity: '{entity}' or access denied."
+                )
                 return []
 
-            artifacts = artifact_query["artifactType"]["artifactCollections"]["edges"]
+            if artifact_query["project"]["artifactType"] is None:
+                return []
+
+            artifacts = artifact_query["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
 
             return [x["node"]["artifacts"] for x in artifacts]
         except requests.exceptions.HTTPError:
