@@ -1,5 +1,5 @@
 base_url: https://api.wandb.ai
-max_jobs: -1
+max_jobs: 8
 entity: launch-release-testing
 queues:
 - kubernetes-queue
