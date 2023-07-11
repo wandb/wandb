@@ -6,6 +6,7 @@ type Responder interface {
 	Respond(response *service.ServerResponse)
 }
 
-type dispatchChannel interface {
-	Deliver(data *service.Result)
+type ResponderEntry struct {
+	Responder Responder
+	ID        string
 }

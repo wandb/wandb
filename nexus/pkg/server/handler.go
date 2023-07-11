@@ -17,7 +17,7 @@ type Handler struct {
 	inChan   chan *service.Record
 	outChan  chan<- *service.Record
 
-	dispatcherChan dispatchChannel
+	dispatcherChan chan<- *service.Result
 
 	currentStep int64
 	startTime   float64
@@ -37,7 +37,14 @@ func NewHandler(ctx context.Context, settings *service.Settings, logger *slog.Lo
 	return &handler
 }
 
-func (h *Handler) start() {
+func (h *Handler) do() {
+	h.logger.Debug("handler: started", "stream_id", h.settings.GetRunId())
+
+	defer func() {
+		h.close()
+		slog.Debug("handle: closed")
+	}()
+
 	for msg := range h.inChan {
 		LogRecord(h.logger, "handle: got msg", msg)
 		h.handleRecord(msg)
@@ -138,7 +145,7 @@ func (h *Handler) handleRequest(rec *service.Record) {
 		Control:    rec.Control,
 		Uuid:       rec.Uuid,
 	}
-	h.dispatcherChan.Deliver(result)
+	h.dispatcherChan <- result
 }
 
 func (h *Handler) sendRecord(rec *service.Record) {
@@ -150,9 +157,29 @@ func (h *Handler) sendRecord(rec *service.Record) {
 }
 
 func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartRequest) {
+	h.logger.Debug("PROCESS: run start")
 	var ok bool
 	run := req.Run
 
+	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
+	h.run, ok = proto.Clone(run).(*service.RunRecord)
+	if !ok {
+		LogFatal(h.logger, "handleRunStart: failed to clone run")
+	}
+	h.sendRecord(rec)
+
+	// NOTE: once this request arrives in the sender,
+	// the latter will start its filestream and uploader
+
+	// todo: this is a hack, we should not be sending metadata from here,
+	//  it should arrive as a proper request from the client.
+	//  attempting to do this before the run start request arrives in the sender
+	//  will cause a segfault because the sender's uploader is not initialized yet.
+	h.handleMetadata(rec, req)
+}
+
+func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
+	run := req.Run
 	// Sending metadata as a request for now, eventually this should be turned into
 	// a record and stored in the transaction log
 	meta := service.Record{
@@ -167,22 +194,6 @@ func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartReque
 					StartedAt: run.StartTime}}}}}
 
 	h.sendRecord(&meta)
-
-	/*
-		files := service.Record{
-			RecordType: &service.Record_Files{Files: &service.FilesRecord{Files: []*service.FilesItem{
-				&service.FilesItem{Path: MetaFilename},
-			}}},
-		}
-		h.sendRecord(&files)
-	*/
-
-	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
-	h.run, ok = proto.Clone(run).(*service.RunRecord)
-	if !ok {
-		LogFatal(h.logger, "handleRunStart: failed to clone run")
-	}
-	h.sendRecord(rec)
 }
 
 func (h *Handler) handleRun(rec *service.Record, _ *service.RunRecord) {
@@ -210,9 +221,10 @@ func (h *Handler) handleGetSummary(_ *service.Record, _ *service.GetSummaryReque
 func (h *Handler) handleDefer(rec *service.Record) {
 	// TODO: add defer state machine
 	req := rec.GetRequest().GetDefer()
+	slog.Debug("handler: Defer request", "reg", req.String())
 	switch req.State {
 	case service.DeferRequest_END:
-		h.close()
+		h.sendRecord(rec)
 	default:
 		h.sendRecord(rec)
 	}

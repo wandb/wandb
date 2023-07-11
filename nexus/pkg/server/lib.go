@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"fmt"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"os"
 	"strings"
+
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -18,7 +20,7 @@ func PrintHeadFoot(run *service.RunRecord, settings *service.Settings) {
 	colorBlue := "\033[34m"
 	colorYellow := "\033[33m"
 
-	appURL := strings.Replace(settings.GetBaseUrl().String(), "//api.", "//", 1)
+	appURL := strings.Replace(settings.GetBaseUrl().GetValue(), "//api.", "//", 1)
 	url := fmt.Sprintf("%v/%v/%v/runs/%v", appURL, run.Entity, run.Project, run.RunId)
 	fmt.Printf("%vwandb%v: 🚀 View run %v%v%v at: %v%v%v\n", colorBrightBlue, colorReset, colorYellow, run.DisplayName, colorReset, colorBlue, url, colorReset)
 }
@@ -65,7 +67,7 @@ func LibStartSettings(settings *service.Settings, runId string) int {
 	}
 
 	num := 42
-	s := NewStream(settings, "junk")
+	s := NewStream(context.Background(), settings, "junk")
 	s.Start()
 
 	c := make(chan *service.Record, 1000)

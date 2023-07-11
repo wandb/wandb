@@ -15,6 +15,20 @@ import (
 
 const historyFileName = "wandb-history.jsonl"
 
+type FsChunkData struct {
+	Offset  int      `json:"offset"`
+	Content []string `json:"content"`
+}
+
+type FsFilesData struct {
+	Files map[string]FsChunkData `json:"files"`
+}
+
+type FsFinishedData struct {
+	Complete bool `json:"complete"`
+	Exitcode int  `json:"exitcode"`
+}
+
 type FileStream struct {
 	wg     *sync.WaitGroup
 	inChan chan *service.Record
@@ -36,14 +50,14 @@ func NewFileStream(path string, settings *service.Settings, logger *slog.Logger)
 		logger:   logger,
 		inChan:   make(chan *service.Record)}
 	fs.wg.Add(1)
-	go fs.start()
+	go fs.do()
 	return &fs
 }
 
-func (fs *FileStream) start() {
+func (fs *FileStream) do() {
 	defer fs.wg.Done()
 
-	slog.Debug("FileStream: OPEN")
+	fs.logger.Debug("FileStream: do")
 
 	if fs.settings.GetXOffline().GetValue() {
 		return
@@ -51,11 +65,10 @@ func (fs *FileStream) start() {
 
 	fs.httpClient = newHttpClient(fs.settings.GetApiKey().GetValue())
 	for msg := range fs.inChan {
-		slog.Debug("FileStream *******")
 		LogRecord(fs.logger, "FileStream: got record", msg)
 		fs.streamRecord(msg)
 	}
-	slog.Debug("FileStream: finished")
+	fs.logger.Debug("FileStream: finished")
 }
 
 func (fs *FileStream) streamRecord(msg *service.Record) {
@@ -73,16 +86,6 @@ func (fs *FileStream) streamRecord(msg *service.Record) {
 }
 
 func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
-
-	type FsChunkData struct {
-		Offset  int      `json:"offset"`
-		Content []string `json:"content"`
-	}
-
-	type FsFilesData struct {
-		Files map[string]FsChunkData `json:"files"`
-	}
-
 	chunk := FsChunkData{
 		Offset:  fs.offset,
 		Content: []string{jsonify(msg, fs.logger)}}
@@ -95,11 +98,6 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 }
 
 func (fs *FileStream) streamFinish() {
-	type FsFinishedData struct {
-		Complete bool `json:"complete"`
-		Exitcode int  `json:"exitcode"`
-	}
-
 	data := FsFinishedData{Complete: true, Exitcode: 0}
 	fs.send(data)
 }
@@ -140,7 +138,7 @@ func (fs *FileStream) send(data interface{}) {
 	if err != nil {
 		LogError(fs.logger, "json decode error", err)
 	}
-	slog.Debug(fmt.Sprintf("FileStream: post response: %v", res))
+	fs.logger.Debug(fmt.Sprintf("FileStream: post response: %v", res))
 }
 
 func jsonify(msg *service.HistoryRecord, logger *slog.Logger) string {
@@ -162,7 +160,7 @@ func jsonify(msg *service.HistoryRecord, logger *slog.Logger) string {
 }
 
 func (fs *FileStream) close() {
-	slog.Debug("FileStream: CLOSE")
+	fs.logger.Debug("FileStream: CLOSE")
 	close(fs.inChan)
 	fs.wg.Wait()
 }

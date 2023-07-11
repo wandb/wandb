@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
@@ -33,14 +32,17 @@ func (w *Writer) Deliver(msg *service.Record) {
 	w.inChan <- msg
 }
 
-func (w *Writer) start(wg *sync.WaitGroup) {
-	defer wg.Done()
+func (w *Writer) do() {
+	defer func() {
+		w.close()
+		slog.Debug("writer: closed")
+	}()
+
+	slog.Debug("writer: started", "stream_id", w.settings.GetRunId())
 	for msg := range w.inChan {
 		LogRecord(w.logger, "write: got msg", msg)
 		w.writeRecord(msg)
 	}
-	w.close()
-	slog.Debug("writer: started and closed")
 }
 
 func (w *Writer) close() {
@@ -76,8 +78,3 @@ func (w *Writer) sendRecord(rec *service.Record) {
 	slog.Debug("WRITER: sendRecord: send")
 	w.outChan <- rec
 }
-
-// func (w *Writer) Flush() {
-// 	log.Debug("WRITER: close")
-// 	close(w.inChan)
-// }

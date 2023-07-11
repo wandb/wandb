@@ -24,9 +24,10 @@ func NewDispatcher(ctx context.Context, logger *slog.Logger) *Dispatcher {
 	return dispatcher
 }
 
-func (d *Dispatcher) AddResponder(responderId string, responder Responder) {
+func (d *Dispatcher) AddResponder(entry ResponderEntry) {
+	responderId := entry.ID
 	if _, ok := d.responders[responderId]; !ok {
-		d.responders[responderId] = responder
+		d.responders[responderId] = entry.Responder
 	} else {
 		slog.LogAttrs(
 			d.ctx,
@@ -36,11 +37,11 @@ func (d *Dispatcher) AddResponder(responderId string, responder Responder) {
 	}
 }
 
-func (d *Dispatcher) Deliver(result *service.Result) {
-	d.inChan <- result
-}
+func (d *Dispatcher) do() {
+	defer func() {
+		slog.Debug("dispatch: started and closed")
+	}()
 
-func (d *Dispatcher) start() {
 	// start the dispatcher
 	for msg := range d.inChan {
 		responderId := msg.Control.ConnectionId

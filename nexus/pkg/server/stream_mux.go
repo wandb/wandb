@@ -1,8 +1,10 @@
 package server
 
 import (
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"fmt"
 	"sync"
+
+	"golang.org/x/exp/slog"
 )
 
 // StreamMux is a multiplexer for streams.
@@ -20,43 +22,57 @@ func NewStreamMux() *StreamMux {
 	}
 }
 
-// addStream adds a stream to the mux if it doesn't already exist.
-func (sm *StreamMux) addStream(streamId string, settings *service.Settings) *Stream {
+// AddStream adds a stream to the mux if it doesn't already exist.
+func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
-	stream, ok := sm.mux[streamId]
-	if !ok {
-		stream = NewStream(settings, streamId)
+	if _, ok := sm.mux[streamId]; !ok {
 		sm.mux[streamId] = stream
+		return nil
+	} else {
+		return fmt.Errorf("stream already exists")
 	}
-	return stream
 }
 
-func (sm *StreamMux) getStream(streamId string) (*Stream, bool) {
+func (sm *StreamMux) GetStream(streamId string) (*Stream, error) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
-	stream, ok := sm.mux[streamId]
-	return stream, ok
+	if stream, ok := sm.mux[streamId]; !ok {
+		return nil, fmt.Errorf("stream not found")
+	} else {
+		return stream, nil
+	}
 }
 
-// todo: add this when we have a way to remove mux
-// func (sm *StreamMux) removeStream(streamId string) {
-//  	sm.mutex.Lock()
-//  	defer sm.mutex.Unlock()
-//  	delete(sm.mux, streamId)
-// }
+// RemoveStream removes a stream from the mux.
+func (sm *StreamMux) RemoveStream(streamId string) (*Stream, error) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	if stream, ok := sm.mux[streamId]; !ok {
+		return nil, fmt.Errorf("stream not found %s", streamId)
+	} else {
+		delete(sm.mux, streamId)
+		return stream, nil
+	}
+}
 
-// Close closes all streams in the mux.
-func (sm *StreamMux) Close() {
+// CloseAllStreams closes all streams in the mux.
+func (sm *StreamMux) CloseAllStreams(force bool) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
 	wg := sync.WaitGroup{}
-	for _, stream := range sm.mux {
+	for streamId, stream := range sm.mux {
 		wg.Add(1)
-		go stream.Close(&wg) // test this
+		go func(stream *Stream) {
+			stream.Close(force)
+			wg.Done()
+		}(stream)
+		// delete all streams from mux
+		delete(sm.mux, streamId)
 	}
 	wg.Wait()
+	slog.Debug("all streams were closed")
 }
 
 // StreamMux is a singleton.

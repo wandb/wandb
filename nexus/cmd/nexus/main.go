@@ -19,16 +19,22 @@ func main() {
 	flag.Parse()
 
 	server.SetupDefaultLogger()
+	ctx := context.Background()
 
 	slog.LogAttrs(
-		context.Background(),
+		ctx,
 		slog.LevelDebug,
 		"Flags",
 		slog.String("fname", *portFilename),
 		slog.Int("pid", *pid),
 		slog.Bool("debug", *debug),
 		slog.Bool("serveSock", *serveSock),
-		slog.Bool("serveGrpc", *serveGrpc))
+		slog.Bool("serveGrpc", *serveGrpc),
+	)
 
-	server.WandbService(*portFilename)
+	slog.Info("server: starting")
+
+	nexus := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
+	nexus.Close()
+	slog.Debug("server: closed")
 }
