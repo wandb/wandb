@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
@@ -20,9 +20,6 @@ from wandb.sdk.lib import runid
 from .._project_spec import LaunchProject
 
 _logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    pass
 
 
 if sys.version_info >= (3, 8):

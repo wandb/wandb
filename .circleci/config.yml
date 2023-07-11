@@ -597,7 +597,7 @@ jobs:
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: large
     environment:
       COVERAGE_DIR: << parameters.coverage_dir >>
     steps:

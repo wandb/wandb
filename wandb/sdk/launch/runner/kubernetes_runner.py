@@ -503,18 +503,16 @@ class KubernetesRunner(AbstractRunner):
                     "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             assert entry_point is not None
-            # assert builder is not None
-            # image_uri = builder.build_image(launch_project, entry_point, job_tracker)
-            # image_uri = image_uri.replace("https://", "")
             launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             containers[0]["image"] = image_uri
             launch_project.fill_macros(image_uri)
 
-        if not self.registry:
+        if isinstance(self.registry, LocalRegistry):
             raise LaunchError(
-                "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
+                "No registry specified. Please configure a registry in your launch config. "
+                "See https://docs.wandb.ai/guides/launch/run-agent#registries for more details."
             )
         secret = maybe_create_imagepull_secret(
             core_api, self.registry, launch_project.run_id, namespace
