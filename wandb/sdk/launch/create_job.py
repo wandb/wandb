@@ -401,6 +401,13 @@ def _handle_artifact_entrypoint(
         wandb.termerror("Entrypoint not valid")
         return "", None
     path = path or "."  # when path is just an entrypoint, use cdw
+
+    if not os.path.exists(os.path.join(path, entrypoint)):
+        wandb.termerror(
+            f"Could not find execution point: {os.path.join(path, entrypoint)}"
+        )
+        return "", None
+
     return path, entrypoint
 
 
