@@ -1477,8 +1477,8 @@ workflows:
             - "functional-tests"
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
+              python_version_major: [ 3 ]
+              python_version_minor: [ 9 ]
               shard:
                 - "mitm"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1599,24 +1599,24 @@ workflows:
           toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-notebooks-linux-circle"
           coverage_dir: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_notebooks"
-      #      - win:
-      #          matrix:
-      #            parameters:
-      #              python_version_major: [3]
-      #              python_version_minor: [9]
-      #          name: "system-notebooks-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #          parallelism: 1
-      #          xdist: 1
-      #      - mac:
-      #          matrix:
-      #            parameters:
-      #              python_version_major: [3]
-      #              python_version_minor: [9]
-      #          name: "system-notebooks-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #          parallelism: 1
-      #          xdist: 1
+#      - win:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "system-notebooks-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          parallelism: 1
+#          xdist: 1
+#      - mac:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "system-notebooks-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          parallelism: 1
+#          xdist: 1
       #
       # functional tests with different executors
       #
