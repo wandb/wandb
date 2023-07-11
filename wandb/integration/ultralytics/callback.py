@@ -166,13 +166,12 @@ class WandBUltralyticsCallback:
     def on_predict_end(
         self, predictor: Union[DetectionPredictor, SegmentationPredictor]
     ):
-        if isinstance(predictor, DetectionPredictor):
+        if isinstance(predictor, DetectionPredictor) or isinstance(
+            predictor, SegmentationPredictor
+        ):
             for result in tqdm(predictor.results):
                 self.prediction_table = plot_predictions(result, self.prediction_table)
-        elif isinstance(predictor, SegmentationPredictor):
-            for result in tqdm(predictor.results):
-                self.prediction_table = plot_predictions(result, self.prediction_table)
-        wandb.log({"Prediction-Table": self.prediction_table})
+            wandb.log({"Prediction-Table": self.prediction_table})
 
     @property
     def callbacks(self) -> Dict[str, Callable]:

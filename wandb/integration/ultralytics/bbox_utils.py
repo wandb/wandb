@@ -133,41 +133,12 @@ def get_boxes(result: Results) -> Tuple[Dict, Dict]:
     return boxes, mean_confidence_map
 
 
-def get_masks(result: Results) -> Dict:
-    instance_masks = result.masks.data.long().numpy()
-    classes = result.boxes.cls.long().numpy()
-    unique_classes = list(set(list(set(classes))))
-    original_image = result.orig_img[:, :, ::-1]
-    class_id_to_label = {int(k): str(v) for k, v in result.names.items()}
-    masks, instance_counter = {}, {unique_class: 0 for unique_class in unique_classes}
-    for idx, class_id in enumerate(classes):
-        instance_mask = np.asarray(
-            Image.fromarray(instance_masks[idx].astype(np.uint8)).resize(
-                size=(original_image.shape[:-1]), resample=Image.NEAREST
-            )
-        )
-        masks.update(
-            {
-                f"prediction-instance-{class_id_to_label[class_id]}#{instance_counter[class_id]}": {
-                    "mask_data": instance_mask,
-                    "class_labels": {
-                        0: "background",
-                        1: f"{class_id_to_label[class_id]}#{instance_counter[class_id]}",
-                    },
-                }
-            }
-        )
-        instance_counter[class_id] += 1
-    return masks
-
-
 def plot_predictions(
     result: Results, table: Optional[wandb.Table] = None
 ) -> Union[wandb.Table, Tuple[wandb.Image, Dict, Dict]]:
     result = result.to("cpu")
     boxes, mean_confidence_map = get_boxes(result)
-    masks = get_masks(result)
-    image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes, masks=masks)
+    image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes)
     if table is not None:
         table.add_data(
             image,
@@ -208,23 +179,15 @@ def plot_validation_results(
                         "predictions": prediction_box_data,
                     },
                 )
-                if epoch is None:
-                    table.add_data(
-                        data_idx,
-                        batch_idx,
-                        wandb_image,
-                        mean_confidence_map,
-                        prediction_result.speed,
-                    )
-                else:
-                    table.add_data(
-                        epoch,
-                        data_idx,
-                        batch_idx,
-                        wandb_image,
-                        mean_confidence_map,
-                        prediction_result.speed,
-                    )
+                table_row = [
+                    data_idx,
+                    batch_idx,
+                    wandb_image,
+                    mean_confidence_map,
+                    prediction_result.speed,
+                ]
+                table_row = [epoch] + table_row if epoch is not None else table_row
+                table.add_data(*table_row)
                 data_idx += 1
             except TypeError:
                 pass
