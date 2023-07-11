@@ -393,6 +393,54 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         assert "except caught, failed item" in result.output
 
 
+@pytest.mark.parametrize(
+    "path,job_type",
+    [
+        ("./test.py", "code"),
+        ("test.py", "code"),
+    ],
+)
+def test_create_job_no_reqs(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        result = runner.invoke(
+            cli.job,
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert "Could not find requirements.txt file" in result.output
+
+
+@pytest.mark.parametrize(
+    "path,job_type",
+    [
+        ("./test.py", "123"),
+        ("./test.py", ""),
+        (".test.py", "docker"),
+        (".test.py", "repo"),
+    ],
+)
+def test_create_job_bad_type(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        with open("requirements.txt", "w") as f:
+            f.write("wandb\n")
+
+        result = runner.invoke(
+            cli.job,
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert (
+            "ERROR" in result.output
+            or "Usage: job create [OPTIONS] {git|code|image} PATH" in result.output
+        )
+
+
 def patched_run_run_entry(cmd, dir):
     print(f"running command: {cmd}")
     return cmd  # noop
