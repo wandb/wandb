@@ -15,7 +15,7 @@ import os
 import sys
 import time
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -447,14 +447,81 @@ class InterfaceBase:
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         raise NotImplementedError
 
+    @staticmethod
+    def _make_partial_source_str(
+        source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
+    ) -> str:
+        """Construct use_artifact.partial.source_info.sourc as str."""
+        source_type = job_info.get("source_type", "").strip()
+        if source_type == "artifact":
+            info_source = job_info.get("source", {})
+            source.artifact.artifact = info_source.get("artifact", "")
+            source.artifact.entrypoint.extend(info_source.get("entrypoint", []))
+            source.artifact.notebook = info_source.get("notebook", False)
+        elif source_type == "repo":
+            source.git.git_info.remote = metadata.get("git", {}).get("remote", "")
+            source.git.git_info.commit = metadata.get("git", {}).get("commit", "")
+            source.git.entrypoint.extend(metadata.get("entrypoint", []))
+            source.git.notebook = metadata.get("notebook", False)
+        elif source_type == "image":
+            source.image.image = metadata.get("image", "")
+        else:
+            raise ValueError("Invalid source type")
+
+        source_str: str = source.SerializeToString()
+        return source_str
+
+    def _make_proto_use_artifact(
+        self,
+        use_artifact: pb.UseArtifactRecord,
+        job_name: str,
+        job_info: Dict[str, Any],
+        metadata: Dict[str, Any],
+    ) -> pb.UseArtifactRecord:
+        use_artifact.partial.job_name = job_name
+        use_artifact.partial.source_info._version = job_info.get("_version", "")
+        use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
+        use_artifact.partial.source_info.runtime = job_info.get("runtime", "")
+
+        src_str = self._make_partial_source_str(
+            source=use_artifact.partial.source_info.source,
+            job_info=job_info,
+            metadata=metadata,
+        )
+        use_artifact.partial.source_info.source.ParseFromString(src_str)
+
+        return use_artifact
+
     def publish_use_artifact(
         self,
         artifact: "Artifact",
     ) -> None:
         assert artifact.id is not None, "Artifact must have an id"
+
         use_artifact = pb.UseArtifactRecord(
-            id=artifact.id, type=artifact.type, name=artifact.name
+            id=artifact.id,
+            type=artifact.type,
+            name=artifact.name,
         )
+
+        # TODO(gst): move to internal process
+        if "_partial" in artifact.metadata:
+            # Download source info from logged partial job artifact
+            job_info = {}
+            try:
+                path = artifact.get_path("wandb-job.json").download()
+                with open(path) as f:
+                    job_info = json.load(f)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to download partial job info from artifact {artifact}, : {e}"
+                )
+            use_artifact = self._make_proto_use_artifact(
+                use_artifact=use_artifact,
+                job_name=artifact.name,
+                job_info=job_info,
+                metadata=artifact.metadata,
+            )
 
         self._publish_use_artifact(use_artifact)
 
