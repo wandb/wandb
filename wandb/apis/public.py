@@ -433,7 +433,7 @@ class Api:
     def create_run_queue(
         self,
         name: str,
-        type: "RunQueueType",
+        type: "RunQueueResourceType",
         access: "RunQueueAccessType",
         entity: Optional[str] = None,
         config: dict = {},
@@ -442,7 +442,7 @@ class Api:
 
         Arguments:
             name: (str) Name of the queue to create
-            resource: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
+            type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
             access: (str) Access level for the queue. Either "project" or "user".
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             config: (dict) Optional default resource configuration to be used for the queue.
@@ -485,7 +485,7 @@ class Api:
                 "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', or 'gcp-vertex'"
             )
 
-        # 1. create required launch project in the entity
+        # 1. create required default launch project in the entity
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
 
         api = InternalApi(
@@ -496,17 +496,14 @@ class Api:
             retry_timedelta=RETRY_TIMEDELTA,
         )
 
-        # 2. if present, create default resource config, receive config id
-        if config is not None:
-            config_json = json.dumps({"resource_args": {type: config}})
-            create_config_result = api.create_default_resource_config(
-                entity, LAUNCH_DEFAULT_PROJECT, type, config_json
-            )
-            if create_config_result["success"] == False:
-                raise wandb.Error("failed to create default resource config")
-            config_id = create_config_result["defaultResourceConfigID"]
-        else:
-            config_id = None
+        # 2. create default resource config, receive config id
+        config_json = json.dumps({"resource_args": {type: config}})
+        create_config_result = api.create_default_resource_config(
+            entity, LAUNCH_DEFAULT_PROJECT, type, config_json
+        )
+        if create_config_result["success"] == False:
+            raise wandb.Error("failed to create default resource config")
+        config_id = create_config_result["defaultResourceConfigID"]
 
         # 3. create run queue
         create_queue_result = api.create_run_queue(
@@ -967,7 +964,7 @@ class Api:
         name,
     ):
         """Return the named `RunQueue` for entity.
-        
+
         To create a new `RunQueue`, use `wandb.Api().create_run_queue(...)`."""
         return RunQueue(
             self.client,
@@ -2557,7 +2554,7 @@ class QueuedRun:
         return f"<QueuedRun {self.queue_name} ({self.id})"
 
 
-RunQueueType = Literal[
+RunQueueResourceType = Literal[
     "local-container", "local-process", "kubernetes", "sagemaker", "gcp-vertex"
 ]
 RunQueueAccessType = Literal["project", "user"]
@@ -2579,6 +2576,7 @@ class RunQueue:
         self._access: RunQueueAccessType = _access
         self._default_resource_config_id = _default_resource_config_id
         self._default_resource_config = _default_resource_config
+        self._type = None
         self._items = None
 
     @property
@@ -2594,6 +2592,14 @@ class RunQueue:
         if self._access is None:
             self._get_metadata()
         return self._access
+
+    @property
+    def type(self) -> RunQueueResourceType:
+        if self._type is None:
+            if self._default_resource_config_id is None:
+                self._get_metadata()
+            self._get_default_resource_config()
+        return self._type
 
     @property
     def default_resource_config(self):
@@ -2612,7 +2618,7 @@ class RunQueue:
         return self._items
 
     def __repr__(self):
-        return f"<RunQueue {self._entity}/{self._name} ({self._type})>"
+        return f"<RunQueue {self._entity}/{self._name}>"
 
     @normalize_exceptions
     def _get_metadata(self):
@@ -2622,7 +2628,7 @@ class RunQueue:
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueue) {
                         access
-                        defaultResourceConfigId
+                        defaultResourceConfigID
                     }
                 }
             }
@@ -2636,7 +2642,7 @@ class RunQueue:
         res = self._client.execute(query, variable_values)
         self._access = res["project"]["runQueue"]["access"]
         self._default_resource_config_id = res["project"]["runQueue"][
-            "defaultResourceConfigId"
+            "defaultResourceConfigID"
         ]
         if self._default_resource_config_id is None:
             self._default_resource_config = {}
@@ -2645,24 +2651,23 @@ class RunQueue:
     def _get_default_resource_config(self):
         query = gql(
             """
-            query GetDefaultResourceConfig($projectName: String!, $entityName: String!, $id: ID!) {
-                project(name: $projectName, entityName: $entityName) {
+            query GetDefaultResourceConfig($entityName: String!, $id: ID!) {
+                entity(name: $entityName) {
                     defaultResourceConfig(id: $id) {
                         config
                         resource
-                        scope 
                     }
                 }
             }
         """
         )
         variable_values = {
-            "projectName": LAUNCH_DEFAULT_PROJECT,
             "entityName": self._entity,
             "id": self._default_resource_config_id,
         }
         res = self._client.execute(query, variable_values)
-        self._default_resource_config = res["project"]["defaultResourceConfig"][
+        self._type = res["entity"]["defaultResourceConfig"]["resource"]
+        self._default_resource_config = res["entity"]["defaultResourceConfig"][
             "config"
         ]
 
@@ -2707,7 +2712,7 @@ class RunQueue:
     def create(
         cls,
         name: str,
-        resource: "RunQueueType",
+        resource: "RunQueueResourceType",
         access: "RunQueueAccessType",
         entity: Optional[str] = None,
         config: dict = {},
