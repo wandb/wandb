@@ -1271,18 +1271,61 @@ class Api:
         return project_run_queues
 
     @normalize_exceptions
-    def create_run_queue(
-        self, entity: str, project: str, queue_name: str, access: str
+    def create_default_resource_config(
+        self, entity: str, project: str, resource: str, config: str
     ) -> Optional[Dict[str, Any]]:
         query = gql(
             """
-        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+        mutation createDefaultResourceConfig(
+            $entityName: String!
+            $projectName: String
+            $resource: String!
+            $config: JSONString!
+        ) {
+            createDefaultResourceConfig(
+            input: {
+                entityName: $entityName
+                projectName: $projectName
+                resource: $resource
+                config: $config
+            }
+            ) {
+            defaultResourceConfigID
+            success
+            }
+        }
+        """
+        )
+        variable_values = {
+            "entityName": entity,
+            "projectName": project,
+            "resource": resource,
+            "config": config,
+        }
+        result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
+            "createDefaultResourceConfig"
+        ]
+        return result
+
+    @normalize_exceptions
+    def create_run_queue(
+        self,
+        entity: str,
+        project: str,
+        queue_name: str,
+        access: str,
+        config_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        query = gql(
+            """
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $defaultResourceConfigID: ID) {
             createRunQueue(
                 input: {
                     entityName: $entity,
                     projectName: $project,
                     queueName: $queueName,
-                    access: $access
+                    access: $access,
+                    defaultResourceConfigID: $defaultResourceConfigID
                 }
             ) {
                 success
@@ -1292,10 +1335,11 @@ class Api:
         """
         )
         variable_values = {
-            "project": project,
             "entity": entity,
-            "access": access,
+            "project": project,
             "queueName": queue_name,
+            "access": access,
+            "defaultResourceConfigID": config_id,
         }
         result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
             "createRunQueue"

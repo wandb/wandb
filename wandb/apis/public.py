@@ -26,6 +26,7 @@ from typing import (
     Any,
     Dict,
     List,
+    Literal,
     Mapping,
     MutableMapping,
     Optional,
@@ -428,6 +429,95 @@ class Api:
 
     def create_project(self, name: str, entity: str):
         self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
+
+    def create_run_queue(
+        self,
+        name: str,
+        resource: Literal[
+            "local-container", "local-process", "kubernetes", "sagemaker", "gcp-vertex"
+        ],
+        access: Literal["project", "user"],
+        entity: Optional[str] = None,
+        config: Optional[dict] = None,
+    ) -> None:
+        """Create a new run queue (launch).
+
+        Arguments:
+            name: (str) Name of the queue to create
+            resource: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
+            access: (str) Access level to be used for the queue. One of "project" or "user".
+            entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
+            config: (dict) Optional default resource configuration to be used for the queue.
+
+        Returns:
+            Boolean indicating success
+
+        Raises:
+            ValueError if any of the parameters are invalid
+            wandb.Error on wandb API errors
+        """
+        
+        # TODO(np): Need to check server capabilities for this feature
+
+        # 0. assert params are valid/normalized
+        if entity is None:
+            entity = self.settings["entity"] or self.default_entity
+            if entity is None:
+                raise ValueError(
+                    "entity must be passed as a parameter, or set in settings"
+                )
+
+        if len(name) == 0:
+            raise ValueError("queue_name must be non-empty")
+        if len(name) > 64:
+            raise ValueError("queue_name must be less than 64 characters")
+
+        access = access.upper()
+        if access not in ["PROJECT", "USER"]:
+            raise ValueError("access must be one of 'project' or 'user'")
+
+        if resource not in [
+            "local-container",
+            "local-process",
+            "kubernetes",
+            "sagemaker",
+            "gcp-vertex",
+        ]:
+            raise ValueError(
+                "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', or 'gcp-vertex'"
+            )
+
+        # 1. create launch project in the entity
+        self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
+
+        api = InternalApi(
+            default_settings={
+                "entity": self.entity,
+                "project": self.project(LAUNCH_DEFAULT_PROJECT),
+            },
+            retry_timedelta=RETRY_TIMEDELTA,
+        )
+
+        # 2. if present, create default resource config, receive config id
+        if config is not None:
+            config_json = json.dumps({"resource_args": {[resource]: config}})
+            create_config_result = api.create_default_resource_config(
+                entity, LAUNCH_DEFAULT_PROJECT, resource, config_json
+            )
+            if create_config_result["success"] == False:
+                raise wandb.Error("failed to create default resource config")
+            config_id = create_config_result["defaultResourceConfigID"]
+        else:
+            config_id = None
+
+        # 3. create run queue
+        create_queue_result = api.create_run_queue(
+            entity, LAUNCH_DEFAULT_PROJECT, name, access, config_id
+        )
+        if create_queue_result["success"] == False:
+            raise wandb.Error("failed to create run queue")
+        
+        return True
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """Get report at a given path.
