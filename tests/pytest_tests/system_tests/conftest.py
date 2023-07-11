@@ -716,7 +716,6 @@ def relay_server(base_url):
 def wandb_init(user, test_settings, request):
     # mirror wandb.sdk.wandb_init.init args, overriding name and entity defaults
     def init(
-        job_name: Optional[str] = None,
         job_type: Optional[str] = None,
         dir: Optional[str] = None,
         config: Union[Dict, str, None] = None,
