@@ -1437,9 +1437,11 @@ class Api:
                 queue_id = res["queueID"]
 
             else:
-                wandb.termwarn(
-                    f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
-                )
+                if project_queue == "model-registry":
+                    _msg = f"Unable to push to run queue {queue_name}. Queue not found."
+                else:
+                    _msg = f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
+                wandb.termwarn(_msg)
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
