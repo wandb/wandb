@@ -404,6 +404,9 @@ class Api:
         )
         self._client = RetryingClient(self._base_client)
 
+    def create_project(self, name: str, entity: str):
+        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
+
     def create_run(self, **kwargs):
         """Create a new run."""
         if kwargs.get("entity") is None:
@@ -426,9 +429,6 @@ class Api:
         return wandb.apis.reports.Report(
             project, entity, title, description, width, blocks
         ).save()
-
-    def create_project(self, name: str, entity: str):
-        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
 
     def create_run_queue(
         self,
@@ -456,7 +456,7 @@ class Api:
             ValueError if any of the parameters are invalid
             wandb.Error on wandb API errors
         """
-        
+
         # TODO(np): Need to check server capabilities for this feature
 
         # 0. assert params are valid/normalized
@@ -487,7 +487,7 @@ class Api:
                 "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', or 'gcp-vertex'"
             )
 
-        # 1. create launch project in the entity
+        # 1. create required launch project in the entity
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
 
         api = InternalApi(
@@ -516,7 +516,7 @@ class Api:
         )
         if create_queue_result["success"] == False:
             raise wandb.Error("failed to create run queue")
-        
+
         return True
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
