@@ -378,6 +378,7 @@ class SettingsData:
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
+    job_name: str
     job_source: str
     label_disable: bool
     launch: bool
@@ -734,6 +735,7 @@ class Settings(SettingsData):
                 ),
                 "auto_hook": True,
             },
+            job_name={"preprocessor": str},
             job_source={"validator": self._validate_job_source},
             label_disable={"preprocessor": _str_as_bool},
             launch={"preprocessor": _str_as_bool},

@@ -196,6 +196,10 @@ class JobBuilder:
             "notebook": self._is_notebook_run(),
         }
 
+        if self._settings.job_name:
+            name = self._settings.job_name
+        else:
+            name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
         # if building a partial job from CLI, don't construct local entrypoint
         # or notebook flag entrypoint should already be in metadata from create_job
         if metadata.get("_partial"):
@@ -207,8 +211,6 @@ class JobBuilder:
                     "notebook": metadata["notebook"],
                 }
             )
-        name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
-
         return source, name
 
     def _build_artifact_job_source(
@@ -240,7 +242,11 @@ class JobBuilder:
             "notebook": self._is_notebook_run(),
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
-        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+
+        if self._settings.job_name:
+            name = self._settings.job_name
+        else:
+            name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         return source, name
 
@@ -255,7 +261,10 @@ class JobBuilder:
             raw_image_name, tag = image_name.split(":")
             self._aliases += [tag]
 
-        name = make_artifact_name_safe(f"job-{raw_image_name}")
+        if self._settings.job_name:
+            name = self._settings.job_name
+        else:
+            name = make_artifact_name_safe(f"job-{raw_image_name}")
         source: ImageSourceDict = {
             "image": image_name,
         }
