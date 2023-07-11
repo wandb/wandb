@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 WRITE_PERMISSIONS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH | stat.S_IWRITE
 
 
-def mkdir_exists_ok(dir_name: str) -> None:
+def mkdir_exists_ok(dir_name: StrPath) -> None:
     """Create `dir_name` and any parent directories if they don't exist.
 
     Raises:
