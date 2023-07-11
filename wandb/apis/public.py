@@ -37,7 +37,7 @@ from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
-from wandb import __version__, env, util
+from wandb import env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError
@@ -487,7 +487,7 @@ class Api:
 
     @property
     def user_agent(self):
-        return "W&B Public Client %s" % __version__
+        return "W&B Public Client %s" % wandb.__version__
 
     @property
     def api_key(self):
@@ -923,7 +923,9 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = wandb.Artifact.from_name(entity, project, artifact_name, self.client)
+        artifact = wandb.Artifact._from_name(
+            entity, project, artifact_name, self.client
+        )
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
@@ -939,6 +941,75 @@ class Api:
                 "Invalid job specification. A job must be of the form: <entity>/<project>/<job-name>:<alias-or-version>"
             )
         return Job(self, name, path)
+
+    @normalize_exceptions
+    def list_jobs(self, entity, project):
+        if entity is None:
+            raise ValueError("Specify an entity when listing jobs")
+        if project is None:
+            raise ValueError("Specify a project when listing jobs")
+
+        query = gql(
+            """
+        query ArtifactOfType(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactCollections {
+                        edges {
+                            node {
+                                artifacts {
+                                    edges {
+                                        node {
+                                            id
+                                            state
+                                            aliases {
+                                                alias
+                                            }
+                                            artifactSequence {
+                                                name
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+
+        try:
+            artifact_query = self._client.execute(
+                query,
+                {
+                    "projectName": project,
+                    "entityName": entity,
+                    "artifactTypeName": "job",
+                },
+            )
+
+            if not artifact_query or not artifact_query["project"]:
+                wandb.termerror(
+                    f"Project: '{project}' not found in entity: '{entity}' or access denied."
+                )
+                return []
+
+            if artifact_query["project"]["artifactType"] is None:
+                return []
+
+            artifacts = artifact_query["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
+
+            return [x["node"]["artifacts"] for x in artifacts]
+        except requests.exceptions.HTTPError:
+            return False
 
 
 class Attrs:
@@ -3812,7 +3883,7 @@ class RunArtifacts(Paginator):
             }
             %s
             """
-            % wandb.Artifact.GQL_FRAGMENT
+            % wandb.Artifact._GQL_FRAGMENT
         )
 
         input_query = gql(
@@ -3840,7 +3911,7 @@ class RunArtifacts(Paginator):
             }
             %s
             """
-            % wandb.Artifact.GQL_FRAGMENT
+            % wandb.Artifact._GQL_FRAGMENT
         )
 
         self.run = run
@@ -3888,7 +3959,7 @@ class RunArtifacts(Paginator):
 
     def convert_objects(self):
         return [
-            wandb.Artifact.from_attrs(
+            wandb.Artifact._from_attrs(
                 self.run.entity,
                 self.run.project,
                 "{}:v{}".format(
@@ -4142,7 +4213,7 @@ class ArtifactVersions(Paginator):
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
-                wandb.Artifact.GQL_FRAGMENT,
+                wandb.Artifact._GQL_FRAGMENT,
             )
         )
         super().__init__(client, variables, per_page)
@@ -4178,7 +4249,7 @@ class ArtifactVersions(Paginator):
         if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
         return [
-            wandb.Artifact.from_attrs(
+            wandb.Artifact._from_attrs(
                 self.entity,
                 self.project,
                 self.collection_name + ":" + a["version"],
@@ -4286,6 +4357,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
     _notebook_job: bool
+    _partial: bool
 
     def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
@@ -4308,6 +4380,7 @@ class Job:
         self._notebook_job = source_info.get("notebook", False)
         self._entrypoint = source_info.get("entrypoint")
         self._args = source_info.get("args")
+        self._partial = self._job_info.get("_partial", False)
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
             self._job_info.get("input_types")
@@ -4315,7 +4388,6 @@ class Job:
         self._output_types = TypeRegistry.type_from_dict(
             self._job_info.get("output_types")
         )
-
         if self._job_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
         if self._job_info.get("source_type") == "repo":
@@ -4333,7 +4405,7 @@ class Job:
     def _get_code_artifact(self, artifact_string):
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
-            code_artifact = wandb.Artifact.from_id(artifact_string, self._api._client)
+            code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
         else:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
@@ -4415,8 +4487,13 @@ class Job:
         run_config.update(config)
 
         assigned_config_type = self._input_types.assign(run_config)
-        if isinstance(assigned_config_type, InvalidType):
-            raise TypeError(self._input_types.explain(run_config))
+        if self._partial:
+            wandb.termwarn(
+                "Launching manually created job for the first time, can't verify types"
+            )
+        else:
+            if isinstance(assigned_config_type, InvalidType):
+                raise TypeError(self._input_types.explain(run_config))
 
         queued_run = launch_add.launch_add(
             job=self._name,

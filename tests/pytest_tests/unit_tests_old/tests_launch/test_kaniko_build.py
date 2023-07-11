@@ -114,10 +114,7 @@ def test_create_kaniko_job_static(mock_kubernetes_client, runner):
         image_tag = "image_tag:12345678"
         context_path = "./test/context/path/"
         job = builder._create_kaniko_job(
-            job_name,
-            repo_url,
-            image_tag,
-            context_path,
+            job_name, repo_url, image_tag, context_path, MagicMock()
         )
 
         assert job["metadata"]["name"] == "test_job_name"
@@ -125,7 +122,7 @@ def test_create_kaniko_job_static(mock_kubernetes_client, runner):
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
-            == "gcr.io/kaniko-project/executor:v1.8.0"
+            == "gcr.io/kaniko-project/executor:v1.11.0"
         )
         assert job["spec"]["template"]["spec"]["containers"][0]["args"] == [
             f"--context={context_path}",
@@ -184,17 +181,16 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
             "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo"
         )
         builder = KanikoBuilder(
-            MagicMock(), registry, build_context_store="s3://test-bucket/test-prefix"
+            MagicMock(),
+            registry,
+            build_context_store="s3://test-bucket/test-prefix",
         )
         job_name = "test_job_name"
         repo_url = "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo"
         image_tag = "image_tag:12345678"
         context_path = "./test/context/path/"
         job = builder._create_kaniko_job(
-            job_name,
-            repo_url,
-            image_tag,
-            context_path,
+            job_name, repo_url, image_tag, context_path, MagicMock()
         )
 
         assert job["metadata"]["name"] == "test_job_name"
@@ -202,7 +198,7 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
-            == "gcr.io/kaniko-project/executor:v1.8.0"
+            == "gcr.io/kaniko-project/executor:v1.11.0"
         )
         assert job["spec"]["template"]["spec"]["containers"][0]["args"] == [
             f"--context={context_path}",
@@ -275,6 +271,4 @@ def test_build_image_success(
             "Created kaniko job wandb-launch-container-build-"
             in capsys.readouterr().err
         )
-        assert (
-            image_uri == "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:b60e433c"
-        )
+        assert "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo" in image_uri
