@@ -120,3 +120,13 @@ def setup_cleanup_on_exit(namespace: str):
         sys.exit(1)
 
     signal.signal(signal.SIGINT, cleanup)
+
+
+def update_dict(original, updated):
+    """Recursively apply a patch dict to an original. Any item that's not a dict (list, str, etc) is copied over
+    entirely and overwrites contents of original."""
+    for key, value in updated.items():
+        if isinstance(value, dict) and key in original:
+            update_dict(original[key], value)
+        else:
+            original[key] = value

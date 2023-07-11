@@ -1,6 +1,7 @@
 import os
 
 import pytest
+import yaml
 from utils import (
     cleanup_deployment,
     create_wandb_and_aws_secrets,
@@ -9,6 +10,7 @@ from utils import (
     run_cmd_async,
     setup_cleanup_on_exit,
     wait_for_image_job_completion,
+    update_dict,
 )
 from wandb.sdk.launch.launch_add import launch_add
 
@@ -19,60 +21,14 @@ QUEUE = "kubernetes-queue"
 JOB_NAME = "sample_job:v0"  # simple job that counts to 50
 
 LAUNCH_JOB_CONFIG = {
-    "resource_args": {
-        "kubernetes": {
-            "namespace": NAMESPACE,
-            "spec": {
-                "template": {
-                    "spec": {
-                        "containers": [
-                            {
-                                "env": [
-                                    {
-                                        "name": "WANDB_API_KEY",
-                                        "valueFrom": {
-                                            "secretKeyRef": {
-                                                "name": "wandb-api-key",
-                                                "key": "password",
-                                            }
-                                        },
-                                    },
-                                    {
-                                        "name": "AWS_ACCESS_KEY_ID",
-                                        "valueFrom": {
-                                            "secretKeyRef": {
-                                                "name": "aws-access-key-id",
-                                                "key": "password",
-                                            }
-                                        },
-                                    },
-                                    {
-                                        "name": "AWS_SECRET_ACCESS_KEY",
-                                        "valueFrom": {
-                                            "secretKeyRef": {
-                                                "name": "aws-secret-access-key",
-                                                "key": "password",
-                                            }
-                                        },
-                                    },
-                                    {
-                                        "name": "AWS_SESSION_TOKEN",
-                                        "valueFrom": {
-                                            "secretKeyRef": {
-                                                "name": "aws-session-token",
-                                                "key": "password",
-                                            }
-                                        },
-                                    },
-                                ]
-                            }
-                        ]
-                    }
-                }
-            },
-        }
-    },
+    "resource_args": {"kubernetes": {"namespace": NAMESPACE}},
 }
+
+AWS_CREDENTIALS_FORMAT = """[default]
+aws_access_key_id = {aws_id}
+aws_secret_access_key = {aws_secret}
+aws_session_token = {aws_token}
+"""
 
 
 @pytest.mark.timeout(180)
@@ -83,7 +39,12 @@ def test_kubernetes_agent_on_local_process(api_key, base_url):
     aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
     aws_token = os.getenv("AWS_SESSION_TOKEN")
 
-    create_wandb_and_aws_secrets(NAMESPACE, api_key, aws_id, aws_secret, aws_token)
+    with open(os.path.expanduser("~/.aws/credentials"), "w") as f:
+        f.write(
+            AWS_CREDENTIALS_FORMAT.format(
+                aws_id=aws_id, aws_secret=aws_secret, aws_token=aws_token
+            )
+        )
 
     try:
         # Start launch agent
@@ -118,6 +79,35 @@ def test_kubernetes_agent_on_local_process(api_key, base_url):
         run_cmd("rm -r artifacts")
 
 
+def _create_config_files():
+    """Create a launch-config.yml and launch-agent.yml."""
+    launch_config = yaml.load_all(
+        open("wandb/sdk/launch/deploys/aws-eks/launch-config.yaml")
+    )
+    launch_config_patch = yaml.load_all(
+        open("tests/release_tests/test_launch/launch-config-patch.yaml")
+    )
+    final_launch_config = []
+    for original, updated in zip(launch_config, launch_config_patch):
+        document = dict(original)
+        update_dict(document, dict(updated))
+        final_launch_config.append(document)
+    yaml.dump_all(
+        final_launch_config,
+        open("tests/release_tests/test_launch/launch-config.yml", "w+"),
+    )
+    launch_agent = yaml.load(open("wandb/sdk/launch/deploys/aws-eks/launch-agent.yaml"))
+    launch_agent_patch = yaml.load(
+        open("tests/release_tests/test_launch/launch-agent-patch.yaml")
+    )
+    launch_agent_dict = dict(launch_agent)
+    update_dict(launch_agent_dict, dict(launch_agent_patch))
+    yaml.dump(
+        launch_agent_dict,
+        open("tests/release_tests/test_launch/launch-agent.yml", "w+"),
+    )
+
+
 @pytest.mark.timeout(180)
 def test_kubernetes_agent_in_cluster(api_key, base_url):
     # get user's wandb API key and AWS creds
@@ -126,7 +116,15 @@ def test_kubernetes_agent_in_cluster(api_key, base_url):
     aws_id = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
     aws_token = os.getenv("AWS_SESSION_TOKEN")
-    create_wandb_and_aws_secrets(NAMESPACE, api_key, aws_id, aws_secret, aws_token)
+
+    with open(os.path.expanduser("~/.aws/credentials"), "w") as f:
+        f.write(
+            AWS_CREDENTIALS_FORMAT.format(
+                aws_id=aws_id, aws_secret=aws_secret, aws_token=aws_token
+            )
+        )
+
+    _create_config_files()
 
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml")

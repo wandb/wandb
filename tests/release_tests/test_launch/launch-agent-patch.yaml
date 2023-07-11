@@ -1,19 +1,9 @@
-apiVersion: apps/v1
-kind: Deployment
 metadata:
   name: launch-agent-release-testing
   namespace: wandb-release-testing
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: launch-agent
   template:
-    metadata:
-      labels:
-        app: launch-agent
     spec:
-      serviceAccountName: wandb-launch-serviceaccount
       containers:
         - name: launch-agent
           image: wandb-launch-agent:latest
@@ -55,7 +45,3 @@ spec:
             - name: wandb-launch-config
               mountPath: /home/launch_agent/.config/wandb
               readOnly: true
-      volumes:
-        - name: wandb-launch-config
-          configMap:
-            name: wandb-launch-configmap

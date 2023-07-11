@@ -1,8 +1,6 @@
 import boto3
 import botocore
 
-LAUNCH_SANDBOX_ACCOUNT_NO = "305054156030"
-
 
 def pytest_addoption(parser):
     parser.addoption("--api-key", action="store", default=None)
@@ -24,8 +22,6 @@ def pytest_configure(config):
     client_config = botocore.config.Config(region_name="us-east-2")
     sts = boto3.client("sts", config=client_config)
     try:
-        identity = sts.get_caller_identity()
-        if identity["Account"] != LAUNCH_SANDBOX_ACCOUNT_NO:
-            raise Exception("Not logged into LaunchSandbox AWS account")
+        sts.get_caller_identity()
     except botocore.exceptions.ClientError:
         raise Exception("Not logged into LaunchSandbox AWS account")
