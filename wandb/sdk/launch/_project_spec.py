@@ -101,6 +101,8 @@ class LaunchProject:
         self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
+        if isinstance(overrides, str):
+            overrides = json.loads(overrides)
         self.override_args: List[str] = overrides.get("args", [])
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
