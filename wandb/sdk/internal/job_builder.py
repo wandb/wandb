@@ -227,8 +227,8 @@ class JobBuilder:
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
 
-        if hasattr(self._settings, "run_job_name") and self._settings.run_job_name:
-            name = self._settings.run_job_name
+        if self._settings.job_name:
+            name = self._settings.job_name
         else:
             name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
@@ -246,8 +246,8 @@ class JobBuilder:
             raw_image_name, tag = image_name.split(":")
             self._aliases += [tag]
 
-        if hasattr(self._settings, "run_job_name") and self._settings.run_job_name:
-            name = self._settings.run_job_name
+        if self._settings.job_name:
+            name = self._settings.job_name
         else:
             name = make_artifact_name_safe(f"job-{raw_image_name}")
         artifact = JobArtifact(name)
