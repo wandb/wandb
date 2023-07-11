@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/Khan/genqlient v0.6.0
-	github.com/fsnotify/fsnotify v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.4
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df

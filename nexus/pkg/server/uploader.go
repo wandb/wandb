@@ -35,6 +35,7 @@ type Uploader struct {
 
 func NewUploader(ctx context.Context, logger *slog.Logger) *Uploader {
 	retryClient := retryablehttp.NewClient()
+	retryClient.Logger = nil
 	retryClient.RetryMax = 10
 	retryClient.RetryWaitMin = 1 * time.Second
 	retryClient.RetryWaitMax = 60 * time.Second
