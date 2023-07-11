@@ -92,6 +92,7 @@ _Setting = Literal[
     "ignore_globs",
     "init_timeout",
     "is_local",
+    "job_name",
     "job_source",
     "label_disable",
     "launch",
