@@ -1545,7 +1545,7 @@ class Settings(SettingsData):
             "WANDB_NOTES": "run_notes",
             "WANDB_TAGS": "run_tags",
             "WANDB_JOB_TYPE": "run_job_type",
-            "WANDB_JOB_NAME": "job_name",
+            "WANDB_LAUNCH_JOB_NAME": "job_name",
         }
         env = dict()
         for setting, value in environ.items():
