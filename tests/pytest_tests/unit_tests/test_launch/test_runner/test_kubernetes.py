@@ -194,7 +194,7 @@ def test_launch_custom(mocker, test_settings, volcano_spec):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings(), load_settings=False
     )
-    runner = KubernetesRunner(api, {}, MagicMock())
+    runner = KubernetesRunner(api, {}, MagicMock(), MagicMock())
     runner.wait_job_launch = MagicMock()
     submitted_run = runner.run(project, MagicMock())
     assert isinstance(submitted_run, CrdSubmittedRun)
