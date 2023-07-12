@@ -56,13 +56,13 @@ def test_acr_check_image_exists(mocker):
     mock_client.get_manifest_properties.return_value = {"digest": "test"}
     mocker.patch(
         "wandb.sdk.launch.registry.azure_container_registry.ContainerRegistryClient",
-        MagicMock(),
+        MagicMock(return_value=mock_client),
     )
     config = {"uri": "test"}
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
-    assert registry.check_image_exists("https://test.azurecr.io/launch-images:tag")
+    assert registry.check_image_exists("test.azurecr.io/launch-images:tag")
 
     # Make the mock client raise an error when get_manifest_properties is called and
     # check that the method returns False.

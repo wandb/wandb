@@ -37,6 +37,8 @@ class AzureContainerRegistry(AbstractRegistry):
         """Initialize an AzureContainerRegistry."""
         self.environment = environment
         self.uri = uri
+        if self.uri.startswith("https://"):
+            self.uri = self.uri[len("https://") :]
         if verify:
             self.verify()
 
