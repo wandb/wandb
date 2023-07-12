@@ -1,0 +1,42 @@
+name: Launch Agent Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      identifier:
+        type: string
+        required: false
+        descript: Version identifier
+        default: pre
+
+defaults:
+  run:
+    working-directory: ./wandb
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Set identifier for workflow dispatch
+        run: echo "IDENTIFIER=${{ github.event.inputs.identifier }}" >> $GITHUB_ENV
+        if: github.event_name == 'workflow_dispatch'
+
+      - name: Docker login
+        run: |
+          docker login -u cvpwb -p "${{ secrets.DOCKERHUB_TOKEN }}"
+
+      - id: build
+        name: Build launch agent
+        run: |
+          NEW_TAG=${{ steps.version.outputs.pre }}
+          python ./tools/build_launch_agent.py --tag $NEW_TAG --push --platform linux/amd64,linux/arm64
