@@ -20,12 +20,6 @@ LAUNCH_JOB_CONFIG = {
     "resource_args": {"kubernetes": {"namespace": NAMESPACE}},
 }
 
-AWS_CREDENTIALS_FORMAT = """[default]
-aws_access_key_id = {aws_id}
-aws_secret_access_key = {aws_secret}
-aws_session_token = {aws_token}
-"""
-
 
 @pytest.mark.timeout(180)
 def test_kubernetes_agent_on_local_process():
@@ -97,6 +91,9 @@ def _create_config_files():
 def test_kubernetes_agent_in_cluster():
     _create_config_files()
 
+    run_cmd(
+        "python tools/build_launch_agent.py --tag wandb-launch-agent:release-testing"
+    )
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml")
 

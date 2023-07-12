@@ -6,7 +6,7 @@ spec:
     spec:
       containers:
         - name: launch-agent
-          image: wandb-launch-agent:latest
+          image: wandb-launch-agent:release-testing
           imagePullPolicy: Never
           resources:
             limits:
