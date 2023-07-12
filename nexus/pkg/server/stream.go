@@ -69,7 +69,6 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string,
 		settings:   settings,
 		logger:     logger,
 	}
-	stream.AddResponders(responders...)
 	stream.wg.Add(1)
 	go stream.Start()
 	return stream
@@ -123,6 +122,7 @@ func (s *Stream) Start() {
 	}()
 }
 
+// HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
 	s.logger.Debug("handling record", "record", rec)
 	s.handler.inChan <- rec
@@ -137,10 +137,10 @@ func (s *Stream) GetRun() *service.RunRecord {
 // We need the ExitRecord to initiate the shutdown procedure (which we
 // either get from the client, or generate ourselves if the server is shutting us down).
 // This will trigger the defer state machines (SM) in the stream's components:
-//   - when the sender's SM gets to the final state, it will close the handler
-//   - this will trigger the handler to close the writer
-//   - this will trigger the writer to close the sender
-//   - this will trigger the sender to close the dispatcher
+//   - when the sender's SM gets to the final state, it will Close the handler
+//   - this will trigger the handler to Close the writer
+//   - this will trigger the writer to Close the sender
+//   - this will trigger the sender to Close the dispatcher
 //
 // This will finish the Stream's wait group, which will allow the stream to be
 // garbage collected.

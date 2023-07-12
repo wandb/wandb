@@ -83,7 +83,7 @@ func (s *Server) Close() {
 	<-s.teardownChan
 	close(s.shutdownChan)
 	if err := s.listener.Close(); err != nil {
-		slog.Error("failed to close listener", err)
+		slog.Error("failed to Close listener", err)
 	}
 	s.wg.Wait()
 	slog.Info("server is closed")

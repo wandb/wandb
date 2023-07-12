@@ -65,7 +65,9 @@ func (d *Dispatcher) do() {
 		responderId := msg.GetControl().GetConnectionId()
 		d.logger.Debug("dispatch: got msg", "msg", msg)
 		response := &service.ServerResponse{
-			ServerResponseType: &service.ServerResponse_ResultCommunicate{ResultCommunicate: msg},
+			ServerResponseType: &service.ServerResponse_ResultCommunicate{
+				ResultCommunicate: msg,
+			},
 		}
 		if responderId == "" {
 			LogResult(slog.Default(), "dispatch: got msg with no connection id", msg)

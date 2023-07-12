@@ -91,8 +91,8 @@ func (u *Uploader) AddTask(task *UploadTask) {
 	u.inChan <- task
 }
 
-// close closes the uploader
-func (u *Uploader) close() {
+// Close closes the uploader
+func (u *Uploader) Close() {
 	u.logger.Debug("uploader: Close")
 	close(u.inChan)
 	u.wg.Wait()

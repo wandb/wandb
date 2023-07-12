@@ -16,7 +16,10 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// Connection is the connection for a stream
+// Connection is the connection for a stream.
+// It is a wrapper around the underlying connection
+// It handles the incoming messages from the client
+// and passes them to the stream
 type Connection struct {
 	// ctx is the context for the connection
 	ctx context.Context
@@ -136,6 +139,8 @@ func (nc *Connection) handleServerRequest() {
 			nc.handleInformInit(x.InformInit)
 		case *service.ServerRequest_InformStart:
 			nc.handleInformStart(x.InformStart)
+		case *service.ServerRequest_InformAttach:
+			nc.handleInformAttach(x.InformAttach)
 		case *service.ServerRequest_RecordPublish:
 			nc.handleInformRecord(x.RecordPublish)
 		case *service.ServerRequest_RecordCommunicate:
@@ -177,15 +182,41 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
-	stream := NewStream(nc.ctx, settings, streamId, ResponderEntry{nc, nc.id})
+	// TODO: redo this function, to only init the stream and have the stream
+	//       handle the rest of the startup
+	stream := NewStream(nc.ctx, settings, streamId)
+	stream.AddResponders(ResponderEntry{nc, nc.id})
+
 	if err := streamMux.AddStream(streamId, stream); err != nil {
 		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)
-		// TODO: should we close the stream?
+		// TODO: should we Close the stream?
 		return
 	}
 }
 
 func (nc *Connection) handleInformStart(_ *service.ServerInformStartRequest) {
+}
+
+// handleInformAttach is called when the client sends an InformAttach message
+func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest) {
+	streamId := msg.GetXInfo().GetStreamId()
+	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
+	if stream, err := streamMux.GetStream(streamId); err != nil {
+		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
+	} else {
+		stream.AddResponders(ResponderEntry{nc, nc.id})
+		// TODO: we should redo this attach logic, so that the stream handles
+		//       the attach logic
+		resp := &service.ServerResponse{
+			ServerResponseType: &service.ServerResponse_InformAttachResponse{
+				InformAttachResponse: &service.ServerInformAttachResponse{
+					XInfo:    msg.XInfo,
+					Settings: stream.settings,
+				},
+			},
+		}
+		nc.Respond(resp)
+	}
 }
 
 // handleInformRecord is called when the client sends a record message
@@ -207,7 +238,7 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 	}
 }
 
-// handleInformFinish is called when the client sends a close message
+// handleInformFinish is called when the client sends a Close message
 // for a stream
 func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest) {
 	streamId := msg.XInfo.StreamId
@@ -224,6 +255,6 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 func (nc *Connection) handleInformTeardown(_ *service.ServerInformTeardownRequest) {
 	slog.Debug("handle teardown received", "id", nc.id)
 	close(nc.teardownChan)
-	streamMux.CloseAllStreams(true) // TODO: this seems wrong to close all streams from a single connection
+	streamMux.CloseAllStreams(true) // TODO: this seems wrong to Close all streams from a single connection
 	nc.Close()
 }

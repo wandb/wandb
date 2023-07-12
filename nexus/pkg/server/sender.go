@@ -19,8 +19,7 @@ const (
 	MetaFilename = "wandb-metadata.json"
 )
 
-// Sender is the sender for a stream
-// it handles the incoming messages and sends to the server
+// Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
 	// ctx is the context for the handler
@@ -54,20 +53,17 @@ type Sender struct {
 	settings *service.Settings
 }
 
-// NewSender creates a new Sender instance
+// NewSender creates a new Sender with the given settings
 func NewSender(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Sender {
-
-	s := &Sender{
-		ctx:      ctx,
-		settings: settings,
-		inChan:   make(chan *service.Record),
-		logger:   logger,
-	}
-
 	url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-	s.graphqlClient = newGraphqlClient(url, settings.GetApiKey().GetValue(), logger)
-
-	return s
+	apiKey := settings.GetApiKey().GetValue()
+	return &Sender{
+		ctx:           ctx,
+		settings:      settings,
+		inChan:        make(chan *service.Record),
+		logger:        logger,
+		graphqlClient: newGraphqlClient(url, apiKey, logger),
+	}
 }
 
 // do sending of messages to the server
@@ -152,7 +148,7 @@ func (s *Sender) sendMetadata(req *service.MetadataRequest) {
 func (s *Sender) sendDefer(req *service.DeferRequest) {
 	switch req.State {
 	case service.DeferRequest_FLUSH_FP:
-		s.uploader.close()
+		s.uploader.Close()
 		req.State++
 		s.sendRequestDefer(req)
 	case service.DeferRequest_FLUSH_FS:
