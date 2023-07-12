@@ -145,15 +145,15 @@ class WandBUltralyticsCallback:
             tel.feature.ultralytics_yolov8 = True
 
     def on_fit_epoch_end(self, trainer: DetectionTrainer):
-        if isinstance(trainer, DetectionTrainer):
-            validator = trainer.validator
-            dataloader = validator.dataloader
-            class_label_map = validator.names
-            with torch.no_grad():
-                self.device = next(trainer.model.parameters()).device
-                trainer.model.to("cpu")
-                self.model = copy.deepcopy(trainer.model).eval().to(self.device)
-                self.predictor.setup_model(model=self.model, verbose=False)
+        validator = trainer.validator
+        dataloader = validator.dataloader
+        class_label_map = validator.names
+        with torch.no_grad():
+            self.device = next(trainer.model.parameters()).device
+            trainer.model.to("cpu")
+            self.model = copy.deepcopy(trainer.model).eval().to(self.device)
+            self.predictor.setup_model(model=self.model, verbose=False)
+            if isinstance(trainer, DetectionTrainer):
                 self.train_validation_table = plot_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,
@@ -162,18 +162,7 @@ class WandBUltralyticsCallback:
                     max_validation_batches=self.max_validation_batches,
                     epoch=trainer.epoch,
                 )
-            if self.enable_model_checkpointing:
-                self._save_model(trainer)
-            trainer.model.to(self.device)
-        elif isinstance(trainer, ClassificationTrainer):
-            validator = trainer.validator
-            dataloader = validator.dataloader
-            class_label_map = validator.names
-            with torch.no_grad():
-                self.device = next(trainer.model.parameters()).device
-                trainer.model.to("cpu")
-                self.model = copy.deepcopy(trainer.model).eval().to(self.device)
-                self.predictor.setup_model(model=self.model, verbose=False)
+            elif isinstance(trainer, ClassificationTrainer):
                 self.train_validation_table = plot_classification_validation_results(
                     dataloader=dataloader,
                     predictor=self.predictor,
@@ -181,9 +170,9 @@ class WandBUltralyticsCallback:
                     max_validation_batches=self.max_validation_batches,
                     epoch=trainer.epoch,
                 )
-            if self.enable_model_checkpointing:
-                self._save_model(trainer)
-            trainer.model.to(self.device)
+        if self.enable_model_checkpointing:
+            self._save_model(trainer)
+        trainer.model.to(self.device)
 
     def on_train_end(self, trainer: DetectionTrainer):
         if isinstance(trainer, DetectionTrainer) or isinstance(
@@ -192,12 +181,12 @@ class WandBUltralyticsCallback:
             wandb.log({"Train-Validation-Table": self.train_validation_table})
 
     def on_val_end(self, trainer: DetectionValidator):
-        if isinstance(trainer, DetectionValidator):
-            validator = trainer
-            dataloader = validator.dataloader
-            class_label_map = validator.names
-            with torch.no_grad():
-                self.predictor.setup_model(model=self.model, verbose=False)
+        validator = trainer
+        dataloader = validator.dataloader
+        class_label_map = validator.names
+        with torch.no_grad():
+            self.predictor.setup_model(model=self.model, verbose=False)
+            if isinstance(trainer, DetectionValidator):
                 self.validation_table = plot_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,
@@ -205,28 +194,22 @@ class WandBUltralyticsCallback:
                     table=self.validation_table,
                     max_validation_batches=self.max_validation_batches,
                 )
-            wandb.log({"Validation-Table": self.validation_table})
-        elif isinstance(trainer, ClassificationValidator):
-            validator = trainer
-            dataloader = validator.dataloader
-            with torch.no_grad():
-                self.predictor.setup_model(model=self.model, verbose=False)
+            elif isinstance(trainer, ClassificationValidator):
                 self.validation_table = plot_classification_validation_results(
                     dataloader=dataloader,
                     predictor=self.predictor,
                     table=self.validation_table,
                     max_validation_batches=self.max_validation_batches,
                 )
-            wandb.log({"Validation-Table": self.validation_table})
+        wandb.log({"Validation-Table": self.validation_table})
 
     def on_predict_end(
         self, predictor: Union[DetectionPredictor, ClassificationPredictor]
     ):
-        if isinstance(predictor, DetectionPredictor):
-            for result in tqdm(predictor.results):
+        for result in tqdm(predictor.results):
+            if isinstance(predictor, DetectionPredictor):
                 self.prediction_table = plot_predictions(result, self.prediction_table)
-        if isinstance(predictor, ClassificationPredictor):
-            for result in tqdm(predictor.results):
+            elif isinstance(predictor, ClassificationPredictor):
                 self.prediction_table = plot_classification_predictions(
                     result, self.prediction_table
                 )
