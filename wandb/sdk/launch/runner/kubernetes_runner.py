@@ -8,8 +8,6 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
@@ -366,7 +364,11 @@ class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
     def __init__(
-        self, api: Api, backend_config: Dict[str, Any], environment: AbstractEnvironment
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Create a Kubernetes runner.
 
@@ -380,6 +382,7 @@ class KubernetesRunner(AbstractRunner):
         """
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def wait_job_launch(
         self,
@@ -451,10 +454,9 @@ class KubernetesRunner(AbstractRunner):
         self,
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
+        image_uri: str,
         namespace: str,
         core_api: "CoreV1Api",
-        job_tracker: Optional[JobAndRunStatusTracker],
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
         """Apply our default values, return job dict and secret.
 
@@ -506,9 +508,7 @@ class KubernetesRunner(AbstractRunner):
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             # dont specify run id if user provided image, could have multiple runs
-            image_uri = launch_project.docker_image
             containers[0]["image"] = image_uri
-            launch_project.fill_macros(image_uri)
             # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
@@ -516,25 +516,18 @@ class KubernetesRunner(AbstractRunner):
                     "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             assert entry_point is not None
-            assert builder is not None
-            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
-            image_uri = image_uri.replace("https://", "")
             launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
-            if not builder.registry:
-                raise LaunchError(
-                    "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
-                )
-            secret = maybe_create_imagepull_secret(
-                core_api, builder.registry, launch_project.run_id, namespace
-            )
-            if secret is not None:
-                pod_spec["imagePullSecrets"] = [
-                    {"name": f"regcred-{launch_project.run_id}"}
-                ]
             containers[0]["image"] = image_uri
             launch_project.fill_macros(image_uri)
+        secret = maybe_create_imagepull_secret(
+            core_api, self.registry, launch_project.run_id, namespace
+        )
+        if secret is not None:
+            pod_spec["imagePullSecrets"] = [
+                {"name": f"regcred-{launch_project.run_id}"}
+            ]
 
         inject_entrypoint_and_args(
             containers,
@@ -561,10 +554,7 @@ class KubernetesRunner(AbstractRunner):
         return job, secret
 
     def run(
-        self,
-        launch_project: LaunchProject,
-        builder: AbstractBuilder,
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -595,12 +585,6 @@ class KubernetesRunner(AbstractRunner):
         # run by creating a custom object.
         api_version = resource_args.get("apiVersion", "batch/v1")
         if api_version not in ["batch/v1", "batch/v1beta1"]:
-            entrypoint = launch_project.get_single_entry_point()
-            if launch_project.docker_image:
-                image_uri = launch_project.docker_image
-            else:
-                assert entrypoint is not None
-                image_uri = builder.build_image(launch_project, entrypoint, job_tracker)
             launch_project.fill_macros(image_uri)
             env_vars = get_env_vars_dict(launch_project, self._api)
             # Crawl the resource args and add our env vars to the containers.
@@ -658,13 +642,10 @@ class KubernetesRunner(AbstractRunner):
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
-
         namespace = self.get_namespace(resource_args, context)
-
         job, secret = self._inject_defaults(
-            resource_args, launch_project, builder, namespace, core_api, job_tracker
+            resource_args, launch_project, image_uri, namespace, core_api
         )
-
         msg = "Creating Kubernetes job"
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
@@ -675,16 +656,12 @@ class KubernetesRunner(AbstractRunner):
             0
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.name
-
         pod_names = self.wait_job_launch(job_name, namespace, core_api)
-
         submitted_job = KubernetesSubmittedRun(
             batch_api, core_api, job_name, pod_names, namespace, secret
         )
-
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
-
         return submitted_job
 
 
