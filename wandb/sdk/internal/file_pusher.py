@@ -77,7 +77,7 @@ class FilePusher:
         self._stats_thread = threading.Thread(
             target=self._file_pusher_stats,
             daemon=True,
-            name="FPStats",
+            name="FPStatsThread",
         )
         self._stats_thread_stop = threading.Event()
         if os.environ.get("WANDB_DEBUG"):
@@ -85,8 +85,8 @@ class FilePusher:
 
     def _file_pusher_stats(self) -> None:
         while not self._stats_thread_stop.is_set():
-            time.sleep(5)
             logger.info(f"FilePusher stats: {self._stats._stats}")
+            time.sleep(1)
 
     def get_status(self) -> Tuple[bool, stats.Summary]:
         running = self.is_alive()
