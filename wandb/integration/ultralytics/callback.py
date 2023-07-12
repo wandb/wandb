@@ -116,6 +116,7 @@ class WandBUltralyticsCallback:
                 "Speed",
             ]
             validation_columns = ["Data-Index", "Batch-Index"] + classification_columns
+            validation_columns.insert(3, "Ground-Truth-Category")
             train_columns = ["Epoch"] + validation_columns
             self.train_validation_table = wandb.Table(columns=train_columns)
             self.validation_table = wandb.Table(columns=validation_columns)
@@ -129,6 +130,7 @@ class WandBUltralyticsCallback:
                 "Mean-Confidence",
                 "Speed",
             ]
+            validation_columns = ["Data-Index", "Batch-Index"] + classification_columns
             self.prediction_table = wandb.Table(columns=pose_columns)
 
     def _make_predictor(self, model: YOLO):

@@ -30,7 +30,7 @@ def plot_classification_predictions(
     if table is not None:
         table.add_data(*table_row)
         return table
-    return table_row
+    return class_id_to_label, table_row
 
 
 def plot_classification_validation_results(
@@ -43,11 +43,15 @@ def plot_classification_validation_results(
     data_idx = 0
     for batch_idx, batch in enumerate(dataloader):
         image_batch = batch["img"].numpy()
+        ground_truth = batch["cls"].numpy().tolist()
         for img_idx in range(image_batch.shape[0]):
             image = np.ascontiguousarray(np.transpose(image_batch[img_idx], (1, 2, 0)))
             prediction_result = predictor(image)[0]
-            table_row = plot_classification_predictions(prediction_result)
+            class_id_to_label, table_row = plot_classification_predictions(
+                prediction_result
+            )
             table_row = [data_idx, batch_idx] + table_row
+            table_row.insert(3, class_id_to_label[ground_truth[img_idx]])
             table_row = [epoch] + table_row if epoch is not None else table_row
             table.add_data(*table_row)
             data_idx += 1
