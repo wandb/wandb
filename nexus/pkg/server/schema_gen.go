@@ -347,18 +347,8 @@ func (v *__UpsertBucketInput) GetTags() []string { return v.Tags }
 // GetSummaryMetrics returns __UpsertBucketInput.SummaryMetrics, and is useful for accessing the field via an interface.
 func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetrics }
 
-func RunUploadUrls(
-	ctx context.Context,
-	client graphql.Client,
-	name string,
-	files []*string,
-	entity *string,
-	run string,
-	description *string,
-) (*RunUploadUrlsResponse, error) {
-	req := &graphql.Request{
-		OpName: "RunUploadUrls",
-		Query: `
+// The query or mutation executed by RunUploadUrls.
+const RunUploadUrls_Operation = `
 query RunUploadUrls ($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
 	model(name: $name, entityName: $entity) {
 		bucket(name: $run, desc: $description) {
@@ -376,7 +366,20 @@ query RunUploadUrls ($name: String!, $files: [String]!, $entity: String, $run: S
 		}
 	}
 }
-`,
+`
+
+func RunUploadUrls(
+	ctx context.Context,
+	client graphql.Client,
+	name string,
+	files []*string,
+	entity *string,
+	run string,
+	description *string,
+) (*RunUploadUrlsResponse, error) {
+	req := &graphql.Request{
+		OpName: "RunUploadUrls",
+		Query:  RunUploadUrls_Operation,
 		Variables: &__RunUploadUrlsInput{
 			Name:        name,
 			Files:       files,
@@ -398,6 +401,31 @@ query RunUploadUrls ($name: String!, $files: [String]!, $entity: String, $run: S
 
 	return &data, err
 }
+
+// The query or mutation executed by UpsertBucket.
+const UpsertBucket_Operation = `
+mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: String, $groupName: String, $description: String, $displayName: String, $notes: String, $commit: String, $config: JSONString, $host: String, $debug: Boolean, $program: String, $repo: String, $jobType: String, $state: String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {
+	upsertBucket(input: {id:$id,name:$name,groupName:$groupName,modelName:$project,entityName:$entity,description:$description,displayName:$displayName,notes:$notes,config:$config,commit:$commit,host:$host,debug:$debug,jobProgram:$program,jobRepo:$repo,jobType:$jobType,state:$state,sweep:$sweep,tags:$tags,summaryMetrics:$summaryMetrics}) {
+		bucket {
+			id
+			name
+			displayName
+			description
+			config
+			sweepName
+			project {
+				id
+				name
+				entity {
+					id
+					name
+				}
+			}
+		}
+		inserted
+	}
+}
+`
 
 func UpsertBucket(
 	ctx context.Context,
@@ -424,29 +452,7 @@ func UpsertBucket(
 ) (*UpsertBucketResponse, error) {
 	req := &graphql.Request{
 		OpName: "UpsertBucket",
-		Query: `
-mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: String, $groupName: String, $description: String, $displayName: String, $notes: String, $commit: String, $config: JSONString, $host: String, $debug: Boolean, $program: String, $repo: String, $jobType: String, $state: String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {
-	upsertBucket(input: {id:$id,name:$name,groupName:$groupName,modelName:$project,entityName:$entity,description:$description,displayName:$displayName,notes:$notes,config:$config,commit:$commit,host:$host,debug:$debug,jobProgram:$program,jobRepo:$repo,jobType:$jobType,state:$state,sweep:$sweep,tags:$tags,summaryMetrics:$summaryMetrics}) {
-		bucket {
-			id
-			name
-			displayName
-			description
-			config
-			sweepName
-			project {
-				id
-				name
-				entity {
-					id
-					name
-				}
-			}
-		}
-		inserted
-	}
-}
-`,
+		Query:  UpsertBucket_Operation,
 		Variables: &__UpsertBucketInput{
 			Id:             id,
 			Name:           name,
@@ -483,13 +489,8 @@ mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: St
 	return &data, err
 }
 
-func Viewer(
-	ctx context.Context,
-	client graphql.Client,
-) (*ViewerResponse, error) {
-	req := &graphql.Request{
-		OpName: "Viewer",
-		Query: `
+// The query or mutation executed by Viewer.
+const Viewer_Operation = `
 query Viewer {
 	viewer {
 		id
@@ -504,7 +505,15 @@ query Viewer {
 		}
 	}
 }
-`,
+`
+
+func Viewer(
+	ctx context.Context,
+	client graphql.Client,
+) (*ViewerResponse, error) {
+	req := &graphql.Request{
+		OpName: "Viewer",
+		Query:  Viewer_Operation,
 	}
 	var err error
 

@@ -103,6 +103,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), s.run.Entity, s.run.Project, s.run.RunId)
 	s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
+	s.fileStream.Start()
 	s.logger.Debug("Sender: sendRunStart: started file stream")
 	s.uploader = NewUploader(s.ctx, s.logger)
 	s.logger.Debug("Sender: sendRunStart: started uploader")
@@ -130,7 +131,7 @@ func (s *Sender) sendDefer(req *service.DeferRequest) {
 		s.sendRequestDefer(req)
 	case service.DeferRequest_FLUSH_FS:
 		s.logger.Debug(fmt.Sprintf("Sender: sendDefer: flush file stream: %v", req.State))
-		s.fileStream.close()
+		s.fileStream.Close()
 		req.State++
 		s.sendRequestDefer(req)
 	case service.DeferRequest_END:
@@ -251,14 +252,14 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 func (s *Sender) sendHistory(msg *service.Record, _ *service.HistoryRecord) {
 	LogRecord(s.logger, "sending history result ", msg)
 	if s.fileStream != nil {
-		s.fileStream.stream(msg)
+		s.fileStream.StreamRecord(msg)
 	}
 }
 
 func (s *Sender) sendExit(msg *service.Record, _ *service.RunExitRecord) {
 	// send exit via filestream
 	LogRecord(s.logger, "sending run exit result ", msg)
-	s.fileStream.stream(msg)
+	s.fileStream.StreamRecord(msg)
 
 	result := &service.Result{
 		ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},

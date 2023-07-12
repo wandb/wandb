@@ -31,10 +31,11 @@ func setupLogger(fname string) *slog.Logger {
 	return logger
 }
 
-func SetupDefaultLogger() {
+func SetupDefaultLogger() *slog.Logger {
 	logger := setupLogger("/tmp/logs.txt")
 	slog.SetDefault(logger)
 	slog.Info("started logging")
+	return logger
 }
 
 func SetupStreamLogger(logFile string, streamID string) *slog.Logger {
