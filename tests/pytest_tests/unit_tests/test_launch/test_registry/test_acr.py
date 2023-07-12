@@ -18,7 +18,8 @@ def test_acr_from_config(mocker):
         MagicMock(),
     )
     config = {"uri": "test"}
-    AzureContainerRegistry.from_config(config, AzureEnvironment.from_config({}))
+    acr = AzureContainerRegistry.from_config(config, AzureEnvironment.from_config({}))
+    assert acr.uri == "test"
 
 
 def test_acr_get_repo_uri(mocker):
@@ -80,6 +81,12 @@ def test_acr_registry_name(mocker):
         MagicMock(),
     )
     config = {"uri": "https://test.azurecr.io/repository"}
+    registry = AzureContainerRegistry.from_config(
+        config, AzureEnvironment.from_config({})
+    )
+    assert registry.registry_name == "test"
+    # Same thing but without https
+    config = {"uri": "test.azurecr.io/repository"}
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
