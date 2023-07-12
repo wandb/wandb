@@ -58,7 +58,7 @@ if TYPE_CHECKING:
 
     class Resolver(TypedDict):
         name: ResolverName
-        resolver: Callable[[Any], Optional[Resolved]]
+        resolver: Callable[[Any], Optional[Resolved]]  # noqa: F821
 
 
 @dataclasses.dataclass
@@ -328,7 +328,7 @@ class QueryResolver:
             )
 
             # alter response data urls so we can intercept file requests through the relay
-            for n, edge in enumerate(files):
+            for _n, edge in enumerate(files):
                 node = edge.get("node")
                 if not node:
                     continue
@@ -337,7 +337,9 @@ class QueryResolver:
                     continue
                 relay_url = kwargs.get("relay_url")
                 assert relay_url, "Must provide relay_url to resolver"
-                url_params = urllib.parse.urlencode(dict(name=node.get("name"), original_url=url))
+                url_params = urllib.parse.urlencode(
+                    dict(name=node.get("name"), original_url=url)
+                )
                 node["url"] = relay_url + "/storage?" + url_params
 
             # note: we count all attempts to upload files
@@ -619,7 +621,11 @@ class RelayServer:
         headers = {key: value for (key, value) in request.headers if key != "Host"}
         try:
             request_data = request.get_data()
-            request_json = request.get_json() if request.headers.get("content-type") == "application/json" else None
+            request_json = (
+                request.get_json()
+                if request.headers.get("content-type") == "application/json"
+                else None
+            )
         except Exception as e:
             print("ERROR", e, url)
             raise
@@ -738,13 +744,15 @@ class RelayServer:
         # print(relayed_response.status_code, relayed_response.json())
         # print("*****************")
 
-        response_data = self.snoop_context(request, relayed_response, timer.elapsed, path=path)
+        response_data = self.snoop_context(
+            request, relayed_response, timer.elapsed, path=path
+        )
 
         return response_data or relayed_response.json()
 
     def storage(self) -> Mapping[str, str]:
         request = flask.request
-        name = request.args.get("name")
+        request.args.get("name")
         original_url = request.args.get("original_url")
         with Timer() as timer:
             relayed_response = self.relay(request, url=original_url)
@@ -755,7 +763,7 @@ class RelayServer:
         # print(relayed_response.status_code, relayed_response.json())
         # print("*****************")
 
-        response_data = self.snoop_context(request, relayed_response, timer.elapsed)
+        self.snoop_context(request, relayed_response, timer.elapsed)
 
         return {}
 
@@ -773,7 +781,9 @@ class RelayServer:
         # print(relayed_response.json())
         # print("*****************")
 
-        response_data = self.snoop_context(request, relayed_response, timer.elapsed, path=path)
+        response_data = self.snoop_context(
+            request, relayed_response, timer.elapsed, path=path
+        )
 
         return response_data or relayed_response.json()
 

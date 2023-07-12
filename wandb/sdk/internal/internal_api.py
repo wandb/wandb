@@ -3,6 +3,7 @@ import asyncio
 import base64
 import datetime
 import functools
+import http.client
 import json
 import logging
 import os
@@ -130,6 +131,25 @@ else:
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
+
+
+httpclient_logger = logging.getLogger("http.client")
+
+
+def httpclient_logging_patch(level=logging.DEBUG):
+    """Enable HTTPConnection debug logging to the logging framework."""
+
+    def httpclient_log(*args):
+        httpclient_logger.log(level, " ".join(args))
+
+    # mask the print() built-in in the http.client module to use
+    # logging instead
+    http.client.print = httpclient_log
+    # enable debugging
+    http.client.HTTPConnection.debuglevel = 1
+
+
+httpclient_logging_patch()
 
 
 def check_httpx_exc_retriable(exc: Exception) -> bool:
