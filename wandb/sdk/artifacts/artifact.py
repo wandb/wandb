@@ -183,6 +183,8 @@ class Artifact:
         self._save_future: Optional["MessageFuture"] = None
         self._dependent_artifacts: Set["Artifact"] = set()
         self._download_roots: Set[str] = set()
+        # Set by new_draft(), otherwise the latest artifact will be used as the base.
+        self._base_id: Optional[str] = None
         # Properties.
         self._id: Optional[str] = None
         self._client_id: str = runid.generate_id(128)
@@ -355,6 +357,7 @@ class Artifact:
             raise ArtifactNotLoggedError(self, "new_draft")
 
         artifact = Artifact(self.source_name.split(":")[0], self.type)
+        artifact._base_id = self.id
         artifact._description = self.description
         artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(

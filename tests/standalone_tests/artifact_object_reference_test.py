@@ -176,9 +176,10 @@ def _make_html():
 
 
 def _make_video():
+    # time, channel, height, width
     return wandb.Video(
-        np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)
-    )  # 1 second video of 10x10 pixels
+        np.random.randint(0, high=255, size=(4, 3, 10, 10), dtype=np.uint8)
+    )
 
 
 vid1 = _make_video()
