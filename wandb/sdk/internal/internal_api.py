@@ -172,7 +172,7 @@ class Api:
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
-    FILE_PUSHER_TIMEOUT = env.get_http_timeout(120)
+    FILE_PUSHER_TIMEOUT = env.get_http_timeout(10)
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
@@ -2366,6 +2366,10 @@ class Api:
                     )
                 if env.is_debug(env=self._environ):
                     logger.debug("upload_file: %s", url)
+                print("upload_file: %s", url)
+                # add Content-Length header:
+                # extra_headers["Content-Length"] = str(progress.len)
+                print("extra_headers", extra_headers)
                 response = self._upload_file_session.put(
                     url, data=progress, headers=extra_headers
                 )

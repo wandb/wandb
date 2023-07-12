@@ -21,6 +21,7 @@ class Progress:
     """A helper class for displaying progress."""
 
     ITER_BYTES = 1024 * 1024
+    ITER_BYTES = 32 * 1024
 
     def __init__(
         self, file: IO[bytes], callback: Optional["ProgressFn"] = None
@@ -36,9 +37,11 @@ class Progress:
         self.callback: "ProgressFn" = callback
         self.bytes_read = 0
         self.len = os.fstat(file.fileno()).st_size
+        print(locals())
 
     def read(self, size=-1):
         """Read bytes and call the callback."""
+        # print("reading", size)
         bites = self.file.read(size)
         self.bytes_read += len(bites)
         if not bites and self.bytes_read < self.len:
