@@ -64,7 +64,7 @@ type FileStream struct {
 }
 
 func NewFileStream(path string, settings *service.Settings, logger *slog.Logger) *FileStream {
-	retryClient := newRetryClient(settings.GetApiKey().GetValue())
+	retryClient := newRetryClient(settings.GetApiKey().GetValue(), logger)
 	fs := FileStream{
 		path:       path,
 		settings:   settings,

@@ -83,9 +83,9 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 }
 
 // RemoveResponder removes the responder with the given id from the stream's
-//func (s *Stream) RemoveResponder(responderId string) {
+// func (s *Stream) RemoveResponder(responderId string) {
 //	s.dispatcher.RemoveResponder(responderId)
-//}
+// }
 
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly

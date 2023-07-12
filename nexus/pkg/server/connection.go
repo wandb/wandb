@@ -5,14 +5,15 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"net"
+	"strings"
+	"sync"
+
 	"github.com/wandb/wandb/nexus/pkg/auth"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	"net"
-	"strings"
-	"sync"
 )
 
 // Connection is the connection for a stream
@@ -39,7 +40,7 @@ type Connection struct {
 	teardownChan chan struct{}
 
 	// logger is the logger for the connection
-	logger slog.Logger
+	// logger slog.Logger
 }
 
 // NewConnection creates a new connection

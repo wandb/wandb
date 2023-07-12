@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"os"
-	"path/filepath"
 )
 
 const (
@@ -64,7 +65,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *slog.Log
 	}
 
 	url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-	s.graphqlClient = newGraphqlClient(url, settings.GetApiKey().GetValue())
+	s.graphqlClient = newGraphqlClient(url, settings.GetApiKey().GetValue(), logger)
 
 	return s
 }
