@@ -5,8 +5,6 @@ from ultralytics.yolo.utils import ops
 from ultralytics.yolo.v8.detect.predict import DetectionPredictor
 
 import wandb
-import numpy as np
-from PIL import Image
 
 
 def scale_bounding_box_to_original_image_shape(

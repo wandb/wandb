@@ -17,7 +17,7 @@ try:
     from ultralytics.yolo.v8.detect.predict import DetectionPredictor
     from ultralytics.yolo.v8.detect.train import DetectionTrainer
     from ultralytics.yolo.v8.detect.val import DetectionValidator
-    from ultralytics.yolo.v8.segment.predict import SegmentationPredictor
+    from ultralytics.yolo.v8.classify.predict import ClassificationPredictor
 except ImportError as e:
     print(e)
 
@@ -25,6 +25,9 @@ import wandb
 from wandb.integration.ultralytics.bbox_utils import (
     plot_predictions,
     plot_validation_results,
+)
+from wandb.integration.ultralytics.classification_utils import (
+    plot_classification_predictions,
 )
 from wandb.sdk.lib import telemetry
 
@@ -75,23 +78,45 @@ class WandBUltralyticsCallback:
     ) -> None:
         self.max_validation_batches = max_validation_batches
         self.enable_model_checkpointing = enable_model_checkpointing
-        self.train_validation_table = wandb.Table(
-            columns=[
-                "Epoch",
-                "Data-Index",
-                "Batch-Index",
-                "Image",
-                "Mean-Confidence",
-                "Speed",
-            ]
-        )
-        self.validation_table = wandb.Table(
-            columns=["Data-Index", "Batch-Index", "Image", "Mean-Confidence", "Speed"]
-        )
-        self.prediction_table = wandb.Table(
-            columns=["Image", "Num-Objects", "Mean-Confidence", "Speed"]
-        )
+        self._make_tables(model)
         self._make_predictor(model)
+
+    def _make_tables(self, model: YOLO):
+        if model.task == "detect":
+            self.train_validation_table = wandb.Table(
+                columns=[
+                    "Epoch",
+                    "Data-Index",
+                    "Batch-Index",
+                    "Image",
+                    "Mean-Confidence",
+                    "Speed",
+                ]
+            )
+            self.validation_table = wandb.Table(
+                columns=[
+                    "Data-Index",
+                    "Batch-Index",
+                    "Image",
+                    "Mean-Confidence",
+                    "Speed",
+                ]
+            )
+            self.prediction_table = wandb.Table(
+                columns=["Image", "Num-Objects", "Mean-Confidence", "Speed"]
+            )
+        elif model.task == "classify":
+            self.prediction_table = wandb.Table(
+                columns=[
+                    "Image",
+                    "Predicted-Category",
+                    "Prediction-Confidence",
+                    "Top-5-Prediction-Categories",
+                    "Top-5-Prediction-Confindence",
+                    "Probabilities",
+                    "Speed",
+                ]
+            )
 
     def _make_predictor(self, model: YOLO):
         overrides = model.overrides.copy()
@@ -164,14 +189,17 @@ class WandBUltralyticsCallback:
             wandb.log({"Validation-Table": self.validation_table})
 
     def on_predict_end(
-        self, predictor: Union[DetectionPredictor, SegmentationPredictor]
+        self, predictor: Union[DetectionPredictor, ClassificationPredictor]
     ):
-        if isinstance(predictor, DetectionPredictor) or isinstance(
-            predictor, SegmentationPredictor
-        ):
+        if isinstance(predictor, DetectionPredictor):
             for result in tqdm(predictor.results):
                 self.prediction_table = plot_predictions(result, self.prediction_table)
-            wandb.log({"Prediction-Table": self.prediction_table})
+        if isinstance(predictor, ClassificationPredictor):
+            for result in tqdm(predictor.results):
+                self.prediction_table = plot_classification_predictions(
+                    result, self.prediction_table
+                )
+        wandb.log({"Prediction-Table": self.prediction_table})
 
     @property
     def callbacks(self) -> Dict[str, Callable]:
