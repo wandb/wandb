@@ -1,6 +1,7 @@
 import base64
 import functools
 import itertools
+import json
 import logging
 import os
 import queue
@@ -338,6 +339,8 @@ class FileStreamApi:
         if timeout > 0:
             self._client.post = functools.partial(self._client.post, timeout=timeout)  # type: ignore[method-assign]
         self._client.auth = api.client.transport.session.auth
+        wandb.termerror("SRP: horrible hack is active")
+        self._client.headers.update({"X-WANDB-USE-ASYNC-FILESTREAM": "true"} if os.environ.get('SRP_ASYNC') else {})
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
         self._file_policies: Dict[str, "DefaultFilePolicy"] = {}
@@ -530,6 +533,12 @@ class FileStreamApi:
                 del files[filename]
 
         for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
+            if 'wandb-history.jsonl' in fs:
+                fs['wandb-history.jsonl'] = fs['wandb-history.jsonl'].copy()
+                fs['wandb-history.jsonl']['content'] = [
+                    json.dumps({'a': 100_000 * 'a'})
+                    for _ in range(100)
+                ]
             self._handle_response(
                 request_with_retry(
                     self._client.post,
