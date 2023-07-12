@@ -536,8 +536,12 @@ class FileStreamApi:
             if 'wandb-history.jsonl' in fs:
                 fs['wandb-history.jsonl'] = fs['wandb-history.jsonl'].copy()
                 fs['wandb-history.jsonl']['content'] = [
-                    json.dumps({'a': 100_000 * 'a', 'x': random.random()})
-                    for _ in range(100)
+                    json.dumps({
+                        **{k: v for k, v in json.loads(line).items() if k != '_step' or not os.environ.get('SRP_ASYNC')},
+                        'a': 100_000 * 'a',
+                        'x': random.random(),
+                    })
+                    for line in fs['wandb-history.jsonl']['content']
                 ]
             self._handle_response(
                 request_with_retry(
