@@ -158,6 +158,8 @@ class Image(BatchableMedia):
             else:
                 self._initialize_from_path(data_or_path)
         else:
+            if isinstance(data_or_path, torch.uint8): # Fix uint8
+                data_or_path = data_or_path.to(torch.float)
             self._initialize_from_data(data_or_path, mode)
 
         self._set_initialization_meta(grouping, caption, classes, boxes, masks)
