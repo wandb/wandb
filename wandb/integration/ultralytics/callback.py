@@ -14,9 +14,11 @@ try:
     from ultralytics.yolo.engine.model import TASK_MAP, YOLO
     from ultralytics.yolo.utils import RANK, __version__
     from ultralytics.yolo.utils.torch_utils import de_parallel
-    from ultralytics.yolo.v8.detect.predict import DetectionPredictor
     from ultralytics.yolo.v8.detect.train import DetectionTrainer
     from ultralytics.yolo.v8.detect.val import DetectionValidator
+    from ultralytics.yolo.v8.detect.predict import DetectionPredictor
+    from ultralytics.yolo.v8.classify.train import ClassificationTrainer
+    from ultralytics.yolo.v8.classify.val import ClassificationValidator
     from ultralytics.yolo.v8.classify.predict import ClassificationPredictor
 except ImportError as e:
     print(e)
@@ -28,6 +30,7 @@ from wandb.integration.ultralytics.bbox_utils import (
 )
 from wandb.integration.ultralytics.classification_utils import (
     plot_classification_predictions,
+    plot_classification_validation_results,
 )
 from wandb.sdk.lib import telemetry
 
@@ -83,40 +86,34 @@ class WandBUltralyticsCallback:
 
     def _make_tables(self, model: YOLO):
         if model.task == "detect":
-            self.train_validation_table = wandb.Table(
-                columns=[
-                    "Epoch",
-                    "Data-Index",
-                    "Batch-Index",
-                    "Image",
-                    "Mean-Confidence",
-                    "Speed",
-                ]
-            )
-            self.validation_table = wandb.Table(
-                columns=[
-                    "Data-Index",
-                    "Batch-Index",
-                    "Image",
-                    "Mean-Confidence",
-                    "Speed",
-                ]
-            )
+            validation_columns = [
+                "Data-Index",
+                "Batch-Index",
+                "Image",
+                "Mean-Confidence",
+                "Speed",
+            ]
+            train_columns = ["Epoch"] + validation_columns
+            self.train_validation_table = wandb.Table(columns=train_columns)
+            self.validation_table = wandb.Table(columns=validation_columns)
             self.prediction_table = wandb.Table(
                 columns=["Image", "Num-Objects", "Mean-Confidence", "Speed"]
             )
         elif model.task == "classify":
-            self.prediction_table = wandb.Table(
-                columns=[
-                    "Image",
-                    "Predicted-Category",
-                    "Prediction-Confidence",
-                    "Top-5-Prediction-Categories",
-                    "Top-5-Prediction-Confindence",
-                    "Probabilities",
-                    "Speed",
-                ]
-            )
+            classification_columns = [
+                "Image",
+                "Predicted-Category",
+                "Prediction-Confidence",
+                "Top-5-Prediction-Categories",
+                "Top-5-Prediction-Confindence",
+                "Probabilities",
+                "Speed",
+            ]
+            validation_columns = ["Data-Index", "Batch-Index"] + classification_columns
+            train_columns = ["Epoch"] + validation_columns
+            self.train_validation_table = wandb.Table(columns=train_columns)
+            self.validation_table = wandb.Table(columns=validation_columns)
+            self.prediction_table = wandb.Table(columns=classification_columns)
 
     def _make_predictor(self, model: YOLO):
         overrides = model.overrides.copy()
@@ -168,9 +165,31 @@ class WandBUltralyticsCallback:
             if self.enable_model_checkpointing:
                 self._save_model(trainer)
             trainer.model.to(self.device)
+        elif isinstance(trainer, ClassificationTrainer):
+            validator = trainer.validator
+            dataloader = validator.dataloader
+            class_label_map = validator.names
+            with torch.no_grad():
+                self.device = next(trainer.model.parameters()).device
+                trainer.model.to("cpu")
+                self.model = copy.deepcopy(trainer.model).eval().to(self.device)
+                self.predictor.setup_model(model=self.model, verbose=False)
+                self.train_validation_table = plot_classification_validation_results(
+                    dataloader=dataloader,
+                    predictor=self.predictor,
+                    table=self.train_validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                    epoch=trainer.epoch,
+                )
+            if self.enable_model_checkpointing:
+                self._save_model(trainer)
+            trainer.model.to(self.device)
 
     def on_train_end(self, trainer: DetectionTrainer):
-        wandb.log({"Train-Validation-Table": self.train_validation_table})
+        if isinstance(trainer, DetectionTrainer) or isinstance(
+            trainer, ClassificationTrainer
+        ):
+            wandb.log({"Train-Validation-Table": self.train_validation_table})
 
     def on_val_end(self, trainer: DetectionValidator):
         if isinstance(trainer, DetectionValidator):
@@ -182,6 +201,18 @@ class WandBUltralyticsCallback:
                 self.validation_table = plot_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,
+                    predictor=self.predictor,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            wandb.log({"Validation-Table": self.validation_table})
+        elif isinstance(trainer, ClassificationValidator):
+            validator = trainer
+            dataloader = validator.dataloader
+            with torch.no_grad():
+                self.predictor.setup_model(model=self.model, verbose=False)
+                self.validation_table = plot_classification_validation_results(
+                    dataloader=dataloader,
                     predictor=self.predictor,
                     table=self.validation_table,
                     max_validation_batches=self.max_validation_batches,
