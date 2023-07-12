@@ -11,112 +11,131 @@ import (
 	// "time"
 )
 
+// Handler is the handler for a stream
+// it handles the incoming messages process them
+// and passes them to the writer
 type Handler struct {
-	ctx      context.Context
-	settings *service.Settings
-	inChan   chan *service.Record
-	outChan  chan<- *service.Record
+	// ctx is the context for the handler
+	ctx context.Context
 
+	// inChan is the channel for incoming messages
+	inChan chan *service.Record
+
+	// outChan is the channel for outgoing messages
+	outChan chan<- *service.Record
+
+	// dispatcherChan is the channel for dispatcher messages
 	dispatcherChan chan<- *service.Result
 
+	// settings is the settings for the handler
+	settings *service.Settings
+
+	// logger is the logger for the handler
+	logger *slog.Logger
+
+	// currentStep is the current step
 	currentStep int64
-	startTime   float64
-	run         *service.RunRecord
-	summary     map[string]string
-	logger      *slog.Logger
+
+	// startTime is the start time
+	startTime float64
+
+	// run is the run record
+	run *service.RunRecord
+
+	// summary is the summary
+	summary map[string]string
 }
 
+// NewHandler creates a new handler
 func NewHandler(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Handler {
-	handler := Handler{
+	h := &Handler{
 		ctx:      ctx,
 		inChan:   make(chan *service.Record),
 		settings: settings,
 		summary:  make(map[string]string),
 		logger:   logger,
 	}
-	return &handler
+	return h
 }
 
+// do this starts the handler
 func (h *Handler) do() {
-	h.logger.Debug("handler: started", "stream_id", h.settings.GetRunId())
-
-	defer func() {
-		h.close()
-		slog.Debug("handle: closed")
-	}()
+	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 
 	for msg := range h.inChan {
-		LogRecord(h.logger, "handle: got msg", msg)
 		h.handleRecord(msg)
 	}
+	h.close()
+	slog.Debug("handler: started and closed")
 }
 
+// close this closes the handler
 func (h *Handler) close() {
 	close(h.outChan)
+	slog.Info("handle: closed", "stream_id", h.settings.RunId)
 }
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(msg *service.Record) {
+	h.logger.Debug("handle: got a message", "msg", msg, "stream_id", h.settings.RunId)
 	switch x := msg.RecordType.(type) {
 	case *service.Record_Alert:
-		// TODO: handle alert
+		// TODO: handle this
 	case *service.Record_Artifact:
-		// TODO: handle artifact
+		// TODO: handle this
 	case *service.Record_Config:
-		// TODO: handle config
+		// TODO: handle this
 	case *service.Record_Exit:
 		h.handleExit(msg, x.Exit)
 	case *service.Record_Files:
 		h.handleFiles(msg, x.Files)
 	case *service.Record_Final:
-		// TODO: handle final
+		// TODO: handle this
 	case *service.Record_Footer:
-		// TODO: handle footer
+		// TODO: handle this
 	case *service.Record_Header:
-		// TODO: handle header
+		// TODO: handle this
 	case *service.Record_History:
-		// TODO: handle history
+		// TODO: handle this
 	case *service.Record_LinkArtifact:
-		// TODO: handle linkartifact
+		// TODO: handle this
 	case *service.Record_Metric:
-		// TODO: handle metric
+		// TODO: handle this
 	case *service.Record_Output:
-		// TODO: handle output
+		// TODO: handle this
 	case *service.Record_OutputRaw:
-		// TODO: handle outputraw
+		// TODO: handle this
 	case *service.Record_Preempting:
-		// TODO: handle preempting
+		// TODO: handle this
 	case *service.Record_Request:
-		LogRecord(h.logger, "req got", msg)
 		h.handleRequest(msg)
 	case *service.Record_Run:
 		h.handleRun(msg, x.Run)
 	case *service.Record_Stats:
-		// TODO: handle stats
+		// TODO: handle this
 	case *service.Record_Summary:
-		// TODO: handle summary
+		// TODO: handle this
 	case *service.Record_Tbrecord:
-		// TODO: handle tbrecord
+		// TODO: handle this
 	case *service.Record_Telemetry:
-		// TODO: handle telemetry
+		// TODO: handle this
 	case nil:
-		LogFatal(h.logger, "handleRecord: record type is nil")
+		err := fmt.Errorf("handleRecord: record type is nil")
+		h.logger.Error("error handling record", "err", err, "stream_id", h.settings.RunId)
+		panic(err)
 	default:
-		LogFatal(h.logger, fmt.Sprintf("handleRecord: unknown record type %T", x))
+		err := fmt.Errorf("handleRecord: unknown record type %T", x)
+		h.logger.Error("error handling record", "err", err, "stream_id", h.settings.RunId)
+		panic(err)
 	}
 }
 
 func (h *Handler) handleRequest(rec *service.Record) {
 	req := rec.GetRequest()
-	ref := req.ProtoReflect()
-	desc := ref.Descriptor()
-	num := ref.WhichOneof(desc.Oneofs().ByName("request_type")).Number()
-	h.logger.Debug(fmt.Sprintf("PROCESS: REQUEST, type:%v", num))
-
 	response := &service.Response{}
 	switch x := req.RequestType.(type) {
 	case *service.Request_CheckVersion:
-		// TODO: handle checkversion
+		// TODO: handle this
 	case *service.Request_Defer:
 		h.handleDefer(rec)
 	case *service.Request_GetSummary:
@@ -124,12 +143,10 @@ func (h *Handler) handleRequest(rec *service.Record) {
 	case *service.Request_Keepalive:
 	case *service.Request_NetworkStatus:
 	case *service.Request_PartialHistory:
-		LogRecord(h.logger, "PROCESS: got partial", rec)
 		h.handlePartialHistory(rec, x.PartialHistory)
 		return
 	case *service.Request_PollExit:
 	case *service.Request_RunStart:
-		LogRecord(h.logger, "PROCESS: got start", rec)
 		h.handleRunStart(rec, x.RunStart)
 	case *service.Request_SampledHistory:
 	case *service.Request_ServerInfo:
@@ -137,7 +154,9 @@ func (h *Handler) handleRequest(rec *service.Record) {
 	case *service.Request_StopStatus:
 	case *service.Request_JobInfo:
 	default:
-		LogFatal(h.logger, fmt.Sprintf("handleRequest: unknown request type %T", x))
+		err := fmt.Errorf("handleRequest: unknown request type %T", x)
+		h.logger.Error("error handling request", "err", err, "stream_id", h.settings.RunId)
+		panic(err)
 	}
 
 	result := &service.Result{
@@ -157,21 +176,22 @@ func (h *Handler) sendRecord(rec *service.Record) {
 }
 
 func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartRequest) {
-	h.logger.Debug("PROCESS: run start")
 	var ok bool
 	run := req.Run
 
 	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
 	h.run, ok = proto.Clone(run).(*service.RunRecord)
 	if !ok {
-		LogFatal(h.logger, "handleRunStart: failed to clone run")
+		err := fmt.Errorf("handleRunStart: failed to clone run")
+		h.logger.Error("error handling run start", "err", err, "stream_id", h.settings.RunId)
+		panic(err)
 	}
 	h.sendRecord(rec)
 
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 
-	// todo: this is a hack, we should not be sending metadata from here,
+	// TODO: this is a hack, we should not be sending metadata from here,
 	//  it should arrive as a proper request from the client.
 	//  attempting to do this before the run start request arrives in the sender
 	//  will cause a segfault because the sender's uploader is not initialized yet.
@@ -214,14 +234,11 @@ func (h *Handler) handleGetSummary(_ *service.Record, _ *service.GetSummaryReque
 	for key, element := range h.summary {
 		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
 	}
-
 	response.ResponseType = &service.Response_GetSummaryResponse{GetSummaryResponse: &service.GetSummaryResponse{Item: items}}
 }
 
 func (h *Handler) handleDefer(rec *service.Record) {
-	// TODO: add defer state machine
 	req := rec.GetRequest().GetDefer()
-	slog.Debug("handler: Defer request", "reg", req.String())
 	switch req.State {
 	case service.DeferRequest_END:
 		h.sendRecord(rec)
@@ -243,7 +260,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, req *service.PartialHi
 		if items[i].Key == "_timestamp" {
 			val, err := strconv.ParseFloat(items[i].ValueJson, 64)
 			if err != nil {
-				LogError(h.logger, "Error parsing _timestamp", err)
+				h.logger.Error("error parsing timestamp", "err", err, "stream_id", h.settings.RunId)
 			}
 			runTime = val - h.startTime
 		}
@@ -254,7 +271,6 @@ func (h *Handler) handlePartialHistory(_ *service.Record, req *service.PartialHi
 	)
 
 	record := service.HistoryRecord{Step: &s, Item: items}
-
 	r := service.Record{
 		RecordType: &service.Record_History{History: &record},
 	}

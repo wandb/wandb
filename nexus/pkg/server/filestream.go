@@ -15,13 +15,17 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-const HistoryFileName = "wandb-history.jsonl"
-const maxItemsPerPush = 5_000
-const delayProcess = 20 * time.Millisecond
-const heartbeatTime = 2 * time.Second
+const (
+	HistoryFileName = "wandb-history.jsonl"
+	maxItemsPerPush = 5_000
+	delayProcess    = 20 * time.Millisecond
+	heartbeatTime   = 2 * time.Second
+)
 
-var exitcodeZero int = 0
-var completeTrue bool = true
+var (
+	exitcodeZero int  = 0
+	completeTrue bool = true
+)
 
 type chunkFile int8
 
@@ -77,6 +81,8 @@ func NewFileStream(path string, settings *service.Settings, logger *slog.Logger)
 }
 
 func (fs *FileStream) Start() {
+	fs.logger.Debug("FileStream: Start")
+
 	fs.recordWait.Add(1)
 	go fs.doRecordProcess()
 	fs.chunkWait.Add(1)

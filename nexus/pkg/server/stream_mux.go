@@ -16,6 +16,7 @@ type StreamMux struct {
 	mutex sync.RWMutex
 }
 
+// NewStreamMux creates a new stream mux.
 func NewStreamMux() *StreamMux {
 	return &StreamMux{
 		mux: make(map[string]*Stream),
@@ -34,6 +35,7 @@ func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
 	}
 }
 
+// GetStream gets a stream from the mux.
 func (sm *StreamMux) GetStream(streamId string) (*Stream, error) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
@@ -75,5 +77,5 @@ func (sm *StreamMux) CloseAllStreams(force bool) {
 	slog.Debug("all streams were closed")
 }
 
-// StreamMux is a singleton.
+// StreamMux is a global stream mux
 var streamMux = NewStreamMux()

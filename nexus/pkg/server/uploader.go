@@ -12,9 +12,14 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
+// UploadTask is a task to upload a file
 type UploadTask struct {
+
+	// path is the path to the file
 	path string
-	url  string
+
+	// url is the endpoint to upload to
+	url string
 }
 
 type fileCounts struct {
@@ -24,15 +29,28 @@ type fileCounts struct {
 	// otherCount    int
 }
 
+// Uploader uploads files to the server
 type Uploader struct {
-	ctx         context.Context
-	inChan      chan *UploadTask
+	// ctx is the context for the uploader
+	ctx context.Context
+
+	// inChan is the channel for incoming messages
+	inChan chan *UploadTask
+
+	// retryClient is the retryable http client
 	retryClient *retryablehttp.Client
-	fileCounts  fileCounts
-	logger      *slog.Logger
-	wg          *sync.WaitGroup
+
+	// fileCounts is the file counts
+	fileCounts fileCounts
+
+	// logger is the logger for the uploader
+	logger *slog.Logger
+
+	// wg is the wait group
+	wg *sync.WaitGroup
 }
 
+// NewUploader creates a new uploader
 func NewUploader(ctx context.Context, logger *slog.Logger) *Uploader {
 	retryClient := retryablehttp.NewClient()
 	retryClient.Logger = nil
@@ -53,6 +71,7 @@ func NewUploader(ctx context.Context, logger *slog.Logger) *Uploader {
 	return uploader
 }
 
+// do is the main loop for the uploader
 func (u *Uploader) do() {
 	defer u.wg.Done()
 
@@ -66,17 +85,20 @@ func (u *Uploader) do() {
 	}
 }
 
-func (u *Uploader) addTask(task *UploadTask) {
+// AddTask adds a task to the uploader
+func (u *Uploader) AddTask(task *UploadTask) {
 	u.logger.Debug("uploader: adding task", "path", task.path, "url", task.url)
 	u.inChan <- task
 }
 
+// close closes the uploader
 func (u *Uploader) close() {
 	u.logger.Debug("uploader: Close")
 	close(u.inChan)
 	u.wg.Wait()
 }
 
+// upload uploads a file to the server
 func (u *Uploader) upload(task *UploadTask) error {
 	// read in the file at task.path:
 	file, err := os.ReadFile(task.path)
@@ -93,8 +115,7 @@ func (u *Uploader) upload(task *UploadTask) error {
 		return err
 	}
 
-	_, err = u.retryClient.Do(req)
-	if err != nil {
+	if _, err = u.retryClient.Do(req); err != nil {
 		return err
 	}
 	return nil

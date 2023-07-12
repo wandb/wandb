@@ -19,8 +19,6 @@ func (ns *NexusStream) SendRecord(r *service.Record) {
 	ns.Send <- r
 }
 
-// func ResultCallback(ns *server.NexusStream, result *service.Result) {
-
 func (ns *NexusStream) SetResultCallback(cb func(run *service.RunRecord, settings *service.Settings, result *service.Result)) {
 	ns.Callback = cb
 }

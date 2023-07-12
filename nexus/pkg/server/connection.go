@@ -5,28 +5,44 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"net"
-	"strings"
-	"sync"
-
 	"github.com/wandb/wandb/nexus/pkg/auth"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"net"
+	"strings"
+	"sync"
 )
 
+// Connection is the connection for a stream
 type Connection struct {
-	ctx  context.Context
-	conn net.Conn
-	wg   sync.WaitGroup
-	id   string
+	// ctx is the context for the connection
+	ctx context.Context
 
-	inChan       chan *service.ServerRequest
-	outChan      chan *service.ServerResponse
+	// conn is the underlying connection
+	conn net.Conn
+
+	// wg is the WaitGroup for the connection
+	wg sync.WaitGroup
+
+	// id is the unique id for the connection
+	id string
+
+	// inChan is the channel for incoming messages
+	inChan chan *service.ServerRequest
+
+	// outChan is the channel for outgoing messages
+	outChan chan *service.ServerResponse
+
+	// teardownChan is the channel for signaling teardown
 	teardownChan chan struct{}
+
+	// logger is the logger for the connection
+	logger slog.Logger
 }
 
+// NewConnection creates a new connection
 func NewConnection(
 	ctx context.Context,
 	conn net.Conn,
@@ -37,10 +53,10 @@ func NewConnection(
 		ctx:          ctx,
 		wg:           sync.WaitGroup{},
 		conn:         conn,
-		id:           conn.RemoteAddr().String(), // check if this is properly unique
+		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
 		inChan:       make(chan *service.ServerRequest),
 		outChan:      make(chan *service.ServerResponse),
-		teardownChan: teardown, //TODO: eventually remove this, we should be able to handle shutdown outside of the connection
+		teardownChan: teardown, //TODO: should we trigger teardown from a connection?
 	}
 	nc.wg.Add(1)
 	go nc.handle()
@@ -48,68 +64,72 @@ func NewConnection(
 }
 
 func (nc *Connection) handle() {
-	slog.Debug("creating new connection", "id", nc.id)
+	slog.Info("created new connection", "id", nc.id)
+
 	defer nc.wg.Done()
 
 	nc.wg.Add(1)
 	go func() {
-		defer nc.wg.Done()
 		nc.handleServerRequest()
+		nc.wg.Done()
 	}()
 
 	nc.wg.Add(1)
 	go func() {
-		defer nc.wg.Done()
 		nc.handleServerResponse()
+		nc.wg.Done()
 	}()
 }
 
 func (nc *Connection) Close() {
 	slog.Debug("closing connection", "id", nc.id)
 	if err := nc.conn.Close(); err != nil {
-		slog.Error("error closing connection", "err", err.Error(), "id", nc.id)
+		slog.Error("error closing connection", "err", err, "id", nc.id)
 	}
 	nc.wg.Wait()
-	slog.Debug("handleInformTeardown: teardown closed")
+	slog.Info("closed connection", "id", nc.id)
 }
 
 func (nc *Connection) Respond(resp *service.ServerResponse) {
 	nc.outChan <- resp
 }
 
+// handleServerRequest handles outgoing messages from the server
+// to the client
 func (nc *Connection) handleServerResponse() {
 	slog.Debug("starting handleServerResponse", "id", nc.id)
 	for msg := range nc.outChan {
 		out, err := proto.Marshal(msg)
 		if err != nil {
-			LogError(slog.Default(), "error marshalling msg", err)
+			slog.Error("error marshalling msg", "err", err, "id", nc.id)
 			return
 		}
 
 		writer := bufio.NewWriter(nc.conn)
 		header := Header{Magic: byte('W'), DataLength: uint32(len(out))}
 		if err = binary.Write(writer, binary.LittleEndian, &header); err != nil {
-			LogError(slog.Default(), "error writing header", err)
+			slog.Error("error writing header", "err", err, "id", nc.id)
 			return
 		}
 		if _, err = writer.Write(out); err != nil {
-			LogError(slog.Default(), "error writing msg", err)
+			slog.Error("error writing msg", "err", err, "id", nc.id)
 			return
 		}
 
 		if err = writer.Flush(); err != nil {
-			LogError(slog.Default(), "error flushing writer", err)
+			slog.Error("error flushing writer", "err", err, "id", nc.id)
 			return
 		}
 	}
 	slog.Debug("finished handleServerResponse", "id", nc.id)
 }
 
+// handleServerRequest handles incoming messages from the client
 func (nc *Connection) handleServerRequest() {
 	defer close(nc.outChan)
 	slog.Debug("starting handleServerRequest", "id", nc.id)
 	for msg := range nc.inChan {
-		slog.Debug("handling server request", "id", nc.id, "msg", msg.String())
+		slog.Debug("handling server request", "msg", msg, "id", nc.id)
 		switch x := msg.ServerRequestType.(type) {
 		case *service.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
@@ -124,14 +144,18 @@ func (nc *Connection) handleServerRequest() {
 		case *service.ServerRequest_InformTeardown:
 			nc.handleInformTeardown(x.InformTeardown)
 		case nil:
+			slog.Error("ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
 		default:
+			slog.Error("ServerRequestType is unknown", "type", x, "id", nc.id)
 			panic(fmt.Sprintf("ServerRequestType is unknown, %T", x))
 		}
 	}
 	slog.Debug("finished handleServerRequest", "id", nc.id)
 }
 
+// handleInformInit is called when the client sends an InformInit message
+// to the server, to start a new stream
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	settings := msg.GetSettings()
 
@@ -144,16 +168,18 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 
 		_, password, err := auth.GetNetrcLogin(host)
 		if err != nil {
-			LogFatal(slog.Default(), err.Error())
+			slog.Error("error getting password from netrc", "err", err, "id", nc.id)
+			panic(err)
 		}
 		s.ApiKey = &wrapperspb.StringValue{Value: password}
 	}(settings) // TODO: this is a hack, we should not be modifying the settings
 
 	streamId := msg.GetXInfo().GetStreamId()
-	slog.Debug("connection init received", slog.String("streamId", streamId))
+	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 	stream := NewStream(nc.ctx, settings, streamId, ResponderEntry{nc, nc.id})
 	if err := streamMux.AddStream(streamId, stream); err != nil {
-		slog.Error("handleInformInit: stream already exists", slog.String("streamId", streamId))
+		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)
+		// TODO: should we close the stream?
 		return
 	}
 }
@@ -161,10 +187,12 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 func (nc *Connection) handleInformStart(_ *service.ServerInformStartRequest) {
 }
 
+// handleInformRecord is called when the client sends a record message
 func (nc *Connection) handleInformRecord(msg *service.Record) {
-	streamId := msg.XInfo.StreamId
+	streamId := msg.GetXInfo().GetStreamId()
+	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	if stream, err := streamMux.GetStream(streamId); err != nil {
-		slog.Error("handleInformRecord: stream not found", slog.String("streamId", streamId))
+		slog.Error("handleInformRecord: stream not found", "streamId", streamId, "id", nc.id)
 	} else {
 		// add connection id to control message
 		// so that the stream can send back a response
@@ -178,18 +206,22 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 	}
 }
 
+// handleInformFinish is called when the client sends a close message
+// for a stream
 func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest) {
 	streamId := msg.XInfo.StreamId
-	slog.Debug("handleInformFinish", slog.String("streamId", streamId))
+	slog.Info("handle finish received", "streamId", streamId, "id", nc.id)
 	if stream, err := streamMux.RemoveStream(streamId); err != nil {
-		slog.Error("handleInformFinish:", "err", err.Error(), "streamId", streamId)
+		slog.Error("handleInformFinish:", "err", err, "streamId", streamId, "id", nc.id)
 	} else {
 		stream.Close(false)
 	}
 }
 
+// handleInformTeardown is called when the client sends a teardown message
+// for the entire server session
 func (nc *Connection) handleInformTeardown(_ *service.ServerInformTeardownRequest) {
-	slog.Debug("handleInformTeardown: starting..", "id", nc.id)
+	slog.Debug("handle teardown received", "id", nc.id)
 	close(nc.teardownChan)
 	streamMux.CloseAllStreams(true) // TODO: this seems wrong to close all streams from a single connection
 	nc.Close()

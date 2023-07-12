@@ -1,70 +1,92 @@
 package server
 
 import (
-	"os"
-
 	"context"
-	"fmt"
-	"path/filepath"
-
 	"encoding/json"
-
+	"fmt"
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-
-	"golang.org/x/exp/slog"
+	"os"
+	"path/filepath"
 )
 
-const CliVersion string = "0.0.1a1"
-const MetaFilename string = "wandb-metadata.json"
+const (
+	CliVersion   = "0.0.1a1"
+	MetaFilename = "wandb-metadata.json"
+)
 
+// Sender is the sender for a stream
+// it handles the incoming messages and sends to the server
+// or/and to the dispatcher/handler
 type Sender struct {
-	ctx            context.Context
-	settings       *service.Settings
-	inChan         chan *service.Record
-	outChan        chan<- *service.Record
+	// ctx is the context for the handler
+	ctx context.Context
+
+	// inChan is the channel for incoming messages
+	inChan chan *service.Record
+
+	//	outChan is the channel for outgoing messages
+	outChan chan<- *service.Record
+
+	// dispatcherChan is the channel for dispatcher messages
 	dispatcherChan chan<- *service.Result
-	graphqlClient  graphql.Client
-	fileStream     *FileStream
-	uploader       *Uploader
-	run            *service.RunRecord
-	logger         *slog.Logger
+
+	// graphqlClient is the graphql client
+	graphqlClient graphql.Client
+
+	// fileStream is the file stream
+	fileStream *FileStream
+
+	// uploader is the file uploader
+	uploader *Uploader
+
+	// run is the run record
+	run *service.RunRecord
+
+	// logger is the logger for the sender
+	logger *slog.Logger
+
+	// settings is the settings for the sender
+	settings *service.Settings
 }
 
 // NewSender creates a new Sender instance
 func NewSender(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Sender {
-	sender := &Sender{
+
+	s := &Sender{
 		ctx:      ctx,
 		settings: settings,
 		inChan:   make(chan *service.Record),
 		logger:   logger,
 	}
-	sender.logger.Debug("sender: init", "stream_id", sender.settings.GetRunId())
-	url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-	sender.graphqlClient = newGraphqlClient(url, settings.GetApiKey().GetValue())
 
-	return sender
+	url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
+	s.graphqlClient = newGraphqlClient(url, settings.GetApiKey().GetValue())
+
+	return s
 }
 
-// `do` starts the sender
+// do sending of messages to the server
 func (s *Sender) do() {
+
 	defer func() {
-		s.logger.Debug("sender: closed")
 		close(s.dispatcherChan)
-		s.logger.Debug("sender: dispatcherChan closed")
+		s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
 	}()
 
-	s.logger.Debug("sender: started", "stream_id", s.settings.GetRunId())
+	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 	for msg := range s.inChan {
-		LogRecord(s.logger, "sender: got msg", msg)
 		s.sendRecord(msg)
 	}
 }
 
 // sendRecord sends a record
 func (s *Sender) sendRecord(msg *service.Record) {
+
+	s.logger.Debug("sender: sendRecord", "msg", msg, "stream_id", s.settings.RunId)
 	switch x := msg.RecordType.(type) {
 	case *service.Record_Run:
 		s.sendRun(msg, x.Run)
@@ -73,19 +95,23 @@ func (s *Sender) sendRecord(msg *service.Record) {
 	case *service.Record_Files:
 		s.sendFiles(msg, x.Files)
 	case *service.Record_History:
-		LogRecord(s.logger, "Sender: sendRecord", msg)
 		s.sendHistory(msg, x.History)
 	case *service.Record_Request:
 		s.sendRequest(msg, x.Request)
 	case nil:
-		LogFatal(s.logger, "sender: sendRecord: nil RecordType")
+		err := fmt.Errorf("sender: sendRecord: nil RecordType")
+		s.logger.Error("sender received error", "err", err, "stream_id", s.settings.RunId)
+		panic(err)
 	default:
-		LogFatal(s.logger, fmt.Sprintf("sender: sendRecord: unexpected type %T", x))
+		err := fmt.Errorf("sender: sendRecord: unexpected type %T", x)
+		s.logger.Error("sender received error", "err", err, "stream_id", s.settings.RunId)
+		panic(err)
 	}
 }
 
+// sendRequest sends a request
 func (s *Sender) sendRequest(_ *service.Record, req *service.Request) {
-	s.logger.Debug("Sender: sendRequest BITCH", "req", req.RequestType)
+
 	switch x := req.RequestType.(type) {
 	case *service.Request_RunStart:
 		s.sendRunStart(x.RunStart)
@@ -96,17 +122,17 @@ func (s *Sender) sendRequest(_ *service.Record, req *service.Request) {
 	case *service.Request_Metadata:
 		s.sendMetadata(x.Metadata)
 	default:
+		// TODO: handle errors
 	}
 }
 
+// sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), s.run.Entity, s.run.Project, s.run.RunId)
 	s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
 	s.fileStream.Start()
-	s.logger.Debug("Sender: sendRunStart: started file stream")
 	s.uploader = NewUploader(s.ctx, s.logger)
-	s.logger.Debug("Sender: sendRunStart: started uploader")
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -126,33 +152,28 @@ func (s *Sender) sendDefer(req *service.DeferRequest) {
 	switch req.State {
 	case service.DeferRequest_FLUSH_FP:
 		s.uploader.close()
-		s.logger.Debug(fmt.Sprintf("Sender: sendDefer: flushed file pusher: %v", req.State))
 		req.State++
 		s.sendRequestDefer(req)
 	case service.DeferRequest_FLUSH_FS:
-		s.logger.Debug(fmt.Sprintf("Sender: sendDefer: flush file stream: %v", req.State))
 		s.fileStream.Close()
 		req.State++
 		s.sendRequestDefer(req)
 	case service.DeferRequest_END:
-		s.logger.Debug(fmt.Sprintf("Sender: sendDefer: end = %v", req.State))
 		close(s.outChan)
-		s.logger.Debug(fmt.Sprintf("Sender: sendDefer: end = %v", req.State))
 	default:
-		s.logger.Debug(fmt.Sprintf("Sender: sendDefer: unknown state = %v", req.State))
 		req.State++
 		s.sendRequestDefer(req)
 	}
 }
 
 func (s *Sender) sendRequestDefer(req *service.DeferRequest) {
-	r := service.Record{
+	rec := &service.Record{
 		RecordType: &service.Record_Request{Request: &service.Request{
 			RequestType: &service.Request_Defer{Defer: req},
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.outChan <- &r
+	s.outChan <- rec
 }
 
 func (s *Sender) parseConfigUpdate(config *service.ConfigRecord) map[string]interface{} {
@@ -162,9 +183,9 @@ func (s *Sender) parseConfigUpdate(config *service.ConfigRecord) map[string]inte
 	for _, d := range config.GetUpdate() {
 		j := d.GetValueJson()
 		var data interface{}
-		err := json.Unmarshal([]byte(j), &data)
-		if err != nil {
-			LogFatalError(s.logger, "unmarshal problem", err)
+		if err := json.Unmarshal([]byte(j), &data); err != nil {
+			s.logger.Error("unmarshal problem", "err", err, "stream_id", s.settings.RunId)
+			panic(err)
 		}
 		datas[d.GetKey()] = data
 	}
@@ -177,13 +198,15 @@ func (s *Sender) updateConfigTelemetry(config map[string]interface{}) {
 	case map[string]interface{}:
 		v["cli_version"] = CliVersion
 	default:
-		LogFatal(s.logger, fmt.Sprintf("can not parse config _wandb, saw: %v", v))
+		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
+		s.logger.Error("sender received error", "err", err, "stream_id", s.settings.RunId)
+		panic(err)
 	}
 }
 
 func (s *Sender) getValueConfig(config map[string]interface{}) map[string]map[string]interface{} {
-	datas := make(map[string]map[string]interface{})
 
+	datas := make(map[string]map[string]interface{})
 	for key, elem := range config {
 		datas[key] = make(map[string]interface{})
 		datas[key]["value"] = elem
@@ -195,7 +218,9 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 
 	run, ok := proto.Clone(record).(*service.RunRecord)
 	if !ok {
-		LogFatal(s.logger, "error")
+		err := fmt.Errorf("sender: sendRun: failed to clone RunRecord")
+		s.logger.Error("sender received error", "err", err, "stream_id", s.settings.RunId)
+		panic(err)
 	}
 
 	config := s.parseConfigUpdate(record.Config)
@@ -203,36 +228,40 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 	valueConfig := s.getValueConfig(config)
 	configJson, err := json.Marshal(valueConfig)
 	if err != nil {
-		LogFatalError(s.logger, "marshal prob", err)
+		err = fmt.Errorf("sender: sendRun: failed to marshal config: %s", err)
+		s.logger.Error("sender received error", "err", err, "stream_id", s.settings.RunId)
+		panic(err)
 	}
 	configString := string(configJson)
 
 	var tags []string
 	resp, err := UpsertBucket(
-		s.ctx,
-		s.graphqlClient,
-		nil,           // id
-		&record.RunId, // name
-		nil,           // project
-		nil,           // entity
-		nil,           // groupName
-		nil,           // description
-		nil,           // displayName
-		nil,           // notes
-		nil,           // commit
-		&configString, // config
-		nil,           // host
-		nil,           // debug
-		nil,           // program
-		nil,           // repo
-		nil,           // jobType
-		nil,           // state
-		nil,           // sweep
-		tags,          // tags []string,
-		nil,           // summaryMetrics
+		s.ctx,           // ctx
+		s.graphqlClient, // client
+		nil,             // id
+		&record.RunId,   // name
+		nil,             // project
+		nil,             // entity
+		nil,             // groupName
+		nil,             // description
+		nil,             // displayName
+		nil,             // notes
+		nil,             // commit
+		&configString,   // config
+		nil,             // host
+		nil,             // debug
+		nil,             // program
+		nil,             // repo
+		nil,             // jobType
+		nil,             // state
+		nil,             // sweep
+		tags,            // tags []string,
+		nil,             // summaryMetrics
 	)
 	if err != nil {
-		LogError(s.logger, "error upserting bucket", err)
+		err = fmt.Errorf("sender: sendRun: failed to upsert bucket: %s", err)
+		s.logger.Error("sender received error", "err", err, "stream_id", s.settings.RunId)
+		panic(err)
 	}
 
 	run.DisplayName = *resp.UpsertBucket.Bucket.DisplayName
@@ -245,34 +274,33 @@ func (s *Sender) sendRun(msg *service.Record, record *service.RunRecord) {
 		Control:    msg.Control,
 		Uuid:       msg.Uuid,
 	}
-	LogResult(s.logger, "sending run result ", result)
 	s.dispatcherChan <- result
 }
 
+// sendHistory sends a history record to the file stream,
+// which will then send it to the server
 func (s *Sender) sendHistory(msg *service.Record, _ *service.HistoryRecord) {
-	LogRecord(s.logger, "sending history result ", msg)
 	if s.fileStream != nil {
 		s.fileStream.StreamRecord(msg)
 	}
 }
 
+// sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(msg *service.Record, _ *service.RunExitRecord) {
-	// send exit via filestream
-	LogRecord(s.logger, "sending run exit result ", msg)
-	s.fileStream.StreamRecord(msg)
 
+	s.fileStream.StreamRecord(msg)
 	result := &service.Result{
 		ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
 		Control:    msg.Control,
 		Uuid:       msg.Uuid,
 	}
 	s.dispatcherChan <- result
-	//RequestType: &service.Request_Defer{Defer: &service.DeferRequest{State: service.DeferRequest_BEGIN}}
 	req := &service.Request{RequestType: &service.Request_Defer{Defer: &service.DeferRequest{State: service.DeferRequest_BEGIN}}}
 	rec := &service.Record{RecordType: &service.Record_Request{Request: req}, Control: msg.Control, Uuid: msg.Uuid}
 	s.sendRecord(rec)
 }
 
+// sendFiles iterates over the files in the FilesRecord and sends them to
 func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) {
 	files := filesRecord.GetFiles()
 	for _, file := range files {
@@ -280,10 +308,12 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 	}
 }
 
+// sendFile sends a file to the server
 func (s *Sender) sendFile(path string) {
-
 	if s.run == nil {
-		LogFatal(s.logger, "upsert run not called before send db")
+		err := fmt.Errorf("sender: sendFile: run not set")
+		s.logger.Error("sender received error", "err", err, "stream_id", s.settings.RunId)
+		panic(err)
 	}
 
 	entity := s.run.Entity
@@ -294,19 +324,18 @@ func (s *Sender) sendFile(path string) {
 		[]*string{&path},
 		&entity,
 		s.run.RunId,
-		nil, // description
+		nil,
 	)
 	if err != nil {
-		LogError(s.logger, "error getting upload urls", err)
+		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
+		s.logger.Error("sender received error", "err", err, "stream_id", s.settings.RunId)
+		panic(err)
 	}
 
 	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), path)
 	edges := resp.GetModel().GetBucket().GetFiles().GetEdges()
 	for _, e := range edges {
 		task := &UploadTask{fullPath, *e.GetNode().GetUrl()}
-		s.logger.Debug("sending file", "path", task.path, "url", task.url)
-		s.logger.Info("AAAAA")
-		s.uploader.addTask(task)
-		s.logger.Info("BBBBB")
+		s.uploader.AddTask(task)
 	}
 }

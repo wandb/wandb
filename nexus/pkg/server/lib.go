@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"golang.org/x/exp/slog"
 	"os"
 	"strings"
 
@@ -23,6 +24,34 @@ func PrintHeadFoot(run *service.RunRecord, settings *service.Settings) {
 	appURL := strings.Replace(settings.GetBaseUrl().GetValue(), "//api.", "//", 1)
 	url := fmt.Sprintf("%v/%v/%v/runs/%v", appURL, run.Entity, run.Project, run.RunId)
 	fmt.Printf("%vwandb%v: 🚀 View run %v%v%v at: %v%v%v\n", colorBrightBlue, colorReset, colorYellow, run.DisplayName, colorReset, colorBlue, url, colorReset)
+}
+
+func writePortFile(portFile string, port int) {
+	tempFile := fmt.Sprintf("%s.tmp", portFile)
+	f, err := os.Create(tempFile)
+	if err != nil {
+		LogError(slog.Default(), "fail create", err)
+	}
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
+
+	if _, err = f.WriteString(fmt.Sprintf("sock=%d\n", port)); err != nil {
+		LogError(slog.Default(), "fail write", err)
+	}
+
+	if _, err = f.WriteString("EOF"); err != nil {
+		LogError(slog.Default(), "fail write EOF", err)
+	}
+
+	if err = f.Sync(); err != nil {
+		LogError(slog.Default(), "fail sync", err)
+	}
+
+	if err = os.Rename(tempFile, portFile); err != nil {
+		LogError(slog.Default(), "fail rename", err)
+	}
+	slog.Info("wrote port file", "file", portFile, "port", port)
 }
 
 func ResultCallback(run *service.RunRecord, settings *service.Settings, result *service.Result) {
