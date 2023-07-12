@@ -14,6 +14,7 @@ try:
     from ultralytics.yolo.engine.model import TASK_MAP, YOLO
     from ultralytics.yolo.utils import RANK, __version__
     from ultralytics.yolo.utils.torch_utils import de_parallel
+    from ultralytics.yolo.v8.pose.predict import PosePredictor
     from ultralytics.yolo.v8.detect.train import DetectionTrainer
     from ultralytics.yolo.v8.detect.val import DetectionValidator
     from ultralytics.yolo.v8.detect.predict import DetectionPredictor
@@ -24,6 +25,7 @@ except ImportError as e:
     print(e)
 
 import wandb
+from wandb.integration.ultralytics.pose_utils import plot_pose_predictions
 from wandb.integration.ultralytics.bbox_utils import (
     plot_predictions,
     plot_validation_results,
@@ -71,6 +73,8 @@ class WandBUltralyticsCallback:
             a table per epoch.
         enable_model_checkpointing: enable logging model checkpoints as
             artifacts at the end of eveny epoch if set to `True`.
+        visualize_skeleton: visualize pose skeleton by drawing lines connecting
+            keypoints for human pose.
     """
 
     def __init__(
@@ -78,9 +82,11 @@ class WandBUltralyticsCallback:
         model: YOLO,
         max_validation_batches: int = 1,
         enable_model_checkpointing: bool = False,
+        visualize_skeleton: bool = False,
     ) -> None:
         self.max_validation_batches = max_validation_batches
         self.enable_model_checkpointing = enable_model_checkpointing
+        self.visualize_skeleton = visualize_skeleton
         self._make_tables(model)
         self._make_predictor(model)
 
@@ -114,6 +120,16 @@ class WandBUltralyticsCallback:
             self.train_validation_table = wandb.Table(columns=train_columns)
             self.validation_table = wandb.Table(columns=validation_columns)
             self.prediction_table = wandb.Table(columns=classification_columns)
+        elif model.task == "pose":
+            pose_columns = [
+                "Image-Bounding-Box",
+                "Image-Pose",
+                "Image-Prediction",
+                "Num-Instances",
+                "Mean-Confidence",
+                "Speed",
+            ]
+            self.prediction_table = wandb.Table(columns=pose_columns)
 
     def _make_predictor(self, model: YOLO):
         overrides = model.overrides.copy()
@@ -207,7 +223,11 @@ class WandBUltralyticsCallback:
         self, predictor: Union[DetectionPredictor, ClassificationPredictor]
     ):
         for result in tqdm(predictor.results):
-            if isinstance(predictor, DetectionPredictor):
+            if isinstance(predictor, PosePredictor):
+                self.prediction_table = plot_pose_predictions(
+                    result, self.visualize_skeleton, self.prediction_table
+                )
+            elif isinstance(predictor, DetectionPredictor):
                 self.prediction_table = plot_predictions(result, self.prediction_table)
             elif isinstance(predictor, ClassificationPredictor):
                 self.prediction_table = plot_classification_predictions(
@@ -234,6 +254,7 @@ def add_wandb_callback(
     enable_validation_logging: bool = True,
     enable_prediction_logging: bool = True,
     max_validation_batches: Optional[int] = 1,
+    visualize_skeleton: Optional[bool] = True,
 ):
     """Function to add the `WandBUltralyticsCallback` callback to the `YOLO`
     model.
@@ -282,10 +303,15 @@ def add_wandb_callback(
             of the predictions per-class at the end of each prediction.
         max_validation_batches: maximum number of validation batches to log to
             a table per epoch.
+        visualize_skeleton: visualize pose skeleton by drawing lines connecting
+            keypoints for human pose.
     """
     if RANK in [-1, 0]:
         wandb_callback = WandBUltralyticsCallback(
-            copy.deepcopy(model), max_validation_batches, enable_model_checkpointing
+            copy.deepcopy(model),
+            max_validation_batches,
+            enable_model_checkpointing,
+            visualize_skeleton,
         )
         if not enable_train_validation_logging:
             _ = wandb_callback.callbacks.pop("on_fit_epoch_end")
