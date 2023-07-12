@@ -1,10 +1,8 @@
-import os
 import signal
 import subprocess
 import sys
-from netrc import netrc
 from time import sleep
-from typing import Optional, Tuple
+from typing import Tuple
 
 import wandb
 from kubernetes import client, config, watch
@@ -20,20 +18,6 @@ def run_cmd_async(command: str) -> subprocess.Popen:
     return subprocess.Popen(command.split(" "))
 
 
-def get_wandb_api_key(base_url: Optional[str]) -> str:
-    if not base_url:
-        base_url = "api.wandb.ai"
-    existing_api_key = os.getenv("WANDB_API_KEY")
-    if existing_api_key:
-        return existing_api_key
-    wandb.login()
-    n = netrc()
-    # n.authenticators() returns tuple in format (login, account, key)
-    api_key = n.authenticators(base_url)[2]
-    os.environ["WANDB_API_KEY"] = api_key
-    return api_key
-
-
 def cleanup_deployment(namespace: str):
     """Delete a k8s deployment and all pods in the same namespace."""
     config.load_kube_config()
@@ -46,30 +30,6 @@ def cleanup_deployment(namespace: str):
     pods = core_api.list_namespaced_pod(namespace=namespace).items
     for pod in pods:
         core_api.delete_namespaced_pod(name=pod.metadata.name, namespace=namespace)
-
-
-def create_wandb_and_aws_secrets(
-    namespace: str,
-    wandb_api_key: str,
-    aws_id: str,
-    aws_secret: str,
-    aws_token: str,
-) -> None:
-    run_cmd(f"kubectl create namespace {namespace}")
-    secrets = [
-        ("wandb-api-key", wandb_api_key),
-        ("aws-access-key-id", aws_id),
-        ("aws-secret-access-key", aws_secret),
-        ("aws-session-token", aws_token),
-    ]
-    for key, password in secrets:
-        # Delete if already existing
-        run_cmd(
-            f"kubectl -n {namespace} delete secret generic {key} --ignore-not-found"
-        )
-        run_cmd(
-            f"kubectl -n {namespace} create secret generic {key} --from-literal=password={password}"
-        )
 
 
 def wait_for_image_job_completion(

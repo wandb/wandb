@@ -26,22 +26,14 @@ spec:
                 secretKeyRef:
                   name: wandb-api-key
                   key: password
-            - name: AWS_ACCESS_KEY_ID
+            - name: WANDB_BASE_URL
               valueFrom:
-                secretKeyRef:
-                  name: aws-access-key-id
-                  key: password
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: aws-secret-access-key
-                  key: password
-            - name: AWS_SESSION_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: aws-session-token
-                  key: password
+                configMapKeyRef:
+                  name: wandb-launch-configmap
+                  key: wandb-base-url
           volumeMounts:
             - name: wandb-launch-config
               mountPath: /home/launch_agent/.config/wandb
+            - name: aws-secret # if you intend on using kaniko with ecr create a secret containing your aws credentials, with this name
+              mountPath: /home/launch_agent/.aws
               readOnly: true

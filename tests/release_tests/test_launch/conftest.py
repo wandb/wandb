@@ -1,5 +1,8 @@
 import boto3
 import botocore
+import os
+
+from utils import run_cmd
 
 
 def pytest_addoption(parser):
@@ -25,3 +28,11 @@ def pytest_configure(config):
         sts.get_caller_identity()
     except botocore.exceptions.ClientError:
         raise Exception("Not logged into LaunchSandbox AWS account")
+
+    creds_path = os.path.expanduser("~/.aws")
+    run_cmd(
+        "kubectl delete secret generic aws-secret --ignore-not-found -n wandb-release-testing"
+    )
+    run_cmd(
+        f"kubectl create secret generic aws-secret --from-file={creds_path} -n wandb-release-testing"
+    )

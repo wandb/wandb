@@ -4,7 +4,6 @@ import pytest
 import yaml
 from utils import (
     cleanup_deployment,
-    get_wandb_api_key,
     run_cmd,
     run_cmd_async,
     setup_cleanup_on_exit,
@@ -31,20 +30,7 @@ aws_session_token = {aws_token}
 
 
 @pytest.mark.timeout(180)
-def test_kubernetes_agent_on_local_process(api_key, base_url):
-    if not api_key:
-        api_key = get_wandb_api_key(base_url)
-    aws_id = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_token = os.getenv("AWS_SESSION_TOKEN")
-
-    with open(os.path.expanduser("~/.aws/credentials"), "w") as f:
-        f.write(
-            AWS_CREDENTIALS_FORMAT.format(
-                aws_id=aws_id, aws_secret=aws_secret, aws_token=aws_token
-            )
-        )
-
+def test_kubernetes_agent_on_local_process():
     try:
         # Start launch agent
         agent_process = run_cmd_async(
@@ -81,7 +67,7 @@ def test_kubernetes_agent_on_local_process(api_key, base_url):
 def _create_config_files():
     """Create a launch-config.yml and launch-agent.yml."""
     launch_config = yaml.load_all(
-        open("wandb/sdk/launch/deploys/aws-eks/launch-config.yaml")
+        open("wandb/sdk/launch/deploys/kubernetes/launch-config.yaml")
     )
     launch_config_patch = yaml.load_all(
         open("tests/release_tests/test_launch/launch-config-patch.yaml")
@@ -95,7 +81,9 @@ def _create_config_files():
         final_launch_config,
         open("tests/release_tests/test_launch/launch-config.yml", "w+"),
     )
-    launch_agent = yaml.load(open("wandb/sdk/launch/deploys/aws-eks/launch-agent.yaml"))
+    launch_agent = yaml.load(
+        open("wandb/sdk/launch/deploys/kubernetes/launch-agent.yaml")
+    )
     launch_agent_patch = yaml.load(
         open("tests/release_tests/test_launch/launch-agent-patch.yaml")
     )
@@ -108,21 +96,7 @@ def _create_config_files():
 
 
 @pytest.mark.timeout(180)
-def test_kubernetes_agent_in_cluster(api_key, base_url):
-    # get user's wandb API key and AWS creds
-    if not api_key:
-        api_key = get_wandb_api_key(base_url)
-    aws_id = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_token = os.getenv("AWS_SESSION_TOKEN")
-
-    with open(os.path.expanduser("~/.aws/credentials"), "w") as f:
-        f.write(
-            AWS_CREDENTIALS_FORMAT.format(
-                aws_id=aws_id, aws_secret=aws_secret, aws_token=aws_token
-            )
-        )
-
+def test_kubernetes_agent_in_cluster():
     _create_config_files()
 
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
