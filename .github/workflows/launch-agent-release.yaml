@@ -1,13 +1,16 @@
 name: Launch Agent Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      identifier:
-        type: string
-        required: false
-        descript: Version identifier
-        default: pre
+  push:
+    branches:
+      - launch/launch-release-action
+  # workflow_dispatch:
+  #   inputs:
+  #     identifier:
+  #       type: string
+  #       required: false
+  #       descript: Version identifier
+  #       default: pre
 
 defaults:
   run:
