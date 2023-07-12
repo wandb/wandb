@@ -109,7 +109,6 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
             "maybe_create_imagepull_secret",
             lambda *args, **kwargs: None,
         )
-        run = runner.run(project, project.docker_image)
         project.launch_spec = {"_resume_count": 0}
         run = runner.run(image_uri="hello-world", launch_project=project)
     assert run.name == expected_run_name
