@@ -50,7 +50,7 @@ function install {
     COMMAND=$(command $SPEC)
     if [[ ${#INSTALL[@]} -gt 0 ]]; then
         if [[ ! " ${INSTALL[@]} " =~ " $COMMAND " ]]; then
-            continue
+            return
         fi
     fi
     VERSION=$(pinned $SPEC)

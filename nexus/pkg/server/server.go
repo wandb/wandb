@@ -3,11 +3,12 @@ package server
 import (
 	"bufio"
 	"context"
+	"net"
+	"sync"
+
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
-	"net"
-	"sync"
 )
 
 // Server is the nexus server

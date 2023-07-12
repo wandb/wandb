@@ -3,9 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
-	"golang.org/x/exp/slog"
 	"os"
 	"strings"
+
+	"golang.org/x/exp/slog"
 
 	"google.golang.org/protobuf/types/known/wrapperspb"
 

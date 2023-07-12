@@ -18,6 +18,10 @@ set -e
 BASE=$(dirname $(dirname $(readlink -f $0)))
 cd $BASE
 
+# hack to make sure we use our local protoc
+export PATH="$HOME/.local/bin:$PATH"
+
+./scripts/update-dev-env.sh protocolbuffers/protobuf
 ./scripts/update-dev-env.sh protoc-gen-go
 
 MOD=pkg/service/

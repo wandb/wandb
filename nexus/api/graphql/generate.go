@@ -1,3 +1,3 @@
 package server
 
-//go:generate go run github.com/Khan/genqlient genqlient.yaml
+//go:generate ../../scripts/generate-graphql.sh
