@@ -536,7 +536,7 @@ class FileStreamApi:
             if 'wandb-history.jsonl' in fs:
                 fs['wandb-history.jsonl'] = fs['wandb-history.jsonl'].copy()
                 fs['wandb-history.jsonl']['content'] = [
-                    json.dumps({'a': 100_000 * 'a'})
+                    json.dumps({'a': 100_000 * 'a', 'x': random.random()})
                     for _ in range(100)
                 ]
             self._handle_response(
