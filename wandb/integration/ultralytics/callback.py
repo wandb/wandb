@@ -14,6 +14,8 @@ try:
     from ultralytics.yolo.engine.model import TASK_MAP, YOLO
     from ultralytics.yolo.utils import RANK, __version__
     from ultralytics.yolo.utils.torch_utils import de_parallel
+    from ultralytics.yolo.v8.pose.train import PoseTrainer
+    from ultralytics.yolo.v8.pose.val import PoseValidator
     from ultralytics.yolo.v8.pose.predict import PosePredictor
     from ultralytics.yolo.v8.detect.train import DetectionTrainer
     from ultralytics.yolo.v8.detect.val import DetectionValidator
@@ -25,7 +27,10 @@ except ImportError as e:
     print(e)
 
 import wandb
-from wandb.integration.ultralytics.pose_utils import plot_pose_predictions
+from wandb.integration.ultralytics.pose_utils import (
+    plot_pose_predictions,
+    plot_pose_validation_results,
+)
 from wandb.integration.ultralytics.bbox_utils import (
     plot_predictions,
     plot_validation_results,
@@ -122,16 +127,26 @@ class WandBUltralyticsCallback:
             self.validation_table = wandb.Table(columns=validation_columns)
             self.prediction_table = wandb.Table(columns=classification_columns)
         elif model.task == "pose":
-            pose_columns = [
-                "Image-Bounding-Box",
-                "Image-Pose",
+            validation_columns = [
+                "Data-Index",
+                "Batch-Index",
+                "Image-Ground-Truth",
                 "Image-Prediction",
                 "Num-Instances",
                 "Mean-Confidence",
                 "Speed",
             ]
-            validation_columns = ["Data-Index", "Batch-Index"] + classification_columns
-            self.prediction_table = wandb.Table(columns=pose_columns)
+            train_columns = ["Epoch"] + validation_columns
+            self.train_validation_table = wandb.Table(columns=train_columns)
+            self.validation_table = wandb.Table(columns=validation_columns)
+            self.prediction_table = wandb.Table(
+                columns=[
+                    "Image-Prediction",
+                    "Num-Instances",
+                    "Mean-Confidence",
+                    "Speed",
+                ]
+            )
 
     def _make_predictor(self, model: YOLO):
         overrides = model.overrides.copy()
@@ -171,7 +186,17 @@ class WandBUltralyticsCallback:
             trainer.model.to("cpu")
             self.model = copy.deepcopy(trainer.model).eval().to(self.device)
             self.predictor.setup_model(model=self.model, verbose=False)
-            if isinstance(trainer, DetectionTrainer):
+            if isinstance(trainer, PoseTrainer):
+                self.train_validation_table = plot_pose_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    predictor=self.predictor,
+                    visualize_skeleton=self.visualize_skeleton,
+                    table=self.train_validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                    epoch=trainer.epoch,
+                )
+            elif isinstance(trainer, DetectionTrainer):
                 self.train_validation_table = plot_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,
@@ -204,7 +229,16 @@ class WandBUltralyticsCallback:
         class_label_map = validator.names
         with torch.no_grad():
             self.predictor.setup_model(model=self.model, verbose=False)
-            if isinstance(trainer, DetectionValidator):
+            if isinstance(trainer, PoseValidator):
+                self.validation_table = plot_pose_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    predictor=self.predictor,
+                    visualize_skeleton=self.visualize_skeleton,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            elif isinstance(trainer, DetectionValidator):
                 self.validation_table = plot_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,

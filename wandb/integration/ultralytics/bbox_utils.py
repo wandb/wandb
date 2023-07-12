@@ -28,7 +28,7 @@ def scale_bounding_box_to_original_image_shape(
     return box.tolist()
 
 
-def get_ground_truth_annotations(img_idx, image_path, batch, class_name_map=None):
+def get_ground_truth_bbox_annotations(img_idx, image_path, batch, class_name_map=None):
     indices = batch["batch_idx"] == img_idx
     bboxes = batch["bboxes"][indices]
     cls_labels = batch["cls"][indices].squeeze(1).tolist()
@@ -164,7 +164,7 @@ def plot_validation_results(
                 prediction_result
             )
             try:
-                ground_truth_data = get_ground_truth_annotations(
+                ground_truth_data = get_ground_truth_bbox_annotations(
                     img_idx, image_path, batch, class_label_map
                 )
                 wandb_image = wandb.Image(
