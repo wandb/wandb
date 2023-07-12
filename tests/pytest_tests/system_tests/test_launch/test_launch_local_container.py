@@ -52,24 +52,21 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.launch_spec = {}
         string_args = " ".join(project.override_args)
         environment = loader.environment_from_config({})
-        registry = loader.registry_from_config({}, environment)
-        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
         api = Api()
         runner = loader.runner_from_config(
             "local-container",
             api,
             {"type": "local-container", "SYNCHRONOUS": False},
             environment,
+            MagicMock(),
         )
-        command = runner.run(launch_project=project, builder=builder)
+        command = runner.run(project, project.docker_image)
         assert (
             f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
             in command
         )
 
         # test with no user provided image
-        project.docker_image = None
-        project.image_name = None
-        command = runner.run(launch_project=project, builder=builder)
+        command = runner.run(project, project.docker_image)
         assert f"WANDB_ARGS='{string_args}'" in command
         assert f"WANDB_ARGS='{string_args}'" in command
