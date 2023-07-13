@@ -30,7 +30,10 @@ except ImportError as e:
     print(e)
 
 import wandb
-from wandb.integration.ultralytics.mask_utils import plot_mask_predictions
+from wandb.integration.ultralytics.mask_utils import (
+    plot_mask_predictions,
+    plot_mask_validation_results,
+)
 from wandb.integration.ultralytics.pose_utils import (
     plot_pose_predictions,
     plot_pose_validation_results,
@@ -212,6 +215,15 @@ class WandBUltralyticsCallback:
                     max_validation_batches=self.max_validation_batches,
                     epoch=trainer.epoch,
                 )
+            elif self.task == "segment":
+                self.train_validation_table = plot_mask_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    predictor=self.predictor,
+                    table=self.train_validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                    epoch=trainer.epoch,
+                )
             elif self.task == "detect":
                 self.train_validation_table = plot_validation_results(
                     dataloader=dataloader,
@@ -234,7 +246,7 @@ class WandBUltralyticsCallback:
         trainer.model.to(self.device)
 
     def on_train_end(self, trainer: TRAINER_TYPE):
-        if self.task in ["pose", "detect", "classify"]:
+        if self.task in ["pose", "segment", "detect", "classify"]:
             wandb.log({"Train-Validation-Table": self.train_validation_table})
 
     def on_val_end(self, trainer: VALIDATOR_TYPE):
@@ -249,6 +261,14 @@ class WandBUltralyticsCallback:
                     class_label_map=class_label_map,
                     predictor=self.predictor,
                     visualize_skeleton=self.visualize_skeleton,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            elif self.task == "segment":
+                self.validation_table = plot_mask_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    predictor=self.predictor,
                     table=self.validation_table,
                     max_validation_batches=self.max_validation_batches,
                 )

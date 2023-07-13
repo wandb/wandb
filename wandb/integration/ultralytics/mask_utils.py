@@ -1,3 +1,4 @@
+import copy
 from typing import Dict, Optional, Tuple, Union
 
 import wandb
@@ -9,8 +10,9 @@ from ultralytics.yolo.engine.results import Results
 from ultralytics.yolo.utils.plotting import Annotator, Colors
 from ultralytics.yolo.data.augment import LetterBox
 from ultralytics.yolo.utils.ops import scale_image
+from ultralytics.yolo.v8.segment import SegmentationPredictor
 
-from .bbox_utils import get_mean_confidence_map
+from .bbox_utils import get_mean_confidence_map, get_ground_truth_bbox_annotations
 
 
 def annotate_mask_results(result: Results):
@@ -59,9 +61,9 @@ def get_boxes_and_masks(result: Results) -> Tuple[Dict, Dict]:
             scaled_instance_mask, classes.tolist()
         )
         class_id_to_label_segmentation = {
-            int(k) + 1: str(v) for k, v in class_id_to_label.items()
+            int(k) + 1: str(v) for k, v in copy.deepcopy(class_id_to_label).items()
         }
-        class_id_to_label_segmentation.update({0: "no-category"})
+        class_id_to_label_segmentation.update({0: "background"})
         masks = {
             "predictions": {
                 "mask_data": scaled_semantic_mask,
@@ -110,4 +112,54 @@ def plot_mask_predictions(
             result.speed,
         )
         return table
-    return image, boxes["predictions"], mean_confidence_map
+    return image, masks, boxes["predictions"], mean_confidence_map
+
+
+def plot_mask_validation_results(
+    dataloader,
+    class_label_map,
+    predictor: SegmentationPredictor,
+    table: wandb.Table,
+    max_validation_batches: int,
+    epoch: Optional[int] = None,
+):
+    data_idx = 0
+    for batch_idx, batch in enumerate(dataloader):
+        for img_idx, image_path in enumerate(batch["im_file"]):
+            prediction_result = predictor(image_path)[0]
+            (
+                _,
+                prediction_mask_data,
+                prediction_box_data,
+                mean_confidence_map,
+            ) = plot_mask_predictions(prediction_result)
+            try:
+                ground_truth_data = get_ground_truth_bbox_annotations(
+                    img_idx, image_path, batch, class_label_map
+                )
+                wandb_image = wandb.Image(
+                    image_path,
+                    boxes={
+                        "ground-truth": {
+                            "box_data": ground_truth_data,
+                            "class_labels": class_label_map,
+                        },
+                        "predictions": prediction_box_data,
+                    },
+                    masks=prediction_mask_data,
+                )
+                table_rows = [
+                    data_idx,
+                    batch_idx,
+                    wandb_image,
+                    mean_confidence_map,
+                    prediction_result.speed,
+                ]
+                table_rows = [epoch] + table_rows if epoch is not None else table_rows
+                table.add_data(*table_rows)
+                data_idx += 1
+            except TypeError:
+                pass
+        if batch_idx + 1 == max_validation_batches:
+            break
+    return table

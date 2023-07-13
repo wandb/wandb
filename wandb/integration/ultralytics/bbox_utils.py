@@ -35,7 +35,7 @@ def get_ground_truth_bbox_annotations(
     bboxes = batch["bboxes"][indices]
     cls_labels = batch["cls"][indices].squeeze(1).tolist()
 
-    class_name_map_reverse = {v: k for k, v in class_name_map.items()}
+    class_name_map_reverse = {v: k + 1 for k, v in class_name_map.items()}
 
     if len(bboxes) == 0:
         wandb.termwarn(f"Image: {image_path} has no bounding boxes labels")
@@ -153,6 +153,7 @@ def plot_validation_results(
             _, prediction_box_data, mean_confidence_map = plot_predictions(
                 prediction_result
             )
+            print(prediction_box_data)
             try:
                 ground_truth_data = get_ground_truth_bbox_annotations(
                     img_idx, image_path, batch, class_label_map
@@ -164,7 +165,10 @@ def plot_validation_results(
                             "box_data": ground_truth_data,
                             "class_labels": class_label_map,
                         },
-                        "predictions": prediction_box_data,
+                        "predictions": {
+                            "box_data": prediction_box_data["box_data"],
+                            "class_labels": class_label_map,
+                        },
                     },
                 )
                 table_rows = [
