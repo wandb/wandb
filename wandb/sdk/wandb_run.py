@@ -1186,9 +1186,7 @@ class Run:
         for k, v in (("code", code), ("repo", repo), ("code_version", code_version)):
             if v and not RE_LABEL.match(v):
                 wandb.termwarn(
-                    "Label added for '{}' with invalid identifier '{}' (ignored).".format(
-                        k, v
-                    ),
+                    f"Label added for '{k}' with invalid identifier '{v}' (ignored).",
                     repeat=False,
                 )
         for v in kwargs:
@@ -2495,16 +2493,12 @@ class Run:
             if arg_val is not None and not isinstance(arg_val, exp_type):
                 arg_type = type(arg_val).__name__
                 raise wandb.Error(
-                    "Unhandled define_metric() arg: {} type: {}".format(
-                        arg_name, arg_type
-                    )
+                    f"Unhandled define_metric() arg: {arg_name} type: {arg_type}"
                 )
         stripped = name[:-1] if name.endswith("*") else name
         if "*" in stripped:
             raise wandb.Error(
-                "Unhandled define_metric() arg: name (glob suffixes only): {}".format(
-                    name
-                )
+                f"Unhandled define_metric() arg: name (glob suffixes only): {name}"
             )
         summary_ops: Optional[Sequence[str]] = None
         if summary:

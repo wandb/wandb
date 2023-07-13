@@ -190,9 +190,7 @@ class AuthConfig(dict):
 
             username, password = decode_auth(entry["auth"])
             log.debug(
-                "Found entry (registry={}, username={})".format(
-                    repr(registry), repr(username)
-                )
+                f"Found entry (registry={repr(registry)}, username={repr(username)})"
             )
 
             conf[registry] = {
