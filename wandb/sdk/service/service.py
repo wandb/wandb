@@ -180,7 +180,7 @@ class _Service:
                 #
                 #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
                 #       to assist in running the nexus service from a live development directory.
-                nexus_path = os.environ.get("_WANDB_NEXUS_PATH")
+                nexus_path: str = os.environ.get("_WANDB_NEXUS_PATH") or ""
                 if not nexus_path:
                     wandb_nexus = get_module(
                         "wandb_core",
