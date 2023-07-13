@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 
+	"github.com/wandb/wandb/nexus/pkg/analytics"
+
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
 )
@@ -28,16 +30,15 @@ type Writer struct {
 	settings *service.Settings
 
 	// logger is the logger for the writer
-	logger *slog.Logger
+	logger *analytics.NexusLogger
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, settings *service.Settings, logger *slog.Logger) *Writer {
+func NewWriter(ctx context.Context, settings *service.Settings, logger *analytics.NexusLogger) *Writer {
 
 	store, err := NewStore(ctx, settings.GetSyncFile().GetValue(), logger)
 	if err != nil {
-		logger.Error("writer: error creating store", "error", err, "stream_id", settings.RunId)
-		panic(err)
+		logger.Fatal("writer: error creating store", err)
 	}
 
 	writer := &Writer{
@@ -64,7 +65,7 @@ func (w *Writer) do() {
 func (w *Writer) close() {
 	close(w.outChan)
 	if err := w.store.Close(); err != nil {
-		w.logger.Error("writer: error closing store", "error", err, "stream_id", w.settings.RunId)
+		w.logger.Error("writer: error closing store", err)
 		return
 	}
 	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
@@ -83,7 +84,7 @@ func (w *Writer) handleRecord(msg *service.Record) {
 		slog.Error("nil record type")
 	default:
 		if err := w.store.storeRecord(msg); err != nil {
-			w.logger.Error("writer: error storing record", "error", err, "stream_id", w.settings.RunId)
+			w.logger.Error("writer: error storing record", err)
 			return
 		}
 		w.sendRecord(msg)

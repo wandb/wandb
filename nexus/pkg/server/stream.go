@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/wandb/wandb/nexus/pkg/analytics"
 	"github.com/wandb/wandb/nexus/pkg/service"
-	"golang.org/x/exp/slog"
 )
 
 // Stream is a collection of components that work together to handle incoming
@@ -37,13 +37,13 @@ type Stream struct {
 	settings *service.Settings
 
 	// logger is the logger for the stream
-	logger *slog.Logger
+	logger *analytics.NexusLogger
 }
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(ctx context.Context, settings *service.Settings, streamId string, responders ...ResponderEntry) *Stream {
 	logFile := settings.GetLogInternal().GetValue()
-	logger := SetupStreamLogger(logFile, streamId)
+	logger := analytics.NewNexusLogger(SetupStreamLogger(logFile, streamId), settings)
 
 	dispatcher := NewDispatcher(ctx, logger)
 	sender := NewSender(ctx, settings, logger)
@@ -80,11 +80,6 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 		s.dispatcher.AddResponder(entry)
 	}
 }
-
-// RemoveResponder removes the responder with the given id from the stream's
-// func (s *Stream) RemoveResponder(responderId string) {
-//	s.dispatcher.RemoveResponder(responderId)
-// }
 
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly

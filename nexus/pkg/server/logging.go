@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
 )
 
@@ -61,31 +60,10 @@ func LogError(log *slog.Logger, msg string, err error) {
 		slog.String("error", err.Error()))
 }
 
-func LogFatal(log *slog.Logger, msg string) {
-	log.LogAttrs(context.Background(),
-		slog.LevelError,
-		msg)
-	panic(msg)
-}
-
 func LogFatalError(log *slog.Logger, msg string, err error) {
 	log.LogAttrs(context.Background(),
 		slog.LevelError,
 		msg,
 		slog.String("error", err.Error()))
 	panic(msg)
-}
-
-func LogRecord(log *slog.Logger, msg string, record *service.Record) {
-	log.LogAttrs(context.Background(),
-		slog.LevelDebug,
-		msg,
-		slog.String("record", record.String()))
-}
-
-func LogResult(log *slog.Logger, msg string, result *service.Result) {
-	log.LogAttrs(context.Background(),
-		slog.LevelDebug,
-		msg,
-		slog.String("result", result.String()))
 }

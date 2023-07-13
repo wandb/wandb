@@ -3,8 +3,9 @@ package server
 import (
 	"context"
 
+	"github.com/wandb/wandb/nexus/pkg/analytics"
+
 	"github.com/wandb/wandb/nexus/pkg/service"
-	"golang.org/x/exp/slog"
 )
 
 // Dispatcher is the dispatcher for a stream
@@ -19,11 +20,11 @@ type Dispatcher struct {
 	responders map[string]Responder
 
 	// logger is the logger for the dispatcher
-	logger *slog.Logger
+	logger *analytics.NexusLogger
 }
 
 // NewDispatcher creates a new dispatcher
-func NewDispatcher(ctx context.Context, logger *slog.Logger) *Dispatcher {
+func NewDispatcher(ctx context.Context, logger *analytics.NexusLogger) *Dispatcher {
 	dispatcher := &Dispatcher{
 		ctx:        ctx,
 		inChan:     make(chan *service.Result),
@@ -43,19 +44,6 @@ func (d *Dispatcher) AddResponder(entry ResponderEntry) {
 	}
 }
 
-// RemoveResponder removes a responder from the dispatcher
-// func (d *Dispatcher) RemoveResponder(responderId string) {
-//	if _, ok := d.responders[responderId]; ok {
-//		delete(d.responders, responderId)
-//	} else {
-//		slog.LogAttrs(
-//			d.ctx,
-//			slog.LevelError,
-//			"Responder does not exist",
-//			slog.String("responder", responderId))
-//	}
-// }
-
 // do start the dispatcher and dispatches messages
 func (d *Dispatcher) do() {
 
@@ -70,7 +58,7 @@ func (d *Dispatcher) do() {
 			},
 		}
 		if responderId == "" {
-			LogResult(slog.Default(), "dispatch: got msg with no connection id", msg)
+			d.logger.Debug("dispatch: got msg with no connection id", "msg", msg)
 			continue
 		}
 		d.responders[responderId].Respond(response)

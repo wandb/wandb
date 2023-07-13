@@ -53,7 +53,15 @@ class NexusBase:
             env["GOARCH"] = goarch
         env["CGO_ENABLED"] = "0"
         os.makedirs(nexus_path.parent, exist_ok=True)
-        ldflags = "-s -w"
+
+        # Sentry only allows 12 characters for release names, the full commit hash won't fit
+        commit = (
+            subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
+            .decode("utf-8")
+            .strip()
+        )
+
+        ldflags = f"-s -w -X main.commit={commit}"
         cmd = (
             "go",
             "build",

@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wandb/wandb/nexus/pkg/analytics"
+
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/nexus/pkg/service"
-
-	"golang.org/x/exp/slog"
 )
 
 const (
@@ -59,11 +59,11 @@ type FileStream struct {
 	offset int
 
 	settings   *service.Settings
-	logger     *slog.Logger
+	logger     *analytics.NexusLogger
 	httpClient *retryablehttp.Client
 }
 
-func NewFileStream(path string, settings *service.Settings, logger *slog.Logger) *FileStream {
+func NewFileStream(path string, settings *service.Settings, logger *analytics.NexusLogger) *FileStream {
 	retryClient := newRetryClient(settings.GetApiKey().GetValue(), logger)
 	fs := FileStream{
 		path:       path,
@@ -113,8 +113,7 @@ func (fs *FileStream) doRecordProcess() {
 	}
 
 	for msg := range fs.recordChan {
-		fs.logger.Debug("FileStream *******")
-		LogRecord(fs.logger, "FileStream: got record", msg)
+		fs.logger.Debug("FileStream: got record", "record", msg)
 		fs.streamRecord(msg)
 	}
 	fs.logger.Debug("FileStream: finished")
@@ -180,14 +179,16 @@ func (fs *FileStream) streamRecord(msg *service.Record) {
 		fs.streamFinish()
 	case nil:
 		// The field is not set.
-		LogFatal(fs.logger, "FileStream: RecordType is nil")
+		err := fmt.Errorf("FileStream: RecordType is nil")
+		fs.logger.Fatal("FileStream error: field not set", err)
 	default:
-		LogFatal(fs.logger, fmt.Sprintf("FileStream: Unknown type %T", x))
+		err := fmt.Errorf("FileStream: Unknown type %T", x)
+		fs.logger.Fatal("FileStream error: unknown type", err)
 	}
 }
 
 func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
-	fs.pushChunk(chunkData{fileData: &chunkLine{chunkType: historyChunk, line: jsonifyHistory(msg, fs.logger)}})
+	fs.pushChunk(chunkData{fileData: &chunkLine{chunkType: historyChunk, line: fs.jsonifyHistory(msg)}})
 }
 
 func (fs *FileStream) streamFinish() {
@@ -198,7 +199,7 @@ func (fs *FileStream) StreamRecord(rec *service.Record) {
 	if fs.settings.GetXOffline().GetValue() {
 		return
 	}
-	LogRecord(fs.logger, "+++++FileStream: stream", rec)
+	fs.logger.Debug("FileStream: stream", "record", rec)
 	fs.pushRecord(rec)
 }
 
@@ -251,50 +252,51 @@ func (fs *FileStream) sendChunkList(chunks []chunkData) {
 func (fs *FileStream) send(data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		LogFatalError(fs.logger, "json marshal error", err)
+		LogFatalError(fs.logger.Logger, "json marshal error", err)
 	}
 
 	buffer := bytes.NewBuffer(jsonData)
 	req, err := retryablehttp.NewRequest(http.MethodPost, fs.path, buffer)
 	if err != nil {
-		LogFatalError(fs.logger, "FileStream: could not create request", err)
+		LogFatalError(fs.logger.Logger, "FileStream: could not create request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := fs.httpClient.Do(req)
 	if err != nil {
-		LogFatalError(fs.logger, "FileStream: error making HTTP request", err)
+		LogFatalError(fs.logger.Logger, "FileStream: error making HTTP request", err)
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			LogError(fs.logger, "FileStream: error closing response body", err)
+			fs.logger.Error("FileStream: error closing response body", err)
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		LogError(fs.logger, "json decode error", err)
+		fs.logger.Error("json decode error", err)
 	}
 	fs.pushReply(res)
 
 	fs.logger.Debug(fmt.Sprintf("FileStream: post response: %v", res))
 }
 
-func jsonifyHistory(msg *service.HistoryRecord, logger *slog.Logger) string {
+func (fs *FileStream) jsonifyHistory(msg *service.HistoryRecord) string {
 	data := make(map[string]interface{})
 
 	for _, item := range msg.Item {
 		var val interface{}
 		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
-			LogFatal(logger, fmt.Sprintf("json unmarshal error: %v, items: %v", err, item))
+			e := fmt.Errorf("json unmarshal error: %v, items: %v", err, item)
+			fs.logger.Fatal("json unmarshal error", e)
 		}
 		data[item.Key] = val
 	}
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		LogError(logger, "json marshal error", err)
+		fs.logger.Fatal("json unmarshal error", err)
 	}
 	return string(jsonData)
 }

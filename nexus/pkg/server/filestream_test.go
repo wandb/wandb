@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wandb/wandb/nexus/pkg/analytics"
+
 	"github.com/wandb/wandb/nexus/pkg/server"
 
 	// "os"
@@ -18,7 +20,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/nexus/pkg/service"
-	"golang.org/x/exp/slog"
 )
 
 type captureState struct {
@@ -109,13 +110,13 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type testServer struct {
 	hserver  *httptest.Server
 	settings *service.Settings
-	logger   *slog.Logger
+	logger   *analytics.NexusLogger
 	mux      *http.ServeMux
 }
 
 func NewTestServer() *testServer {
-	logger := server.SetupDefaultLogger()
 	settings := service.Settings{}
+	logger := analytics.NewNexusLogger(server.SetupDefaultLogger(), &settings)
 
 	mux := http.NewServeMux()
 	hserver := httptest.NewServer(mux)
