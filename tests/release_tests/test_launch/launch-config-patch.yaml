@@ -1,3 +1,4 @@
+# Indicates changes to make to the base launch config from wandb/sdk/launch/deploys/kubernetes/launch-config.yaml
 metadata:
   name: wandb-release-testing
 ---
