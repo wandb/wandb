@@ -119,10 +119,9 @@ class VertexRunner(AbstractRunner):
         )
         gcp_accelerator_count = int(resource_args.get("accelerator_count") or 0)
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        gcp_training_job_name = resource_args.get(
-            "job_name"
-        ) or "{project}_{time}".format(
-            project=launch_project.target_project, time=timestamp
+        gcp_training_job_name = (
+            resource_args.get("job_name")
+            or f"{launch_project.target_project}_{timestamp}"
         )
         service_account = resource_args.get("service_account")
         tensorboard = resource_args.get("tensorboard")

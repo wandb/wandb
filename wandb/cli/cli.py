@@ -2055,28 +2055,16 @@ def put(path, name, description, type, alias):
     api.set_setting("entity", entity)
     api.set_setting("project", project)
     artifact = wandb.Artifact(name=artifact_name, type=type, description=description)
-    artifact_path = "{entity}/{project}/{name}:{alias}".format(
-        entity=entity, project=project, name=artifact_name, alias=alias[0]
-    )
+    artifact_path = f"{entity}/{project}/{artifact_name}:{alias[0]}"
     if os.path.isdir(path):
-        wandb.termlog(
-            'Uploading directory {path} to: "{artifact_path}" ({type})'.format(
-                path=path, type=type, artifact_path=artifact_path
-            )
-        )
+        wandb.termlog(f'Uploading directory {path} to: "{artifact_path}" ({type})')
         artifact.add_dir(path)
     elif os.path.isfile(path):
-        wandb.termlog(
-            'Uploading file {path} to: "{artifact_path}" ({type})'.format(
-                path=path, type=type, artifact_path=artifact_path
-            )
-        )
+        wandb.termlog(f'Uploading file {path} to: "{artifact_path}" ({type})')
         artifact.add_file(path)
     elif "://" in path:
         wandb.termlog(
-            'Logging reference artifact from {path} to: "{artifact_path}" ({type})'.format(
-                path=path, type=type, artifact_path=artifact_path
-            )
+            f'Logging reference artifact from {path} to: "{artifact_path}" ({type})'
         )
         artifact.add_reference(path)
     else:
@@ -2108,9 +2096,7 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(
-            path=artifact_path,
-        ),
+        f'    artifact = run.use_artifact("{artifact_path}")\n',
         prefix=False,
     )
 
@@ -2133,9 +2119,7 @@ def get(path, root, type):
             artifact_name = artifact_parts[0]
         else:
             version = "latest"
-        full_path = "{entity}/{project}/{artifact}:{version}".format(
-            entity=entity, project=project, artifact=artifact_name, version=version
-        )
+        full_path = f"{entity}/{project}/{artifact_name}:{version}"
         wandb.termlog(
             "Downloading {type} artifact {full_path}".format(
                 type=type or "dataset", full_path=full_path
@@ -2217,11 +2201,7 @@ def pull(run, project, entity):
     urls = api.download_urls(project, run=run, entity=entity)
     if len(urls) == 0:
         raise ClickException("Run has no files")
-    click.echo(
-        "Downloading: {project}/{run}".format(
-            project=click.style(project, bold=True), run=run
-        )
-    )
+    click.echo(f"Downloading: {click.style(project, bold=True)}/{run}")
 
     for name in urls:
         if api.file_current(name, urls[name]["md5"]):

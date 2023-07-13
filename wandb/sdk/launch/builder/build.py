@@ -361,9 +361,9 @@ def generate_dockerfile(
 
     # ----- stage 1: build -----
     if launch_project.deps_type == "pip" or launch_project.deps_type is None:
-        python_build_image = "python:{}".format(
-            py_version
-        )  # use full python image for package installation
+        python_build_image = (
+            f"python:{py_version}"  # use full python image for package installation
+        )
     elif launch_project.deps_type == "conda":
         # neither of these images are receiving regular updates, latest should be pretty stable
         python_build_image = (

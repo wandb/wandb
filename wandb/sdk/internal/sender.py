@@ -1422,9 +1422,7 @@ class SendManager:
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
-                'error logging artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+                f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
         self._respond_result(result)
