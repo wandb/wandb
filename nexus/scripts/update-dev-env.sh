@@ -49,18 +49,22 @@ function is_version {
 function install {
     COMMAND=$(command $SPEC)
     if [[ ${#INSTALL[@]} -gt 0 ]]; then
-        if [[ ! " ${INSTALL[@]} " =~ " $COMMAND " ]]; then
+        MATCH=$(command ${INSTALL[@]})
+        if [[ ! "x$MATCH" =~ "x$COMMAND" ]]; then
             return
         fi
     fi
     VERSION=$(pinned $SPEC)
     if is_version $COMMAND $VERSION; then
+        echo "[INFO] update-dev-env.sh: Not updating \"$COMMAND\" (Version $VERSION found)"
         continue
     fi
     INSTALL_CMD=$(install_cmd $SPEC)
     if [ "x$INSTALL_CMD" != "x" ]; then
+        echo "[INFO] update-dev-env.sh: Updating \"$COMMAND\" with script (Want version $VERSION)"
         $INSTALL_CMD $VERSION
     else
+        echo "[INFO] update-dev-env.sh: Updating \"$COMMAND\" (Want version $VERSION)"
         go install -v $SPEC@$VERSION
     fi
 }
