@@ -2573,7 +2573,7 @@ class RunQueue:
         self._name: str = name
         self._client = client
         self._entity = entity
-        self._access: RunQueueAccessType = _access
+        self._access = _access
         self._default_resource_config_id = _default_resource_config_id
         self._default_resource_config = _default_resource_config
         self._type = None
@@ -2613,6 +2613,7 @@ class RunQueue:
     def items(self) -> List[QueuedRun]:
         """Up to the first 100 queued runs. Modifying this list will not modify the queue or any enqueued items!"""
 
+        # TODO(np): Add a paginated interface
         if self._items is None:
             self._get_items()
         return self._items
@@ -2667,9 +2668,7 @@ class RunQueue:
         }
         res = self._client.execute(query, variable_values)
         self._type = res["entity"]["defaultResourceConfig"]["resource"]
-        self._default_resource_config = res["entity"]["defaultResourceConfig"][
-            "config"
-        ]
+        self._default_resource_config = res["entity"]["defaultResourceConfig"]["config"]
 
     @normalize_exceptions
     def _get_items(self):
