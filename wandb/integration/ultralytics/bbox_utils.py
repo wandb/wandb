@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ultralytics.yolo.engine.results import Results
 from ultralytics.yolo.utils import ops
@@ -11,7 +11,7 @@ from PIL import Image
 
 def scale_bounding_box_to_original_image_shape(
     box, resized_image_shape, original_image_shape, ratio_pad
-):
+) -> List[int]:
     """YOLOv8 resizes images during training and the label values
     are normalized based on this resized shape.
 
@@ -30,7 +30,9 @@ def scale_bounding_box_to_original_image_shape(
     return box.tolist()
 
 
-def get_ground_truth_bbox_annotations(img_idx, image_path, batch, class_name_map=None):
+def get_ground_truth_bbox_annotations(
+    img_idx, image_path, batch, class_name_map=None
+) -> List[Dict[str, Any]]:
     indices = batch["batch_idx"] == img_idx
     bboxes = batch["bboxes"][indices]
     cls_labels = batch["cls"][indices].squeeze(1).tolist()
@@ -74,21 +76,9 @@ def get_ground_truth_bbox_annotations(img_idx, image_path, batch, class_name_map
     return data
 
 
-def create_prediction_metadata_map(model_predictions):
-    """Create metadata map for model predictions by groupings them based on
-    image ID.
-    """
-    pred_metadata_map = {}
-    for prediction in model_predictions:
-        pred_metadata_map.setdefault(prediction["image_id"], [])
-        pred_metadata_map[prediction["image_id"]].append(prediction)
-
-    return pred_metadata_map
-
-
 def get_mean_confidence_map(
     classes: List, confidence: List, class_id_to_label: Dict
-) -> Dict:
+) -> Dict[str, float]:
     confidence_map = {v: [] for _, v in class_id_to_label.items()}
     for class_idx, confidence_value in zip(classes, confidence):
         confidence_map[class_id_to_label[class_idx]].append(confidence_value)

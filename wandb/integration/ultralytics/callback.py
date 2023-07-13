@@ -160,7 +160,7 @@ class WandBUltralyticsCallback:
             )
 
     def _make_predictor(self, model: YOLO):
-        overrides = model.overrides.copy()
+        overrides = copy.deepcopy(model.overrides)
         overrides["conf"] = 0.1
         self.predictor = TASK_MAP[model.task][3](overrides=overrides, _callbacks=None)
 
