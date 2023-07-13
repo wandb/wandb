@@ -72,6 +72,7 @@ class ArtifactSaver:
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
+        base_id: Optional[str] = None,
     ) -> Optional[Dict]:
         try:
             return self._save_internal(
@@ -89,6 +90,7 @@ class ArtifactSaver:
                 use_after_commit,
                 incremental,
                 history_step,
+                base_id,
             )
         finally:
             self._cleanup_staged_entries()
@@ -109,6 +111,7 @@ class ArtifactSaver:
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
+        base_id: Optional[str] = None,
     ) -> Optional[Dict]:
         aliases = aliases or []
         alias_specs = []
@@ -154,7 +157,8 @@ class ArtifactSaver:
         #   do
         assert self._server_artifact is not None  # mypy optionality unwrapper
         artifact_id = self._server_artifact["id"]
-        latest_artifact_id = latest["id"] if latest else None
+        if base_id is None and latest:
+            base_id = latest["id"]
         if (
             self._server_artifact["state"] == "COMMITTED"
             or self._server_artifact["state"] == "COMMITTING"
@@ -183,7 +187,7 @@ class ArtifactSaver:
             manifest_filename,
             "",
             artifact_id,
-            base_artifact_id=latest_artifact_id,
+            base_artifact_id=base_id,
             include_upload=False,
             type=manifest_type,
         )
@@ -236,7 +240,7 @@ class ArtifactSaver:
                     manifest_filename,
                     digest,
                     artifact_id,
-                    base_artifact_id=latest_artifact_id,
+                    base_artifact_id=base_id,
                 )
 
             # We're duplicating the file upload logic a little, which isn't great.

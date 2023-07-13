@@ -52,7 +52,7 @@ class Progress:
                 )
             )
         # Growing files are also likely to be bad, but our code didn't break
-        # on those in the past so it's riskier to make that an error now.
+        # on those in the past, so it's riskier to make that an error now.
         self.callback(len(bites), self.bytes_read)
         return bites
 

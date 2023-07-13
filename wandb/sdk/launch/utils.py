@@ -48,13 +48,12 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
-API_KEY_REGEX = r"WANDB_API_KEY=\w+"
+API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
-UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
 
@@ -101,7 +100,7 @@ def set_project_entity_defaults(
     project: Optional[str],
     entity: Optional[str],
     launch_config: Optional[Dict[str, Any]],
-) -> Tuple[str, str]:
+) -> Tuple[Optional[str], str]:
     # set the target project and entity if not provided
     source_uri = None
     if uri is not None:
@@ -115,7 +114,7 @@ def set_project_entity_defaults(
         config_project = None
         if launch_config:
             config_project = launch_config.get("project")
-        project = config_project or source_uri or UNCATEGORIZED_PROJECT
+        project = config_project or source_uri or ""
     if entity is None:
         config_entity = None
         if launch_config:
@@ -658,9 +657,6 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
 
 def pull_docker_image(docker_image: str) -> None:
     """Pull the requested docker image."""
-    if docker_image_exists(docker_image):
-        # don't pull images if they exist already, eg if they are local images
-        return
     try:
         docker.run(["docker", "pull", docker_image])
     except docker.DockerError as e:

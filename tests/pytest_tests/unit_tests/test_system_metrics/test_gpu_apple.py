@@ -38,7 +38,7 @@ def test_gpu_apple(test_settings):
                     _stats_sample_rate_seconds=0.1,
                     _stats_samples_to_average=2,
                 )
-            ).make_static()
+            ).to_proto()
         )
         shutdown_event = threading.Event()
 

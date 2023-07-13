@@ -172,9 +172,7 @@ class DataStore:
                 break
             assert (
                 dtype == LEVELDBLOG_MIDDLE
-            ), "expected record to be type {} but found {}".format(
-                LEVELDBLOG_MIDDLE, dtype
-            )
+            ), f"expected record to be type {LEVELDBLOG_MIDDLE} but found {dtype}"
             data += new_data
         return data
 
@@ -187,9 +185,7 @@ class DataStore:
         )
         assert (
             len(data) == LEVELDBLOG_HEADER_LEN
-        ), "header size is {} bytes, expected {}".format(
-            len(data), LEVELDBLOG_HEADER_LEN
-        )
+        ), f"header size is {len(data)} bytes, expected {LEVELDBLOG_HEADER_LEN}"
         self._fp.write(data)
         self._index += len(data)
 

@@ -1,4 +1,5 @@
 import base64
+import functools
 import itertools
 import logging
 import os
@@ -41,7 +42,7 @@ if TYPE_CHECKING:
 import requests
 
 import wandb
-from wandb import env, util
+from wandb import util
 from wandb.sdk.internal import internal_api
 
 from ..lib import file_stream_utils
@@ -311,7 +312,6 @@ class FileStreamApi:
         artifact_id: str
         save_name: str
 
-    HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
     def __init__(
@@ -319,6 +319,7 @@ class FileStreamApi:
         api: "internal_api.Api",
         run_id: str,
         start_time: float,
+        timeout: float = 0,
         settings: Optional[dict] = None,
     ) -> None:
         settings = settings or dict()
@@ -334,8 +335,8 @@ class FileStreamApi:
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
-        # todo: actually use the timeout once more thorough error injection in testing covers it
-        # self._client.post = functools.partial(self._client.post, timeout=self.HTTP_TIMEOUT)
+        if timeout > 0:
+            self._client.post = functools.partial(self._client.post, timeout=timeout)  # type: ignore[method-assign]
         self._client.auth = api.client.transport.session.auth
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
@@ -589,9 +590,11 @@ class FileStreamApi:
         Arguments:
             exitcode: The exitcode of the watched process.
         """
+        logger.info("file stream finish called")
         self._queue.put(self.Finish(exitcode))
         # TODO(jhr): join on a thread which exited with an exception is a noop, clean up this path
         self._thread.join()
+        logger.info("file stream finish is done")
         if self._exc_info:
             logger.error("FileStream exception", exc_info=self._exc_info)
             # re-raising the original exception, will get re-caught in internal.py for the sender thread
@@ -660,7 +663,6 @@ def request_with_retry(
                     retry_callback(e.response.status_code, err_str)
                 logger.info(err_str)
             else:
-                pass
                 logger.warning(
                     "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
                     e,
