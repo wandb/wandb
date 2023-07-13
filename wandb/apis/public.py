@@ -436,7 +436,7 @@ class Api:
         type: "RunQueueResourceType",
         access: "RunQueueAccessType",
         entity: Optional[str] = None,
-        config: dict = {},
+        config: Optional[dict] = None,
     ) -> None:
         """Create a new run queue (launch).
 
@@ -454,9 +454,7 @@ class Api:
             ValueError if any of the parameters are invalid
             wandb.Error on wandb API errors
         """
-
         # TODO(np): Need to check server capabilities for this feature
-
         # 0. assert params are valid/normalized
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
@@ -485,6 +483,9 @@ class Api:
                 "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', or 'gcp-vertex'"
             )
 
+        if config is None:
+            config = {}
+
         # 1. create required default launch project in the entity
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
 
@@ -501,7 +502,7 @@ class Api:
         create_config_result = api.create_default_resource_config(
             entity, LAUNCH_DEFAULT_PROJECT, type, config_json
         )
-        if create_config_result["success"] == False:
+        if not create_config_result["success"]:
             raise wandb.Error("failed to create default resource config")
         config_id = create_config_result["defaultResourceConfigID"]
 
@@ -509,7 +510,7 @@ class Api:
         create_queue_result = api.create_run_queue(
             entity, LAUNCH_DEFAULT_PROJECT, name, access, config_id
         )
-        if create_queue_result["success"] == False:
+        if not create_queue_result["success"]:
             raise wandb.Error("failed to create run queue")
 
         return RunQueue(self.client, name, entity, access, config_id, config)
@@ -965,7 +966,8 @@ class Api:
     ):
         """Return the named `RunQueue` for entity.
 
-        To create a new `RunQueue`, use `wandb.Api().create_run_queue(...)`."""
+        To create a new `RunQueue`, use `wandb.Api().create_run_queue(...)`.
+        """
         return RunQueue(
             self.client,
             name,
@@ -2681,7 +2683,6 @@ class RunQueue:
     @property
     def items(self) -> List[QueuedRun]:
         """Up to the first 100 queued runs. Modifying this list will not modify the queue or any enqueued items!"""
-
         # TODO(np): Add a paginated interface
         if self._items is None:
             self._get_items()
@@ -2783,7 +2784,7 @@ class RunQueue:
         resource: "RunQueueResourceType",
         access: "RunQueueAccessType",
         entity: Optional[str] = None,
-        config: dict = {},
+        config: Optional[dict] = None,
     ) -> "RunQueue":
         public_api = Api()
         return public_api.create_run_queue(
