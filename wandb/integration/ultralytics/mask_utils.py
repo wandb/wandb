@@ -46,23 +46,30 @@ def get_boxes_and_masks(result: Results) -> Tuple[Dict, Dict]:
     boxes = result.boxes.xywh.long().numpy()
     classes = result.boxes.cls.long().numpy() + 1
     confidence = result.boxes.conf.numpy()
-    class_id_to_label = {int(k) + 1: str(v) for k, v in result.names.items()}
+    class_id_to_label = {int(k): str(v) for k, v in result.names.items()}
     mean_confidence_map = get_mean_confidence_map(
         classes, confidence, class_id_to_label
     )
-    scaled_instance_mask = scale_image(
-        np.transpose(result.masks.data.numpy(), (1, 2, 0)),
-        result.orig_img[:, :, ::-1].shape,
-    )
-    scaled_semantic_mask = instance_mask_to_semantic_mask(
-        scaled_instance_mask, classes.tolist()
-    )
-    masks = {
-        "predictions": {
-            "mask_data": scaled_semantic_mask,
-            "class_labels": class_id_to_label,
+    if result.masks is not None:
+        scaled_instance_mask = scale_image(
+            np.transpose(result.masks.data.numpy(), (1, 2, 0)),
+            result.orig_img[:, :, ::-1].shape,
+        )
+        scaled_semantic_mask = instance_mask_to_semantic_mask(
+            scaled_instance_mask, classes.tolist()
+        )
+        class_id_to_label_segmentation = {
+            int(k) + 1: str(v) for k, v in class_id_to_label.items()
         }
-    }
+        class_id_to_label_segmentation.update({0: "no-category"})
+        masks = {
+            "predictions": {
+                "mask_data": scaled_semantic_mask,
+                "class_labels": class_id_to_label_segmentation,
+            }
+        }
+    else:
+        masks = None
     box_data, total_confidence = [], 0.0
     for idx in range(len(boxes)):
         box_data.append(
