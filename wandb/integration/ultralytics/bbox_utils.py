@@ -5,6 +5,8 @@ from ultralytics.yolo.utils import ops
 from ultralytics.yolo.v8.detect.predict import DetectionPredictor
 
 import wandb
+import numpy as np
+from PIL import Image
 
 
 def scale_bounding_box_to_original_image_shape(
@@ -100,9 +102,9 @@ def get_mean_confidence_map(
 
 def get_boxes(result: Results) -> Tuple[Dict, Dict]:
     boxes = result.boxes.xywh.long().numpy()
-    classes = result.boxes.cls.long().numpy() + 1
+    classes = result.boxes.cls.long().numpy()
     confidence = result.boxes.conf.numpy()
-    class_id_to_label = {int(k) + 1: str(v) for k, v in result.names.items()}
+    class_id_to_label = {int(k): str(v) for k, v in result.names.items()}
     mean_confidence_map = get_mean_confidence_map(
         classes, confidence, class_id_to_label
     )
@@ -177,15 +179,15 @@ def plot_validation_results(
                         "predictions": prediction_box_data,
                     },
                 )
-                table_row = [
+                table_rows = [
                     data_idx,
                     batch_idx,
                     wandb_image,
                     mean_confidence_map,
                     prediction_result.speed,
                 ]
-                table_row = [epoch] + table_row if epoch is not None else table_row
-                table.add_data(*table_row)
+                table_rows = [epoch] + table_rows if epoch is not None else table_rows
+                table.add_data(*table_rows)
                 data_idx += 1
             except TypeError:
                 pass
