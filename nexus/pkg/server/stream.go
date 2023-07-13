@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wandb/wandb/nexus/pkg/analytics"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -37,13 +37,13 @@ type Stream struct {
 	settings *service.Settings
 
 	// logger is the logger for the stream
-	logger *analytics.NexusLogger
+	logger *observability.NexusLogger
 }
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(ctx context.Context, settings *service.Settings, streamId string, responders ...ResponderEntry) *Stream {
 	logFile := settings.GetLogInternal().GetValue()
-	logger := analytics.NewNexusLogger(SetupStreamLogger(logFile, streamId), settings)
+	logger := SetupStreamLogger(logFile, settings)
 
 	dispatcher := NewDispatcher(ctx, logger)
 	sender := NewSender(ctx, settings, logger)

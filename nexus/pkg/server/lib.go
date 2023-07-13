@@ -27,6 +27,13 @@ func PrintHeadFoot(run *service.RunRecord, settings *service.Settings) {
 	fmt.Printf("%vwandb%v: 🚀 View run %v%v%v at: %v%v%v\n", colorBrightBlue, colorReset, colorYellow, run.DisplayName, colorReset, colorBlue, url, colorReset)
 }
 
+func LogError(log *slog.Logger, msg string, err error) {
+	log.LogAttrs(context.Background(),
+		slog.LevelError,
+		msg,
+		slog.String("error", err.Error()))
+}
+
 func writePortFile(portFile string, port int) {
 	tempFile := fmt.Sprintf("%s.tmp", portFile)
 	f, err := os.Create(tempFile)

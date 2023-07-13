@@ -1,69 +1,67 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 
+	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
 )
 
-func setupLogger(fname string) *slog.Logger {
-	toStderr := os.Getenv("WANDB_NEXUS_DEBUG") != ""
-	file, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		fmt.Println("FATAL Problem", err)
-		panic("problem")
-	}
-	var writer io.Writer
-	if toStderr {
-		writer = io.MultiWriter(os.Stderr, file)
-	} else {
-		writer = file
-	}
+func setupLogger(opts *slog.HandlerOptions, writers ...io.Writer) *slog.Logger {
 
-	opts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+	writer := io.MultiWriter(writers...)
+	if opts == nil {
+		opts = &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}
 	}
 	logger := slog.New(slog.NewJSONHandler(writer, opts))
 	return logger
 }
 
 func SetupDefaultLogger() *slog.Logger {
-	logger := setupLogger("/tmp/logs.txt")
+	var writers []io.Writer
+
+	// todo: discover system temp lib
+	name := "/tmp/logs.txt"
+	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		fmt.Println("FATAL Problem", err)
+	} else {
+		writers = append(writers, file)
+	}
+	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
+		writers = append(writers, os.Stderr)
+	}
+
+	logger := setupLogger(nil, writers...)
 	slog.SetDefault(logger)
 	slog.Info("started logging")
 	return logger
 }
 
-func SetupStreamLogger(logFile string, streamID string) *slog.Logger {
-	logger := setupLogger(logFile)
-	return logger
-	/*
-		toStderr := os.Getenv("WANDB_NEXUS_DEBUG") != ""
-		opts := &slog.HandlerOptions{
-			Level: slog.LevelDebug,
-		}
-		logger := slog.New(slog.NewJSONHandler(writer, opts))
-		jsonHandler := slog.NewTextHandler(os.Stdout).
-			WithAttrs([]slog.Attr{slog.String("app-version", "v0.0.1-beta")})
-		logger := slog.New(textHandler)
-		return logger
-	*/
-}
+func SetupStreamLogger(name string, settings *service.Settings) *observability.NexusLogger {
+	var writers []io.Writer
 
-func LogError(log *slog.Logger, msg string, err error) {
-	log.LogAttrs(context.Background(),
-		slog.LevelError,
-		msg,
-		slog.String("error", err.Error()))
-}
+	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		fmt.Println("FATAL Problem", err)
+	} else {
+		writers = append(writers, file)
+	}
+	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
+		writers = append(writers, os.Stderr)
+	}
 
-func LogFatalError(log *slog.Logger, msg string, err error) {
-	log.LogAttrs(context.Background(),
-		slog.LevelError,
-		msg,
-		slog.String("error", err.Error()))
-	panic(msg)
+	writer := io.MultiWriter(writers...)
+	tags := make(observability.Tags)
+	tags["run_id"] = settings.GetRunId().GetValue()
+	tags["run_url"] = settings.GetRunUrl().GetValue()
+	tags["project"] = settings.GetProject().GetValue()
+	tags["entity"] = settings.GetEntity().GetValue()
+
+	return observability.NewNexusLogger(setupLogger(nil, writer), tags)
 }

@@ -1,4 +1,4 @@
-package analytics
+package observability
 
 import (
 	"time"
@@ -6,6 +6,8 @@ import (
 	"github.com/getsentry/sentry-go"
 	"golang.org/x/exp/slog"
 )
+
+const sentryDsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
 
 type SentryClient struct {
 	Dsn string
@@ -16,14 +18,13 @@ func InitSentry(disabled bool, commit string) {
 
 	// The DSN to use. If the DSN is not set, the client is effectively disabled.
 	if !disabled {
-		s.Dsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+		s.Dsn = sentryDsn
 	}
 
 	err := sentry.Init(sentry.ClientOptions{
 		Dsn:              s.Dsn,
 		AttachStacktrace: true,
 		Release:          commit,
-		//Transport:        sentry.NewHTTPSyncTransport(),
 	})
 
 	if err != nil {
@@ -41,7 +42,6 @@ func CaptureException(err error, tags map[string]string) {
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(func(scope *sentry.Scope) {
 		for k, v := range tags {
-			// if not nil, set tag:
 			if v != "" {
 				scope.SetTag(k, v)
 			}

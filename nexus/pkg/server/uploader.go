@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/analytics"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"golang.org/x/exp/slog"
 
@@ -46,14 +46,14 @@ type Uploader struct {
 	fileCounts fileCounts
 
 	// logger is the logger for the uploader
-	logger *analytics.NexusLogger
+	logger *observability.NexusLogger
 
 	// wg is the wait group
 	wg *sync.WaitGroup
 }
 
 // NewUploader creates a new uploader
-func NewUploader(ctx context.Context, logger *analytics.NexusLogger) *Uploader {
+func NewUploader(ctx context.Context, logger *observability.NexusLogger) *Uploader {
 	retryClient := retryablehttp.NewClient()
 	retryClient.Logger = slog.NewLogLogger(logger.Logger.Handler(), slog.LevelDebug)
 	retryClient.RetryMax = 10
@@ -82,7 +82,7 @@ func (u *Uploader) do() {
 		u.logger.Debug("uploader: got task", task)
 		err := u.upload(task)
 		if err != nil {
-			u.logger.Error(
+			u.logger.CaptureError(
 				"uploader: error uploading",
 				err,
 				"path",

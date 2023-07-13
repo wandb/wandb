@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"os"
 
-	"github.com/wandb/wandb/nexus/pkg/analytics"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/wandb/wandb/nexus/pkg/leveldb"
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -25,14 +25,14 @@ type Store struct {
 	db *os.File
 
 	// logger is the logger for the store
-	logger *analytics.NexusLogger
+	logger *observability.NexusLogger
 }
 
 // NewStore creates a new store
-func NewStore(ctx context.Context, fileName string, logger *analytics.NexusLogger) (*Store, error) {
+func NewStore(ctx context.Context, fileName string, logger *observability.NexusLogger) (*Store, error) {
 	f, err := os.Create(fileName)
 	if err != nil {
-		logger.Error("can't write header", err)
+		logger.CaptureError("can't write header", err)
 		return nil, err
 	}
 	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
@@ -41,7 +41,7 @@ func NewStore(ctx context.Context, fileName string, logger *analytics.NexusLogge
 		db:     f,
 		logger: logger}
 	if err = sr.addHeader(); err != nil {
-		sr.logger.Error("can't write header", err)
+		sr.logger.CaptureError("can't write header", err)
 		return nil, err
 	}
 	return sr, nil
@@ -57,11 +57,11 @@ func (sr *Store) addHeader() error {
 	ident := [4]byte{byte(':'), byte('W'), byte('&'), byte('B')}
 	head := Header{ident: ident, magic: 0xBEE1, version: 0}
 	if err := binary.Write(buf, binary.LittleEndian, &head); err != nil {
-		sr.logger.Error("can't write header", err)
+		sr.logger.CaptureError("can't write header", err)
 		return err
 	}
 	if _, err := sr.db.Write(buf.Bytes()); err != nil {
-		sr.logger.Error("can't write header", err)
+		sr.logger.CaptureError("can't write header", err)
 		return err
 	}
 	return nil
@@ -75,17 +75,17 @@ func (sr *Store) Close() error {
 func (sr *Store) storeRecord(msg *service.Record) error {
 	writer, err := sr.writer.Next()
 	if err != nil {
-		sr.logger.Error("can't write header", err)
+		sr.logger.CaptureError("can't write header", err)
 		return err
 	}
 	out, err := proto.Marshal(msg)
 	if err != nil {
-		sr.logger.Error("can't write header", err)
+		sr.logger.CaptureError("can't write header", err)
 		return err
 	}
 
 	if _, err = writer.Write(out); err != nil {
-		sr.logger.Error("can't write header", err)
+		sr.logger.CaptureError("can't write header", err)
 		return err
 	}
 	return nil

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/analytics"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/wandb/wandb/nexus/pkg/server"
 
@@ -110,13 +110,13 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type testServer struct {
 	hserver  *httptest.Server
 	settings *service.Settings
-	logger   *analytics.NexusLogger
+	logger   *observability.NexusLogger
 	mux      *http.ServeMux
 }
 
 func NewTestServer() *testServer {
 	settings := service.Settings{}
-	logger := analytics.NewNexusLogger(server.SetupDefaultLogger(), &settings)
+	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
 
 	mux := http.NewServeMux()
 	hserver := httptest.NewServer(mux)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/wandb/wandb/nexus/pkg/analytics"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
@@ -32,7 +32,7 @@ type Handler struct {
 	settings *service.Settings
 
 	// logger is the logger for the handler
-	logger *analytics.NexusLogger
+	logger *observability.NexusLogger
 
 	// currentStep is the current step
 	currentStep int64
@@ -48,7 +48,7 @@ type Handler struct {
 }
 
 // NewHandler creates a new handler
-func NewHandler(ctx context.Context, settings *service.Settings, logger *analytics.NexusLogger) *Handler {
+func NewHandler(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Handler {
 	h := &Handler{
 		ctx:      ctx,
 		inChan:   make(chan *service.Record),
@@ -61,7 +61,7 @@ func NewHandler(ctx context.Context, settings *service.Settings, logger *analyti
 
 // do this starts the handler
 func (h *Handler) do() {
-	defer analytics.Reraise()
+	defer observability.Reraise()
 
 	h.logger.Info("handler: started")
 
@@ -124,10 +124,10 @@ func (h *Handler) handleRecord(msg *service.Record) {
 		// TODO: handle this
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
-		h.logger.Fatal("error handling record", err)
+		h.logger.CaptureFatalAndPanic("error handling record", err)
 	default:
 		err := fmt.Errorf("handleRecord: unknown record type %T", x)
-		h.logger.Fatal("error handling record", err)
+		h.logger.CaptureFatalAndPanic("error handling record", err)
 	}
 }
 
@@ -158,8 +158,7 @@ func (h *Handler) handleRequest(rec *service.Record) {
 		h.handleAttach(rec, x.Attach, response)
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
-		h.logger.Error("error handling request", err)
-		panic(err)
+		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
 
 	result := &service.Result{
@@ -186,8 +185,7 @@ func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartReque
 	h.run, ok = proto.Clone(run).(*service.RunRecord)
 	if !ok {
 		err := fmt.Errorf("handleRunStart: failed to clone run")
-		h.logger.Error("error handling run start", err)
-		panic(err)
+		h.logger.CaptureFatalAndPanic("error handling run start", err)
 	}
 	h.sendRecord(rec)
 
@@ -276,7 +274,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, req *service.PartialHi
 		if items[i].Key == "_timestamp" {
 			val, err := strconv.ParseFloat(items[i].ValueJson, 64)
 			if err != nil {
-				h.logger.Error("error parsing timestamp", err)
+				h.logger.CaptureError("error parsing timestamp", err)
 			}
 			runTime = val - h.startTime
 		}

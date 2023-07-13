@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/wandb/wandb/nexus/pkg/analytics"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -30,7 +30,7 @@ func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // newRetryClient creates a new http client
-func newRetryClient(apiKey string, logger *analytics.NexusLogger) *retryablehttp.Client {
+func newRetryClient(apiKey string, logger *observability.NexusLogger) *retryablehttp.Client {
 	tr := &authedTransport{
 		key:     apiKey,
 		wrapped: http.DefaultTransport,
@@ -42,7 +42,7 @@ func newRetryClient(apiKey string, logger *analytics.NexusLogger) *retryablehttp
 }
 
 // newGraphqlClient creates a new graphql client
-func newGraphqlClient(url, apiKey string, logger *analytics.NexusLogger) graphql.Client {
+func newGraphqlClient(url, apiKey string, logger *observability.NexusLogger) graphql.Client {
 	retryClient := newRetryClient(apiKey, logger)
 	httpClient := retryClient.StandardClient()
 	return graphql.NewClient(url, httpClient)

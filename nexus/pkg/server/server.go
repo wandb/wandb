@@ -33,7 +33,8 @@ type Server struct {
 func NewServer(ctx context.Context, addr string, portFile string) *Server {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		LogError(slog.Default(), "can not listen", err)
+		slog.Error("can not listen", "error", err)
+		// TODO: handle error
 	}
 
 	s := &Server{
@@ -66,7 +67,7 @@ func (s *Server) serve(ctx context.Context) {
 				slog.Debug("server shutting down...")
 				return
 			default:
-				LogError(slog.Default(), "failed to accept conn.", err)
+				slog.Error("failed to accept conn.", "error", err)
 			}
 		} else {
 			s.wg.Add(1)
