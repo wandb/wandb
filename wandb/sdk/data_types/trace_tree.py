@@ -153,13 +153,13 @@ def _safe_serialize(obj: dict) -> str:
 class TraceAttribute:
     """Descriptor for accessing and setting attributes of the `Trace` class."""
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: "Trace", owner: type) -> Any:
         return getattr(instance._span, self.name)
 
-    def __set__(self, instance, value):
+    def __set__(self, instance: "Trace", value: Any) -> None:
         setattr(instance._span, self.name, value)
 
 
@@ -393,6 +393,7 @@ class Trace:
 
     def log(self, name: str) -> None:
         """Log the trace to a wandb run.
+
         Args:
             name: The name of the trace to be logged
         """
