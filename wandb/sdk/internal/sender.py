@@ -1487,6 +1487,7 @@ class SendManager:
             client_id=artifact.client_id,
             sequence_client_id=artifact.sequence_client_id,
             metadata=metadata,
+            ttl_duration_seconds=artifact.ttl_duration_seconds,
             description=artifact.description,
             aliases=artifact.aliases,
             use_after_commit=artifact.use_after_commit,

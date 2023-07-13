@@ -2943,6 +2943,7 @@ class Api:
                     createdAt
                     labels
                     metadata
+                    ttlDurationSeconds
                 }
             }
         }

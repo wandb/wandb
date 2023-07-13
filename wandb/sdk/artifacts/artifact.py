@@ -51,6 +51,7 @@ from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
     WaitTimeoutError,
+    ArtifactValueError,
 )
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
@@ -124,6 +125,7 @@ class Artifact:
           }
           description
           metadata
+          ttlDurationSeconds
           aliases {
               artifactCollectionName
               alias
@@ -316,6 +318,7 @@ class Artifact:
         artifact.metadata = cls._normalize_metadata(
             json.loads(attrs["metadata"] or "{}")
         )
+        artifact._ttl_duration_seconds = attrs["ttlDurationSeconds"]
         artifact._aliases = [
             alias["alias"]
             for alias in attrs.get("aliases", [])
@@ -630,26 +633,35 @@ class Artifact:
         return self._updated_at or self._created_at
 
     @property
-    def ttl_duration_seconds(self) -> Optional[int]:
+    def ttl_duration(self) -> Optional[datetime.timedelta]:
         """User-defined artifact ttl(time to live) duration in seconds.
 
         Once the artifact's created_at is older than the ttl, the artifact is marked as deleted.
-        EX: Artifact.created_at = 1/1/2000, ttl_duration_timedelta=10*24*60*60(10 days).
+        To turn off previously set artifact TTL, set the duration to None.
+        EX: Artifact.created_at = 1/1/2000, ttl_duration=10 days.
             This artifact will be marked for deletion on 1/11/2000.
         """
-        return self._ttl_duration_seconds
+        return datetime.timedelta(seconds=self._ttl_duration_seconds)
 
-    @ttl_duration_seconds.setter
-    def ttl_duration_seconds(self, ttl_duration_seconds: Optional[int]) -> None:
+    @ttl_duration.setter
+    def ttl_duration(self, ttl_duration: Optional[datetime.timedelta]) -> None:
         """User-defined artifact ttl(time to live) duration.
         Note:
             This ttl is set on the artifact version level.
 
         Arguments:
             ttl_duration_seconds: How long the artifact will live after creation.
-            If you want to turn off previously set artifact TTL, set the duration to None.
+            To turn off previously set artifact TTL, set the duration to None.
         """
-        self._ttl_duration_seconds = ttl_duration_seconds
+        if ttl_duration is not None:
+            if ttl_duration.total_seconds() <= 0:
+                raise ArtifactValueError(
+                    self,
+                    "ttl_duration",
+                    "Artifact TTL Duration has to be positive.",
+                    "ttl_duration_seconds",
+                )
+        self._ttl_duration_seconds = ttl_duration.total_seconds()
 
     # State management.
 
@@ -924,7 +936,7 @@ class Artifact:
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
-                "ttlDurationSeconds": self.ttl_duration_timedelta,
+                "ttlDurationSeconds": self._ttl_duration_seconds,
                 "aliases": aliases,
             },
         )

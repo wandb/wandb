@@ -51,5 +51,22 @@ class ArtifactFinalizedError(ArtifactStatusError):
         )
 
 
+class ArtifactValueError(ArtifactStatusError):
+    """Raised when an a value being added to an artifact isn't allowed."""
+
+    def __init__(
+        self,
+        value: str,
+        error: str,
+        attr: Optional[str] = None,
+        artifact: Optional["Artifact"] = None,
+    ):
+        super().__init__(
+            artifact,
+            attr,
+            "'{method_id}'. Invalid value for '{value}', '{error}'",
+        )
+
+
 class WaitTimeoutError(errors.Error):
     """Raised when wait() timeout occurs before process is finished."""
