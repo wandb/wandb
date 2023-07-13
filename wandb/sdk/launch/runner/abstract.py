@@ -8,22 +8,18 @@ import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
 import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject
 
 _logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 if sys.version_info >= (3, 8):
@@ -32,7 +28,14 @@ else:
     from typing_extensions import Literal
 
 State = Literal[
-    "unknown", "starting", "running", "failed", "finished", "stopping", "stopped"
+    "unknown",
+    "starting",
+    "running",
+    "failed",
+    "finished",
+    "stopping",
+    "stopped",
+    "preempted",
 ]
 
 
@@ -126,7 +129,11 @@ class AbstractRunner(ABC):
     (e.g. to run projects against your team's in-house cluster or job scheduler).
     """
 
-    def __init__(self, api: Api, backend_config: Dict[str, Any]) -> None:
+    def __init__(
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+    ) -> None:
         self._settings = Settings()
         self._api = api
         self.backend_config = backend_config
@@ -159,8 +166,7 @@ class AbstractRunner(ABC):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
-        job_tracker: Optional["JobAndRunStatusTracker"] = None,
+        image_uri: str,
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 
