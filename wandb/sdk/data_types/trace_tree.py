@@ -151,10 +151,23 @@ def _safe_serialize(obj: dict) -> str:
         return "{}"
 
 
+class TraceAttribute:
+    """Descriptor for accessing and setting attributes of the `Trace` class."""
+
+    def __set_name__(self, owner, name):
+        self.name = name
+
+    def __get__(self, instance, owner):
+        return getattr(instance._span, self.name)
+
+    def __set__(self, instance, value):
+        setattr(instance._span, self.name, value)
+
+
 class Trace:
     """A simplification of WBTraceTree and Span to manage a trace - a collection of spans, their metadata and hierarchy.
 
-    Arguments:
+    Args:
         name: (str) The name of the root span.
         kind: (str, optional) The kind of the root span.
         status_code: (str, optional) The status of the root span, either "error" or "success".
@@ -185,6 +198,13 @@ class Trace:
         wandb.finish()
         ```
     """
+
+    name = TraceAttribute()
+    kind = TraceAttribute()
+    status_code = TraceAttribute()
+    status_message = TraceAttribute()
+    start_time_ms = TraceAttribute()
+    end_time_ms = TraceAttribute()
 
     def __init__(
         self,
@@ -228,16 +248,19 @@ class Trace:
     ) -> Span:
         """Utility to assert the validity of the span parameters and create a span object.
 
-        :param name: The name of the span
-        :param kind: The kind of the span, can be one of 'LLM', 'AGENT', 'CHAIN', 'TOOL'
-        :param status_code: The status code of the span, can be one of 'SUCCESS' or 'ERROR'
-        :param status_message: The status message of the span
-        :param metadata: Dictionary of metadata to be logged with the span
-        :param start_time_ms: Start time of the span in milliseconds
-        :param end_time_ms: End time of the span in milliseconds
-        :param inputs: Dictionary of inputs to be logged with the span
-        :param outputs: Dictionary of outputs to be logged with the span
-        :return: A Span object
+        Args:
+            name: The name of the span.
+            kind: The kind of the span.
+            status_code: The status code of the span.
+            status_message: The status message of the span.
+            metadata: Dictionary of metadata to be logged with the span.
+            start_time_ms: Start time of the span in milliseconds.
+            end_time_ms: End time of the span in milliseconds.
+            inputs: Dictionary of inputs to be logged with the span.
+            outputs: Dictionary of outputs to be logged with the span.
+
+        Returns:
+            A Span object.
         """
         if kind is not None:
             assert (
@@ -273,32 +296,26 @@ class Trace:
     ) -> "Trace":
         """Utility to add a child span to the current span of the trace.
 
-        :param child: The child span to be added to the current span of the trace.
-        :return: The current trace object with the child span added to it.
+        Args:
+            child: The child span to be added to the current span of the trace.
+
+        Returns:
+            The current trace object with the child span added to it.
         """
         self._span.add_child_span(child._span)
         if self._model_dict is not None and child._model_dict is not None:
             self._model_dict.update({child._span.name: child._model_dict})
         return self
 
-    def add_metadata(self, metadata: dict) -> "Trace":
-        """Add metadata to the span of the current trace.
-
-        :param metadata: Dictionary of metadata to be logged with the span
-        :return: The current trace object with the metadata added to it.
-        """
-        if self._span.attributes is None:
-            self._span.attributes = metadata
-        else:
-            self._span.attributes.update(metadata)
-        return self
-
     def add_inputs_and_outputs(self, inputs: dict, outputs: dict) -> "Trace":
         """Add a result to the span of the current trace.
 
-        :param inputs: Dictionary of inputs to be logged with the span
-        :param outputs: Dictionary of outputs to be logged with the span
-        :return: The current trace object with the result added to it.
+        Args:
+            inputs: Dictionary of inputs to be logged with the span.
+            outputs: Dictionary of outputs to be logged with the span.
+
+        Returns:
+            The current trace object with the result added to it.
         """
         if self._span.results is None:
             result = Result(inputs=inputs, outputs=outputs)
@@ -308,11 +325,77 @@ class Trace:
             self._span.results.append(result)
         return self
 
+    @property
+    def metadata(self) -> Optional[Dict[str, str]]:
+        """Get the metadata of the trace.
+
+        Returns:
+            Dictionary of metadata.
+        """
+        return self._span.attributes
+
+    @metadata.setter
+    def metadata(self, value: Dict[str, str]) -> None:
+        """Set the metadata of the trace.
+
+        Args:
+            value: Dictionary of metadata to be set.
+        """
+        if self._span.attributes is None:
+            self._span.attributes = value
+        else:
+            self._span.attributes.update(value)
+
+    @property
+    def inputs(self) -> Optional[Dict[str, str]]:
+        """Get the inputs of the trace.
+
+        Returns:
+            Dictionary of inputs.
+        """
+        return self._span.results[-1].inputs if self._span.results else None
+
+    @inputs.setter
+    def inputs(self, value: Dict[str, str]) -> None:
+        """Set the inputs of the trace.
+
+        Args:
+            value: Dictionary of inputs to be set.
+        """
+        if self._span.results is None:
+            result = Result(inputs=value, outputs={})
+            self._span.results = [result]
+        else:
+            result = Result(inputs=value, outputs=self._span.results[-1].outputs)
+            self._span.results.append(result)
+
+    @property
+    def outputs(self) -> Optional[Dict[str, str]]:
+        """Get the outputs of the trace.
+
+        Returns:
+            Dictionary of outputs.
+        """
+        return self._span.results[-1].outputs if self._span.results else None
+
+    @outputs.setter
+    def outputs(self, value: Dict[str, str]) -> None:
+        """Set the outputs of the trace.
+
+        Args:
+            value: Dictionary of outputs to be set.
+        """
+        if self._span.results is None:
+            result = Result(inputs={}, outputs=value)
+            self._span.results = [result]
+        else:
+            result = Result(inputs=self._span.results[-1].inputs, outputs=value)
+            self._span.results.append(result)
+
     def log(self, name: str) -> None:
         """Log the trace to a wandb run.
-
-        :param name: The name of the trace to be logged
-        :return: None
+        Args:
+            name: The name of the trace to be logged
         """
         trace_tree = WBTraceTree(self._span, self._model_dict)
         assert (
