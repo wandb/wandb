@@ -20,6 +20,8 @@ try:
     from ultralytics.yolo.v8.detect.train import DetectionTrainer
     from ultralytics.yolo.v8.detect.val import DetectionValidator
     from ultralytics.yolo.v8.detect.predict import DetectionPredictor
+    from ultralytics.yolo.v8.segment.train import SegmentationTrainer
+    from ultralytics.yolo.v8.segment.val import SegmentationValidator
     from ultralytics.yolo.v8.segment.predict import SegmentationPredictor
     from ultralytics.yolo.v8.classify.train import ClassificationTrainer
     from ultralytics.yolo.v8.classify.val import ClassificationValidator
@@ -42,6 +44,17 @@ from wandb.integration.ultralytics.classification_utils import (
     plot_classification_validation_results,
 )
 from wandb.sdk.lib import telemetry
+
+
+TRAINER_TYPE = Union[
+    ClassificationTrainer, DetectionTrainer, SegmentationTrainer, PoseTrainer
+]
+VALIDATOR_TYPE = Union[
+    ClassificationValidator, DetectionValidator, SegmentationValidator, PoseValidator
+]
+PREDICTOR_TYPE = Union[
+    ClassificationPredictor, DetectionPredictor, SegmentationPredictor, PosePredictor
+]
 
 
 class WandBUltralyticsCallback:
@@ -94,11 +107,12 @@ class WandBUltralyticsCallback:
         self.max_validation_batches = max_validation_batches
         self.enable_model_checkpointing = enable_model_checkpointing
         self.visualize_skeleton = visualize_skeleton
-        self._make_tables(model)
+        self.task = model.task
+        self._make_tables()
         self._make_predictor(model)
 
-    def _make_tables(self, model: YOLO):
-        if model.task == "detect":
+    def _make_tables(self):
+        if self.task in ["detect", "segment"]:
             validation_columns = [
                 "Data-Index",
                 "Batch-Index",
@@ -112,7 +126,7 @@ class WandBUltralyticsCallback:
             self.prediction_table = wandb.Table(
                 columns=["Image", "Num-Objects", "Mean-Confidence", "Speed"]
             )
-        elif model.task == "classify":
+        elif self.task == "classify":
             classification_columns = [
                 "Image",
                 "Predicted-Category",
@@ -128,7 +142,7 @@ class WandBUltralyticsCallback:
             self.train_validation_table = wandb.Table(columns=train_columns)
             self.validation_table = wandb.Table(columns=validation_columns)
             self.prediction_table = wandb.Table(columns=classification_columns)
-        elif model.task == "pose":
+        elif self.task == "pose":
             validation_columns = [
                 "Data-Index",
                 "Batch-Index",
@@ -149,22 +163,13 @@ class WandBUltralyticsCallback:
                     "Speed",
                 ]
             )
-        if model.task == "segment":
-            self.prediction_table = wandb.Table(
-                columns=[
-                    "Image-Prediction",
-                    "Num-Instances",
-                    "Mean-Confidence",
-                    "Speed",
-                ]
-            )
 
     def _make_predictor(self, model: YOLO):
         overrides = copy.deepcopy(model.overrides)
         overrides["conf"] = 0.1
-        self.predictor = TASK_MAP[model.task][3](overrides=overrides, _callbacks=None)
+        self.predictor = TASK_MAP[self.task][3](overrides=overrides, _callbacks=None)
 
-    def _save_model(self, trainer: DetectionTrainer):
+    def _save_model(self, trainer: TRAINER_TYPE):
         model_checkpoint_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", "model")
         checkpoint_dict = {
             "epoch": trainer.epoch,
@@ -184,11 +189,11 @@ class WandBUltralyticsCallback:
             model_checkpoint_artifact, aliases=[f"epoch_{trainer.epoch}"]
         )
 
-    def on_train_start(self, trainer: DetectionTrainer):
+    def on_train_start(self, trainer: TRAINER_TYPE):
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.ultralytics_yolov8 = True
 
-    def on_fit_epoch_end(self, trainer: DetectionTrainer):
+    def on_fit_epoch_end(self, trainer: TRAINER_TYPE):
         validator = trainer.validator
         dataloader = validator.dataloader
         class_label_map = validator.names
@@ -197,7 +202,7 @@ class WandBUltralyticsCallback:
             trainer.model.to("cpu")
             self.model = copy.deepcopy(trainer.model).eval().to(self.device)
             self.predictor.setup_model(model=self.model, verbose=False)
-            if isinstance(trainer, PoseTrainer):
+            if self.task == "pose":
                 self.train_validation_table = plot_pose_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,
@@ -207,7 +212,7 @@ class WandBUltralyticsCallback:
                     max_validation_batches=self.max_validation_batches,
                     epoch=trainer.epoch,
                 )
-            elif isinstance(trainer, DetectionTrainer):
+            elif self.task == "detect":
                 self.train_validation_table = plot_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,
@@ -216,7 +221,7 @@ class WandBUltralyticsCallback:
                     max_validation_batches=self.max_validation_batches,
                     epoch=trainer.epoch,
                 )
-            elif isinstance(trainer, ClassificationTrainer):
+            elif self.task == "classify":
                 self.train_validation_table = plot_classification_validation_results(
                     dataloader=dataloader,
                     predictor=self.predictor,
@@ -228,19 +233,17 @@ class WandBUltralyticsCallback:
             self._save_model(trainer)
         trainer.model.to(self.device)
 
-    def on_train_end(self, trainer: DetectionTrainer):
-        if isinstance(trainer, DetectionTrainer) or isinstance(
-            trainer, ClassificationTrainer
-        ):
+    def on_train_end(self, trainer: TRAINER_TYPE):
+        if self.task in ["pose", "detect", "classify"]:
             wandb.log({"Train-Validation-Table": self.train_validation_table})
 
-    def on_val_end(self, trainer: DetectionValidator):
+    def on_val_end(self, trainer: VALIDATOR_TYPE):
         validator = trainer
         dataloader = validator.dataloader
         class_label_map = validator.names
         with torch.no_grad():
             self.predictor.setup_model(model=self.model, verbose=False)
-            if isinstance(trainer, PoseValidator):
+            if self.task == "pose":
                 self.validation_table = plot_pose_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,
@@ -249,7 +252,7 @@ class WandBUltralyticsCallback:
                     table=self.validation_table,
                     max_validation_batches=self.max_validation_batches,
                 )
-            elif isinstance(trainer, DetectionValidator):
+            elif self.task == "detect":
                 self.validation_table = plot_validation_results(
                     dataloader=dataloader,
                     class_label_map=class_label_map,
@@ -257,7 +260,7 @@ class WandBUltralyticsCallback:
                     table=self.validation_table,
                     max_validation_batches=self.max_validation_batches,
                 )
-            elif isinstance(trainer, ClassificationValidator):
+            elif self.task == "classify":
                 self.validation_table = plot_classification_validation_results(
                     dataloader=dataloader,
                     predictor=self.predictor,
@@ -266,21 +269,19 @@ class WandBUltralyticsCallback:
                 )
         wandb.log({"Validation-Table": self.validation_table})
 
-    def on_predict_end(
-        self, predictor: Union[DetectionPredictor, ClassificationPredictor]
-    ):
+    def on_predict_end(self, predictor: PREDICTOR_TYPE):
         for result in tqdm(predictor.results):
-            if isinstance(predictor, PosePredictor):
+            if self.task == "pose":
                 self.prediction_table = plot_pose_predictions(
                     result, self.visualize_skeleton, self.prediction_table
                 )
-            if isinstance(predictor, SegmentationPredictor):
+            elif isinstance(predictor, SegmentationPredictor):
                 self.prediction_table = plot_mask_predictions(
                     result, self.prediction_table
                 )
-            elif isinstance(predictor, DetectionPredictor):
+            elif self.task == "detect":
                 self.prediction_table = plot_predictions(result, self.prediction_table)
-            elif isinstance(predictor, ClassificationPredictor):
+            elif self.task == "classify":
                 self.prediction_table = plot_classification_predictions(
                     result, self.prediction_table
                 )
