@@ -183,6 +183,8 @@ class Artifact:
         self._save_future: Optional["MessageFuture"] = None
         self._dependent_artifacts: Set["Artifact"] = set()
         self._download_roots: Set[str] = set()
+        # Set by new_draft(), otherwise the latest artifact will be used as the base.
+        self._base_id: Optional[str] = None
         # Properties.
         self._id: Optional[str] = None
         self._client_id: str = runid.generate_id(128)
@@ -355,6 +357,7 @@ class Artifact:
             raise ArtifactNotLoggedError(self, "new_draft")
 
         artifact = Artifact(self.source_name.split(":")[0], self.type)
+        artifact._base_id = self.id
         artifact._description = self.description
         artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(
@@ -782,11 +785,7 @@ class Artifact:
             and not util.alias_is_version_index(alias["alias"])
         ]
         self._state = ArtifactState(attrs["state"])
-        with requests.get(attrs["currentManifest"]["file"]["directUrl"]) as request:
-            request.raise_for_status()
-            self._manifest = ArtifactManifest.from_manifest_json(
-                json.loads(util.ensure_text(request.content))
-            )
+        self._load_manifest(attrs["currentManifest"]["file"]["directUrl"])
         self._commit_hash = attrs["commitHash"]
         self._file_count = attrs["fileCount"]
         self._created_at = attrs["createdAt"]
@@ -1814,7 +1813,7 @@ class Artifact:
         return ArtifactFiles(self._client, self, names, per_page)
 
     def _default_root(self, include_version: bool = True) -> str:
-        name = self.name if include_version else self.name.split(":")[0]
+        name = self.source_name if include_version else self.source_name.split(":")[0]
         root = os.path.join(env.get_artifact_dir(), name)
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)

@@ -1481,9 +1481,11 @@ class Api:
                 queue_id = res["queueID"]
 
             else:
-                wandb.termwarn(
-                    f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
-                )
+                if project_queue == "model-registry":
+                    _msg = f"Unable to push to run queue {queue_name}. Queue not found."
+                else:
+                    _msg = f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
+                wandb.termwarn(_msg)
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
@@ -3690,7 +3692,7 @@ class Api:
             raise Exception("Cannot resume %s sweep." % curr_state.lower())
         elif state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
             raise Exception("Cannot pause %s sweep." % curr_state.lower())
-        elif curr_state not in ("RUNNING", "PAUSED"):
+        elif curr_state not in ("RUNNING", "PAUSED", "PENDING"):
             raise Exception("Sweep already %s." % curr_state.lower())
         sweep_id = s["id"]
         mutation = gql(
