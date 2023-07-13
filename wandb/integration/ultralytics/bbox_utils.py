@@ -100,9 +100,9 @@ def get_mean_confidence_map(
 
 def get_boxes(result: Results) -> Tuple[Dict, Dict]:
     boxes = result.boxes.xywh.long().numpy()
-    classes = result.boxes.cls.long().numpy()
+    classes = result.boxes.cls.long().numpy() + 1
     confidence = result.boxes.conf.numpy()
-    class_id_to_label = {int(k): str(v) for k, v in result.names.items()}
+    class_id_to_label = {int(k) + 1: str(v) for k, v in result.names.items()}
     mean_confidence_map = get_mean_confidence_map(
         classes, confidence, class_id_to_label
     )

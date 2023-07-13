@@ -20,6 +20,7 @@ try:
     from ultralytics.yolo.v8.detect.train import DetectionTrainer
     from ultralytics.yolo.v8.detect.val import DetectionValidator
     from ultralytics.yolo.v8.detect.predict import DetectionPredictor
+    from ultralytics.yolo.v8.segment.predict import SegmentationPredictor
     from ultralytics.yolo.v8.classify.train import ClassificationTrainer
     from ultralytics.yolo.v8.classify.val import ClassificationValidator
     from ultralytics.yolo.v8.classify.predict import ClassificationPredictor
@@ -27,6 +28,7 @@ except ImportError as e:
     print(e)
 
 import wandb
+from wandb.integration.ultralytics.mask_utils import plot_mask_predictions
 from wandb.integration.ultralytics.pose_utils import (
     plot_pose_predictions,
     plot_pose_validation_results,
@@ -139,6 +141,15 @@ class WandBUltralyticsCallback:
             train_columns = ["Epoch"] + validation_columns
             self.train_validation_table = wandb.Table(columns=train_columns)
             self.validation_table = wandb.Table(columns=validation_columns)
+            self.prediction_table = wandb.Table(
+                columns=[
+                    "Image-Prediction",
+                    "Num-Instances",
+                    "Mean-Confidence",
+                    "Speed",
+                ]
+            )
+        if model.task == "segment":
             self.prediction_table = wandb.Table(
                 columns=[
                     "Image-Prediction",
@@ -262,6 +273,10 @@ class WandBUltralyticsCallback:
             if isinstance(predictor, PosePredictor):
                 self.prediction_table = plot_pose_predictions(
                     result, self.visualize_skeleton, self.prediction_table
+                )
+            if isinstance(predictor, SegmentationPredictor):
+                self.prediction_table = plot_mask_predictions(
+                    result, self.prediction_table
                 )
             elif isinstance(predictor, DetectionPredictor):
                 self.prediction_table = plot_predictions(result, self.prediction_table)
