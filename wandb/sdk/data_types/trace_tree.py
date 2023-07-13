@@ -199,7 +199,6 @@ class Trace:
     """
 
     name = TraceAttribute()
-    kind = TraceAttribute()
     status_code = TraceAttribute()
     status_message = TraceAttribute()
     start_time_ms = TraceAttribute()
@@ -271,12 +270,17 @@ class Trace:
                 status_code.upper() in StatusCode.__members__
             ), "Invalid status code, can be one of 'SUCCESS' or 'ERROR'"
             status_code = StatusCode(status_code.upper())
-        if inputs is not None and outputs is not None:
+        if inputs is not None:
             assert isinstance(inputs, dict), "Inputs must be a dictionary"
+        if outputs is not None:
             assert isinstance(outputs, dict), "Outputs must be a dictionary"
+        if inputs or outputs:
             result = Result(inputs=inputs, outputs=outputs)
         else:
             result = None
+
+        if metadata is not None:
+            assert isinstance(metadata, dict), "Metadata must be a dictionary"
 
         return Span(
             name=name,
@@ -401,4 +405,5 @@ class Trace:
         assert (
             wandb.run is not None
         ), "You must call wandb.init() before logging a trace"
+        assert len(name.strip()) > 0, "You must provide a valid name to log the trace"
         wandb.run.log({name: trace_tree})
