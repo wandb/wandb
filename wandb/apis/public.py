@@ -26,12 +26,18 @@ from typing import (
     Any,
     Dict,
     List,
-    Literal,
     Mapping,
     MutableMapping,
     Optional,
     Sequence,
 )
+
+import sys
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 import requests
 from wandb_gql import Client, gql
