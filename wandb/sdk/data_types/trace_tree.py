@@ -328,6 +328,14 @@ class Trace:
             self._span.results.append(result)
         return self
 
+    def add_metadata(self, metadata: dict) -> "Trace":
+        """Add metadata to the span of the current trace."""
+        if self._span.attributes is None:
+            self._span.attributes = metadata
+        else:
+            self._span.attributes.update(metadata)
+        return self
+
     @property
     def metadata(self) -> Optional[Dict[str, str]]:
         """Get the metadata of the trace.
