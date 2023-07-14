@@ -2,6 +2,7 @@ import ast
 import asyncio
 import base64
 import datetime
+import http.client
 import json
 import logging
 import os
@@ -129,6 +130,32 @@ else:
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
+
+httpclient_logger = logging.getLogger("http.client")
+httpclient_logger.setLevel(logging.DEBUG)
+
+
+def check_httpclient_logger_handler():
+    # Only enable http.client logging if WANDB_DEBUG is set
+    if not os.environ.get("WANDB_DEBUG"):
+        return
+    if httpclient_logger.handlers:
+        return
+
+    # Enable HTTPConnection debug logging to the logging framework
+    level = logging.DEBUG
+
+    def httpclient_log(*args):
+        httpclient_logger.log(level, " ".join(args))
+
+    # mask the print() built-in in the http.client module to use logging instead
+    http.client.print = httpclient_log
+    # enable debugging
+    http.client.HTTPConnection.debuglevel = 1
+
+    root_logger = logging.getLogger("wandb")
+    if root_logger.handlers:
+        httpclient_logger.addHandler(root_logger.handlers[0])
 
 
 def check_httpx_exc_retriable(exc: Exception) -> bool:
@@ -989,6 +1016,8 @@ class Api:
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
         """
+        check_httpclient_logger_handler()
+
         query = gql(
             """
         query RunConfigs(
@@ -2199,6 +2228,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
+        check_httpclient_logger_handler()
         auth = None
         if _thread_local_api_settings.cookies is None:
             auth = ("user", self.api_key or "")
@@ -2292,6 +2322,7 @@ class Api:
         Returns:
             The `requests` library response object
         """
+        check_httpclient_logger_handler()
         try:
             response = self._upload_file_session.put(
                 url, data=upload_chunk, headers=extra_headers
@@ -2342,6 +2373,7 @@ class Api:
         Returns:
             The `requests` library response object
         """
+        check_httpclient_logger_handler()
         extra_headers = extra_headers.copy() if extra_headers else {}
         response: Optional[requests.Response] = None
         progress = Progress(file, callback=callback)
@@ -2408,6 +2440,7 @@ class Api:
             - This method doesn't wrap retryable errors in `TransientError`.
               It leaves that determination to the caller.
         """
+        check_httpclient_logger_handler()
         must_delegate = False
 
         if httpx is None:
@@ -3728,6 +3761,7 @@ class Api:
 
     def _status_request(self, url: str, length: int) -> requests.Response:
         """Ask google how much we've uploaded."""
+        check_httpclient_logger_handler()
         return requests.put(
             url=url,
             headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
