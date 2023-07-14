@@ -19,6 +19,7 @@ from wandb.sdk.lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from wandb.sdk.lib.gitlib import GitRepo
+from wandb.sdk.wandb_settings import _get_program_relpath_from_gitrepo
 
 from .assets.interfaces import Interface
 
@@ -170,6 +171,11 @@ class SystemInfo:
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
         if self.settings.disable_git:
+            # can't trust relpapth, possibly set before git_disabled
+            data["codePath"] = _get_program_relpath_from_gitrepo(
+                self.settings.program,
+                True,
+            )
             return data
 
         # in case of manually passing the git repo info, `enabled` would be False,
