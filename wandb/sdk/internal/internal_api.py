@@ -1354,7 +1354,9 @@ class Api:
     ) -> Optional[Dict[str, Any]]:
         (create_run_queue, supports_drc) = self.create_run_queue_introspection()
         if not create_run_queue:
-            raise UnsupportedError("run queue creation is not supported by this version of wandb server.")
+            raise UnsupportedError(
+                "run queue creation is not supported by this version of wandb server."
+            )
         if not supports_drc and config_id is not None:
             raise UnsupportedError(
                 "default resource configurations are not supported by this version of wandb server."
