@@ -395,6 +395,27 @@ class Trace:
             result = Result(inputs=self._span.results[-1].inputs, outputs=value)
             self._span.results.append(result)
 
+    @property
+    def kind(self) -> Optional[str]:
+        """Get the kind of the trace.
+
+        Returns:
+            The kind of the trace.
+        """
+        return self._span.span_kind.value if self._span.span_kind else None
+
+    @kind.setter
+    def kind(self, value: str) -> None:
+        """Set the kind of the trace.
+
+        Args:
+            value: The kind of the trace to be set.
+        """
+        assert (
+            value.upper() in SpanKind.__members__
+        ), "Invalid span kind, can be one of 'LLM', 'AGENT', 'CHAIN', 'TOOL'"
+        self._span.span_kind = SpanKind(value.upper())
+
     def log(self, name: str) -> None:
         """Log the trace to a wandb run.
 
