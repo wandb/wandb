@@ -6,6 +6,7 @@ tag:
     - platform: mac
 depend:
   requirements:
+    # todo: fix for >4
     - lightgbm<4.0.0
 assert:
   - :wandb:runs_len: 1
