@@ -598,7 +598,6 @@ class Api:
         if self.server_create_run_queue_supports_drc is None:
             query = gql(query_string)
             res = self.gql(query)
-            print("introspection result", res)
             self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
                 x["name"]
                 for x in (
