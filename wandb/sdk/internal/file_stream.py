@@ -538,8 +538,6 @@ class FileStreamApi:
                 fs['wandb-history.jsonl']['content'] = [
                     json.dumps({
                         **{k: v for k, v in json.loads(line).items() if k != '_step' or not os.environ.get('SRP_ASYNC')},
-                        'a': 100_000 * 'a',
-                        'x': random.random(),
                     })
                     for line in fs['wandb-history.jsonl']['content']
                 ]
