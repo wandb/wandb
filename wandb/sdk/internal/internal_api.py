@@ -2126,7 +2126,7 @@ class Api:
         """
         auth = None
         if _thread_local_api_settings.cookies is None:
-            auth = ("user", self.api_key or "")
+            auth = ("api", self.api_key or "")
         response = requests.get(
             url,
             auth=auth,
