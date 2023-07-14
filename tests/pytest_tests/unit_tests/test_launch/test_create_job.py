@@ -4,7 +4,6 @@ import platform
 import tempfile
 
 import pytest
-
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.create_job import (
