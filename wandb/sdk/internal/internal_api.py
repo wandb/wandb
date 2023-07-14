@@ -1563,8 +1563,6 @@ class Api:
         agent_config: Dict[str, Any],
         gorilla_agent_support: bool,
     ) -> dict:
-        if not self.create_launch_agent_fields_introspection():
-            return {"success": False}
         project_queues = self.get_project_run_queues(entity, project)
         if not project_queues:
             # create default queue if it doesn't already exist
@@ -1613,10 +1611,7 @@ class Api:
                         runQueues: $queues,
                         hostname: $hostname"""
 
-        if (
-            self.create_launch_agent_input_info
-            and "agentConfig" in self.create_launch_agent_input_info
-        ):
+        if "agentConfig" in self.create_launch_agent_fields_introspection():
             variable_values["agentConfig"] = json.dumps(agent_config)
             mutation_params += """,
                 $agentConfig: JSONString"""
