@@ -651,6 +651,8 @@ class Artifact:
         EX: Artifact.created_at = 1/1/2000, ttl_duration=10 days.
             This artifact will be marked for deletion on 1/11/2000.
         """
+        if self._ttl_duration_seconds is None:
+            return None
         return datetime.timedelta(seconds=self._ttl_duration_seconds)
 
     @ttl_duration.setter
@@ -663,15 +665,16 @@ class Artifact:
             ttl_duration_seconds: How long the artifact will live after creation.
             To turn off previously set artifact TTL, set the duration to None.
         """
+        if self.type == "wandb-history":
+            raise ValueError("Cannot set artifact TTL for type wandb-history")
         if ttl_duration is not None:
             if ttl_duration.total_seconds() <= 0:
-                raise ArtifactValueError(
-                    self,
-                    "ttl_duration",
-                    "Artifact TTL Duration has to be positive.",
-                    "ttl_duration_seconds",
+                raise ValueError(
+                    f"Artifact TTL Duration has to be positive. ttl_duration: {ttl_duration.total_seconds()}"
                 )
-        self._ttl_duration_seconds = ttl_duration.total_seconds()
+            self._ttl_duration_seconds = int(ttl_duration.total_seconds())
+        else:
+            self._ttl_duration_seconds = None
 
     # State management.
 
@@ -925,6 +928,7 @@ class Artifact:
                 $artifactID: ID!,
                 $description: String,
                 $metadata: JSONString,
+                $ttlDurationSeconds: Int64,
                 $aliases: [ArtifactAliasInput!]
             ) {
                 updateArtifact(

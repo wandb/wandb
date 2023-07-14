@@ -3151,7 +3151,7 @@ class Api:
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            $ttlDurationSeconds: int,
+            $ttlDurationSeconds: Int64,
             {}
             {}
             {}

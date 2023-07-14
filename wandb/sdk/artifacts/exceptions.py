@@ -64,7 +64,7 @@ class ArtifactValueError(ArtifactStatusError):
         super().__init__(
             artifact,
             attr,
-            "'{method_id}'. Invalid value for '{value}', '{error}'",
+            "'{method_id}'. Invalid value for" + f" {value}, {error}",
         )
 
 
