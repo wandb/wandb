@@ -2324,9 +2324,13 @@ class Api:
         """
         check_httpclient_logger_handler()
         try:
+            if env.is_debug(env=self._environ):
+                logger.debug("upload_file: %s", url)
             response = self._upload_file_session.put(
                 url, data=upload_chunk, headers=extra_headers
             )
+            if env.is_debug(env=self._environ):
+                logger.debug("upload_file: %s complete", url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -2386,9 +2390,13 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
+                if env.is_debug(env=self._environ):
+                    logger.debug("upload_file: %s", url)
                 response = self._upload_file_session.put(
                     url, data=progress, headers=extra_headers
                 )
+                if env.is_debug(env=self._environ):
+                    logger.debug("upload_file: %s complete", url)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -2403,7 +2411,7 @@ class Api:
                 and status_code == 400
                 and "RequestTimeout" in str(response_content)
             )
-            # We need to rewind the file for the next retry (the file passed in is seeked to 0)
+            # We need to rewind the file for the next retry (the file passed in is `seek`'ed to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
             if (
