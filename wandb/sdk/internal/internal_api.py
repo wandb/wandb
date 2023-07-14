@@ -1613,7 +1613,10 @@ class Api:
                         runQueues: $queues,
                         hostname: $hostname"""
 
-        if "agentConfig" in self.create_launch_agent_input_info:
+        if (
+            self.create_launch_agent_input_info
+            and "agentConfig" in self.create_launch_agent_input_info
+        ):
             variable_values["agentConfig"] = json.dumps(agent_config)
             mutation_params += """,
                 $agentConfig: JSONString"""
