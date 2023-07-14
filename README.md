@@ -262,9 +262,9 @@ Get started integrating your Keras model with W&B today:
 
 </details>
 <details>
-<summary>🤗 Huggingface Transformers</summary>
+<summary>🤗 Hugging Face Transformers</summary>
 
-Pass `wandb` to the `report_to` argument when you run a script using a HuggingFace Trainer. W&B will automatically log losses,
+Pass `wandb` to the `report_to` argument when you run a script using a Hugging Face Trainer. W&B will automatically log losses,
 evaluation metrics, model topology, and gradients.
 
 **Note**: The environment you run your script in must have `wandb` installed.
