@@ -113,6 +113,7 @@ class WandBUltralyticsCallback:
         self.task = model.task
         self._make_tables()
         self._make_predictor(model)
+        self.supported_tasks = ["detect", "segment", "pose"]
 
     def _make_tables(self):
         if self.task in ["detect", "segment"]:
@@ -197,115 +198,125 @@ class WandBUltralyticsCallback:
             tel.feature.ultralytics_yolov8 = True
 
     def on_fit_epoch_end(self, trainer: TRAINER_TYPE):
-        validator = trainer.validator
-        dataloader = validator.dataloader
-        class_label_map = validator.names
-        with torch.no_grad():
-            self.device = next(trainer.model.parameters()).device
-            trainer.model.to("cpu")
-            self.model = copy.deepcopy(trainer.model).eval().to(self.device)
-            self.predictor.setup_model(model=self.model, verbose=False)
-            if self.task == "pose":
-                self.train_validation_table = plot_pose_validation_results(
-                    dataloader=dataloader,
-                    class_label_map=class_label_map,
-                    predictor=self.predictor,
-                    visualize_skeleton=self.visualize_skeleton,
-                    table=self.train_validation_table,
-                    max_validation_batches=self.max_validation_batches,
-                    epoch=trainer.epoch,
-                )
-            elif self.task == "segment":
-                self.train_validation_table = plot_mask_validation_results(
-                    dataloader=dataloader,
-                    class_label_map=class_label_map,
-                    predictor=self.predictor,
-                    table=self.train_validation_table,
-                    max_validation_batches=self.max_validation_batches,
-                    epoch=trainer.epoch,
-                )
-            elif self.task == "detect":
-                self.train_validation_table = plot_validation_results(
-                    dataloader=dataloader,
-                    class_label_map=class_label_map,
-                    predictor=self.predictor,
-                    table=self.train_validation_table,
-                    max_validation_batches=self.max_validation_batches,
-                    epoch=trainer.epoch,
-                )
-            elif self.task == "classify":
-                self.train_validation_table = plot_classification_validation_results(
-                    dataloader=dataloader,
-                    predictor=self.predictor,
-                    table=self.train_validation_table,
-                    max_validation_batches=self.max_validation_batches,
-                    epoch=trainer.epoch,
-                )
-        if self.enable_model_checkpointing:
-            self._save_model(trainer)
-        trainer.model.to(self.device)
+        if self.task in self.supported_tasks:
+            validator = trainer.validator
+            dataloader = validator.dataloader
+            class_label_map = validator.names
+            with torch.no_grad():
+                self.device = next(trainer.model.parameters()).device
+                trainer.model.to("cpu")
+                self.model = copy.deepcopy(trainer.model).eval().to(self.device)
+                self.predictor.setup_model(model=self.model, verbose=False)
+                if self.task == "pose":
+                    self.train_validation_table = plot_pose_validation_results(
+                        dataloader=dataloader,
+                        class_label_map=class_label_map,
+                        predictor=self.predictor,
+                        visualize_skeleton=self.visualize_skeleton,
+                        table=self.train_validation_table,
+                        max_validation_batches=self.max_validation_batches,
+                        epoch=trainer.epoch,
+                    )
+                elif self.task == "segment":
+                    self.train_validation_table = plot_mask_validation_results(
+                        dataloader=dataloader,
+                        class_label_map=class_label_map,
+                        predictor=self.predictor,
+                        table=self.train_validation_table,
+                        max_validation_batches=self.max_validation_batches,
+                        epoch=trainer.epoch,
+                    )
+                elif self.task == "detect":
+                    self.train_validation_table = plot_validation_results(
+                        dataloader=dataloader,
+                        class_label_map=class_label_map,
+                        predictor=self.predictor,
+                        table=self.train_validation_table,
+                        max_validation_batches=self.max_validation_batches,
+                        epoch=trainer.epoch,
+                    )
+                elif self.task == "classify":
+                    self.train_validation_table = (
+                        plot_classification_validation_results(
+                            dataloader=dataloader,
+                            predictor=self.predictor,
+                            table=self.train_validation_table,
+                            max_validation_batches=self.max_validation_batches,
+                            epoch=trainer.epoch,
+                        )
+                    )
+            if self.enable_model_checkpointing:
+                self._save_model(trainer)
+            self.model.to("cpu")
+            trainer.model.to(self.device)
 
     def on_train_end(self, trainer: TRAINER_TYPE):
-        if self.task in ["pose", "segment", "detect", "classify"]:
+        if self.task in self.supported_tasks:
             wandb.log({"Train-Validation-Table": self.train_validation_table})
 
     def on_val_end(self, trainer: VALIDATOR_TYPE):
-        validator = trainer
-        dataloader = validator.dataloader
-        class_label_map = validator.names
-        with torch.no_grad():
-            self.predictor.setup_model(model=self.model, verbose=False)
-            if self.task == "pose":
-                self.validation_table = plot_pose_validation_results(
-                    dataloader=dataloader,
-                    class_label_map=class_label_map,
-                    predictor=self.predictor,
-                    visualize_skeleton=self.visualize_skeleton,
-                    table=self.validation_table,
-                    max_validation_batches=self.max_validation_batches,
-                )
-            elif self.task == "segment":
-                self.validation_table = plot_mask_validation_results(
-                    dataloader=dataloader,
-                    class_label_map=class_label_map,
-                    predictor=self.predictor,
-                    table=self.validation_table,
-                    max_validation_batches=self.max_validation_batches,
-                )
-            elif self.task == "detect":
-                self.validation_table = plot_validation_results(
-                    dataloader=dataloader,
-                    class_label_map=class_label_map,
-                    predictor=self.predictor,
-                    table=self.validation_table,
-                    max_validation_batches=self.max_validation_batches,
-                )
-            elif self.task == "classify":
-                self.validation_table = plot_classification_validation_results(
-                    dataloader=dataloader,
-                    predictor=self.predictor,
-                    table=self.validation_table,
-                    max_validation_batches=self.max_validation_batches,
-                )
-        wandb.log({"Validation-Table": self.validation_table})
+        if self.task in self.supported_tasks:
+            validator = trainer
+            dataloader = validator.dataloader
+            class_label_map = validator.names
+            with torch.no_grad():
+                self.model.to(self.device)
+                self.predictor.setup_model(model=self.model, verbose=False)
+                if self.task == "pose":
+                    self.validation_table = plot_pose_validation_results(
+                        dataloader=dataloader,
+                        class_label_map=class_label_map,
+                        predictor=self.predictor,
+                        visualize_skeleton=self.visualize_skeleton,
+                        table=self.validation_table,
+                        max_validation_batches=self.max_validation_batches,
+                    )
+                elif self.task == "segment":
+                    self.validation_table = plot_mask_validation_results(
+                        dataloader=dataloader,
+                        class_label_map=class_label_map,
+                        predictor=self.predictor,
+                        table=self.validation_table,
+                        max_validation_batches=self.max_validation_batches,
+                    )
+                elif self.task == "detect":
+                    self.validation_table = plot_validation_results(
+                        dataloader=dataloader,
+                        class_label_map=class_label_map,
+                        predictor=self.predictor,
+                        table=self.validation_table,
+                        max_validation_batches=self.max_validation_batches,
+                    )
+                elif self.task == "classify":
+                    self.validation_table = plot_classification_validation_results(
+                        dataloader=dataloader,
+                        predictor=self.predictor,
+                        table=self.validation_table,
+                        max_validation_batches=self.max_validation_batches,
+                    )
+            wandb.log({"Validation-Table": self.validation_table})
 
     def on_predict_end(self, predictor: PREDICTOR_TYPE):
-        for result in tqdm(predictor.results):
-            if self.task == "pose":
-                self.prediction_table = plot_pose_predictions(
-                    result, self.visualize_skeleton, self.prediction_table
-                )
-            elif isinstance(predictor, SegmentationPredictor):
-                self.prediction_table = plot_mask_predictions(
-                    result, self.prediction_table
-                )
-            elif self.task == "detect":
-                self.prediction_table = plot_predictions(result, self.prediction_table)
-            elif self.task == "classify":
-                self.prediction_table = plot_classification_predictions(
-                    result, self.prediction_table
-                )
-        wandb.log({"Prediction-Table": self.prediction_table})
+        if self.task in self.supported_tasks:
+            for result in tqdm(predictor.results):
+                if self.task == "pose":
+                    self.prediction_table = plot_pose_predictions(
+                        result, self.visualize_skeleton, self.prediction_table
+                    )
+                elif self.task == "segment":
+                    self.prediction_table = plot_mask_predictions(
+                        result, self.prediction_table
+                    )
+                elif self.task == "detect":
+                    self.prediction_table = plot_predictions(
+                        result, self.prediction_table
+                    )
+                elif self.task == "classify":
+                    self.prediction_table = plot_classification_predictions(
+                        result, self.prediction_table
+                    )
+
+            wandb.log({"Prediction-Table": self.prediction_table})
 
     @property
     def callbacks(self) -> Dict[str, Callable]:

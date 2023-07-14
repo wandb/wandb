@@ -153,7 +153,6 @@ def plot_validation_results(
             _, prediction_box_data, mean_confidence_map = plot_predictions(
                 prediction_result
             )
-            print(prediction_box_data)
             try:
                 ground_truth_data = get_ground_truth_bbox_annotations(
                     img_idx, image_path, batch, class_label_map
