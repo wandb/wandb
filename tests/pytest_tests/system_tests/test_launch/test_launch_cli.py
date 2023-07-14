@@ -291,7 +291,7 @@ def _setup_agent(monkeypatch, pop_func):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.create_launch_agent",
-        lambda c, e, p, q, g: {"launchAgentId": "mock_agent_id"},
+        lambda c, e, p, q, a, g: {"launchAgentId": "mock_agent_id"},
     )
 
 
