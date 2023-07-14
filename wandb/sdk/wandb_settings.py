@@ -181,8 +181,10 @@ def _get_program_relpath_from_gitrepo(
 def _get_program_relpath(
     program: str, root: Optional[str] = None, _logger: Optional[_EarlyLogger] = None
 ) -> Optional[str]:
+    root = root or os.getcwd()
     if not root:
-        root = os.getcwd()
+        return None
+
     full_path_to_program = os.path.join(
         root, os.path.relpath(os.getcwd(), root), program
     )
