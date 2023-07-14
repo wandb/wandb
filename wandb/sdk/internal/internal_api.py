@@ -135,7 +135,7 @@ httpclient_logger = logging.getLogger("http.client")
 httpclient_logger.setLevel(logging.DEBUG)
 
 
-def check_httpclient_logger_handler():
+def check_httpclient_logger_handler() -> None:
     # Only enable http.client logging if WANDB_DEBUG is set
     if not os.environ.get("WANDB_DEBUG"):
         return
@@ -145,11 +145,11 @@ def check_httpclient_logger_handler():
     # Enable HTTPConnection debug logging to the logging framework
     level = logging.DEBUG
 
-    def httpclient_log(*args):
+    def httpclient_log(*args: Any) -> None:
         httpclient_logger.log(level, " ".join(args))
 
     # mask the print() built-in in the http.client module to use logging instead
-    http.client.print = httpclient_log
+    http.client.print = httpclient_log  # type: ignore[attr-defined]
     # enable debugging
     http.client.HTTPConnection.debuglevel = 1
 
