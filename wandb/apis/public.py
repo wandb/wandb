@@ -18,6 +18,7 @@ import logging
 import os
 import platform
 import shutil
+import sys
 import tempfile
 import time
 import urllib
@@ -31,8 +32,6 @@ from typing import (
     Optional,
     Sequence,
 )
-
-import sys
 
 if sys.version_info >= (3, 8):
     from typing import Literal
