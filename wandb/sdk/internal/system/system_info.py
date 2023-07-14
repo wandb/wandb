@@ -225,7 +225,7 @@ class SystemInfo:
                         data["program"] = self.settings._jupyter_path
                         data["root"] = self.settings._jupyter_root
 
-            if self.settings.disable_git:
+            if self.settings.job_source != "repo" or self.settings.disable_git:
                 # can't trust relpapth, possibly set before git_disabled when in a git repo
                 data["codePath"] = _get_program_relpath(self.settings.program)
             else:  # get the git repo info
