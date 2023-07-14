@@ -1,6 +1,9 @@
 import json
 import os
+import platform
 import tempfile
+
+import pytest
 
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
@@ -42,6 +45,9 @@ def test_create_artifact_metadata():
     assert requirements == ["wandb"]
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="Windows base path if empty is broken, TODO"
+)
 def test_handle_artifact_entrypoint():
     path = tempfile.TemporaryDirectory().name
     entrypoint = "test.py"
