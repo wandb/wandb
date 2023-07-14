@@ -408,6 +408,7 @@ def test_artifact_job_creation(live_mock_server, test_settings, runner):
         test_settings.update(
             {
                 "disable_git": True,
+                "program": "test.py",
                 "program_relpath": "./blah/test_program.py",
             }
         )

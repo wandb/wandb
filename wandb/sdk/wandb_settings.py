@@ -171,11 +171,17 @@ def _get_program() -> Optional[str]:
 
 
 def _get_program_relpath_from_gitrepo(
-    program: str, disable_git: Optional[bool], _logger: Optional[_EarlyLogger] = None
+    program: str, _logger: Optional[_EarlyLogger] = None
 ) -> Optional[str]:
     repo = GitRepo()
     root = repo.root
-    if not root or disable_git:
+    return _get_program_relpath(program, root, _logger)
+
+
+def _get_program_relpath(
+    program: str, root: Optional[str] = None, _logger: Optional[_EarlyLogger] = None
+) -> Optional[str]:
+    if not root:
         root = os.getcwd()
     full_path_to_program = os.path.join(
         root, os.path.relpath(os.getcwd(), root), program
@@ -1665,11 +1671,22 @@ class Settings(SettingsData):
         settings: Dict[str, Union[bool, str, None]] = dict()
         program = self.program or _get_program()
         if program is not None:
-            program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
-                program,
-                self.disable_git,
-                _logger=_logger,
-            )
+            # Get root if we are in repo, otherwise is None
+            repo = GitRepo()
+            root = repo.root
+            if self.program_relpath:
+                program_relpath: Optional[str] = self.program_relpath
+            elif root and not self.disable_git:
+                program_relpath = (
+                    self.program_relpath
+                    or _get_program_relpath_from_gitrepo(
+                        program,
+                        _logger=_logger,
+                    )
+                )
+            else:
+                program_relpath = _get_program_relpath(program, _logger=_logger)
+
             settings["program_relpath"] = program_relpath
         else:
             program = "<python with no main file>"

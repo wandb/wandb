@@ -19,7 +19,7 @@ from wandb.sdk.lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from wandb.sdk.lib.gitlib import GitRepo
-from wandb.sdk.wandb_settings import _get_program_relpath_from_gitrepo
+from wandb.sdk.wandb_settings import _get_program_relpath
 
 from .assets.interfaces import Interface
 
@@ -170,14 +170,6 @@ class SystemInfo:
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        if self.settings.disable_git:
-            # can't trust relpapth, possibly set before git_disabled
-            data["codePath"] = _get_program_relpath_from_gitrepo(
-                self.settings.program,
-                True,
-            )
-            return data
-
         # in case of manually passing the git repo info, `enabled` would be False,
         # but we still want to save the git repo info
         if not self.git.enabled and self.git.auto:
@@ -232,8 +224,12 @@ class SystemInfo:
                     else:
                         data["program"] = self.settings._jupyter_path
                         data["root"] = self.settings._jupyter_root
-            # get the git repo info
-            data = self._probe_git(data)
+
+            if self.settings.disable_git:
+                # can't trust relpapth, possibly set before git_disabled when in a git repo
+                data["codePath"] = _get_program_relpath(self.settings.program)
+            else:  # get the git repo info
+                data = self._probe_git(data)
 
         if self.settings.anonymous != "true":
             data["host"] = self.settings.host
