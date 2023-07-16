@@ -415,7 +415,7 @@ class EntryPoint:
         """Converts user parameter dictionary to a string."""
         ret = self.command
         if user_parameters:
-            ret += user_parameters
+            return ret + user_parameters
         return ret
 
 
