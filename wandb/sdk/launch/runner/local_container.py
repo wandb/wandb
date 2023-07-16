@@ -15,6 +15,7 @@ from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
@@ -91,6 +92,8 @@ class LocalSubmittedRun(AbstractRun):
 class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
+    _type = "LocalContainer"
+
     def __init__(
         self,
         api: wandb.apis.internal.Api,
@@ -125,7 +128,9 @@ class LocalContainerRunner(AbstractRunner):
         docker_args = self._populate_docker_args(launch_project)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         entry_point = launch_project.get_single_entry_point()
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+        )
 
         # When running against local port, need to swap to local docker host
         if (

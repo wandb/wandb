@@ -9,6 +9,7 @@ from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_uri,
     download_wandb_python_deps,
@@ -30,6 +31,8 @@ class LocalProcessRunner(AbstractRunner):
     command specified as a process directly on the bare metal machine.
 
     """
+
+    _type = "LocalProcess"
 
     def run(  # type: ignore
         self,
@@ -77,7 +80,9 @@ class LocalProcessRunner(AbstractRunner):
                 )
             except Exception:
                 wandb.termwarn("Unable to validate python dependencies")
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+        )
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
 

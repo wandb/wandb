@@ -18,7 +18,7 @@ from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
+from ..utils import LOG_PREFIX, MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -81,6 +81,8 @@ class VertexSubmittedRun(AbstractRun):
 
 class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun."""
+
+    _type = "VertexAI"
 
     def __init__(
         self,
@@ -152,7 +154,9 @@ class VertexRunner(AbstractRunner):
                     "command": entry_cmd,
                     "env": [
                         {"name": k, "value": v}
-                        for k, v in get_env_vars_dict(launch_project, self._api).items()
+                        for k, v in get_env_vars_dict(
+                            launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+                        ).items()
                     ],
                 },
             }

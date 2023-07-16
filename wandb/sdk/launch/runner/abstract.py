@@ -129,6 +129,8 @@ class AbstractRunner(ABC):
     (e.g. to run projects against your team's in-house cluster or job scheduler).
     """
 
+    _type: str
+
     def __init__(
         self,
         api: Api,

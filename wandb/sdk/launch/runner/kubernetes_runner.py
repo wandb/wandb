@@ -20,6 +20,7 @@ from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
     make_name_dns_safe,
@@ -363,6 +364,8 @@ class CrdSubmittedRun(AbstractRun):
 class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
+    _type = "Kubernetes"
+
     def __init__(
         self,
         api: Api,
@@ -536,7 +539,9 @@ class KubernetesRunner(AbstractRunner):
             launch_project.override_entrypoint is not None,
         )
 
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+        )
         for cont in containers:
             # Add our env vars to user supplied env vars
             env = cont.get("env", [])
@@ -586,7 +591,9 @@ class KubernetesRunner(AbstractRunner):
         api_version = resource_args.get("apiVersion", "batch/v1")
         if api_version not in ["batch/v1", "batch/v1beta1"]:
             launch_project.fill_macros(image_uri)
-            env_vars = get_env_vars_dict(launch_project, self._api)
+            env_vars = get_env_vars_dict(
+                launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+            )
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(launch_project.resource_args, env_vars)
             # Crawl the resource arsg and add our labels to the pods. This is
