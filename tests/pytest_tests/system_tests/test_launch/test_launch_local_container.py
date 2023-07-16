@@ -50,7 +50,6 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.image_name = "testimage"
         project.job = "testjob"
         project.launch_spec = {}
-        string_args = " ".join(project.override_args)
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
@@ -68,5 +67,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
 
         # test with no user provided image
         command = runner.run(project, project.docker_image)
-        assert f"WANDB_ARGS='{string_args}'" in command
-        assert f"WANDB_ARGS='{string_args}'" in command
+        assert (
+            f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
+            in command
+        )
