@@ -12,6 +12,7 @@ import wandb.sdk.launch.launch as launch
 import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.sdk.launch.builder.build import _inject_wandb_config_env_vars
 from wandb.sdk.launch.builder.docker_builder import DockerBuilder
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -1029,12 +1030,10 @@ def test_run_in_launch_context_with_multi_config_env_var(
     runner, live_mock_server, test_settings, monkeypatch
 ):
     with runner.isolated_filesystem():
-        config_env_var = json.dumps({"epochs": 10})
-        config_env_vars = [
-            config_env_var[i : i + 5] for i in range(0, len(config_env_var), 5)
-        ]
-        for i, c in enumerate(config_env_var):
-            monkeypatch.setenv(f"WANDB_CONFIG_{i}", c)
+        config_env_vars = {}
+        _inject_wandb_config_env_vars({"epochs": 10}, config_env_vars, 5)
+        for k in config_env_vars.keys():
+            monkeypatch.setenv(k, config_env_vars[k])
         test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         run.finish()
