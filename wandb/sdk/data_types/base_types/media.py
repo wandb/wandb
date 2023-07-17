@@ -60,9 +60,7 @@ class Media(WBValue):
         self._extension = extension
         assert extension is None or path.endswith(
             extension
-        ), 'Media file extension "{}" must occur at the end of path "{}".'.format(
-            extension, path
-        )
+        ), f'Media file extension "{extension}" must occur at the end of path "{path}".'
 
         with open(self._path, "rb") as f:
             self._sha256 = hashlib.sha256(f.read()).hexdigest()

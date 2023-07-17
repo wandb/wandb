@@ -163,14 +163,15 @@ def test_get_commit(monkeypatch) -> None:
     tmpdir = tempfile.TemporaryDirectory()
     ref.fetch(dst_dir=tmpdir.name)
 
-    assert ref.directory == os.path.join(tmpdir.name, "commit/path")
+    assert ref.directory == "commit/path/"
 
-    assert os.path.exists(ref.directory)
-    assert os.path.exists(os.path.join(ref.directory, "requirements.txt"))
+    local_dir = os.path.join(tmpdir.name, ref.directory)
+    assert os.path.exists(local_dir)
+    assert os.path.exists(os.path.join(local_dir, "requirements.txt"))
 
     assert ref.commit_hash == "1234567890"
 
-    req_path = os.path.join(ref.directory, "requirements.txt")
+    req_path = os.path.join(local_dir, "requirements.txt")
 
     del ref
     tmpdir.cleanup()

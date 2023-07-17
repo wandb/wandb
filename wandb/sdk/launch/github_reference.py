@@ -237,7 +237,7 @@ class GitHubReference:
             return
         path = Path(dst_dir, self.path)
         if path.is_file():
-            self.directory = str(path.parent.absolute())
+            self.directory = self.path.replace(path.name, "")
             self.file = path.name
             self.path = None
         elif path.is_dir():

@@ -125,7 +125,13 @@ class Artifact:
           description
           metadata
           aliases {
-              artifactCollectionName
+              artifactCollection {
+                  project {
+                      entityName
+                      name
+                  }
+                  name
+              }
               alias
           }
           state
@@ -177,6 +183,8 @@ class Artifact:
         self._save_future: Optional["MessageFuture"] = None
         self._dependent_artifacts: Set["Artifact"] = set()
         self._download_roots: Set[str] = set()
+        # Set by new_draft(), otherwise the latest artifact will be used as the base.
+        self._base_id: Optional[str] = None
         # Properties.
         self._id: Optional[str] = None
         self._client_id: str = runid.generate_id(128)
@@ -296,11 +304,15 @@ class Artifact:
         artifact._entity = entity
         artifact._project = project
         artifact._name = name
-        version_aliases = [
+        aliases = [
             alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == name.split(":")[0]
-            and util.alias_is_version_index(alias["alias"])
+            for alias in attrs["aliases"]
+            if alias["artifactCollection"]["project"]["entityName"] == entity
+            and alias["artifactCollection"]["project"]["name"] == project
+            and alias["artifactCollection"]["name"] == name.split(":")[0]
+        ]
+        version_aliases = [
+            alias for alias in aliases if util.alias_is_version_index(alias)
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
@@ -316,10 +328,7 @@ class Artifact:
             json.loads(attrs["metadata"] or "{}")
         )
         artifact._aliases = [
-            alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == name.split(":")[0]
-            and not util.alias_is_version_index(alias["alias"])
+            alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
         artifact._saved_aliases = copy(artifact._aliases)
         artifact._state = ArtifactState(attrs["state"])
@@ -348,6 +357,7 @@ class Artifact:
             raise ArtifactNotLoggedError(self, "new_draft")
 
         artifact = Artifact(self.source_name.split(":")[0], self.type)
+        artifact._base_id = self.id
         artifact._description = self.description
         artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(
@@ -724,7 +734,13 @@ class Artifact:
                     }
                     versionIndex
                     aliases {
-                        artifactCollectionName
+                        artifactCollection {
+                            project {
+                                entityName
+                                name
+                            }
+                            name
+                        }
                         alias
                     }
                     state
@@ -762,16 +778,14 @@ class Artifact:
         self._source_version = self._version
         self._aliases = [
             alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == self._name.split(":")[0]
+            for alias in attrs["aliases"]
+            if alias["artifactCollection"]["project"]["entityName"] == self._entity
+            and alias["artifactCollection"]["project"]["name"] == self._project
+            and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
         ]
         self._state = ArtifactState(attrs["state"])
-        with requests.get(attrs["currentManifest"]["file"]["directUrl"]) as request:
-            request.raise_for_status()
-            self._manifest = ArtifactManifest.from_manifest_json(
-                json.loads(util.ensure_text(request.content))
-            )
+        self._load_manifest(attrs["currentManifest"]["file"]["directUrl"])
         self._commit_hash = attrs["commitHash"]
         self._file_count = attrs["fileCount"]
         self._created_at = attrs["createdAt"]
@@ -1602,7 +1616,6 @@ class Artifact:
 
         with concurrent.futures.ThreadPoolExecutor(64) as executor:
             active_futures = set()
-            # Download files.
             has_next_page = True
             cursor = None
             while has_next_page:
@@ -1621,10 +1634,6 @@ class Artifact:
                         active_futures.remove(future)
                         if len(active_futures) <= max_backlog:
                             break
-            # Download references.
-            for entry in self.manifest.entries.values():
-                if entry.ref is not None:
-                    active_futures.add(executor.submit(download_entry, entry))
             # Check for errors.
             for future in concurrent.futures.as_completed(active_futures):
                 future.result()
@@ -1804,7 +1813,7 @@ class Artifact:
         return ArtifactFiles(self._client, self, names, per_page)
 
     def _default_root(self, include_version: bool = True) -> str:
-        name = self.name if include_version else self.name.split(":")[0]
+        name = self.source_name if include_version else self.source_name.split(":")[0]
         root = os.path.join(env.get_artifact_dir(), name)
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)

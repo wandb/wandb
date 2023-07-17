@@ -9,7 +9,7 @@ from math import cos, pi, sin
 import numpy as np
 import wandb
 from bokeh.plotting import figure
-from wandb.sdk.interface import artifacts
+from wandb.sdk import artifacts
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:
@@ -176,9 +176,10 @@ def _make_html():
 
 
 def _make_video():
+    # time, channel, height, width
     return wandb.Video(
-        np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)
-    )  # 1 second video of 10x10 pixels
+        np.random.randint(0, high=255, size=(4, 3, 10, 10), dtype=np.uint8)
+    )
 
 
 vid1 = _make_video()
@@ -498,7 +499,7 @@ def test_adding_artifact_by_object():
 
 
 def _cleanup():
-    artifacts.get_artifacts_cache()._artifacts_by_id = {}
+    artifacts.artifacts_cache.get_artifacts_cache()._artifacts_by_id = {}
     if os.path.isdir("wandb"):
         shutil.rmtree("wandb")
     if os.path.isdir("artifacts"):

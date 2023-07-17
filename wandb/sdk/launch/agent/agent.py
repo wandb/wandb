@@ -35,7 +35,6 @@ AGENT_KILLED = "KILLED"
 HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_THREADS = 64
-
 MAX_RESUME_COUNT = 5
 
 _logger = logging.getLogger(__name__)
@@ -499,7 +498,7 @@ class LaunchAgent:
             self._jobs[thread_id] = job_tracker
         try:
             self._thread_run_job(
-                launch_spec, job, default_config, api, queue, thread_id, job_tracker
+                launch_spec, job, default_config, api, thread_id, job_tracker
             )
         except LaunchDockerError as e:
             wandb.termerror(
@@ -518,10 +517,26 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
-        queue: str,
         thread_id: int,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
+        # don't launch sweep runs if the sweep isn't healthy
+        if launch_spec.get("sweep_id"):
+            try:
+                state = api.get_sweep_state(
+                    sweep=launch_spec["sweep_id"],
+                    entity=launch_spec["entity"],
+                    project=launch_spec["project"],
+                )
+            except Exception as e:
+                _logger.debug(f"Fetch sweep state error: {e}")
+                state = None
+
+            if state and state != "RUNNING" and state != "PAUSED":
+                raise Exception(
+                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
+                )
+
         project = create_project_from_spec(launch_spec, api)
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
@@ -537,16 +552,23 @@ class LaunchAgent:
         build_config, registry_config = construct_builder_args(
             default_config, override_build_config
         )
-
+        image_uri = project.docker_image
+        entrypoint = project.get_single_entry_point()
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )
         registry = loader.registry_from_config(registry_config, environment)
         builder = loader.builder_from_config(build_config, environment, registry)
-        backend = loader.runner_from_config(resource, api, backend_config, environment)
+        if not project.docker_image:
+            assert entrypoint is not None
+            image_uri = builder.build_image(project, entrypoint, job_tracker)
+        backend = loader.runner_from_config(
+            resource, api, backend_config, environment, registry
+        )
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
-        run = backend.run(project, builder, job_tracker)
+        assert image_uri
+        run = backend.run(project, image_uri)
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
@@ -589,28 +611,40 @@ class LaunchAgent:
         try:
             run = job_tracker.run
             status = run.get_status().state
+
+            if status == "preempted" and job_tracker.entity == self._entity:
+                config = launch_spec.copy()
+                config["run_id"] = job_tracker.run_id
+                config["_resume_count"] = config.get("_resume_count", 0) + 1
+                with self._jobs_lock:
+                    job_tracker.completed_status = status
+                if config["_resume_count"] > MAX_RESUME_COUNT:
+                    wandb.termlog(
+                        f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
+                    )
+                    return True
+                wandb.termlog(
+                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
+                )
+                launch_add(
+                    config=config,
+                    project_queue=self._project,
+                    queue_name=job_tracker.queue,
+                )
+                return True
+            # TODO change these statuses to an enum
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
+                    if status == "failed":
+                        # on fail, update sweep state. scheduler run_id should == sweep_id
+                        self._api.set_sweep_state(
+                            sweep=job_tracker.run_id, state="CANCELED"
+                        )
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
                     job_tracker.completed_status = status
-                if status == "preempted":
-                    config = launch_spec.copy()
-                    config["run_id"] = job_tracker.run_id
-                    config["_resume_count"] = config.get("_resume_count", 0) + 1
-                    if config["_resume_count"] > MAX_RESUME_COUNT:
-                        wandb.termlog(
-                            f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
-                        )
-                        return True
-                    wandb.termlog(f"{LOG_PREFIX}Requeueing run {job_tracker.run_id}.")
-                    launch_add(
-                        config=config,
-                        project_queue=self._project,
-                        queue_name=job_tracker.queue,
-                    )
                 return True
             return False
         except LaunchError as e:
