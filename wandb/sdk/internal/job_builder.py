@@ -149,16 +149,15 @@ class JobBuilder:
         root: Optional[str],
     ) -> Tuple[Optional[GitSourceDict], Optional[str]]:
         git_info: Dict[str, str] = metadata.get("git", {})
-
-        print(f"Repo job: {self._settings=} \n\n {git_info=}")
-
         remote = git_info.get("remote")
         commit = git_info.get("commit")
         assert remote is not None
         assert commit is not None
-        
+
         if self._is_notebook_run():
-            full_program_path = self._make_notebook_path(root, program_relpath) 
+            full_program_path = self._make_notebook_path(root, program_relpath)
+            if not full_program_path:
+                return None, None
         else:
             full_program_path = program_relpath
 
@@ -209,10 +208,6 @@ class JobBuilder:
                 else:
                     _logger.info("target path does not exist, exiting")
                     return None, None
-        elif self._settings.disable_git:
-            # when git is disabled and we created codePath from a git repo
-            # root is git root, but we want relpath to executed code.
-            full_program_relpath = _get_program_relpath(program_relpath)
         else:
             full_program_relpath = program_relpath
         entrypoint = [
@@ -259,12 +254,16 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
-    def _make_notebook_path(self, root: str, program_relpath: str) -> Optional[str]:
+    def _make_notebook_path(
+        self, root: Optional[str], program_relpath: str
+    ) -> Optional[str]:
         """Assumes job is notebook source, return program path if valid."""
         if not os.path.exists(
             os.path.join(os.getcwd(), os.path.basename(program_relpath))
         ):
-            _logger.info(f"path doesn't exist at: {os.path.join(os.getcwd(), os.path.basename(program_relpath))}")
+            _logger.info(
+                f"path doesn't exist at: {os.path.join(os.getcwd(), os.path.basename(program_relpath))}"
+            )
             return None
 
         if root is None or self._settings._jupyter_root is None:

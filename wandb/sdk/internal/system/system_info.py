@@ -225,11 +225,12 @@ class SystemInfo:
                     else:
                         data["program"] = self.settings._jupyter_path
                         data["root"] = self.settings._jupyter_root
-            
-            if not self.settings.disable_git:
-                data = self._probe_git(data)
-            else:
+
+            if self.settings.disable_git:
+                # when disabled, overrwrite git codePath with guaranteed correct path
                 data["codePath"] = _get_program_relpath(self.settings.program)
+            else:
+                data = self._probe_git(data)
 
         if self.settings.anonymous != "true":
             data["host"] = self.settings.host
