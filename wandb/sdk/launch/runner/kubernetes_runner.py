@@ -734,7 +734,14 @@ def maybe_create_imagepull_secret(
         type="kubernetes.io/dockerconfigjson",
     )
     try:
-        return core_api.create_namespaced_secret(namespace, secret)
+        try:
+            return core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            # 409 = conflict = secret already exists
+            if "409" in str(e):
+                return core_api.read_namespaced_secret(
+                    name=f"regcred-{run_id}", namespace=namespace
+                )
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 
