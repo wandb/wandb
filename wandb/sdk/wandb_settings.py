@@ -182,6 +182,8 @@ def _get_program_relpath(
     program: str, root: Optional[str] = None, _logger: Optional[_EarlyLogger] = None
 ) -> Optional[str]:
     if not program:
+        if _logger is not None:
+            _logger.warning("Empty program passed to get_program_relpath")
         return None
 
     root = root or os.getcwd()
