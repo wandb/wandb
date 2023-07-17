@@ -228,7 +228,7 @@ class RetryingClient:
     def version_supported(self, min_version):
         try:
             from packaging.version import Version as parse_version
-        except ImportError: 
+        except ImportError:
             from pkg_resources import parse_version
 
         return parse_version(min_version) <= parse_version(
