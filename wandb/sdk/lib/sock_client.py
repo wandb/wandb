@@ -97,6 +97,8 @@ class SockClient:
         self._bufsize = 4096
         self._buffer = SockBuffer()
 
+        # self._time_stamps = []
+
     def connect(self, port: int) -> None:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect(("localhost", port))
@@ -143,13 +145,22 @@ class SockClient:
                     time.sleep(self._retry_delay - delta_time)
 
     def _send_message(self, msg: Any) -> None:
+        # if len(self._time_stamps) % 100 == 0:
+        #     deltas = [x - y for x, y in zip(self._time_stamps[1:], self._time_stamps[:-1])]
+        #     print(deltas)
+        # self._time_stamps.append(time.time_ns())
         tracelog.log_message_send(msg, self._sockid)
+        time.perf_counter()
         raw_size = msg.ByteSize()
         data = msg.SerializeToString()
         assert len(data) == raw_size, "invalid serialization"
         header = struct.pack("<BI", ord("W"), raw_size)
+        # toc = time.perf_counter()
+        # print(f"pack time: {toc - tic:0.9f} seconds")
         with self._lock:
             self._sendall_with_error_handle(header + data)
+        # toc2 = time.perf_counter()
+        # print(f"send time: {toc2 - toc:0.9f} seconds")
 
     def send_server_request(self, msg: Any) -> None:
         self._send_message(msg)

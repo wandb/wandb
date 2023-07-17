@@ -630,10 +630,11 @@ class InterfaceBase:
         publish_step: bool = True,
         run: Optional["Run"] = None,
     ) -> None:
+        time.time_ns()
         run = run or self._run
 
-        data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
-        data.pop("_step", None)
+        # data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
+        # data.pop("_step", None)
 
         # add timestamp to the history request, if not already present
         # the timestamp might come from the tensorboard log logic
@@ -644,12 +645,15 @@ class InterfaceBase:
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)
+            # item.value_json = json_dumps_safer_history(v)
+            item.value_json = f"{v}"
 
         if publish_step and step is not None:
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush
+        time.time_ns()
+        # print(f"publish_partial_history took {(toc - tic) / 1e6} ms")
         self._publish_partial_history(partial_history)
 
     @abstractmethod

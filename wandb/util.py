@@ -49,6 +49,7 @@ from typing import (
 import requests
 import yaml
 
+import orjson
 import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
