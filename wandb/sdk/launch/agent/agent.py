@@ -563,7 +563,7 @@ class LaunchAgent:
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
-        if not project.docker_image or not isinstance(backend, LocalProcessRunner):
+        if not (project.docker_image or isinstance(backend, LocalProcessRunner)):
             assert entrypoint is not None
             image_uri = builder.build_image(project, entrypoint, job_tracker)
         
