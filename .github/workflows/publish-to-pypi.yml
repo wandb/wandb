@@ -1,4 +1,4 @@
-name: Package wandb Python
+name: Package wandb Python library and upload to PyPI
 
 on:
     workflow_call:
