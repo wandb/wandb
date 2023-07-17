@@ -14,6 +14,7 @@ from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
 
@@ -559,15 +560,16 @@ class LaunchAgent:
         )
         registry = loader.registry_from_config(registry_config, environment)
         builder = loader.builder_from_config(build_config, environment, registry)
-        if not project.docker_image:
-            assert entrypoint is not None
-            image_uri = builder.build_image(project, entrypoint, job_tracker)
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
+        if not project.docker_image or isinstance(backend, LocalProcessRunner):
+            assert entrypoint is not None
+            image_uri = builder.build_image(project, entrypoint, job_tracker)
+        
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
-        assert image_uri
+        assert image_uri or isinstance(backend, LocalProcessRunner)
         run = backend.run(project, image_uri)
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
