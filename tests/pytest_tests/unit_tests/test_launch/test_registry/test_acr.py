@@ -18,7 +18,8 @@ def test_acr_from_config(mocker):
         MagicMock(),
     )
     config = {"uri": "test"}
-    AzureContainerRegistry.from_config(config, AzureEnvironment.from_config({}))
+    acr = AzureContainerRegistry.from_config(config, AzureEnvironment.from_config({}))
+    assert acr.uri == "test"
 
 
 def test_acr_get_repo_uri(mocker):
@@ -55,13 +56,13 @@ def test_acr_check_image_exists(mocker):
     mock_client.get_manifest_properties.return_value = {"digest": "test"}
     mocker.patch(
         "wandb.sdk.launch.registry.azure_container_registry.ContainerRegistryClient",
-        MagicMock(),
+        MagicMock(return_value=mock_client),
     )
     config = {"uri": "test"}
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
-    assert registry.check_image_exists("https://test.azurecr.io/launch-images:tag")
+    assert registry.check_image_exists("test.azurecr.io/launch-images:tag")
 
     # Make the mock client raise an error when get_manifest_properties is called and
     # check that the method returns False.
@@ -80,6 +81,12 @@ def test_acr_registry_name(mocker):
         MagicMock(),
     )
     config = {"uri": "https://test.azurecr.io/repository"}
+    registry = AzureContainerRegistry.from_config(
+        config, AzureEnvironment.from_config({})
+    )
+    assert registry.registry_name == "test"
+    # Same thing but without https
+    config = {"uri": "test.azurecr.io/repository"}
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
