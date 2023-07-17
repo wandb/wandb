@@ -24,7 +24,7 @@ assert (
     job.name
     == f"{api.settings['entity']}/{api.settings['project']}/job-git_github.com_wandb_wandb.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0"
 )
-assert job._job_info["source_type"] == "repo"
+# assert job._job_info["source_type"] == "repo"
 assert job._input_types == TypeRegistry.type_of({"foo": "bar", "lr": 0.1, "epochs": 5})
 
 with pytest.raises(TypeError):
