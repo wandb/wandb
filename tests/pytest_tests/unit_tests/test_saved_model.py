@@ -85,7 +85,7 @@ class ArtifactPatch(Artifact):
 
 
 def make_local_artifact_public(art):
-    pub = ArtifactPatch.from_attrs(
+    pub = ArtifactPatch._from_attrs(
         "FAKE_ENTITY",
         "FAKE_PROJECT",
         "FAKE_NAME",
@@ -94,7 +94,18 @@ def make_local_artifact_public(art):
             "artifactType": {
                 "name": "FAKE_TYPE_NAME",
             },
-            "aliases": [{"artifactCollectionName": "FAKE_NAME", "alias": "v0"}],
+            "aliases": [
+                {
+                    "artifactCollection": {
+                        "project": {
+                            "entityName": "FAKE_ENTITY",
+                            "name": "FAKE_PROJECT",
+                        },
+                        "name": "FAKE_NAME",
+                    },
+                    "alias": "v0",
+                }
+            ],
             "artifactSequence": {
                 "name": "FAKE_SEQUENCE_NAME",
                 "project": {

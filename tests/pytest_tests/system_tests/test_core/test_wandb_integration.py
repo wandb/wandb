@@ -91,9 +91,7 @@ def test_dir_on_import():
     # Test for the base case
     _remove_dir_if_exists(default_path)
     reload_fn(wandb)
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-        default_path
-    )
+    assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
 
     # test for the case that the env variable is set
     with mock.patch.dict(os.environ, {"WANDB_DIR": custom_env_path}):
@@ -120,9 +118,7 @@ def test_dir_on_init(wandb_init):
         _remove_dir_if_exists(default_path)
         run = wandb_init()
         run.finish()
-        assert os.path.isdir(default_path), "Expected directory at {}".format(
-            default_path
-        )
+        assert os.path.isdir(default_path), f"Expected directory at {default_path}"
 
 
 def test_dir_on_init_env(wandb_init):
@@ -169,22 +165,14 @@ def test_dir_on_init_dir(wandb_init):
         os.makedirs(custom_dir_path)
     run = wandb_init(dir="./" + dir_name)
     run.finish()
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-        default_path
-    )
-    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(
-        custom_dir_path
-    )
+    assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
+    assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
     # And for the duplicate-run case
     _remove_dir_if_exists(default_path)
     run = wandb_init(dir="./" + dir_name)
     run.finish()
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-        default_path
-    )
-    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(
-        custom_dir_path
-    )
+    assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
+    assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
 
 
 @pytest.mark.parametrize(
