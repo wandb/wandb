@@ -153,6 +153,15 @@ class KubernetesSubmittedRun(AbstractRun):
             name=self.pod_names[0], namespace=self.namespace
         )
 
+        if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
+            for condition in pod.status.conditions:
+                if condition.type == "DisruptionTarget" and condition.reason in [
+                    "EvictionByEvictionAPI",
+                    "PreemptionByScheduler",
+                    "TerminationByKubelet",
+                ]:
+                    return Status("preempted")
+
         if (
             hasattr(pod.status, "conditions")
             and pod.status.conditions is not None
