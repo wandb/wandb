@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
-from wandb.sdk.wandb_settings import _get_program_relpath
 from wandb.util import make_artifact_name_safe
 
 from .settings_static import SettingsStatic
@@ -153,11 +152,34 @@ class JobBuilder:
         commit = git_info.get("commit")
         assert remote is not None
         assert commit is not None
-
         if self._is_notebook_run():
-            full_program_path = self._make_notebook_path(root, program_relpath)
-            if not full_program_path:
+            if not os.path.exists(
+                os.path.join(os.getcwd(), os.path.basename(program_relpath))
+            ):
                 return None, None
+
+            if root is None or self._settings._jupyter_root is None:
+                _logger.info("target path does not exist, exiting")
+                return None, None
+            assert self._settings._jupyter_root is not None
+            # git notebooks set the root to the git root,
+            # jupyter_root contains the path where the jupyter notebook was started
+            # program_relpath contains the path from jupyter_root to the file
+            # full program path here is actually the relpath from the program to the git root
+            full_program_path = os.path.join(
+                os.path.relpath(str(self._settings._jupyter_root), root),
+                program_relpath,
+            )
+            full_program_path = os.path.normpath(full_program_path)
+            # if the notebook server is started above the git repo need to clear all the ..s
+            if full_program_path.startswith(".."):
+                split_path = full_program_path.split("/")
+                count_dots = 0
+                for p in split_path:
+                    if p == "..":
+                        count_dots += 1
+                full_program_path = "/".join(split_path[2 * count_dots :])
+
         else:
             full_program_path = program_relpath
 
@@ -253,43 +275,6 @@ class JobBuilder:
 
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
-
-    def _make_notebook_path(
-        self, root: Optional[str], program_relpath: str
-    ) -> Optional[str]:
-        """Assumes job is notebook source, return program path if valid."""
-        if not os.path.exists(
-            os.path.join(os.getcwd(), os.path.basename(program_relpath))
-        ):
-            _logger.info(
-                f"path doesn't exist at: {os.path.join(os.getcwd(), os.path.basename(program_relpath))}"
-            )
-            return None
-
-        if root is None or self._settings._jupyter_root is None:
-            _logger.info("target path does not exist, exiting")
-            return None
-
-        assert self._settings._jupyter_root is not None
-        # git notebooks set the root to the git root,
-        # jupyter_root contains the path where the jupyter notebook was started
-        # program_relpath contains the path from jupyter_root to the file
-        # full program path here is actually the relpath from the program to the git root
-        full_program_path = os.path.join(
-            os.path.relpath(str(self._settings._jupyter_root), root),
-            program_relpath,
-        )
-        full_program_path = os.path.normpath(full_program_path)
-        # if the notebook server is started above the git repo need to clear all the ..s
-        if full_program_path.startswith(".."):
-            split_path = full_program_path.split("/")
-            count_dots = 0
-            for p in split_path:
-                if p == "..":
-                    count_dots += 1
-            full_program_path = "/".join(split_path[2 * count_dots :])
-
-        return full_program_path
 
     def build(self) -> Optional[Artifact]:
         _logger.info("Attempting to build job artifact")
