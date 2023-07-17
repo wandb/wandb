@@ -403,7 +403,8 @@ def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
 
 def test_artifact_job_creation(live_mock_server, test_settings, runner):
     with runner.isolated_filesystem():
-        with open("test.py", "w") as f:
+        os.environ[wandb.env.PROGRAM] = 'test_program.py'
+        with open("test_program.py", "w") as f:
             f.write('print("test")')
         test_settings.update(
             {
