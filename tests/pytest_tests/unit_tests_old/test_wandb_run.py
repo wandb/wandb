@@ -391,9 +391,7 @@ def test_wandb_artifact_config_update(
 
 def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
     _ = git_repo_fn(commit_msg="initial commit")
-    test_settings.update(
-        {"program_relpath": "./blah/test_program.py", "job_source": "repo"}
-    )
+    test_settings.update({"program_relpath": "./blah/test_program.py"})
     with wandb.init(settings=test_settings) as run:
         run.log({"test": 1})
     ctx = live_mock_server.get_ctx()
@@ -403,15 +401,13 @@ def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
     )
 
 
-@pytest.mark.parametrize("disable_git", [True, False])
-def test_artifact_job_creation(live_mock_server, test_settings, runner, disable_git):
+def test_artifact_job_creation(live_mock_server, test_settings, runner):
     with runner.isolated_filesystem():
         with open("test.py", "w") as f:
             f.write('print("test")')
         test_settings.update(
             {
-                "disable_git": disable_git,
-                "program": "test.py",
+                "disable_git": True,
                 "program_relpath": "./blah/test_program.py",
             }
         )

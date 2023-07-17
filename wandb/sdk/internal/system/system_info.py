@@ -225,15 +225,10 @@ class SystemInfo:
                     else:
                         data["program"] = self.settings._jupyter_path
                         data["root"] = self.settings._jupyter_root
-
-            is_git_job = (
-                self.settings.job_source == "repo" and not self.settings.disable_git
-            )
-            if is_git_job:
+            
+            if not self.settings.disable_git:
                 data = self._probe_git(data)
             else:
-                # remake relpapth, possibly set before git_disabled loaded in settings.
-                # if in a git repo, codePath will be incorrectly set to repo root
                 data["codePath"] = _get_program_relpath(self.settings.program)
 
         if self.settings.anonymous != "true":
