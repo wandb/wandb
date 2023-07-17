@@ -742,6 +742,7 @@ def maybe_create_imagepull_secret(
                 return core_api.read_namespaced_secret(
                     name=f"regcred-{run_id}", namespace=namespace
                 )
+            raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 
