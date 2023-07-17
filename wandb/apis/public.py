@@ -18,6 +18,7 @@ import logging
 import os
 import platform
 import shutil
+import sys
 import tempfile
 import time
 import urllib
@@ -225,7 +226,10 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
-        from pkg_resources import parse_version
+        try:
+            from packaging.version import Version as parse_version
+        except ImportError: 
+            from pkg_resources import parse_version
 
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
@@ -3146,8 +3150,6 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
-    from pkg_resources import parse_version
-
     SPACER = "----------"
     DECIMAL_SPACER = ";;;"
     FRONTEND_NAME_MAPPING = {
@@ -3187,7 +3189,7 @@ class PythonMongoishQueryGenerator:
         ast.Not: "$not",
     }
 
-    if parse_version(platform.python_version()) >= parse_version("3.8"):
+    if sys.version_info >= (3, 8):
         AST_FIELDS = {
             ast.Constant: "value",
             ast.Name: "id",
