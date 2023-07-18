@@ -14,13 +14,13 @@ import threading
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union, cast
 
 import wandb
-
-from ..interface.interface import InterfaceBase
-from ..interface.interface_queue import InterfaceQueue
-from ..internal.internal import wandb_internal
-from ..lib.mailbox import Mailbox
-from ..wandb_manager import _Manager
-from ..wandb_settings import Settings
+from wandb.sdk.interface.interface import InterfaceBase
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal.internal import wandb_internal
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib.mailbox import Mailbox
+from wandb.sdk.wandb_manager import _Manager
+from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
@@ -174,24 +174,17 @@ class Backend:
 
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
-        settings: Dict[str, Any] = dict()
-        if self._settings is not None:
-            settings = self._settings.make_static()
-
-        settings["_log_level"] = self._log_level or logging.DEBUG
-
-        # TODO: this is brittle and should likely be handled directly on the
-        #  settings object. Multiprocessing blows up when it can't pickle
-        #  objects.
-        if "_early_logger" in settings:
-            del settings["_early_logger"]
-
-        start_method = settings.get("start_method")
-
         if self._manager:
             self._ensure_launched_manager()
             return
 
+        assert self._settings
+        settings = self._settings.copy()
+        settings.update(_log_level=self._log_level or logging.DEBUG)
+
+        start_method = settings.start_method
+
+        settings_static = SettingsStatic(settings.to_proto())
         user_pid = os.getpid()
 
         if start_method == "thread":
@@ -201,7 +194,7 @@ class Backend:
             wandb_thread = BackendThread(
                 target=wandb_internal,
                 kwargs=dict(
-                    settings=settings,
+                    settings=settings_static,
                     record_q=self.record_q,
                     result_q=self.result_q,
                     user_pid=user_pid,
@@ -215,7 +208,7 @@ class Backend:
             self.wandb_process = self._multiprocessing.Process(  # type: ignore
                 target=wandb_internal,
                 kwargs=dict(
-                    settings=settings,
+                    settings=settings_static,
                     record_q=self.record_q,
                     result_q=self.result_q,
                     user_pid=user_pid,

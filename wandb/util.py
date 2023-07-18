@@ -20,7 +20,6 @@ import tarfile
 import tempfile
 import threading
 import time
-import traceback
 import types
 import urllib
 from dataclasses import asdict, is_dataclass
@@ -1518,20 +1517,6 @@ def _is_databricks() -> bool:
 
 def _is_py_path(path: str) -> bool:
     return path.endswith(".py")
-
-
-def _log_thread_stacks() -> None:
-    """Log all threads, useful for debugging."""
-    thread_map = {t.ident: t.name for t in threading.enumerate()}
-
-    for thread_id, frame in sys._current_frames().items():
-        logger.info(
-            f"\n--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
-        )
-        for filename, lineno, name, line in traceback.extract_stack(frame):
-            logger.info(f"  File: {filename!r}, line {lineno}, in {name}")
-            if line:
-                logger.info(f"  Line: {line}")
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
