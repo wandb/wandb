@@ -62,4 +62,4 @@ try:
         return decoded
 
 except ImportError:
-    pass
+    from json import dump, dumps, load, loads  # noqa: F401
