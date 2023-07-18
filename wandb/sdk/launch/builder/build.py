@@ -90,9 +90,6 @@ RUN mkdir -p {workdir}/.cache && chown -R {uid} {workdir}/.cache
 COPY --chown={uid} src/ {workdir}
 
 ENV PYTHONUNBUFFERED=1
-
-# some resources (eg sagemaker) have unique entrypoint requirements
-{entrypoint_setup}
 """
 
 # this goes into base_setup in TEMPLATE
@@ -314,7 +311,7 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
 def get_entrypoint_setup(
     entry_point: EntryPoint,
 ) -> str:
-    return ENTRYPOINT_TEMPLATE.format(entrypoint=str(entry_point.command))
+    return ENTRYPOINT_TEMPLATE.format(entrypoint=json.dumps(entry_point.command))
 
 
 def generate_dockerfile(
@@ -322,7 +319,7 @@ def generate_dockerfile(
     entry_point: EntryPoint,
     runner_type: str,
     builder_type: str,
-) -> str:
+) -> Tuple[str,str]:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
         spl = launch_project.python_version.split(".")[:2]
@@ -353,16 +350,15 @@ def generate_dockerfile(
 
     entrypoint_section = get_entrypoint_setup(entry_point)
 
-    dockerfile_contents = DOCKERFILE_TEMPLATE.format(
+    base_dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
         requirements_section=requirements_section,
         base_setup=python_base_setup,
         uid=userid,
         user_setup=user_setup,
         workdir=workdir,
-        entrypoint_setup=entrypoint_section,
     )
-    return dockerfile_contents
+    return base_dockerfile_contents, entrypoint_section
 
 
 def construct_gcp_registry_uri(

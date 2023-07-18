@@ -168,7 +168,6 @@ class SageMakerRunner(AbstractRunner):
         account_id = caller_id["Account"]
         _logger.info(f"Using account ID {account_id}")
         role_arn = get_role_arn(given_sagemaker_args, self.backend_config, account_id)
-        entry_point = launch_project.get_single_entry_point()
 
         # Create a sagemaker client to launch the job.
         sagemaker_client = session.client("sagemaker")
@@ -189,7 +188,7 @@ class SageMakerRunner(AbstractRunner):
                 launch_project,
                 self._api,
                 role_arn,
-                entry_point,
+                launch_project.override_entrypoint,
                 launch_project.override_args,
                 MAX_ENV_LENGTHS[self._type],
                 given_sagemaker_args.get("AlgorithmSpecification", {}).get(
@@ -209,6 +208,7 @@ class SageMakerRunner(AbstractRunner):
 
         launch_project.fill_macros(image_uri)
         _logger.info("Connecting to sagemaker client")
+        entry_point = launch_project.override_entrypoint or launch_project.get_single_entry_point()
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
         )
@@ -225,7 +225,7 @@ class SageMakerRunner(AbstractRunner):
             launch_project,
             self._api,
             role_arn,
-            entry_point,
+            launch_project.override_entrypoint,
             launch_project.override_args,
             MAX_ENV_LENGTHS[self._type],
             image_uri,

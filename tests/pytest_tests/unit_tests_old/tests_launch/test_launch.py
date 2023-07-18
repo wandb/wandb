@@ -1124,7 +1124,7 @@ def test_launch_entrypoint(test_settings):
         {},
         None,  # run_id
     )
-    launch_project.add_entry_point(entry_point)
+    launch_project.set_entry_point(entry_point)
     calced_ep = launch_project.get_single_entry_point().compute_command(["--blah", "2"])
     assert calced_ep == ["python", "main.py", "--blah", "2"]
 

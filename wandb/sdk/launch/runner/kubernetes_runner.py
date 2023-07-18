@@ -504,7 +504,7 @@ class KubernetesRunner(AbstractRunner):
                 }
 
         secret = None
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = launch_project.override_entrypoint or launch_project.get_single_entry_point()
         if launch_project.docker_image:
             if len(containers) > 1:
                 raise LaunchError(
