@@ -96,6 +96,7 @@ def _log_feature_importance(model: "Booster") -> None:
 
 class _WandbCallback:
     """Internal class to handle `wandb_callback` logic.
+
     This callback is adapted form the LightGBM's `_RecordEvaluationCallback`.
     """
 
