@@ -124,7 +124,9 @@ class DockerBuilder(AbstractBuilder):
             launch_project, entrypoint, launch_project.resource, "docker"
         )
 
-        image_tag = image_tag_from_dockerfile_and_source(launch_project, base_dockerfile_str)
+        image_tag = image_tag_from_dockerfile_and_source(
+            launch_project, base_dockerfile_str
+        )
 
         dockerfile_str = base_dockerfile_str + "\n" + entrypoint_contents
         print(dockerfile_str)

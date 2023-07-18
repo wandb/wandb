@@ -109,12 +109,16 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
-        self._entry_point: Optional[EntryPoint] = None  # todo: keep multiple entrypoint support?
+        self._entry_point: Optional[
+            EntryPoint
+        ] = None  # todo: keep multiple entrypoint support?
 
         override_entrypoint = overrides.get("entry_point")
         if override_entrypoint:
             _logger.info("Adding override entry point")
-            self.override_entrypoint = EntryPoint(" ".join(override_entrypoint[0]), override_entrypoint)
+            self.override_entrypoint = EntryPoint(
+                " ".join(override_entrypoint[0]), override_entrypoint
+            )
 
         if overrides.get("sweep_id") is not None:
             _logger.info("Adding override sweep id")
@@ -251,7 +255,9 @@ class LaunchProject:
 
     def set_entry_point(self, command: List[str]) -> "EntryPoint":
         """Add an entry point to the project."""
-        assert self._entry_point is None, "Cannot set entry point twice. Use LaunchProject.override_entrypoint"
+        assert (
+            self._entry_point is None
+        ), "Cannot set entry point twice. Use LaunchProject.override_entrypoint"
         new_entrypoint = EntryPoint(name=command[-1], command=command)
         self._entry_point = new_entrypoint
         return new_entrypoint

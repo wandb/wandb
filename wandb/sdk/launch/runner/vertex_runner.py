@@ -135,7 +135,10 @@ class VertexRunner(AbstractRunner):
         )
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
-        entry_point = launch_project.override_entrypoint or launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
 
         launch_project.fill_macros(image_uri)
         # TODO: how to handle this?

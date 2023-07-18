@@ -158,7 +158,11 @@ class LocalContainerRunner(AbstractRunner):
         #     else entry_point.command
         # )
 
-        entry_cmd = launch_project.override_entrypoint.command if launch_project.override_entrypoint is not None else None
+        entry_cmd = (
+            launch_project.override_entrypoint.command
+            if launch_project.override_entrypoint is not None
+            else None
+        )
 
         command_str = " ".join(
             get_docker_command(

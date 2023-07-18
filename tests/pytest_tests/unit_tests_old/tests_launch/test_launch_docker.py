@@ -76,7 +76,7 @@ def test_run_accelerator_version(
     dockerfile = generate_dockerfile(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
-    assert "FROM nvidia/cuda:11.0-runtime as base" in dockerfile
+    assert "FROM nvidia/cuda:11.0-runtime as base" in dockerfile[0]
 
     test_spec = {
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
@@ -90,7 +90,7 @@ def test_run_accelerator_version(
     dockerfile = generate_dockerfile(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
-    assert "FROM python:" in dockerfile
+    assert "FROM python:" in dockerfile[0]
 
 
 def test_dockerfile_conda(
@@ -112,7 +112,7 @@ def test_dockerfile_conda(
 
     assert test_project.deps_type == "conda"
 
-    dockerfile = generate_dockerfile(
+    dockerfile, _ = generate_dockerfile(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
     assert "conda env create -f environment.yml" in dockerfile
@@ -169,7 +169,7 @@ def test_buildx_not_installed(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
 
-    assert "RUN WANDB_DISABLE_CACHE=true" in dockerfile
+    assert "RUN WANDB_DISABLE_CACHE=true" in dockerfile[0]
 
 
 def test_docker_image_exists(

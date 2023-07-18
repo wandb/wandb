@@ -77,7 +77,7 @@ ENV PATH="/env/bin:$PATH"
 
 ENV SHELL /bin/bash
 
-# some resources (eg sagemaker) must run on root
+# some resources (eg sagemaker) must run on rootsssss
 {user_setup}
 
 WORKDIR {workdir}
@@ -319,7 +319,7 @@ def generate_dockerfile(
     entry_point: EntryPoint,
     runner_type: str,
     builder_type: str,
-) -> Tuple[str,str]:
+) -> Tuple[str, str]:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
         spl = launch_project.python_version.split(".")[:2]

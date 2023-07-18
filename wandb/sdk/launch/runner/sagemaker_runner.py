@@ -208,7 +208,10 @@ class SageMakerRunner(AbstractRunner):
 
         launch_project.fill_macros(image_uri)
         _logger.info("Connecting to sagemaker client")
-        entry_point = launch_project.override_entrypoint or launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
         )
