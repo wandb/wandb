@@ -52,6 +52,8 @@ async_requirements = [
     "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 ]
 
+perf_requirements = ["orjson"]
+
 
 setup(
     name="wandb",
@@ -103,5 +105,6 @@ setup(
         "launch": launch_requirements,
         "models": models_requirements,
         "async": async_requirements,
+        "perf": perf_requirements,
     },
 )
