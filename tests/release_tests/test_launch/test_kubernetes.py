@@ -2,11 +2,12 @@ import pytest
 import yaml
 from utils import (
     cleanup_deployment,
+    get_sweep_id_from_proc,
+    init_agent_in_launch_cluster,
     run_cmd,
     run_cmd_async,
-    setup_cleanup_on_exit,
-    update_dict,
     wait_for_image_job_completion,
+    wait_for_run_completion,
 )
 from wandb.sdk.launch.launch_add import launch_add
 
@@ -56,49 +57,9 @@ def test_kubernetes_agent_on_local_process():
         run_cmd("rm -r artifacts")
 
 
-def _create_config_files():
-    """Create a launch-config.yml and launch-agent.yml."""
-    launch_config = yaml.load_all(
-        open("wandb/sdk/launch/deploys/kubernetes/launch-config.yaml")
-    )
-    launch_config_patch = yaml.load_all(
-        open("tests/release_tests/test_launch/launch-config-patch.yaml")
-    )
-    final_launch_config = []
-    for original, updated in zip(launch_config, launch_config_patch):
-        document = dict(original)
-        update_dict(document, dict(updated))
-        final_launch_config.append(document)
-    yaml.dump_all(
-        final_launch_config,
-        open("tests/release_tests/test_launch/launch-config.yml", "w+"),
-    )
-    launch_agent = yaml.load(
-        open("wandb/sdk/launch/deploys/kubernetes/launch-agent.yaml")
-    )
-    launch_agent_patch = yaml.load(
-        open("tests/release_tests/test_launch/launch-agent-patch.yaml")
-    )
-    launch_agent_dict = dict(launch_agent)
-    update_dict(launch_agent_dict, dict(launch_agent_patch))
-    yaml.dump(
-        launch_agent_dict,
-        open("tests/release_tests/test_launch/launch-agent.yml", "w+"),
-    )
-
-
 @pytest.mark.timeout(180)
 def test_kubernetes_agent_in_cluster():
-    _create_config_files()
-
-    run_cmd(
-        "python tools/build_launch_agent.py --tag wandb-launch-agent:release-testing"
-    )
-    run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
-    run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml")
-
-    setup_cleanup_on_exit(NAMESPACE)
-
+    init_agent_in_launch_cluster(NAMESPACE)
     try:
         # Start run
         queued_run = launch_add(
@@ -125,4 +86,43 @@ def test_kubernetes_agent_in_cluster():
 
     finally:
         # Cleanup
+        cleanup_deployment(NAMESPACE)
+
+
+@pytest.mark.timeout(360)
+def test_kubernetes_agent_in_cluster_sweep():
+    init_agent_in_launch_cluster(NAMESPACE)
+
+    try:
+        sweep_config = {
+            "job": f"{ENTITY}/{PROJECT}/{JOB_NAME}",
+            "project": PROJECT,
+            "entity": ENTITY,
+            "run_cap": 4,
+            "method": "bayes",
+            "metric": {
+                "name": "avg",
+                "goal": "maximize",
+            },
+            "parameters": {
+                "param1": {
+                    "min": 0,
+                    "max": 8,
+                }
+            },
+        }
+
+        yaml.dump(sweep_config, open("c.yml", "w"))
+
+        proc = run_cmd_async(f"wandb launch-sweep c.yml -q {QUEUE}")
+
+        # Poll process.stdout to show stdout live
+        sweep_id = get_sweep_id_from_proc(proc)
+        assert sweep_config
+
+        # poll on sweep scheduler run
+        run = wait_for_run_completion(f"{ENTITY}/{PROJECT}/{sweep_id}")
+        assert run
+
+    finally:
         cleanup_deployment(NAMESPACE)
