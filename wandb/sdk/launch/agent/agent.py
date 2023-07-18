@@ -566,11 +566,14 @@ class LaunchAgent:
         if not (project.docker_image or isinstance(backend, LocalProcessRunner)):
             assert entrypoint is not None
             image_uri = builder.build_image(project, entrypoint, job_tracker)
-        
+
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
-        assert image_uri or isinstance(backend, LocalProcessRunner)
-        run = backend.run(project, image_uri)
+        if isinstance(backend, LocalProcessRunner):
+            run = backend.run(project, image_uri)
+        else:
+            assert image_uri
+            run = backend.run(project, image_uri)
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
