@@ -9,6 +9,7 @@ from utils import (
     wait_for_image_job_completion,
     wait_for_run_completion,
 )
+from wandb.apis.public import Api, Sweep
 from wandb.sdk.launch.launch_add import launch_add
 
 NAMESPACE = "wandb-release-testing"
@@ -92,13 +93,13 @@ def test_kubernetes_agent_in_cluster():
 @pytest.mark.timeout(360)
 def test_kubernetes_agent_in_cluster_sweep():
     init_agent_in_launch_cluster(NAMESPACE)
-
+    run_cap = 4
     try:
         sweep_config = {
             "job": f"{ENTITY}/{PROJECT}/{JOB_NAME}",
             "project": PROJECT,
             "entity": ENTITY,
-            "run_cap": 4,
+            "run_cap": run_cap,
             "method": "bayes",
             "metric": {
                 "name": "avg",
@@ -123,6 +124,14 @@ def test_kubernetes_agent_in_cluster_sweep():
         # poll on sweep scheduler run
         run = wait_for_run_completion(f"{ENTITY}/{PROJECT}/{sweep_id}")
         assert run
+
+        api = Api()
+        sweep: Sweep = api.sweep(f"{ENTITY}/{PROJECT}/{sweep_id}")
+        sweep.load(force=True)
+
+        assert len(sweep.runs) == run_cap
+        for run in sweep.runs:
+            assert run["config"]["param1"] in list(range(0, 8 + 1))
 
     finally:
         cleanup_deployment(NAMESPACE)
