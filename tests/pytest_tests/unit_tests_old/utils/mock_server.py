@@ -1931,22 +1931,24 @@ def create_app(user_ctx=None):
 
         if "query ProbeServerCreateLaunchAgentInput" in body["query"]:
             return {
-                "CreateLaunchAgentInputInfoType": {
-                    "inputFields": [
-                        {"name": "id"},
-                        {"name": "created_at"},
-                        {"name": "updated_at"},
-                        {"name": "name"},
-                        {"name": "entity_id"},
-                        {"name": "project_id"},
-                        {"name": "runqueue_ids"},
-                        {"name": "agent_status"},
-                        {"name": "stop_polling"},
-                        {"name": "heartbeat_at"},
-                        {"name": "hostname"},
-                        {"name": "created_by"},
-                        {"name": "agent_config"},
-                    ]
+                "data": {
+                    "CreateLaunchAgentInputInfoType": {
+                        "inputFields": [
+                            {"name": "id"},
+                            {"name": "created_at"},
+                            {"name": "updated_at"},
+                            {"name": "name"},
+                            {"name": "entity_id"},
+                            {"name": "project_id"},
+                            {"name": "runqueue_ids"},
+                            {"name": "agent_status"},
+                            {"name": "stop_polling"},
+                            {"name": "heartbeat_at"},
+                            {"name": "hostname"},
+                            {"name": "created_by"},
+                            {"name": "agent_config"},
+                        ]
+                    }
                 }
             }
 
