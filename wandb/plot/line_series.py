@@ -70,6 +70,8 @@ def line_series(
         xs = [xs for _ in range(len(ys))]
     assert len(xs) == len(ys), "Number of x-lines and y-lines must match"
 
+    if keys is not None:
+        assert len(keys) == len(ys), "Number of keys and y-lines must match"
     if log_scale:
         data = sample_data(xs, ys, keys)
     else:
