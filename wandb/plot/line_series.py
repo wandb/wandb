@@ -4,12 +4,15 @@ from collections.abc import Iterable
 import wandb
 
 
+import numpy as np
+
 def line_series(
     xs: t.Union[t.Iterable, t.Iterable[t.Iterable]],
     ys: t.Iterable[t.Iterable],
     keys: t.Optional[t.Iterable] = None,
     title: t.Optional[str] = None,
     xname: t.Optional[str] = None,
+    log_scale: bool = False,
 ):
     """Construct a line series plot.
 
@@ -67,14 +70,14 @@ def line_series(
         xs = [xs for _ in range(len(ys))]
     assert len(xs) == len(ys), "Number of x-lines and y-lines must match"
 
-    if keys is not None:
-        assert len(keys) == len(ys), "Number of keys and y-lines must match"
-
-    data = [
-        [x, f"key_{i}" if keys is None else keys[i], y]
-        for i, (xx, yy) in enumerate(zip(xs, ys))
-        for x, y in zip(xx, yy)
-    ]
+    if log_scale:
+        data = sample_data(xs, ys, keys)
+    else:
+        data = [
+            [x, f"key_{i}" if keys is None else keys[i], y]
+            for i, (xx, yy) in enumerate(zip(xs, ys))
+            for x, y in zip(xx, yy)
+        ]
 
     table = wandb.Table(data=data, columns=["step", "lineKey", "lineVal"])
 
@@ -84,3 +87,15 @@ def line_series(
         {"step": "step", "lineKey": "lineKey", "lineVal": "lineVal"},
         {"title": title, "xname": xname or "x"},
     )
+
+def sample_data(xs, ys, keys):
+    weights = [1 / (1 + i) for i in range(len(xs))]
+    sampled_indices = np.random.choice(len(xs), size=1500, p=weights)
+    sampled_xs = [xs[i] for i in sampled_indices]
+    sampled_ys = [ys[i] for i in sampled_indices]
+    sampled_keys = [keys[i] for i in sampled_indices] if keys else None
+    return [
+        [x, f"key_{i}" if sampled_keys is None else sampled_keys[i], y]
+        for i, (xx, yy) in enumerate(zip(sampled_xs, sampled_ys))
+        for x, y in zip(xx, yy)
+    ]
