@@ -126,7 +126,7 @@ class _WandbCallback:
                     _define_metric(data_name, f"{eval_name}-stdv")
 
     def __call__(self, env: "CallbackEnv") -> None:
-        if env.iteration == env.begin_iteration: # type: ignore
+        if env.iteration == env.begin_iteration:  # type: ignore
             self._init(env)
 
         for item in env.evaluation_result_list:
@@ -139,7 +139,7 @@ class _WandbCallback:
             else:
                 data_name, eval_name = item[1].split()
                 res_mean = item[2]
-                res_stdv = item[4] # type: ignore
+                res_stdv = item[4]  # type: ignore
                 wandb.log(
                     {
                         data_name + "_" + eval_name + "-mean": res_mean,
