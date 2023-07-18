@@ -552,16 +552,23 @@ class LaunchAgent:
         build_config, registry_config = construct_builder_args(
             default_config, override_build_config
         )
-
+        image_uri = project.docker_image
+        entrypoint = project.get_single_entry_point()
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )
         registry = loader.registry_from_config(registry_config, environment)
         builder = loader.builder_from_config(build_config, environment, registry)
-        backend = loader.runner_from_config(resource, api, backend_config, environment)
+        if not project.docker_image:
+            assert entrypoint is not None
+            image_uri = builder.build_image(project, entrypoint, job_tracker)
+        backend = loader.runner_from_config(
+            resource, api, backend_config, environment, registry
+        )
         _logger.info("Backend loaded...")
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
-        run = backend.run(project, builder, job_tracker)
+        assert image_uri
+        run = backend.run(project, image_uri)
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
@@ -629,6 +636,11 @@ class LaunchAgent:
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
+                    if status == "failed":
+                        # on fail, update sweep state. scheduler run_id should == sweep_id
+                        self._api.set_sweep_state(
+                            sweep=job_tracker.run_id, state="CANCELED"
+                        )
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:

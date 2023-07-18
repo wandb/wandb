@@ -33,7 +33,14 @@ from wandb.proto import wandb_internal_pb2
 from wandb.sdk.artifacts import artifact_saver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
+from wandb.sdk.internal import (
+    context,
+    datastore,
+    file_stream,
+    internal_api,
+    job_builder,
+    update,
+)
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -1392,8 +1399,14 @@ class SendManager:
         This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
-        if use.type == "job":
+
+        if use.type == "job" and not use.partial.job_name:
             self._job_builder.disable = True
+        elif use.partial.job_name:
+            # job is partial, let job builder rebuild job, set job source dict
+            self._job_builder._partial_source = (
+                job_builder.convert_use_artifact_to_job_source(record.use_artifact)
+            )
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1408,9 +1421,7 @@ class SendManager:
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
-                'error logging artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+                f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
         self._respond_result(result)
