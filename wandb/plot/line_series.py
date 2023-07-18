@@ -91,7 +91,8 @@ def line_series(
     )
 
 def sample_data(xs, ys, keys):
-    weights = [1 / (1 + i) for i in range(len(xs))]
+    weights = np.exp(-np.arange(len(xs))/len(xs))
+    weights /= np.sum(weights)
     sampled_indices = np.random.choice(len(xs), size=1500, p=weights)
     sampled_xs = [xs[i] for i in sampled_indices]
     sampled_ys = [ys[i] for i in sampled_indices]
