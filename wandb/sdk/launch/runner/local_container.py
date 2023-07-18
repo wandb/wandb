@@ -127,7 +127,7 @@ class LocalContainerRunner(AbstractRunner):
     ) -> Optional[AbstractRun]:
         docker_args = self._populate_docker_args(launch_project)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        # entry_point = launch_project.get_single_entry_point()
+
         env_vars = get_env_vars_dict(
             launch_project, self._api, MAX_ENV_LENGTHS[self._type]
         )
@@ -146,17 +146,10 @@ class LocalContainerRunner(AbstractRunner):
             if image_uri.endswith(":latest") or not docker_image_exists(image_uri):
                 pull_docker_image(image_uri)
             assert launch_project.docker_image == image_uri
-            pull_docker_image(image_uri)
 
         additional_args = (
             launch_project.override_args if launch_project.docker_image else None
         )
-        # dont override entrypoint if using a docker image and you have an entrypoint
-        # entry_cmd = (
-        #     None
-        #     if not (launch_project.docker_image and entry_point)
-        #     else entry_point.command
-        # )
 
         entry_cmd = (
             launch_project.override_entrypoint.command
