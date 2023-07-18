@@ -62,7 +62,7 @@ class WBArtifactHandler(StorageHandler):
         artifact_id = util.host_from_path(manifest_entry.ref)
         artifact_file_path = util.uri_from_path(manifest_entry.ref)
 
-        dep_artifact = wandb.Artifact.from_id(
+        dep_artifact = wandb.Artifact._from_id(
             hex_to_b64_id(artifact_id), self.client.client
         )
         assert dep_artifact is not None
@@ -100,7 +100,7 @@ class WBArtifactHandler(StorageHandler):
         while iter_path is not None and urlparse(iter_path).scheme == self._scheme:
             artifact_id = util.host_from_path(iter_path)
             artifact_file_path = util.uri_from_path(iter_path)
-            target_artifact = wandb.Artifact.from_id(
+            target_artifact = wandb.Artifact._from_id(
                 hex_to_b64_id(artifact_id), self.client.client
             )
             assert target_artifact is not None

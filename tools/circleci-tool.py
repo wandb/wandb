@@ -251,11 +251,7 @@ def grab(args, vhash, bnum):
         os.mkdir(cachedir)
     if os.path.exists(cfname):
         return
-    url = (
-        "https://circleci.com/api/v1.1/project/github/wandb/wandb/{}/artifacts".format(
-            bnum
-        )
-    )
+    url = f"https://circleci.com/api/v1.1/project/github/wandb/wandb/{bnum}/artifacts"
     r = requests.get(url, auth=(args.api_token, ""))
     assert r.status_code == 200, f"Error making api request: {r}"
     lst = r.json()

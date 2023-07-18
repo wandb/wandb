@@ -1,6 +1,6 @@
 <p align="center">
-  <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
-  <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
+  <img src="./docs/README_images/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./docs/README_images/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
 # Contributing to `wandb`
@@ -754,6 +754,8 @@ The `Settings` object:
 #### Adding a new setting
 
 - Add a new type-annotated `Settings` class attribute.
+- Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
+  - Run `make proto` to re-generate the python stubs.
 - If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
   the template dictionary that the `Settings._default_props` method returns, using the same key name as
   the corresponding class variable.
@@ -763,7 +765,7 @@ The `Settings` object:
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 - Note that individual settings may depend on other settings through validator methods and runtime hooks,
   but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `tox -e generate` -- it will also automatically
+  modification order list with `tox -e auto-codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated

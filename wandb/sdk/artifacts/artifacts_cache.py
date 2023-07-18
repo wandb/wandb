@@ -5,7 +5,8 @@ import os
 import secrets
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
-from wandb import env, termwarn, util
+import wandb
+from wandb import env, util
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.lib.capped_dict import CappedDict
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
@@ -106,7 +107,7 @@ class ArtifactsCache:
                 total_size += stat.st_size
 
         if temp_size:
-            termwarn(
+            wandb.termwarn(
                 f"Cache contains {util.to_human_size(temp_size)} of temporary files. "
                 "Run `wandb artifact cleanup --remove-temp` to remove them."
             )
