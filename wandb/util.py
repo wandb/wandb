@@ -53,6 +53,7 @@ import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
@@ -801,23 +802,23 @@ class JSONEncoderUncompressed(json.JSONEncoder):
 
 def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
+    return dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
 
 
 def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types."""
-    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
 
 # This is used for dumping raw json into files
 def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
+    return dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 
 def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types, including histograms."""
-    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
 def make_json_if_not_number(
