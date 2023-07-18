@@ -507,6 +507,10 @@ class LaunchAgent:
             )
             self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
+        except LaunchError as e:
+            wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
+            self.finish_thread_id(thread_id, e)
+            wandb._sentry.exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             self.finish_thread_id(thread_id, e)
@@ -534,7 +538,7 @@ class LaunchAgent:
                 state = None
 
             if state and state != "RUNNING" and state != "PAUSED":
-                raise Exception(
+                raise LaunchError(
                     f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
                 )
 
