@@ -14,30 +14,22 @@ try:
     from ultralytics.yolo.engine.model import TASK_MAP, YOLO
     from ultralytics.yolo.utils import RANK, __version__
     from ultralytics.yolo.utils.torch_utils import de_parallel
-    from ultralytics.yolo.v8.pose.train import PoseTrainer
-    from ultralytics.yolo.v8.pose.val import PoseValidator
-    from ultralytics.yolo.v8.pose.predict import PosePredictor
-    from ultralytics.yolo.v8.detect.train import DetectionTrainer
-    from ultralytics.yolo.v8.detect.val import DetectionValidator
-    from ultralytics.yolo.v8.detect.predict import DetectionPredictor
-    from ultralytics.yolo.v8.segment.train import SegmentationTrainer
-    from ultralytics.yolo.v8.segment.val import SegmentationValidator
-    from ultralytics.yolo.v8.segment.predict import SegmentationPredictor
+    from ultralytics.yolo.v8.classify.predict import ClassificationPredictor
     from ultralytics.yolo.v8.classify.train import ClassificationTrainer
     from ultralytics.yolo.v8.classify.val import ClassificationValidator
-    from ultralytics.yolo.v8.classify.predict import ClassificationPredictor
+    from ultralytics.yolo.v8.detect.predict import DetectionPredictor
+    from ultralytics.yolo.v8.detect.train import DetectionTrainer
+    from ultralytics.yolo.v8.detect.val import DetectionValidator
+    from ultralytics.yolo.v8.pose.predict import PosePredictor
+    from ultralytics.yolo.v8.pose.train import PoseTrainer
+    from ultralytics.yolo.v8.pose.val import PoseValidator
+    from ultralytics.yolo.v8.segment.predict import SegmentationPredictor
+    from ultralytics.yolo.v8.segment.train import SegmentationTrainer
+    from ultralytics.yolo.v8.segment.val import SegmentationValidator
 except ImportError as e:
     print(e)
 
 import wandb
-from wandb.integration.ultralytics.mask_utils import (
-    plot_mask_predictions,
-    plot_mask_validation_results,
-)
-from wandb.integration.ultralytics.pose_utils import (
-    plot_pose_predictions,
-    plot_pose_validation_results,
-)
 from wandb.integration.ultralytics.bbox_utils import (
     plot_predictions,
     plot_validation_results,
@@ -46,8 +38,15 @@ from wandb.integration.ultralytics.classification_utils import (
     plot_classification_predictions,
     plot_classification_validation_results,
 )
+from wandb.integration.ultralytics.mask_utils import (
+    plot_mask_predictions,
+    plot_mask_validation_results,
+)
+from wandb.integration.ultralytics.pose_utils import (
+    plot_pose_predictions,
+    plot_pose_validation_results,
+)
 from wandb.sdk.lib import telemetry
-
 
 TRAINER_TYPE = Union[
     ClassificationTrainer, DetectionTrainer, SegmentationTrainer, PoseTrainer
@@ -61,7 +60,9 @@ PREDICTOR_TYPE = Union[
 
 
 class WandBUltralyticsCallback:
-    """Stateful callback for logging model checkpoints, predictions, and
+    """Stateful callback for logging to W&B.
+
+    In particular, it will log model checkpoints, predictions, and
     ground-truth annotations with interactive overlays for bounding boxes
     to Weights & Biases Tables during training, validation and prediction
     for a `ultratytics` workflow.
@@ -339,8 +340,7 @@ def add_wandb_callback(
     max_validation_batches: Optional[int] = 1,
     visualize_skeleton: Optional[bool] = True,
 ):
-    """Function to add the `WandBUltralyticsCallback` callback to the `YOLO`
-    model.
+    """Function to add the `WandBUltralyticsCallback` callback to the `YOLO` model.
 
     **Usage:**
 

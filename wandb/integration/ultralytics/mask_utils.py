@@ -1,18 +1,17 @@
 import copy
 from typing import Dict, Optional, Tuple, Union
 
-import wandb
-
-import torch
 import numpy as np
-
-from ultralytics.yolo.engine.results import Results
-from ultralytics.yolo.utils.plotting import Annotator, Colors
+import torch
 from ultralytics.yolo.data.augment import LetterBox
+from ultralytics.yolo.engine.results import Results
 from ultralytics.yolo.utils.ops import scale_image
+from ultralytics.yolo.utils.plotting import Annotator, Colors
 from ultralytics.yolo.v8.segment import SegmentationPredictor
 
-from .bbox_utils import get_mean_confidence_map, get_ground_truth_bbox_annotations
+import wandb
+
+from .bbox_utils import get_ground_truth_bbox_annotations, get_mean_confidence_map
 
 
 def annotate_mask_results(result: Results):

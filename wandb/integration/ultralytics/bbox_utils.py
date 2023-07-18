@@ -10,8 +10,7 @@ import wandb
 def scale_bounding_box_to_original_image_shape(
     box, resized_image_shape, original_image_shape, ratio_pad
 ) -> List[int]:
-    """YOLOv8 resizes images during training and the label values
-    are normalized based on this resized shape.
+    """YOLOv8 resizes images during training and the label values are normalized based on this resized shape.
 
     This function rescales the bounding box labels to the original
     image shape.
