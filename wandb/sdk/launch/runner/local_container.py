@@ -170,7 +170,7 @@ class LocalContainerRunner(AbstractRunner):
         return run
 
 
-def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
+def _run_entry_point(command: str, work_dir: Optional[str], is_local_process_runner: bool = False) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -186,7 +186,7 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
     run = LocalSubmittedRun()
     thread = threading.Thread(
         target=_thread_process_runner,
-        args=(run, ["bash", "-c", command], work_dir, env),
+        args=(run, ["bash", "-c", command], work_dir, env, is_local_process_runner),
     )
     run.set_thread(thread)
     thread.start()
@@ -194,11 +194,13 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
 
 
 def _thread_process_runner(
-    run: LocalSubmittedRun, args: List[str], work_dir: str, env: Dict[str, str]
+    run: LocalSubmittedRun, args: List[str], work_dir: str, env: Dict[str, str], is_local_process_runner: bool =False
 ) -> None:
     # cancel was called before we started the subprocess
     if run._terminate_flag:
         return
+    if is_local_process_runner:
+        env["WANDB_DISABLE_SERVICE"] = "true"
     process = subprocess.Popen(
         args,
         close_fds=True,
