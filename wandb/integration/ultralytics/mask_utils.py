@@ -7,7 +7,7 @@ from ultralytics.yolo.v8.segment import SegmentationPredictor
 
 import wandb
 
-from .bbox_utils import get_mean_confidence_map, get_ground_truth_bbox_annotations
+from .bbox_utils import get_ground_truth_bbox_annotations, get_mean_confidence_map
 
 
 def instance_mask_to_semantic_mask(instance_mask, class_indices):
