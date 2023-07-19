@@ -240,13 +240,12 @@ class KanikoBuilder(AbstractBuilder):
         if not self.registry:
             raise LaunchError("No registry specified for Kaniko build.")
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
-        base_dockerfile_str, entrypoint_contents = generate_dockerfile(
+        dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, "kaniko"
         )
         image_tag = image_tag_from_dockerfile_and_source(
-            launch_project, base_dockerfile_str
+            launch_project, dockerfile_str
         )
-        dockerfile_str = base_dockerfile_str + "\n" + entrypoint_contents
 
         repo_uri = self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag

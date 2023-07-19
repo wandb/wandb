@@ -128,6 +128,8 @@ ENV PATH="/env/bin:$PATH"
 
 COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
+
+{entrypoint_section}
 """
 
 # this goes into requirements_section in TEMPLATE
@@ -319,7 +321,7 @@ def generate_dockerfile(
     entry_point: EntryPoint,
     runner_type: str,
     builder_type: str,
-) -> Tuple[str, str]:
+) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
         spl = launch_project.python_version.split(".")[:2]
@@ -350,15 +352,16 @@ def generate_dockerfile(
 
     entrypoint_section = get_entrypoint_setup(entry_point)
 
-    base_dockerfile_contents = DOCKERFILE_TEMPLATE.format(
+    dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
         requirements_section=requirements_section,
         base_setup=python_base_setup,
         uid=userid,
         user_setup=user_setup,
         workdir=workdir,
+        entrypoint_section=entrypoint_section
     )
-    return base_dockerfile_contents, entrypoint_section
+    return dockerfile_contents
 
 
 def construct_gcp_registry_uri(

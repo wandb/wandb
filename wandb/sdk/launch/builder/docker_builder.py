@@ -120,16 +120,13 @@ class DockerBuilder(AbstractBuilder):
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """
-        base_dockerfile_str, entrypoint_contents = generate_dockerfile(
+        dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, "docker"
         )
 
         image_tag = image_tag_from_dockerfile_and_source(
-            launch_project, base_dockerfile_str
+            launch_project, dockerfile_str
         )
-
-        dockerfile_str = base_dockerfile_str + "\n" + entrypoint_contents
-        print(dockerfile_str)
 
         repository = None if not self.registry else self.registry.get_repo_uri()
         # if repo is set, use the repo name as the image name
