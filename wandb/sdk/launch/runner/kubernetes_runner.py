@@ -153,18 +153,14 @@ class KubernetesSubmittedRun(AbstractRun):
             name=self.pod_names[0], namespace=self.namespace
         )
 
-        if (
-            hasattr(pod.status, "conditions")
-            and pod.status.conditions is not None
-            and pod.status.conditions[0].type == "DisruptionTarget"
-            and pod.status.conditions[0].reason
-            in [
-                "EvictionByEvictionAPI",
-                "PreemptionByScheduler",
-                "TerminationByKubelet",
-            ]
-        ):
-            return Status("preempted")
+        if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
+            for condition in pod.status.conditions:
+                if condition.type == "DisruptionTarget" and condition.reason in [
+                    "EvictionByEvictionAPI",
+                    "PreemptionByScheduler",
+                    "TerminationByKubelet",
+                ]:
+                    return Status("preempted")
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
@@ -734,7 +730,15 @@ def maybe_create_imagepull_secret(
         type="kubernetes.io/dockerconfigjson",
     )
     try:
-        return core_api.create_namespaced_secret(namespace, secret)
+        try:
+            return core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            # 409 = conflict = secret already exists
+            if e.status == 409:
+                return core_api.read_namespaced_secret(
+                    name=f"regcred-{run_id}", namespace=namespace
+                )
+            raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 

@@ -41,6 +41,7 @@ httpx>=0.22.0  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 respx>=0.20.0  # 0.21.0 dropped Python 3.6; we can upgrade once we drop it too
 pytest-benchmark
 prometheus_client
+orjson
 
 # TODO: fix extra dependencies
 #   We need to improve how we do requirements_dev as specifying .[extra] creates
