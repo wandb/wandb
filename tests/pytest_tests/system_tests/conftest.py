@@ -397,46 +397,6 @@ def publish_util(backend_interface):
 # --------------------------------
 # Fixtures for full test point
 # --------------------------------
-@dataclasses.dataclass
-class UserFixtureCommand:
-    command: Literal["up", "down", "down_all", "logout", "login", "password"]
-    username: Optional[str] = None
-    password: Optional[str] = None
-    admin: bool = False
-    endpoint: str = "db/user"
-    port: str = FIXTURE_SERVICE_PORT
-    method: Literal["post"] = "post"
-
-
-@dataclasses.dataclass
-class AddAdminAndEnsureNoDefaultUser:
-    email: str
-    password: str
-    endpoint: str = "api/users-admin"
-    port: str = SERVICES_API_PORT
-    method: Literal["put"] = "put"
-
-
-@dataclasses.dataclass
-class WandbServerSettings:
-    name: str
-    volume: str
-    local_base_port: str
-    services_api_port: str
-    fixture_service_port: str
-    wandb_server_pull: str
-    wandb_server_tag: str
-    internal_local_base_port: str = "8080"
-    internal_local_services_api_port: str = "8083"
-    internal_fixture_service_port: str = "9015"
-    url: str = "http://localhost"
-
-    base_url: Optional[str] = None
-
-    def __post_init__(self):
-        self.base_url = f"{self.url}:{self.local_base_port}"
-
-
 def pytest_addoption(parser):
     # note: we default to "function" scope to ensure the environment is
     # set up properly when running the tests in parallel with pytest-xdist.
@@ -679,7 +639,7 @@ def wandb_server(wandb_server_factory):
 def fixture_fn(wandb_server, fixture_fn_factory):
     yield from fixture_fn_factory(wandb_server)
 
-    
+
 @pytest.fixture(scope=determine_scope)
 def user(user_factory, fixture_fn, wandb_server):
     yield from user_factory(fixture_fn, wandb_server)

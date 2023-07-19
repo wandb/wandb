@@ -1758,8 +1758,8 @@ def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
             cast_dictlike_to_dict(d[k])
     return d
 
-  
-  def remove_keys_with_none_values(
+
+def remove_keys_with_none_values(
     d: Union[Dict[str, Any], Any]
 ) -> Union[Dict[str, Any], Any]:
     # otherwise iterrows will create a bunch of ugly charts

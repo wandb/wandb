@@ -9,8 +9,7 @@ import typing
 import urllib.parse
 import uuid
 import warnings
-from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from typing import Iterable, List
 
 import hypothesis.strategies as st
 import mlflow
@@ -38,7 +37,6 @@ from ..helpers import (
     WandbServerSettings,
     WandbServerUser,
 )
-from wandb.util import batched
 
 SECONDS_FROM_2023_01_01 = 1672549200
 
@@ -132,7 +130,7 @@ def make_artifacts_dir(
     return root_dir
 
 
-  def _check_mlflow_server_health(
+def _check_mlflow_server_health(
     base_url: str, endpoint: str, num_retries: int = 1, sleep_time: int = 1
 ):
     for _ in range(num_retries):
@@ -272,7 +270,7 @@ def new_mlflow_server(mlflow_server_settings):
 
     _kill_child_processes(process.pid)
 
-    
+
 @pytest.fixture
 def new_prelogged_mlflow_server(new_mlflow_server, mlflow_logging_config):
     config = mlflow_logging_config

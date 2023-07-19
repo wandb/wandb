@@ -2,6 +2,7 @@ import json
 import os
 import queue
 import sys
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
@@ -29,8 +30,6 @@ else:
 with patch("click.echo"):
     from wandb.apis.reports import Report
 
-if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import Record, Result
 
 @dataclass
 class ThreadLocalSettings(threading.local):
@@ -46,7 +45,7 @@ def set_thread_local_settings(api_key, base_url):
     _thread_local_settings.base_url = base_url
 
 
-    class ImporterRun(Protocol):
+class ImporterRun(Protocol):
     def run_id(self) -> str:
         ...
 
