@@ -369,6 +369,8 @@ def test_agent_fails_sweep_state(mocker):
     job.completed_status = False
     job.run_id = "test-sweep-id"
     job.is_scheduler = True
+    job.entity = "test-entity"
+    job.project = "test-project"
     run = MagicMock()
     run.get_status.return_value.state = "failed"
     job.run = run
