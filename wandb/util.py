@@ -20,7 +20,6 @@ import tarfile
 import tempfile
 import threading
 import time
-import traceback
 import types
 import urllib
 from dataclasses import asdict, is_dataclass
@@ -54,6 +53,7 @@ import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
@@ -270,6 +270,11 @@ def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:  # type:
 
 np = get_module("numpy")
 
+pd_available = False
+pandas_spec = importlib.util.find_spec("pandas")
+if pandas_spec is not None:
+    pd_available = True
+
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
 
@@ -435,7 +440,12 @@ def is_numpy_array(obj: Any) -> bool:
 
 
 def is_pandas_data_frame(obj: Any) -> bool:
-    return is_pandas_data_frame_typename(get_full_typename(obj))
+    if pd_available:
+        import pandas as pd
+
+        return isinstance(obj, pd.DataFrame)
+    else:
+        return is_pandas_data_frame_typename(get_full_typename(obj))
 
 
 def ensure_matplotlib_figure(obj: Any) -> Any:
@@ -802,23 +812,23 @@ class JSONEncoderUncompressed(json.JSONEncoder):
 
 def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
+    return dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
 
 
 def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types."""
-    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
 
 # This is used for dumping raw json into files
 def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
+    return dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 
 def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types, including histograms."""
-    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
 def make_json_if_not_number(
@@ -1518,20 +1528,6 @@ def _is_databricks() -> bool:
 
 def _is_py_path(path: str) -> bool:
     return path.endswith(".py")
-
-
-def _log_thread_stacks() -> None:
-    """Log all threads, useful for debugging."""
-    thread_map = {t.ident: t.name for t in threading.enumerate()}
-
-    for thread_id, frame in sys._current_frames().items():
-        logger.info(
-            f"\n--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
-        )
-        for filename, lineno, name, line in traceback.extract_stack(frame):
-            logger.info(f"  File: {filename!r}, line {lineno}, in {name}")
-            if line:
-                logger.info(f"  Line: {line}")
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:

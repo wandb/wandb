@@ -1512,7 +1512,7 @@ class SendManager:
             client_id=artifact.client_id,
             sequence_client_id=artifact.sequence_client_id,
             metadata=metadata,
-            description=artifact.description,
+            description=artifact.description or None,
             aliases=artifact.aliases,
             use_after_commit=artifact.use_after_commit,
             distributed_id=artifact.distributed_id,
