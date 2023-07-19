@@ -1743,3 +1743,12 @@ def coalesce(*arg: Any) -> Any:
     Similar to ?? in C#.
     """
     return next((a for a in arg if a is not None), None)
+
+def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    for k, v in d.items():
+        if isinstance(v, dict):
+            cast_dictlike_to_dict(v)
+        elif hasattr(v, "keys"):
+            d[k] = dict(v)
+            cast_dictlike_to_dict(d[k])
+    return d
