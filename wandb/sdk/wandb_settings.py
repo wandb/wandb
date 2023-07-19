@@ -400,9 +400,6 @@ class SettingsData:
     problem: str
     program: str
     program_relpath: Optional[str]
-    # Used during artifact-job creation, always points to the relpath
-    # of code execution, even when in a git repo
-    program_relpath_local: Optional[str]
     project: str
     project_url: str
     quiet: bool
