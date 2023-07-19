@@ -53,6 +53,7 @@ import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
@@ -269,6 +270,11 @@ def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:  # type:
 
 np = get_module("numpy")
 
+pd_available = False
+pandas_spec = importlib.util.find_spec("pandas")
+if pandas_spec is not None:
+    pd_available = True
+
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
 
@@ -434,7 +440,12 @@ def is_numpy_array(obj: Any) -> bool:
 
 
 def is_pandas_data_frame(obj: Any) -> bool:
-    return is_pandas_data_frame_typename(get_full_typename(obj))
+    if pd_available:
+        import pandas as pd
+
+        return isinstance(obj, pd.DataFrame)
+    else:
+        return is_pandas_data_frame_typename(get_full_typename(obj))
 
 
 def ensure_matplotlib_figure(obj: Any) -> Any:
@@ -801,23 +812,23 @@ class JSONEncoderUncompressed(json.JSONEncoder):
 
 def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
+    return dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
 
 
 def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types."""
-    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
 
 # This is used for dumping raw json into files
 def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
+    return dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 
 def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types, including histograms."""
-    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
 def make_json_if_not_number(
