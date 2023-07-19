@@ -452,6 +452,11 @@ def _make_code_artifact(
         type="code",
         description="Code artifact for job",
     )
+
+    # Update path and entrypoint vars to match metadata
+    # TODO(gst): consolidate into one place
+    path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
+
     try:
         code_artifact.add_dir(path)
     except Exception as e:
