@@ -9,6 +9,6 @@ Prerequisites:
 - If you are testing local changes, be sure to build an image using `python ./tools/build_launch_agent.py --tag wandb-launch-agent:latest`
 
 Usage:
-`tox -e release-test -- tests/release_tests/test_launch`
+`tox -e launch-release -- tests/release_tests/test_launch`
 
 If you are a W&B employee and have any questions or want to request access to the `launch-release-testing` entity, contact Tim Hays in Slack
