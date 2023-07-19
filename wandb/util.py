@@ -1744,6 +1744,7 @@ def coalesce(*arg: Any) -> Any:
     """
     return next((a for a in arg if a is not None), None)
 
+
 def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
     for k, v in d.items():
         if isinstance(v, dict):
