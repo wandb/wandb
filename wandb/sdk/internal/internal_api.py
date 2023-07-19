@@ -2966,7 +2966,7 @@ class Api:
         return responses
 
     def get_project(self) -> str:
-        project: str = self.settings("project")
+        project: str = self.default_settings.get("project") or self.settings("project")
         return project
 
     @normalize_exceptions
