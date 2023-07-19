@@ -141,6 +141,7 @@ def _create_job(
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
+        path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
         job_name = _make_code_artifact(
             api=api,
             job_builder=job_builder,
