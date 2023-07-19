@@ -4,8 +4,10 @@ import json
 import logging
 import os
 import queue
+import sys
 import threading
 import time
+import traceback
 from collections import defaultdict
 from datetime import datetime
 from queue import Queue
@@ -18,6 +20,7 @@ from typing import (
     NewType,
     Optional,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -58,9 +61,12 @@ from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
 from wandb.sdk.wandb_settings import Settings
 
-if TYPE_CHECKING:
-    import sys
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
+if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactManifest,
         ArtifactRecord,
@@ -72,11 +78,6 @@ if TYPE_CHECKING:
         RunRecord,
         SummaryRecord,
     )
-
-    if sys.version_info >= (3, 8):
-        from typing import Literal
-    else:
-        from typing_extensions import Literal
 
     StreamLiterals = Literal["stdout", "stderr"]
 
@@ -308,7 +309,11 @@ class SendManager:
         self._debounce_status_time = time_now
 
     @classmethod
-    def setup(cls, root_dir: str, resume: Union[None, bool, str]) -> "SendManager":
+    def setup(
+        cls,
+        root_dir: str,
+        resume: Union[None, bool, str],
+    ) -> "SendManager":
         """Set up a standalone SendManager.
 
         Currently, we're using this primarily for `sync.py`.
@@ -339,6 +344,21 @@ class SendManager:
 
     def __len__(self) -> int:
         return self._record_q.qsize()
+
+    def __enter__(self) -> "SendManager":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[traceback.TracebackException],
+    ) -> Literal[False]:
+        while self:
+            data = next(self)
+            self.send(data)
+        self.finish()
+        return False
 
     def retry_callback(self, status: int, response_text: str) -> None:
         response = wandb_internal_pb2.HttpResponse()
