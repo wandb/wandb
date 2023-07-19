@@ -658,6 +658,8 @@ class Api:
             "runQueueItemId": run_queue_item_id,
         }
         if "message" in self.fail_run_queue_item_fields_introspection():
+            if len(message) > 128:
+                message = message[:128]
             variable_values.update({"message": message, "stage": stage})
             if file_paths is not None:
                 variable_values["filePaths"] = file_paths
@@ -708,6 +710,8 @@ class Api:
     ) -> bool:
         if not self.update_run_queue_item_warning_introspection():
             return False
+        if len(message) > 128:
+            message = message[:128]
         mutation = gql(
             """
         mutation updateRunQueueItemWarning($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
