@@ -141,7 +141,6 @@ def _create_job(
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
-        path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
         job_name = _make_code_artifact(
             api=api,
             job_builder=job_builder,
@@ -453,6 +452,11 @@ def _make_code_artifact(
         type="code",
         description="Code artifact for job",
     )
+
+    # Update path and entrypoint vars to match metadata
+    # TODO(gst): consolidate into one place
+    path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
+
     try:
         code_artifact.add_dir(path)
     except Exception as e:
