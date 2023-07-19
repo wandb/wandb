@@ -1939,6 +1939,10 @@ class Artifact:
         """
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "link")
+        if self.ttl_duration is not None:
+            wandb.termwarn(
+                "Artifact TTL will be removed for source artifacts that are linked to portfolios"
+            )
         self._link(target_path, aliases)
 
     @normalize_exceptions

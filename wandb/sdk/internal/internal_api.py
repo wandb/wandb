@@ -3022,7 +3022,7 @@ class Api:
                     createdAt
                     labels
                     metadata
-                    ttlDurationSeconds
+                    _TTL_DURATION_SECONDS_
                 }
             }
         }
@@ -3037,6 +3037,15 @@ class Api:
             query_template = query_template.replace("_USED_AS_TYPE_", "").replace(
                 "_USED_AS_VALUE_", ""
             )
+
+        # Check if the ttl_duration_seconds exist
+        artifact_fields = self.server_create_artifact_introspection()
+        if "ttlDurationSeconds" in artifact_fields:
+            query_template = query_template.replace(
+                "_TTL_DURATION_SECONDS_", "ttlDurationSeconds"
+            )
+        else:
+            query_template = query_template.replace("_TTL_DURATION_SECONDS_", "")
 
         query = gql(query_template)
 
@@ -3102,6 +3111,67 @@ class Api:
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
+    def server_create_artifact_introspection(self) -> List:
+        query_string = """
+            query ProbeServerCreateArtifactInput {
+                CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+        create_artifact_input_info = [
+            field.get("name", "")
+            for field in res.get("CreateArtifactInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+        ]
+        return create_artifact_input_info
+
+    def add_additional_variables_create_artifact(
+        self,
+        query_template: str,
+        fields: List,
+        history_step: Optional[int],
+        distributed_id: str,
+    ) -> str:
+        types = ""
+        values = ""
+
+        if "historyStep" in fields and history_step not in [0, None]:
+            types += "$historyStep: Int64!,"
+            values += "historyStep: $historyStep,"
+
+        if distributed_id:
+            types += "$distributedID: String,"
+            values += "distributedID: $distributedID,"
+
+        if "clientID" in fields:
+            types += "$clientID: ID!,"
+            values += "clientID: $clientID,"
+
+        if "sequenceClientID" in fields:
+            types += "$sequenceClientID: ID!,"
+            values += "sequenceClientID: $sequenceClientID,"
+
+        if "enableDigestDeduplication" in fields:
+            types += "$enableDigestDeduplication: Boolean,"
+            values += "enableDigestDeduplication: $enableDigestDeduplication,"
+
+        if "ttlDurationSeconds" in fields:
+            types += "$ttlDurationSeconds: Int64,"
+            values += "ttlDurationSeconds: $ttlDurationSeconds,"
+
+        query_template = query_template.replace(
+            "_CREATE_ARTIFACT_ADDITIONAL_TYPE_", types
+        ).replace("_CREATE_ARTIFACT_ADDITIONAL_VALUE_", values)
+
+        return query_template
+
     def create_artifact(
         self,
         artifact_type_name: str,
@@ -3124,22 +3194,7 @@ class Api:
     ) -> Tuple[Dict, Dict]:
         from pkg_resources import parse_version
 
-        _, server_info = self.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
-        can_handle_client_id = max_cli_version is None or parse_version(
-            "0.11.0"
-        ) <= parse_version(max_cli_version)
-        can_handle_dedupe = max_cli_version is None or parse_version(
-            "0.12.10"
-        ) <= parse_version(max_cli_version)
-        can_handle_history = max_cli_version is None or parse_version(
-            "0.12.12"
-        ) <= parse_version(max_cli_version)
-
-        mutation = gql(
-            """
+        query_template = """
         mutation CreateArtifact(
             $artifactTypeName: String!,
             $artifactCollectionNames: [String!],
@@ -3151,14 +3206,9 @@ class Api:
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            $ttlDurationSeconds: Int64,
-            {}
-            {}
-            {}
-            {}
-            {}
-        ) {{
-            createArtifact(input: {{
+            _CREATE_ARTIFACT_ADDITIONAL_TYPE_
+        ) {
+            createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
                 artifactCollectionNames: $artifactCollectionNames,
                 entityName: $entityName,
@@ -3170,50 +3220,32 @@ class Api:
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                ttlDurationSeconds: $ttlDurationSeconds,
-                {}
-                {}
-                {}
-                {}
-                {}
-            }}) {{
-                artifact {{
+                _CREATE_ARTIFACT_ADDITIONAL_VALUE_
+            }) {
+                artifact {
                     id
                     digest
                     state
-                    aliases {{
+                    aliases {
                         artifactCollectionName
                         alias
-                    }}
-                    artifactSequence {{
+                    }
+                    artifactSequence {
                         id
-                        latestArtifact {{
+                        latestArtifact {
                             id
                             versionIndex
-                        }}
-                    }}
-                }}
-            }}
-        }}
-        """.format(
-                "$historyStep: Int64!,"
-                if can_handle_history and history_step not in [0, None]
-                else "",
-                "$distributedID: String," if distributed_id else "",
-                "$clientID: ID!," if can_handle_client_id else "",
-                "$sequenceClientID: ID!," if can_handle_client_id else "",
-                "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
-                # line sep
-                "historyStep: $historyStep,"
-                if can_handle_history and history_step not in [0, None]
-                else "",
-                "distributedID: $distributedID," if distributed_id else "",
-                "clientID: $clientID," if can_handle_client_id else "",
-                "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
-                "enableDigestDeduplication: $enableDigestDeduplication,"
-                if can_handle_dedupe
-                else "",
-            )
+                        }
+                    }
+                }
+            }
+        }
+        """
+
+        fields = self.server_create_artifact_introspection()
+
+        query_template = self.add_additional_variables_create_artifact(
+            query_template, fields, history_step, distributed_id
         )
 
         entity_name = entity_name or self.settings("entity")
@@ -3223,6 +3255,7 @@ class Api:
         if aliases is None:
             aliases = []
 
+        mutation = gql(query_template)
         response = self.gql(
             mutation,
             variable_values={
