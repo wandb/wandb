@@ -1,22 +1,23 @@
 import json
 import os
+import queue
 import sys
-import threading
 from dataclasses import dataclass
-from queue import Queue
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
+from google.protobuf.json_format import ParseDict
 from tqdm import tqdm
 
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_settings_pb2
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.util import cast_dictlike_to_dict, coalesce
 
 if sys.version_info >= (3, 8):
@@ -30,7 +31,6 @@ with patch("click.echo"):
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
-
 
 @dataclass
 class ThreadLocalSettings(threading.local):
@@ -46,7 +46,7 @@ def set_thread_local_settings(api_key, base_url):
     _thread_local_settings.base_url = base_url
 
 
-class ImporterRun(Protocol):
+    class ImporterRun(Protocol):
     def run_id(self) -> str:
         ...
 
@@ -323,7 +323,7 @@ class RecordMaker:
 def send_run_with_send_manager(
     run: ImporterRun,
     overrides: Optional[Dict[str, Any]] = None,
-    settings_override: Optional[SettingsDict] = None,
+    settings_override: Optional[SettingsStatic] = None,
 ) -> None:
     # does this need to be here for pmap?
     if overrides:
@@ -335,21 +335,41 @@ def send_run_with_send_manager(
     rm = RecordMaker(run)
 
     root_dir = rm.run_dir
-    default_settings: SettingsDict = {
+
+    default_settings = {
         "files_dir": os.path.join(root_dir, "files"),
         "root_dir": root_dir,
         "_start_time": 0,
+        "git_remote": None,
         "resume": False,
         "program": None,
         "ignore_globs": (),
+        "run_id": None,
+        "entity": None,
+        "project": None,
+        "run_group": None,
+        "job_type": None,
+        "run_tags": None,
+        "run_name": None,
+        "run_notes": None,
+        "save_code": None,
+        "email": None,
         "silent": None,
+        "_offline": None,
         "_sync": True,
+        "_live_policy_rate_limit": None,
+        "_live_policy_wait_time": None,
         "disable_job_creation": False,
         "_async_upload_concurrency_limit": None,
     }
-    settings = SettingsStatic({**default_settings, **_settings_override})
-    record_q: "Queue[Record]" = Queue()
-    result_q: "Queue[Result]" = Queue()
+    combined_settings = {**default_settings, **_settings_override}
+    settings_message = wandb_settings_pb2.Settings()
+    ParseDict(combined_settings, settings_message)
+
+    settings = SettingsStatic(settings_message)
+
+    record_q: queue.Queue = queue.Queue()
+    result_q: queue.Queue = queue.Queue()
     interface = InterfaceQueue(record_q=record_q)
     context_keeper = context.ContextKeeper()
 
