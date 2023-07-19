@@ -330,7 +330,9 @@ class Artifact:
         artifact.metadata = cls._normalize_metadata(
             json.loads(attrs["metadata"] or "{}")
         )
-        artifact._ttl_duration_seconds = attrs["ttlDurationSeconds"]
+        artifact._ttl_duration_seconds = (
+            attrs["ttlDurationSeconds"] if "ttlDurationSeconds" in attrs else None
+        )
         artifact._aliases = [
             alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
