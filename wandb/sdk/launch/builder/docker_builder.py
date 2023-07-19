@@ -124,9 +124,7 @@ class DockerBuilder(AbstractBuilder):
             launch_project, entrypoint, launch_project.resource, "docker"
         )
 
-        image_tag = image_tag_from_dockerfile_and_source(
-            launch_project, dockerfile_str
-        )
+        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
 
         repository = None if not self.registry else self.registry.get_repo_uri()
         # if repo is set, use the repo name as the image name

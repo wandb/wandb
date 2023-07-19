@@ -77,7 +77,7 @@ ENV PATH="/env/bin:$PATH"
 
 ENV SHELL /bin/bash
 
-# some resources (eg sagemaker) must run on rootsssss
+# some resources (eg sagemaker) must run on root
 {user_setup}
 
 WORKDIR {workdir}
@@ -90,6 +90,8 @@ RUN mkdir -p {workdir}/.cache && chown -R {uid} {workdir}/.cache
 COPY --chown={uid} src/ {workdir}
 
 ENV PYTHONUNBUFFERED=1
+
+{entrypoint_section}
 """
 
 # this goes into base_setup in TEMPLATE
@@ -128,8 +130,6 @@ ENV PATH="/env/bin:$PATH"
 
 COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
-
-{entrypoint_section}
 """
 
 # this goes into requirements_section in TEMPLATE
@@ -359,7 +359,7 @@ def generate_dockerfile(
         uid=userid,
         user_setup=user_setup,
         workdir=workdir,
-        entrypoint_section=entrypoint_section
+        entrypoint_section=entrypoint_section,
     )
     return dockerfile_contents
 

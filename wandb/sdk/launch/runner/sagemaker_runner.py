@@ -243,9 +243,9 @@ class SageMakerRunner(AbstractRunner):
         return run
 
 
-def merge_aws_tag_with_algorithm_specification(
+def merge_image_uri_with_algorithm_specification(
     algorithm_specification: Optional[Dict[str, Any]],
-    aws_tag: Optional[str],
+    image_uri: Optional[str],
     entrypoint: Optional[EntryPoint],
     args: Optional[List[str]],
 ) -> Dict[str, Any]:
@@ -258,12 +258,12 @@ def merge_aws_tag_with_algorithm_specification(
     """
     if algorithm_specification is None:
         algorithm_specification = {
-            "TrainingImage": aws_tag,
+            "TrainingImage": image_uri,
             "TrainingInputMode": "File",
         }
     else:
-        if aws_tag:
-            algorithm_specification["TrainingImage"] = aws_tag
+        if image_uri:
+            algorithm_specification["TrainingImage"] = image_uri
     if entrypoint:
         algorithm_specification["ContainerEntrypoint"] = entrypoint.command
     if args:
@@ -281,7 +281,7 @@ def build_sagemaker_args(
     entry_point: Optional[EntryPoint],
     args: Optional[List[str]],
     max_env_length: int,
-    aws_tag: Optional[str] = None,
+    image_uri: Optional[str] = None,
     default_output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     sagemaker_args: Dict[str, Any] = {}
@@ -314,12 +314,12 @@ def build_sagemaker_args(
 
     sagemaker_args[
         "AlgorithmSpecification"
-    ] = merge_aws_tag_with_algorithm_specification(
+    ] = merge_image_uri_with_algorithm_specification(
         given_sagemaker_args.get(
             "AlgorithmSpecification",
             given_sagemaker_args.get("algorithm_specification"),
         ),
-        aws_tag,
+        image_uri,
         entry_point,
         args,
     )

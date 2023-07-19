@@ -100,7 +100,7 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
             MagicMock(),
         )
         req = runner.run(project, project.docker_image)
-        print(req)
+
         assert "my-fake-RoleArn" in req["RoleArn"]
         assert req["AlgorithmSpecification"] == {
             "TrainingImage": "testimage",
