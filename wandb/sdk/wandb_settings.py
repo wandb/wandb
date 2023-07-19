@@ -1677,6 +1677,7 @@ class Settings(SettingsData):
                 root = repo.root if not self.disable_git else None
                 program_relpath = _get_program_relpath(program, root, _logger=_logger)
             settings["program_relpath"] = program_relpath
+            settings["program_local_relpath"] = _get_program_relpath(program)
         else:
             program = "<python with no main file>"
 

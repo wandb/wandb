@@ -223,13 +223,11 @@ class JobBuilder:
             # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
             if not os.path.exists(full_program_relpath):
                 # when users call log code in a notebook the code artifact starts
-                # at the directory the notebook is in instead of the jupyter
-                # core
-                if os.path.exists(os.path.basename(program_relpath)):
-                    full_program_relpath = os.path.basename(program_relpath)
-                else:
+                # at the directory the notebook is in instead of the jupyter core
+                if not os.path.exists(os.path.basename(program_relpath)):
                     _logger.info("target path does not exist, exiting")
                     return None, None
+                full_program_relpath = os.path.basename(program_relpath)
         else:
             full_program_relpath = program_relpath
         entrypoint = [
