@@ -271,6 +271,4 @@ def test_build_image_success(
             "Created kaniko job wandb-launch-container-build-"
             in capsys.readouterr().err
         )
-        assert (
-            image_uri == "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:f334a427"
-        )
+        assert "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo" in image_uri

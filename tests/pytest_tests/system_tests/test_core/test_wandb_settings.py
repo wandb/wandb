@@ -1,6 +1,5 @@
 """settings test."""
 
-import datetime
 import os
 import platform
 
@@ -102,9 +101,7 @@ def test_log_symlink_internal(wandb_init):
 )
 def test_sync_symlink_latest(wandb_init):
     run = wandb_init(mode="offline")
-    time_tag = datetime.datetime.strftime(
-        run._settings._start_datetime, "%Y%m%d_%H%M%S"
-    )
+    time_tag = run._settings._start_datetime
     assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath(
         os.path.join(".", "wandb", f"offline-run-{time_tag}-{run.id}")
     )

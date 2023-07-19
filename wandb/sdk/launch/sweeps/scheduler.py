@@ -414,12 +414,17 @@ class Scheduler(ABC):
     def _register_agents(self) -> None:
         for worker_id in range(self._num_workers):
             _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
-            agent_config = self._api.register_agent(
-                f"{socket.gethostname()}-{worker_id}",  # host
-                sweep_id=self._sweep_id,
-                project_name=self._project,
-                entity=self._entity,
-            )
+            try:
+                agent_config = self._api.register_agent(
+                    f"{socket.gethostname()}-{worker_id}",  # host
+                    sweep_id=self._sweep_id,
+                    project_name=self._project,
+                    entity=self._entity,
+                )
+            except Exception as e:
+                _logger.debug(f"failed to register agent: {e}")
+                self.fail_sweep(f"failed to register agent: {e}")
+
             self._workers[worker_id] = _Worker(
                 agent_config=agent_config,
                 agent_id=agent_config["id"],
@@ -618,6 +623,35 @@ class Scheduler(ABC):
             base64.b64decode(bytes(_id.encode("utf-8"))).decode("utf-8").split(":")[2]
         )
 
+    def _make_entry_and_launch_config(
+        self, run: SweepRun
+    ) -> Tuple[Optional[List[str]], Dict[str, Dict[str, Any]]]:
+        args = create_sweep_command_args({"args": run.args})
+        entry_point, macro_args = make_launch_sweep_entrypoint(
+            args, self._sweep_config.get("command")
+        )
+        # handle program macro
+        if entry_point and "${program}" in entry_point:
+            if not self._sweep_config.get("program"):
+                raise SchedulerError(
+                    f"{LOG_PREFIX}Program macro in command has no corresponding 'program' in sweep config."
+                )
+            pidx = entry_point.index("${program}")
+            entry_point[pidx] = self._sweep_config["program"]
+
+        launch_config = {"overrides": {"run_config": args["args_dict"]}}
+        if macro_args:  # pipe in hyperparam args as params to launch
+            launch_config["overrides"]["args"] = macro_args
+
+        if entry_point:
+            unresolved = [x for x in entry_point if str(x).startswith("${")]
+            if unresolved:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Sweep command contains unresolved macros: "
+                    f"{unresolved}, see launch docs for supported macros."
+                )
+        return entry_point, launch_config
+
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
         # job and image first from CLI args, then from sweep config
@@ -629,25 +663,12 @@ class Scheduler(ABC):
         elif _job is not None and _image_uri is not None:
             raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
 
-        args = create_sweep_command_args({"args": run.args})
-        entry_point, macro_args = make_launch_sweep_entrypoint(
-            args, self._sweep_config.get("command")
-        )
-        launch_config = {"overrides": {"run_config": args["args_dict"]}}
-        if macro_args:  # pipe in hyperparam args as params to launch
-            launch_config["overrides"]["args"] = macro_args
-
+        entry_point, launch_config = self._make_entry_and_launch_config(run)
         if entry_point:
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
                 f' {"job" if _job else "image_uri"} entrypoint'
             )
-            unresolved = [x for x in entry_point if str(x).startswith("${")]
-            if unresolved:
-                wandb.termwarn(
-                    f"{LOG_PREFIX}Sweep command contains unresolved macros: "
-                    f"{unresolved}, see launch docs for supported macros."
-                )
 
         run_id = run.id or generate_id()
         queued_run = launch_add(

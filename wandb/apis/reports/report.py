@@ -185,7 +185,15 @@ class Report(Base):
             termwarn("Report has not been modified")
 
         # create project if not exists
-        self._api.create_project(self.project, self.entity)
+        projects = self._api.projects(self.entity)
+        is_new_project = True
+        for p in projects:
+            if p.name == self.project:
+                is_new_project = False
+                break
+
+        if is_new_project:
+            self._api.create_project(self.project, self.entity)
 
         # All panel grids must have at least one runset
         for pg in self.panel_grids:

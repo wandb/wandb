@@ -9,6 +9,7 @@ depend:
   requirements:
     - langchain>=0.0.188
     - openai
+    - beautifulsoup4
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 1

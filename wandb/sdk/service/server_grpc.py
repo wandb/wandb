@@ -12,10 +12,9 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.internal.settings_static import SettingsStatic
 
 from .. import lib as wandb_lib
-from ..lib.proto_util import settings_dict_from_pbmap
-from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
 
 if TYPE_CHECKING:
@@ -114,6 +113,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = iface.communicate_sampled_history()
         assert result  # TODO: handle errors
         return result
+
+    def JobInfo(  # noqa: N802
+        self, job_info: pb.JobInfoRequest, context: grpc.ServicerContext
+    ) -> pb.JobInfoResponse:
+        stream_id = job_info._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        result = iface._deliver_request_job_info(job_info)
+        response = result.wait(timeout=-1)
+        assert response
+        return response.response.job_info_response
 
     def Shutdown(  # noqa: N802
         self, shutdown: pb.ShutdownRequest, context: grpc.ServicerContext
@@ -378,7 +387,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         context: grpc.ServicerContext,
     ) -> spb.ServerInformInitResponse:
         stream_id = request._info.stream_id
-        settings = settings_dict_from_pbmap(request._settings_map)
+        settings = SettingsStatic(request.settings)
         self._mux.add_stream(stream_id, settings=settings)
         result = spb.ServerInformInitResponse()
         return result
@@ -389,7 +398,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         context: grpc.ServicerContext,
     ) -> spb.ServerInformStartResponse:
         stream_id = request._info.stream_id
-        settings = settings_dict_from_pbmap(request._settings_map)
+        settings = SettingsStatic(request.settings)
         self._mux.update_stream(stream_id, settings=settings)
         self._mux.start_stream(stream_id)
         result = spb.ServerInformStartResponse()
@@ -412,10 +421,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
     ) -> spb.ServerInformAttachResponse:
         stream_id = request._info.stream_id
         result = spb.ServerInformAttachResponse()
-        _pbmap_apply_dict(
-            result._settings_map,
-            dict(self._mux._streams[stream_id]._settings),
-        )
+        result.settings.CopyFrom(self._mux._streams[stream_id]._settings._proto)
         return result
 
     def ServerInformDetach(  # noqa: N802

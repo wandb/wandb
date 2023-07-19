@@ -52,10 +52,12 @@ async_requirements = [
     "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 ]
 
+perf_requirements = ["orjson"]
+
 
 setup(
     name="wandb",
-    version="0.15.5.dev1",
+    version="0.15.6.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -103,5 +105,6 @@ setup(
         "launch": launch_requirements,
         "models": models_requirements,
         "async": async_requirements,
+        "perf": perf_requirements,
     },
 )

@@ -41,6 +41,7 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
+    JobInfoResponse,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -87,7 +88,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_settings import Settings, SettingsConsole
+from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -502,6 +503,7 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
+    _job_info: Optional["JobInfoResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
@@ -608,6 +610,7 @@ class Run:
         self._poll_exit_response = None
         self._server_info_response = None
         self._poll_exit_handle = None
+        self._job_info = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -623,7 +626,7 @@ class Run:
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
         wandb._sentry.configure_scope(
-            settings=self._settings,
+            tags=dict(self._settings),
             process_context="user",
         )
 
@@ -1183,9 +1186,7 @@ class Run:
         for k, v in (("code", code), ("repo", repo), ("code_version", code_version)):
             if v and not RE_LABEL.match(v):
                 wandb.termwarn(
-                    "Label added for '{}' with invalid identifier '{}' (ignored).".format(
-                        k, v
-                    ),
+                    f"Label added for '{k}' with invalid identifier '{v}' (ignored).",
                     repeat=False,
                 )
         for v in kwargs:
@@ -1291,7 +1292,7 @@ class Run:
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = Artifact.from_id(val["id"], public_api.client)
+            artifact = Artifact._from_id(val["id"], public_api.client)
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
@@ -1304,7 +1305,7 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = Artifact.from_id(artifact_string, public_api._client)
+                artifact = Artifact._from_id(artifact_string, public_api._client)
             else:
                 artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
@@ -1479,7 +1480,7 @@ class Run:
 
         wandb._sentry.configure_scope(
             process_context="user",
-            settings=self._settings,
+            tags=dict(self._settings),
         )
 
     def _add_singleton(
@@ -1994,23 +1995,23 @@ class Run:
         self,
         stdout_slave_fd: Optional[int],
         stderr_slave_fd: Optional[int],
-        console: Optional[SettingsConsole] = None,
+        console: Optional[str] = None,
     ) -> None:
         if console is None:
-            console = self._settings._console
+            console = self._settings.console
         # only use raw for service to minimize potential changes
-        if console == SettingsConsole.WRAP:
+        if console == "wrap":
             if not self._settings._disable_service:
-                console = SettingsConsole.WRAP_RAW
+                console = "wrap_raw"
             else:
-                console = SettingsConsole.WRAP_EMU
+                console = "wrap_emu"
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
 
         # raw output handles the output_log writing in the internal process
-        if console in {SettingsConsole.REDIRECT, SettingsConsole.WRAP_EMU}:
+        if console in {"redirect", "wrap_emu"}:
             output_log_path = os.path.join(
                 self._settings.files_dir, filenames.OUTPUT_FNAME
             )
@@ -2020,7 +2021,7 @@ class Run:
                     open(output_log_path, "wb")
                 )
 
-        if console == SettingsConsole.REDIRECT:
+        if console == "redirect":
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
@@ -2049,10 +2050,10 @@ class Run:
                         "wrapping stdout/err."
                     )
                     wandb.termlog(msg)
-                    self._redirect(None, None, console=SettingsConsole.WRAP)
+                    self._redirect(None, None, console="wrap")
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == SettingsConsole.WRAP_EMU:
+        elif console == "wrap_emu":
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
@@ -2068,7 +2069,7 @@ class Run:
                     self._output_writer.write,  # type: ignore
                 ],
             )
-        elif console == SettingsConsole.WRAP_RAW:
+        elif console == "wrap_raw":
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamRawWrapper(
                 src="stdout",
@@ -2082,7 +2083,7 @@ class Run:
                     lambda data: self._console_raw_callback("stderr", data),
                 ],
             )
-        elif console == SettingsConsole.OFF:
+        elif console == "off":
             return
         else:
             raise ValueError("unhandled console")
@@ -2375,6 +2376,7 @@ class Run:
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
+        job_info_handle = self._backend.interface.deliver_request_job_info()
 
         # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
@@ -2392,6 +2394,10 @@ class Run:
         result = final_summary_handle.wait(timeout=-1)
         assert result
         self._final_summary = result.response.get_summary_response
+
+        result = job_info_handle.wait(timeout=-1)
+        assert result
+        self._job_info = result.response.job_info_response
 
         if self._backend:
             self._backend.cleanup()
@@ -2414,6 +2420,7 @@ class Run:
             self._poll_exit_response,
             self._server_info_response,
             self._check_version,
+            self._job_info,
             self._reporter,
             self._quiet,
             settings=self._settings,
@@ -2486,16 +2493,12 @@ class Run:
             if arg_val is not None and not isinstance(arg_val, exp_type):
                 arg_type = type(arg_val).__name__
                 raise wandb.Error(
-                    "Unhandled define_metric() arg: {} type: {}".format(
-                        arg_name, arg_type
-                    )
+                    f"Unhandled define_metric() arg: {arg_name} type: {arg_type}"
                 )
         stripped = name[:-1] if name.endswith("*") else name
         if "*" in stripped:
             raise wandb.Error(
-                "Unhandled define_metric() arg: name (glob suffixes only): {}".format(
-                    name
-                )
+                f"Unhandled define_metric() arg: name (glob suffixes only): {name}"
             )
         summary_ops: Optional[Sequence[str]] = None
         if summary:
@@ -2952,7 +2955,7 @@ class Run:
         if not self._settings._offline:
             try:
                 public_api = self._public_api()
-                expected_type = Artifact.expected_type(
+                expected_type = Artifact._expected_type(
                     public_api.settings["entity"],
                     public_api.settings["project"],
                     artifact.name,
@@ -3207,6 +3210,7 @@ class Run:
         poll_exit_response: Optional[PollExitResponse] = None,
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version: Optional["CheckVersionResponse"] = None,
+        job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3223,6 +3227,7 @@ class Run:
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
+            job_info=job_info,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3397,6 +3402,7 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
+        job_info: Optional["JobInfoResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3419,6 +3425,11 @@ class Run:
                 info = [
                     f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
                 ]
+            if job_info and job_info.version and job_info.sequenceId:
+                link = f"{settings.project_url}/jobs/{job_info.sequenceId}/version_details/{job_info.version}"
+                info.append(
+                    f"{printer.emoji('lightning')} View job at {printer.link(link)}",
+                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts

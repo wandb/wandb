@@ -9,7 +9,7 @@ def test_config_save_preserve_order(tmp_path, test_settings):
     config_file = tmp_path / "config.yaml"
     settings = test_settings({"files_dir": str(tmp_path)})
     sender = SendManager(
-        settings=SettingsStatic(dict(settings)),
+        settings=SettingsStatic(settings.to_proto()),
         record_q=MagicMock(),
         result_q=MagicMock(),
         interface=MagicMock(),
