@@ -197,6 +197,12 @@ class Api:
     def create_launch_agent(self, *args, **kwargs):
         return self.api.create_launch_agent(*args, **kwargs)
 
+    def create_default_resource_config(self, *args, **kwargs):
+        return self.api.create_default_resource_config(*args, **kwargs)
+
+    def create_run_queue(self, *args, **kwargs):
+        return self.api.create_run_queue(*args, **kwargs)
+
     def update_launch_agent_status(self, *args, **kwargs):
         return self.api.update_launch_agent_status(*args, **kwargs)
 
