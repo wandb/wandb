@@ -1311,6 +1311,5 @@ def test_noop_builder(
             "Note: Jobs sourced from git repos and code artifacts require a builder, while jobs sourced from Docker images do not.\n"
             "See https://docs.wandb.ai/guides/launch/create-job."
         )
-        expected = "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
         with pytest.raises(LaunchError, match=expected):
             launch.run(**kwargs)
