@@ -7,7 +7,7 @@ from ultralytics.yolo.v8.segment import SegmentationPredictor
 
 import wandb
 
-from .bbox_utils import get_mean_confidence_map
+from .bbox_utils import get_mean_confidence_map, get_ground_truth_bbox_annotations
 
 
 def instance_mask_to_semantic_mask(instance_mask, class_indices):
@@ -106,23 +106,33 @@ def plot_mask_validation_results(
                 prediction_box_data,
                 mean_confidence_map,
             ) = plot_mask_predictions(prediction_result)
-            wandb_image = wandb.Image(
-                image_path,
-                boxes={
-                    "predictions": prediction_box_data,
-                },
-                masks=prediction_mask_data,
-            )
-            table_rows = [
-                data_idx,
-                batch_idx,
-                wandb_image,
-                mean_confidence_map,
-                prediction_result.speed,
-            ]
-            table_rows = [epoch] + table_rows if epoch is not None else table_rows
-            table.add_data(*table_rows)
-            data_idx += 1
+            try:
+                ground_truth_data = get_ground_truth_bbox_annotations(
+                    img_idx, image_path, batch, class_label_map
+                )
+                wandb_image = wandb.Image(
+                    image_path,
+                    boxes={
+                        "ground-truth": {
+                            "box_data": ground_truth_data,
+                            "class_labels": class_label_map,
+                        },
+                        "predictions": prediction_box_data,
+                    },
+                    masks=prediction_mask_data,
+                )
+                table_rows = [
+                    data_idx,
+                    batch_idx,
+                    wandb_image,
+                    mean_confidence_map,
+                    prediction_result.speed,
+                ]
+                table_rows = [epoch] + table_rows if epoch is not None else table_rows
+                table.add_data(*table_rows)
+                data_idx += 1
+            except TypeError:
+                pass
         if batch_idx + 1 == max_validation_batches:
             break
     return table
