@@ -428,7 +428,10 @@ class LaunchAgent:
                                 if _is_scheduler_job(job.get("runSpec")):
                                     # If job is a scheduler, and we are already at the cap, ignore,
                                     #    don't ack, and it will be pushed back onto the queue in 1 min
-                                    if self.num_running_schedulers >= self._max_schedulers:
+                                    if (
+                                        self.num_running_schedulers
+                                        >= self._max_schedulers
+                                    ):
                                         wandb.termwarn(
                                             f"{LOG_PREFIX}Agent already running the maximum number "
                                             f"of sweep schedulers: {self._max_schedulers}. To set "
