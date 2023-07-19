@@ -357,7 +357,9 @@ def test_agent_fails_sweep_state(mocker):
         "project": "test-project",
     }
 
-    def mock_set_sweep_state(sweep, state):
+    def mock_set_sweep_state(sweep, entity, project, state):
+        assert entity == "test-entity"
+        assert project == "test-project"
         assert sweep == "test-sweep-id"
         assert state == "CANCELED"
 
