@@ -400,6 +400,9 @@ class SettingsData:
     problem: str
     program: str
     program_relpath: Optional[str]
+    # Used during artifact-job creation, always points to the relpath
+    # of code execution, even when in a git repo
+    program_relpath_local: Optional[str]
     project: str
     project_url: str
     quiet: bool
@@ -1670,14 +1673,11 @@ class Settings(SettingsData):
         settings: Dict[str, Union[bool, str, None]] = dict()
         program = self.program or _get_program()
         if program is not None:
-            if self.program_relpath:
-                program_relpath: Optional[str] = self.program_relpath
-            else:
-                repo = GitRepo()
-                root = repo.root if not self.disable_git else None
-                program_relpath = _get_program_relpath(program, root, _logger=_logger)
+            repo = GitRepo()
+            program_relpath = self.program_relpath or _get_program_relpath(
+                program, repo.root, _logger=_logger
+            )
             settings["program_relpath"] = program_relpath
-            settings["program_local_relpath"] = _get_program_relpath(program)
         else:
             program = "<python with no main file>"
 

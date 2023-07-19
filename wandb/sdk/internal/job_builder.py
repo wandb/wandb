@@ -285,14 +285,20 @@ class JobBuilder:
             return None
 
         runtime: Optional[str] = metadata.get("python")
-        program_relpath: Optional[str] = metadata.get("codePath")
         # can't build a job without a python version
         if runtime is None:
             return None
 
+        program_relpath: Optional[str] = None
         if self._is_notebook_run():
             _logger.info("run is notebook based run")
             program_relpath = metadata.get("program")
+        elif self._settings.job_source == "artifact":
+            # if the job is set to be an artifact, use relpath guaranteed
+            # to be correct. 'codePath' uses the root path when in git repo
+            program_relpath = metadata.get("codePathLocal")
+        else:
+            program_relpath = metadata.get("codePath")
 
         input_types = TypeRegistry.type_of(self._config).to_json()
         output_types = TypeRegistry.type_of(self._summary).to_json()

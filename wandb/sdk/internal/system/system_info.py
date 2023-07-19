@@ -19,7 +19,6 @@ from wandb.sdk.lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from wandb.sdk.lib.gitlib import GitRepo
-from wandb.sdk.wandb_settings import _get_program_relpath
 
 from .assets.interfaces import Interface
 
@@ -171,6 +170,9 @@ class SystemInfo:
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Add git information to data dict."""
+        if self.settings.disable_git:
+            return data
+
         # in case of manually passing the git repo info, `enabled` would be False,
         # but we still want to save the git repo info
         if not self.git.enabled and self.git.auto:
@@ -210,6 +212,9 @@ class SystemInfo:
         if self.settings.program is not None:
             data["program"] = self.settings.program
         if not self.settings.disable_code:
+            if self.settings.program_relpath_local:
+                data["codePathLocal"] = self.settings.program_relpath_local
+
             if self.settings.program_relpath is not None:
                 data["codePath"] = self.settings.program_relpath
             elif self.settings._jupyter:
@@ -226,11 +231,7 @@ class SystemInfo:
                         data["program"] = self.settings._jupyter_path
                         data["root"] = self.settings._jupyter_root
 
-            if self.settings.disable_git:
-                # when disabled, overrwrite git codePath with guaranteed correct path
-                data["codePath"] = _get_program_relpath(self.settings.program)
-            else:
-                data = self._probe_git(data)
+            data = self._probe_git(data)
 
         if self.settings.anonymous != "true":
             data["host"] = self.settings.host
