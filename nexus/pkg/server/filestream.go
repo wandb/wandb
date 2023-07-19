@@ -159,8 +159,10 @@ func (fs *FileStream) doChunkProcess() {
 			}
 			fs.sendChunkList(chunkList)
 		case <-time.After(heartbeatTime):
-			fmt.Println("timeout")
-			fs.sendChunkList(chunkList)
+			if len(chunkList) > 0 {
+				fmt.Println("timeout")  // todo: remove
+				fs.sendChunkList(chunkList)
+			}
 		}
 	}
 }
