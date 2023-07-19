@@ -15,8 +15,10 @@ from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.internal.settings_static import SettingsDict
+from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.util import cast_dictlike_to_dict, coalesce
+from wandb.proto import wandb_settings_pb2
+from google.protobuf.json_format import ParseDict
 
 if sys.version_info >= (3, 8):
     from typing import Protocol
@@ -305,7 +307,7 @@ class RecordMaker:
 def send_run_with_send_manager(
     run: ImporterRun,
     overrides: Optional[Dict[str, Any]] = None,
-    settings_override: Optional[SettingsDict] = None,
+    settings_override: Optional[SettingsStatic] = None,
 ) -> None:
     # does this need to be here for pmap?
     if overrides:
@@ -343,10 +345,14 @@ def send_run_with_send_manager(
         "disable_job_creation": False,
         "_async_upload_concurrency_limit": None,
     }
-    settings = {**default_settings, **_settings_override}
+    combined_settings = {**default_settings, **_settings_override}
+    settings_message = wandb_settings_pb2.Settings()
+    ParseDict(combined_settings, settings_message)
 
-    record_q = queue.Queue()
-    result_q = queue.Queue()
+    settings = SettingsStatic(settings_message)
+
+    record_q: queue.Queue = queue.Queue()
+    result_q: queue.Queue = queue.Queue()
     interface = InterfaceQueue(record_q=record_q)
     context_keeper = context.ContextKeeper()
 
