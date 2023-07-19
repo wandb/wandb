@@ -175,7 +175,9 @@ class WandBUltralyticsCallback:
         self.predictor = TASK_MAP[self.task][3](overrides=overrides, _callbacks=None)
 
     def _save_model(self, trainer: TRAINER_TYPE):
-        model_checkpoint_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", "model")
+        model_checkpoint_artifact = wandb.Artifact(
+            f"run_{wandb.run.id}_model", "model", metadata=vars(trainer.args)
+        )
         checkpoint_dict = {
             "epoch": trainer.epoch,
             "best_fitness": trainer.best_fitness,

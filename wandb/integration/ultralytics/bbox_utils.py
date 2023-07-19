@@ -10,7 +10,8 @@ import wandb
 def scale_bounding_box_to_original_image_shape(
     box, resized_image_shape, original_image_shape, ratio_pad
 ) -> List[int]:
-    """YOLOv8 resizes images during training and the label values are normalized based on this resized shape.
+    """YOLOv8 resizes images during training and the label values are
+    normalized based on this resized shape.
 
     This function rescales the bounding box labels to the original
     image shape.
@@ -43,10 +44,6 @@ def get_ground_truth_bbox_annotations(
     cls_labels = batch["cls"][indices].squeeze(1).tolist()
     if class_name_map:
         cls_labels = [str(class_name_map[label]) for label in cls_labels]
-
-    original_image_shape = batch["ori_shape"][img_idx]
-    resized_image_shape = batch["resized_shape"][img_idx]
-    ratio_pad = batch["ratio_pad"][img_idx]
 
     original_image_shape = batch["ori_shape"][img_idx]
     resized_image_shape = batch["resized_shape"][img_idx]
@@ -95,7 +92,7 @@ def get_boxes(result: Results) -> Tuple[Dict, Dict]:
     mean_confidence_map = get_mean_confidence_map(
         classes, confidence, class_id_to_label
     )
-    box_data, total_confidence = [], 0.0
+    box_data = []
     for idx in range(len(boxes)):
         box_data.append(
             {
@@ -110,7 +107,6 @@ def get_boxes(result: Results) -> Tuple[Dict, Dict]:
                 "scores": {"confidence": float(confidence[idx])},
             }
         )
-        total_confidence += float(confidence[idx])
     boxes = {
         "predictions": {
             "box_data": box_data,
