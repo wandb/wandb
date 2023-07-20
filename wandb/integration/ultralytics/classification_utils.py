@@ -1,10 +1,10 @@
 from typing import Optional
 
 import numpy as np
-
-import wandb
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.classify import ClassificationPredictor
+
+import wandb
 
 
 def plot_classification_predictions(
