@@ -209,9 +209,11 @@ class SystemInfo:
         data["cuda"] = self.settings._cuda
         data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
-
         if self.settings.program is not None:
             data["program"] = self.settings.program
+            # Used during artifact-job creation, always points to the relpath
+            # of code execution, even when in a git repo
+            data["codePathLocal"] = _get_program_relpath(self.settings.program)
         if not self.settings.disable_code:
             if self.settings.program_relpath is not None:
                 data["codePath"] = self.settings.program_relpath
@@ -228,10 +230,6 @@ class SystemInfo:
                     else:
                         data["program"] = self.settings._jupyter_path
                         data["root"] = self.settings._jupyter_root
-            # Used during artifact-job creation, always points to the relpath
-            # of code execution, even when in a git repo
-            data["codePathLocal"] = _get_program_relpath(data["program"])
-
             data = self._probe_git(data)
 
         if self.settings.anonymous != "true":
