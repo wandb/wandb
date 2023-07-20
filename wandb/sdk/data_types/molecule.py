@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Type, Union
 
 from wandb import util
 from wandb.sdk.lib import runid
+from wandb.sdk.lib.paths import LogicalPath
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -14,7 +15,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
     import rdkit.Chem  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
     RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
@@ -203,7 +205,7 @@ class Molecule(BatchableMedia):
     def get_media_subdir(cls: Type["Molecule"]) -> str:
         return os.path.join("media", "molecule")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         if self._caption:
@@ -223,7 +225,7 @@ class Molecule(BatchableMedia):
         jsons = [obj.to_json(run) for obj in seq]
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            expected = LogicalPath(cls.get_media_subdir())
             if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Molecule's must be in the {} directory, not {}".format(

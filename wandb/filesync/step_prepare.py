@@ -8,6 +8,7 @@ import time
 from typing import (
     TYPE_CHECKING,
     Callable,
+    Dict,
     List,
     Mapping,
     NamedTuple,
@@ -39,9 +40,12 @@ class RequestFinish(NamedTuple):
 
 
 class ResponsePrepare(NamedTuple):
+    birth_artifact_id: str
     upload_url: Optional[str]
     upload_headers: Sequence[str]
-    birth_artifact_id: str
+    upload_id: Optional[str]
+    storage_path: Optional[str]
+    multipart_upload_urls: Optional[Dict[int, str]]
 
 
 Request = Union[RequestPrepare, RequestFinish]
@@ -58,7 +62,6 @@ def gather_batch(
     max_batch_size: int,
     clock: Callable[[], float] = time.monotonic,
 ) -> Tuple[bool, Sequence[RequestPrepare]]:
-
     batch_start_time = clock()
     remaining_time = batch_time
 
@@ -87,6 +90,21 @@ def gather_batch(
             break
 
     return False, batch
+
+
+def prepare_response(response: "CreateArtifactFilesResponseFile") -> ResponsePrepare:
+    multipart_resp = response.get("uploadMultipartUrls")
+    part_list = multipart_resp["uploadUrlParts"] if multipart_resp else []
+    multipart_parts = {u["partNumber"]: u["uploadUrl"] for u in part_list} or None
+
+    return ResponsePrepare(
+        birth_artifact_id=response["artifact"]["id"],
+        upload_url=response["uploadUrl"],
+        upload_headers=response["uploadHeaders"],
+        upload_id=multipart_resp and multipart_resp.get("uploadID"),
+        storage_path=response.get("storagePath"),
+        multipart_upload_urls=multipart_parts,
+    )
 
 
 class StepPrepare:
@@ -121,18 +139,12 @@ class StepPrepare:
                 max_batch_size=self._max_batch_size,
             )
             if batch:
-                prepare_response = self._prepare_batch(batch)
+                batch_response = self._prepare_batch(batch)
                 # send responses
                 for prepare_request in batch:
                     name = prepare_request.file_spec["name"]
-                    response_file = prepare_response[name]
-                    upload_url = response_file["uploadUrl"]
-                    upload_headers = response_file["uploadHeaders"]
-                    birth_artifact_id = response_file["artifact"]["id"]
-
-                    response = ResponsePrepare(
-                        upload_url, upload_headers, birth_artifact_id
-                    )
+                    response_file = batch_response[name]
+                    response = prepare_response(response_file)
                     if isinstance(prepare_request.response_channel, queue.Queue):
                         prepare_request.response_channel.put(response)
                     else:

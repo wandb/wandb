@@ -59,6 +59,8 @@ def mock_create_artifact_files_result(
             "name": name,
             "displayName": f"file-displayname-{name}",
             "uploadUrl": f"http://wandb-test/upload-url-{name}",
+            "storagePath": "wandb_artifact/123456789",
+            "uploadMultipartUrls": None,
             "uploadHeaders": ["x-my-header-key:my-header-val"],
             "artifact": {
                 "id": f"artifact-id-{name}",
@@ -196,7 +198,6 @@ class TestGatherBatch:
         assert q.get.call_count == 2
 
     def test_respects_batch_time(self):
-
         clock = MockClock()
         q = MockRequestQueue(
             clock=clock,
@@ -220,7 +221,6 @@ class TestGatherBatch:
         assert len(batch) == 3
 
     def test_respects_inter_event_time(self):
-
         clock = MockClock()
         q = MockRequestQueue(
             clock=clock,
@@ -358,10 +358,19 @@ class TestStepPrepare:
         res = prepare(step_prepare, simple_file_spec(name="foo")).result()
         step_prepare.finish()
 
+        upload_id = (
+            caf_result["foo"]["uploadMultipartUrls"]["uploadID"]
+            if caf_result["foo"]["uploadMultipartUrls"]
+            else None
+        )
+
         assert res == ResponsePrepare(
+            birth_artifact_id=caf_result["foo"]["artifact"]["id"],
             upload_url=caf_result["foo"]["uploadUrl"],
             upload_headers=caf_result["foo"]["uploadHeaders"],
-            birth_artifact_id=caf_result["foo"]["artifact"]["id"],
+            upload_id=upload_id,
+            storage_path=caf_result["foo"]["storagePath"],
+            multipart_upload_urls=caf_result["foo"]["uploadMultipartUrls"],
         )
 
     def test_batches_requests(self, prepare: "PrepareFixture"):

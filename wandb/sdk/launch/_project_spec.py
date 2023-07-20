@@ -7,18 +7,21 @@ import json
 import logging
 import os
 import tempfile
-from shlex import quote
-from typing import Any, Dict, List, Optional
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
-from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
+from wandb.sdk.launch import utils
 from wandb.sdk.lib.runid import generate_id
 
-from . import utils
-from .utils import LOG_PREFIX, LaunchError
+from .errors import LaunchError
+from .utils import LOG_PREFIX, recursive_macro_sub
+
+if TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact import Artifact
 
 _logger = logging.getLogger(__name__)
 
@@ -60,6 +63,7 @@ class LaunchProject:
         resource: str,
         resource_args: Dict[str, Any],
         run_id: Optional[str],
+        sweep_id: Optional[str] = None,
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -68,7 +72,7 @@ class LaunchProject:
         self.job = job
         if job is not None:
             wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
-        self._job_artifact: Optional[PublicArtifact] = None
+        self._job_artifact: Optional["Artifact"] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
@@ -77,13 +81,15 @@ class LaunchProject:
         # the builder key can be passed in through the resource args
         # but these resource_args are then passed to the appropriate
         # runner, so we need to pop the builder key out
-        resource_args_build = resource_args.get(resource, {}).pop("builder", {})
+        resource_args_copy = deepcopy(resource_args)
+        resource_args_build = resource_args_copy.get(resource, {}).pop("builder", {})
         self.resource = resource
-        self.resource_args = resource_args
+        self.resource_args = resource_args_copy
+        self.sweep_id = sweep_id
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda_base_image: Optional[str] = resource_args_build.get("cuda", {}).get(
-            "base_image"
-        )
+        self.accelerator_base_image: Optional[str] = resource_args_build.get(
+            "accelerator", {}
+        ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
         self._base_image: Optional[str] = launch_spec.get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
@@ -95,7 +101,7 @@ class LaunchProject:
         self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
-        self.override_args: Dict[str, Any] = overrides.get("args", {})
+        self.override_args: List[str] = overrides.get("args", [])
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.override_entrypoint: Optional[EntryPoint] = None
@@ -111,6 +117,9 @@ class LaunchProject:
             self.override_entrypoint = self.add_entry_point(
                 overrides.get("entry_point")  # type: ignore
             )
+        if overrides.get("sweep_id") is not None:
+            _logger.info("Adding override sweep id")
+            self.sweep_id = overrides["sweep_id"]
         if self.docker_image is not None:
             self.source = LaunchSource.DOCKER
             self.project_dir = None
@@ -143,7 +152,6 @@ class LaunchProject:
             self.project_dir = self.uri
 
         self.aux_dir = tempfile.mkdtemp()
-        self.clear_parameter_run_config_collisions()
 
     @property
     def base_image(self) -> str:
@@ -174,6 +182,43 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
+    def fill_macros(self, image: str) -> None:
+        """Substitute values for macros in resource arguments.
+
+        Certain macros can be used in resource args. These macros allow the
+        user to set resource args dynamically in the context of the
+        run being launched. The macros are given in the ${macro} format. The
+        following macros are currently supported:
+
+        ${project_name} - the name of the project the run is being launched to.
+        ${entity_name} - the owner of the project the run being launched to.
+        ${run_id} - the id of the run being launched.
+        ${run_name} - the name of the run that is launching.
+        ${image_uri} - the URI of the container image for this run.
+
+        Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
+        environment variables that you plan to set in the environment of any
+        agents that will receive these resource args.
+
+        Calling this method will overwrite the contents of self.resource_args
+        with the substituted values.
+
+        Args:
+            image (str): The image name to fill in for ${wandb-image}.
+
+        Returns:
+            None
+        """
+        update_dict = {
+            "project_name": self.target_project,
+            "entity_name": self.target_entity,
+            "run_id": self.run_id,
+            "run_name": self.name,
+            "image_uri": image,
+        }
+        update_dict.update(os.environ)
+        self.resource_args = recursive_macro_sub(self.resource_args, update_dict)
+
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
         # since the image tag for images built from jobs
@@ -192,15 +237,6 @@ class LaunchProject:
     def docker_image(self, value: str) -> None:
         self._docker_image = value
         self._ensure_not_docker_image_and_local_process()
-
-    def clear_parameter_run_config_collisions(self) -> None:
-        """Clear values from the override run config values if a matching key exists in the override arguments."""
-        if not self.override_config:
-            return
-        keys = [key for key in self.override_config.keys()]
-        for key in keys:
-            if self.override_args.get(key):
-                del self.override_config[key]
 
     def get_single_entry_point(self) -> Optional["EntryPoint"]:
         """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
@@ -350,9 +386,8 @@ class LaunchProject:
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
                 self.add_entry_point(entry_point)
-            self.override_args = utils.merge_parameters(
-                self.override_args, run_info["args"]
-            )
+            if not self.override_args:
+                self.override_args = run_info["args"]
         else:
             assert utils._GIT_URI_REGEX.match(self.uri), (
                 "Non-wandb URI %s should be a Git URI" % self.uri
@@ -376,30 +411,16 @@ class EntryPoint:
         self.name = name
         self.command = command
 
-    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> List[str]:
+    def compute_command(self, user_parameters: Optional[List[str]]) -> List[str]:
         """Converts user parameter dictionary to a string."""
-        command_arr = []
-        command_arr += self.command
-        extras = compute_command_args(user_parameters)
-        command_arr += extras
-        return command_arr
-
-
-def compute_command_args(parameters: Optional[Dict[str, Any]]) -> List[str]:
-    arr: List[str] = []
-    if parameters is None:
-        return arr
-    for key, value in parameters.items():
-        if value is not None:
-            arr.append(f"--{key}")
-            arr.append(quote(str(value)))
-        else:
-            arr.append(f"--{key}")
-    return arr
+        ret = self.command
+        if user_parameters:
+            ret += user_parameters
+        return ret
 
 
 def get_entry_point_command(
-    entry_point: Optional["EntryPoint"], parameters: Dict[str, Any]
+    entry_point: Optional["EntryPoint"], parameters: List[str]
 ) -> List[str]:
     """Returns the shell command to execute in order to run the specified entry point.
 
@@ -442,6 +463,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("resource", None),
         launch_spec.get("resource_args", {}),
         launch_spec.get("run_id", None),
+        launch_spec.get("sweep_id", {}),
     )
 
 
@@ -472,8 +494,8 @@ def fetch_and_validate_project(
         launch_project._fetch_project_local(internal_api=api)
 
     assert launch_project.project_dir is not None
-    # this prioritizes pip, and we don't support any cases where both are present
-    # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
+    # this prioritizes pip, and we don't support any cases where both are present conda projects when uploaded to
+    # wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.txt")
     ) or os.path.exists(

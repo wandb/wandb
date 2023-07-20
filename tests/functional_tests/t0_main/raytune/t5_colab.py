@@ -18,7 +18,6 @@ from ray.tune.integration.wandb import WandbLogger, wandb_mixin
 
 @wandb_mixin
 def train_mnist(config):
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_loader, test_loader = get_data_loaders()
 
@@ -55,6 +54,8 @@ def run():
         train_mnist,
         loggers=[WandbLogger],
         resources_per_trial={"gpu": 0},
+        time_budget_s=5 * 60,
+        max_concurrent_trials=1,
         config={
             # wandb dict accepts all arguments that can be passed in wandb.init()
             "wandb": wandb_init,

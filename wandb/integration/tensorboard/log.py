@@ -9,7 +9,7 @@ from wandb.sdk.lib import telemetry
 from wandb.viz import custom_chart
 
 if TYPE_CHECKING:
-    import numpy as np  # type: ignore
+    import numpy as np
 
     from wandb.sdk.internal.tb_watcher import TBHistory
 
@@ -42,7 +42,7 @@ def make_ndarray(tensor: Any) -> Optional["np.ndarray"]:
         if res.dtype == "object":
             return None
         else:
-            return res
+            return res  # type: ignore
     else:
         wandb.termwarn(
             "Can't convert tensor summary, upgrade tensorboard with `pip"
@@ -167,7 +167,7 @@ def tf_summary_to_dict(  # noqa: C901
                     try:
                         # TODO: we should just re-bin if there are too many buckets
                         values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
-                            np_histogram=(counts, bins)
+                            np_histogram=(counts, bins)  # type: ignore
                         )
                     except ValueError:
                         wandb.termwarn(
@@ -238,7 +238,7 @@ def tf_summary_to_dict(  # noqa: C901
                 )
                 try:
                     # TODO: we should just re-bin if there are too many buckets
-                    values[tag] = wandb.Histogram(np_histogram=np_histogram)
+                    values[tag] = wandb.Histogram(np_histogram=np_histogram)  # type: ignore
                 except ValueError:
                     wandb.termwarn(
                         f"Not logging key {tag!r}. "

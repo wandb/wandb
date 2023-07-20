@@ -7,7 +7,7 @@ import os
 import pathlib
 import sys
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type, Union
 from urllib.parse import quote
 
 if sys.version_info >= (3, 8):
@@ -32,12 +32,20 @@ SENTRY_DEFAULT_DSN = (
 SessionStatus = Literal["ok", "exited", "crashed", "abnormal"]
 
 
-def _noop_if_disabled(func: Callable) -> Callable:
+def _safe_noop(func: Callable) -> Callable:
+    """Decorator to ensure that Sentry methods do nothing if disabled and don't raise."""
+
     @functools.wraps(func)
     def wrapper(self: Type["Sentry"], *args: Any, **kwargs: Any) -> Any:
         if self._disabled:
             return None
-        return func(self, *args, **kwargs)
+        try:
+            return func(self, *args, **kwargs)
+        except Exception as e:
+            # do not call self.exception here to avoid infinite recursion
+            if func.__name__ != "exception":
+                self.exception(f"Error in {func.__name__}: {e}")
+            return None
 
     return wrapper
 
@@ -65,7 +73,7 @@ class Sentry:
         # these match the environments for gorilla
         return "development" if is_git else "production"
 
-    @_noop_if_disabled
+    @_safe_noop
     def setup(self) -> None:
         """Setup Sentry SDK.
 
@@ -81,7 +89,7 @@ class Sentry:
         )
         self.hub = sentry_sdk.Hub(client)
 
-    @_noop_if_disabled
+    @_safe_noop
     def message(self, message: str, repeat: bool = True) -> None:
         """Send a message to Sentry."""
         if not repeat and message in self._sent_messages:
@@ -89,7 +97,7 @@ class Sentry:
         self._sent_messages.add(message)
         self.hub.capture_message(message)  # type: ignore
 
-    @_noop_if_disabled
+    @_safe_noop
     def exception(
         self,
         exc: Union[
@@ -145,7 +153,7 @@ class Sentry:
         # but hopefully it's not too bad
         raise exc.with_traceback(sys.exc_info()[2])
 
-    @_noop_if_disabled
+    @_safe_noop
     def start_session(self) -> None:
         """Start a new session."""
         assert self.hub is not None
@@ -157,7 +165,7 @@ class Sentry:
         if session is None:
             self.hub.start_session()
 
-    @_noop_if_disabled
+    @_safe_noop
     def end_session(self) -> None:
         """End the current session."""
         assert self.hub is not None
@@ -169,7 +177,7 @@ class Sentry:
             self.hub.end_session()
             client.flush()
 
-    @_noop_if_disabled
+    @_safe_noop
     def mark_session(self, status: Optional["SessionStatus"] = None) -> None:
         """Mark the current session with a status."""
         assert self.hub is not None
@@ -179,15 +187,10 @@ class Sentry:
         if session is not None:
             session.update(status=status)
 
-    @_noop_if_disabled
+    @_safe_noop
     def configure_scope(
         self,
-        settings: Optional[
-            Union[
-                "wandb.sdk.wandb_settings.Settings",
-                "wandb.sdk.internal.settings_static.SettingsStatic",
-            ]
-        ] = None,
+        tags: Optional[Dict[str, Any]] = None,
         process_context: Optional[str] = None,
     ) -> None:
         """Configure the Sentry scope for the current thread.
@@ -207,6 +210,7 @@ class Sentry:
             "sweep_id",
             "deployment",
             "_disable_service",
+            "_require_nexus",
             "launch",
         )
 
@@ -218,40 +222,44 @@ class Sentry:
                 scope.set_tag("process_context", process_context)
 
             # apply settings tags
-            if settings is None:
+            if tags is None:
                 return None
 
             for tag in settings_tags:
-                val = settings[tag]
+                val = tags.get(tag, None)
                 if val not in (None, ""):
                     scope.set_tag(tag, val)
 
-            # todo: update once #4982 is merged
-            python_runtime = (
-                "colab"
-                if settings["_colab"]
-                else ("jupyter" if settings["_jupyter"] else "python")
-            )
+            if tags.get("_colab", None):
+                python_runtime = "colab"
+            elif tags.get("_jupyter", None):
+                python_runtime = "jupyter"
+            elif tags.get("_ipython", None):
+                python_runtime = "ipython"
+            else:
+                python_runtime = "python"
             scope.set_tag("python_runtime", python_runtime)
 
-            # Hack for constructing run_url and sweep_url given run_id and sweep_id
-            required = ("entity", "project", "base_url")
-            params = {key: settings[key] for key in required}
-            if all(params.values()):
-                # here we're guaranteed that entity, project, base_url all have valid values
-                app_url = wandb.util.app_url(params["base_url"])
-                ent, proj = (quote(params[k]) for k in ("entity", "project"))
+            # Construct run_url and sweep_url given run_id and sweep_id
+            for obj in ("run", "sweep"):
+                obj_id, obj_url = f"{obj}_id", f"{obj}_url"
+                if tags.get(obj_url, None):
+                    continue
 
-                # TODO: the settings object will be updated to contain run_url and sweep_url
-                # This is done by passing a settings_map in the run_start protocol buffer message
-                for word in ("run", "sweep"):
-                    _url, _id = f"{word}_url", f"{word}_id"
-                    if not settings[_url] and settings[_id]:
-                        scope.set_tag(
-                            _url, f"{app_url}/{ent}/{proj}/{word}s/{settings[_id]}"
-                        )
+                try:
+                    app_url = wandb.util.app_url(tags["base_url"])  # type: ignore
+                    entity, project = (quote(tags[k]) for k in ("entity", "project"))  # type: ignore
+                    scope.set_tag(
+                        obj_url,
+                        f"{app_url}/{entity}/{project}/{obj}s/{tags[obj_id]}",
+                    )
+                except Exception:
+                    pass
 
-            if hasattr(settings, "email"):
-                scope.user = {"email": settings.email}  # noqa
+            email = tags.get("email")
+            if email:
+                scope.user = {"email": email}  # noqa
+
+        # todo: add back the option to pass general tags see: c645f625d1c1a3db4a6b0e2aa8e924fee101904c (wandb/util.py)
 
         self.start_session()

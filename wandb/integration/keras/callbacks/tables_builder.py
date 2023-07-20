@@ -174,7 +174,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         data to the table row or column wise.
 
         Args:
-            column_names (list): Column names for W&B Tables.
+            column_names: (list) Column names for W&B Tables.
         """
         self.data_table = wandb.Table(columns=column_names, allow_mixed_types=True)
 
@@ -185,7 +185,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         data to the table row or column wise.
 
         Args:
-            column_names (list): Column names for W&B Tables.
+            column_names: (list) Column names for W&B Tables.
         """
         self.pred_table = wandb.Table(columns=column_names)
 
@@ -198,12 +198,12 @@ class WandbEvalCallback(Callback, abc.ABC):
         (images, text, scalar, etc.) without re-uploading.
 
         Args:
-            name (str):  A human-readable name for this artifact, which is how you can
+            name: (str) A human-readable name for this artifact, which is how you can
                 identify this artifact in the UI or reference it in use_artifact calls.
                 (default is 'val')
-            type (str): The type of the artifact, which is used to organize and
+            type: (str) The type of the artifact, which is used to organize and
                 differentiate artifacts. (default is 'dataset')
-            table_name (str): The name of the table as will be displayed in the UI.
+            table_name: (str) The name of the table as will be displayed in the UI.
                 (default is 'val_data').
         """
         data_artifact = wandb.Artifact(name, type=type)
@@ -229,11 +229,11 @@ class WandbEvalCallback(Callback, abc.ABC):
         to compare models at different intervals interactively.
 
         Args:
-            type (str): The type of the artifact, which is used to organize and
+            type: (str) The type of the artifact, which is used to organize and
                 differentiate artifacts. (default is 'evaluation')
-            table_name (str): The name of the table as will be displayed in the UI.
+            table_name: (str) The name of the table as will be displayed in the UI.
                 (default is 'eval_data')
-            aliases (List[str]): List of aliases for the prediction table.
+            aliases: (List[str]) List of aliases for the prediction table.
         """
         assert wandb.run is not None
         pred_artifact = wandb.Artifact(f"run_{wandb.run.id}_pred", type=type)

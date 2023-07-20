@@ -308,7 +308,6 @@ def test_upgrade_yanked(
             "_find_available",
             lambda current_version: ("0.0.8", False, False, True, ""),
         ):
-
             ret = interface.communicate_check_version()
             assert ret
             assert (
@@ -342,7 +341,6 @@ def test_upgrade_yanked_message(
             "_find_available",
             lambda current_version: ("0.0.8", False, False, True, "just cuz"),
         ):
-
             ret = interface.communicate_check_version()
             assert ret
             assert (
@@ -394,7 +392,6 @@ def test_upgrade_removed(
 
 
 def test_sender_upsert_run(internal_sm, test_settings, mock_run):
-
     run = mock_run(use_magic_mock=True)
     run_proto = InterfaceBase()._make_run(run)
     record = pb.Record(run=run_proto)

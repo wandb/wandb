@@ -82,7 +82,6 @@ class FlowControl:
         _threshold_bytes_mid: int = 0,
         _threshold_bytes_low: int = 0,
     ) -> None:
-
         # thresholds to define when to PAUSE, RESTART, FORWARDING
         if (
             _threshold_bytes_high == 0

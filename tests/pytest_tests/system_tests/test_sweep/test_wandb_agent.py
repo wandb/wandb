@@ -3,7 +3,11 @@ import os
 from unittest import mock
 
 import pytest
-from wandb.wandb_agent import Agent, _create_sweep_command_args
+from wandb.sdk.launch.sweeps.utils import (
+    create_sweep_command,
+    create_sweep_command_args,
+)
+from wandb.wandb_agent import Agent
 
 
 def test_agent_create_command_args():
@@ -11,7 +15,7 @@ def test_agent_create_command_args():
         "args": {"a": {"value": True}, "b": {"value": False}, "c": {"value": 1}}
     }
 
-    _return = _create_sweep_command_args(mock_command)
+    _return = create_sweep_command_args(mock_command)
     # test has all the required fields
     assert "args" in _return
     assert "args_no_hyphens" in _return
@@ -27,10 +31,10 @@ def test_agent_create_command_args():
 def test_agent_create_command_args_bad_command():
     mock_command_no_args = {"foo": None}
     with pytest.raises(ValueError):
-        _ = _create_sweep_command_args(mock_command_no_args)
+        _ = create_sweep_command_args(mock_command_no_args)
     mock_command_missing_value = {"args": {"a": {"foo": True}}}
     with pytest.raises(ValueError):
-        _ = _create_sweep_command_args(mock_command_missing_value)
+        _ = create_sweep_command_args(mock_command_missing_value)
 
 
 @mock.patch.dict(
@@ -43,11 +47,11 @@ def test_agent_create_command_args_bad_command():
 )
 def test_agent_create_sweep_command():
     # Given no command, function should return default
-    _command = Agent._create_sweep_command()
+    _command = create_sweep_command()
     assert _command == Agent.DEFAULT_SWEEP_COMMAND
 
     # Environment variable macros should be replaced in mock command
-    _command = Agent._create_sweep_command(
+    _command = create_sweep_command(
         [
             "${env}",
             "${interpreter}",

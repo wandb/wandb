@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""All of W&B's environment variables
+"""All of W&B's environment variables.
 
 Getters and putters for all of them should go here. That
 way it'll be easier to avoid typos with names and be
@@ -71,6 +71,7 @@ ANONYMOUS = "WANDB_ANONYMOUS"
 JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 DATA_DIR = "WANDB_DATA_DIR"
+ARTIFACT_DIR = "WANDB_ARTIFACT_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
@@ -86,8 +87,10 @@ USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
 
 def immutable_keys() -> List[str]:
-    """These are env keys that shouldn't change within a single process.  We use this to maintain
-    certain values between multiple calls to wandb.init within a single process."""
+    """These are env keys that shouldn't change within a single process.
+
+    We use this to maintain certain values between multiple calls to wandb.init within a single process.
+    """
     return [
         DIR,
         ENTITY,
@@ -116,6 +119,7 @@ def immutable_keys() -> List[str]:
         HTTP_TIMEOUT,
         HOST,
         DATA_DIR,
+        ARTIFACT_DIR,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
         DISABLE_SSL,
@@ -352,6 +356,14 @@ def get_data_dir(env: Optional[Env] = None) -> str:
     if env is None:
         env = os.environ
     val = env.get(DATA_DIR, default_dir)
+    return val
+
+
+def get_artifact_dir(env: Optional[Env] = None) -> str:
+    default_dir = os.path.join(".", "artifacts")
+    if env is None:
+        env = os.environ
+    val = env.get(ARTIFACT_DIR, default_dir)
     return val
 
 

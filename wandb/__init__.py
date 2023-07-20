@@ -11,7 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.14.1.dev1"
+__version__ = "0.15.6.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -188,7 +188,7 @@ def load_ipython_extension(ipython):
     ipython.register_magics(wandb.jupyter.WandBMagics)
 
 
-if wandb_sdk.lib.ipython.in_jupyter():
+if wandb_sdk.lib.ipython.in_notebook():
     from IPython import get_ipython
 
     load_ipython_extension(get_ipython())

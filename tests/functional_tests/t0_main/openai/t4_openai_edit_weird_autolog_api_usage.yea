@@ -1,0 +1,22 @@
+id: 0.llm-openai.05-edit
+plugin:
+  - wandb
+tag:
+  shard: llm
+  skip: true  # todo: fix
+depend:
+  requirements:
+    - "openai>=0.27.4"
+assert:
+    - :wandb:runs_len: 2
+    - :wandb:runs[1][exitcode]: 0
+    - :wandb:runs[1][summary][trace][_type]: wb_trace_tree
+    - :op:contains:
+        - :wandb:runs[1][summary][trace]
+        - root_span_dumps
+    - :op:contains:
+        - :wandb:runs[1][summary][trace]
+        - model_dict_dumps
+    - :op:contains:
+        - :wandb:runs[1][telemetry][3]  # features
+        - 51  # openai autolog

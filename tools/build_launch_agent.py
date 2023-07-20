@@ -14,6 +14,11 @@ RUN apt-get update && apt-get upgrade -y \
     && apt-get -qy autoremove \
     && apt-get clean && rm -r /var/lib/apt/lists/*
 
+# copy reqs and install for docker cache
+COPY ../requirements.txt /src/requirements.txt
+RUN pip install --no-cache-dir -r /src/requirements.txt
+RUN pip install awscli nbconvert nbformat chardet iso8601 typing_extensions boto3 botocore google-auth google-cloud-compute google-cloud-storage google-cloud-artifact-registry kubernetes
+
 
 # Copy source code and install
 COPY .. /src
@@ -42,6 +47,9 @@ def parse_args():
         help="Push image after creation. This requires that you enter a tag that includes a registry via --tag",
     )
     parser.add_argument("--tag", default="wandb-launch-agent", help="Tag for the image")
+    parser.add_argument(
+        "--platform", default="linux/amd64", help="Platform to use, e.g. 'linux/amd64'"
+    )
     return parser.parse_args()
 
 
@@ -59,6 +67,7 @@ def main():
         tags=[args.tag],
         file=dockerfile_path,
         context_path=build_context,
+        platform=args.platform,
     )
     if args.push:
         image, tag = args.tag.split(":")

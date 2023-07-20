@@ -1,11 +1,12 @@
 pytest
 hypothesis
+pyfakefs
+hypothesis-fspaths
 coverage
 Pillow
 pandas
 matplotlib!=3.5.2
-soundfile; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
-git+https://github.com/bastibe/python-soundfile@0.11.0b3#egg=soundfile; sys_platform == 'darwin' and platform.machine == 'arm64'
+soundfile
 boto3
 google-cloud-storage
 google-cloud-aiplatform
@@ -13,12 +14,13 @@ kubernetes
 moviepy
 imageio
 ipython
+ipython<8.13; python_version < '3.9'
 ipykernel
 nbclient
 scikit-learn
 tensorflow>=1.15.2; sys_platform != 'darwin'
 tensorflow>=1.15.2; python_version > '3.6' and sys_platform == 'darwin' and platform.machine != 'arm64'
-tensorflow-macos; python_version > '3.6' and python_version < '3.10' and sys_platform == 'darwin' and platform.machine == 'arm64'
+tensorflow-macos; python_version > '3.7' and python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 torch
 torchvision
 plotly
@@ -39,6 +41,7 @@ httpx>=0.22.0  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 respx>=0.20.0  # 0.21.0 dropped Python 3.6; we can upgrade once we drop it too
 pytest-benchmark
 prometheus_client
+orjson
 
 # TODO: fix extra dependencies
 #   We need to improve how we do requirements_dev as specifying .[extra] creates
@@ -59,6 +62,7 @@ google-cloud-storage
 google-cloud-compute
 google-cloud-artifact-registry
 kubernetes
+PyYAML==5.3.1; python_version > '3.9'  # https://github.com/yaml/pyyaml/issues/723
 awscli
 # ^^^^^^^^^^ - above are for extra launch
 # .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
@@ -68,10 +72,12 @@ sweeps>=0.2.0; sys_platform != 'darwin' or (sys_platform == 'darwin' and platfor
 # .[azure]
 # vvvvvvvvvv - below are for extra azure
 azure-storage-blob
+azure-identity
+azure-containerregistry
 # ^^^^^^^^^^ - above are for extra azure
 
 cloudpickle
 responses
-kfp
+kfp<2.0.0
 
 mlflow

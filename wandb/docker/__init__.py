@@ -82,8 +82,12 @@ def is_buildx_installed() -> bool:
     return _buildx_installed
 
 
-def build(tags: List[str], file: str, context_path: str) -> str:
+def build(
+    tags: List[str], file: str, context_path: str, platform: Optional[str] = None
+) -> str:
     command = ["buildx", "build"] if is_buildx_installed() else ["build"]
+    if platform:
+        command += ["--platform", platform]
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
@@ -216,9 +220,7 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
             info = {}
     else:
         log.error(
-            "Received {} when attempting to authenticate with {}".format(
-                response, registry
-            )
+            f"Received {response} when attempting to authenticate with {registry}"
         )
         info = {}
     if info.get("bearer"):

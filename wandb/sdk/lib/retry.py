@@ -160,7 +160,7 @@ class Retry(Generic[_R]):
                     if not start_time_triggered:
                         start_time_triggered = now
 
-                    # make sure that we havent run out of time from secondary trigger
+                    # make sure that we haven't run out of time from secondary trigger
                     if now - start_time_triggered >= retry_timedelta_triggered:
                         raise
 

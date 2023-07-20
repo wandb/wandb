@@ -52,7 +52,10 @@ def mock_sagemaker():
             "TRAINING_JOB_NAME": "sage",
             "CURRENT_HOST": "maker",
         },
-    ), unittest.mock.patch("wandb.util.os.path.exists", exists,), unittest.mock.patch(
+    ), unittest.mock.patch(
+        "wandb.util.os.path.exists",
+        exists,
+    ), unittest.mock.patch(
         "builtins.open",
         magic_factory(open),
         create=True,

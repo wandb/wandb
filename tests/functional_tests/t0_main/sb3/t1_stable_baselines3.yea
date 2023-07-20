@@ -6,9 +6,7 @@ tag:
     - platform: win
 depend:
   requirements:
-    - setuptools==65.5.0 # 20230202: issue with later versions of setuptools cause install errors
-    - importlib-metadata<5.0  # 20221003: sb3 needs to fix this on their side
-    - stable-baselines3
+    - --pre stable-baselines3
     - tensorboard
 assert:
   - :wandb:runs_len: 1
