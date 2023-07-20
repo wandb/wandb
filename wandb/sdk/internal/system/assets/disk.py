@@ -40,6 +40,50 @@ class DiskUsage:
         return {self.name: aggregate}
 
 
+class DiskIn:
+    """Total system disk In."""
+
+    name = "disk"
+    samples: "Deque[float]"
+
+    def __init__(self) -> None:
+        self.samples = deque([])
+
+    def sample(self) -> None:
+        self.samples.append(psutil.disk_io_counters().read_count)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        if not self.samples:
+            return {}
+        aggregate = aggregate_mean(self.samples)
+        return {self.name: aggregate}
+
+
+class DiskOut:
+    """Total system disk Out."""
+
+    name = "disk"
+    samples: "Deque[float]"
+
+    def __init__(self) -> None:
+        self.samples = deque([])
+
+    def sample(self) -> None:
+        self.samples.append(psutil.disk_io_counters().write_count)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        if not self.samples:
+            return {}
+        aggregate = aggregate_mean(self.samples)
+        return {self.name: aggregate}
+
+
 @asset_registry.register
 class Disk:
     def __init__(
@@ -49,7 +93,7 @@ class Disk:
         shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        self.metrics: List[Metric] = [DiskUsage()]
+        self.metrics: List[Metric] = [DiskUsage(), DiskIn(), DiskOut()]
         self.metrics_monitor = MetricsMonitor(
             self.name,
             self.metrics,
@@ -68,7 +112,21 @@ class Disk:
         total = psutil.disk_usage("/").total / 1024 / 1024 / 1024
         # total disk space used:
         used = psutil.disk_usage("/").used / 1024 / 1024 / 1024
-        return {self.name: {"total": total, "used": used}}
+
+        # total disk in - number of read i/o operations on all disks
+        disk_in = psutil.disk_io_counters().read_count
+
+        # total disk in - number of read i/o operations on all disks
+        disk_out = psutil.disk_io_counters().write_count
+
+        return {
+            self.name: {
+                "total": total,
+                "used": used,
+                "disk i": disk_in,
+                "disk o": disk_out,
+            }
+        }
 
     def start(self) -> None:
         self.metrics_monitor.start()
