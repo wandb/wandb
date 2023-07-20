@@ -170,7 +170,6 @@ class SystemInfo:
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Add git information to data dict."""
         if self.settings.disable_git:
             return data
 
@@ -209,6 +208,7 @@ class SystemInfo:
         data["cuda"] = self.settings._cuda
         data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
+
         if self.settings.program is not None:
             data["program"] = self.settings.program
             # Used during artifact-job creation, always points to the relpath
@@ -230,6 +230,7 @@ class SystemInfo:
                     else:
                         data["program"] = self.settings._jupyter_path
                         data["root"] = self.settings._jupyter_root
+            # get the git repo info
             data = self._probe_git(data)
 
         if self.settings.anonymous != "true":
