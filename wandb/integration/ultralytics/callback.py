@@ -334,6 +334,7 @@ class WandBUltralyticsCallback:
             wandb.log({"Validation-Table": self.validation_table})
 
     def on_predict_end(self, predictor: PREDICTOR_TYPE):
+        wandb.config.prediction_configs = vars(predictor.args)
         if self.task in self.supported_tasks:
             for result in tqdm(predictor.results):
                 if self.task == "pose":
