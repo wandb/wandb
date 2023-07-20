@@ -3,8 +3,8 @@ from typing import Optional
 import numpy as np
 
 import wandb
-from ultralytics.yolo.engine.results import Results
-from ultralytics.yolo.v8.classify.predict import ClassificationPredictor
+from ultralytics.engine.results import Results
+from ultralytics.models.yolo.classify import ClassificationPredictor
 
 
 def plot_classification_predictions(

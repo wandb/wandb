@@ -11,21 +11,25 @@ import torch
 from tqdm.auto import tqdm
 
 try:
-    from ultralytics.yolo.engine.model import TASK_MAP, YOLO
+    from ultralytics.engine.model import TASK_MAP, YOLO
+    from ultralytics.models.yolo.classify import (
+        ClassificationPredictor,
+        ClassificationTrainer,
+        ClassificationValidator,
+    )
+    from ultralytics.models.yolo.detect import (
+        DetectionPredictor,
+        DetectionTrainer,
+        DetectionValidator,
+    )
+    from ultralytics.models.yolo.pose import PosePredictor, PoseTrainer, PoseValidator
+    from ultralytics.models.yolo.segment import (
+        SegmentationPredictor,
+        SegmentationTrainer,
+        SegmentationValidator,
+    )
+    from ultralytics.utils.torch_utils import de_parallel
     from ultralytics.yolo.utils import RANK, __version__
-    from ultralytics.yolo.utils.torch_utils import de_parallel
-    from ultralytics.yolo.v8.classify.predict import ClassificationPredictor
-    from ultralytics.yolo.v8.classify.train import ClassificationTrainer
-    from ultralytics.yolo.v8.classify.val import ClassificationValidator
-    from ultralytics.yolo.v8.detect.predict import DetectionPredictor
-    from ultralytics.yolo.v8.detect.train import DetectionTrainer
-    from ultralytics.yolo.v8.detect.val import DetectionValidator
-    from ultralytics.yolo.v8.pose.predict import PosePredictor
-    from ultralytics.yolo.v8.pose.train import PoseTrainer
-    from ultralytics.yolo.v8.pose.val import PoseValidator
-    from ultralytics.yolo.v8.segment.predict import SegmentationPredictor
-    from ultralytics.yolo.v8.segment.train import SegmentationTrainer
-    from ultralytics.yolo.v8.segment.val import SegmentationValidator
 except ImportError as e:
     print(e)
 

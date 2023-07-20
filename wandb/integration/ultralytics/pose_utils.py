@@ -4,9 +4,9 @@ import numpy as np
 from PIL import Image
 
 import wandb
-from ultralytics.yolo.engine.results import Results
-from ultralytics.yolo.utils.plotting import Annotator
-from ultralytics.yolo.v8.pose.predict import PosePredictor
+from ultralytics.engine.results import Results
+from ultralytics.models.yolo.pose import PosePredictor
+from ultralytics.utils.plotting import Annotator
 
 from .bbox_utils import get_boxes, get_ground_truth_bbox_annotations
 

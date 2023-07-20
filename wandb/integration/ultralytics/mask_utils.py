@@ -3,9 +3,9 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 
 import wandb
-from ultralytics.yolo.engine.results import Results
-from ultralytics.yolo.utils.ops import scale_image
-from ultralytics.yolo.v8.segment import SegmentationPredictor
+from ultralytics.engine.results import Results
+from ultralytics.models.yolo.segment import SegmentationPredictor
+from ultralytics.utils.ops import scale_image
 
 from .bbox_utils import get_ground_truth_bbox_annotations, get_mean_confidence_map
 
