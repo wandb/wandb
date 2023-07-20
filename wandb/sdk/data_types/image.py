@@ -158,8 +158,6 @@ class Image(BatchableMedia):
             else:
                 self._initialize_from_path(data_or_path)
         else:
-            if isinstance(data_or_path, torch.uint8): # Fix uint8
-                data_or_path = data_or_path.to(torch.float)
             self._initialize_from_data(data_or_path, mode)
 
         self._set_initialization_meta(grouping, caption, classes, boxes, masks)
@@ -284,6 +282,8 @@ class Image(BatchableMedia):
         elif isinstance(data, pil_image.Image):
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
+            if str(data.dtype) == "torch.uint8":
+                data = data.to(float)
             vis_util = util.get_module(
                 "torchvision.utils", "torchvision is required to render images"
             )
