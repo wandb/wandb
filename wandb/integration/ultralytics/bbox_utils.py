@@ -116,13 +116,14 @@ def get_boxes(result: Results) -> Tuple[Dict, Dict]:
 
 
 def plot_predictions(
-    result: Results, table: Optional[wandb.Table] = None
+    result: Results, model_name: str, table: Optional[wandb.Table] = None
 ) -> Union[wandb.Table, Tuple[wandb.Image, Dict, Dict]]:
     result = result.to("cpu")
     boxes, mean_confidence_map = get_boxes(result)
     image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes)
     if table is not None:
         table.add_data(
+            model_name,
             image,
             len(boxes["predictions"]["box_data"]),
             mean_confidence_map,
@@ -135,6 +136,7 @@ def plot_predictions(
 def plot_validation_results(
     dataloader,
     class_label_map,
+    model_name: str,
     predictor: DetectionPredictor,
     table: wandb.Table,
     max_validation_batches: int,
@@ -145,7 +147,7 @@ def plot_validation_results(
         for img_idx, image_path in enumerate(batch["im_file"]):
             prediction_result = predictor(image_path)[0]
             _, prediction_box_data, mean_confidence_map = plot_predictions(
-                prediction_result
+                prediction_result, model_name
             )
             try:
                 ground_truth_data = get_ground_truth_bbox_annotations(
@@ -172,6 +174,7 @@ def plot_validation_results(
                     prediction_result.speed,
                 ]
                 table_rows = [epoch] + table_rows if epoch is not None else table_rows
+                table_rows = [model_name] + table_rows
                 table.add_data(*table_rows)
                 data_idx += 1
             except TypeError:

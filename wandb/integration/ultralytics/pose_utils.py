@@ -27,7 +27,10 @@ def annotate_keypoint_batch(image_path: str, keypoints: Any, visualize_skeleton:
 
 
 def plot_pose_predictions(
-    result: Results, visualize_skeleton: bool, table: Optional[wandb.Table] = None
+    result: Results,
+    model_name: str,
+    visualize_skeleton: bool,
+    table: Optional[wandb.Table] = None,
 ):
     result = result.to("cpu")
     boxes, mean_confidence_map = get_boxes(result)
@@ -35,6 +38,7 @@ def plot_pose_predictions(
         annotate_keypoint_results(result, visualize_skeleton), boxes=boxes
     )
     table_row = [
+        model_name,
         prediction_image,
         len(boxes["predictions"]["box_data"]),
         mean_confidence_map,
@@ -49,6 +53,7 @@ def plot_pose_predictions(
 def plot_pose_validation_results(
     dataloader,
     class_label_map,
+    model_name: str,
     predictor: PosePredictor,
     visualize_skeleton: bool,
     table: wandb.Table,
@@ -59,7 +64,9 @@ def plot_pose_validation_results(
     for batch_idx, batch in enumerate(dataloader):
         for img_idx, image_path in enumerate(batch["im_file"]):
             prediction_result = predictor(image_path)[0].to("cpu")
-            table_row = plot_pose_predictions(prediction_result, visualize_skeleton)
+            table_row = plot_pose_predictions(
+                prediction_result, model_name, visualize_skeleton
+            )
             ground_truth_image = wandb.Image(
                 annotate_keypoint_batch(
                     image_path, batch["keypoints"][img_idx], visualize_skeleton
@@ -73,8 +80,9 @@ def plot_pose_validation_results(
                     },
                 },
             )
-            table_row = [data_idx, batch_idx, ground_truth_image] + table_row
+            table_row = [data_idx, batch_idx, ground_truth_image] + table_row[1:]
             table_row = [epoch] + table_row if epoch is not None else table_row
+            table_row = [model_name] + table_row
             table.add_data(*table_row)
             data_idx += 1
         if batch_idx + 1 == max_validation_batches:

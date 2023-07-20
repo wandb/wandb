@@ -72,13 +72,14 @@ def get_boxes_and_masks(result: Results) -> Tuple[Dict, Dict, Dict]:
 
 
 def plot_mask_predictions(
-    result: Results, table: Optional[wandb.Table] = None
+    result: Results, model_name: str, table: Optional[wandb.Table] = None
 ) -> Tuple[wandb.Image, Dict, Dict, Dict]:
     result = result.to("cpu")
     boxes, masks, mean_confidence_map = get_boxes_and_masks(result)
     image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes, masks=masks)
     if table is not None:
         table.add_data(
+            model_name,
             image,
             len(boxes["predictions"]["box_data"]),
             mean_confidence_map,
@@ -91,6 +92,7 @@ def plot_mask_predictions(
 def plot_mask_validation_results(
     dataloader,
     class_label_map,
+    model_name: str,
     predictor: SegmentationPredictor,
     table: wandb.Table,
     max_validation_batches: int,
@@ -105,7 +107,7 @@ def plot_mask_validation_results(
                 prediction_mask_data,
                 prediction_box_data,
                 mean_confidence_map,
-            ) = plot_mask_predictions(prediction_result)
+            ) = plot_mask_predictions(prediction_result, model_name)
             try:
                 ground_truth_data = get_ground_truth_bbox_annotations(
                     img_idx, image_path, batch, class_label_map
@@ -129,6 +131,7 @@ def plot_mask_validation_results(
                     prediction_result.speed,
                 ]
                 table_rows = [epoch] + table_rows if epoch is not None else table_rows
+                table_rows = [model_name] + table_rows
                 table.add_data(*table_rows)
                 data_idx += 1
             except TypeError:

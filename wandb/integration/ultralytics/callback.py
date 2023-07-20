@@ -112,9 +112,10 @@ class WandBUltralyticsCallback:
         self.enable_model_checkpointing = enable_model_checkpointing
         self.visualize_skeleton = visualize_skeleton
         self.task = model.task
+        self.model_name = model.overrides["model"].split(".")[0]
         self._make_tables()
         self._make_predictor(model)
-        self.supported_tasks = ["detect", "segment", "pose"]
+        self.supported_tasks = ["detect", "segment", "pose", "classify"]
 
     def _make_tables(self):
         if self.task in ["detect", "segment"]:
@@ -126,10 +127,20 @@ class WandBUltralyticsCallback:
                 "Speed",
             ]
             train_columns = ["Epoch"] + validation_columns
-            self.train_validation_table = wandb.Table(columns=train_columns)
-            self.validation_table = wandb.Table(columns=validation_columns)
+            self.train_validation_table = wandb.Table(
+                columns=["Model-Name"] + train_columns
+            )
+            self.validation_table = wandb.Table(
+                columns=["Model-Name"] + validation_columns
+            )
             self.prediction_table = wandb.Table(
-                columns=["Image", "Num-Objects", "Mean-Confidence", "Speed"]
+                columns=[
+                    "Model-Name",
+                    "Image",
+                    "Num-Objects",
+                    "Mean-Confidence",
+                    "Speed",
+                ]
             )
         elif self.task == "classify":
             classification_columns = [
@@ -144,9 +155,15 @@ class WandBUltralyticsCallback:
             validation_columns = ["Data-Index", "Batch-Index"] + classification_columns
             validation_columns.insert(3, "Ground-Truth-Category")
             train_columns = ["Epoch"] + validation_columns
-            self.train_validation_table = wandb.Table(columns=train_columns)
-            self.validation_table = wandb.Table(columns=validation_columns)
-            self.prediction_table = wandb.Table(columns=classification_columns)
+            self.train_validation_table = wandb.Table(
+                columns=["Model-Name"] + train_columns
+            )
+            self.validation_table = wandb.Table(
+                columns=["Model-Name"] + validation_columns
+            )
+            self.prediction_table = wandb.Table(
+                columns=["Model-Name"] + classification_columns
+            )
         elif self.task == "pose":
             validation_columns = [
                 "Data-Index",
@@ -158,10 +175,15 @@ class WandBUltralyticsCallback:
                 "Speed",
             ]
             train_columns = ["Epoch"] + validation_columns
-            self.train_validation_table = wandb.Table(columns=train_columns)
-            self.validation_table = wandb.Table(columns=validation_columns)
+            self.train_validation_table = wandb.Table(
+                columns=["Model-Name"] + train_columns
+            )
+            self.validation_table = wandb.Table(
+                columns=["Model-Name"] + validation_columns
+            )
             self.prediction_table = wandb.Table(
                 columns=[
+                    "Model-Name",
                     "Image-Prediction",
                     "Num-Instances",
                     "Mean-Confidence",
@@ -214,6 +236,7 @@ class WandBUltralyticsCallback:
                     self.train_validation_table = plot_pose_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
+                        model_name=self.model_name,
                         predictor=self.predictor,
                         visualize_skeleton=self.visualize_skeleton,
                         table=self.train_validation_table,
@@ -224,6 +247,7 @@ class WandBUltralyticsCallback:
                     self.train_validation_table = plot_mask_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
+                        model_name=self.model_name,
                         predictor=self.predictor,
                         table=self.train_validation_table,
                         max_validation_batches=self.max_validation_batches,
@@ -233,6 +257,7 @@ class WandBUltralyticsCallback:
                     self.train_validation_table = plot_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
+                        model_name=self.model_name,
                         predictor=self.predictor,
                         table=self.train_validation_table,
                         max_validation_batches=self.max_validation_batches,
@@ -242,6 +267,7 @@ class WandBUltralyticsCallback:
                     self.train_validation_table = (
                         plot_classification_validation_results(
                             dataloader=dataloader,
+                            model_name=self.model_name,
                             predictor=self.predictor,
                             table=self.train_validation_table,
                             max_validation_batches=self.max_validation_batches,
@@ -269,6 +295,7 @@ class WandBUltralyticsCallback:
                     self.validation_table = plot_pose_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
+                        model_name=self.model_name,
                         predictor=self.predictor,
                         visualize_skeleton=self.visualize_skeleton,
                         table=self.validation_table,
@@ -278,6 +305,7 @@ class WandBUltralyticsCallback:
                     self.validation_table = plot_mask_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
+                        model_name=self.model_name,
                         predictor=self.predictor,
                         table=self.validation_table,
                         max_validation_batches=self.max_validation_batches,
@@ -286,6 +314,7 @@ class WandBUltralyticsCallback:
                     self.validation_table = plot_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
+                        model_name=self.model_name,
                         predictor=self.predictor,
                         table=self.validation_table,
                         max_validation_batches=self.max_validation_batches,
@@ -293,6 +322,7 @@ class WandBUltralyticsCallback:
                 elif self.task == "classify":
                     self.validation_table = plot_classification_validation_results(
                         dataloader=dataloader,
+                        model_name=self.model_name,
                         predictor=self.predictor,
                         table=self.validation_table,
                         max_validation_batches=self.max_validation_batches,
@@ -304,19 +334,22 @@ class WandBUltralyticsCallback:
             for result in tqdm(predictor.results):
                 if self.task == "pose":
                     self.prediction_table = plot_pose_predictions(
-                        result, self.visualize_skeleton, self.prediction_table
+                        result,
+                        self.model_name,
+                        self.visualize_skeleton,
+                        self.prediction_table,
                     )
                 elif self.task == "segment":
                     self.prediction_table = plot_mask_predictions(
-                        result, self.prediction_table
+                        result, self.model_name, self.prediction_table
                     )
                 elif self.task == "detect":
                     self.prediction_table = plot_predictions(
-                        result, self.prediction_table
+                        result, self.model_name, self.prediction_table
                     )
                 elif self.task == "classify":
                     self.prediction_table = plot_classification_predictions(
-                        result, self.prediction_table
+                        result, self.model_name, self.prediction_table
                     )
 
             wandb.log({"Prediction-Table": self.prediction_table})
