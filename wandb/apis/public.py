@@ -4425,6 +4425,24 @@ class ArtifactCollection:
         self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
+    @normalize_exceptions
+    def delete(self):
+        """Delete the entire artifact collection."""
+        mutation = gql(
+            """
+        mutation deleteArtifactSequence($id: ID!) {
+            deleteArtifactSequence(input: {
+                artifactSequenceID: $id
+            }) {
+                artifactCollection {
+                    state
+                }
+            }
+        }
+        """
+        )
+        self.client.execute(mutation, variable_values={"id": [self.id]})
+
     def __repr__(self):
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
