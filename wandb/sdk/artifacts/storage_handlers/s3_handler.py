@@ -75,8 +75,11 @@ class S3Handler(StorageHandler):
         assert self._s3 is not None  # mypy: unwraps optionality
         if self._versioning_enabled is not None:
             return self._versioning_enabled
-        res = self._s3.BucketVersioning(bucket)
-        self._versioning_enabled = res.status == "Enabled"
+        try:
+            res = self._s3.BucketVersioning(bucket)
+            self._versioning_enabled = res.status == "Enabled"
+        except self._botocore.exceptions.ClientError:
+            self._versioning_enabled = False
         return self._versioning_enabled
 
     def load_path(
