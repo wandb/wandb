@@ -57,6 +57,7 @@ from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
@@ -220,6 +221,48 @@ class Artifact:
         # Cache.
         get_artifacts_cache().store_client_artifact(self)
 
+    @staticmethod
+    def _get_artifact_fragment() -> str:
+        api = InternalApi()
+        fields = api.server_create_artifact_introspection()
+        temp = """
+        fragment ArtifactFragment on Artifact {
+            id
+            artifactSequence {
+                project {
+                    entityName
+                    name
+                }
+                name
+            }
+            versionIndex
+            artifactType {
+                name
+            }
+            description
+            metadata
+            ttlDurationSeconds
+            aliases {
+                artifactCollection {
+                    project {
+                        entityName
+                        name
+                    }
+                    name
+                }
+                alias
+            }
+            state
+            commitHash
+            fileCount
+            createdAt
+            updatedAt
+        }
+        """
+        if "ttlDurationSeconds" not in fields:
+            return temp.replace("ttlDurationSeconds", "")
+        return temp
+
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
@@ -242,7 +285,7 @@ class Artifact:
                 }
             }
             """
-            + cls._GQL_FRAGMENT
+            + cls._get_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -274,7 +317,7 @@ class Artifact:
                 }
             }
             """
-            + cls._GQL_FRAGMENT
+            + cls._get_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -924,31 +967,46 @@ class Artifact:
                 for alias in self._aliases
             ]
 
-        mutation = gql(
-            """
-            mutation updateArtifact(
-                $artifactID: ID!,
-                $description: String,
-                $metadata: JSONString,
-                $ttlDurationSeconds: Int64,
-                $aliases: [ArtifactAliasInput!]
+        mutation_template = """
+        mutation updateArtifact(
+            $artifactID: ID!,
+            $description: String,
+            $metadata: JSONString,
+            _TTL_DURATION_SECONDS_TYPE_
+            $aliases: [ArtifactAliasInput!]
+        ) {
+            updateArtifact(
+                input: {
+                    artifactID: $artifactID,
+                    description: $description,
+                    metadata: $metadata,
+                    _TTL_DURATION_SECONDS_VALUE_
+                    aliases: $aliases
+                }
             ) {
-                updateArtifact(
-                    input: {
-                        artifactID: $artifactID,
-                        description: $description,
-                        metadata: $metadata,
-                        ttlDurationSeconds: $ttlDurationSeconds
-                        aliases: $aliases
-                    }
-                ) {
-                    artifact {
-                        id
-                    }
+                artifact {
+                    id
                 }
             }
-            """
-        )
+        }
+        """
+        api = InternalApi()
+        fields = api.server_create_artifact_introspection()
+        if "ttlDurationSeconds" in fields:
+            mutation_template = mutation_template.replace(
+                "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
+            ).replace(
+                "_TTL_DURATION_SECONDS_VALUE_",
+                "ttlDurationSeconds: $ttlDurationSeconds,",
+            )
+        else:
+            mutation_template = mutation_template.replace(
+                "_TTL_DURATION_SECONDS_TYPE_", ""
+            ).replace(
+                "_TTL_DURATION_SECONDS_VALUE_",
+                "",
+            )
+        mutation = gql(mutation_template)
         assert self._client is not None
         self._client.execute(
             mutation,

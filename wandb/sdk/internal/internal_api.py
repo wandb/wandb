@@ -224,10 +224,9 @@ class Api:
 
         # todo: remove this hacky hack after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
-        extra_http_headers = self.settings(
-            "_extra_http_headers"
-        ) or wandb.sdk.wandb_settings._str_as_json(
-            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        extra_http = self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        extra_http_headers = self.settings("_extra_http_headers") or (
+            extra_http if not isinstance(extra_http, str) else json.loads(extra_http)
         )
 
         auth = None
