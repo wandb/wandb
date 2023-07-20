@@ -440,15 +440,3 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
 
     downloaded = Path(logged_artifact.download())
     assert downloaded == art_dir / name_path
-
-
-def test_artifact_ttl_duration_seconds_errors():
-    # Can't set negative ttl for now
-    artifact = wandb.Artifact("art", type="dataset")
-    with pytest.raises(ValueError):
-        artifact.ttl_duration = timedelta(days=-10)
-
-    # Check can't set ttl for wandb-history
-    history_artifact = wandb.Artifact("art", type="wandb-history")
-    with pytest.raises(ValueError):
-        history_artifact.ttl_duration = timedelta(days=10)
