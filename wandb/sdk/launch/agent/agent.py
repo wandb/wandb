@@ -149,6 +149,7 @@ class LaunchAgent:
             self._entity,
             self._project,
             self._queues,
+            self.default_config,
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
