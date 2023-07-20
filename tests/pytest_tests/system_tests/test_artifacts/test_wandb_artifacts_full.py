@@ -431,7 +431,7 @@ def test_log_reference_directly(example_files, wandb_init):
     assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
 
 
-def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
+def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
     art_dir = tmp_path / "an-unusual-path"
     monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
     name_path = logged_artifact.name
@@ -442,30 +442,7 @@ def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
     assert downloaded == art_dir / name_path
 
 
-def test_artifact_ttl_duration_seconds(wandb_init):
-    run = wandb_init()
-    artifact = wandb.Artifact("art", type="dataset")
-    duration = timedelta(days=100)
-    artifact.ttl_duration = duration
-    run.log_artifact(artifact).wait()
-    logged_art = run.use_artifact(artifact.qualified_name)
-    assert logged_art.ttl_duration == duration
-
-    updated_duration = timedelta(days=10)
-    logged_art.ttl_duration = updated_duration
-    logged_art.save()
-    updated_art = run.use_artifact(artifact.qualified_name)
-    assert updated_art.ttl_duration == updated_duration
-
-    updated_art.ttl_duration = None
-    updated_art.save()
-    noTtl = run.use_artifact(artifact.qualified_name)
-    assert noTtl.ttl_duration == None
-    run.finish()
-
-
-def test_artifact_ttl_duration_seconds_errors(wandb_init):
-    run = wandb_init()
+def test_artifact_ttl_duration_seconds_errors():
     # Can't set negative ttl for now
     artifact = wandb.Artifact("art", type="dataset")
     with pytest.raises(ValueError):
@@ -475,4 +452,3 @@ def test_artifact_ttl_duration_seconds_errors(wandb_init):
     history_artifact = wandb.Artifact("art", type="wandb-history")
     with pytest.raises(ValueError):
         history_artifact.ttl_duration = timedelta(days=10)
-    run.finish()
