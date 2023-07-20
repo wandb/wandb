@@ -110,40 +110,6 @@ class Artifact:
     """
 
     _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
-    _GQL_FRAGMENT = """
-      fragment ArtifactFragment on Artifact {
-          id
-          artifactSequence {
-              project {
-                  entityName
-                  name
-              }
-              name
-          }
-          versionIndex
-          artifactType {
-              name
-          }
-          description
-          metadata
-          ttlDurationSeconds
-          aliases {
-              artifactCollection {
-                  project {
-                      entityName
-                      name
-                  }
-                  name
-              }
-              alias
-          }
-          state
-          commitHash
-          fileCount
-          createdAt
-          updatedAt
-      }
-    """
 
     def __init__(
         self,
