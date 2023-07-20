@@ -5,8 +5,9 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
 	"golang.org/x/exp/slog"
+
+	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 type NexusStream struct {
@@ -43,7 +44,7 @@ func (ns *NexusStream) CaptureResult(result *service.Result) {
 		if ns.Run == nil {
 			ns.Run = x.RunResult.GetRun()
 			// ns.printHeader()
-			// fmt.Println("GOT RUN from RESULT", ns.run)
+			// fmt.Println("GOT RUN from RESULT", ns.runRecord)
 		}
 	case *service.Result_ExitResult:
 		// ns.printFooter()

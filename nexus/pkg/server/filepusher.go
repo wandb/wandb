@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
-
 	"golang.org/x/exp/slog"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/hashicorp/go-retryablehttp"
 )
@@ -62,36 +62,29 @@ func NewUploader(ctx context.Context, logger *observability.NexusLogger) *Upload
 
 	uploader := &Uploader{
 		ctx:         ctx,
-		inChan:      make(chan *UploadTask),
+		inChan:      make(chan *UploadTask, BufferSize),
 		retryClient: retryClient,
 		fileCounts:  fileCounts{},
 		logger:      logger,
 		wg:          &sync.WaitGroup{},
 	}
-	uploader.wg.Add(1)
-	go uploader.do()
+	uploader.do()
 	return uploader
 }
 
 // do is the main loop for the uploader
 func (u *Uploader) do() {
-	defer u.wg.Done()
 
-	u.logger.Debug("uploader: do")
-	for task := range u.inChan {
-		u.logger.Debug("uploader: got task", task)
-		err := u.upload(task)
-		if err != nil {
-			u.logger.CaptureError(
-				"uploader: error uploading",
-				err,
-				"path",
-				task.path,
-				"url",
-				task.url,
-			)
+	u.wg.Add(1)
+	go func() {
+		for task := range u.inChan {
+			u.logger.Debug("uploader: got task", task)
+			if err := u.upload(task); err != nil {
+				u.logger.CaptureError("uploader: error uploading", err, "path", task.path, "url", task.url)
+			}
 		}
-	}
+		u.wg.Done()
+	}()
 }
 
 // AddTask adds a task to the uploader

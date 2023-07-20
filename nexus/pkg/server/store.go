@@ -39,7 +39,8 @@ func NewStore(ctx context.Context, fileName string, logger *observability.NexusL
 	sr := &Store{ctx: ctx,
 		writer: writer,
 		db:     f,
-		logger: logger}
+		logger: logger,
+	}
 	if err = sr.addHeader(); err != nil {
 		sr.logger.CaptureError("can't write header", err)
 		return nil, err

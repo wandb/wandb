@@ -16,7 +16,7 @@ import (
 var m = make(map[int]*NexusStream)
 
 func PrintHeadFoot(run *service.RunRecord, settings *service.Settings) {
-	// fmt.Println("GOT", ns.run)
+	// fmt.Println("GOT", ns.runRecord)
 	colorReset := "\033[0m"
 	colorBrightBlue := "\033[1;34m"
 	colorBlue := "\033[34m"
@@ -59,7 +59,7 @@ func writePortFile(portFile string, port int) {
 	if err = os.Rename(tempFile, portFile); err != nil {
 		LogError(slog.Default(), "fail rename", err)
 	}
-	slog.Info("wrote port file", "file", portFile, "port", port)
+	// slog.Info("wrote port file", "file", portFile, "port", port)
 }
 
 func ResultCallback(run *service.RunRecord, settings *service.Settings, result *service.Result) {
@@ -73,7 +73,7 @@ func ResultCallback(run *service.RunRecord, settings *service.Settings, result *
 }
 
 func LibStart() int {
-	SetupDefaultLogger()
+	// SetupDefaultLogger()
 
 	baseUrl := os.Getenv("WANDB_BASE_URL")
 	if baseUrl == "" {

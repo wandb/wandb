@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
+
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -24,8 +25,8 @@ type Stream struct {
 	// handler is the handler for the stream
 	handler *Handler
 
-	// dispatcher is the dispatcher for the stream
-	dispatcher *Dispatcher
+	// responders is the map of responders for the stream
+	responders map[string]Responder
 
 	// writer is the writer for the stream
 	writer *Writer
@@ -38,81 +39,133 @@ type Stream struct {
 
 	// logger is the logger for the stream
 	logger *observability.NexusLogger
+
+	// inChan is the channel for incoming messages
+	inChan chan *service.Record
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *service.Settings, streamId string, responders ...ResponderEntry) *Stream {
+func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
 	logFile := settings.GetLogInternal().GetValue()
 	logger := SetupStreamLogger(logFile, settings)
 
-	dispatcher := NewDispatcher(ctx, logger)
-	sender := NewSender(ctx, settings, logger)
-	writer := NewWriter(ctx, settings, logger)
-	handler := NewHandler(ctx, settings, logger)
-
-	// connect the components
-	writer.outChan = sender.inChan
-	handler.outChan = writer.inChan
-	sender.outChan = handler.inChan
-
-	// connect the dispatcher to the handler and sender
-	handler.dispatcherChan = dispatcher.inChan
-	sender.dispatcherChan = dispatcher.inChan
-
 	stream := &Stream{
-		ctx:        ctx,
-		wg:         sync.WaitGroup{},
-		dispatcher: dispatcher,
-		handler:    handler,
-		sender:     sender,
-		writer:     writer,
-		settings:   settings,
-		logger:     logger,
+		ctx:      ctx,
+		wg:       sync.WaitGroup{},
+		settings: settings,
+		logger:   logger,
+		inChan:   make(chan *service.Record, BufferSize),
 	}
-	stream.wg.Add(1)
-	go stream.Start()
+	stream.Start()
 	return stream
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
 func (s *Stream) AddResponders(entries ...ResponderEntry) {
-	for _, entry := range entries {
-		s.dispatcher.AddResponder(entry)
+	if s.responders == nil {
+		s.responders = make(map[string]Responder)
 	}
+	for _, entry := range entries {
+		responderId := entry.ID
+		if _, ok := s.responders[responderId]; !ok {
+			s.responders[responderId] = entry.Responder
+		} else {
+			s.logger.CaptureWarn("Responder already exists", "responder", responderId)
+		}
+	}
+}
+
+func (s *Stream) handleRespond(result *service.Result) {
+	responderId := result.GetControl().GetConnectionId()
+	s.logger.Debug("dispatch: got result", "result", result)
+	if responderId == "" {
+		s.logger.Debug("dispatch: got result with no connection id", "result", result)
+		return
+	}
+	response := &service.ServerResponse{
+		ServerResponseType: &service.ServerResponse_ResultCommunicate{
+			ResultCommunicate: result,
+		},
+	}
+	s.responders[responderId].Respond(response)
 }
 
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-	defer s.wg.Done()
-	s.logger.Info("created new stream", "id", s.settings.RunId)
+	// defer s.wg.Done()
+	// s.logger.Info("created new stream", "id", s.settings.RunId)
+
+	// TODO: fix input channel, either remove the defer state machine or make
+	// a pattern to handle multiple writers
 
 	// handle the client requests
-	s.wg.Add(1)
-	go func() {
-		s.handler.do()
-		s.wg.Done()
-	}()
+	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	handlerInChan := make(chan *service.Record, BufferSize)
+	handleChan, handlerResultChan := s.handler.do(handlerInChan)
 
 	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.do()
-		s.wg.Done()
-	}()
+	s.writer = NewWriter(s.ctx, s.settings, s.logger)
+	writerChan := s.writer.do(handleChan)
 
 	// send the data to the server
+	s.sender = NewSender(s.ctx, s.settings, s.logger)
+	senderResultChan, senderInChan := s.sender.do(writerChan)
+
+	s.logger.Debug("starting stream", "id", handlerResultChan)
+
+	// handle dispatching between components
+	// TODO: revisit both of these as we probably just want to use the defer state machine
+	// to resolve the order of closing. We can also use a single channel to handle
+	// all of the components, hence reducing the extra channels.
 	s.wg.Add(1)
 	go func() {
-		s.sender.do()
+		for senderResultChan != nil || handlerResultChan != nil {
+			select {
+			case result, ok := <-senderResultChan:
+				if !ok {
+					senderResultChan = nil
+					continue
+				}
+				s.handleRespond(result)
+			case result, ok := <-handlerResultChan:
+				if !ok {
+					handlerResultChan = nil
+					continue
+				}
+				s.handleRespond(result)
+			}
+		}
+		s.logger.Debug("dispatch: finished")
 		s.wg.Done()
 	}()
 
-	// dispatch responses to the client
 	s.wg.Add(1)
+	// TODO: revisit both of these as we probably just want to use the defer state machine
+	// to resolve the order of closing. We can also use a single channel to handle
+	// all of the components, hence reducing the extra channels. We will need to recover from panics for writes on a closed
+	// on the close channel for writes coming from the connections.
+	streamInChan := s.inChan
 	go func() {
-		s.dispatcher.do()
+		for senderInChan != nil || streamInChan != nil {
+			select {
+			case record, ok := <-senderInChan:
+				if !ok {
+					senderInChan = nil
+					continue
+				}
+				handlerInChan <- record
+			case record, ok := <-streamInChan:
+				if !ok {
+					streamInChan = nil
+					continue
+				}
+				handlerInChan <- record
+			}
+		}
+		s.logger.Debug("dispatch: finished")
+		close(handlerInChan)
 		s.wg.Done()
 	}()
 }
@@ -120,7 +173,7 @@ func (s *Stream) Start() {
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
 	s.logger.Debug("handling record", "record", rec)
-	s.handler.inChan <- rec
+	s.inChan <- rec
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
@@ -135,7 +188,6 @@ func (s *Stream) GetRun() *service.RunRecord {
 //   - when the sender's SM gets to the final state, it will Close the handler
 //   - this will trigger the handler to Close the writer
 //   - this will trigger the writer to Close the sender
-//   - this will trigger the sender to Close the dispatcher
 //
 // This will finish the Stream's wait group, which will allow the stream to be
 // garbage collected.
@@ -148,6 +200,7 @@ func (s *Stream) Close(force bool) {
 		}
 		s.HandleRecord(record)
 	}
+	close(s.inChan)
 	s.wg.Wait()
 	if force {
 		s.PrintFooter()
