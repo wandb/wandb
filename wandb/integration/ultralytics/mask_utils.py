@@ -1,11 +1,11 @@
 from typing import Dict, Optional, Tuple
 
 import numpy as np
+
+import wandb
 from ultralytics.yolo.engine.results import Results
 from ultralytics.yolo.utils.ops import scale_image
 from ultralytics.yolo.v8.segment import SegmentationPredictor
-
-import wandb
 
 from .bbox_utils import get_ground_truth_bbox_annotations, get_mean_confidence_map
 

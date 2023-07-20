@@ -2,11 +2,11 @@ from typing import Any, Optional
 
 import numpy as np
 from PIL import Image
+
+import wandb
 from ultralytics.yolo.engine.results import Results
 from ultralytics.yolo.utils.plotting import Annotator
 from ultralytics.yolo.v8.pose.predict import PosePredictor
-
-import wandb
 
 from .bbox_utils import get_boxes, get_ground_truth_bbox_annotations
 

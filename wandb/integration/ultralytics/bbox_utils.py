@@ -1,10 +1,9 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import wandb
 from ultralytics.yolo.engine.results import Results
 from ultralytics.yolo.utils import ops
 from ultralytics.yolo.v8.detect.predict import DetectionPredictor
-
-import wandb
 
 
 def scale_bounding_box_to_original_image_shape(
