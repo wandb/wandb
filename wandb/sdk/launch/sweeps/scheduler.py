@@ -33,7 +33,8 @@ from wandb.sdk.wandb_run import Run as SdkRun
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
 
-DEFAULT_POLLING_SLEEP = 5.0
+DEFAULT_POLLING_SLEEP = 5.0  # 5 seconds
+PREEMPTED_POLLING_TIMEOUT = 60 * 10.0  # 10 minutes
 
 
 class SchedulerState(Enum):
@@ -87,6 +88,7 @@ class SweepRun:
     queued_run: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
+    preempted_start: Optional[float] = None
 
 
 class Scheduler(ABC):
@@ -528,6 +530,19 @@ class Scheduler(ABC):
             except (CommError, LaunchError) as e:
                 _logger.debug(f"Failed to get queued_run.state: {e}")
                 rqi_state = None
+
+            if run.state == RunState.PREEMPTED:
+                # Run has been preempted, wait on it to be resumed for max of
+                # PREEMPTED_POLLING_TIMEOUT, if not restarted assume dead
+                if run.preempted_start:
+                    if time.time() - run.preempted_start < PREEMPTED_POLLING_TIMEOUT:
+                        continue
+                    wandb.termwarn(
+                        f"{LOG_PREFIX}Waited on preempted run: ({run.id}) for {time.time() - run.preempted_start}s but run never restarted."
+                    )
+                else:
+                    run.preempted_start = time.time()
+                    continue
 
             if not run.state.is_alive or rqi_state == "failed":
                 _logger.debug(f"({run_id}) states: ({run.state}, {rqi_state})")
