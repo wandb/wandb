@@ -1,4 +1,5 @@
 """Sweep tests."""
+import time
 from typing import Dict
 from unittest.mock import Mock, patch
 
@@ -323,7 +324,7 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             "run4": RunState.FINISHED,
             "run5": RunState.RUNNING,
             "run6": RunState.PENDING,
-            "run7": RunState.PREEMPTED,
+            "run7": RunState.PREEMPTED,  # now we wait on preempted, alive
             "run8": RunState.PREEMPTING,
             "run9": RunState.UNKNOWN,
             "run10": "?????",
@@ -348,11 +349,19 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             ):  # unknown state should be considered alive, but unknown
                 assert _scheduler._runs[run_id].state == RunState.UNKNOWN
                 continue
-            if not _state.is_alive:
+            if _state == RunState.PREEMPTED:
+                # special case for a 'dead' run to still exist in scheduler
+                assert run_id in _scheduler._runs.keys()
+            elif not _state.is_alive:
                 # Dead runs should be removed from the run dict
                 assert run_id not in _scheduler._runs.keys()
             else:
                 assert _scheduler._runs[run_id].state == _state
+
+        # time out preempted run
+        _scheduler._runs["run7"].preempted_start = time.time() - 10000
+        _scheduler._update_run_states()
+        assert "run7" not in _scheduler._runs.keys()
 
         # ---- If get_run_state errors out, runs should have the state UNKNOWN
         def mock_get_run_state_raise_exception(*args, **kwargs):
