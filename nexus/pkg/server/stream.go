@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/wandb/wandb/nexus/pkg/monitor"
+
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -98,10 +100,14 @@ func (s *Stream) Start() {
 	// s.logger.Info("created new stream", "id", s.settings.RunId)
 
 	// TODO: fix input channel, either remove the defer state machine or make
-	// a pattern to handle multiple writers
+	//  a pattern to handle multiple writers
+
+	// init the system monitor
+	systemMonitorChan := make(chan *service.Record, BufferSize)
+	systemMonitor := monitor.NewSystemMonitor(systemMonitorChan, s.settings, s.logger)
 
 	// handle the client requests
-	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	s.handler = NewHandler(s.ctx, s.settings, s.logger, systemMonitor)
 	handlerInChan := make(chan *service.Record, BufferSize)
 	handleChan, handlerResultChan := s.handler.do(handlerInChan)
 
@@ -117,8 +123,8 @@ func (s *Stream) Start() {
 
 	// handle dispatching between components
 	// TODO: revisit both of these as we probably just want to use the defer state machine
-	// to resolve the order of closing. We can also use a single channel to handle
-	// all of the components, hence reducing the extra channels.
+	//  to resolve the order of closing. We can also use a single channel to handle
+	//  all of the components, hence reducing the extra channels.
 	s.wg.Add(1)
 	go func() {
 		for senderResultChan != nil || handlerResultChan != nil {
@@ -143,12 +149,12 @@ func (s *Stream) Start() {
 
 	s.wg.Add(1)
 	// TODO: revisit both of these as we probably just want to use the defer state machine
-	// to resolve the order of closing. We can also use a single channel to handle
-	// all of the components, hence reducing the extra channels. We will need to recover from panics for writes on a closed
-	// on the close channel for writes coming from the connections.
+	//  to resolve the order of closing. We can also use a single channel to handle
+	//  all of the components, hence reducing the extra channels. We will need to recover from panics for writes on a closed
+	//  on the close channel for writes coming from the connections.
 	streamInChan := s.inChan
 	go func() {
-		for senderInChan != nil || streamInChan != nil {
+		for senderInChan != nil || streamInChan != nil || systemMonitorChan != nil {
 			select {
 			case record, ok := <-senderInChan:
 				if !ok {
@@ -159,6 +165,12 @@ func (s *Stream) Start() {
 			case record, ok := <-streamInChan:
 				if !ok {
 					streamInChan = nil
+					continue
+				}
+				handlerInChan <- record
+			case record, ok := <-systemMonitorChan:
+				if !ok {
+					systemMonitorChan = nil
 					continue
 				}
 				handlerInChan <- record

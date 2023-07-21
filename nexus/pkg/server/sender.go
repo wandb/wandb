@@ -90,6 +90,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
 		s.sendHistory(record, x.History)
+	case *service.Record_Stats:
+		s.sendSystemMetrics(record, x.Stats)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
 	case nil:
@@ -278,6 +280,12 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 	}
 }
 
+func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
+	}
+}
+
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	if s.fileStream != nil {
@@ -298,7 +306,8 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.sendRecord(rec)
+	// s.sendRecord(rec)
+	s.recordChan <- rec
 }
 
 // sendFiles iterates over the files in the FilesRecord and sends them to

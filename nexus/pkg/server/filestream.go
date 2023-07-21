@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	EventsFileName  = "wandb-events.jsonl"
 	HistoryFileName = "wandb-history.jsonl"
 	maxItemsPerPush = 5_000
 	delayProcess    = 20 * time.Millisecond
@@ -32,9 +33,11 @@ type chunkFile int8
 const (
 	historyChunk chunkFile = iota
 	outputChunk
+	eventsChunk
 )
 
 type chunkData struct {
+	fileName string
 	fileData *chunkLine
 	Exitcode *int
 	Complete *bool
@@ -150,6 +153,8 @@ func (fs *FileStream) doRecordProcess(inChan <-chan *service.Record) {
 		switch x := record.RecordType.(type) {
 		case *service.Record_History:
 			fs.streamHistory(x.History)
+		case *service.Record_Stats:
+			fs.streamSystemMetrics(x.Stats)
 		case *service.Record_Exit:
 			fs.streamFinish()
 		case nil:
@@ -165,15 +170,22 @@ func (fs *FileStream) doRecordProcess(inChan <-chan *service.Record) {
 func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 
 	overflow := false
+
 	for active := true; active; {
-		var chunkList []chunkData
+		var chunkMaps = make(map[string][]chunkData)
 		select {
 		case chunk, ok := <-inChan:
 			if !ok {
 				active = false
 				break
 			}
-			chunkList = append(chunkList, chunk)
+
+			if chunk.fileName == EventsFileName {
+				fs.sendChunkList([]chunkData{chunk})
+				continue
+			}
+
+			chunkMaps[chunk.fileName] = append(chunkMaps[chunk.fileName], chunk)
 
 			delayTime := delayProcess
 			if overflow {
@@ -190,8 +202,8 @@ func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 						active = false
 						break
 					}
-					chunkList = append(chunkList, chunk)
-					if len(chunkList) >= maxItemsPerPush {
+					chunkMaps[chunk.fileName] = append(chunkMaps[chunk.fileName], chunk)
+					if len(chunkMaps[chunk.fileName]) >= maxItemsPerPush {
 						ready = false
 						overflow = true
 					}
@@ -199,11 +211,14 @@ func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 					ready = false
 				}
 			}
-			fs.sendChunkList(chunkList)
-		case <-time.After(heartbeatTime):
-			if len(chunkList) > 0 {
-				fs.logger.Debug("filestream: heartbeat... (timeout)", "offset", fs.offset)
+			for _, chunkList := range chunkMaps {
 				fs.sendChunkList(chunkList)
+			}
+		case <-time.After(heartbeatTime):
+			for _, chunkList := range chunkMaps {
+				if len(chunkList) > 0 {
+					fs.sendChunkList(chunkList)
+				}
 			}
 		}
 	}
@@ -234,9 +249,48 @@ func (fs *FileStream) jsonifyHistory(record *service.HistoryRecord) string {
 }
 
 func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
-	chunk := chunkData{fileData: &chunkLine{
-		chunkType: historyChunk,
-		line:      fs.jsonifyHistory(msg)},
+	chunk := chunkData{
+		fileName: HistoryFileName,
+		fileData: &chunkLine{
+			chunkType: historyChunk,
+			line:      fs.jsonifyHistory(msg),
+		},
+	}
+	fs.pushChunk(chunk)
+}
+
+func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
+	// todo: there is a lot of unnecessary overhead here,
+	//  we should prepare all the data in the system monitor
+	//  and then send it in one record
+	row := make(map[string]interface{})
+	row["_wandb"] = true
+	timestamp := float64(msg.GetTimestamp().Seconds) + float64(msg.GetTimestamp().Nanos)/1e9
+	row["_timestamp"] = timestamp
+	row["_runtime"] = timestamp - fs.settings.XStartTime.GetValue()
+
+	for _, item := range msg.Item {
+		var val interface{}
+		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
+			e := fmt.Errorf("json unmarshal error: %v, items: %v", err, item)
+			errMsg := fmt.Sprintf("sender: sendSystemMetrics: failed to marshal value: %s for key: %s", item.ValueJson, item.Key)
+			fs.logger.CaptureError(errMsg, e)
+			continue
+		}
+
+		row["system."+item.Key] = val
+	}
+
+	// marshal the row
+	line, err := json.Marshal(row)
+	if err != nil {
+		fs.logger.CaptureError("sender: sendSystemMetrics: failed to marshal system metrics", err)
+		return
+	}
+
+	chunk := chunkData{
+		fileName: EventsFileName,
+		fileData: &chunkLine{chunkType: eventsChunk, line: string(line)},
 	}
 	fs.pushChunk(chunk)
 }
@@ -272,7 +326,7 @@ func (fs *FileStream) sendChunkList(chunks []chunkData) {
 		Offset:  fs.offset,
 		Content: lines}
 	fs.offset += len(lines)
-	chunkFileName := HistoryFileName
+	chunkFileName := chunks[0].fileName // all chunks in the list should have the same file name
 	var files map[string]FsChunkData
 	if len(lines) > 0 {
 		files = map[string]FsChunkData{
