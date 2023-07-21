@@ -536,9 +536,12 @@ class Scheduler(ABC):
                 # PREEMPTED_POLLING_TIMEOUT, if not restarted assume dead
                 if run.preempted_start:
                     if time.time() - run.preempted_start < PREEMPTED_POLLING_TIMEOUT:
+                        wandb.termlog(
+                            f"{LOG_PREFIX}Detected preempted run, elapsed wait time: {(time.time() - run.preempted_start):.2f}s"
+                        )
                         continue
                     wandb.termwarn(
-                        f"{LOG_PREFIX}Waited on preempted run: ({run.id}) for {time.time() - run.preempted_start}s but run never restarted."
+                        f"{LOG_PREFIX}Waited on preempted run: ({run.id}) for {(time.time() - run.preempted_start):.2f}s but run never restarted."
                     )
                 else:
                     run.preempted_start = time.time()
