@@ -6,6 +6,7 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
     CrdSubmittedRun,
     KubernetesRunner,
+    KubernetesSubmittedRun,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -201,3 +202,23 @@ def test_launch_custom(mocker, test_settings, volcano_spec):
     assert str(submitted_run.get_status()) == "starting"
     assert str(submitted_run.get_status()) == "running"
     assert submitted_run.wait()
+
+
+def test_get_status_preempted(mocker):
+    mocker.pod = MagicMock()
+    mock_preempt_condition = MagicMock()
+    mock_preempt_condition.type = "DisruptionTarget"
+    mock_preempt_condition.reason = "EvictionByEvictionAPI"
+    mocker.pod.status.conditions = [MagicMock(), mock_preempt_condition]
+    mocker.core_api = MagicMock()
+    mocker.core_api.read_namespaced_pod = MagicMock(return_value=mocker.pod)
+
+    run = KubernetesSubmittedRun(
+        batch_api=MagicMock(),
+        core_api=mocker.core_api,
+        name="test-run",
+        pod_names=["pod-1", "pod-2"],
+    )
+    status = run.get_status()
+
+    assert status.state == "preempted"

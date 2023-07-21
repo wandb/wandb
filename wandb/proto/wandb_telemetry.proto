@@ -127,6 +127,10 @@ message Imports {
   bool optimum = 99;
   bool evaluate = 100;
   bool langflow = 101;
+  bool keras_core = 102; // keras-core
+  bool lightning_fabric = 103; // lightning-fabric
+  bool curated_transformers = 104; // curated-transformers
+  bool orjson = 105;
 }
 
 message Feature {
