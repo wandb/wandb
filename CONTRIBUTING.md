@@ -44,6 +44,7 @@ Please make sure to update the ToC when you update this page!
   * [Library can be disabled](#library-can-be-disabled)
 - [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
 - [Documentation Generation](#documentation-generation)
+- [Server introspection](#server-introspection)
 - [Deprecating features](#deprecating-features)
 - [Adding URLs](#adding-urls)
 
@@ -891,6 +892,18 @@ A file named `cli.md` in the same folder as the code. The file is the generated 
 
 - python >= 3.8
 - wandb
+
+## Server introspection
+
+Some features may depend on a minimum version of the W&B backend service, but this library may be communicating with an outdated backend.  We use the GraphQL introspection schema to determine which features are supported.  See the `*_introspection` methods in [internal_api.py](/wandb/sdk/internal/internal_api.py) for examples.  Depending on the nature of your feature, you may need to introspect:
+
+- If one or more fields on the root `Query` or `Mutation` types exist: [example](/wandb/sdk/internal/internal_api.py#L477)
+- If an input type includes a specific field: [example](/wandb/sdk/internal/internal_api.py#L546)
+
+You should reuse the generic introspection methods if possible, and cache the introspection result.
+
+The entire introspection schema is available.  For more info see the [official GraphQL docs](https://graphql.org/learn/introspection/)
+
 
 ## Deprecating features
 

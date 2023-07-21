@@ -234,6 +234,8 @@ class InterfaceShared(InterfaceBase):
         preempting: Optional[pb.RunPreemptingRecord] = None,
         link_artifact: Optional[pb.LinkArtifactRecord] = None,
         use_artifact: Optional[pb.UseArtifactRecord] = None,
+        output: Optional[pb.OutputRecord] = None,
+        output_raw: Optional[pb.OutputRawRecord] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -274,6 +276,10 @@ class InterfaceShared(InterfaceBase):
             record.link_artifact.CopyFrom(link_artifact)
         elif use_artifact:
             record.use_artifact.CopyFrom(use_artifact)
+        elif output:
+            record.output.CopyFrom(output)
+        elif output_raw:
+            record.output_raw.CopyFrom(output_raw)
         else:
             raise Exception("Invalid record")
         return record
