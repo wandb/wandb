@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -23,52 +22,7 @@ func Average(nums []float64) float64 {
 	return total / float64(len(nums))
 }
 
-type Metric interface {
-	Name() string
-	Sample()
-	Clear()
-	Aggregate() float64
-}
-
-type Asset interface {
-	Name() string
-	Metrics() []Metric
-	IsAvailable() bool
-	Start()
-	Stop()
-	Probe() map[string]map[string]interface{}
-}
-
-type MetricsMonitor struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	metrics  []Metric
-	settings *service.Settings
-	logger   *observability.NexusLogger
-	outChan  chan<- *service.Record
-}
-
-func NewMetricsMonitor(
-	metrics []Metric,
-	settings *service.Settings,
-	logger *observability.NexusLogger,
-	outChan chan<- *service.Record,
-) *MetricsMonitor {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	return &MetricsMonitor{
-		ctx:      ctx,
-		cancel:   cancel,
-		wg:       sync.WaitGroup{},
-		metrics:  metrics,
-		settings: settings,
-		logger:   logger,
-		outChan:  outChan,
-	}
-}
-
-func (mm *MetricsMonitor) makeStatsRecord(stats map[string]float64) *service.Record {
+func makeStatsRecord(stats map[string]float64) *service.Record {
 	record := &service.Record{
 		RecordType: &service.Record_Stats{
 			Stats: &service.StatsRecord{
@@ -93,19 +47,83 @@ func (mm *MetricsMonitor) makeStatsRecord(stats map[string]float64) *service.Rec
 	return record
 }
 
-func (mm *MetricsMonitor) Monitor() {
+type Asset interface {
+	Name() string
+	SampleMetrics()
+	AggregateMetrics() map[string]float64
+	ClearMetrics()
+	IsAvailable() bool
+	Probe() map[string]map[string]interface{}
+}
+
+type SystemMonitor struct {
+	// wg is the wait group for the system monitor
+	wg sync.WaitGroup
+
+	// assets is the list of assets to monitor
+	assets []Asset
+
+	//	outChan is the channel for outgoing messages
+	OutChan chan<- *service.Record
+
+	// settings is the settings for the system monitor
+	settings *service.Settings
+
+	// logger is the logger for the system monitor
+	logger *observability.NexusLogger
+}
+
+// NewSystemMonitor creates a new SystemMonitor with the given settings
+func NewSystemMonitor(
+	outChan chan<- *service.Record,
+	settings *service.Settings,
+	logger *observability.NexusLogger,
+) *SystemMonitor {
+
+	systemMonitor := &SystemMonitor{
+		wg:       sync.WaitGroup{},
+		OutChan:  outChan,
+		settings: settings,
+		logger:   logger,
+	}
+
+	assets := []Asset{
+		NewMemory(),
+	}
+
+	// if asset is available, add it to the list of assets to monitor
+	for _, asset := range assets {
+		if asset.IsAvailable() {
+			systemMonitor.assets = append(systemMonitor.assets, asset)
+		}
+	}
+
+	return systemMonitor
+}
+
+func (sm *SystemMonitor) Do() {
+	sm.logger.Info("Starting system monitor")
+	// start monitoring the assets
+	for _, asset := range sm.assets {
+		sm.wg.Add(1)
+		go sm.Monitor(asset)
+	}
+}
+
+func (sm *SystemMonitor) Monitor(asset Asset) {
 
 	// recover from panic and log the error
 	defer func() {
+		sm.wg.Done()
 		if err := recover(); err != nil {
-			mm.logger.Debug("panic in metrics monitor", err)
+			sm.logger.Debug("panic in system monitor", err)
 		}
 	}()
 
 	// todo: rename the setting...should be SamplingIntervalSeconds
-	samplingInterval := time.Duration(mm.settings.XStatsSampleRateSeconds.GetValue() * float64(time.Second))
-	samplesToAverage := mm.settings.XStatsSamplesToAverage.GetValue()
-	mm.logger.Debug(
+	samplingInterval := time.Duration(sm.settings.XStatsSampleRateSeconds.GetValue() * float64(time.Second))
+	samplesToAverage := sm.settings.XStatsSamplesToAverage.GetValue()
+	sm.logger.Debug(
 		fmt.Sprintf(
 			"samplingInterval: %v, samplesToAverage: %v",
 			samplingInterval,
@@ -131,105 +149,30 @@ func (mm *MetricsMonitor) Monitor() {
 
 	samplesCollected := int32(0)
 
-	for {
-		select {
-		case <-mm.ctx.Done():
-			return
-		case <-tickChan:
-			for _, metric := range mm.metrics {
-				metric.Sample()
+	for range tickChan {
+		asset.SampleMetrics()
+		samplesCollected++
+
+		if samplesCollected == samplesToAverage {
+			aggregatedMetrics := asset.AggregateMetrics()
+			if len(aggregatedMetrics) > 0 {
+				// publish metrics
+				record := makeStatsRecord(aggregatedMetrics)
+				sm.OutChan <- record
+
+				asset.ClearMetrics()
 			}
-			samplesCollected++
 
-			if samplesCollected == samplesToAverage {
-				aggregatedMetrics := mm.aggregate()
-				if len(aggregatedMetrics) > 0 {
-					// publish metrics
-					record := mm.makeStatsRecord(aggregatedMetrics)
-					mm.outChan <- record
-
-					for _, metric := range mm.metrics {
-						metric.Clear()
-					}
-				}
-
-				// reset samplesCollected
-				samplesCollected = int32(0)
-			}
+			// reset samplesCollected
+			samplesCollected = int32(0)
 		}
-	}
-}
-
-func (mm *MetricsMonitor) aggregate() map[string]float64 {
-	aggregatedMetrics := make(map[string]float64)
-
-	for _, metric := range mm.metrics {
-		aggregatedMetrics[metric.Name()] = metric.Aggregate()
-	}
-	return aggregatedMetrics
-}
-
-func (mm *MetricsMonitor) Stop() {
-	mm.logger.Info("Stopping asset metrics monitor")
-	mm.cancel()
-	mm.wg.Wait()
-	mm.logger.Info("Stopped asset metrics monitor")
-}
-
-type SystemMonitor struct {
-	// assets is the list of assets to monitor
-	assets []Asset
-
-	//	outChan is the channel for outgoing messages
-	OutChan chan<- *service.Record
-
-	// logger is the logger for the system monitor
-	logger *observability.NexusLogger
-
-	// settings is the settings for the system monitor
-	settings *service.Settings
-}
-
-// NewSystemMonitor creates a new SystemMonitor with the given settings
-func NewSystemMonitor(
-	outChan chan<- *service.Record,
-	settings *service.Settings,
-	logger *observability.NexusLogger,
-) *SystemMonitor {
-
-	systemMonitor := &SystemMonitor{
-		OutChan:  outChan,
-		logger:   logger,
-		settings: settings,
-	}
-
-	systemMonitor.assets = []Asset{
-		NewMemory(settings, logger, outChan),
-	}
-
-	return systemMonitor
-}
-
-func (sm *SystemMonitor) Do() {
-	sm.logger.Info("Starting system monitor")
-	// start monitoring the assets
-	for _, asset := range sm.assets {
-		asset.Start()
 	}
 
 }
 
 func (sm *SystemMonitor) Stop() {
 	sm.logger.Info("Stopping system monitor")
-	wg := &sync.WaitGroup{}
 	close(sm.OutChan)
-	for _, asset := range sm.assets {
-		wg.Add(1)
-		go func(asset Asset) {
-			asset.Stop()
-			wg.Done()
-		}(asset)
-	}
-	wg.Wait()
+	sm.wg.Wait()
 	sm.logger.Info("Stopped system monitor")
 }
