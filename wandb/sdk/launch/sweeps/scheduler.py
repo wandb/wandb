@@ -537,7 +537,7 @@ class Scheduler(ABC):
                 if run.preempted_start:
                     if time.time() - run.preempted_start < PREEMPTED_POLLING_TIMEOUT:
                         wandb.termlog(
-                            f"{LOG_PREFIX}Detected preempted run, elapsed wait time: {(time.time() - run.preempted_start):.2f}s"
+                            f"{LOG_PREFIX}Detected preempted run: ({run.id}), elapsed wait time: {(time.time() - run.preempted_start):.2f}s"
                         )
                         continue
                     wandb.termwarn(
