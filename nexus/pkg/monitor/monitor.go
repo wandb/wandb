@@ -95,8 +95,14 @@ func NewSystemMonitor(
 		logger:   logger,
 	}
 
+	// if stats are disabled, return early
+	if settings.XDisableStats.GetValue() {
+		return systemMonitor
+	}
+
 	assets := []Asset{
-		NewMemory(),
+		NewMemory(settings),
+		NewCPU(settings),
 	}
 
 	// if asset is available, add it to the list of assets to monitor
@@ -110,6 +116,11 @@ func NewSystemMonitor(
 }
 
 func (sm *SystemMonitor) Do() {
+	// if stats are disabled, do nothing
+	if sm.settings.XDisableStats.GetValue() {
+		return
+	}
+
 	sm.logger.Info("Starting system monitor")
 	// start monitoring the assets
 	for _, asset := range sm.assets {
