@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -57,6 +58,10 @@ type Asset interface {
 }
 
 type SystemMonitor struct {
+	// ctx is the context for the system monitor
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	// wg is the wait group for the system monitor
 	wg sync.WaitGroup
 
@@ -79,8 +84,11 @@ func NewSystemMonitor(
 	settings *service.Settings,
 	logger *observability.NexusLogger,
 ) *SystemMonitor {
+	ctx, cancel := context.WithCancel(context.Background())
 
 	systemMonitor := &SystemMonitor{
+		ctx:      ctx,
+		cancel:   cancel,
 		wg:       sync.WaitGroup{},
 		OutChan:  outChan,
 		settings: settings,
@@ -116,7 +124,8 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	defer func() {
 		sm.wg.Done()
 		if err := recover(); err != nil {
-			sm.logger.Debug("panic in system monitor", err)
+			e := fmt.Errorf("%v", err)
+			sm.logger.CaptureError("monitor: panic", e)
 		}
 	}()
 
@@ -149,22 +158,32 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 
 	samplesCollected := int32(0)
 
-	for range tickChan {
-		asset.SampleMetrics()
-		samplesCollected++
+	for {
+		select {
+		case <-sm.ctx.Done():
+			return
+		case <-tickChan:
+			asset.SampleMetrics()
+			samplesCollected++
 
-		if samplesCollected == samplesToAverage {
-			aggregatedMetrics := asset.AggregateMetrics()
-			if len(aggregatedMetrics) > 0 {
-				// publish metrics
-				record := makeStatsRecord(aggregatedMetrics)
-				sm.OutChan <- record
+			if samplesCollected == samplesToAverage {
+				aggregatedMetrics := asset.AggregateMetrics()
+				if len(aggregatedMetrics) > 0 {
+					// publish metrics
+					record := makeStatsRecord(aggregatedMetrics)
+					// ensure that the context is not done before sending the record
+					select {
+					case <-sm.ctx.Done():
+						return
+					default:
+						sm.OutChan <- record
+					}
+					asset.ClearMetrics()
+				}
 
-				asset.ClearMetrics()
+				// reset samplesCollected
+				samplesCollected = int32(0)
 			}
-
-			// reset samplesCollected
-			samplesCollected = int32(0)
 		}
 	}
 
@@ -172,7 +191,8 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 
 func (sm *SystemMonitor) Stop() {
 	sm.logger.Info("Stopping system monitor")
-	close(sm.OutChan)
+	sm.cancel()
 	sm.wg.Wait()
+	close(sm.OutChan)
 	sm.logger.Info("Stopped system monitor")
 }
