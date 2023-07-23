@@ -13,7 +13,6 @@ from tqdm.auto import tqdm
 
 import wandb
 from wandb.apis.public import Run
-from wandb.sdk.internal.settings_static import SettingsDict
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from .base import (
@@ -340,7 +339,7 @@ class WandbImporter:
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         _overrides: Dict[str, Any] = coalesce(overrides, {})
-        settings_override: SettingsDict = {
+        settings_override = {
             "api_key": self.dst_api_key,
             "base_url": self.dst_base_url,
         }
