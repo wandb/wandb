@@ -1,9 +1,12 @@
+import csv
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from datetime import datetime as dt
 from pathlib import Path
+import traceback
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
@@ -375,7 +378,9 @@ class WandbImporter:
                     try:
                         future.result()
                     except Exception as e:
+                        exc = traceback.format_exc()
                         wandb.termerror(f"Import problem: {e}")
+                        self._handle_import_run_error(run, e, exc)
                     else:
                         pbar.set_postfix({"id": run.run.id})
                     finally:
@@ -415,7 +420,7 @@ class WandbImporter:
     ) -> None:
         if config is None:
             config = ImportReportConfig()
-        
+
         name = coalesce(config.dst_name, report.name)
         entity = coalesce(config.dst_entity, report.entity)
         project = coalesce(config.dst_project, report.project)
@@ -468,7 +473,9 @@ class WandbImporter:
                     try:
                         future.result()
                     except Exception as e:
+                        exc = traceback.format_exc()
                         wandb.termerror(f"Import problem: {e}")
+                        self._handle_import_report_error(_report, e, exc)
                     else:
                         pbar.set_postfix({"id": _report.id})
                     finally:
@@ -521,6 +528,34 @@ class WandbImporter:
         if project is None:
             return api.projects(entity)
         return [api.project(project, entity)]
+
+    def _handle_import_run_error(self, run: WandbRun, e: Exception, exc: str) -> None:
+        header = ["type", "id", "exception", "traceback"]
+        row = ["run", run.run_id(), e, exc]
+
+        fname = "import_errors.txt"
+        file_exists = os.path.isfile(fname)
+
+        with open(fname, "a") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(header)
+            writer.writerow(row)
+
+    def _handle_import_report_error(
+        self, report: Report, e: Exception, exc: str
+    ) -> None:
+        header = ["type", "id", "exception", "traceback"]
+        row = ["report", report.id, e, exc]
+
+        fname = "import_errors.txt"
+        file_exists = os.path.isfile(fname)
+
+        with open(fname, "a") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(header)
+            writer.writerow(row)
 
 
 class WandbParquetRun(WandbRun):
