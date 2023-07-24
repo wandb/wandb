@@ -94,14 +94,14 @@ def wandb_internal(
     publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
-    threads: "List[RecordLoopThread]" = []
+    threads: List[RecordLoopThread] = []
 
     context_keeper = context.ContextKeeper()
 
-    send_record_q: "Queue[Record]" = queue.Queue()
+    send_record_q: Queue[Record] = queue.Queue()
     tracelog.annotate_queue(send_record_q, "send_q")
 
-    write_record_q: "Queue[Record]" = queue.Queue()
+    write_record_q: Queue[Record] = queue.Queue()
     tracelog.annotate_queue(write_record_q, "write_q")
 
     record_sender_thread = SenderThread(
