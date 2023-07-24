@@ -149,6 +149,7 @@ class LaunchAgent:
             self._entity,
             self._project,
             self._queues,
+            self.default_config,
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
@@ -636,6 +637,12 @@ class LaunchAgent:
                 wandb.termlog(
                     f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
                 )
+
+                if "sweep_id" in config:
+                    # allow resumed runs from sweeps that have already completed by removing
+                    # the sweep id before pushing to queue
+                    del config["sweep_id"]
+
                 launch_add(
                     config=config,
                     project_queue=self._project,

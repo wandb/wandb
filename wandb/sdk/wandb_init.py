@@ -112,7 +112,7 @@ class _WandbInit:
         self._teardown_hooks: List[TeardownHook] = []
         self._wl: Optional[wandb_setup._WandbSetup] = None
         self._reporter: Optional[wandb.sdk.lib.reporting.Reporter] = None
-        self.notebook: Optional["wandb.jupyter.Notebook"] = None  # type: ignore
+        self.notebook: Optional[wandb.jupyter.Notebook] = None  # type: ignore
         self.printer: Optional[Printer] = None
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
@@ -712,7 +712,7 @@ class _WandbInit:
         if not self.settings.disable_git:
             run._populate_git_info()
 
-        run_result: Optional["pb.RunUpdateResult"] = None
+        run_result: Optional[pb.RunUpdateResult] = None
 
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
@@ -723,7 +723,7 @@ class _WandbInit:
                     "`resume` will be ignored since W&B syncing is set to `offline`. "
                     f"Starting a new run with run id {run.id}."
                 )
-        error: Optional["wandb.errors.Error"] = None
+        error: Optional[wandb.errors.Error] = None
 
         timeout = self.settings.init_timeout
 
