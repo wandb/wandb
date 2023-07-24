@@ -579,6 +579,83 @@ jobs:
           no_output_timeout: 10m
       - save-test-results
 
+  importers:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 10
+      shard:
+        type: string
+        default: "importers"
+      toxenv:
+        type: string
+      coverage_dir:
+        type: string
+        default: ""
+      notify_on_failure:
+        type: boolean
+        default: false
+      xdist:
+        type: integer
+        default: 3
+      tox_args:
+        type: string
+        default: ""
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
+    machine:
+      image: ubuntu-2204:2023.04.2
+      docker_layer_caching: true
+    steps:
+      - attach_workspace:
+          at: .
+      - checkout
+      - run:
+          name: Start first wandb server
+          command: |
+            echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
+            docker run -d -p 8080:8080 -p 8083:8083 -p 9015:9015 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - run:
+          name: Start second wandb server
+          command: |
+            echo "$GCP_SERVICE_ACCOUNT_JSON_DECODED" | docker login -u _json_key --password-stdin us-central1-docker.pkg.dev
+            docker run -d -p 9180:8080 -p 9183:8083 -p 9115:9015 -e WANDB_ENABLE_TEST_CONTAINER=true us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - run:
+          name: Install system deps
+          command: |
+            sudo apt-get update && sudo apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install python dependencies
+          command: |
+            pip3 install tox==<< pipeline.parameters.tox_version >>
+            pip3 install -U pip
+            while ! curl http://localhost:8080/healthz; do sleep 1; done
+            while ! curl http://localhost:9180/healthz; do sleep 1; done
+            while ! curl http://localhost:9015/health; do sleep 1; done
+            while ! curl http://localhost:9115/health; do sleep 1; done
+          no_output_timeout: 5m
+      - run:
+          name: Run tests
+          no_output_timeout: 10m
+          command: |
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
+            tox run -v -e <<parameters.toxenv>>  \
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
+      - save-test-results
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
   launch:
     parameters:
       toxenv:
@@ -1362,6 +1439,22 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
+
+      #
+      # Import API System tests on Linux, using two real wandb servers
+      #
+      - importers:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [10]
+          name: "system-importers-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_importers"
+
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
