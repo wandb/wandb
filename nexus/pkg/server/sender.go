@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
@@ -92,6 +93,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendHistory(record, x.History)
 	case *service.Record_Stats:
 		s.sendSystemMetrics(record, x.Stats)
+	case *service.Record_OutputRaw:
+		s.sendOutputRaw(record, x.OutputRaw)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
 	case nil:
@@ -281,6 +284,27 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 }
 
 func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
+	}
+}
+
+func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.OutputRawRecord) {
+	// TODO: match logic handling of lines to the one in the python version
+	// - handle carriage returns (for tqdm-like progress bars)
+	// - handle caching multiple (non-new lines) and sending them in one chunk
+	// - handle lines longer than ~60_000 characters
+
+	// ignore empty "new lines"
+	if outputRaw.Line == "\n" {
+		return
+	}
+	t := time.Now().UTC().Format(time.RFC3339)
+	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
+	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
+		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
+	}
+
 	if s.fileStream != nil {
 		s.fileStream.StreamRecord(record)
 	}

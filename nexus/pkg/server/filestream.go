@@ -18,6 +18,7 @@ import (
 const (
 	EventsFileName  = "wandb-events.jsonl"
 	HistoryFileName = "wandb-history.jsonl"
+	OutputFileName  = "output.log"
 	maxItemsPerPush = 5_000
 	delayProcess    = 20 * time.Millisecond
 	heartbeatTime   = 2 * time.Second
@@ -155,6 +156,8 @@ func (fs *FileStream) doRecordProcess(inChan <-chan *service.Record) {
 			fs.streamHistory(x.History)
 		case *service.Record_Stats:
 			fs.streamSystemMetrics(x.Stats)
+		case *service.Record_OutputRaw:
+			fs.streamOutputRaw(x.OutputRaw)
 		case *service.Record_Exit:
 			fs.streamFinish()
 		case nil:
@@ -196,7 +199,7 @@ func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 
 			for ready := true; ready; {
 				select {
-				case chunk, ok := <-inChan:
+				case chunk, ok = <-inChan:
 					if !ok {
 						ready = false
 						active = false
@@ -254,6 +257,17 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 		fileData: &chunkLine{
 			chunkType: historyChunk,
 			line:      fs.jsonifyHistory(msg),
+		},
+	}
+	fs.pushChunk(chunk)
+}
+
+func (fs *FileStream) streamOutputRaw(msg *service.OutputRawRecord) {
+	chunk := chunkData{
+		fileName: OutputFileName,
+		fileData: &chunkLine{
+			chunkType: outputChunk,
+			line:      msg.Line,
 		},
 	}
 	fs.pushChunk(chunk)
