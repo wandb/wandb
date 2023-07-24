@@ -1,3 +1,23 @@
+# 0.15.6 (July 24, 2023)
+
+### :magic_wand: Enhancements
+* feat(launch): add job link to wandb footer by @bcsherma in https://github.com/wandb/wandb/pull/5767
+* feat(launch): re-implement job requeueing, fixed cancel behavior by @TimH98 in https://github.com/wandb/wandb/pull/5822
+* feat(launch): manually create jobs from cli by @gtarpenning in https://github.com/wandb/wandb/pull/5661
+* feat(launch): allow users to specify job name via the `job_name` setting by @bcsherma in https://github.com/wandb/wandb/pull/5791
+* feat(sdk): Add an simplified trace API to log prompt traces by @parambharat in https://github.com/wandb/wandb/pull/5794
+* feat(integrations): support `.keras` model format with `WandbModelCheckpoint` and TF 2.13.0 compatible by @soumik12345 in https://github.com/wandb/wandb/pull/5720
+* feat(sdk): Initial support for migrating W&B runs and reports between instances by @andrewtruong in https://github.com/wandb/wandb/pull/5777
+### :hammer: Fixes
+* fix(integrations): make LightGBM callback compatible with 4.0.0 by @ayulockin in https://github.com/wandb/wandb/pull/5906
+* fix(sdk): use default settings for project retrieval if available by @KyleGoyette in https://github.com/wandb/wandb/pull/5917
+### :books: Docs
+* docs(sdk): Add introspection section to CONTRIBUTING.md by @nickpenaranda in https://github.com/wandb/wandb/pull/5887
+### :nail_care: Cleanup
+* revert(launch): revert job re-queuing implementation on pod disconnect by @KyleGoyette in https://github.com/wandb/wandb/pull/5811
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.5...v0.15.6
+
 ## 0.15.5 (July 5, 2023)
 
 ### :magic_wand: Enhancements
@@ -39,7 +59,6 @@
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.4...v0.15.5
 
 ## 0.15.4 (June 6, 2023)
-
 ### :magic_wand: Enhancements
 * feat(sdk): set job source in settings by @TimH98 in https://github.com/wandb/wandb/pull/5442
 * feat(sweeps): launch sweeps controlled by wandb run by @gtarpenning in https://github.com/wandb/wandb/pull/5456
