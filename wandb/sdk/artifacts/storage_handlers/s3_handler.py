@@ -33,12 +33,10 @@ if TYPE_CHECKING:
 class S3Handler(StorageHandler):
     _s3: Optional["boto3.resources.base.ServiceResource"]
     _scheme: str
-    _versioning_enabled: Optional[bool]
 
     def __init__(self, scheme: Optional[str] = None) -> None:
         self._scheme = scheme or "s3"
         self._s3 = None
-        self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
@@ -69,18 +67,6 @@ class S3Handler(StorageHandler):
         version = query.get("versionId")
 
         return bucket, key, version
-
-    def versioning_enabled(self, bucket: str) -> bool:
-        self.init_boto()
-        assert self._s3 is not None  # mypy: unwraps optionality
-        if self._versioning_enabled is not None:
-            return self._versioning_enabled
-        try:
-            res = self._s3.BucketVersioning(bucket)
-            self._versioning_enabled = res.status == "Enabled"
-        except self._botocore.exceptions.ClientError:
-            self._versioning_enabled = False
-        return self._versioning_enabled
 
     def load_path(
         self,
@@ -124,9 +110,9 @@ class S3Handler(StorageHandler):
 
         if etag != manifest_entry.digest:
             # Try to match the etag with some other version.
-            if version or not self.versioning_enabled(bucket):
+            if version:
                 raise ValueError(
-                    f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {etag}"
+                    f"Digest mismatch for object {manifest_entry.ref} with version {version}: expected {manifest_entry.digest} but found {etag}"
                 )
             obj = None
             object_versions = self._s3.Bucket(bucket).object_versions.filter(Prefix=key)
@@ -165,10 +151,6 @@ class S3Handler(StorageHandler):
         # metadata in the artifact entry itself.
         bucket, key, version = self._parse_uri(path)
         path = URIStr(f"{self._scheme}://{bucket}/{key}")
-        if not self.versioning_enabled(bucket) and version:
-            raise ValueError(
-                f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
-            )
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
