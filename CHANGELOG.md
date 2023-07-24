@@ -1,5 +1,5 @@
 # 0.15.6 (July 24, 2023)
-## What's Changed
+
 ### :magic_wand: Enhancements
 * feat(launch): add job link to wandb footer by @bcsherma in https://github.com/wandb/wandb/pull/5767
 * feat(launch): re-implement job requeueing, fixed cancel behavior by @TimH98 in https://github.com/wandb/wandb/pull/5822
