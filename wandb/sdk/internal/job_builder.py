@@ -348,8 +348,9 @@ class JobBuilder:
             if source is None:
                 if source_type:
                     wandb.termwarn(
-                        f"Source type is set to '{source_type}' but some required ingredients are missing. A job "
-                        "will not be created from this run. See https://docs.wandb.ai/guides/launch/create-job"
+                        f"Source type is set to '{source_type}' but some required information is missing "
+                        "from the environment. A job will not be created from this run. See "
+                        "https://docs.wandb.ai/guides/launch/create-job"
                     )
                 return None
 
