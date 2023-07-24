@@ -47,7 +47,7 @@ class S3Handler(StorageHandler):
     def init_boto(self) -> "boto3.resources.base.ServiceResource":
         if self._s3 is not None:
             return self._s3
-        boto: "boto3" = util.get_module(
+        boto: boto3 = util.get_module(
             "boto3",
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
             lazy=False,
