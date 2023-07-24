@@ -39,14 +39,14 @@ class ThreadLocalSettings(threading.local):
 
 
 @dataclass
-class ImportRunConfig:
-    target_entity: Optional[str] = None
-    target_project: Optional[str] = None
+class DstRunConfig:
+    entity: Optional[str] = None
+    project: Optional[str] = None
     debug: bool = False
 
 
 @dataclass
-class ImportReportConfig:
+class DstReportConfig:
     dst_name: Optional[str] = None
     dst_entity: Optional[str] = None
     dst_project: Optional[str] = None
@@ -185,12 +185,12 @@ class Importer(Protocol):
         ...
 
     def import_run(
-        self, run: ImporterRun, config: Optional[ImportRunConfig] = None
+        self, run: ImporterRun, config: Optional[DstRunConfig] = None
     ) -> None:
         ...
 
     def import_report(
-        self, report: Report, config: Optional[ImportReportConfig] = None
+        self, report: Report, config: Optional[DstReportConfig] = None
     ) -> None:
         ...
 
@@ -348,7 +348,7 @@ class RecordMaker:
 
 def send_run_with_send_manager(
     run: ImporterRun,
-    config: Optional[ImportRunConfig] = None,
+    config: Optional[DstRunConfig] = None,
     settings_override: Optional[Dict[str, Any]] = None,
 ) -> None:
     # does this need to be here for pmap?
@@ -444,6 +444,6 @@ def send_run_with_send_manager(
         sm.send(rm._make_telem_record())
 
 
-def debug_log(message: str, config: Optional[ImportRunConfig] = None) -> None:
+def debug_log(message: str, config: Optional[DstRunConfig] = None) -> None:
     if config and config.debug:
         wandb.termlog(message)

@@ -1,6 +1,6 @@
 from wandb.util import get_module
 
-from .base import ImportReportConfig, ImportRunConfig
+from .base import DstReportConfig, DstRunConfig
 from .wandb import WandbImporter, WandbParquetImporter, WandbParquetRun, WandbRun
 
 if get_module("mlflow"):

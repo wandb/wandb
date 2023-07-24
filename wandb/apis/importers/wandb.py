@@ -19,8 +19,8 @@ from wandb.util import coalesce, get_module, remove_keys_with_none_values
 
 from .base import (
     ExecutorConfig,
-    ImportReportConfig,
-    ImportRunConfig,
+    DstReportConfig,
+    DstRunConfig,
     _thread_local_settings,
     send_run_with_send_manager,
     set_thread_local_settings,
@@ -352,7 +352,7 @@ class WandbImporter:
     def import_run(
         self,
         run: WandbRun,
-        config: Optional[ImportRunConfig] = None,
+        config: Optional[DstRunConfig] = None,
     ) -> None:
         settings_override = {
             "api_key": self.dst_api_key,
@@ -363,7 +363,7 @@ class WandbImporter:
     def import_runs(
         self,
         runs: Iterable[WandbRun],
-        config: Optional[ImportRunConfig] = None,
+        config: Optional[DstRunConfig] = None,
         executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         runs = list(runs)
@@ -391,7 +391,7 @@ class WandbImporter:
         entity: str,
         project: Optional[str] = None,
         limit: Optional[int] = None,
-        config: Optional[ImportRunConfig] = None,
+        config: Optional[DstRunConfig] = None,
         executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         runs = self.collect_runs(entity, project, limit)
@@ -416,10 +416,10 @@ class WandbImporter:
     def import_report(
         self,
         report: Report,
-        config: Optional[ImportReportConfig] = None,
+        config: Optional[DstReportConfig] = None,
     ) -> None:
         if config is None:
-            config = ImportReportConfig()
+            config = DstReportConfig()
 
         name = coalesce(config.dst_name, report.name)
         entity = coalesce(config.dst_entity, report.entity)
@@ -453,7 +453,7 @@ class WandbImporter:
     def import_reports(
         self,
         reports: Iterable[Report],
-        config: Optional[ImportReportConfig] = None,
+        config: Optional[DstReportConfig] = None,
         executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         reports = list(reports)
@@ -486,7 +486,7 @@ class WandbImporter:
         entity: str,
         project: Optional[str] = None,
         limit: Optional[int] = None,
-        config: Optional[ImportReportConfig] = None,
+        config: Optional[DstReportConfig] = None,
     ) -> None:
         reports = self.collect_reports(entity, project, limit)
         self.import_reports(reports, config)
@@ -495,7 +495,7 @@ class WandbImporter:
         self,
         entity: str,
         project: Optional[str],
-        config: Optional[ImportRunConfig] = None,
+        config: Optional[DstRunConfig] = None,
         executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         last_run_file = "_wandb_last_run.txt"

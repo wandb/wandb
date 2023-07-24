@@ -12,12 +12,7 @@ import wandb
 from wandb import Artifact
 from wandb.util import get_module
 
-from .base import (
-    ExecutorConfig,
-    ImporterRun,
-    ImportRunConfig,
-    send_run_with_send_manager,
-)
+from .base import DstRunConfig, ExecutorConfig, ImporterRun, send_run_with_send_manager
 
 with patch("click.echo"):
     from wandb.apis.reports import Report
@@ -188,7 +183,7 @@ class MlflowImporter:
     def import_run(
         self,
         run: ImporterRun,
-        config: Optional[ImportRunConfig] = None,
+        config: Optional[DstRunConfig] = None,
     ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
         send_run_with_send_manager(run, config)
@@ -196,7 +191,7 @@ class MlflowImporter:
     def import_runs(
         self,
         runs: Iterable[ImporterRun],
-        config: Optional[ImportRunConfig] = None,
+        config: Optional[DstRunConfig] = None,
         executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         runs = list(self.collect_runs())
@@ -223,7 +218,7 @@ class MlflowImporter:
     def import_all_runs(
         self,
         limit: Optional[int] = None,
-        config: Optional[ImportRunConfig] = None,
+        config: Optional[DstRunConfig] = None,
         executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         runs = self.collect_runs(limit)
