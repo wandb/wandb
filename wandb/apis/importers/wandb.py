@@ -2,11 +2,11 @@ import csv
 import json
 import os
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from datetime import datetime as dt
 from pathlib import Path
-import traceback
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
@@ -18,9 +18,9 @@ from wandb.apis.public import Run
 from wandb.util import coalesce, get_module, remove_keys_with_none_values
 
 from .base import (
-    ExecutorConfig,
     DstReportConfig,
     DstRunConfig,
+    ExecutorConfig,
     _thread_local_settings,
     send_run_with_send_manager,
     set_thread_local_settings,
@@ -112,12 +112,8 @@ class WandbRun:
         arts = self.run.logged_artifacts()
         for art in tqdm(arts, "Logged artifacts", leave=False, unit="art"):
             name, ver = art.name.split(":v")
-            try:
-                with patch("click.echo"):
-                    path = art.download()
-            except Exception as e:
-                wandb.termerror(f"Skipping artifact: {e}")
-                continue
+            with patch("click.echo"):
+                path = art.download()
 
             # Hack: skip naming validation check for wandb-* types
             new_art = wandb.Artifact(name, "temp")
@@ -134,12 +130,8 @@ class WandbRun:
 
             # job names cant contain spaces, but artifacts cant
             name = name.replace(" ", "_")
-            try:
-                with patch("click.echo"):
-                    path = art.download()
-            except Exception as e:
-                wandb.termerror(f"Skipping artifact: {e}")
-                continue
+            with patch("click.echo"):
+                path = art.download()
 
             # Hack: skip naming validation check for wandb-* types
             new_art = wandb.Artifact(name, "temp")
@@ -227,15 +219,8 @@ class WandbRun:
         base_path = f"{run_dir}/files"
         files = self.run.files()
         for f in tqdm(files, "Files", leave=False, unit="file"):
-            try:
-                result = f.download(base_path, exist_ok=True)
-            except Exception as e:
-                wandb.termerror(
-                    f"Problem in run {self.run_id()}({self.display_name()}) downloading file {f}: {e}"
-                )
-                continue
-            else:
-                yield (result.name, "now")
+            result = f.download(base_path, exist_ok=True)
+            yield (result.name, "now")
 
     def logs(self) -> Optional[Iterable[str]]:
         fname = self._find_in_files("output.log")
@@ -308,11 +293,6 @@ class WandbImporter:
         dst_base_url: str,
         dst_api_key: str,
     ) -> None:
-        self.src_base_url = src_base_url
-        self.src_api_key = src_api_key
-        self.dst_base_url = dst_base_url
-        self.dst_api_key = dst_api_key
-
         self.src_api = wandb.Api(
             api_key=src_api_key,
             overrides={"base_url": src_base_url},
@@ -358,8 +338,9 @@ class WandbImporter:
         config: Optional[DstRunConfig] = None,
     ) -> None:
         settings_override = {
-            "api_key": self.dst_api_key,
-            "base_url": self.dst_base_url,
+            k: v
+            for k, v in self.dst_api.settings.items()
+            if k in ["api_key", "base_url"]
         }
         send_run_with_send_manager(run, config, settings_override)
 
