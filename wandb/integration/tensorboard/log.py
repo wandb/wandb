@@ -116,7 +116,7 @@ def tf_summary_to_dict(  # noqa: C901
         if len(_img_strs) == 0:
             return None
 
-        images: List[Union["wandb.Video", "wandb.Image"]] = []
+        images: List[Union[wandb.Video, wandb.Image]] = []
         for _img_str in _img_strs:
             # Supports gifs from TensorboardX
             if _img_str.startswith(b"GIF"):
