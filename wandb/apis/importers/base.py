@@ -47,11 +47,11 @@ class DstRunConfig:
 
 @dataclass
 class DstReportConfig:
-    dst_name: Optional[str] = None
-    dst_entity: Optional[str] = None
-    dst_project: Optional[str] = None
-    dst_title: Optional[str] = None
-    dst_description: Optional[str] = None
+    name: Optional[str] = None
+    entity: Optional[str] = None
+    project: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
     debug: bool = False
 
 
@@ -354,6 +354,8 @@ def send_run_with_send_manager(
     # does this need to be here for pmap?
     if config:
         for k, v in asdict(config).items():
+            if v is None:
+                continue
             # `lambda: v` won't work!
             # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
             setattr(run, k, lambda v=v: v)

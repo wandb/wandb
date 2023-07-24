@@ -421,11 +421,11 @@ class WandbImporter:
         if config is None:
             config = DstReportConfig()
 
-        name = coalesce(config.dst_name, report.name)
-        entity = coalesce(config.dst_entity, report.entity)
-        project = coalesce(config.dst_project, report.project)
-        title = coalesce(config.dst_title, report.title)
-        description = coalesce(config.dst_description, report.description)
+        name = coalesce(config.name, report.name)
+        entity = coalesce(config.entity, report.entity)
+        project = coalesce(config.project, report.project)
+        title = coalesce(config.title, report.title)
+        description = coalesce(config.description, report.description)
 
         api = self.dst_api
 
