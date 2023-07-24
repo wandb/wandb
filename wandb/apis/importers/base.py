@@ -322,7 +322,7 @@ class RecordMaker:
 def send_run_with_send_manager(
     run: ImporterRun,
     overrides: Optional[Dict[str, Any]] = None,
-    settings_override: Optional[SettingsStatic] = None,
+    settings_override: Optional[Dict[str, Any]] = None,
 ) -> None:
     # does this need to be here for pmap?
     if overrides:

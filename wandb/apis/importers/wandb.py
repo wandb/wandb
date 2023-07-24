@@ -6,14 +6,12 @@ from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
-import polars as pl  # type: ignore
 import requests
 import yaml
-from tqdm.auto import tqdm
 
 import wandb
 from wandb.apis.public import Run
-from wandb.util import coalesce, remove_keys_with_none_values
+from wandb.util import coalesce, get_module, remove_keys_with_none_values
 
 from .base import (
     _thread_local_settings,
@@ -24,6 +22,17 @@ from .base import (
 with patch("click.echo"):
     import wandb.apis.reports as wr
     from wandb.apis.reports import Report
+
+pl = get_module(
+    "polars",
+    required="To use the WandbImporter, please install polars: `pip install polars`",
+)
+
+_tqdm = get_module(
+    "tqdm",
+    required="To use the WandbImporter, please install tqdm: `pip install tqdm`",
+)
+tqdm = _tqdm.auto.tqdm
 
 
 class WandbRun:
