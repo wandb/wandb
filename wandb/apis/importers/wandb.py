@@ -32,7 +32,7 @@ _tqdm = get_module(
     "tqdm",
     required="To use the WandbImporter, please install tqdm: `pip install tqdm`",
 )
-tqdm = _tqdm.auto.tqdm
+tqdm = _tqdm.tqdm
 
 
 class WandbRun:
