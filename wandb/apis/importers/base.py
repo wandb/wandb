@@ -342,7 +342,7 @@ def send_run_with_send_manager(
         "git_remote": None,
         "resume": "false",
         "program": None,
-        "ignore_globs": (),
+        "ignore_globs": [],
         "run_id": None,
         "entity": None,
         "project": None,
@@ -360,6 +360,7 @@ def send_run_with_send_manager(
         "_live_policy_wait_time": None,
         "disable_job_creation": False,
         "_async_upload_concurrency_limit": None,
+        "_file_stream_timeout_seconds": 0,
     }
     combined_settings = {**default_settings, **_settings_override}
     settings_message = wandb_settings_pb2.Settings()
@@ -405,8 +406,6 @@ def send_run_with_send_manager(
         sm.send(rm._make_summary_record())
 
         wandb.termlog(">> Log Output")
-        # if hasattr(run, "_logs"):
-        #     lines = run._logs
         lines = run.logs()
         if lines is not None:
             for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
