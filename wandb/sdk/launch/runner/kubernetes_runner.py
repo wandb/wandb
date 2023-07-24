@@ -142,7 +142,7 @@ class KubernetesSubmittedRun(AbstractRun):
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
-    def _delete_secret(self, state: str):
+    def _delete_secret(self, state: str) -> None:
         if state in ["stopped", "failed", "finished"] and self.secret is not None:
             try:
                 self.core_api.delete_namespaced_secret(
