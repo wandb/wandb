@@ -1,6 +1,7 @@
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
@@ -9,9 +10,14 @@ from tqdm.auto import tqdm
 
 import wandb
 from wandb import Artifact
-from wandb.util import coalesce, get_module
+from wandb.util import get_module
 
-from .base import ImporterRun, send_run_with_send_manager
+from .base import (
+    ExecutorConfig,
+    ImporterRun,
+    ImportRunConfig,
+    send_run_with_send_manager,
+)
 
 with patch("click.echo"):
     from wandb.apis.reports import Report
@@ -182,26 +188,21 @@ class MlflowImporter:
     def import_run(
         self,
         run: ImporterRun,
-        overrides: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportRunConfig] = None,
     ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-        send_run_with_send_manager(run, overrides)
+        send_run_with_send_manager(run, config)
 
     def import_runs(
         self,
         runs: Iterable[ImporterRun],
-        overrides: Optional[Dict[str, Any]] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportRunConfig] = None,
+        executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
-        _overrides = coalesce(overrides, {})
-        _pool_kwargs = coalesce(pool_kwargs, {})
         runs = list(self.collect_runs())
 
-        with ThreadPoolExecutor(**_pool_kwargs) as exc:
-            futures = {
-                exc.submit(self.import_run, run, overrides=_overrides): run
-                for run in runs
-            }
+        with ThreadPoolExecutor(**asdict(executor_config)) as exc:
+            futures = {exc.submit(self.import_run, run, config): run for run in runs}
             with tqdm(desc="Importing runs", total=len(futures), unit="run") as pbar:
                 for future in as_completed(futures):
                     run = futures[future]
@@ -220,11 +221,11 @@ class MlflowImporter:
     def import_all_runs(
         self,
         limit: Optional[int] = None,
-        overrides: Optional[Dict[str, Any]] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportRunConfig] = None,
+        executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         runs = self.collect_runs(limit)
-        self.import_runs(runs, overrides, pool_kwargs)
+        self.import_runs(runs, config, executor_config)
 
     def import_report(self, report: Report):
         raise NotImplementedError("MLFlow does not have a reports concept")

@@ -14,7 +14,7 @@ def test_mlflow(new_prelogged_mlflow_server, mlflow_logging_config, user):
         "project": project,
     }
     importer = MlflowImporter(mlflow_tracking_uri=new_prelogged_mlflow_server.base_url)
-    importer.import_all_runs(overrides=overrides)
+    importer.import_all_runs(config=overrides)
 
     runs = list(wandb.Api().runs(f"{user}/{project}"))
     assert len(runs) == mlflow_logging_config.total_runs

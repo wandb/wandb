@@ -3,7 +3,7 @@ import os
 import queue
 import sys
 import threading
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
@@ -35,6 +35,26 @@ with patch("click.echo"):
 class ThreadLocalSettings(threading.local):
     api_key: str = ""
     base_url: str = ""
+
+
+@dataclass
+class ImportRunConfig:
+    target_entity: Optional[str] = None
+    target_project: Optional[str] = None
+
+
+@dataclass
+class ImportReportConfig:
+    dst_name: Optional[str] = None
+    dst_entity: Optional[str] = None
+    dst_project: Optional[str] = None
+    dst_title: Optional[str] = None
+    dst_description: Optional[str] = None
+
+
+@dataclass
+class ExecutorConfig:
+    max_workers: Optional[int] = None
 
 
 _thread_local_settings = ThreadLocalSettings()
@@ -161,10 +181,14 @@ class Importer(Protocol):
     def collect_reports(self, *args, **kwargs) -> Iterable[Report]:
         ...
 
-    def import_run(self, run: ImporterRun) -> None:
+    def import_run(
+        self, run: ImporterRun, config: Optional[ImportRunConfig] = None
+    ) -> None:
         ...
 
-    def import_report(self, report: Report) -> None:
+    def import_report(
+        self, report: Report, config: Optional[ImportReportConfig] = None
+    ) -> None:
         ...
 
 
@@ -321,12 +345,12 @@ class RecordMaker:
 
 def send_run_with_send_manager(
     run: ImporterRun,
-    overrides: Optional[Dict[str, Any]] = None,
+    config: Optional[ImportRunConfig] = None,
     settings_override: Optional[Dict[str, Any]] = None,
 ) -> None:
     # does this need to be here for pmap?
-    if overrides:
-        for k, v in overrides.items():
+    if config:
+        for k, v in asdict(config).items():
             # `lambda: v` won't work!
             # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
             setattr(run, k, lambda v=v: v)

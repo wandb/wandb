@@ -1,3 +1,4 @@
+from dataclasses import asdict
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,6 +15,9 @@ from wandb.apis.public import Run
 from wandb.util import coalesce, get_module, remove_keys_with_none_values
 
 from .base import (
+    ImportReportConfig,
+    ImportRunConfig,
+    ExecutorConfig,
     _thread_local_settings,
     send_run_with_send_manager,
     set_thread_local_settings,
@@ -345,35 +349,24 @@ class WandbImporter:
     def import_run(
         self,
         run: WandbRun,
-        overrides: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportRunConfig] = None,
     ) -> None:
-        _overrides: Dict[str, Any] = coalesce(overrides, {})
         settings_override = {
             "api_key": self.dst_api_key,
             "base_url": self.dst_base_url,
         }
-
-        send_run_with_send_manager(
-            run,
-            overrides=_overrides,
-            settings_override=settings_override,
-        )
+        send_run_with_send_manager(run, config, settings_override)
 
     def import_runs(
         self,
         runs: Iterable[WandbRun],
-        overrides: Optional[Dict[str, Any]] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportRunConfig] = None,
+        executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
-        _overrides: Dict[str, Any] = coalesce(overrides, {})
-        _pool_kwargs: Dict[str, Any] = coalesce(pool_kwargs, {})
         runs = list(runs)
 
-        with ThreadPoolExecutor(**_pool_kwargs) as exc:
-            futures = {
-                exc.submit(self.import_run, run, overrides=_overrides): run
-                for run in runs
-            }
+        with ThreadPoolExecutor(**asdict(executor_config)) as exc:
+            futures = {exc.submit(self.import_run, run, config): run for run in runs}
             with tqdm(desc="Importing runs", total=len(futures), unit="run") as pbar:
                 for future in as_completed(futures):
                     run = futures[future]
@@ -391,11 +384,11 @@ class WandbImporter:
         entity: str,
         project: Optional[str] = None,
         limit: Optional[int] = None,
-        overrides: Optional[Dict[str, Any]] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportRunConfig] = None,
+        executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         runs = self.collect_runs(entity, project, limit)
-        self.import_runs(runs, overrides, pool_kwargs)
+        self.import_runs(runs, config, executor_config)
 
     def collect_reports(
         self, entity: str, project: Optional[str] = None, limit: Optional[int] = None
@@ -416,15 +409,13 @@ class WandbImporter:
     def import_report(
         self,
         report: Report,
-        overrides: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportReportConfig] = None,
     ) -> None:
-        _overrides: Dict[str, Any] = coalesce(overrides, {})
-
-        name = _overrides.get("name", report.name)
-        entity = _overrides.get("entity", report.entity)
-        project = _overrides.get("project", report.project)
-        title = _overrides.get("title", report.title)
-        description = _overrides.get("description", report.description)
+        name = coalesce(config.dst_name, report.name)
+        entity = coalesce(config.dst_entity, report.entity)
+        project = coalesce(config.dst_project, report.project)
+        title = coalesce(config.dst_title, report.title)
+        description = coalesce(config.dst_description, report.description)
 
         api = self.dst_api
 
@@ -452,16 +443,14 @@ class WandbImporter:
     def import_reports(
         self,
         reports: Iterable[Report],
-        overrides: Optional[Dict[str, Any]] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportReportConfig] = None,
+        pool_config: Optional[ExecutorConfig] = None,
     ) -> None:
-        _overrides = coalesce(overrides, {})
-        _pool_kwargs = coalesce(pool_kwargs, {})
         reports = list(reports)
 
-        with ThreadPoolExecutor(**_pool_kwargs) as exc:
+        with ThreadPoolExecutor(**asdict(pool_config)) as exc:
             futures = {
-                exc.submit(self.import_report, report, overrides=_overrides): report
+                exc.submit(self.import_report, report, config): report
                 for report in reports
             }
             with tqdm(
@@ -483,10 +472,10 @@ class WandbImporter:
         entity: str,
         project: Optional[str] = None,
         limit: Optional[int] = None,
-        overrides: Optional[Dict[str, Any]] = None,
+        config: Optional[ImportReportConfig] = None,
     ) -> None:
         reports = self.collect_reports(entity, project, limit)
-        self.import_reports(reports, overrides)
+        self.import_reports(reports, config)
 
     def rsync(
         self,

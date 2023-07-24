@@ -16,7 +16,7 @@ def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
 
     importer.import_all_runs(
         entity=wandb_server_src.user,
-        overrides={
+        config={
             "entity": wandb_server_dst.user,
             "project": wandb_logging_config.project_name,
         },
@@ -62,7 +62,7 @@ def test_wandb_reports(wandb_server_src, wandb_server_dst, wandb_logging_config)
 
     importer.import_all_reports(
         entity=wandb_server_src.user,
-        overrides={
+        config={
             "entity": wandb_server_dst.user,
             "project": wandb_logging_config.project_name,
         },
