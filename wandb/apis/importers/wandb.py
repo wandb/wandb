@@ -131,6 +131,9 @@ class WandbRun:
         arts = self.run.used_artifacts()
         for art in tqdm(arts, "Used artifacts", leave=False, unit="art"):
             name, ver = art.name.split(":v")
+
+            # job names cant contain spaces, but artifacts cant
+            name = name.replace(" ", "_")
             try:
                 with patch("click.echo"):
                     path = art.download()
