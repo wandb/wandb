@@ -200,6 +200,8 @@ class MlflowImporter:
         executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         runs = list(self.collect_runs())
+        if executor_config is None:
+            executor_config = ExecutorConfig()
 
         with ThreadPoolExecutor(**asdict(executor_config)) as exc:
             futures = {exc.submit(self.import_run, run, config): run for run in runs}

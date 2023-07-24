@@ -1,7 +1,7 @@
-from dataclasses import asdict
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
@@ -15,9 +15,9 @@ from wandb.apis.public import Run
 from wandb.util import coalesce, get_module, remove_keys_with_none_values
 
 from .base import (
+    ExecutorConfig,
     ImportReportConfig,
     ImportRunConfig,
-    ExecutorConfig,
     _thread_local_settings,
     send_run_with_send_manager,
     set_thread_local_settings,
@@ -364,6 +364,8 @@ class WandbImporter:
         executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         runs = list(runs)
+        if executor_config is None:
+            executor_config = ExecutorConfig()
 
         with ThreadPoolExecutor(**asdict(executor_config)) as exc:
             futures = {exc.submit(self.import_run, run, config): run for run in runs}
@@ -411,6 +413,9 @@ class WandbImporter:
         report: Report,
         config: Optional[ImportReportConfig] = None,
     ) -> None:
+        if config is None:
+            config = ImportReportConfig()
+        
         name = coalesce(config.dst_name, report.name)
         entity = coalesce(config.dst_entity, report.entity)
         project = coalesce(config.dst_project, report.project)
@@ -444,11 +449,13 @@ class WandbImporter:
         self,
         reports: Iterable[Report],
         config: Optional[ImportReportConfig] = None,
-        pool_config: Optional[ExecutorConfig] = None,
+        executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
         reports = list(reports)
+        if executor_config is None:
+            executor_config = ExecutorConfig()
 
-        with ThreadPoolExecutor(**asdict(pool_config)) as exc:
+        with ThreadPoolExecutor(**asdict(executor_config)) as exc:
             futures = {
                 exc.submit(self.import_report, report, config): report
                 for report in reports
@@ -480,32 +487,10 @@ class WandbImporter:
     def rsync(
         self,
         entity: str,
-        project: Optional[str] = None,
-        overrides: Optional[Dict[str, Any]] = None,
+        project: Optional[str],
+        config: Optional[ImportRunConfig] = None,
+        executor_config: Optional[ExecutorConfig] = None,
     ) -> None:
-        overrides = coalesce(overrides, {})
-
-        # Actually there is a bug here.  If the project is deleted, the ids still appear to be here even though they are not!
-        # dest_ent = overrides.get("entity", entity)
-        # ids_in_dst = list(self._get_ids_in_dst(dest_ent))
-        # wandb.termwarn(f"Found IDs already in destination.  Skipping {ids_in_dst}")
-        # runs = self.download_all_runs_alt(entity, skip_ids=ids_in_dst)
-        runs = self.collect_runs(entity, project, skip_ids=[])
-        self.import_runs(runs, overrides)
-
-        # do the same for reports?
-        reports = self.collect_reports(entity)
-        self.import_reports(reports, overrides)
-
-    def rsync_time(
-        self,
-        entity: str,
-        project: Optional[str] = None,
-        overrides: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        # instead of using ids, just use the last run timestamp
-        from datetime import datetime as dt
-
         last_run_file = "_wandb_last_run.txt"
         last_run_time = None
         now = dt.now().isoformat()
@@ -520,7 +505,7 @@ class WandbImporter:
             wandb.termlog(f"Downloading runs created after {last_run_time}")
 
         runs = self.collect_runs(entity, project, start_date=last_run_time)
-        self.import_runs(runs, overrides)
+        self.import_runs(runs, config, executor_config)
 
         with open(last_run_file, "w") as f:
             f.write(now)

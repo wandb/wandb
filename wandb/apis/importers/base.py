@@ -4,6 +4,7 @@ import queue
 import sys
 import threading
 from dataclasses import asdict, dataclass
+from functools import partial
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
@@ -41,6 +42,7 @@ class ThreadLocalSettings(threading.local):
 class ImportRunConfig:
     target_entity: Optional[str] = None
     target_project: Optional[str] = None
+    debug: bool = False
 
 
 @dataclass
@@ -50,6 +52,7 @@ class ImportReportConfig:
     dst_project: Optional[str] = None
     dst_title: Optional[str] = None
     dst_description: Optional[str] = None
+    debug: bool = False
 
 
 @dataclass
@@ -397,11 +400,13 @@ def send_run_with_send_manager(
     interface = InterfaceQueue(record_q=record_q)
     context_keeper = context.ContextKeeper()
 
+    _debug_log = partial(debug_log, config=config)
+
     with SendManager(settings, record_q, result_q, interface, context_keeper) as sm:
-        wandb.termlog(">> Make run record")
+        _debug_log(">> Make run record")
         sm.send(rm._make_run_record())
 
-        wandb.termlog(">> Use Artifacts")
+        _debug_log(">> Use Artifacts")
         used_artifacts = run.used_artifacts()
         if used_artifacts is not None:
             for artifact in tqdm(
@@ -409,7 +414,7 @@ def send_run_with_send_manager(
             ):
                 sm.send(rm._make_artifact_record(artifact, use_artifact=True))
 
-        wandb.termlog(">> Log Artifacts")
+        _debug_log(">> Log Artifacts")
         artifacts = run.artifacts()
         if artifacts is not None:
             for artifact in tqdm(
@@ -417,23 +422,28 @@ def send_run_with_send_manager(
             ):
                 sm.send(rm._make_artifact_record(artifact))
 
-        wandb.termlog(">> Log Metadata")
+        _debug_log(">> Log Metadata")
         sm.send(rm._make_metadata_files_record())
 
-        wandb.termlog(">> Log History")
+        _debug_log(">> Log History")
         for history_record in tqdm(
             rm._make_history_records(), desc="History", unit="steps", leave=False
         ):
             sm.send(history_record)
 
-        wandb.termlog(">> Log Summary")
+        _debug_log(">> Log Summary")
         sm.send(rm._make_summary_record())
 
-        wandb.termlog(">> Log Output")
+        _debug_log(">> Log Output")
         lines = run.logs()
         if lines is not None:
             for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
                 sm.send(rm._make_output_record(line))
 
-        wandb.termlog(">> Log Telem")
+        _debug_log(">> Log Telem")
         sm.send(rm._make_telem_record())
+
+
+def debug_log(message: str, config: Optional[ImportRunConfig] = None) -> None:
+    if config and config.debug:
+        wandb.termlog(message)
