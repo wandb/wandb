@@ -180,8 +180,8 @@ class Artifact:
             int, Tuple[data_types.WBValue, ArtifactManifestEntry]
         ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
-        self._save_future: Optional["MessageFuture"] = None
-        self._dependent_artifacts: Set["Artifact"] = set()
+        self._save_future: Optional[MessageFuture] = None
+        self._dependent_artifacts: Set[Artifact] = set()
         self._download_roots: Set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: Optional[str] = None
