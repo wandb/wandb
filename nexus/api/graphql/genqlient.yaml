@@ -12,3 +12,5 @@ bindings:
     type: string
   DateTime:
     type: time.Time
+  Duration:
+    type: time.Duration

@@ -111,6 +111,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	h.logger.Debug("handle: got a message", "record", record)
 	switch x := record.RecordType.(type) {
 	case *service.Record_Alert:
+		h.handleAlert(record)
 	case *service.Record_Artifact:
 	case *service.Record_Config:
 	case *service.Record_Exit:
@@ -260,6 +261,10 @@ func (h *Handler) handleOutputRaw(record *service.Record) {
 }
 
 func (h *Handler) handleRun(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleAlert(record *service.Record) {
 	h.sendRecord(record)
 }
 

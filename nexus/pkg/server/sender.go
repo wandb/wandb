@@ -87,6 +87,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendRun(record, x.Run)
 	case *service.Record_Exit:
 		s.sendExit(record, x.Exit)
+	case *service.Record_Alert:
+		s.sendAlert(record, x.Alert)
 	case *service.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
@@ -308,6 +310,32 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 	if s.fileStream != nil {
 		s.fileStream.StreamRecord(record)
 	}
+}
+
+func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
+
+	// TODO: handle invalid alert levels
+	severity := AlertSeverity(alert.Level)
+	waitDuration := time.Duration(alert.WaitDuration) * time.Second
+
+	data, err := NotifyScriptableRunAlert(
+		s.ctx,
+		s.graphqlClient,
+		s.RunRecord.Entity,
+		s.RunRecord.Project,
+		s.RunRecord.RunId,
+		alert.Title,
+		alert.Text,
+		&severity,
+		&waitDuration,
+	)
+	if err != nil {
+		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
+		s.logger.CaptureError("sender received error", err)
+	} else {
+		s.logger.Info("sender: sendAlert: notified scriptable run alert", "data", data)
+	}
+
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
