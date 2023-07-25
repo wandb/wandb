@@ -41,7 +41,10 @@ def filtered_dir(
     Yields:
         Generator[str, None, None]: A generator of file paths.
     """
-    for dirpath, _, files in os.walk(root):
+    for dirpath, dirs, files in os.walk(root):
+        for dir in dirs:
+            if exclude_fn(dir):
+                dirs.remove(dir)
         for fname in files:
             file_path = os.path.join(dirpath, fname)
             if include_fn(file_path) and not exclude_fn(file_path):
