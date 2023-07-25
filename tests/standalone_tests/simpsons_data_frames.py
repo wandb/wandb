@@ -123,18 +123,12 @@ def main():
 
             for i in range(base_i, base_i + len(examples)):
                 cards.append(
-                    """```Predicted:
-    {pred_class} ({pred_prob:.2%})
+                    f"""```Predicted:
+    {pred_classes[i]} ({pred_probs[i]:.2%})
     Actual:
-    {true_class} ({true_prob:.2%})
-    ![](https://api.wandb.ai/adrianbg/simpsons/tgw7wnqj/simpsons/{idx}.jpg)
-    ```""".format(
-                        true_class=true_classes[i],
-                        true_prob=true_probs[i],
-                        pred_class=pred_classes[i],
-                        pred_prob=pred_probs[i],
-                        idx=i,
-                    )
+    {true_classes[i]} ({true_probs[i]:.2%})
+    ![](https://api.wandb.ai/adrianbg/simpsons/tgw7wnqj/simpsons/{i}.jpg)
+    ```"""
                 )
 
         all_cols = [
