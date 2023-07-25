@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 class DiskUsage:
     """Total system disk usage in percent."""
 
-    # name = "disk_usage"
     name = "disk"
     samples: "Deque[float]"
 
@@ -108,16 +107,20 @@ class Disk:
         return psutil is not None
 
     def probe(self) -> dict:
-        # total disk space:
-        total = psutil.disk_usage("/").total / 1024 / 1024 / 1024
-        # total disk space used:
-        used = psutil.disk_usage("/").used / 1024 / 1024 / 1024
+        disk_usage = psutil.disk_usage("/")
+        disk_io_counters = psutil.disk_io_counters()
 
         # total disk in - number of read i/o operations on all disks
-        disk_in = psutil.disk_io_counters().read_count
+        disk_in = disk_io_counters.read_count
 
-        # total disk in - number of read i/o operations on all disks
-        disk_out = psutil.disk_io_counters().write_count
+        # total disk out - number of write i/o operations on all disks
+        disk_out = disk_io_counters.write_count
+
+        # Total disk space in gigabytes
+        total = disk_usage.total / 1024 / 1024 / 1024
+
+        # Disk space currently in use in gigabytes
+        used = disk_usage.used / 1024 / 1024 / 1024
 
         return {
             self.name: {
