@@ -4,6 +4,9 @@ plugin:
 depend:
   requirements:
     - tqdm
+tag:
+  skips:
+    - platform: win
 command:
   program: test_tqdm_nested.py
 env:
