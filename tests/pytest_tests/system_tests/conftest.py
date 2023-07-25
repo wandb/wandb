@@ -1,3 +1,4 @@
+import dataclasses
 import os
 import platform
 import secrets
@@ -32,11 +33,11 @@ from wandb.testing.relay import (
     TokenizedCircularPattern,
 )
 
-from .helpers import (
-    AddAdminAndEnsureNoDefaultUser,
-    UserFixtureCommand,
-    WandbServerSettings,
-)
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
+
 
 # `local-testcontainer` ports
 LOCAL_BASE_PORT = "8080"
@@ -397,6 +398,46 @@ def publish_util(backend_interface):
 # --------------------------------
 # Fixtures for full test point
 # --------------------------------
+@dataclasses.dataclass
+class UserFixtureCommand:
+    command: Literal["up", "down", "down_all", "logout", "login", "password"]
+    username: Optional[str] = None
+    password: Optional[str] = None
+    admin: bool = False
+    endpoint: str = "db/user"
+    port: str = FIXTURE_SERVICE_PORT
+    method: Literal["post"] = "post"
+
+
+@dataclasses.dataclass
+class AddAdminAndEnsureNoDefaultUser:
+    email: str
+    password: str
+    endpoint: str = "api/users-admin"
+    port: str = SERVICES_API_PORT
+    method: Literal["put"] = "put"
+
+
+@dataclasses.dataclass
+class WandbServerSettings:
+    name: str
+    volume: str
+    local_base_port: str
+    services_api_port: str
+    fixture_service_port: str
+    wandb_server_pull: str
+    wandb_server_tag: str
+    internal_local_base_port: str = "8080"
+    internal_local_services_api_port: str = "8083"
+    internal_fixture_service_port: str = "9015"
+    url: str = "http://localhost"
+
+    base_url: Optional[str] = None
+
+    def __post_init__(self):
+        self.base_url = f"{self.url}:{self.local_base_port}"
+
+
 def pytest_addoption(parser):
     # note: we default to "function" scope to ensure the environment is
     # set up properly when running the tests in parallel with pytest-xdist.
@@ -544,8 +585,6 @@ def wandb_server_factory():
                 f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
                 "-p",
                 f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
-                "-p",
-                f"{settings.db_port}:{settings.internal_db_port}",
                 "-e",
                 "WANDB_ENABLE_TEST_CONTAINER=true",
                 "--name",
@@ -604,7 +643,15 @@ def fixture_fn_factory():
             response = getattr(requests, cmd.method)(
                 endpoint,
                 json=data,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
+                    "Accept-Encoding": "*",
+                    "Connection": "keep-alive",
+                    # "Content-Type": "application/json",
+                    # "accept": "application/json",
+                },
             )
+            print(response)
             if response.status_code != 200:
                 print(response.json())
                 return False
@@ -627,7 +674,6 @@ def wandb_server(wandb_server_factory):
         local_base_port="8080",
         services_api_port="8083",
         fixture_service_port="9015",
-        db_port="3306",
         wandb_server_pull="missing",
         wandb_server_tag="master",
     )

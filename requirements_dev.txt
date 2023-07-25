@@ -79,4 +79,3 @@ responses
 kfp<2.0.0
 
 mlflow
-polars
