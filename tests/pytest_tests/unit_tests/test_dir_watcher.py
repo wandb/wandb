@@ -42,6 +42,21 @@ def dir_watcher(settings, file_pusher, tempdir: Path) -> DirWatcher:
         )
 
 
+@pytest.fixture
+def importer_settings():
+    return Mock(import_mode=True, ignore_globs=[])
+
+
+@pytest.fixture
+def importer_dir_watcher(importer_settings, file_pusher, tempdir: Path) -> DirWatcher:
+    with patch.object(wandb.filesync.dir_watcher, "wd_polling", Mock()):
+        yield DirWatcher(
+            settings=settings,
+            file_pusher=file_pusher,
+            file_dir=str(tempdir),
+        )
+
+
 def write_with_mtime(path: Path, content: bytes, mtime: int) -> None:
     path.write_bytes(content)
     os.utime(str(path), (mtime, mtime))
@@ -190,6 +205,16 @@ def test_dirwatcher_can_overwrite_policy_for_file(
     dir_watcher.update_policy("my-file.txt", "end")
     assert isinstance(
         dir_watcher._get_file_event_handler(str(f), "my-file.txt"), PolicyEnd
+    )
+
+
+def test_dirwatcher_importer_media_files_dont_use_policy_now(
+    importer_dir_watcher: DirWatcher,
+):
+    f = "media/my-file.txt"
+    write_with_mtime(f, b"content", mtime=0)
+    assert not isinstance(
+        dir_watcher._get_file_event_handler(f, "my-file.txt"), PolicyNow
     )
 
 

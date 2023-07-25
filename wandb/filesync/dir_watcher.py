@@ -315,8 +315,8 @@ class DirWatcher:
         save_name: its path relative to the run directory (aka the watch directory)
         """
         # Always return PolicyNow for any of our media files.
-        # if save_name.startswith("media/"):
-        #     return PolicyNow(file_path, save_name, self._file_pusher, self._settings)
+        if not self._settings.import_mode and save_name.startswith("media/"):
+            return PolicyNow(file_path, save_name, self._file_pusher, self._settings)
         if save_name not in self._file_event_handlers:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
             if "tfevents" in save_name or "graph.pbtxt" in save_name:

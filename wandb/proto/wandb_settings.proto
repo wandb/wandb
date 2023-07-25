@@ -168,6 +168,7 @@ message Settings {
   google.protobuf.StringValue tmp_dir = 140;
   google.protobuf.StringValue username = 141;
   google.protobuf.StringValue wandb_dir = 142;
+  google.protobuf.BoolValue import_mode = 200;
 
   // todo?
   //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources = 500;

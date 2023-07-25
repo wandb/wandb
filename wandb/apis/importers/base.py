@@ -361,6 +361,7 @@ def send_run_with_send_manager(
         "disable_job_creation": False,
         "_async_upload_concurrency_limit": None,
         "_file_stream_timeout_seconds": 0,
+        "import_mode": True,
     }
     combined_settings = {**default_settings, **_settings_override}
     settings_message = wandb_settings_pb2.Settings()
