@@ -8,11 +8,13 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
 import wandb.util
-from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
+from wandb.filesync import stats, step_checksum, step_upload
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
-    from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import artifact_saver, file_stream, internal_api
+    from wandb.sdk.artifacts import artifact_saver
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+    from wandb.sdk.internal import file_stream, internal_api
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
@@ -48,8 +50,8 @@ class FilePusher:
 
         self._stats = stats.Stats()
 
-        self._incoming_queue: "queue.Queue[step_checksum.Event]" = queue.Queue()
-        self._event_queue: "queue.Queue[step_upload.Event]" = queue.Queue()
+        self._incoming_queue: queue.Queue[step_checksum.Event] = queue.Queue()
+        self._event_queue: queue.Queue[step_upload.Event] = queue.Queue()
 
         self._step_checksum = step_checksum.StepChecksum(
             self._api,
@@ -111,12 +113,7 @@ class FilePusher:
     def file_counts_by_category(self) -> stats.FileCountsByCategory:
         return self._stats.file_counts_by_category()
 
-    def file_changed(
-        self,
-        save_name: dir_watcher.SaveName,
-        path: str,
-        copy: bool = True,
-    ):
+    def file_changed(self, save_name: LogicalPath, path: str, copy: bool = True):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
@@ -130,17 +127,12 @@ class FilePusher:
         if os.path.getsize(path) == 0:
             return
 
-        save_name = dir_watcher.SaveName(wandb.util.to_forward_slash_path(save_name))
-        event = step_checksum.RequestUpload(
-            path,
-            dir_watcher.SaveName(save_name),
-            copy,
-        )
+        event = step_checksum.RequestUpload(path, save_name, copy)
         self._incoming_queue.put(event)
 
     def store_manifest_files(
         self,
-        manifest: "artifacts.ArtifactManifest",
+        manifest: "ArtifactManifest",
         artifact_id: str,
         save_fn: "artifact_saver.SaveFn",
         save_fn_async: "artifact_saver.SaveFnAsync",

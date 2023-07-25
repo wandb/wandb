@@ -14,9 +14,9 @@ depend:
     - numpy
     - pandas
     - scikit-learn
-  files:
-    - file: wine.csv
-      source: https://raw.githubusercontent.com/wandb/examples/master/examples/data/wine.csv
+#  files:
+#    - file: wine.csv
+#      source: https://raw.githubusercontent.com/wandb/examples/master/examples/data/wine.csv
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0

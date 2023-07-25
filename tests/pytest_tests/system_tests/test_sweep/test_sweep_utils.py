@@ -55,76 +55,82 @@ def test_load_launch_sweep_config():
         utils.load_launch_sweep_config("s1.yaml")
 
 
-def test_sweep_construct_scheduler_entrypoint():
-    assert utils.construct_scheduler_entrypoint({}, "queue", "project", 1) == []
+def test_sweep_construct_scheduler_args():
+    assert not utils.construct_scheduler_args({}, "queue", "project")
 
-    assert utils.construct_scheduler_entrypoint(
-        {"job": "job:12315"}, "queue", "project", 1
-    ) == [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    args = utils.construct_scheduler_args({"job": "job:12315"}, "queue", "project")
+    assert args == [
         "--queue",
         "'queue'",
         "--project",
-        "project",
-        "--num_workers",
-        "1",
+        "'project'",
+        "--sweep_type",
+        "wandb",
         "--job",
-        "job:12315",
+        "'job:12315'",
     ]
 
-    assert utils.construct_scheduler_entrypoint(
-        {"job": "job"}, "queue", "project", "1", "author"
-    ) == [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    args = utils.construct_scheduler_args(
+        {"job": "job:12315"},
+        "queue",
+        "project",
+        return_job=False,
+    )
+    assert args == [
         "--queue",
         "'queue'",
         "--project",
-        "project",
-        "--num_workers",
-        "1",
+        "'project'",
+        "--sweep_type",
+        "wandb",
         "--job",
-        "job:latest",
+        "'job:12315'",
+    ]
+
+    args = utils.construct_scheduler_args(
+        {"job": "job:latest"},
+        "queue",
+        "project",
+        author="author",
+        sweep_type="wandb",
+        return_job=False,
+    )
+    assert args == [
+        "--queue",
+        "'queue'",
+        "--project",
+        "'project'",
+        "--sweep_type",
+        "wandb",
         "--author",
-        "author",
+        "'author'",
+        "--job",
+        "'job:latest'",
     ]
 
-    assert utils.construct_scheduler_entrypoint(
-        {"image_uri": "image_uri"}, "queue", "project", 1
-    ) == [
-        "wandb",
-        "scheduler",
-        "WANDB_SWEEP_ID",
+    args = utils.construct_scheduler_args(
+        {"image_uri": "image_uri"},
+        "queue",
+        "project",
+        return_job=False,
+    )
+    assert args == [
         "--queue",
         "'queue'",
         "--project",
-        "project",
-        "--num_workers",
-        "1",
+        "'project'",
+        "--sweep_type",
+        "wandb",
         "--image_uri",
         "image_uri",
     ]
 
-    assert (
-        utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", 1
+    # should fail because job and image_uri are mutually exclusive
+    assert not (
+        utils.construct_scheduler_args(
+            {"job": "job:111", "image_uri": "image_uri"},
+            "queue",
+            "project",
+            return_job=False,
         )
-        == []
-    )
-
-    assert (
-        utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1cpu"
-        )
-        == []
-    )
-
-    assert (
-        utils.construct_scheduler_entrypoint(
-            {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1.5"
-        )
-        == []
     )

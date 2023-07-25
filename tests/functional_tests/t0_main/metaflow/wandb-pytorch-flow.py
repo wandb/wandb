@@ -7,7 +7,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as F  # noqa: N812
 import torch.optim as optim
 import wandb
 from metaflow import FlowSpec, Parameter, step
@@ -17,6 +17,7 @@ from wandb.integration.metaflow import wandb_log
 
 os.environ["WANDB_SILENT"] = "true"
 os.environ["METAFLOW_USER"] = "test_user"
+os.environ["USER"] = os.environ["METAFLOW_USER"]
 
 
 @wandb_log

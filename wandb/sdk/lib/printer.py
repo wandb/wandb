@@ -191,7 +191,14 @@ class PrinterTerm(_Printer):
     def emoji(self, name: str) -> str:
         emojis = dict()
         if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
-            emojis = dict(star="⭐️", broom="🧹", rocket="🚀", gorilla="🦍", turtle="🐢")
+            emojis = dict(
+                star="⭐️",
+                broom="🧹",
+                rocket="🚀",
+                gorilla="🦍",
+                turtle="🐢",
+                lightning="️⚡",
+            )
 
         return emojis.get(name, "")
 
@@ -299,7 +306,7 @@ class PrinterJupyter(_Printer):
 Printer = Union[PrinterTerm, PrinterJupyter]
 
 
-def get_printer(_jupyter: Optional[bool] = None) -> Printer:
-    if _jupyter and ipython.in_jupyter():
+def get_printer(_jupyter: bool) -> Printer:
+    if _jupyter:
         return PrinterJupyter()
     return PrinterTerm()

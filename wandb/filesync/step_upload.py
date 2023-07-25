@@ -20,9 +20,10 @@ from typing import (
 
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
-    from wandb.filesync import dir_watcher, stats
+    from wandb.filesync import stats
     from wandb.sdk.internal import file_stream, internal_api, progress
     from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -49,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 class RequestUpload(NamedTuple):
     path: str
-    save_name: "dir_watcher.SaveName"
+    save_name: LogicalPath
     artifact_id: Optional[str]
     md5: Optional[str]
     copied: bool
@@ -69,9 +70,12 @@ class RequestFinish(NamedTuple):
     callback: Optional[OnRequestFinishFn]
 
 
-Event = Union[
-    RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone
-]
+class EventJobDone(NamedTuple):
+    job: RequestUpload
+    exc: Optional[BaseException]
+
+
+Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone]
 
 
 class AsyncExecutor:
@@ -148,10 +152,10 @@ class StepUpload:
         )
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
-        self._running_jobs: MutableMapping[dir_watcher.SaveName, RequestUpload] = {}
+        self._running_jobs: MutableMapping[LogicalPath, RequestUpload] = {}
         self._pending_jobs: MutableSequence[RequestUpload] = []
 
-        self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
+        self._artifacts: MutableMapping[str, ArtifactStatus] = {}
 
         self.silent = bool(settings.silent) if settings else False
 
@@ -189,7 +193,7 @@ class StepUpload:
                 break
 
     def _handle_event(self, event: Event) -> None:
-        if isinstance(event, upload_job.EventJobDone):
+        if isinstance(event, EventJobDone):
             job = event.job
 
             if event.exc is not None:
@@ -283,9 +287,7 @@ class StepUpload:
             try:
                 self._do_upload_sync(event)
             finally:
-                self._event_queue.put(
-                    upload_job.EventJobDone(event, exc=sys.exc_info()[1])
-                )
+                self._event_queue.put(EventJobDone(event, exc=sys.exc_info()[1]))
 
         self._pool.submit(run_and_notify)
 
@@ -307,9 +309,7 @@ class StepUpload:
             try:
                 await self._do_upload_async(event)
             finally:
-                self._event_queue.put(
-                    upload_job.EventJobDone(event, exc=sys.exc_info()[1])
-                )
+                self._event_queue.put(EventJobDone(event, exc=sys.exc_info()[1]))
 
         async_executor.submit(run_and_notify())
 

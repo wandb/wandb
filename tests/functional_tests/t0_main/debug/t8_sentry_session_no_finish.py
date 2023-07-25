@@ -11,6 +11,9 @@ tag:
   shards:
     - default
     - standalone-cpu
+  platforms:
+    - linux
+    - mac
 var:
   - num_sentry_sessions:
       :fn:len: :wandb:sentry_sessions

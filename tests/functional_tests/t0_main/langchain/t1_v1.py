@@ -1,7 +1,7 @@
 import datetime
 
 
-def simple_fake_test():
+def simple_fake_test(handler):
     from langchain.chains import LLMChain
     from langchain.llms.fake import FakeListLLM
     from langchain.prompts import PromptTemplate
@@ -13,7 +13,7 @@ def simple_fake_test():
         template="What is a good name for a company that makes {product}?",
     )
 
-    chain = LLMChain(llm=llm, prompt=prompt)
+    chain = LLMChain(llm=llm, prompt=prompt, callbacks=[handler])
 
     for i in range(10):
         chain(f"q: {i} - {datetime.datetime.now().timestamp()}")
@@ -22,9 +22,9 @@ def simple_fake_test():
 def main():
     from wandb.integration.langchain import WandbTracer
 
-    WandbTracer.init()
-    simple_fake_test()
-    WandbTracer.finish()
+    handler = WandbTracer()
+    simple_fake_test(handler)
+    handler.finish()
 
 
 main()

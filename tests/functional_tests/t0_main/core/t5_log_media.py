@@ -6,6 +6,9 @@ id: 0.core.05-log-media
 plugin:
     - wandb
     - numpy
+depend:
+  requirements:
+    - pillow
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config]: {}

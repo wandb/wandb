@@ -6,7 +6,6 @@ StreamAction: Lightweight record for stream ops for thread safety with grpc
 StreamMux: Container for dictionary of stream threads per runid
 """
 import functools
-import logging
 import multiprocessing
 import queue
 import threading
@@ -55,10 +54,10 @@ class StreamRecord:
     _relay_q: "queue.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
-    _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
+    _settings: SettingsStatic
     _started: bool
 
-    def __init__(self, settings: Dict[str, Any], mailbox: Mailbox) -> None:
+    def __init__(self, settings: SettingsStatic, mailbox: Mailbox) -> None:
         self._started = False
         self._mailbox = mailbox
         self._record_q = queue.Queue()
@@ -73,7 +72,7 @@ class StreamRecord:
             process_check=False,
             mailbox=self._mailbox,
         )
-        self._settings = SettingsStatic(settings)
+        self._settings = settings
 
     def start_thread(self, thread: StreamThread) -> None:
         self._thread = thread
@@ -100,10 +99,10 @@ class StreamRecord:
     def mark_started(self) -> None:
         self._started = True
 
-    def update(self, settings: Dict[str, Any]) -> None:
+    def update(self, settings: SettingsStatic) -> None:
         # Note: Currently just overriding the _settings attribute
         # once we use Settings Class we might want to properly update it
-        self._settings = SettingsStatic(settings)
+        self._settings = settings
 
 
 class StreamAction:
@@ -163,7 +162,7 @@ class StreamMux:
     def set_pid(self, pid: int) -> None:
         self._pid = pid
 
-    def add_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
+    def add_stream(self, stream_id: str, settings: SettingsStatic) -> None:
         action = StreamAction(action="add", stream_id=stream_id, data=settings)
         self._action_q.put(action)
         action.wait_handled()
@@ -173,7 +172,7 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
-    def update_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
+    def update_stream(self, stream_id: str, settings: SettingsStatic) -> None:
         action = StreamAction(action="update", stream_id=stream_id, data=settings)
         self._action_q.put(action)
         action.wait_handled()
@@ -210,16 +209,11 @@ class StreamMux:
     def _process_add(self, action: StreamAction) -> None:
         stream = StreamRecord(action._data, mailbox=self._mailbox)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
-        settings_dict = action._data
-        settings_dict[
-            "_log_level"
-        ] = (
-            logging.DEBUG
-        )  # Note: not including this in the stream's settings to try and keep only Settings arguments
+        settings = action._data
         thread = StreamThread(
             target=wandb.wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(
-                settings=settings_dict,
+                settings=settings,
                 record_q=stream._record_q,
                 result_q=stream._result_q,
                 port=self._port,
@@ -287,7 +281,6 @@ class StreamMux:
         if not streams:
             return
 
-        # TODO(settings) remove type ignore once SettingsStatic and Settings unified
         printer = get_printer(
             all(stream._settings._jupyter for stream in streams.values())
         )
@@ -328,6 +321,7 @@ class StreamMux:
             server_info_handle = stream.interface.deliver_request_server_info()
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
+            job_info_handle = stream.interface.deliver_request_job_info()
 
             # wait for them, it's ok to do this serially but this can be improved
             result = poll_exit_handle.wait(timeout=-1)
@@ -346,11 +340,16 @@ class StreamMux:
             assert result
             final_summary = result.response.get_summary_response
 
+            result = job_info_handle.wait(timeout=-1)
+            assert result
+            job_info = result.response.job_info_response
+
             Run._footer(
                 sampled_history,
                 final_summary,
                 poll_exit_response,
                 server_info_response,
+                job_info=job_info,
                 settings=stream._settings,  # type: ignore
                 printer=printer,
             )

@@ -6,7 +6,7 @@ This authenticates your machine to log data to your account.
 import enum
 import os
 import sys
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -88,7 +88,7 @@ class ApiKeyStatus(enum.Enum):
 class _WandbLogin:
     def __init__(self):
         self.kwargs: Optional[Dict] = None
-        self._settings: Union[Settings, Dict[str, Any], None] = None
+        self._settings: Optional[Settings] = None
         self._backend = None
         self._silent = None
         self._entity = None
@@ -166,7 +166,7 @@ class _WandbLogin:
         )
 
     def configure_api_key(self, key):
-        if self._settings._jupyter and not self._settings.silent:
+        if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
                 "If you're specifying your api key in code, ensure this "
                 "code is not shared publicly.\nConsider setting the "

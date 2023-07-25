@@ -179,7 +179,7 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
     return None
 
 
-def notebook_metadata(silent) -> Dict[str, str]:
+def notebook_metadata(silent: bool) -> Dict[str, str]:
     """Attempt to query jupyter for the path and name of the notebook file.
 
     This can handle different jupyter environments, specifically:

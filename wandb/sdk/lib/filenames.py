@@ -31,7 +31,17 @@ def is_wandb_file(name: str) -> bool:
 def filtered_dir(
     root: str, include_fn: Callable[[str], bool], exclude_fn: Callable[[str], bool]
 ) -> Generator[str, None, None]:
-    """Simple generator to walk a directory"""
+    """Simple generator to walk a directory.
+
+    Args:
+        root (str): The root directory to walk.
+        include_fn (Callable[[str], bool]): A function that returns True if the file should be included.
+        exclude_fn (Callable[[str], bool]): A function that returns True if the file should be excluded.
+
+    Yields:
+        Generator[str, None, None]: A generator of file paths.
+    """
+
     for dirpath, dirs, files in os.walk(root):
         for dir in dirs:
             if exclude_fn(dir):
