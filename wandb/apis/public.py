@@ -16,7 +16,6 @@ import io
 import json
 import logging
 import os
-import platform
 import shutil
 import sys
 import tempfile
@@ -227,7 +226,7 @@ class RetryingClient:
 
     def version_supported(self, min_version):
         try:
-            from packaging.version import Version as parse_version
+            from packaging.version import Version as parse_version  # noqa: N813
         except ImportError:
             from pkg_resources import parse_version
 
