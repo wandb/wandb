@@ -1,3 +1,10 @@
+# 0.15.7 (July 25, 2023)
+
+### :hammer: Fixes
+* fix(sdk): images not syncing until the end run (revert #5777) by @raubitsj in https://github.com/wandb/wandb/pull/5951
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.6...v0.15.7
+
 # 0.15.6 (July 24, 2023)
 
 ### :magic_wand: Enhancements

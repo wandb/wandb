@@ -2,7 +2,6 @@ import json
 import os
 import queue
 import sys
-import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
@@ -29,20 +28,6 @@ else:
 
 with patch("click.echo"):
     from wandb.apis.reports import Report
-
-
-@dataclass
-class ThreadLocalSettings(threading.local):
-    api_key: str = ""
-    base_url: str = ""
-
-
-_thread_local_settings = ThreadLocalSettings()
-
-
-def set_thread_local_settings(api_key, base_url):
-    _thread_local_settings.api_key = api_key
-    _thread_local_settings.base_url = base_url
 
 
 class ImporterRun(Protocol):
@@ -322,7 +307,7 @@ class RecordMaker:
 def send_run_with_send_manager(
     run: ImporterRun,
     overrides: Optional[Dict[str, Any]] = None,
-    settings_override: Optional[Dict[str, Any]] = None,
+    settings_override: Optional[SettingsStatic] = None,
 ) -> None:
     # does this need to be here for pmap?
     if overrides:
@@ -334,20 +319,19 @@ def send_run_with_send_manager(
     rm = RecordMaker(run)
 
     root_dir = rm.run_dir
-
     default_settings = {
         "files_dir": os.path.join(root_dir, "files"),
         "root_dir": root_dir,
         "_start_time": 0,
         "git_remote": None,
-        "resume": "false",
+        "resume": False,
         "program": None,
-        "ignore_globs": [],
+        "ignore_globs": (),
         "run_id": None,
         "entity": None,
         "project": None,
         "run_group": None,
-        "run_job_type": None,
+        "job_type": None,
         "run_tags": None,
         "run_name": None,
         "run_notes": None,
@@ -407,6 +391,8 @@ def send_run_with_send_manager(
         sm.send(rm._make_summary_record())
 
         wandb.termlog(">> Log Output")
+        # if hasattr(run, "_logs"):
+        #     lines = run._logs
         lines = run.logs()
         if lines is not None:
             for line in tqdm(lines, desc="Stdout", unit="lines", leave=False):
