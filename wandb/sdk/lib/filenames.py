@@ -41,6 +41,7 @@ def filtered_dir(
     Yields:
         Generator[str, None, None]: A generator of file paths.
     """
+
     for dirpath, dirs, files in os.walk(root):
         for dir in dirs:
             if exclude_fn(dir):
