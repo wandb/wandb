@@ -36,8 +36,8 @@ class ArtifactsCache:
         mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-        self._artifacts_by_id: Dict[str, "Artifact"] = CappedDict()
-        self._artifacts_by_client_id: Dict[str, "Artifact"] = CappedDict()
+        self._artifacts_by_id: Dict[str, Artifact] = CappedDict()
+        self._artifacts_by_client_id: Dict[str, Artifact] = CappedDict()
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int

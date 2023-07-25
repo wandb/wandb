@@ -144,7 +144,7 @@ class WandbServer:
             pid = str(self._pid or 0)
             transport = "s" if sock_port else "g"
             port = grpc_port or sock_port or 0
-            # this format is similar to wandb_manager token but it purely informative now
+            # this format is similar to wandb_manager token, but it's purely informative now
             # (consider unifying this in the future)
             service_id = f"{service_ver}-{pid}-{transport}-{port}"
             proc_title = f"wandb-service({service_id})"

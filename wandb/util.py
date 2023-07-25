@@ -1163,7 +1163,7 @@ def async_call(
     to determine if a timeout was reached. If an exception is thrown in the thread, we
     reraise it.
     """
-    q: "queue.Queue" = queue.Queue()
+    q: queue.Queue = queue.Queue()
 
     def wrapped_target(q: "queue.Queue", *args: Any, **kwargs: Any) -> Any:
         try:
