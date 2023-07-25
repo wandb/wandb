@@ -560,7 +560,7 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
         self._step = 0
-        self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
+        self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None
 
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
@@ -1353,7 +1353,7 @@ class Run:
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files: "FilesDict" = dict(files=[(GlobStr(glob.escape(fname)), "now")])
+        files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1848,7 +1848,7 @@ class Run:
                 )
                 % file_str
             )
-        files_dict: "FilesDict" = dict(files=[(wandb_glob_str, policy)])
+        files_dict: FilesDict = dict(files=[(wandb_glob_str, policy)])
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files

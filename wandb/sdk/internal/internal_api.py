@@ -194,7 +194,7 @@ class Api:
         self._environ = environ
         self._global_context = context.Context()
         self._local_data = _ThreadLocalData()
-        self.default_settings: "DefaultSettings" = {
+        self.default_settings: DefaultSettings = {
             "section": "default",
             "git_remote": "origin",
             "ignore_globs": [],
@@ -254,7 +254,7 @@ class Api:
 
         # httpx is an optional dependency, so we lazily instantiate the client
         # only when we need it
-        self._async_httpx_client: Optional["httpx.AsyncClient"] = None
+        self._async_httpx_client: Optional[httpx.AsyncClient] = None
 
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
@@ -288,6 +288,7 @@ class Api:
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
+        self.create_launch_agent_input_info: Optional[List[str]] = None
         self.server_create_run_queue_supports_drc: Optional[bool] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
@@ -888,7 +889,7 @@ class Api:
         }
         """
         )
-        response: "_Response" = self.gql(
+        response: _Response = self.gql(
             query, variable_values={"entity": entity, "project": project}
         )["model"]
         return response
@@ -1618,11 +1619,37 @@ class Api:
         return result
 
     @normalize_exceptions
+    def create_launch_agent_fields_introspection(self) -> List:
+        if self.create_launch_agent_input_info:
+            return self.create_launch_agent_input_info
+        query_string = """
+           query ProbeServerCreateLaunchAgentInput {
+                CreateLaunchAgentInputInfoType: __type(name:"CreateLaunchAgentInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+
+        self.create_launch_agent_input_info = [
+            field.get("name", "")
+            for field in res.get("CreateLaunchAgentInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+        ]
+        return self.create_launch_agent_input_info
+
+    @normalize_exceptions
     def create_launch_agent(
         self,
         entity: str,
         project: str,
         queues: List[str],
+        agent_config: Dict[str, Any],
         gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
@@ -1655,28 +1682,46 @@ class Api:
             }
 
         hostname = socket.gethostname()
-        mutation = gql(
-            """
-            mutation createLaunchAgent($entity: String!, $project: String!, $queues: [ID!]!, $hostname: String!){
-                createLaunchAgent(
-                    input: {
-                        entityName: $entity,
-                        projectName: $project,
-                        runQueues: $queues,
-                        hostname: $hostname
-                    }
-                ) {
-                    launchAgentId
-                }
-            }
-            """
-        )
+
         variable_values = {
             "entity": entity,
             "project": project,
             "queues": polling_queue_ids,
             "hostname": hostname,
         }
+
+        mutation_params = """$entity: String!,
+                $project: String!,
+                $queues: [ID!]!,
+                $hostname: String!"""
+
+        mutation_input = """entityName: $entity,
+                        projectName: $project,
+                        runQueues: $queues,
+                        hostname: $hostname"""
+
+        if "agentConfig" in self.create_launch_agent_fields_introspection():
+            variable_values["agentConfig"] = json.dumps(agent_config)
+            mutation_params += """,
+                $agentConfig: JSONString"""
+            mutation_input += """,
+                        agentConfig: $agentConfig"""
+
+        mutation = gql(
+            f"""
+            mutation createLaunchAgent(
+                {mutation_params}
+            ) {{
+                createLaunchAgent(
+                    input: {{
+                        {mutation_input}
+                    }}
+                ) {{
+                    launchAgentId
+                }}
+            }}
+            """
+        )
         result: dict = self.gql(mutation, variable_values)["createLaunchAgent"]
         return result
 
@@ -2921,7 +2966,7 @@ class Api:
         return responses
 
     def get_project(self) -> str:
-        project: str = self.settings("project")
+        project: str = self.default_settings.get("project") or self.settings("project")
         return project
 
     @normalize_exceptions
@@ -3363,7 +3408,7 @@ class Api:
         """
         )
 
-        response: "_Response" = self.gql(
+        response: _Response = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
             timeout=60,
@@ -3718,7 +3763,7 @@ class Api:
     def get_sweep_state(
         self, sweep: str, entity: Optional[str] = None, project: Optional[str] = None
     ) -> "SweepState":
-        state: "SweepState" = self.sweep(
+        state: SweepState = self.sweep(
             sweep=sweep, entity=entity, project=project, specs="{}"
         )["state"]
         return state

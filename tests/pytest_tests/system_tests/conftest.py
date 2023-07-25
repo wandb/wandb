@@ -1,4 +1,3 @@
-import dataclasses
 import os
 import platform
 import secrets
@@ -33,11 +32,11 @@ from wandb.testing.relay import (
     TokenizedCircularPattern,
 )
 
-try:
-    from typing import Literal
-except ImportError:
-    from typing_extensions import Literal
-
+from .helpers import (
+    AddAdminAndEnsureNoDefaultUser,
+    UserFixtureCommand,
+    WandbServerSettings,
+)
 
 # `local-testcontainer` ports
 LOCAL_BASE_PORT = "8080"
@@ -398,8 +397,6 @@ def publish_util(backend_interface):
 # --------------------------------
 # Fixtures for full test point
 # --------------------------------
-
-
 def pytest_addoption(parser):
     # note: we default to "function" scope to ensure the environment is
     # set up properly when running the tests in parallel with pytest-xdist.
@@ -455,18 +452,6 @@ def base_url(request):
 
 
 @pytest.fixture(scope="session")
-def wandb_server_tag(request):
-    return request.config.getoption("--wandb-server-tag")
-
-
-@pytest.fixture(scope="session")
-def wandb_server_pull(request):
-    if request.config.getoption("--wandb-server-pull"):
-        return "always"
-    return "missing"
-
-
-@pytest.fixture(scope="session")
 def wandb_debug(request):
     return request.config.getoption("--wandb-debug", default=False)
 
@@ -492,154 +477,173 @@ def check_server_health(
     return False
 
 
-def check_server_up(
-    base_url: str,
-    wandb_server_tag: str = "master",
-    wandb_server_pull: Literal["missing", "always"] = "missing",
-) -> bool:
-    """Check if wandb server is up and running.
-
-    If not on the CI and the server is not running, then start it first.
-
-    :param base_url:
-    :param wandb_server_tag:
-    :param wandb_server_pull:
-    :return:
-    """
-    app_health_endpoint = "healthz"
-    fixture_url = base_url.replace(LOCAL_BASE_PORT, FIXTURE_SERVICE_PORT)
-    fixture_health_endpoint = "health"
-
-    if os.environ.get("CI") == "true":
-        return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
-
-    if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-        # start wandb server locally and expose necessary ports to the host
-        command = [
-            "docker",
-            "run",
-            "--pull",
-            wandb_server_pull,
-            "--rm",
-            "-v",
-            "wandb:/vol",
-            "-p",
-            f"{LOCAL_BASE_PORT}:{LOCAL_BASE_PORT}",
-            "-p",
-            f"{SERVICES_API_PORT}:{SERVICES_API_PORT}",
-            "-p",
-            f"{FIXTURE_SERVICE_PORT}:{FIXTURE_SERVICE_PORT}",
-            "-e",
-            "WANDB_ENABLE_TEST_CONTAINER=true",
-            "--name",
-            "wandb-local",
-            "--platform",
-            "linux/amd64",
-            f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{wandb_server_tag}",
-        ]
-        subprocess.Popen(command)
-        # wait for the server to start
-        server_is_up = check_server_health(
-            base_url=base_url, endpoint=app_health_endpoint, num_retries=30
+@pytest.fixture(scope="session")
+def user_factory(worker_id: str, wandb_debug) -> str:
+    def _user_factory(fixture_fn, settings):
+        username = f"user-{worker_id}-{random_string()}"
+        command = UserFixtureCommand(
+            command="up", username=username, port=settings.fixture_service_port
         )
-        if not server_is_up:
-            return False
-        # check that the fixture service is accessible
-        return check_server_health(
-            base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=30
+        fixture_fn(command)
+        command = UserFixtureCommand(
+            command="password",
+            username=username,
+            password=username,
+            port=settings.fixture_service_port,
         )
+        fixture_fn(command)
 
-    return check_server_health(
-        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
-    )
+        with unittest.mock.patch.dict(
+            os.environ,
+            {
+                "WANDB_API_KEY": username,
+                "WANDB_ENTITY": username,
+                "WANDB_USERNAME": username,
+                "WANDB_BASE_URL": f"http://localhost:{settings.local_base_port}",
+            },
+        ):
+            yield username
 
+            if not wandb_debug:
+                command = UserFixtureCommand(
+                    command="down",
+                    username=username,
+                    port=settings.fixture_service_port,
+                )
+                fixture_fn(command)
 
-@dataclasses.dataclass
-class UserFixtureCommand:
-    command: Literal["up", "down", "down_all", "logout", "login", "password"]
-    username: Optional[str] = None
-    password: Optional[str] = None
-    admin: bool = False
-    endpoint: str = "db/user"
-    port: str = FIXTURE_SERVICE_PORT
-    method: Literal["post"] = "post"
-
-
-@dataclasses.dataclass
-class AddAdminAndEnsureNoDefaultUser:
-    email: str
-    password: str
-    endpoint: str = "api/users-admin"
-    port: str = SERVICES_API_PORT
-    method: Literal["put"] = "put"
+    yield _user_factory
 
 
 @pytest.fixture(scope="session")
-def fixture_fn(base_url, wandb_server_tag, wandb_server_pull):
-    def fixture_util(
-        cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
-    ) -> bool:
-        endpoint = urllib.parse.urljoin(
-            base_url.replace(LOCAL_BASE_PORT, cmd.port),
-            cmd.endpoint,
+def wandb_server_factory():
+    def _wandb_server_factory(settings):
+        base_url = f"http://localhost:{settings.local_base_port}"
+        endpoint = "healthz"
+        app_health_endpoint = "healthz"
+        fixture_url = base_url.replace(
+            settings.local_base_port, settings.fixture_service_port
+        )
+        fixture_health_endpoint = "health"
+
+        if os.environ.get("CI") == "true":
+            return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
+
+        if not check_server_health(base_url, endpoint):
+            command = [
+                "docker",
+                "run",
+                "--pull",
+                settings.wandb_server_pull,
+                "--rm",
+                "-v",
+                f"{settings.volume}:/vol",
+                "-p",
+                f"{settings.local_base_port}:{settings.internal_local_base_port}",
+                "-p",
+                f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
+                "-p",
+                f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
+                "-p",
+                f"{settings.db_port}:{settings.internal_db_port}",
+                "-e",
+                "WANDB_ENABLE_TEST_CONTAINER=true",
+                "--name",
+                settings.name,
+                "--platform",
+                "linux/amd64",
+                f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{settings.wandb_server_tag}",
+            ]
+            subprocess.Popen(command)
+            # wait for the server to start
+            server_is_up = check_server_health(
+                base_url=base_url, endpoint=app_health_endpoint, num_retries=30
+            )
+            if not server_is_up:
+                return False
+            # check that the fixture service is accessible
+            return check_server_health(
+                base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=30
+            )
+
+        return check_server_health(
+            base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
         )
 
-        if isinstance(cmd, UserFixtureCommand):
-            data = {"command": cmd.command}
-            if cmd.username:
-                data["username"] = cmd.username
-            if cmd.password:
-                data["password"] = cmd.password
-            if cmd.admin is not None:
-                data["admin"] = cmd.admin
-        elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
-            data = [
-                {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
-            ]
-        else:
-            raise NotImplementedError(f"{cmd} is not implemented")
-        # trigger fixture
-        print(f"Triggering fixture on {endpoint}: {data}")
-        response = getattr(requests, cmd.method)(endpoint, json=data)
-        if response.status_code != 200:
-            print(response.json())
-            return False
-        return True
+    return _wandb_server_factory
 
-    # todo: remove this once testcontainer is available on Win
-    if platform.system() == "Windows":
-        pytest.skip("testcontainer is not available on Win")
 
-    if not check_server_up(base_url, wandb_server_tag, wandb_server_pull):
-        pytest.fail("wandb server is not running")
+@pytest.fixture(scope="session")
+def fixture_fn_factory():
+    def _fixture_fn_factory(settings):
+        def fixture_util(
+            cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+        ) -> bool:
+            base_url = f"http://localhost:{settings.local_base_port}"
+            endpoint = urllib.parse.urljoin(
+                base_url.replace(settings.local_base_port, cmd.port),
+                cmd.endpoint,
+            )
 
-    yield fixture_util
+            if isinstance(cmd, UserFixtureCommand):
+                data = {"command": cmd.command}
+                if cmd.username:
+                    data["username"] = cmd.username
+                if cmd.password:
+                    data["password"] = cmd.password
+                if cmd.admin is not None:
+                    data["admin"] = cmd.admin
+            elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
+                data = [
+                    {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
+                ]
+            else:
+                raise NotImplementedError(f"{cmd} is not implemented")
+            # trigger fixture
+            print(f"Triggering fixture on {endpoint}: {data}")
+            response = getattr(requests, cmd.method)(
+                endpoint,
+                json=data,
+            )
+            if response.status_code != 200:
+                print(response.json())
+                return False
+            return True
+
+        # todo: remove this once testcontainer is available on Win
+        if platform.system() == "Windows":
+            pytest.skip("testcontainer is not available on Win")
+
+        yield fixture_util
+
+    yield _fixture_fn_factory
+
+
+@pytest.fixture(scope="session")
+def wandb_server(wandb_server_factory):
+    settings = WandbServerSettings(
+        name="wandb-dst-server",
+        volume="wandb-dst-server-vol",
+        local_base_port="8080",
+        services_api_port="8083",
+        fixture_service_port="9015",
+        db_port="3306",
+        wandb_server_pull="missing",
+        wandb_server_tag="master",
+    )
+
+    wandb_server_factory(settings)
+    return settings
+
+
+@pytest.fixture(scope="session")
+def fixture_fn(wandb_server, fixture_fn_factory):
+    yield from fixture_fn_factory(wandb_server)
 
 
 @pytest.fixture(scope=determine_scope)
-def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
-    username = f"user-{worker_id}-{random_string()}"
-    command = UserFixtureCommand(command="up", username=username)
-    fixture_fn(command)
-    command = UserFixtureCommand(
-        command="password", username=username, password=username
-    )
-    fixture_fn(command)
-
-    with unittest.mock.patch.dict(
-        os.environ,
-        {
-            "WANDB_API_KEY": username,
-            "WANDB_ENTITY": username,
-            "WANDB_USERNAME": username,
-            "WANDB_BASE_URL": base_url,
-        },
-    ):
-        yield username
-
-        if not wandb_debug:
-            command = UserFixtureCommand(command="down", username=username)
-            fixture_fn(command)
+def user(user_factory, fixture_fn, wandb_server):
+    yield from user_factory(fixture_fn, wandb_server)
 
 
 @pytest.fixture(scope="session", autouse=True)
