@@ -136,12 +136,12 @@ class OpenMetricsMetric:
         )
         self.filters_tuple = _nested_dict_to_tuple(self.filters) if self.filters else ()
 
-        self._session: Optional["requests.Session"] = None
-        self.samples: "Deque[dict]" = deque([])
+        self._session: Optional[requests.Session] = None
+        self.samples: Deque[dict] = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
-        self.label_map: "Dict[str, Dict[str, int]]" = defaultdict(dict)
+        self.label_map: Dict[str, Dict[str, int]] = defaultdict(dict)
         # {"<labels hash>": <labels>}
-        self.label_hashes: "Dict[str, dict]" = {}
+        self.label_hashes: Dict[str, dict] = {}
 
     def setup(self) -> None:
         if self._session is not None:
@@ -238,7 +238,7 @@ class OpenMetrics:
             OpenMetricsMetric(name, url, settings._stats_open_metrics_filters)
         ]
 
-        self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
+        self.metrics_monitor: MetricsMonitor = MetricsMonitor(
             asset_name=self.name,
             metrics=self.metrics,
             interface=interface,

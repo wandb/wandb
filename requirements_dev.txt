@@ -41,6 +41,7 @@ httpx>=0.22.0  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 respx>=0.20.0  # 0.21.0 dropped Python 3.6; we can upgrade once we drop it too
 pytest-benchmark
 prometheus_client
+orjson
 
 # TODO: fix extra dependencies
 #   We need to improve how we do requirements_dev as specifying .[extra] creates
@@ -61,6 +62,7 @@ google-cloud-storage
 google-cloud-compute
 google-cloud-artifact-registry
 kubernetes
+PyYAML==5.3.1; python_version > '3.9'  # https://github.com/yaml/pyyaml/issues/723
 awscli
 # ^^^^^^^^^^ - above are for extra launch
 # .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
@@ -79,3 +81,4 @@ responses
 kfp<2.0.0
 
 mlflow
+polars
