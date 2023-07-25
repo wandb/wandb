@@ -142,7 +142,8 @@ class KubernetesSubmittedRun(AbstractRun):
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
-    def _delete_secret(self, state: str) -> None:
+    def _delete_secret_if_completed(self, state: str) -> None:
+        """If the runner has a secret and the run is completed, delete the secret."""
         if state in ["stopped", "failed", "finished"] and self.secret is not None:
             try:
                 self.core_api.delete_namespaced_secret(
@@ -159,18 +160,26 @@ class KubernetesSubmittedRun(AbstractRun):
             job_response = self.batch_api.read_namespaced_job_status(
                 name=self.name, namespace=self.namespace
             )
+        except ApiException as e:
+            if e.status == 404:
+                wandb.termerror(
+                    f"Could not reach job {self.name} in namespace {self.namespace}"
+                )
+                self._delete_secret_if_completed("failed")
+                return Status("failed")
 
-            status = job_response.status
+        status = job_response.status
 
+        try:
             pod = self.core_api.read_namespaced_pod(
                 name=self.pod_names[0], namespace=self.namespace
             )
         except ApiException as e:
             if e.status == 404:
                 wandb.termerror(
-                    f"Could not reach job {self.name} or pod {self.pod_names[0]} in namespace {self.namespace}"
+                    f"Could not reach pod {self.pod_names[0]} in namespace {self.namespace}"
                 )
-                self._delete_secret("failed")
+                self._delete_secret_if_completed("failed")
                 return Status("failed")
 
         if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
@@ -207,7 +216,7 @@ class KubernetesSubmittedRun(AbstractRun):
         else:
             return_status = Status("unknown")
 
-        self._delete_secret(return_status.state)
+        self._delete_secret_if_completed(return_status.state)
         return return_status
 
     def suspend(self) -> None:
