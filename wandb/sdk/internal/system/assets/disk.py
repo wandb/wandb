@@ -103,24 +103,24 @@ class Disk:
 
     @classmethod
     def is_available(cls) -> bool:
-        """Return a new instance of the CPU metrics."""
+        """Return a new instance of the disk metrics."""
         return psutil is not None
 
     def probe(self) -> dict:
         disk_usage = psutil.disk_usage("/")
         disk_io_counters = psutil.disk_io_counters()
 
-        # total disk in - number of read i/o operations on all disks
-        disk_in = disk_io_counters.read_count
-
-        # total disk out - number of write i/o operations on all disks
-        disk_out = disk_io_counters.write_count
-
         # Total disk space in gigabytes
         total = disk_usage.total / 1024 / 1024 / 1024
 
         # Disk space currently in use in gigabytes
         used = disk_usage.used / 1024 / 1024 / 1024
+
+        # total disk in - number of bytes read in gigabytes
+        disk_in = disk_io_counters.read_bytes / 1024 / 1024 / 1024
+
+        # total disk out - number of bytes written in gigabytes
+        disk_out = disk_io_counters.write_bytes / 1024 / 1024 / 1024
 
         return {
             self.name: {
