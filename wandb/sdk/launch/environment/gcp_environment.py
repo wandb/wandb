@@ -3,7 +3,7 @@ import logging
 import os
 import re
 
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
 from .abstract import AbstractEnvironment
@@ -175,15 +175,7 @@ class GcpEnvironment(AbstractEnvironment):
             None
         """
         _logger.debug("Verifying GCP environment")
-        creds = self.get_credentials()
-        try:
-            # Check if the region is available using the compute API.
-            compute_client = google.cloud.compute_v1.RegionsClient(credentials=creds)
-            compute_client.get(project=self.project, region=self.region)
-        except google.api_core.exceptions.NotFound as e:
-            raise LaunchError(
-                f"Region {self.region} is not available in project {self.project}."
-            ) from e
+        self.get_credentials()
 
     def verify_storage_uri(self, uri: str) -> None:
         """Verify that a storage URI is valid.
@@ -202,7 +194,7 @@ class GcpEnvironment(AbstractEnvironment):
             storage_client = google.cloud.storage.Client(
                 credentials=self.get_credentials()
             )
-            bucket = storage_client.post_bucket(bucket)
+            bucket = storage_client.get_bucket(bucket)
         except google.api_core.exceptions.NotFound as e:
             raise LaunchError(f"Bucket {bucket} does not exist.") from e
 
@@ -266,6 +258,4 @@ class GcpEnvironment(AbstractEnvironment):
                     blob = bucket.blob(gcs_path)
                     blob.upload_from_filename(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
-            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
             raise LaunchError(f"Could not upload directory to GCS: {e}") from e

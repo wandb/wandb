@@ -8,8 +8,8 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.0.263"
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.0.277"
     hooks:
       - id: ruff
         args: [ --fix]
@@ -17,6 +17,7 @@ repos:
     rev: 23.3.0
     hooks:
       - id: black-jupyter
+        exclude: '(_pb2|_pb2_grpc)\.py'
   - repo: https://github.com/asottile/blacken-docs
     rev: 1.13.0
     hooks:

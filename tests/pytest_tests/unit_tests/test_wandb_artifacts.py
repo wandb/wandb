@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import queue
+import shutil
 import unittest.mock as mock
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Optional
@@ -9,12 +10,10 @@ from unittest.mock import Mock
 import pytest
 import requests
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
-from wandb.sdk.wandb_artifacts import (
-    Artifact,
-    ArtifactManifestEntry,
-    ArtifactsCache,
-    WandbStoragePolicy,
-)
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache
+from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
     import sys
@@ -104,6 +103,15 @@ def mock_preparer(**kwargs):
         "prepare_async", Mock(wraps=mock_prepare_sync_to_async(kwargs["prepare_sync"]))
     )
     return Mock(**kwargs)
+
+
+def test_capped_cache(artifacts_cache):
+    for i in range(51):
+        art = Artifact(f"foo-{i}", type="test")
+        art._id = f"foo-{i}"
+        art._state = "COMMITTED"
+        artifacts_cache.store_artifact(art)
+    assert len(artifacts_cache._artifacts_by_id) == 50
 
 
 class TestStoreFile:
@@ -378,7 +386,10 @@ class TestStoreFile:
             (None, None, False, False, True),
         ],
     )
-    @mock.patch("wandb.sdk.wandb_artifacts.WandbStoragePolicy.s3_multipart_file_upload")
+    @mock.patch(
+        "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.WandbStoragePolicy."
+        "s3_multipart_file_upload"
+    )
     def test_multipart_upload_handle_response(
         self,
         mock_s3_multipart_file_upload,
@@ -402,7 +413,8 @@ class TestStoreFile:
         policy = WandbStoragePolicy(api=api)
         # Mock minimum size for multipart so that we can test multipart
         with mock.patch(
-            "wandb.sdk.wandb_artifacts.S3_MIN_MULTI_UPLOAD_SIZE",
+            "wandb.sdk.artifacts.storage_policies.wandb_storage_policy."
+            "S3_MIN_MULTI_UPLOAD_SIZE",
             test_file.stat().st_size,
         ):
             # We don't use the store_file fixture since multipart is not available in async
@@ -459,3 +471,25 @@ class TestStoreFile:
 def test_invalid_artifact_type(type):
     with pytest.raises(ValueError, match="reserved for internal use"):
         Artifact("foo", type=type)
+
+
+def test_cache_write_failure_is_ignored(monkeypatch, capsys):
+    def bad_write(*args, **kwargs):
+        raise FileNotFoundError("unable to copy from source file")
+
+    monkeypatch.setattr(shutil, "copyfile", bad_write)
+    policy = WandbStoragePolicy()
+    path = Path("foo.txt")
+    path.write_text("hello")
+
+    entry = ArtifactManifestEntry(
+        path=str(path),
+        digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
+        local_path=str(path),
+        size=path.stat().st_size,
+    )
+
+    policy._write_cache(entry)
+
+    captured = capsys.readouterr()
+    assert "Failed to cache" in captured.err

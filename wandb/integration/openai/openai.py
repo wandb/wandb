@@ -1,13 +1,13 @@
 import logging
 
-from wandb.sdk.integration_utils.llm import AutologLLMAPI
+from wandb.sdk.integration_utils.auto_logging import AutologAPI
 
 from .resolver import OpenAIRequestResponseResolver
 
 logger = logging.getLogger(__name__)
 
 
-autolog = AutologLLMAPI(
+autolog = AutologAPI(
     name="OpenAI",
     symbols=(
         "Edit.create",

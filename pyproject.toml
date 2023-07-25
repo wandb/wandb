@@ -2,6 +2,29 @@
 requires = ['setuptools']
 build-backend = "setuptools.build_meta"
 
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-vvv"
+markers = [
+    "image_output",
+    "multiclass",
+    "wandb_args",
+    "flaky",
+]
+testpaths = "tests"
+timeout = 60
+filterwarnings = "ignore::DeprecationWarning"
+
+log_format = "%(asctime)s %(levelname)s %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+
+norecursedirs = [
+    "build/",
+    "tests/functional_tests",
+    "tests/standalone_tests",
+]
+
+
 [tool.black]
 line-length = 88
 target-version = ['py36', 'py37', 'py38', 'py39', 'py310', 'py311']
@@ -19,33 +42,9 @@ wandb/vendor/
 | .tox/
 '''
 
-[tool.isort]
-profile = "black"
-skip = ["wandb/__init__.py"]
-extend_skip_glob = ["wandb/vendor/**", "wandb/proto/**"]
-skip_gitignore = "True"
-
-
-[tool.commitizen]
-name = "cz_conventional_commits"
-major_version_zero = true
-version = "0.15.4.dev1"
-version_files = ["setup.py", "setup.cfg", "wandb/__init__.py"]
-tag_format = "v$major.$minor.$patch$prerelease"
-changelog_incremental = true
-#post_bump_hooks = [
-#  "tools/cz_version_to_dev.sh",
-#]
-
-[tool.commitizen.change_type_map]
-"feat" = ":sparkles: Enhancements"
-"fix" = ":hammer: Fixes"
-"refactor" = ":nail_care: Cleanup"
-"perf" = ":rocket: Performance"
-security = ":lock: Security"
-
-
 [tool.ruff]
+exclude = ["wandb/__init__.py"]
+extend-exclude = ["wandb/vendor/**", "wandb/proto/**"]
 select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
@@ -54,31 +53,6 @@ ignore = [
     "D417",  # Don't require descriptions for all arguments.
     "UP022", # Only valid for Python 3.7+
     "UP036", # Only valid for Python 3.7+
-]
-exclude = [
-    "tests/functional_tests/t0_main/fastai/t1_v1.py",
-    "tests/functional_tests/t0_main/metaflow",
-    "tests/pytest_tests/assets/fixtures/train.py",
-    "tests/pytest_tests/unit_tests_old",
-    "wandb/bin",
-    "wandb/data",
-    "wandb/env.py",
-    "wandb/errors",
-    "wandb/integration/keras/keras.py",
-    "wandb/integration/magic.py",
-    "wandb/integration/metaflow",
-    "wandb/keras",
-    "wandb/offline-run-*",
-    "wandb/old",
-    "wandb/plots",
-    "wandb/proto_check",
-    "wandb/proto",
-    "wandb/run-*",
-    "wandb/sklearn",
-    "wandb/superagent",
-    "wandb/vendor",
-    "wandb/viz.py",
-    "wandb/wandb_torch.py",
 ]
 target-version = "py37"
 
@@ -89,8 +63,16 @@ split-on-trailing-comma = false
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]
 "wandb/cli/cli.py" = ["C901"]
-"wandb/filesync/step_checksum.py" = ["B023"]
-"wandb/wandb_controller.py" = ["N803", "N806"]
+"wandb/wandb_controller.py" = ["N806"]
+"wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
+"wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
+"wandb/integration/metaflow/metaflow.py" = ["F811"]
+"wandb/integration/magic.py" = ["B026", "F401", "F841", "N806", "N818"]
+"wandb/plots/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
+"wandb/old/**" = ["B006", "B020", "D", "F822"]
+"tests/pytest_tests/unit_tests_old/**" = ["B", "C", "D", "E", "F", "N", "UP026"]
+"tests/functional_tests/t0_main/fastai/t1_v1.py" = ["F405"]
+"tests/functional_tests/t0_main/metaflow/**" = ["D", "N806"]
 
 [tool.ruff.pydocstyle]
 convention = "google"

@@ -6,6 +6,7 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
     CrdSubmittedRun,
     KubernetesRunner,
+    KubernetesSubmittedRun,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -49,12 +50,17 @@ def manifest():
 
 def test_add_env(manifest):
     """Test that env vars are added to custom k8s specs."""
-    env = {"TEST_ENV": "test_value", "TEST_ENV_2": "test_value_2"}
+    env = {
+        "TEST_ENV": "test_value",
+        "TEST_ENV_2": "test_value_2",
+        "WANDB_RUN_ID": "test_run_id",
+    }
     add_wandb_env(manifest, env)
     assert manifest["spec"]["template"]["spec"]["containers"][0]["env"] == [
         {"name": "MY_ENV_VAR", "value": "MY_VALUE"},
         {"name": "TEST_ENV", "value": "test_value"},
         {"name": "TEST_ENV_2", "value": "test_value_2"},
+        {"name": "WANDB_RUN_ID", "value": "test_run_id"},
     ]
     assert manifest["spec"]["template"]["spec"]["containers"][1]["env"] == [
         {"name": "TEST_ENV", "value": "test_value"},
@@ -189,10 +195,30 @@ def test_launch_custom(mocker, test_settings, volcano_spec):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings(), load_settings=False
     )
-    runner = KubernetesRunner(api, {}, MagicMock())
+    runner = KubernetesRunner(api, {}, MagicMock(), MagicMock())
     runner.wait_job_launch = MagicMock()
     submitted_run = runner.run(project, MagicMock())
     assert isinstance(submitted_run, CrdSubmittedRun)
     assert str(submitted_run.get_status()) == "starting"
     assert str(submitted_run.get_status()) == "running"
     assert submitted_run.wait()
+
+
+def test_get_status_preempted(mocker):
+    mocker.pod = MagicMock()
+    mock_preempt_condition = MagicMock()
+    mock_preempt_condition.type = "DisruptionTarget"
+    mock_preempt_condition.reason = "EvictionByEvictionAPI"
+    mocker.pod.status.conditions = [MagicMock(), mock_preempt_condition]
+    mocker.core_api = MagicMock()
+    mocker.core_api.read_namespaced_pod = MagicMock(return_value=mocker.pod)
+
+    run = KubernetesSubmittedRun(
+        batch_api=MagicMock(),
+        core_api=mocker.core_api,
+        name="test-run",
+        pod_names=["pod-1", "pod-2"],
+    )
+    status = run.get_status()
+
+    assert status.state == "preempted"

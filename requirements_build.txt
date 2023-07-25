@@ -3,3 +3,4 @@ grpcio>=1.46.3
 grpcio-tools>=1.46.3
 bumpversion
 twine
+wheel>=0.38.0

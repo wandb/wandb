@@ -1,6 +1,9 @@
 id: 0.tf.01-tensorflow-log
 plugin:
     - wandb
+depend:
+  requirements:
+    - tensorboard
 
 assert:
     - :wandb:runs_len: 1
