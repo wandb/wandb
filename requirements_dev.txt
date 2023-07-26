@@ -1,5 +1,4 @@
 pytest
-pytest-benchmark
 hypothesis
 pyfakefs
 hypothesis-fspaths
