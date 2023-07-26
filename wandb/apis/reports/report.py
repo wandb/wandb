@@ -75,7 +75,7 @@ class Report(Base):
         except ValueError as e:
             raise ValueError("Path must be `entity/project/reports/report_id`") from e
         else:
-            return report_id
+            return _fix_b64(report_id)
 
     @blocks.getter
     def blocks(self):
@@ -244,3 +244,12 @@ class Report(Base):
 
     def _repr_html_(self) -> str:
         return self.to_html()
+
+
+def _fix_b64(s: str):
+    r = len(s) % 4
+    if r == 2:
+        s += "=="
+    elif r == 3:
+        s += "="
+    return s
