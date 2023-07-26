@@ -2626,6 +2626,11 @@ class Run:
                     entity,
                     project,
                 )
+                if artifact.ttl_duration is not None:
+                    wandb.termwarn(
+                        "Artifact TTL will be removed for source artifacts that are linked to portfolios. Old ttl: "
+                        + str(artifact.ttl_duration)
+                    )
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
