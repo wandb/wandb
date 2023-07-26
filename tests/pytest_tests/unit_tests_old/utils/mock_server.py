@@ -1961,6 +1961,29 @@ def create_app(user_ctx=None):
                 }
             }
 
+        if "query ProbeServerCreateLaunchAgentInput" in body["query"]:
+            return {
+                "data": {
+                    "CreateLaunchAgentInputInfoType": {
+                        "inputFields": [
+                            {"name": "id"},
+                            {"name": "created_at"},
+                            {"name": "updated_at"},
+                            {"name": "name"},
+                            {"name": "entity_id"},
+                            {"name": "project_id"},
+                            {"name": "runqueue_ids"},
+                            {"name": "agent_status"},
+                            {"name": "stop_polling"},
+                            {"name": "heartbeat_at"},
+                            {"name": "hostname"},
+                            {"name": "created_by"},
+                            {"name": "agent_config"},
+                        ]
+                    }
+                }
+            }
+
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
