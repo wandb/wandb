@@ -48,6 +48,9 @@ AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
+Nexus = wandb_sdk.Nexus
+Jog = wandb_sdk.Jog
+
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError
 
@@ -223,4 +226,6 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
+    "Nexus",
+    "Jog",
 )
