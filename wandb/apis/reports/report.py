@@ -247,6 +247,7 @@ class Report(Base):
 
 
 def _fix_b64(s: str):
+    # Sometimes the b64 padding is missing, so we add it back
     r = len(s) % 4
     if r == 2:
         s += "=="
