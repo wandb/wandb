@@ -4,6 +4,8 @@ plugin:
 tag:
   platforms:
     - win
+  skips:
+    - platform: win
 depend:
   requirements:
     - pillow
