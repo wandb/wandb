@@ -84,7 +84,7 @@ class ValidationDataLogger:
             infer_missing_processors: Determines if processors are inferred if
                 they are missing. Defaults to True.
         """
-        class_labels_table: Optional["wandb.Table"]
+        class_labels_table: Optional[wandb.Table]
         if isinstance(class_labels, list) and len(class_labels) > 0:
             class_labels_table = wandb.Table(
                 columns=["label"], data=[[label] for label in class_labels]
