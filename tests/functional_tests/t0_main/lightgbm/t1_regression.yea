@@ -4,6 +4,7 @@ plugin:
 tag:
   skips:
     - platform: mac
+    - platform: win
 depend:
   requirements:
     - lightgbm>=4.0.0
