@@ -4687,6 +4687,10 @@ class Job:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
+        if code_artifact.state == "DELETED":
+            raise LaunchError(
+                f"Code artifact {code_artifact.name} underlying job {self.name} been deleted"
+            )
         return code_artifact
 
     def _configure_launch_project_notebook(self, launch_project):
