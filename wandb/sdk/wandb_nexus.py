@@ -28,10 +28,10 @@ class Nexus:
     command_interface: "ServiceSockInterface"
     jogs: Dict[str, "Jog"]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.jogs = {}
 
-    def up(self):
+    def up(self) -> None:
         self.settings = init_settings()
         self.manager = wandb_manager._Manager(settings=self.settings)
         # print("manager", self.manager.__dict__)
@@ -39,7 +39,7 @@ class Nexus:
         self.command_interface = self.manager._service._service_interface
         # print("command_interface", self.command_interface.__dict__)
 
-    def init(self):
+    def init(self) -> Jog:
         # return Jog("sprint")
         jog = Jog(self.settings, self.command_interface._sock_client)
 
@@ -50,5 +50,7 @@ class Nexus:
 
         jog.start()
 
-    def down(self):
+        return jog
+
+    def down(self) -> None:
         pass

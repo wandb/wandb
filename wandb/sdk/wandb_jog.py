@@ -1,9 +1,10 @@
 import os
 from copy import copy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict
 
 from ..proto.wandb_internal_pb2 import (
     ConfigRecord,
+    PartialHistoryRequest,
     Record,
     Request,
     RunRecord,
@@ -46,7 +47,7 @@ class Jog:
 
         self.setup_jog_dirs()
 
-    def start(self):
+    def start(self) -> None:
         jog_id = self.settings.run_id
         config_pb = ConfigRecord()
         update = config_pb.update.add()
@@ -62,7 +63,7 @@ class Jog:
         # print("jog_pb", jog_pb)
         handle = self.interface._deliver_record(record)
         result = handle.wait(timeout=self.settings.init_timeout)
-        print("result", result)
+        # print("result", result)
 
         run_start_settings = {
             "entity": result.run_result.run.entity,
@@ -71,7 +72,7 @@ class Jog:
         }
         self.settings._apply_run_start(run_start_settings)
 
-        print(self.settings)
+        # print(self.settings)
 
         run_start_request = RunStartRequest(run=result.run_result.run)
         request = Request(run_start=run_start_request)
@@ -79,11 +80,20 @@ class Jog:
         # All requests do not get persisted
         record.control.local = True
         handle = self.interface._deliver_record(record)
-        result = handle.wait(timeout=self.settings.init_timeout)
-        print("result", result)
+        _ = handle.wait(timeout=self.settings.init_timeout)
+        # print("result", result)
 
-    def log(self, data):
-        pass
+    def log(self, data: Dict[str, Any]) -> None:
+        history = PartialHistoryRequest()
+        for key, val in data.items():
+            item = history.item.add()
+            item.key = key
+            item.value_json = str(val)
 
-    def finish(self):
+        request = Request(partial_history=history)
+        record = Record(request=request)
+        record.control.local = True
+        self.interface._publish(record)
+
+    def finish(self) -> None:
         pass
