@@ -80,4 +80,6 @@ cloudpickle
 responses
 kfp<2.0.0
 
+urllib<2
+
 mlflow
