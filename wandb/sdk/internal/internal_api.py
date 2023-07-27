@@ -1691,30 +1691,29 @@ class Api:
             "hostname": hostname,
         }
 
-        mutation_params = """$entity: String!,
-                $project: String!,
-                $queues: [ID!]!,
-                $hostname: String!"""
+        mutation_params = """
+            $entity: String!,
+            $project: String!,
+            $queues: [ID!]!,
+            $hostname: String!
+        """
 
-        mutation_input = """entityName: $entity,
-                        projectName: $project,
-                        runQueues: $queues,
-                        hostname: $hostname"""
+        mutation_input = """
+            entityName: $entity,
+            projectName: $project,
+            runQueues: $queues,
+            hostname: $hostname
+        """
 
         if "agentConfig" in self.create_launch_agent_fields_introspection():
             variable_values["agentConfig"] = json.dumps(agent_config)
-            mutation_params += """,
-                $agentConfig: JSONString"""
-            mutation_input += """,
-                        agentConfig: $agentConfig"""
+            mutation_params += ", $agentConfig: JSONString"
+            mutation_input += ", agentConfig: $agentConfig"
         if "version" in self.create_launch_agent_fields_introspection():
             variable_values["version"] = version
-            mutation_params += """,
-                $version: String"""
-            mutation_input += """,
-                        version: $version"""
+            mutation_params += ", $version: String"
+            mutation_input += ", version: $version"
 
-        print(f"version: {version}")
         mutation = gql(
             f"""
             mutation createLaunchAgent(
