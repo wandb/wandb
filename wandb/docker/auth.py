@@ -142,7 +142,7 @@ class AuthConfig(dict):
             dct["auths"] = {}
         self.update(dct)
         self._credstore_env = credstore_env
-        self._stores: Dict[str, "dockerpycreds.Store"] = dict()
+        self._stores: Dict[str, dockerpycreds.Store] = dict()
 
     @classmethod
     def parse_auth(
@@ -190,9 +190,7 @@ class AuthConfig(dict):
 
             username, password = decode_auth(entry["auth"])
             log.debug(
-                "Found entry (registry={}, username={})".format(
-                    repr(registry), repr(username)
-                )
+                f"Found entry (registry={repr(registry)}, username={repr(username)})"
             )
 
             conf[registry] = {
