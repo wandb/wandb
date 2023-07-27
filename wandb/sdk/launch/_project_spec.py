@@ -185,7 +185,7 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
-    def fill_macros(self, image: str) -> None:
+    def fill_macros(self, image: str) -> Dict[str, Any]:
         """Substitute values for macros in resource arguments.
 
         Certain macros can be used in resource args. These macros allow the
@@ -220,7 +220,7 @@ class LaunchProject:
             "image_uri": image,
         }
         update_dict.update(os.environ)
-        self.resource_args = recursive_macro_sub(self.resource_args, update_dict)
+        return recursive_macro_sub(self.resource_args, update_dict)
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
