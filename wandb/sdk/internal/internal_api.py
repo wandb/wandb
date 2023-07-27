@@ -10,6 +10,7 @@ import socket
 import sys
 import threading
 from copy import deepcopy
+from functools import lru_cache
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -3242,6 +3243,7 @@ class Api:
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
+    @lru_cache(maxsize=1)
     def server_create_artifact_introspection(self) -> List:
         query_string = """
             query ProbeServerCreateArtifactInput {
