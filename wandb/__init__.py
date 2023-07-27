@@ -46,6 +46,7 @@ require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
+StreamTable = wandb_sdk.StreamTable
 Config = wandb_sdk.Config
 
 from wandb.apis import InternalApi, PublicApi
