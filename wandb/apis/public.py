@@ -4158,9 +4158,8 @@ class RunArtifacts(Paginator):
                     }
                 }
             }
-            %s
             """
-            % wandb.Artifact._get_artifact_fragment()
+            + wandb.Artifact._get_artifact_fragment()
         )
 
         input_query = gql(
@@ -4186,9 +4185,8 @@ class RunArtifacts(Paginator):
                     }
                 }
             }
-            %s
             """
-            % wandb.Artifact._get_artifact_fragment()
+            + wandb.Artifact._get_artifact_fragment()
         )
 
         self.run = run

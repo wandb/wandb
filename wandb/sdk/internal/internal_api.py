@@ -224,9 +224,9 @@ class Api:
 
         # todo: remove this hacky hack after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
-        extra_http = self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
-        extra_http_headers = self.settings("_extra_http_headers") or (
-            extra_http if not isinstance(extra_http, str) else json.loads(extra_http)
+        extra_http = self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
+        extra_http_headers = self.settings("_extra_http_headers") or json.loads(
+            extra_http
         )
 
         auth = None
@@ -3173,12 +3173,10 @@ class Api:
 
         # Check if the ttl_duration_seconds exist
         artifact_fields = self.server_create_artifact_introspection()
-        if "ttlDurationSeconds" in artifact_fields:
-            query_template = query_template.replace(
-                "_TTL_DURATION_SECONDS_", "ttlDurationSeconds"
-            )
-        else:
-            query_template = query_template.replace("_TTL_DURATION_SECONDS_", "")
+        ttl_field = (
+            "ttlDurationSeconds" if "ttlDurationSeconds" in artifact_fields else ""
+        )
+        query_template = query_template.replace("_TTL_DURATION_SECONDS_", ttl_field)
 
         query = gql(query_template)
 
@@ -3257,11 +3255,11 @@ class Api:
 
         query = gql(query_string)
         res = self.gql(query)
+        input_fields = res.get("CreateArtifactInputInfoType", {}).get(
+            "inputFields", [{}]
+        )
         create_artifact_input_info = [
-            field.get("name", "")
-            for field in res.get("CreateArtifactInputInfoType", {}).get(
-                "inputFields", [{}]
-            )
+            field["name"] for field in input_fields if "name" in field
         ]
         return create_artifact_input_info
 
@@ -3299,11 +3297,9 @@ class Api:
             types += "$ttlDurationSeconds: Int64,"
             values += "ttlDurationSeconds: $ttlDurationSeconds,"
 
-        query_template = query_template.replace(
+        return query_template.replace(
             "_CREATE_ARTIFACT_ADDITIONAL_TYPE_", types
         ).replace("_CREATE_ARTIFACT_ADDITIONAL_VALUE_", values)
-
-        return query_template
 
     def create_artifact(
         self,
