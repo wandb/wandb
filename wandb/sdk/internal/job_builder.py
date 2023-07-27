@@ -5,6 +5,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
+import wandb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
@@ -325,22 +326,32 @@ class JobBuilder:
             ] = None
 
             # make source dict
-            if source_type == "repo":
+            if source_type == "repo" and self._has_git_job_ingredients(
+                metadata, program_relpath
+            ):
                 assert program_relpath is not None
                 source, name = self._build_repo_job_source(
                     metadata,
                     program_relpath,
                     metadata.get("root"),
                 )
-            elif source_type == "artifact":
+            elif source_type == "artifact" and self._has_artifact_job_ingredients(
+                program_relpath
+            ):
                 assert program_relpath is not None
                 source, name = self._build_artifact_job_source(program_relpath)
-            elif source_type == "image":
+            elif source_type == "image" and self._has_image_job_ingredients(metadata):
                 source, name = self._build_image_job_source(metadata)
             else:
                 source = None
 
             if source is None:
+                if source_type:
+                    wandb.termwarn(
+                        f"Source type is set to '{source_type}' but some required information is missing "
+                        "from the environment. A job will not be created from this run. See "
+                        "https://docs.wandb.ai/guides/launch/create-job"
+                    )
                 return None
 
             source_info = {
