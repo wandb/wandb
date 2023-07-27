@@ -102,22 +102,24 @@ class PatchAPI:
                             future.set_result(result)
                         except Exception as e:
                             logger.warning(e)
-                            future.set_exception(e)
 
                     with Timer() as timer:
                         coro = original_method(*args, **kwargs)
                         asyncio.ensure_future(callback(coro))
 
-                    return await future  # future.result()
+                    return await future
 
                 def sync_method(*args, **kwargs):
                     with Timer() as timer:
                         result = original_method(*args, **kwargs)
-                        loggable_dict = self.resolver(
-                            args, kwargs, result, timer.start_time, timer.elapsed
-                        )
-                        if loggable_dict is not None:
-                            run.log(loggable_dict)
+                        try:
+                            loggable_dict = self.resolver(
+                                args, kwargs, result, timer.start_time, timer.elapsed
+                            )
+                            if loggable_dict is not None:
+                                run.log(loggable_dict)
+                        except Exception as e:
+                            logger.warning(e)
                         return result
 
                 if inspect.iscoroutinefunction(original_method):
