@@ -1650,6 +1650,7 @@ class Api:
         project: str,
         queues: List[str],
         agent_config: Dict[str, Any],
+        version: str,
         gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
@@ -1706,7 +1707,14 @@ class Api:
                 $agentConfig: JSONString"""
             mutation_input += """,
                         agentConfig: $agentConfig"""
+        if "version" in self.create_launch_agent_fields_introspection():
+            variable_values["version"] = version
+            mutation_params += """,
+                $version: String"""
+            mutation_input += """,
+                        version: $version"""
 
+        print(f"version: {version}")
         mutation = gql(
             f"""
             mutation createLaunchAgent(

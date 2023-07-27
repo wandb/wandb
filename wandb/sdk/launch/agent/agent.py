@@ -136,6 +136,12 @@ class LaunchAgent:
         self._secure_mode = config.get("secure_mode", False)
         self.default_config: Dict[str, Any] = config
 
+        # Get agent version from env var if present, otherwise wandb version
+        self.version: str = wandb.__version__
+        env_agent_version = os.environ.get("WANDB_AGENT_VERSION")
+        if env_agent_version and env_agent_version != "wandb-launch-agent":
+            self.version = env_agent_version
+
         # serverside creation
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
@@ -150,6 +156,7 @@ class LaunchAgent:
             self._project,
             self._queues,
             self.default_config,
+            self.version,
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
