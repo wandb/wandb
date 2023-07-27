@@ -589,7 +589,7 @@ class KubernetesRunner(AbstractRunner):
             required="Kubernetes runner requires the kubernetes package. Please"
             " install it with `pip install wandb[launch]`.",
         )
-        resource_args = launch_project.fill_macros(image_uri).get("kuberetes", {})
+        resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a "
