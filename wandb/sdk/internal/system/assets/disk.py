@@ -50,7 +50,7 @@ class DiskIn:
         self.samples = deque([])
 
     def sample(self) -> None:
-        self.samples.append(psutil.disk_io_counters().read_bytes / (1024 / 1024 / 1024))
+        self.samples.append(psutil.disk_io_counters().read_bytes / 1024 / 1024 / 1024)
 
     def clear(self) -> None:
         self.samples.clear()
