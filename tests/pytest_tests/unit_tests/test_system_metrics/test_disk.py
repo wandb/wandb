@@ -43,6 +43,9 @@ def test_disk_metrics(test_settings):
     assert not interface.metrics_queue.empty()
 
 
+# test individual metrics and make sure they behave - disk i and disk o
+# mockpsutil - saving a certain rate
+
 # class MockPsutil:
 #     class MockDiskUsage:
 #         def __init__(self):

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 class DiskUsage:
     """Total system disk usage in percent."""
 
+    # name = "disk_usage"
     name = "disk"
     samples: "Deque[float]"
 
@@ -42,14 +43,14 @@ class DiskUsage:
 class DiskIn:
     """Total system disk In."""
 
-    name = "disk"
+    name = "indisk"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
         self.samples = deque([])
 
     def sample(self) -> None:
-        self.samples.append(psutil.disk_io_counters().read_count)
+        self.samples.append(psutil.disk_io_counters().read_bytes / (1024 / 1024 / 1024))
 
     def clear(self) -> None:
         self.samples.clear()
@@ -64,14 +65,14 @@ class DiskIn:
 class DiskOut:
     """Total system disk Out."""
 
-    name = "disk"
+    name = "outdisk"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
         self.samples = deque([])
 
     def sample(self) -> None:
-        self.samples.append(psutil.disk_io_counters().write_count)
+        self.samples.append(psutil.disk_io_counters().write_bytes / 1024 / 1024 / 1024)
 
     def clear(self) -> None:
         self.samples.clear()
@@ -103,33 +104,16 @@ class Disk:
 
     @classmethod
     def is_available(cls) -> bool:
-        """Return a new instance of the disk metrics."""
+        """Return a new instance of the CPU metrics."""
         return psutil is not None
 
     def probe(self) -> dict:
-        disk_usage = psutil.disk_usage("/")
-        disk_io_counters = psutil.disk_io_counters()
+        # total disk space:
+        total = psutil.disk_usage("/").total / 1024 / 1024 / 1024
+        # total disk space used:
+        used = psutil.disk_usage("/").used / 1024 / 1024 / 1024
 
-        # Total disk space in gigabytes
-        total = disk_usage.total / 1024 / 1024 / 1024
-
-        # Disk space currently in use in gigabytes
-        used = disk_usage.used / 1024 / 1024 / 1024
-
-        # total disk in - number of bytes read in gigabytes
-        disk_in = disk_io_counters.read_bytes / 1024 / 1024 / 1024
-
-        # total disk out - number of bytes written in gigabytes
-        disk_out = disk_io_counters.write_bytes / 1024 / 1024 / 1024
-
-        return {
-            self.name: {
-                "total": total,
-                "used": used,
-                "disk i": disk_in,
-                "disk o": disk_out,
-            }
-        }
+        return {self.name: {"total": total, "used": used}}
 
     def start(self) -> None:
         self.metrics_monitor.start()
