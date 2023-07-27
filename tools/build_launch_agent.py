@@ -66,6 +66,7 @@ def main():
     build_context = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     dockerfile_path = os.path.join(build_context, "Dockerfile")
     dockerignore_path = os.path.join(build_context, ".dockerignore")
+    # Set the version env var if a custom tag is set
     version_section = ""
     if args.tag != "wandb-launch-agent":
         version_section = VERSION_SECTION.format(agent_version=args.tag)
