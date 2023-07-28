@@ -14,3 +14,5 @@ bindings:
     type: time.Time
   Duration:
     type: time.Duration
+  Int64:
+    type: int

@@ -167,6 +167,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_ServerInfo:
 	case *service.Request_Shutdown:
 	case *service.Request_StopStatus:
+	case *service.Request_LogArtifact:
+		h.handleLogArtifact(record, x.LogArtifact, response)
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
@@ -199,6 +201,10 @@ func (h *Handler) handleDefer(record *service.Record) {
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
 	}
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleLogArtifact(record *service.Record, msg *service.LogArtifactRequest, resp *service.Response) {
 	h.sendRecord(record)
 }
 

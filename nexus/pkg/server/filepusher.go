@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,12 @@ type UploadTask struct {
 
 	// url is the endpoint to upload to
 	url string
+
+	// headers to send on the upload
+	headers []string
+
+	// allow tasks to wait for completion (failed or success)
+	wgOutstanding *sync.WaitGroup
 }
 
 type fileCounts struct {
@@ -50,6 +57,20 @@ type Uploader struct {
 
 	// wg is the wait group
 	wg *sync.WaitGroup
+}
+
+func (t *UploadTask) outstandingAdd() {
+	if t.wgOutstanding == nil {
+		return
+	}
+	t.wgOutstanding.Add(1)
+}
+
+func (t *UploadTask) outstandingDone() {
+	if t.wgOutstanding == nil {
+		return
+	}
+	t.wgOutstanding.Done()
 }
 
 // NewUploader creates a new uploader
@@ -89,6 +110,7 @@ func (u *Uploader) do() {
 
 // AddTask adds a task to the uploader
 func (u *Uploader) AddTask(task *UploadTask) {
+	task.outstandingAdd()
 	u.logger.Debug("uploader: adding task", "path", task.path, "url", task.url)
 	u.inChan <- task
 }
@@ -113,12 +135,21 @@ func (u *Uploader) upload(task *UploadTask) error {
 		task.url,
 		file,
 	)
+
+	for _, header := range task.headers {
+		parts := strings.Split(header, ":")
+		req.Header.Set(parts[0], parts[1])
+	}
+
 	if err != nil {
+		task.outstandingDone()
 		return err
 	}
 
 	if _, err = u.retryClient.Do(req); err != nil {
+		task.outstandingDone()
 		return err
 	}
+	task.outstandingDone()
 	return nil
 }

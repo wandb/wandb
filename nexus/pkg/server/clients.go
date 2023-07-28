@@ -25,8 +25,6 @@ type authedTransport struct {
 func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
 	req.Header.Set("User-Agent", "wandb-nexus")
-	// req.Header.Set("X-WANDB-USERNAME", "jeff")
-	// req.Header.Set("X-WANDB-USER-EMAIL", "jeff@wandb.com")
 	return t.wrapped.RoundTrip(req)
 }
 

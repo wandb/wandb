@@ -109,7 +109,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 }
 
 // sendRequest sends a request
-func (s *Sender) sendRequest(_ *service.Record, request *service.Request) {
+func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 
 	switch x := request.RequestType.(type) {
 	case *service.Request_RunStart:
@@ -120,6 +120,8 @@ func (s *Sender) sendRequest(_ *service.Record, request *service.Request) {
 		s.sendDefer(x.Defer)
 	case *service.Request_Metadata:
 		s.sendMetadata(x.Metadata)
+	case *service.Request_LogArtifact:
+		s.sendLogArtifact(record, x.LogArtifact)
 	default:
 		// TODO: handle errors
 	}
@@ -394,7 +396,36 @@ func (s *Sender) sendFile(name string) {
 	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), name)
 	edges := data.GetModel().GetBucket().GetFiles().GetEdges()
 	for _, e := range edges {
-		task := &UploadTask{fullPath, *e.GetNode().GetUrl()}
+		task := &UploadTask{path: fullPath, url: *e.GetNode().GetUrl()}
 		s.uploader.AddTask(task)
 	}
+}
+
+func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
+	saver := ArtifactSaver{
+		ctx:           s.ctx,
+		logger:        s.logger,
+		artifact:      msg.Artifact,
+		graphqlClient: s.graphqlClient,
+		uploader:      s.uploader,
+	}
+	saverResult, err := saver.save()
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: sendLogArtifact: save failure", err)
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_LogArtifactResponse{
+					LogArtifactResponse: &service.LogArtifactResponse{
+						ArtifactId: saverResult.ArtifactId,
+					},
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.resultChan <- result
 }
