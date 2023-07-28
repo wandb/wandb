@@ -46,6 +46,7 @@ from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
 )
 from wandb.sdk.artifacts.artifact_saver import get_staging_dir
 from wandb.sdk.artifacts.artifact_state import ArtifactState
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -655,34 +656,38 @@ class Artifact:
         """Artifact TTL(time to live).
 
         Once the artifact's created_at is older than the ttl, the artifact is marked as deleted.
-        To turn off previously set artifact TTL, set TTL to None.
+        To turn off previously set artifact TTL, set TTL to wandb.ArtifactTTL.DELETE
         EX: Artifact.created_at = 1/1/2000, ttl=10 days.
             This artifact will be marked for deletion on 1/11/2000.
         """
-        if self._ttl_duration_seconds is None:
+        if (
+            self._ttl_duration_seconds is None
+            or self._ttl_duration_seconds == ArtifactTTL.DELETE
+        ):
             return None
         return datetime.timedelta(seconds=self._ttl_duration_seconds)
 
     @ttl.setter
-    def ttl(self, ttl: Optional[datetime.timedelta]) -> None:
+    def ttl(self, ttl: Union[datetime.timedelta, ArtifactTTL]) -> None:
         """Artifact TTL(time to live).
         Note:
             This ttl is set on the artifact version level.
 
         Arguments:
             ttl: How long the artifact will remain active from its creation.
-            To turn off previously set artifact TTL, set TTL to None.
+            To turn off previously set artifact TTL, set TTL to wandb.ArtifactTTL.DELETE
         """
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
-        if ttl is not None:
-            if ttl.total_seconds() <= 0:
-                raise ValueError(
-                    f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
-                )
-            self._ttl_duration_seconds = int(ttl.total_seconds())
+
+        if isinstance(ttl, ArtifactTTL):
+            self._ttl_duration_seconds = ttl.value
+        elif ttl.total_seconds() <= 0:
+            raise ValueError(
+                f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
+            )
         else:
-            self._ttl_duration_seconds = None
+            self._ttl_duration_seconds = int(ttl.total_seconds())
 
     # State management.
 
