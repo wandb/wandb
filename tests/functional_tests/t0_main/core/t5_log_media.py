@@ -9,6 +9,9 @@ plugin:
 depend:
   requirements:
     - pillow
+tag:
+  skips:
+    - platform: win
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config]: {}

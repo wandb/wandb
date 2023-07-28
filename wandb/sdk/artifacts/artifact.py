@@ -98,7 +98,7 @@ class Artifact:
 
     Examples:
         Basic usage:
-        ```
+        ```python
         wandb.init()
 
         artifact = wandb.Artifact("mnist", type="dataset")
@@ -931,11 +931,10 @@ class Artifact:
 
         Examples:
             Basic usage:
-            ```
+            ```python
             artifact = wandb.Artifact("my_table", type="dataset")
             table = wandb.Table(
-                columns=["a", "b", "c"],
-                data=[(i, i * 2, 2**i) for i in range(10)]
+                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
             )
             artifact["my_table"] = table
 
@@ -943,7 +942,7 @@ class Artifact:
             ```
 
             Retrieving an object:
-            ```
+            ```python
             artifact = wandb.use_artifact("my_table:latest")
             table = artifact["my_table"]
             ```
@@ -965,11 +964,10 @@ class Artifact:
 
         Examples:
             Basic usage:
-            ```
+            ```python
             artifact = wandb.Artifact("my_table", type="dataset")
             table = wandb.Table(
-                columns=["a", "b", "c"],
-                data=[(i, i * 2, 2**i) for i in range(10)]
+                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
             )
             artifact["my_table"] = table
 
@@ -977,7 +975,7 @@ class Artifact:
             ```
 
             Retrieving an object:
-            ```
+            ```python
             artifact = wandb.use_artifact("my_table:latest")
             table = artifact["my_table"]
             ```
@@ -1003,7 +1001,7 @@ class Artifact:
             ArtifactFinalizedError: if the artifact has already been finalized.
 
         Examples:
-            ```
+            ```python
             artifact = wandb.Artifact("my_data", type="dataset")
             with artifact.new_file("hello.txt") as f:
                 f.write("hello!")
@@ -1053,13 +1051,13 @@ class Artifact:
 
         Examples:
             Add a file without an explicit name:
-            ```
+            ```python
             # Add as `file.txt'
             artifact.add_file("path/to/file.txt")
             ```
 
             Add a file with an explicit name:
-            ```
+            ```python
             # Add as 'new/path/file.txt'
             artifact.add_file("path/to/file.txt", name="new/path/file.txt")
             ```
@@ -1092,13 +1090,13 @@ class Artifact:
 
         Examples:
             Add a directory without an explicit name:
-            ```
+            ```python
             # All files in `my_dir/` are added at the root of the artifact.
             artifact.add_dir("my_dir/")
             ```
 
             Add a directory and name it explicitly:
-            ```
+            ```python
             # All files in `my_dir/` are added under `destination/`.
             artifact.add_dir("my_dir/", name="destination")
             ```
@@ -1250,11 +1248,10 @@ class Artifact:
 
         Examples:
             Basic usage:
-            ```
+            ```python
             artifact = wandb.Artifact("my_table", type="dataset")
             table = wandb.Table(
-                columns=["a", "b", "c"],
-                data=[(i, i * 2, 2**i) for i in range(10)]
+                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
             )
             artifact.add(table, "my_table")
 
@@ -1262,7 +1259,7 @@ class Artifact:
             ```
 
             Retrieve an object:
-            ```
+            ```python
             artifact = wandb.use_artifact("my_table:latest")
             table = artifact.get("my_table")
             ```
@@ -1411,7 +1408,7 @@ class Artifact:
 
         Examples:
             Basic usage:
-            ```
+            ```python
             # Run logging the artifact
             with wandb.init() as r:
                 artifact = wandb.Artifact("my_dataset", type="dataset")
@@ -1448,13 +1445,12 @@ class Artifact:
 
         Examples:
             Basic usage:
-            ```
+            ```python
             # Run logging the artifact
             with wandb.init() as r:
                 artifact = wandb.Artifact("my_dataset", type="dataset")
                 table = wandb.Table(
-                    columns=["a", "b", "c"],
-                    data=[(i, i * 2, 2**i) for i in range(10)]
+                    columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
                 )
                 artifact.add(table, "my_table")
                 wandb.log_artifact(artifact)
@@ -1511,7 +1507,7 @@ class Artifact:
 
         Examples:
             Basic usage:
-            ```
+            ```python
             artifact = wandb.Artifact("my_dataset", type="dataset")
             artifact.add_file("path/to/file.txt", name="artifact/path/file.txt")
 
@@ -1847,7 +1843,7 @@ class Artifact:
 
         Examples:
             Delete all the "model" artifacts a run has logged:
-            ```
+            ```python
             runs = api.runs(path="my_entity/my_project")
             for run in runs:
                 for artifact in run.logged_artifacts():
