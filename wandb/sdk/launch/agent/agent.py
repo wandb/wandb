@@ -137,7 +137,7 @@ class LaunchAgent:
         self.default_config: Dict[str, Any] = config
 
         # Get agent version from env var if present, otherwise wandb version
-        self.version: str = wandb.__version__
+        self.version: str = "wandb@" + wandb.__version__
         env_agent_version = os.environ.get("WANDB_AGENT_VERSION")
         if env_agent_version and env_agent_version != "wandb-launch-agent":
             self.version = env_agent_version
