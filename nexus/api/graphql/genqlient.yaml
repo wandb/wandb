@@ -3,8 +3,8 @@
 schema: schemas/schema-latest.graphql
 operations:
 - "*.graphql"
-generated: ../../pkg/server/schema_gen.go
-package: server
+generated: ../../internal/gql/gql_gen.go
+package: gql
 # optional: value
 optional: pointer
 bindings:

@@ -1,4 +1,4 @@
-package server
+package artifacts
 
 import (
 	"context"
@@ -10,17 +10,19 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/nexus/internal/gql"
+	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 type ArtifactSaver struct {
-	ctx           context.Context
-	logger        *observability.NexusLogger
-	artifact      *service.ArtifactRecord
-	graphqlClient graphql.Client
-	uploader      *Uploader
-	wgOutstanding sync.WaitGroup
+	Ctx           context.Context
+	Logger        *observability.NexusLogger
+	Artifact      *service.ArtifactRecord
+	GraphqlClient graphql.Client
+	Uploader      *uploader.Uploader
+	WgOutstanding sync.WaitGroup
 }
 
 type ArtifactSaverResult struct {
@@ -57,38 +59,38 @@ func computeB64MD5(manifestFile string) (string, error) {
 
 func (as *ArtifactSaver) createArtifact() (string, *string) {
 	enableDedup := false
-	aliases := []ArtifactAliasInput{}
-	for _, alias := range as.artifact.Aliases {
+	aliases := []gql.ArtifactAliasInput{}
+	for _, alias := range as.Artifact.Aliases {
 		aliases = append(aliases,
-			ArtifactAliasInput{
-				ArtifactCollectionName: as.artifact.Name,
+			gql.ArtifactAliasInput{
+				ArtifactCollectionName: as.Artifact.Name,
 				Alias:                  alias,
 			},
 		)
 	}
 
-	response, err := CreateArtifact(
-		as.ctx,
-		as.graphqlClient,
-		as.artifact.Type,
-		[]string{as.artifact.Name},
-		as.artifact.Entity,
-		as.artifact.Project,
-		&as.artifact.RunId,
-		&as.artifact.Description,
-		as.artifact.Digest,
+	response, err := gql.CreateArtifact(
+		as.Ctx,
+		as.GraphqlClient,
+		as.Artifact.Type,
+		[]string{as.Artifact.Name},
+		as.Artifact.Entity,
+		as.Artifact.Project,
+		&as.Artifact.RunId,
+		&as.Artifact.Description,
+		as.Artifact.Digest,
 		nil, // Labels
 		aliases,
 		nil, // metadata
 		// 0,   // historyStep
-		// &as.artifact.DistributedId,
-		as.artifact.ClientId,
-		as.artifact.SequenceClientId,
+		// &as.Artifact.DistributedId,
+		as.Artifact.ClientId,
+		as.Artifact.SequenceClientId,
 		&enableDedup, // enableDigestDeduplication
 	)
 	if err != nil {
-		err = fmt.Errorf("CreateArtifact: %s, error: %+v response: %+v", as.artifact.Name, err, response)
-		as.logger.CaptureFatalAndPanic("createArtifact", err)
+		err = fmt.Errorf("CreateArtifact: %s, error: %+v response: %+v", as.Artifact.Name, err, response)
+		as.Logger.CaptureFatalAndPanic("createArtifact", err)
 	}
 	artifact := response.GetCreateArtifact().GetArtifact()
 	latest := artifact.ArtifactSequence.GetLatestArtifact()
@@ -102,24 +104,24 @@ func (as *ArtifactSaver) createArtifact() (string, *string) {
 
 func (as *ArtifactSaver) createManifest(artifactId string, baseArtifactId *string, manifestDigest string, includeUpload bool) (string, *string, []string) {
 	const manifestFilename = "wandb_manifest.json"
-	manifestType := ArtifactManifestTypeFull
+	manifestType := gql.ArtifactManifestTypeFull
 
-	response, err := CreateArtifactManifest(
-		as.ctx,
-		as.graphqlClient,
+	response, err := gql.CreateArtifactManifest(
+		as.Ctx,
+		as.GraphqlClient,
 		manifestFilename,
 		manifestDigest,
 		artifactId,
 		baseArtifactId,
-		as.artifact.Entity,
-		as.artifact.Project,
-		as.artifact.RunId,
+		as.Artifact.Entity,
+		as.Artifact.Project,
+		as.Artifact.RunId,
 		includeUpload,
 		&manifestType,
 	)
 	if err != nil {
-		err = fmt.Errorf("CreateArtifactManifest: %s, error: %+v response: %+v", as.artifact.Name, err, response)
-		as.logger.CaptureFatalAndPanic("createManifest", err)
+		err = fmt.Errorf("CreateArtifactManifest: %s, error: %+v response: %+v", as.Artifact.Name, err, response)
+		as.Logger.CaptureFatalAndPanic("createManifest", err)
 	}
 	createManifest := response.GetCreateArtifactManifest()
 	manifest := createManifest.ArtifactManifest
@@ -135,41 +137,41 @@ func (as *ArtifactSaver) createManifest(artifactId string, baseArtifactId *strin
 }
 
 func (as *ArtifactSaver) sendManifestFiles(artifactID string, manifestID string) {
-	artifactFiles := []CreateArtifactFileSpecInput{}
-	man := as.artifact.Manifest
+	artifactFiles := []gql.CreateArtifactFileSpecInput{}
+	man := as.Artifact.Manifest
 	for _, entry := range man.Contents {
-		as.logger.Info("sendfiles", "entry", entry)
+		as.Logger.Info("sendfiles", "entry", entry)
 		md5Checksum := ""
 		artifactFiles = append(artifactFiles,
-			CreateArtifactFileSpecInput{
+			gql.CreateArtifactFileSpecInput{
 				ArtifactID:         artifactID,
 				Name:               entry.Path,
 				Md5:                md5Checksum,
 				ArtifactManifestID: &manifestID,
 			})
 	}
-	response, err := CreateArtifactFiles(
-		as.ctx,
-		as.graphqlClient,
-		ArtifactStorageLayoutV2,
+	response, err := gql.CreateArtifactFiles(
+		as.Ctx,
+		as.GraphqlClient,
+		gql.ArtifactStorageLayoutV2,
 		artifactFiles,
 	)
 	if err != nil {
-		err = fmt.Errorf("CreateArtifactFiles: %s, error: %+v response: %+v", as.artifact.Name, err, response)
-		as.logger.CaptureFatalAndPanic("sendManifestFiles", err)
+		err = fmt.Errorf("CreateArtifactFiles: %s, error: %+v response: %+v", as.Artifact.Name, err, response)
+		as.Logger.CaptureFatalAndPanic("sendManifestFiles", err)
 	}
 	for n, edge := range response.GetCreateArtifactFiles().GetFiles().Edges {
-		upload := UploadTask{
-			url:           *edge.Node.GetUploadUrl(),
-			path:          man.Contents[n].LocalPath,
-			wgOutstanding: &as.wgOutstanding,
+		upload := uploader.UploadTask{
+			Url:           *edge.Node.GetUploadUrl(),
+			Path:          man.Contents[n].LocalPath,
+			WgOutstanding: &as.WgOutstanding,
 		}
-		as.uploader.AddTask(&upload)
+		as.Uploader.AddTask(&upload)
 	}
 }
 
 func (as *ArtifactSaver) writeManifest() (string, error) {
-	man := as.artifact.Manifest
+	man := as.Artifact.Manifest
 
 	m := &ManifestV1{
 		Version:       man.Version,
@@ -204,28 +206,28 @@ func (as *ArtifactSaver) writeManifest() (string, error) {
 }
 
 func (as *ArtifactSaver) sendManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) {
-	upload := UploadTask{
-		url:           *uploadUrl,
-		path:          manifestFile,
-		headers:       uploadHeaders,
-		wgOutstanding: &as.wgOutstanding,
+	upload := uploader.UploadTask{
+		Url:           *uploadUrl,
+		Path:          manifestFile,
+		Headers:       uploadHeaders,
+		WgOutstanding: &as.WgOutstanding,
 	}
-	as.uploader.AddTask(&upload)
+	as.Uploader.AddTask(&upload)
 }
 
 func (as *ArtifactSaver) commitArtifact(artifactId string) {
-	response, err := CommitArtifact(
-		as.ctx,
-		as.graphqlClient,
+	response, err := gql.CommitArtifact(
+		as.Ctx,
+		as.GraphqlClient,
 		artifactId,
 	)
 	if err != nil {
-		err = fmt.Errorf("CommitArtifact: %s, error: %+v response: %+v", as.artifact.Name, err, response)
-		as.logger.CaptureFatalAndPanic("commitArtifact", err)
+		err = fmt.Errorf("CommitArtifact: %s, error: %+v response: %+v", as.Artifact.Name, err, response)
+		as.Logger.CaptureFatalAndPanic("commitArtifact", err)
 	}
 }
 
-func (as *ArtifactSaver) save() (ArtifactSaverResult, error) {
+func (as *ArtifactSaver) Save() (ArtifactSaverResult, error) {
 	artifactId, baseArtifactId := as.createArtifact()
 	manifestId, _, _ := as.createManifest(artifactId, baseArtifactId, "", false)
 	as.sendManifestFiles(artifactId, manifestId)
@@ -241,7 +243,7 @@ func (as *ArtifactSaver) save() (ArtifactSaverResult, error) {
 	_, uploadUrl, uploadHeaders := as.createManifest(artifactId, baseArtifactId, manifestDigest, true)
 	as.sendManifest(manifestFile, uploadUrl, uploadHeaders)
 	// wait on all outstanding requests before commit
-	as.wgOutstanding.Wait()
+	as.WgOutstanding.Wait()
 	as.commitArtifact(artifactId)
 
 	return ArtifactSaverResult{ArtifactId: artifactId}, nil

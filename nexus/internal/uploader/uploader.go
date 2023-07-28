@@ -1,4 +1,4 @@
-package server
+package uploader
 
 import (
 	"context"
@@ -15,20 +15,22 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
+const UploaderBufferSize = 32
+
 // UploadTask is a task to upload a file
 type UploadTask struct {
 
 	// path is the path to the file
-	path string
+	Path string
 
 	// url is the endpoint to upload to
-	url string
+	Url string
 
 	// headers to send on the upload
-	headers []string
+	Headers []string
 
 	// allow tasks to wait for completion (failed or success)
-	wgOutstanding *sync.WaitGroup
+	WgOutstanding *sync.WaitGroup
 }
 
 type fileCounts struct {
@@ -60,17 +62,17 @@ type Uploader struct {
 }
 
 func (t *UploadTask) outstandingAdd() {
-	if t.wgOutstanding == nil {
+	if t.WgOutstanding == nil {
 		return
 	}
-	t.wgOutstanding.Add(1)
+	t.WgOutstanding.Add(1)
 }
 
 func (t *UploadTask) outstandingDone() {
-	if t.wgOutstanding == nil {
+	if t.WgOutstanding == nil {
 		return
 	}
-	t.wgOutstanding.Done()
+	t.WgOutstanding.Done()
 }
 
 // NewUploader creates a new uploader
@@ -83,7 +85,7 @@ func NewUploader(ctx context.Context, logger *observability.NexusLogger) *Upload
 
 	uploader := &Uploader{
 		ctx:         ctx,
-		inChan:      make(chan *UploadTask, BufferSize),
+		inChan:      make(chan *UploadTask, UploaderBufferSize),
 		retryClient: retryClient,
 		fileCounts:  fileCounts{},
 		logger:      logger,
@@ -101,7 +103,7 @@ func (u *Uploader) do() {
 		for task := range u.inChan {
 			u.logger.Debug("uploader: got task", task)
 			if err := u.upload(task); err != nil {
-				u.logger.CaptureError("uploader: error uploading", err, "path", task.path, "url", task.url)
+				u.logger.CaptureError("uploader: error uploading", err, "path", task.Path, "url", task.Url)
 			}
 		}
 		u.wg.Done()
@@ -111,7 +113,7 @@ func (u *Uploader) do() {
 // AddTask adds a task to the uploader
 func (u *Uploader) AddTask(task *UploadTask) {
 	task.outstandingAdd()
-	u.logger.Debug("uploader: adding task", "path", task.path, "url", task.url)
+	u.logger.Debug("uploader: adding task", "path", task.Path, "url", task.Url)
 	u.inChan <- task
 }
 
@@ -124,19 +126,19 @@ func (u *Uploader) Close() {
 
 // upload uploads a file to the server
 func (u *Uploader) upload(task *UploadTask) error {
-	// read in the file at task.path:
-	file, err := os.ReadFile(task.path)
+	// read in the file at task.Path:
+	file, err := os.ReadFile(task.Path)
 	if err != nil {
 		return err
 	}
 
 	req, err := retryablehttp.NewRequest(
 		http.MethodPut,
-		task.url,
+		task.Url,
 		file,
 	)
 
-	for _, header := range task.headers {
+	for _, header := range task.Headers {
 		parts := strings.Split(header, ":")
 		req.Header.Set(parts[0], parts[1])
 	}

@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/wandb/wandb/nexus/internal/gql"
+	"github.com/wandb/wandb/nexus/internal/uploader"
+	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/Khan/genqlient/graphql"
@@ -46,7 +49,7 @@ type Sender struct {
 	fileStream *FileStream
 
 	// uploader is the file uploader
-	uploader *Uploader
+	uploader *uploader.Uploader
 
 	// RunRecord is the run record
 	RunRecord *service.RunRecord
@@ -134,7 +137,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 		s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
 	}
-	s.uploader = NewUploader(s.ctx, s.logger)
+	s.uploader = uploader.NewUploader(s.ctx, s.logger)
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -237,7 +240,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	configString := string(configJson)
 
 	var tags []string
-	data, err := UpsertBucket(
+	data, err := gql.UpsertBucket(
 		s.ctx,           // ctx
 		s.graphqlClient, // client
 		nil,             // id
@@ -317,10 +320,10 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 	// TODO: handle invalid alert levels
-	severity := AlertSeverity(alert.Level)
+	severity := gql.AlertSeverity(alert.Level)
 	waitDuration := time.Duration(alert.WaitDuration) * time.Second
 
-	data, err := NotifyScriptableRunAlert(
+	data, err := gql.NotifyScriptableRunAlert(
 		s.ctx,
 		s.graphqlClient,
 		s.RunRecord.Entity,
@@ -379,7 +382,7 @@ func (s *Sender) sendFile(name string) {
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
-	data, err := RunUploadUrls(
+	data, err := gql.RunUploadUrls(
 		s.ctx,
 		s.graphqlClient,
 		s.RunRecord.Project,
@@ -396,20 +399,20 @@ func (s *Sender) sendFile(name string) {
 	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), name)
 	edges := data.GetModel().GetBucket().GetFiles().GetEdges()
 	for _, e := range edges {
-		task := &UploadTask{path: fullPath, url: *e.GetNode().GetUrl()}
+		task := &uploader.UploadTask{Path: fullPath, Url: *e.GetNode().GetUrl()}
 		s.uploader.AddTask(task)
 	}
 }
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
-	saver := ArtifactSaver{
-		ctx:           s.ctx,
-		logger:        s.logger,
-		artifact:      msg.Artifact,
-		graphqlClient: s.graphqlClient,
-		uploader:      s.uploader,
+	saver := artifacts.ArtifactSaver{
+		Ctx:           s.ctx,
+		Logger:        s.logger,
+		Artifact:      msg.Artifact,
+		GraphqlClient: s.graphqlClient,
+		Uploader:      s.uploader,
 	}
-	saverResult, err := saver.save()
+	saverResult, err := saver.Save()
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: sendLogArtifact: save failure", err)
 	}
