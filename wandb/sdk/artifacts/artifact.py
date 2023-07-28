@@ -662,7 +662,7 @@ class Artifact:
         """
         if (
             self._ttl_duration_seconds is None
-            or self._ttl_duration_seconds == ArtifactTTL.DELETE
+            or self._ttl_duration_seconds == ArtifactTTL.DELETE.value
         ):
             return None
         return datetime.timedelta(seconds=self._ttl_duration_seconds)
