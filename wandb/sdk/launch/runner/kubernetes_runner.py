@@ -3,6 +3,7 @@
 import base64
 import json
 import logging
+import os
 import time
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -42,9 +43,9 @@ from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: 
 from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
-MAX_KUBERNETES_RETRIES = (
-    60  # default 10 second loop time on the agent, this is 10 minutes
-)
+MAX_KUBERNETES_RETRIES = os.environ.get(
+    "WANDB_AGENT_RETRIES", 180
+)  # default 10 second loop time on the agent, this is 30 minutes
 FAIL_MESSAGE_INTERVAL = 60
 
 _logger = logging.getLogger(__name__)
