@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/Khan/genqlient v0.6.0
 	github.com/getsentry/sentry-go v0.22.0
+	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.4
 	github.com/shirou/gopsutil/v3 v3.23.6
 	github.com/stretchr/testify v1.8.4

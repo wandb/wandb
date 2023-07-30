@@ -1,4 +1,6 @@
 version: 2.1
+orbs:
+  codecov: codecov/codecov@3
 
 parameters:
   wandb_server_tag:
@@ -82,6 +84,17 @@ jobs:
             cp -r /mnt/ramdisk/tests/pytest_tests/system_tests/test_nexus/* tests/pytest_tests/system_tests/test_nexus
             # run nexus-specific tests
             pytest -n=0 --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail --timeout 300 tests/pytest_tests/system_tests/test_nexus
+  gotest:
+    docker:
+      - image: cimg/go:1.20
+    steps:
+      - checkout
+      - run:
+          name: Run tests and collect coverage
+          command: |
+            cd nexus
+            go test -coverprofile=coverage.txt -covermode=atomic ./...
+      - codecov/upload
 
 workflows:
   main:
@@ -100,3 +113,4 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
+      - gotest

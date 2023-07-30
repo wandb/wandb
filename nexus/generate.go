@@ -1,6 +1,6 @@
-//go:build tools
+//go:build generate
 
-package tools
+package generate
 
 import (
 	_ "github.com/Khan/genqlient/generate"
