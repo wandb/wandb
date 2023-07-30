@@ -228,7 +228,7 @@ class TorchHistory:
         # in min()/max() above. Swap here to prevent a runtime error.
         if tmin > tmax:
             tmin, tmax = tmax, tmin
-        tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
+        tensor = flat.cpu().histc(bins=self._num_bins, min=tmin, max=tmax)
         tensor = tensor.cpu().clone().detach()
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
