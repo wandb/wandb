@@ -6,12 +6,14 @@ import threading
 import typing
 import uuid
 
-import wandb
 from wandb import errors
 
 from .lib.ipython import _get_python_type
 from .lib.printer import get_printer
 from .wandb_lite_run import InMemoryLazyLiteRun, wandb_public_api
+
+if typing.TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact import Artifact
 
 ROW_TYPE = typing.Union[dict, list[dict]]
 
@@ -22,7 +24,7 @@ class _StreamTableSync:
     _project_name: str
     _entity_name: str
 
-    _artifact: typing.Any
+    _artifact: typing.Optional["Artifact"]
 
     _weave_stream_table: typing.Any
     _weave_stream_table_ref: typing.Any
@@ -99,9 +101,9 @@ class _StreamTableSync:
                     f'{printer.emoji("star")} View data at {printer.link(url)}'
                 )
 
-    def _stream_table_artifact(self) -> "wandb.Artifact":
+    def _stream_table_artifact(self) -> "Artifact":
         if self._artifact is None:
-            self._artifact = wandb.Artifact(
+            self._artifact = Artifact(
                 self._table_name,
                 type="stream_table",
                 metadata={
@@ -113,23 +115,23 @@ class _StreamTableSync:
                 },
             )
             with self._artifact.new_file("obj.object.json") as f:
-                obj = {
+                payload = {
                     "_type": "stream_table",
                     "table_name": self._table_name,
                     "project_name": self._project_name,
                     "entity_name": self._entity_name,
                 }
-                f.write(json.dumps(obj))
+                f.write(json.dumps(payload))
             with self._artifact.new_file("obj.type.json") as f:
-                obj = {
+                payload = {
                     "type": "stream_table",
-                    "_base_type": {"type": "Object"},
-                    "_is_object": True,
+                    "_base_type": {"type": "Object"},  # type: ignore[dict-item]
+                    "_is_object": True,  # type: ignore[dict-item]
                     "table_name": "string",
                     "project_name": "string",
                     "entity_name": "string",
                 }
-                f.write(json.dumps(obj))
+                f.write(json.dumps(payload))
             self._lite_run.log_artifact(self._artifact)
         return self._artifact
 

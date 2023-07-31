@@ -3,7 +3,6 @@ import logging
 import os
 import typing
 
-import wandb
 from wandb import errors as wandb_errors
 from wandb import util
 from wandb.apis import public
@@ -12,8 +11,11 @@ from .artifacts import artifact_saver
 from .internal import file_stream
 from .internal.file_pusher import FilePusher
 from .internal.internal_api import Api as InternalApi
-from .internal.internal_api import _thread_local_api_settings
+from .internal.thread_local_settings import _thread_local_api_settings
 from .lib import runid
+
+if typing.TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact import Artifact
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +177,7 @@ class InMemoryLazyLiteRun:
 
         return self._pusher
 
-    def log_artifact(self, artifact: "wandb.Artifact") -> typing.Optional[dict]:
+    def log_artifact(self, artifact: "Artifact") -> typing.Optional[dict]:
         saver = artifact_saver.ArtifactSaver(
             api=self.i_api,
             digest=artifact.digest,
@@ -193,7 +195,7 @@ class InMemoryLazyLiteRun:
             aliases=artifact._aliases,
             use_after_commit=False,
             distributed_id=None,
-            finalize=artifact.finalize,
+            finalize=True,
             incremental=False,
             history_step=0,
             base_id=artifact._base_id or None,
