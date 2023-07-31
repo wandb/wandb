@@ -2480,11 +2480,12 @@ class ParseCTX:
                     lines = list(map(json.loads, content))
                     pad = {}
                 # hacky handling of stream table updates from multiple writers
-                client_id = lines[0].get("_client_id")
-                if client_id != None:
-                    client_cts.setdefault(client_id, 0)
-                    offset = sum(client_cts.values())
-                    client_cts[client_id] += len(lines)
+                if k == "wandb-history.jsonl" and len(lines) > 0:
+                    client_id = lines[0].get("_client_id")
+                    if client_id != None:
+                        client_cts.setdefault(client_id, 0)
+                        offset = sum(client_cts.values())
+                        client_cts[client_id] += len(lines)
 
                 # pad list if our offset is too large (is this what bt would do?)
                 # TODO: is this pad the right thing or should we assert if offset is past len
