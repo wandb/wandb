@@ -46,6 +46,7 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
+    StreamRecord    stream = 26;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -209,6 +210,18 @@ message HistoryItem {
 }
 
 message HistoryResult {
+}
+
+/*
+ * StreamRecord: wandb/sdk/wandb_stream/Stream
+ */
+message StreamRecord {
+  repeated HistoryItem item = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  _RecordInfo _info = 200;
+}
+
+message StreamResult {
 }
 
 /*
