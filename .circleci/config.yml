@@ -337,6 +337,11 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
+                  # install go
+                  wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+                  export PATH=$PATH:/usr/local/go/bin
+                  go version
             - run:
                 name: Install python dependencies
                 command: |
@@ -413,6 +418,11 @@ jobs:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
+            # install go
+            wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
       - run:
           name: Install python dependencies
           command: |
@@ -457,6 +467,11 @@ jobs:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
+            # install go
+            wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
       - run:
           name: Check protobuf version compatibility
           command: |
@@ -653,6 +668,11 @@ jobs:
             - run:
                 name: Install system deps
                 command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
+                # install go
+                wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
+                tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+                export PATH=$PATH:/usr/local/go/bin
+                go version
             - run:
                 name: Use py37
                 command: |
