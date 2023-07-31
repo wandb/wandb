@@ -24,6 +24,7 @@ SYMBOLS_ROOT_DATATYPES = {
     "Histogram",
     "Classes",
     "JoinedTable",
+    "StreamTable",
 }
 
 SYMBOLS_ROOT_SDK = {
