@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	CliVersion   = "0.0.1a1"
+	CliVersion   = "0.0.1a2"
 	MetaFilename = "wandb-metadata.json"
 )
 
