@@ -54,6 +54,7 @@ SYMBOLS_ROOT_OTHER = {
     "AlertLevel",
     "Api",
     "Artifact",
+    "ArtifactTTL",
     "CommError",
     "Config",
     "Error",
