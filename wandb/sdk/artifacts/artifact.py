@@ -670,6 +670,7 @@ class Artifact:
     @ttl.setter
     def ttl(self, ttl: Union[datetime.timedelta, ArtifactTTL]) -> None:
         """Artifact TTL(time to live).
+
         Note:
             This ttl is set on the artifact version level.
 

@@ -10,7 +10,6 @@ import socket
 import sys
 import threading
 from copy import deepcopy
-from functools import lru_cache
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -3243,7 +3242,6 @@ class Api:
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
-    @lru_cache(maxsize=1)
     def server_create_artifact_introspection(self) -> List:
         query_string = """
             query ProbeServerCreateArtifactInput {
@@ -3270,7 +3268,7 @@ class Api:
         query_template: str,
         fields: List,
         history_step: Optional[int],
-        distributed_id: str,
+        distributed_id: Optional[str],
     ) -> str:
         types = ""
         values = ""
@@ -3323,8 +3321,6 @@ class Api:
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
-        from pkg_resources import parse_version
-
         query_template = """
         mutation CreateArtifact(
             $artifactTypeName: String!,
