@@ -143,9 +143,12 @@ class LocalContainerRunner(AbstractRunner):
                 try:
                     pull_docker_image(image_uri)
                 except Exception as e:
-                    raise LaunchError(
-                        f"Failed to pull docker image {image_uri}: {e}"
-                    ) from e
+                    wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
+                    if not docker_image_exists(image_uri):
+                        raise LaunchError(
+                            f"Failed to pull docker image {image_uri} with error: {e}"
+                        )
+
             assert launch_project.docker_image == image_uri
 
         additional_args = (
