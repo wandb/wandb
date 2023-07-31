@@ -1,10 +1,11 @@
 import datetime
 import logging
 import os
+import platform
 import typing
 
+from wandb import __version__, util
 from wandb import errors as wandb_errors
-from wandb import util
 from wandb.apis import public
 
 from .artifacts import artifact_saver
@@ -12,7 +13,8 @@ from .internal import file_stream
 from .internal.file_pusher import FilePusher
 from .internal.internal_api import Api as InternalApi
 from .internal.thread_local_settings import _thread_local_api_settings
-from .lib import runid
+from .lib import config_util, runid
+from .lib.ipython import _get_python_type
 
 if typing.TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -48,6 +50,7 @@ class InMemoryLazyLiteRun:
     _project_name: str
     _run_name: str
     _step: int = 0
+    _config: typing.Optional[typing.Dict]
 
     # Optional
     _display_name: typing.Optional[str] = None
@@ -66,6 +69,7 @@ class InMemoryLazyLiteRun:
         entity_name: str,
         project_name: str,
         run_name: typing.Optional[str] = None,
+        config: typing.Optional[typing.Dict] = None,
         *,
         job_type: typing.Optional[str] = None,
         group: typing.Optional[str] = None,
@@ -86,6 +90,18 @@ class InMemoryLazyLiteRun:
         self._project_name = project_name
         self._display_name = run_name
         self._run_name = run_name or runid.generate_id()
+        self._config = config or dict()
+        # TODO: wire up actual telemetry?
+        self._config.update(
+            {
+                "_wandb": {
+                    "streamtable_version": "0.1",
+                    "cli_version": __version__,
+                    "python_version": platform.python_version(),
+                    "is_jupyter_run": _get_python_type() != "python",
+                },
+            }
+        )
         self._job_type = job_type if not _hide_in_wb else WANDB_HIDDEN_JOB_TYPE
         if _hide_in_wb and group is None:
             group = "weave_hidden_runs"
@@ -115,11 +131,13 @@ class InMemoryLazyLiteRun:
                 project=self._project_name, entity=self._entity_name
             )
 
+            # TODO: decide if we want to merge an existing run
             # Produce a run
             run_res, _, _ = self.i_api.upsert_run(
                 name=self._run_name,
                 display_name=self._display_name,
                 job_type=self._job_type,
+                config=config_util.dict_add_value_dict(self._config),  # type: ignore[no-untyped-call]
                 group=self._group,
                 project=self._project_name,
                 entity=self._entity_name,
