@@ -140,9 +140,9 @@ func NewFilestreamTest(tName string, fn func(fs *server.FileStream)) *filestream
 	fstreamPath := "/test/" + tName
 	tserver.mux.Handle(fstreamPath, apiHandler{&capture})
 	fs := server.NewFileStream(tserver.hserver.URL+fstreamPath, tserver.settings, tserver.logger)
+	fs.Start()
 	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tserver.mux, fs: fs, tserver: tserver}
 	defer fsTest.finish()
-	fs.Start()
 	fn(fsTest.fs)
 	return &fsTest
 }

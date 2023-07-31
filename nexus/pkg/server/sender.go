@@ -146,6 +146,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 		s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
+		s.fileStream.Start()
 	}
 	s.uploader = uploader.NewUploader(s.ctx, s.logger)
 }

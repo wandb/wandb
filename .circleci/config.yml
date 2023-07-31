@@ -93,7 +93,7 @@ jobs:
           name: Run tests and collect coverage
           command: |
             cd nexus
-            go test -coverprofile=coverage.txt -covermode=atomic ./...
+            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
       - codecov/upload
 
 workflows:
