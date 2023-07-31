@@ -191,6 +191,10 @@ class KubernetesSubmittedRun(AbstractRun):
                     "TerminationByKubelet",
                 ]:
                     return Status("preempted")
+
+        if self._is_container_creating(pod):
+            wandb.termlog(f"Container is creating for job: {self.name}.")
+            return Status("starting")
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
@@ -198,11 +202,16 @@ class KubernetesSubmittedRun(AbstractRun):
                 self._fail_last_msg_time = 0.0
             self._fail_count += 1
             if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
+                minutes = round(
+                    (MAX_KUBERNETES_RETRIES * 10 - (now - self._fail_first_msg_time))
+                    / 60
+                )
                 wandb.termlog(
-                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes."
+                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {minutes} minutes."
                 )
                 self._fail_last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
+                self.cancel()
                 raise LaunchError(f"Failed to start job {self.name}")
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         return_status = None
@@ -219,6 +228,15 @@ class KubernetesSubmittedRun(AbstractRun):
 
         self._delete_secret_if_completed(return_status.state)
         return return_status
+
+    def _is_container_creating(self, pod) -> bool:
+        try:
+            return (
+                pod.status.container_statuses[0].state.waiting.reason
+                == "ContainerCreating"
+            )
+        except AttributeError:
+            return False
 
     def suspend(self) -> None:
         """Suspend the run."""
