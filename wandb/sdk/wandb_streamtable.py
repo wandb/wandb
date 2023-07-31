@@ -15,7 +15,7 @@ from .wandb_lite_run import InMemoryLazyLiteRun, wandb_public_api
 if typing.TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
-ROW_TYPE = typing.Union[dict, list[dict]]
+ROW_TYPE = typing.Union[dict, typing.List[dict]]
 
 
 class _StreamTableSync:
