@@ -727,18 +727,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self._model_trained_since_last_eval:
             self._attempt_evaluation_log()
 
-    def on_test_begin(self, logs=None):
-        pass
-
-    def on_test_end(self, logs=None):
-        pass
-
-    def on_test_batch_begin(self, batch, logs=None):
-        pass
-
-    def on_test_batch_end(self, batch, logs=None):
-        pass
-
     def on_predict_begin(self, logs=None):
         pass
 
