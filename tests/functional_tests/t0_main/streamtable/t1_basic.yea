@@ -1,0 +1,9 @@
+id: 0.streamtable.01-basic
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][history][0][a]: 0
+  - :wandb:runs[0][history][9][a]: 9
+  - :wandb:runs[0][exitcode]: 0

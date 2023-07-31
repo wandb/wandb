@@ -1,10 +1,12 @@
 import atexit
 import datetime
+import json
 import queue
 import threading
 import typing
 import uuid
 
+import wandb
 from wandb import errors
 
 from .lib.ipython import _get_python_type
@@ -36,6 +38,8 @@ class _StreamTableSync:
         _disable_async_file_stream: bool = False,
     ):
         self._client_id = str(uuid.uuid1())
+        self._lock = threading.Lock()
+        self._artifact = None
         splits = table_name.split("/")
         if len(splits) == 1:
             pass
@@ -80,19 +84,54 @@ class _StreamTableSync:
         atexit.register(self._at_exit)
 
     def _ensure_remote_initialized(self) -> None:
-        self._lite_run.ensure_run()
-        print_url = False
-        # TODO: ripped this out in wandb land for now
-        self._weave_stream_table = None
-        self._weave_stream_table_ref = None
-        self._artifact = None
-        if print_url:
-            base_url = wandb_public_api().settings["base_url"]
-            if base_url.endswith("api.wandb.ai"):
-                base_url = base_url.replace("api", "weave.")
-            url = f"{base_url}/?exp=get%28%0A++++%22wandb-artifact%3A%2F%2F%2F{self._entity_name}%2F{self._project_name}%2F{self._table_name}%3Alatest%2Fobj%22%29%0A++.rows"
-            printer = get_printer(_get_python_type() != "python")
-            printer.display(f'{printer.emoji("star")} View data at {printer.link(url)}')
+        with self._lock:
+            self._lite_run.ensure_run()
+            print_url = False
+            # TODO: decide if we want an artifact for wandb native runs
+            # self._artifact = self._stream_table_artifact()
+            if print_url:
+                base_url = wandb_public_api().settings["base_url"]
+                if base_url.endswith("api.wandb.ai"):
+                    base_url = base_url.replace("api", "weave.")
+                url = f"{base_url}/?exp=get%28%0A++++%22wandb-artifact%3A%2F%2F%2F{self._entity_name}%2F{self._project_name}%2F{self._table_name}%3Alatest%2Fobj%22%29%0A++.rows"
+                printer = get_printer(_get_python_type() != "python")
+                printer.display(
+                    f'{printer.emoji("star")} View data at {printer.link(url)}'
+                )
+
+    def _stream_table_artifact(self) -> "wandb.Artifact":
+        if self._artifact is None:
+            self._artifact = wandb.Artifact(
+                self._table_name,
+                type="stream_table",
+                metadata={
+                    "_weave_meta": {
+                        "is_panel": False,
+                        "is_weave_obj": True,
+                        "type_name": "stream_table",
+                    },
+                },
+            )
+            with self._artifact.new_file("obj.object.json") as f:
+                obj = {
+                    "_type": "stream_table",
+                    "table_name": self._table_name,
+                    "project_name": self._project_name,
+                    "entity_name": self._entity_name,
+                }
+                f.write(json.dumps(obj))
+            with self._artifact.new_file("obj.type.json") as f:
+                obj = {
+                    "type": "stream_table",
+                    "_base_type": {"type": "Object"},
+                    "_is_object": True,
+                    "table_name": "string",
+                    "project_name": "string",
+                    "entity_name": "string",
+                }
+                f.write(json.dumps(obj))
+            self._lite_run.log_artifact(self._artifact)
+        return self._artifact
 
     def log(self, row_or_rows: ROW_TYPE) -> None:
         if isinstance(row_or_rows, dict):
@@ -102,11 +141,9 @@ class _StreamTableSync:
             self._log_row(row)
 
     def rows(self) -> None:
-        if self._weave_stream_table_ref is None:
-            raise errors.Error(
-                "reading stream tables is not supported in wandb, use weave.StreamTable"
-            )
-        return []
+        raise errors.Error(
+            "reading stream tables is not supported in wandb, use weave.StreamTable"
+        )
 
     def _log_row(self, row: dict) -> None:
         row_copy = {**row}
@@ -116,13 +153,19 @@ class _StreamTableSync:
         self._lite_run.log(row_copy)
 
     def finish(self) -> None:
-        if self._artifact:
-            self._artifact.cleanup()
-        if self._lite_run:
-            self._lite_run.finish()
+        with self._lock:
+            if self._artifact:
+                self._artifact.cleanup()
+            if self._lite_run:
+                self._lite_run.finish()
 
     def __del__(self) -> None:
-        self.finish()
+        try:
+            self.finish()
+        except Exception:
+            # I was seeing exceptions in yea tests, this prevents
+            # ignored exception warnings
+            pass
 
     def _at_exit(self) -> None:
         self.finish()
@@ -147,8 +190,6 @@ class StreamTable(_StreamTableSync):
         )
 
         self.queue: queue.Queue = queue.Queue()
-        atexit.register(self._at_exit)
-        self._lock = threading.Lock()
         self._join_event = threading.Event()
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
@@ -185,5 +226,4 @@ class StreamTable(_StreamTableSync):
         if hasattr(self, "_thread"):
             self._join_event.set()
             self._thread.join()
-            with self._lock:
-                super().finish()
+            super().finish()

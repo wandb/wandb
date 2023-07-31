@@ -1,12 +1,14 @@
 import datetime
-import json
 import logging
 import os
 import typing
 
+import wandb
 from wandb import errors as wandb_errors
+from wandb import util
 from wandb.apis import public
 
+from .artifacts import artifact_saver
 from .internal import file_stream
 from .internal.file_pusher import FilePusher
 from .internal.internal_api import Api as InternalApi
@@ -139,7 +141,11 @@ class InMemoryLazyLiteRun:
             )
 
             self.i_api.set_current_run_id(self._run.id)
-            self._step = self._run.lastHistoryStep + 1
+            # No need to get the last step if we're using the async file stream
+            if self._use_async_file_stream:
+                self._step = 0
+            else:
+                self._step = self._run.lastHistoryStep + 1
 
         return self._run
 
@@ -169,6 +175,30 @@ class InMemoryLazyLiteRun:
 
         return self._pusher
 
+    def log_artifact(self, artifact: "wandb.Artifact") -> typing.Optional[dict]:
+        saver = artifact_saver.ArtifactSaver(
+            api=self.i_api,
+            digest=artifact.digest,
+            manifest_json=artifact.manifest.to_manifest_json(),
+            file_pusher=self.pusher,
+            is_user_created=False,
+        )
+        return saver.save(
+            type=artifact.type,
+            name=artifact.name,
+            client_id=artifact._client_id,
+            sequence_client_id=artifact._sequence_client_id,
+            metadata=artifact.metadata,
+            description=artifact.description or None,
+            aliases=artifact._aliases,
+            use_after_commit=False,
+            distributed_id=None,
+            finalize=artifact.finalize,
+            incremental=False,
+            history_step=0,
+            base_id=artifact._base_id or None,
+        )
+
     def log(self, row_dict: dict) -> None:
         stream = self.stream
         row_dict = {
@@ -178,7 +208,7 @@ class InMemoryLazyLiteRun:
         if not self._use_async_file_stream:
             row_dict["_step"] = self._step
         self._step += 1
-        stream.push("wandb-history.jsonl", json.dumps(row_dict))
+        stream.push("wandb-history.jsonl", util.json_dumps_safer_history(row_dict))
 
     def finish(self) -> None:
         if self._stream is not None:

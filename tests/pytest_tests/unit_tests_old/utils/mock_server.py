@@ -747,6 +747,7 @@ def create_app(user_ctx=None):
             "RunUploadUrls",
             "RunDownloadUrls",
             "RunDownloadUrl",
+            "RunHistoryKeys",
         ]:
             if f"query {query_name}(" in body["query"]:
                 if "project(" in body["query"]:
@@ -760,6 +761,8 @@ def create_app(user_ctx=None):
                     or body["variables"].get("fileName") == "wandb-metadata.json"
                 ):
                     run_config = _bucket_config(ctx)
+                elif query_name == "RunHistoryKeys":
+                    run_config = {"historyKeys": {}}
                 else:
                     run_config = run(ctx)
                 return json.dumps(
@@ -974,6 +977,19 @@ def create_app(user_ctx=None):
                                 },
                             },
                             "configValidationWarnings": [],
+                        }
+                    }
+                }
+            )
+        if "mutation UpsertModel(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "upsertModel": {
+                            "model": {
+                                "name": "test",
+                                "description": "",
+                            }
                         }
                     }
                 }
@@ -2448,6 +2464,7 @@ class ParseCTX:
 
     def get_filestream_file_items(self):
         data = {}
+        client_cts = {}
         fs_file_updates = self.get_filestream_file_updates()
         for k, v in fs_file_updates.items():
             l = []
@@ -2462,6 +2479,12 @@ class ParseCTX:
                 else:
                     lines = list(map(json.loads, content))
                     pad = {}
+                # hacky handling of stream table updates from multiple writers
+                client_id = lines[0].get("_client_id")
+                if client_id != None:
+                    client_cts.setdefault(client_id, 0)
+                    offset = sum(client_cts.values())
+                    client_cts[client_id] += len(lines)
 
                 # pad list if our offset is too large (is this what bt would do?)
                 # TODO: is this pad the right thing or should we assert if offset is past len

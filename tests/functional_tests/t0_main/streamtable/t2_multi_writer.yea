@@ -1,0 +1,11 @@
+id: 0.streamtable.02-multi_writer
+plugin:
+  - wandb
+var:
+    - history_len:
+        :fn:len: :wandb:runs[0][history]
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :history_len: 20
+  - :wandb:runs[0][exitcode]: 0
