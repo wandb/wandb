@@ -13,10 +13,10 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
     docker_image_exists,
