@@ -141,7 +141,6 @@ class LocalContainerRunner(AbstractRunner):
             if image_uri.endswith(":latest") or not docker_image_exists(image_uri):
                 pull_docker_image(image_uri)
             assert launch_project.docker_image == image_uri
-            pull_docker_image(image_uri)
 
         additional_args = (
             launch_project.override_args if launch_project.docker_image else None
