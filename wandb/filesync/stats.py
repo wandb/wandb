@@ -27,7 +27,7 @@ class FileCountsByCategory(NamedTuple):
 
 class Stats:
     def __init__(self) -> None:
-        self._stats: MutableMapping[str, "FileStats"] = {}
+        self._stats: MutableMapping[str, FileStats] = {}
         self._lock = threading.Lock()
 
     def init_file(

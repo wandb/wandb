@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import tempfile
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
@@ -71,7 +72,7 @@ class LaunchProject:
         self.job = job
         if job is not None:
             wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
-        self._job_artifact: Optional["Artifact"] = None
+        self._job_artifact: Optional[Artifact] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
@@ -80,9 +81,10 @@ class LaunchProject:
         # the builder key can be passed in through the resource args
         # but these resource_args are then passed to the appropriate
         # runner, so we need to pop the builder key out
-        resource_args_build = resource_args.get(resource, {}).pop("builder", {})
+        resource_args_copy = deepcopy(resource_args)
+        resource_args_build = resource_args_copy.get(resource, {}).pop("builder", {})
         self.resource = resource
-        self.resource_args = resource_args
+        self.resource_args = resource_args_copy
         self.sweep_id = sweep_id
         self.python_version: Optional[str] = launch_spec.get("python_version")
         self.accelerator_base_image: Optional[str] = resource_args_build.get(

@@ -295,7 +295,13 @@ def artifact2(
         "metadata": None,
         "aliases": [
             {
-                "artifactCollectionName": name,
+                "artifactCollection": {
+                    "project": {
+                        "entityName": entity,
+                        "name": project,
+                    },
+                    "name": name,
+                },
                 "alias": "v%i" % ctx["page_count"],
             },
         ],
@@ -1460,16 +1466,38 @@ def create_app(user_ctx=None):
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {key: artifacts}}}}
         if "query RunInputArtifacts(" in body["query"]:
-            artifacts = paginated(artifact2(ctx), ctx)
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {"inputArtifacts": artifacts}}}}
         if "query RunOutputArtifacts(" in body["query"]:
-            artifacts = paginated(artifact2(ctx), ctx)
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {"outputArtifacts": artifacts}}}}
         if "query Artifacts(" in body["query"]:
             version = "v%i" % ctx["page_count"]
-            artifacts = paginated(artifact2(ctx), ctx, {"version": version})
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+                {"version": version},
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {
                 "data": {
@@ -1897,6 +1925,29 @@ def create_app(user_ctx=None):
                                 }
                             ]
                         },
+                    }
+                }
+            }
+
+        if "query ProbeServerCreateLaunchAgentInput" in body["query"]:
+            return {
+                "data": {
+                    "CreateLaunchAgentInputInfoType": {
+                        "inputFields": [
+                            {"name": "id"},
+                            {"name": "created_at"},
+                            {"name": "updated_at"},
+                            {"name": "name"},
+                            {"name": "entity_id"},
+                            {"name": "project_id"},
+                            {"name": "runqueue_ids"},
+                            {"name": "agent_status"},
+                            {"name": "stop_polling"},
+                            {"name": "heartbeat_at"},
+                            {"name": "hostname"},
+                            {"name": "created_by"},
+                            {"name": "agent_config"},
+                        ]
                     }
                 }
             }

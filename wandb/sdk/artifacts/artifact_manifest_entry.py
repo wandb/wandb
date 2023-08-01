@@ -120,8 +120,7 @@ class ArtifactManifestEntry:
         if self._parent_artifact is None:
             return self.ref
         return self._parent_artifact.manifest.storage_policy.load_reference(
-            self._parent_artifact.manifest.entries[self.path],
-            local=False,
+            self._parent_artifact.manifest.entries[self.path], local=False
         )
 
     def ref_url(self) -> str:
@@ -153,7 +152,7 @@ class ArtifactManifestEntry:
         return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
 
     def _get_referenced_artifact(self, client: "RetryingClient") -> "Artifact":
-        artifact: "Artifact" = wandb.Artifact.from_id(
+        artifact: Artifact = wandb.Artifact._from_id(
             hex_to_b64_id(util.host_from_path(self.ref)), client
         )
         assert artifact is not None

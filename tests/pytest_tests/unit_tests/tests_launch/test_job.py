@@ -43,7 +43,7 @@ def test_configure_notebook_repo_job(mocker, tmp_path):
     mock_code_artifact = MagicMock()
     mock_code_artifact.download.side_effect = mock_download_code
 
-    mocker.patch("wandb.sdk.artifacts.artifact.Artifact.from_id", mock_artifact)
+    mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_id", mock_artifact)
 
     mock_api = MagicMock()
     mock_api.artifact.return_value = mock_artifact
@@ -92,7 +92,7 @@ def test_configure_notebook_artifact_job(mocker, tmp_path):
         with open(os.path.join(root, "test.ipynb"), "w") as f:
             f.write("hello")
 
-    mocker.patch("wandb.sdk.artifacts.artifact.Artifact.from_id", mock_artifact)
+    mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_id", mock_artifact)
 
     mock_api = MagicMock()
     mock_api.artifact.return_value = mock_artifact

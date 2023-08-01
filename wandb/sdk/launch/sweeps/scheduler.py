@@ -61,7 +61,7 @@ class RunState(Enum):
     UNKNOWN = "unknown", "alive"
 
     def __new__(cls: Any, *args: List, **kwds: Any) -> "RunState":
-        obj: "RunState" = object.__new__(cls)
+        obj: RunState = object.__new__(cls)
         obj._value_ = args[0]
         return obj
 
@@ -414,12 +414,17 @@ class Scheduler(ABC):
     def _register_agents(self) -> None:
         for worker_id in range(self._num_workers):
             _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
-            agent_config = self._api.register_agent(
-                f"{socket.gethostname()}-{worker_id}",  # host
-                sweep_id=self._sweep_id,
-                project_name=self._project,
-                entity=self._entity,
-            )
+            try:
+                agent_config = self._api.register_agent(
+                    f"{socket.gethostname()}-{worker_id}",  # host
+                    sweep_id=self._sweep_id,
+                    project_name=self._project,
+                    entity=self._entity,
+                )
+            except Exception as e:
+                _logger.debug(f"failed to register agent: {e}")
+                self.fail_sweep(f"failed to register agent: {e}")
+
             self._workers[worker_id] = _Worker(
                 agent_config=agent_config,
                 agent_id=agent_config["id"],
