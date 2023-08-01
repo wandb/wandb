@@ -20,8 +20,9 @@ import tarfile
 import tempfile
 import threading
 import time
-import traceback
+import types
 import urllib
+from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
@@ -52,13 +53,13 @@ import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
-    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -180,25 +181,59 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def import_module_lazy(name: str) -> Any:
+class LazyModuleState:
+    def __init__(self, module: types.ModuleType) -> None:
+        self.module = module
+        self.load_started = False
+        self.lock = threading.RLock()
+
+    def load(self) -> None:
+        with self.lock:
+            if self.load_started:
+                return
+            self.load_started = True
+            assert self.module.__spec__ is not None
+            assert self.module.__spec__.loader is not None
+            self.module.__spec__.loader.exec_module(self.module)
+            self.module.__class__ = types.ModuleType
+
+
+class LazyModule(types.ModuleType):
+    def __getattribute__(self, name: str) -> Any:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        return object.__getattribute__(self, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        object.__delattr__(self, name)
+
+
+def import_module_lazy(name: str) -> types.ModuleType:
     """Import a module lazily, only when it is used.
+
+    Inspired by importlib.util.LazyLoader, but improved so that the module loading is
+    thread-safe. Circular dependency between modules can lead to a deadlock if the two
+    modules are loaded from different threads.
 
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     """
     try:
         return sys.modules[name]
     except KeyError:
-        module_spec = importlib.util.find_spec(name)
-        if not module_spec:
+        spec = importlib.util.find_spec(name)
+        if spec is None:
             raise ModuleNotFoundError
-
-        module = importlib.util.module_from_spec(module_spec)
+        module = importlib.util.module_from_spec(spec)
+        module.__lazy_module_state__ = LazyModuleState(module)  # type: ignore
+        module.__class__ = LazyModule
         sys.modules[name] = module
-
-        assert module_spec.loader is not None
-        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
-        lazy_loader.exec_module(module)
-
         return module
 
 
@@ -234,6 +269,11 @@ def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:  # type:
 
 
 np = get_module("numpy")
+
+pd_available = False
+pandas_spec = importlib.util.find_spec("pandas")
+if pandas_spec is not None:
+    pd_available = True
 
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
@@ -400,7 +440,12 @@ def is_numpy_array(obj: Any) -> bool:
 
 
 def is_pandas_data_frame(obj: Any) -> bool:
-    return is_pandas_data_frame_typename(get_full_typename(obj))
+    if pd_available:
+        import pandas as pd
+
+        return isinstance(obj, pd.DataFrame)
+    else:
+        return is_pandas_data_frame_typename(get_full_typename(obj))
 
 
 def ensure_matplotlib_figure(obj: Any) -> Any:
@@ -596,7 +641,7 @@ def json_friendly(  # noqa: C901
 
 
 def json_friendly_val(val: Any) -> Any:
-    """Make any value (including dict, slice, sequence, etc) JSON friendly."""
+    """Make any value (including dict, slice, sequence, dataclass) JSON friendly."""
     converted: Union[dict, list]
     if isinstance(val, dict):
         converted = {}
@@ -613,6 +658,9 @@ def json_friendly_val(val: Any) -> Any:
         converted = []
         for value in val:
             converted.append(json_friendly_val(value))
+        return converted
+    if is_dataclass(val) and not isinstance(val, type):
+        converted = asdict(val)
         return converted
     else:
         if val.__class__.__module__ not in ("builtins", "__builtin__"):
@@ -764,23 +812,23 @@ class JSONEncoderUncompressed(json.JSONEncoder):
 
 def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
+    return dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
 
 
 def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types."""
-    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
 
 # This is used for dumping raw json into files
 def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
+    return dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 
 def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types, including histograms."""
-    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
 def make_json_if_not_number(
@@ -1111,7 +1159,7 @@ def async_call(
     to determine if a timeout was reached. If an exception is thrown in the thread, we
     reraise it.
     """
-    q: "queue.Queue" = queue.Queue()
+    q: queue.Queue = queue.Queue()
 
     def wrapped_target(q: "queue.Queue", *args: Any, **kwargs: Any) -> Any:
         try:
@@ -1300,7 +1348,9 @@ def from_human_size(size: str, units: Optional[List[Tuple[str, Any]]] = None) ->
 
 def auto_project_name(program: Optional[str]) -> str:
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = wandb.wandb_sdk.lib.git.GitRepo().root_dir
+    from wandb.sdk.lib.gitlib import GitRepo
+
+    root_dir = GitRepo().root_dir
     if root_dir is None:
         return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows
@@ -1480,34 +1530,18 @@ def _is_py_path(path: str) -> bool:
     return path.endswith(".py")
 
 
-def _log_thread_stacks() -> None:
-    """Log all threads, useful for debugging."""
-    thread_map = {t.ident: t.name for t in threading.enumerate()}
-
-    for thread_id, frame in sys._current_frames().items():
-        logger.info(
-            f"\n--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
-        )
-        for filename, lineno, name, line in traceback.extract_stack(frame):
-            logger.info(f"  File: {filename!r}, line {lineno}, in {name}")
-            if line:
-                logger.info(f"  Line: {line}")
-
-
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
     return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
-def artifact_to_json(
-    artifact: Union["LocalArtifact", "PublicArtifact"]
-) -> Dict[str, Any]:
+def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
         "sequenceName": artifact.source_name.split(":")[0],
-        "usedAs": artifact._use_as,
+        "usedAs": artifact.use_as,
     }
 
 
@@ -1517,11 +1551,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
             contains_artifacts = check_dict_contains_nested_artifact(item, True)
             if contains_artifacts:
                 return True
-        elif (
-            isinstance(item, wandb.Artifact)
-            or isinstance(item, wandb.sdk.PublicArtifact)
-            or _is_artifact_string(item)
-        ) and nested:
+        elif (isinstance(item, wandb.Artifact) or _is_artifact_string(item)) and nested:
             return True
     return False
 
@@ -1601,7 +1631,7 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
 
 
 def _is_artifact_object(v: Any) -> bool:
-    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.sdk.PublicArtifact)
+    return isinstance(v, wandb.Artifact)
 
 
 def _is_artifact_string(v: Any) -> bool:
@@ -1705,3 +1735,21 @@ def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str
             else:
                 destination[key] = value
     return destination
+
+
+def coalesce(*arg: Any) -> Any:
+    """Return the first non-none value in the list of arguments.
+
+    Similar to ?? in C#.
+    """
+    return next((a for a in arg if a is not None), None)
+
+
+def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    for k, v in d.items():
+        if isinstance(v, dict):
+            cast_dictlike_to_dict(v)
+        elif hasattr(v, "keys"):
+            d[k] = dict(v)
+            cast_dictlike_to_dict(d[k])
+    return d

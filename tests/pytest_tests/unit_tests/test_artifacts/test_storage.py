@@ -7,9 +7,9 @@ from urllib.parse import urlparse
 
 import pytest
 import wandb
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_saver import get_staging_dir
-from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
@@ -305,7 +305,7 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
 
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
-    monkeypatch.setattr(PublicArtifact, "from_id", lambda _1, _2: artifact)
+    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.ref_target = lambda: uri
 
@@ -326,7 +326,7 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
 
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
-    monkeypatch.setattr(PublicArtifact, "from_id", lambda _1, _2: artifact)
+    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.download = lambda: path
 

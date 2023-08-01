@@ -656,7 +656,7 @@ def test_run_in_launch_context_with_artifacts_api(
         assert arti_info["used_name"] == "old_name:v0"
         _, err = capsys.readouterr()
         assert (
-            "Swapping artifacts is not supported when using an instance of `PublicArtifact`."
+            "Swapping artifacts is not supported when using a non-draft artifact."
             in err
         )
 
@@ -830,24 +830,6 @@ def test_launch_notebook(
     assert str(run.get_status()) == "finished"
 
 
-# this test includes building a docker container which can take some time.
-# hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(320)
-def test_launch_full_build_new_image(
-    live_mock_server, test_settings, mocked_fetchable_git_repo
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    random_id = runid.generate_id()
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/1",
-        project=f"new-test-{random_id}",
-    )
-    assert str(run.get_status()) == "finished"
-
-
 @pytest.mark.timeout(320)
 def test_launch_no_server_info(
     live_mock_server, test_settings, mocked_fetchable_git_repo
@@ -951,6 +933,9 @@ def test_launch_project_spec_docker_image(
 
 def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
     monkeypatch.setattr("wandb.sdk.launch.utils.docker_image_exists", lambda x: True)
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.pull_docker_image", lambda x: True
+    )
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, project_dir: (cmd, project_dir),
@@ -1128,23 +1113,6 @@ def test_launch_entrypoint(test_settings):
     assert calced_ep == ["python", "main.py", "--blah", "2"]
 
 
-@pytest.mark.timeout(320)
-def test_launch_shell_script(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
-):
-    live_mock_server.set_ctx({"run_script_type": "shell"})
-
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
-        project="new-test",
-    )
-    assert str(run.get_status()) == "finished"
-
-
 def test_launch_unknown_entrypoint(
     live_mock_server,
     test_settings,
@@ -1162,41 +1130,6 @@ def test_launch_unknown_entrypoint(
             project="new-test",
         )
     assert "Unsupported entrypoint:" in str(e_info.value)
-
-
-def test_launch_build_config_file(
-    runner, mocked_fetchable_git_repo, test_settings, monkeypatch
-):
-    monkeypatch.setattr(
-        wandb.sdk.launch.runner.local_container.LocalContainerRunner,
-        "run",
-        lambda *args, **kwargs: (args, kwargs),
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "LAUNCH_CONFIG_FILE",
-        "./config/wandb/launch-config.yaml",
-    )
-    launch_config = {"build": {"type": "docker"}, "registry": {}}
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-
-    with runner.isolated_filesystem():
-        os.makedirs("./config/wandb")
-        with open("./config/wandb/launch-config.yaml", "w") as f:
-            json.dump(launch_config, f)
-
-        kwargs = {
-            "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-            "api": api,
-            "entity": "mock_server_entity",
-            "project": "test",
-            "synchronous": False,
-        }
-        args, _ = launch.run(**kwargs)
-        _, _, builder = args
-        assert isinstance(builder, DockerBuilder)
 
 
 def test_resolve_agent_config(monkeypatch, runner):
@@ -1373,10 +1306,10 @@ def test_noop_builder(
             "project": "test",
             "synchronous": False,
         }
-        with pytest.raises(LaunchError) as e:
-            launch.run(**kwargs)
-
-        assert (
-            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
-            in str(e)
+        expected = (
+            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml.\n"
+            "Note: Jobs sourced from git repos and code artifacts require a builder, while jobs sourced from Docker images do not.\n"
+            "See https://docs.wandb.ai/guides/launch/create-job."
         )
+        with pytest.raises(LaunchError, match=expected):
+            launch.run(**kwargs)

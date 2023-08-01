@@ -30,9 +30,9 @@ from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np  # type: ignore
+    import numpy as np
 
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
     from ..wandb_run import Run as LocalRun
 
@@ -312,7 +312,7 @@ class Object3D(BatchableMedia):
     def get_media_subdir(cls: Type["Object3D"]) -> str:
         return os.path.join("media", "object3D")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 

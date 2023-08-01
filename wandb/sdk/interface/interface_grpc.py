@@ -447,5 +447,14 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(job_info)
+        job_info_response = self._stub.JobInfo(job_info)
+        response = pb.Response(job_info_response=job_info_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def join(self) -> None:
         super().join()

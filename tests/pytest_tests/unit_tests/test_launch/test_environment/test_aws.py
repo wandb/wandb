@@ -63,7 +63,9 @@ def test_verify(mocker):
     """Test that the AwsEnvironment correctly verifies."""
     session = MagicMock()
     client = MagicMock()
-    client.get_caller_identity.return_value = "Success!"
+    identity = MagicMock()
+    identity.get.return_value = "123456789012"
+    client.get_caller_identity.return_value = identity
     session.client.return_value = client
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",

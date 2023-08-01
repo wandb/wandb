@@ -78,9 +78,7 @@ class UploadJob:
                 if hasattr(e, "response"):
                     message = e.response.content
                 wandb.termerror(
-                    'Error uploading "{}": {}, {}'.format(
-                        self.save_path, type(e).__name__, message
-                    )
+                    f'Error uploading "{self.save_path}": {type(e).__name__}, {message}'
                 )
                 raise
 
@@ -107,7 +105,7 @@ class UploadJob:
             project = self._api.get_project()
             _, upload_headers, result = self._api.upload_urls(project, [self.save_name])
             file_info = result[self.save_name]
-            upload_url = file_info["url"]
+            upload_url = file_info["uploadUrl"]
 
         if upload_url is None:
             logger.info("Skipped uploading %s", self.save_path)
@@ -137,9 +135,7 @@ class UploadJob:
                 wandb._sentry.exception(e)
                 if not self.silent:
                     wandb.termerror(
-                        'Error uploading "{}": {}, {}'.format(
-                            self.save_name, type(e).__name__, e
-                        )
+                        f'Error uploading "{self.save_name}": {type(e).__name__}, {e}'
                     )
                 raise
 

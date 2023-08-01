@@ -14,10 +14,9 @@ from wandb.sdk.lib.paths import LogicalPath
 from .wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np  # type: ignore
+    import numpy as np
 
-    from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
-    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
     from ...wandb_run import Run as LocalRun
 
@@ -61,9 +60,7 @@ class Media(WBValue):
         self._extension = extension
         assert extension is None or path.endswith(
             extension
-        ), 'Media file extension "{}" must occur at the end of path "{}".'.format(
-            extension, path
-        )
+        ), f'Media file extension "{extension}" must occur at the end of path "{path}".'
 
         with open(self._path, "rb") as f:
             self._sha256 = hashlib.sha256(f.read()).hexdigest()
@@ -144,7 +141,7 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-    def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run: Union["LocalRun", "Artifact"]) -> dict:
         """Serialize the object into a JSON blob.
 
         Uses run or artifact to store additional data. If `run_or_artifact` is a
@@ -254,7 +251,7 @@ class Media(WBValue):
 
     @classmethod
     def from_json(
-        cls: Type["Media"], json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["Media"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Media":
         """Likely will need to override for any more complicated media objects."""
         return cls(source_artifact.get_path(json_obj["path"]).download())
@@ -316,4 +313,4 @@ def _numpy_arrays_to_lists(
     # Protects against logging non serializable objects
     elif isinstance(payload, Media):
         return str(payload.__class__.__name__)
-    return payload
+    return payload  # type: ignore

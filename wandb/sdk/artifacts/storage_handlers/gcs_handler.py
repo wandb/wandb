@@ -16,7 +16,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 if TYPE_CHECKING:
     import google.cloud.storage as gcs_module  # type: ignore
 
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
 
 
 class GCSHandler(StorageHandler):
@@ -106,7 +106,7 @@ class GCSHandler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[StrPath] = None,
         checksum: bool = True,

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional
 from wandb import errors
 
 if TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
 
 
 class ArtifactStatusError(AttributeError):
@@ -12,7 +12,7 @@ class ArtifactStatusError(AttributeError):
 
     def __init__(
         self,
-        artifact: Optional["ArtifactInterface"] = None,
+        artifact: Optional["Artifact"] = None,
         attr: Optional[str] = None,
         msg: str = "Artifact is in an invalid state for the requested operation.",
     ):
@@ -28,7 +28,7 @@ class ArtifactNotLoggedError(ArtifactStatusError):
     """Raised for Artifact methods or attributes only available after logging."""
 
     def __init__(
-        self, artifact: Optional["ArtifactInterface"] = None, attr: Optional[str] = None
+        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
     ):
         super().__init__(
             artifact,
@@ -42,7 +42,7 @@ class ArtifactFinalizedError(ArtifactStatusError):
     """Raised for Artifact methods or attributes that can't be changed after logging."""
 
     def __init__(
-        self, artifact: Optional["ArtifactInterface"] = None, attr: Optional[str] = None
+        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
     ):
         super().__init__(
             artifact,

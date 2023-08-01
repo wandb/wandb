@@ -9,9 +9,9 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 import wandb
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_saver import get_staging_dir
-from wandb.sdk.artifacts.exceptions import WaitTimeoutError
-from wandb.sdk.artifacts.local_artifact import Artifact
+from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
@@ -234,7 +234,7 @@ def test_remove_after_log(wandb_init):
     with wandb_init() as run:
         retrieved = run.use_artifact("hi-art:latest")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ArtifactFinalizedError):
             retrieved.remove("file1.txt")
 
 

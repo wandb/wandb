@@ -71,6 +71,12 @@ def val_to_json(
         )
 
     converted = val
+
+    if isinstance(val, (int, float, str, bool)):
+        # These are already JSON-serializable,
+        # no need to do the expensive checks below.
+        return converted  # type: ignore[return-value]
+
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
@@ -78,10 +84,8 @@ def val_to_json(
 
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
-    elif (
-        isinstance(val, Sequence)
-        and not isinstance(val, str)
-        and all(isinstance(v, WBValue) for v in val)
+    elif isinstance(val, (list, tuple, range)) and all(
+        isinstance(v, WBValue) for v in val
     ):
         assert run
         # This check will break down if Image/Audio/... have child classes.
@@ -124,7 +128,7 @@ def val_to_json(
             # the array index?
             # There is a bug here: if this array contains two arrays of the same type of
             # anonymous media objects, their eventual names will collide.
-            # This used to happen. The frontend doesn't handle heterogenous arrays
+            # This used to happen. The frontend doesn't handle heterogeneous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
             return [
@@ -146,7 +150,7 @@ def val_to_json(
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
                 # we sanitize the key to meet the constraints
-                # in this case, leaving only alpha numerics or underscores.
+                # in this case, leaving only alphanumerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
                 art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
                 art.add(val, key)

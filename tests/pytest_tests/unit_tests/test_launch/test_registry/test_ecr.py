@@ -1,8 +1,10 @@
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
+from wandb.sdk.launch.utils import LaunchError
 
 
 def test_ecr_verify():
@@ -78,3 +80,22 @@ def test_ecr_image_exists():
         )
         is False
     )
+
+
+def test_from_config():
+    environment = MagicMock()
+    environment.region = "us-east-1"
+    environment._account = "123456789012"
+    ecr = ElasticContainerRegistry.from_config(
+        {"type": "ecr", "uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"},
+        environment,
+        verify=False,
+    )
+    assert ecr.repo_name == "my-repo"
+
+    with pytest.raises(LaunchError):
+        ElasticContainerRegistry.from_config(
+            {"type": "ecr", "uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com"},
+            environment,
+            verify=False,
+        )

@@ -2,14 +2,24 @@
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
+from urllib.parse import urlparse
 
+import wandb
+from wandb import util
 from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import (
+    B64MD5,
+    ETag,
+    b64_to_hex_id,
+    hex_to_b64_id,
+    md5_file_b64,
+)
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
-    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.apis.public import RetryingClient
+    from wandb.sdk.artifacts.artifact import Artifact
 
 
 class ArtifactManifestEntry:
@@ -23,7 +33,8 @@ class ArtifactManifestEntry:
     extra: Dict
     local_path: Optional[str]
 
-    _parent_artifact: Optional["PublicArtifact"] = None
+    _parent_artifact: Optional["Artifact"] = None
+    _download_url: Optional[str] = None
 
     def __init__(
         self,
@@ -51,7 +62,7 @@ class ArtifactManifestEntry:
         termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
         return self.path
 
-    def parent_artifact(self) -> "PublicArtifact":
+    def parent_artifact(self) -> "Artifact":
         """Get the artifact to which this artifact entry belongs.
 
         Returns:
@@ -109,8 +120,7 @@ class ArtifactManifestEntry:
         if self._parent_artifact is None:
             return self.ref
         return self._parent_artifact.manifest.storage_policy.load_reference(
-            self._parent_artifact.manifest.entries[self.path],
-            local=False,
+            self._parent_artifact.manifest.entries[self.path], local=False
         )
 
     def ref_url(self) -> str:
@@ -137,3 +147,13 @@ class ArtifactManifestEntry:
             + "/"
             + self.path
         )
+
+    def _is_artifact_reference(self) -> bool:
+        return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
+
+    def _get_referenced_artifact(self, client: "RetryingClient") -> "Artifact":
+        artifact: Artifact = wandb.Artifact._from_id(
+            hex_to_b64_id(util.host_from_path(self.ref)), client
+        )
+        assert artifact is not None
+        return artifact

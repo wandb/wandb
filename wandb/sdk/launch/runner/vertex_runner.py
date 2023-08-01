@@ -14,10 +14,10 @@ from wandb.apis.internal import Api
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
-from ..builder.abstract import AbstractBuilder
 from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
+from ..registry.abstract import AbstractRegistry
 from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -34,6 +34,10 @@ class VertexSubmittedRun(AbstractRun):
     def id(self) -> str:
         # numeric ID of the custom training job
         return self._job.name  # type: ignore
+
+    def get_logs(self) -> Optional[str]:
+        # TODO: implement
+        return None
 
     @property
     def name(self) -> str:
@@ -79,16 +83,19 @@ class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun."""
 
     def __init__(
-        self, api: Api, backend_config: Dict[str, Any], environment: GcpEnvironment
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+        environment: GcpEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Initialize a VertexRunner instance."""
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def run(
-        self,
-        launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
+        self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
         aiplatform = get_module(  # noqa: F811
@@ -113,10 +120,9 @@ class VertexRunner(AbstractRunner):
         )
         gcp_accelerator_count = int(resource_args.get("accelerator_count") or 0)
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        gcp_training_job_name = resource_args.get(
-            "job_name"
-        ) or "{project}_{time}".format(
-            project=launch_project.target_project, time=timestamp
+        gcp_training_job_name = (
+            resource_args.get("job_name")
+            or f"{launch_project.target_project}_{timestamp}"
         )
         service_account = resource_args.get("service_account")
         tensorboard = resource_args.get("tensorboard")
@@ -129,15 +135,6 @@ class VertexRunner(AbstractRunner):
 
         entry_point = launch_project.get_single_entry_point()
 
-        if launch_project.docker_image:
-            image_uri = launch_project.docker_image
-        else:
-            assert entry_point is not None
-            assert builder is not None
-            image_uri = builder.build_image(
-                launch_project,
-                entry_point,
-            )
         launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)

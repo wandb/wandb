@@ -58,6 +58,7 @@ class GitHubReference:
 
     ref: Optional[str] = None  # branch or commit
     ref_type: Optional[ReferenceType] = None
+    commit_hash: Optional[str] = None  # hash of commit
 
     directory: Optional[str] = None
     file: Optional[str] = None
@@ -68,6 +69,7 @@ class GitHubReference:
             self.ref_type = None
             self.ref = ref
 
+    @property
     def url_host(self) -> str:
         assert self.host
         auth = self.username or ""
@@ -77,19 +79,23 @@ class GitHubReference:
             auth += "@"
         return f"{PREFIX_HTTPS}{auth}{self.host}"
 
+    @property
     def url_organization(self) -> str:
         assert self.organization
-        return f"{self.url_host()}/{self.organization}"
+        return f"{self.url_host}/{self.organization}"
 
+    @property
     def url_repo(self) -> str:
         assert self.repo
-        return f"{self.url_organization()}/{self.repo}"
+        return f"{self.url_organization}/{self.repo}"
 
+    @property
     def repo_ssh(self) -> str:
         return f"{PREFIX_SSH}{self.host}:{self.organization}/{self.repo}{SUFFIX_GIT}"
 
+    @property
     def url(self) -> str:
-        url = self.url_repo()
+        url = self.url_repo
         if self.view:
             url += f"/{self.view}"
         if self.ref:
@@ -98,7 +104,7 @@ class GitHubReference:
                 url += f"/{self.directory}"
             if self.file:
                 url += f"/{self.file}"
-        elif self.path:
+        if self.path:
             url += f"/{self.path}"
         return url
 
@@ -127,18 +133,21 @@ class GitHubReference:
         ref.username, ref.password, ref.host = _parse_netloc(parsed.netloc)
 
         parts = parsed.path.split("/")
-        if len(parts) > 1:
-            if parts[1] == "orgs" and len(parts) > 2:
-                ref.organization = parts[2]
-            else:
-                ref.organization = parts[1]
-                if len(parts) > 2:
-                    repo = parts[2]
-                    if repo.endswith(SUFFIX_GIT):
-                        repo = repo[: -len(SUFFIX_GIT)]
-                    ref.repo = repo
-                    ref.view = parts[3] if len(parts) > 3 else None
-                    ref.path = "/".join(parts[4:])
+        if len(parts) < 2:
+            return ref
+        if parts[1] == "orgs" and len(parts) > 2:
+            ref.organization = parts[2]
+            return ref
+        ref.organization = parts[1]
+        if len(parts) < 3:
+            return ref
+        repo = parts[2]
+        if repo.endswith(SUFFIX_GIT):
+            repo = repo[: -len(SUFFIX_GIT)]
+        ref.repo = repo
+        ref.view = parts[3] if len(parts) > 3 else None
+        ref.path = "/".join(parts[4:])
+
         return ref
 
     def fetch(self, dst_dir: str) -> None:
@@ -148,7 +157,7 @@ class GitHubReference:
         import git  # type: ignore
 
         repo = git.Repo.init(dst_dir)
-        origin = repo.create_remote("origin", self.url_repo())
+        origin = repo.create_remote("origin", self.url_repo)
 
         # We fetch the origin so that we have branch and tag references
         origin.fetch(depth=1)
@@ -165,6 +174,7 @@ class GitHubReference:
                     self.path = self.path[len(first_segment) + 1 :]
                 head = repo.create_head(first_segment, commit)
                 head.checkout()
+                self.commit_hash = head.commit.hexsha
             except ValueError:
                 # Apparently it just looked like a commit
                 pass
@@ -188,6 +198,7 @@ class GitHubReference:
                         self.path = self.path[len(refname) + 1 :]
                     head = repo.create_head(branch, origin.refs[branch])
                     head.checkout()
+                    self.commit_hash = head.commit.hexsha
                     break
 
         # Must be on default branch. Try to figure out what that is.
@@ -209,11 +220,12 @@ class GitHubReference:
                     # (While the references appear to be sorted, not clear if that's guaranteed.)
             if not default_branch:
                 raise LaunchError(
-                    f"Unable to determine branch or commit to checkout from {self.url()}"
+                    f"Unable to determine branch or commit to checkout from {self.url}"
                 )
             self.default_branch = default_branch
             head = repo.create_head(default_branch, origin.refs[default_branch])
             head.checkout()
+            self.commit_hash = head.commit.hexsha
         repo.submodule_update(init=True, recursive=True)
 
         # Now that we've checked something out, try to extract directory and file from what remains
@@ -225,7 +237,7 @@ class GitHubReference:
             return
         path = Path(dst_dir, self.path)
         if path.is_file():
-            self.directory = str(path.parent.absolute())
+            self.directory = self.path.replace(path.name, "")
             self.file = path.name
             self.path = None
         elif path.is_dir():

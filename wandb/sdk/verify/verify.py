@@ -12,8 +12,7 @@ from pkg_resources import parse_version
 from wandb_gql import gql
 
 import wandb
-from wandb.sdk.artifacts.local_artifact import Artifact as LocalArtifact
-from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.lib import runid
 
 from ...apis.internal import Api
@@ -224,7 +223,7 @@ def verify_manifest(
 
 
 def verify_digest(
-    downloaded: "PublicArtifact", computed: "PublicArtifact", fails_list: List[str]
+    downloaded: "Artifact", computed: "Artifact", fails_list: List[str]
 ) -> None:
     if downloaded.digest != computed.digest:
         fails_list.append(
@@ -234,7 +233,7 @@ def verify_digest(
 
 def artifact_with_path_or_paths(
     name: str, verify_dir: Optional[str] = None, singular: bool = False
-) -> "LocalArtifact":
+) -> "Artifact":
     art = wandb.Artifact(type="artsy", name=name)
     # internal file
     with open("verify_int_test.txt", "w") as f:
@@ -262,13 +261,13 @@ def artifact_with_path_or_paths(
 
 
 def log_use_download_artifact(
-    artifact: "LocalArtifact",
+    artifact: "Artifact",
     alias: str,
     name: str,
     download_dir: str,
     failed_test_strings: List[str],
     add_extra_file: bool,
-) -> Tuple[bool, Optional["PublicArtifact"], List[str]]:
+) -> Tuple[bool, Optional["Artifact"], List[str]]:
     with wandb.init(
         id=nice_id("log_artifact"),
         reinit=True,
@@ -357,9 +356,7 @@ def check_artifacts() -> bool:
     verify_digest(download_artifact, computed, failed_test_strings)
 
     computed_manifest = computed.manifest.to_manifest_json()["contents"]
-    downloaded_manifest = download_artifact._load_manifest().to_manifest_json()[
-        "contents"
-    ]
+    downloaded_manifest = download_artifact.manifest.to_manifest_json()["contents"]
     verify_manifest(downloaded_manifest, computed_manifest, failed_test_strings)
 
     print_results(failed_test_strings, False)

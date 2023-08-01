@@ -1,5 +1,5 @@
 """NoOp builder implementation."""
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -7,6 +7,7 @@ from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
+from ..agent.job_status_tracker import JobAndRunStatusTracker
 
 
 class NoOpBuilder(AbstractBuilder):
@@ -43,11 +44,14 @@ class NoOpBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         """Build the image.
 
         For this we raise a launch error since it can't build.
         """
         raise LaunchError(
-            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
+            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml.\n"
+            "Note: Jobs sourced from git repos and code artifacts require a builder, while jobs sourced from Docker images do not.\n"
+            "See https://docs.wandb.ai/guides/launch/create-job."
         )

@@ -28,7 +28,8 @@ FAILED_PACKAGES_REGEX = re.compile(
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -47,13 +48,12 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
-API_KEY_REGEX = r"WANDB_API_KEY=\w+"
+API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
-UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
 
@@ -100,7 +100,7 @@ def set_project_entity_defaults(
     project: Optional[str],
     entity: Optional[str],
     launch_config: Optional[Dict[str, Any]],
-) -> Tuple[str, str]:
+) -> Tuple[Optional[str], str]:
     # set the target project and entity if not provided
     source_uri = None
     if uri is not None:
@@ -114,7 +114,7 @@ def set_project_entity_defaults(
         config_project = None
         if launch_config:
             config_project = launch_config.get("project")
-        project = config_project or source_uri or UNCATEGORIZED_PROJECT
+        project = config_project or source_uri or ""
     if entity is None:
         config_entity = None
         if launch_config:
@@ -493,7 +493,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> Optional["PublicArtifact"]:
+) -> Optional["Artifact"]:
     _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
@@ -620,12 +620,23 @@ def make_name_dns_safe(name: str) -> str:
     return resp
 
 
-def warn_failed_packages_from_build_logs(log: str, image_uri: str) -> None:
+def warn_failed_packages_from_build_logs(
+    log: str, image_uri: str, api: Api, job_tracker: Optional["JobAndRunStatusTracker"]
+) -> None:
     match = FAILED_PACKAGES_REGEX.search(log)
     if match:
-        wandb.termwarn(
-            f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
-        )
+        _msg = f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
+        wandb.termwarn(_msg)
+        if job_tracker is not None:
+            res = job_tracker.saver.save_contents(
+                _msg, "failed-packages.log", "warning"
+            )
+            api.update_run_queue_item_warning(
+                job_tracker.run_queue_item_id,
+                "Some packages were not successfully installed during the build",
+                "build",
+                res,
+            )
 
 
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
@@ -646,9 +657,6 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
 
 def pull_docker_image(docker_image: str) -> None:
     """Pull the requested docker image."""
-    if docker_image_exists(docker_image):
-        # don't pull images if they exist already, eg if they are local images
-        return
     try:
         docker.run(["docker", "pull", docker_image])
     except docker.DockerError as e:

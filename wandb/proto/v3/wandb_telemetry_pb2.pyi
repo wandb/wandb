@@ -178,6 +178,10 @@ class Imports(google.protobuf.message.Message):
     OPTIMUM_FIELD_NUMBER: builtins.int
     EVALUATE_FIELD_NUMBER: builtins.int
     LANGFLOW_FIELD_NUMBER: builtins.int
+    KERAS_CORE_FIELD_NUMBER: builtins.int
+    LIGHTNING_FABRIC_FIELD_NUMBER: builtins.int
+    CURATED_TRANSFORMERS_FIELD_NUMBER: builtins.int
+    ORJSON_FIELD_NUMBER: builtins.int
     torch: builtins.bool
     keras: builtins.bool
     tensorflow: builtins.bool
@@ -283,6 +287,13 @@ class Imports(google.protobuf.message.Message):
     optimum: builtins.bool
     evaluate: builtins.bool
     langflow: builtins.bool
+    keras_core: builtins.bool
+    """keras-core"""
+    lightning_fabric: builtins.bool
+    """lightning-fabric"""
+    curated_transformers: builtins.bool
+    """curated-transformers"""
+    orjson: builtins.bool
     def __init__(
         self,
         *,
@@ -379,8 +390,12 @@ class Imports(google.protobuf.message.Message):
         optimum: builtins.bool = ...,
         evaluate: builtins.bool = ...,
         langflow: builtins.bool = ...,
+        keras_core: builtins.bool = ...,
+        lightning_fabric: builtins.bool = ...,
+        curated_transformers: builtins.bool = ...,
+        orjson: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "anthropic", b"anthropic", "asyncio", b"asyncio", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "chromadb", b"chromadb", "cohere", b"cohere", "colossalai", b"colossalai", "composer", b"composer", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "diffusers", b"diffusers", "elegy", b"elegy", "evaluate", b"evaluate", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_cv", b"keras_cv", "kornia", b"kornia", "langchain", b"langchain", "langflow", b"langflow", "lightgbm", b"lightgbm", "llama_index", b"llama_index", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "openai", b"openai", "optimum", b"optimum", "optuna", b"optuna", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "peft", b"peft", "pinecone", b"pinecone", "ppdet", b"ppdet", "prefect", b"prefect", "prefect_ray", b"prefect_ray", "promptlayer", b"promptlayer", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "stability_sdk", b"stability_sdk", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "trl", b"trl", "trlx", b"trlx", "weaviate", b"weaviate", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "anthropic", b"anthropic", "asyncio", b"asyncio", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "chromadb", b"chromadb", "cohere", b"cohere", "colossalai", b"colossalai", "composer", b"composer", "curated_transformers", b"curated_transformers", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "diffusers", b"diffusers", "elegy", b"elegy", "evaluate", b"evaluate", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_core", b"keras_core", "keras_cv", b"keras_cv", "kornia", b"kornia", "langchain", b"langchain", "langflow", b"langflow", "lightgbm", b"lightgbm", "lightning_fabric", b"lightning_fabric", "llama_index", b"llama_index", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "openai", b"openai", "optimum", b"optimum", "optuna", b"optuna", "orjson", b"orjson", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "peft", b"peft", "pinecone", b"pinecone", "ppdet", b"ppdet", "prefect", b"prefect", "prefect_ray", b"prefect_ray", "promptlayer", b"promptlayer", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "stability_sdk", b"stability_sdk", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "trl", b"trl", "trlx", b"trlx", "weaviate", b"weaviate", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
 
 global___Imports = Imports
 
@@ -440,6 +455,8 @@ class Feature(google.protobuf.message.Message):
     OPENAI_AUTOLOG_FIELD_NUMBER: builtins.int
     LANGCHAIN_TRACER_FIELD_NUMBER: builtins.int
     COHERE_AUTOLOG_FIELD_NUMBER: builtins.int
+    HF_PIPELINE_AUTOLOG_FIELD_NUMBER: builtins.int
+    NEXUS_FIELD_NUMBER: builtins.int
     watch: builtins.bool
     """wandb.watch() called"""
     finish: builtins.bool
@@ -546,6 +563,10 @@ class Feature(google.protobuf.message.Message):
     """Langchain wandb tracer callback used"""
     cohere_autolog: builtins.bool
     """Cohere autolog used"""
+    hf_pipeline_autolog: builtins.bool
+    """HuggingFace Autologging"""
+    nexus: builtins.bool
+    """Using wandb nexus internal process"""
     def __init__(
         self,
         *,
@@ -602,8 +623,10 @@ class Feature(google.protobuf.message.Message):
         openai_autolog: builtins.bool = ...,
         langchain_tracer: builtins.bool = ...,
         cohere_autolog: builtins.bool = ...,
+        hf_pipeline_autolog: builtins.bool = ...,
+        nexus: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "grpc", b"grpc", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "service_disabled", b"service_disabled", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "nexus", b"nexus", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "service_disabled", b"service_disabled", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
 
 global___Feature = Feature
 
@@ -624,6 +647,7 @@ class Env(google.protobuf.message.Message):
     COLAB_FIELD_NUMBER: builtins.int
     IPYTHON_FIELD_NUMBER: builtins.int
     AWS_LAMBDA_FIELD_NUMBER: builtins.int
+    AMD_GPU_FIELD_NUMBER: builtins.int
     jupyter: builtins.bool
     """jupyter env detected"""
     kaggle: builtins.bool
@@ -652,6 +676,8 @@ class Env(google.protobuf.message.Message):
     """ipython env detected"""
     aws_lambda: builtins.bool
     """running in AWS Lambda"""
+    amd_gpu: builtins.bool
+    """AMD GPU detected"""
     def __init__(
         self,
         *,
@@ -669,8 +695,9 @@ class Env(google.protobuf.message.Message):
         colab: builtins.bool = ...,
         ipython: builtins.bool = ...,
         aws_lambda: builtins.bool = ...,
+        amd_gpu: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["aws_lambda", b"aws_lambda", "colab", b"colab", "ipython", b"ipython", "jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "pex", b"pex", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "trainium", b"trainium", "windows", b"windows"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["amd_gpu", b"amd_gpu", "aws_lambda", b"aws_lambda", "colab", b"colab", "ipython", b"ipython", "jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "pex", b"pex", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "trainium", b"trainium", "windows", b"windows"]) -> None: ...
 
 global___Env = Env
 
@@ -709,6 +736,7 @@ class Deprecated(google.protobuf.message.Message):
     INIT__CONFIG_INCLUDE_KEYS_FIELD_NUMBER: builtins.int
     INIT__CONFIG_EXCLUDE_KEYS_FIELD_NUMBER: builtins.int
     KERAS_CALLBACK__SAVE_MODEL_FIELD_NUMBER: builtins.int
+    LANGCHAIN_TRACER_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
     """wandb.keras.WandbCallback(data_type=...) called"""
     run__mode: builtins.bool
@@ -727,6 +755,8 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.init(config_exclude_keys=...) called"""
     keras_callback__save_model: builtins.bool
     """wandb.keras.WandbCallback(save_model=True) called"""
+    langchain_tracer: builtins.bool
+    """wandb.integration.langchain.WandbTracer called"""
     def __init__(
         self,
         *,
@@ -739,8 +769,9 @@ class Deprecated(google.protobuf.message.Message):
         init__config_include_keys: builtins.bool = ...,
         init__config_exclude_keys: builtins.bool = ...,
         keras_callback__save_model: builtins.bool = ...,
+        langchain_tracer: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "plots", b"plots", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args"]) -> None: ...
 
 global___Deprecated = Deprecated
 

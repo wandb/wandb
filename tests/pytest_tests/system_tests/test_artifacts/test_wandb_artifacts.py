@@ -14,7 +14,6 @@ import wandb
 import wandb.data_types as data_types
 from wandb import util
 from wandb.sdk.artifacts import artifacts_cache
-from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -1086,24 +1085,6 @@ def test_add_obj_using_brackets(assets_path):
         _ = artifact["my-image"]
 
 
-def test_artifact_interface_link():
-    art = ArtifactInterface()
-    with pytest.raises(NotImplementedError):
-        _ = art.link("boom")
-
-
-def test_artifact_interface_get_item():
-    art = ArtifactInterface()
-    with pytest.raises(NotImplementedError):
-        _ = art["my-image"]
-
-
-def test_artifact_interface_set_item():
-    art = ArtifactInterface()
-    with pytest.raises(NotImplementedError):
-        art["my-image"] = 1
-
-
 def test_duplicate_wbimage_from_file(assets_path):
     im_path_1 = str(assets_path("test.png"))
     im_path_2 = str(assets_path("test2.png"))
@@ -1315,12 +1296,6 @@ def test_add_partition_folder():
     }
 
 
-def test_interface_commit_hash():
-    artifact = ArtifactInterface()
-    with pytest.raises(NotImplementedError):
-        artifact.commit_hash()
-
-
 @pytest.mark.parametrize(
     "headers,expected_digest",
     [
@@ -1349,6 +1324,56 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.path == "foo.json"
         assert entry.ref == "https://example.com/foo.json?bar=abc"
         assert entry.digest == expected_digest
+
+
+def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
+    # Create an artifact that references a non-existent S3 object.
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Patch the S3 handler to return a 404 error when checking the ETag.
+    def bad_request(*args, **kwargs):
+        raise util.get_module("botocore").exceptions.ClientError(
+            operation_name="HeadObject",
+            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+        )
+
+    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+
+    with pytest.raises(FileNotFoundError, match="Unable to find"):
+        artifact.download()
+
+
+def test_s3_storage_handler_load_path_missing_reference_allowed(
+    monkeypatch, wandb_init, capsys
+):
+    # Create an artifact that references a non-existent S3 object.
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Patch the S3 handler to return a 404 error when checking the ETag.
+    def bad_request(*args, **kwargs):
+        raise util.get_module("botocore").exceptions.ClientError(
+            operation_name="HeadObject",
+            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+        )
+
+    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+
+    artifact.download(allow_missing_references=True)
+
+    # It should still log a warning about skipping the missing reference.
+    assert "Unable to find my_object.pb" in capsys.readouterr().err
 
 
 def test_s3_storage_handler_load_path_uses_cache(tmp_path):

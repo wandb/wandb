@@ -88,6 +88,7 @@ os.chdir("../..")
 for proto_file in [
     "wandb_base.proto",
     "wandb_internal.proto",
+    "wandb_settings.proto",
     "wandb_telemetry.proto",
 ]:
     ret = protoc.main(

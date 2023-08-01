@@ -1,5 +1,6 @@
 """Mock Server for simple calls the cli and public api make"""
 
+import base64
 import functools
 import gzip
 import json
@@ -117,7 +118,7 @@ def mock_server(mocker):
     # From previous wandb_gql transport library.
     mocker.patch("wandb_gql.transport.requests.requests", mock)
 
-    mocker.patch("wandb.sdk.artifacts.public_artifact.requests", mock)
+    mocker.patch("wandb.sdk.artifacts.artifact.requests", mock)
     mocker.patch(
         "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.requests", mock
     )
@@ -266,6 +267,49 @@ def artifact(
                 + f"/storage?file=wandb_manifest.json&id={_id}"
             }
         },
+    }
+
+
+def artifact2(
+    ctx,
+    _id=None,
+    entity="FAKE_ENTITY",
+    project="FAKE_PROJECT",
+    name="mnist",
+    _type="dataset",
+):
+    return {
+        "id": _id or str(ctx["page_count"]),
+        "artifactSequence": {
+            "project": {
+                "entityName": entity,
+                "name": project,
+            },
+            "name": name,
+        },
+        "versionIndex": ctx["page_count"],
+        "artifactType": {
+            "name": _type,
+        },
+        "description": None,
+        "metadata": None,
+        "aliases": [
+            {
+                "artifactCollection": {
+                    "project": {
+                        "entityName": entity,
+                        "name": project,
+                    },
+                    "name": name,
+                },
+                "alias": "v%i" % ctx["page_count"],
+            },
+        ],
+        "state": "COMMITTED",
+        "commitHash": "FAKE_HASH",
+        "fileCount": 10,
+        "createdAt": "2023-05-17T00:00:00",
+        "updatedAt": "2023-05-17T00:00:00",
     }
 
 
@@ -1422,16 +1466,38 @@ def create_app(user_ctx=None):
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {key: artifacts}}}}
         if "query RunInputArtifacts(" in body["query"]:
-            artifacts = paginated(artifact(ctx), ctx)
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {"inputArtifacts": artifacts}}}}
         if "query RunOutputArtifacts(" in body["query"]:
-            artifacts = paginated(artifact(ctx), ctx)
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {"outputArtifacts": artifacts}}}}
         if "query Artifacts(" in body["query"]:
             version = "v%i" % ctx["page_count"]
-            artifacts = paginated(artifact(ctx), ctx, {"version": version})
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+                {"version": version},
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {
                 "data": {
@@ -1446,9 +1512,7 @@ def create_app(user_ctx=None):
                 }
             }
         for query_name in [
-            "Artifact",
             "ArtifactType",
-            "ArtifactWithCurrentManifest",
             "ArtifactUsedBy",
             "ArtifactCreatedBy",
         ]:
@@ -1500,6 +1564,35 @@ def create_app(user_ctx=None):
                 if "model" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 6, "name": "model"}
                 return {"data": {"project": {"artifact": art}}}
+        if "query ArtifactByName(" in body["query"]:
+            _id = "QXJ0aWZhY3Q6NTI1MDk4"
+            _type = "dataset"
+            if "job" in body["variables"]["name"]:
+                _type = "job"
+            if body["variables"]["name"] == "dummy:v0":
+                _id = "DUMMY_V0"
+            art = artifact2(
+                ctx,
+                _id=_id,
+                entity=body["variables"]["entityName"],
+                project=body["variables"]["projectName"],
+                name=body["variables"]["name"].split(":")[0],
+                _type=_type,
+            )
+            return {"data": {"project": {"artifact": art}}}
+        if (
+            "query ArtifactByID(" in body["query"]
+            or "query ArtifactByIDShort(" in body["query"]
+        ):
+            _id = body["variables"]["id"]
+            art = artifact2(ctx, _id=_id)
+            art["currentManifest"] = {
+                "file": {
+                    "directUrl": base_url
+                    + f"/storage?file=wandb_manifest.json&id={_id}"
+                },
+            }
+            return {"data": {"artifact": art}}
         if "query ArtifactManifest(" in body["query"]:
             if ART_EMU:
                 res = ART_EMU.query(
@@ -1518,6 +1611,39 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query ArtifactFileURLs(" in body["query"]:
+            _id = body["variables"]["id"]
+            response = app.test_client().get(
+                f"/storage?file=wandb_manifest.json&id={_id}"
+            )
+            manifest = json.loads(response.text)
+            edges = [
+                {
+                    "node": {
+                        "name": name,
+                        "directUrl": (
+                            base_url
+                            + "/artifacts/entity/"
+                            + base64.standard_b64decode(entry["digest"]).hex()
+                        ),
+                    }
+                }
+                for name, entry in manifest["contents"].items()
+                if entry.get("ref") is None
+            ]
+            return {
+                "data": {
+                    "artifact": {
+                        "files": {
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": "DUMMY_CURSOR",
+                            },
+                            "edges": edges,
+                        }
+                    }
+                }
+            }
         # Project() is backward compatible for 0.12.10 and below
         if ("query Project(" in body["query"] and "runQueues" in body["query"]) or (
             "query ProjectRunQueues(" in body["query"] and "runQueues" in body["query"]
@@ -1803,6 +1929,29 @@ def create_app(user_ctx=None):
                 }
             }
 
+        if "query ProbeServerCreateLaunchAgentInput" in body["query"]:
+            return {
+                "data": {
+                    "CreateLaunchAgentInputInfoType": {
+                        "inputFields": [
+                            {"name": "id"},
+                            {"name": "created_at"},
+                            {"name": "updated_at"},
+                            {"name": "name"},
+                            {"name": "entity_id"},
+                            {"name": "project_id"},
+                            {"name": "runqueue_ids"},
+                            {"name": "agent_status"},
+                            {"name": "stop_polling"},
+                            {"name": "heartbeat_at"},
+                            {"name": "hostname"},
+                            {"name": "created_by"},
+                            {"name": "agent_config"},
+                        ]
+                    }
+                }
+            }
+
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
@@ -1991,10 +2140,7 @@ def create_app(user_ctx=None):
                         },
                     },
                 }
-            elif (
-                len(ctx.get("graphql", [])) >= 3
-                and ctx["graphql"][2].get("variables", {}).get("name", "") == "dummy:v0"
-            ) or request.args.get("name") == "dummy:v0":
+            elif _id == "DUMMY_V0" or request.args.get("name") == "dummy:v0":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",

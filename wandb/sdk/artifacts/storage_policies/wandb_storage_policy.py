@@ -30,12 +30,12 @@ from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
     from wandb.sdk.internal import progress
 
-# This makes the first sleep 1s, and then doubles it up to total times,
-# which makes for ~18 hours.
+# Sleep length: 0, 2, 4, 8, 16, 32, 64, 120, 120, 120, 120, 120, 120, 120, 120, 120
+# seconds, i.e. a total of 20min 6s.
 _REQUEST_RETRY_STRATEGY = urllib3.util.retry.Retry(
     backoff_factor=1,
     total=16,
@@ -105,7 +105,7 @@ class WandbStoragePolicy(StoragePolicy):
 
     def load_file(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         manifest_entry: "ArtifactManifestEntry",
     ) -> FilePathStr:
         path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -115,17 +115,25 @@ class WandbStoragePolicy(StoragePolicy):
         if hit:
             return path
 
-        auth = None
-        if not _thread_local_api_settings.cookies:
-            auth = ("api", self._api.api_key)
-        response = self._session.get(
-            self._file_url(self._api, artifact.entity, manifest_entry),
-            auth=auth,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
-            stream=True,
-        )
-        response.raise_for_status()
+        if manifest_entry._download_url is not None:
+            response = self._session.get(manifest_entry._download_url, stream=True)
+            try:
+                response.raise_for_status()
+            except Exception:
+                # Signed URL might have expired, fall back to fetching it one by one.
+                manifest_entry._download_url = None
+        if manifest_entry._download_url is None:
+            auth = None
+            if not _thread_local_api_settings.cookies:
+                auth = ("api", self._api.api_key)
+            response = self._session.get(
+                self._file_url(self._api, artifact.entity, manifest_entry),
+                auth=auth,
+                cookies=_thread_local_api_settings.cookies,
+                headers=_thread_local_api_settings.headers,
+                stream=True,
+            )
+            response.raise_for_status()
 
         with cache_open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
@@ -134,7 +142,7 @@ class WandbStoragePolicy(StoragePolicy):
 
     def store_reference(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[str] = None,
         checksum: bool = True,

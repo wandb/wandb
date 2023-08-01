@@ -7,18 +7,21 @@ import json
 import logging
 import os
 import tempfile
-from typing import Any, Dict, List, Optional
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import CommError
-from wandb.sdk.artifacts.public_artifact import Artifact as PublicArtifact
 from wandb.sdk.launch import utils
 from wandb.sdk.lib.runid import generate_id
 
 from .errors import LaunchError
 from .utils import LOG_PREFIX, recursive_macro_sub
+
+if TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact import Artifact
 
 _logger = logging.getLogger(__name__)
 
@@ -69,7 +72,7 @@ class LaunchProject:
         self.job = job
         if job is not None:
             wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
-        self._job_artifact: Optional[PublicArtifact] = None
+        self._job_artifact: Optional[Artifact] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
@@ -78,14 +81,15 @@ class LaunchProject:
         # the builder key can be passed in through the resource args
         # but these resource_args are then passed to the appropriate
         # runner, so we need to pop the builder key out
-        resource_args_build = resource_args.get(resource, {}).pop("builder", {})
+        resource_args_copy = deepcopy(resource_args)
+        resource_args_build = resource_args_copy.get(resource, {}).pop("builder", {})
         self.resource = resource
-        self.resource_args = resource_args
+        self.resource_args = resource_args_copy
         self.sweep_id = sweep_id
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda_base_image: Optional[str] = resource_args_build.get("cuda", {}).get(
-            "base_image"
-        )
+        self.accelerator_base_image: Optional[str] = resource_args_build.get(
+            "accelerator", {}
+        ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
         self._base_image: Optional[str] = launch_spec.get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"

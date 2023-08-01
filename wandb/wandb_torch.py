@@ -265,9 +265,7 @@ class TorchHistory:
         if not isinstance(var, torch.autograd.Variable):
             cls = type(var)
             raise TypeError(
-                "Expected torch.Variable, not {}.{}".format(
-                    cls.__module__, cls.__name__
-                )
+                f"Expected torch.Variable, not {cls.__module__}.{cls.__name__}"
             )
 
         handle = self._hook_handles.get(name)

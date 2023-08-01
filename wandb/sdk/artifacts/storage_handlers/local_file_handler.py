@@ -15,7 +15,7 @@ from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64, md5_string
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact as ArtifactInterface
+    from wandb.sdk.artifacts.artifact import Artifact
 
 
 class LocalFileHandler(StorageHandler):
@@ -66,7 +66,7 @@ class LocalFileHandler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "ArtifactInterface",
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[StrPath] = None,
         checksum: bool = True,

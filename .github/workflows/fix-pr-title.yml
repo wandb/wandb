@@ -18,7 +18,7 @@ jobs:
         python-version: "3.9"
 
     - name: Install dependencies
-      run: pip install pygithub openai
+      run: pip install pygithub openai tenacity
 
     - name: Get PR number
       id: get_pr_number
@@ -30,7 +30,7 @@ jobs:
     - name: Run script to get new title
       id: get_new_title
       run: |
-        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py ${{ steps.get_pr_number.outputs.pr_number }})
+        title=$(GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py generate ${{ steps.get_pr_number.outputs.pr_number }})
         echo "title=$title" >> $GITHUB_OUTPUT
 
     - name: Suggest title

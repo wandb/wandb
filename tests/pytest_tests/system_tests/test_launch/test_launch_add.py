@@ -128,7 +128,6 @@ def test_launch_add_delete_queued_run(
         (
             {},
             {
-                "cuda": False,
                 "overrides": {"args": ["--runtime", "nvidia"]},
                 "resource": "local-process",
             },
@@ -136,7 +135,6 @@ def test_launch_add_delete_queued_run(
         (
             {"build": {"type": "docker"}},
             {
-                "cuda": False,
                 "overrides": {"args": ["--runtime", "nvidia"]},
                 "resource": "local-process",
             },

@@ -27,7 +27,7 @@ class ProcessCpuPercent:
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
-        self.samples: "Deque[float]" = deque([])
+        self.samples: Deque[float] = deque([])
         self.process: Optional[psutil.Process] = None
 
     def sample(self) -> None:
@@ -61,7 +61,7 @@ class CpuPercent:
     name = "cpu.{i}.cpu_percent"
 
     def __init__(self, interval: Optional[float] = None) -> None:
-        self.samples: "Deque[List[float]]" = deque([])
+        self.samples: Deque[List[float]] = deque([])
         self.interval = interval
 
     def sample(self) -> None:
@@ -88,7 +88,7 @@ class ProcessCpuThreads:
     name = "proc.cpu.threads"
 
     def __init__(self, pid: int) -> None:
-        self.samples: "Deque[int]" = deque([])
+        self.samples: Deque[int] = deque([])
         self.pid = pid
         self.process: Optional[psutil.Process] = None
 
@@ -121,7 +121,7 @@ class CPU:
             CpuPercent(),
             ProcessCpuThreads(settings._stats_pid),
         ]
-        self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
+        self.metrics_monitor: MetricsMonitor = MetricsMonitor(
             self.name,
             self.metrics,
             interface,
