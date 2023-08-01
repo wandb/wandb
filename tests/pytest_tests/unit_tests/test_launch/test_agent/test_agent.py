@@ -348,3 +348,36 @@ def test_thread_finish_run_fail_different_entity(mocker):
     assert len(agent._jobs) == 0
     assert not mocker.api.fail_run_queue_item.called
     assert not mock_saver.save_contents.called
+
+
+def test_agent_fails_sweep_state(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    def mock_set_sweep_state(sweep, entity, project, state):
+        assert entity == "test-entity"
+        assert project == "test-project"
+        assert sweep == "test-sweep-id"
+        assert state == "CANCELED"
+
+    mocker.api.set_sweep_state = mock_set_sweep_state
+
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "_queue", mock_saver)
+    job.completed_status = False
+    job.run_id = "test-sweep-id"
+    job.is_scheduler = True
+    job.entity = "test-entity"
+    job.project = "test-project"
+    run = MagicMock()
+    run.get_status.return_value.state = "failed"
+    job.run = run
+
+    # should detect failed scheduler, set sweep state to CANCELED
+    out = agent._check_run_finished(job, {})
+    assert job.completed_status == "failed"
+    assert out, "True when status successfully updated"

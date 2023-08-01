@@ -8,8 +8,6 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
@@ -144,29 +142,54 @@ class KubernetesSubmittedRun(AbstractRun):
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
+    def _delete_secret_if_completed(self, state: str) -> None:
+        """If the runner has a secret and the run is completed, delete the secret."""
+        if state in ["stopped", "failed", "finished"] and self.secret is not None:
+            try:
+                self.core_api.delete_namespaced_secret(
+                    self.secret.metadata.name, self.namespace
+                )
+            except Exception as e:
+                wandb.termerror(
+                    f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
+                )
+
     def get_status(self) -> Status:
         """Return the run status."""
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
+        try:
+            job_response = self.batch_api.read_namespaced_job_status(
+                name=self.name, namespace=self.namespace
+            )
+        except ApiException as e:
+            if e.status == 404:
+                wandb.termerror(
+                    f"Could not reach job {self.name} in namespace {self.namespace}"
+                )
+                self._delete_secret_if_completed("failed")
+                return Status("failed")
+
         status = job_response.status
 
-        pod = self.core_api.read_namespaced_pod(
-            name=self.pod_names[0], namespace=self.namespace
-        )
+        try:
+            pod = self.core_api.read_namespaced_pod(
+                name=self.pod_names[0], namespace=self.namespace
+            )
+        except ApiException as e:
+            if e.status == 404:
+                wandb.termerror(
+                    f"Could not reach pod {self.pod_names[0]} in namespace {self.namespace}"
+                )
+                self._delete_secret_if_completed("failed")
+                return Status("failed")
 
-        if (
-            hasattr(pod.status, "conditions")
-            and pod.status.conditions is not None
-            and pod.status.conditions[0].type == "DisruptionTarget"
-            and pod.status.conditions[0].reason
-            in [
-                "EvictionByEvictionAPI",
-                "PreemptionByScheduler",
-                "TerminationByKubelet",
-            ]
-        ):
-            return Status("preempted")
+        if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
+            for condition in pod.status.conditions:
+                if condition.type == "DisruptionTarget" and condition.reason in [
+                    "EvictionByEvictionAPI",
+                    "PreemptionByScheduler",
+                    "TerminationByKubelet",
+                ]:
+                    return Status("preempted")
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
@@ -192,18 +215,8 @@ class KubernetesSubmittedRun(AbstractRun):
             return_status = Status("stopped")
         else:
             return_status = Status("unknown")
-        if (
-            return_status.state in ["stopped", "failed", "finished"]
-            and self.secret is not None
-        ):
-            try:
-                self.core_api.delete_namespaced_secret(
-                    self.secret.metadata.name, self.namespace
-                )
-            except Exception as e:
-                wandb.termerror(
-                    f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
-                )
+
+        self._delete_secret_if_completed(return_status.state)
         return return_status
 
     def suspend(self) -> None:
@@ -366,7 +379,11 @@ class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
     def __init__(
-        self, api: Api, backend_config: Dict[str, Any], environment: AbstractEnvironment
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Create a Kubernetes runner.
 
@@ -380,6 +397,7 @@ class KubernetesRunner(AbstractRunner):
         """
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def wait_job_launch(
         self,
@@ -451,10 +469,9 @@ class KubernetesRunner(AbstractRunner):
         self,
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
+        image_uri: str,
         namespace: str,
         core_api: "CoreV1Api",
-        job_tracker: Optional[JobAndRunStatusTracker],
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
         """Apply our default values, return job dict and secret.
 
@@ -506,9 +523,7 @@ class KubernetesRunner(AbstractRunner):
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             # dont specify run id if user provided image, could have multiple runs
-            image_uri = launch_project.docker_image
             containers[0]["image"] = image_uri
-            launch_project.fill_macros(image_uri)
             # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
@@ -516,25 +531,18 @@ class KubernetesRunner(AbstractRunner):
                     "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             assert entry_point is not None
-            assert builder is not None
-            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
-            image_uri = image_uri.replace("https://", "")
             launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
-            if not builder.registry:
-                raise LaunchError(
-                    "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
-                )
-            secret = maybe_create_imagepull_secret(
-                core_api, builder.registry, launch_project.run_id, namespace
-            )
-            if secret is not None:
-                pod_spec["imagePullSecrets"] = [
-                    {"name": f"regcred-{launch_project.run_id}"}
-                ]
             containers[0]["image"] = image_uri
             launch_project.fill_macros(image_uri)
+        secret = maybe_create_imagepull_secret(
+            core_api, self.registry, launch_project.run_id, namespace
+        )
+        if secret is not None:
+            pod_spec["imagePullSecrets"] = [
+                {"name": f"regcred-{launch_project.run_id}"}
+            ]
 
         inject_entrypoint_and_args(
             containers,
@@ -561,10 +569,7 @@ class KubernetesRunner(AbstractRunner):
         return job, secret
 
     def run(
-        self,
-        launch_project: LaunchProject,
-        builder: AbstractBuilder,
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -595,12 +600,6 @@ class KubernetesRunner(AbstractRunner):
         # run by creating a custom object.
         api_version = resource_args.get("apiVersion", "batch/v1")
         if api_version not in ["batch/v1", "batch/v1beta1"]:
-            entrypoint = launch_project.get_single_entry_point()
-            if launch_project.docker_image:
-                image_uri = launch_project.docker_image
-            else:
-                assert entrypoint is not None
-                image_uri = builder.build_image(launch_project, entrypoint, job_tracker)
             launch_project.fill_macros(image_uri)
             env_vars = get_env_vars_dict(launch_project, self._api)
             # Crawl the resource args and add our env vars to the containers.
@@ -658,13 +657,10 @@ class KubernetesRunner(AbstractRunner):
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
-
         namespace = self.get_namespace(resource_args, context)
-
         job, secret = self._inject_defaults(
-            resource_args, launch_project, builder, namespace, core_api, job_tracker
+            resource_args, launch_project, image_uri, namespace, core_api
         )
-
         msg = "Creating Kubernetes job"
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
@@ -675,16 +671,12 @@ class KubernetesRunner(AbstractRunner):
             0
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.name
-
         pod_names = self.wait_job_launch(job_name, namespace, core_api)
-
         submitted_job = KubernetesSubmittedRun(
             batch_api, core_api, job_name, pod_names, namespace, secret
         )
-
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
-
         return submitted_job
 
 
@@ -757,7 +749,15 @@ def maybe_create_imagepull_secret(
         type="kubernetes.io/dockerconfigjson",
     )
     try:
-        return core_api.create_namespaced_secret(namespace, secret)
+        try:
+            return core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            # 409 = conflict = secret already exists
+            if e.status == 409:
+                return core_api.read_namespaced_secret(
+                    name=f"regcred-{run_id}", namespace=namespace
+                )
+            raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 
