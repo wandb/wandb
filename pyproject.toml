@@ -11,7 +11,7 @@ authors = [
 ]
 readme = "package_readme.md"
 license = { file = "LICENSE"}
-requires-python = ">=3.6"
+requires-python = ">=3.7"
 dependencies = [
     "Click>=7.1,!=8.0.0",  # click 8.0.0 is broken
     "GitPython>=1.0.0,!=3.1.29",  # CVE-2022-24439
@@ -28,7 +28,6 @@ dependencies = [
     "setproctitle",
     "setuptools",
     "appdirs>=1.4.3",
-    "dataclasses; python_version < '3.7'",
     "typing_extensions; python_version < '3.10'",
 ]
 classifiers = [
@@ -38,11 +37,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -101,9 +100,7 @@ launch = [
     "typing_extensions",
 ]
 models = ["cloudpickle"]
-async = [
-    "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
-]
+async = ["httpx>=0.23.0"]
 perf = ["orjson"]
 
 [tool.setuptools]
@@ -142,7 +139,7 @@ norecursedirs = [
 
 [tool.black]
 line-length = 88
-target-version = ['py36', 'py37', 'py38', 'py39', 'py310', 'py311']
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
 include = '\.pyi?$'
 exclude = '''
 wandb/vendor/
@@ -166,8 +163,8 @@ ignore = [
     "E501",
     "D1",    # Allow missing docstrings.
     "D417",  # Don't require descriptions for all arguments.
-    "UP022", # Only valid for Python 3.7+
-    "UP036", # Only valid for Python 3.7+
+    "UP022",
+    "UP036",
 ]
 target-version = "py37"
 
