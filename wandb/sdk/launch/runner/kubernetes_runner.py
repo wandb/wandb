@@ -20,6 +20,7 @@ from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
+    AGENT_POLLING_INTERVAL,
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
@@ -43,9 +44,9 @@ from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: 
 from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
-MAX_KUBERNETES_RETRIES = os.environ.get(
-    "WANDB_AGENT_RETRIES", 180
-)  # default 10 second loop time on the agent, this is 30 minutes
+
+PENDING_TIMEOUT = os.environ.get("WANDB_AGENT_TIMEOUT", 1800)  # default 30 minutes
+MAX_KUBERNETES_RETRIES = PENDING_TIMEOUT // AGENT_POLLING_INTERVAL
 FAIL_MESSAGE_INTERVAL = 60
 
 _logger = logging.getLogger(__name__)
@@ -205,8 +206,7 @@ class KubernetesSubmittedRun(AbstractRun):
             self._fail_count += 1
             if now - self._last_msg_time > FAIL_MESSAGE_INTERVAL:
                 minutes = round(
-                    (MAX_KUBERNETES_RETRIES * 10 - (now - self._fail_first_msg_time))
-                    / 60
+                    (PENDING_TIMEOUT - (now - self._fail_first_msg_time)) / 60
                 )
                 wandb.termlog(
                     f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {minutes} minutes."
@@ -231,15 +231,17 @@ class KubernetesSubmittedRun(AbstractRun):
         self._delete_secret_if_completed(return_status.state)
         return return_status
 
-    def _is_container_creating(self, pod) -> bool:
-        return (
-            hasattr(pod.status, "container_statuses")
-            and pod.status.container_statuses
-            and hasattr(pod.status.container_statuses[0].state, "waiting")
-            and hasattr(pod.status.container_statuses[0].state.waiting, "reason")
-            and pod.status.container_statuses[0].state.waiting.reason
-            == "ContainerCreating"
-        )
+    def _is_container_creating(self, pod: client.V1Pod) -> bool:
+        """Check if any of this pod's containers are creating."""
+        if hasattr(pod.status, "container_statuses") and pod.status.container_statuses:
+            for status in pod.status.container_statuses:
+                if (
+                    hasattr(status.state, "waiting")
+                    and hasattr(status.state.waiting, "reason")
+                    and status.state.waiting.reason == "ContainerCreating"
+                ):
+                    return True
+        return False
 
     def suspend(self) -> None:
         """Suspend the run."""
