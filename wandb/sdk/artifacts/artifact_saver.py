@@ -253,7 +253,7 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        commit_result: "concurrent.futures.Future[None]" = concurrent.futures.Future()
+        commit_result: concurrent.futures.Future[None] = concurrent.futures.Future()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(

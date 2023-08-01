@@ -57,7 +57,7 @@ perf_requirements = ["orjson"]
 
 setup(
     name="wandb",
-    version="0.15.6.dev1",
+    version="0.15.8.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

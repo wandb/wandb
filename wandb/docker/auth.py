@@ -142,7 +142,7 @@ class AuthConfig(dict):
             dct["auths"] = {}
         self.update(dct)
         self._credstore_env = credstore_env
-        self._stores: Dict[str, "dockerpycreds.Store"] = dict()
+        self._stores: Dict[str, dockerpycreds.Store] = dict()
 
     @classmethod
     def parse_auth(
