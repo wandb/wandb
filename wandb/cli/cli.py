@@ -962,8 +962,11 @@ def launch_sweep(
     # update scheduler resource args from launch args
     if launch_args.get("resource") and not scheduler_args.get("resource"):
         scheduler_args["resource"] = launch_args["resource"]
-    if launch_args.get("resource_args") and not scheduler_args.get("resource_args"):
-        scheduler_args["resource_args"] = launch_args["resource_args"]
+    if launch_args.get("resource_args"):
+        assert isinstance(launch_args["resource_args"], dict)
+        scheduler_args["resource_args"] = launch_args["resource_args"].update(
+            scheduler_args.get("resource_args", {})
+        )
 
     scheduler_job: Optional[str] = scheduler_args.get("job")
     if scheduler_job:
