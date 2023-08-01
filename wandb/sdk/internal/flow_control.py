@@ -163,7 +163,7 @@ class StateShared:
         if not request_type:
             return
         process_str = f"_process_{request_type}"
-        process_handler: Optional[Callable[["pb.Record"], None]] = getattr(
+        process_handler: Optional[Callable[[pb.Record], None]] = getattr(
             self, process_str, None
         )
         if not process_handler:

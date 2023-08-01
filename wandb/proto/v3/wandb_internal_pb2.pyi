@@ -1149,6 +1149,7 @@ class ArtifactRecord(google.protobuf.message.Message):
     FINALIZE_FIELD_NUMBER: builtins.int
     CLIENT_ID_FIELD_NUMBER: builtins.int
     SEQUENCE_CLIENT_ID_FIELD_NUMBER: builtins.int
+    BASE_ID_FIELD_NUMBER: builtins.int
     INCREMENTAL_BETA1_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     run_id: builtins.str
@@ -1169,6 +1170,7 @@ class ArtifactRecord(google.protobuf.message.Message):
     finalize: builtins.bool
     client_id: builtins.str
     sequence_client_id: builtins.str
+    base_id: builtins.str
     incremental_beta1: builtins.bool
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
@@ -1191,11 +1193,12 @@ class ArtifactRecord(google.protobuf.message.Message):
         finalize: builtins.bool = ...,
         client_id: builtins.str = ...,
         sequence_client_id: builtins.str = ...,
+        base_id: builtins.str = ...,
         incremental_beta1: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "manifest", b"manifest"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "aliases", b"aliases", "client_id", b"client_id", "description", b"description", "digest", b"digest", "distributed_id", b"distributed_id", "entity", b"entity", "finalize", b"finalize", "incremental_beta1", b"incremental_beta1", "manifest", b"manifest", "metadata", b"metadata", "name", b"name", "project", b"project", "run_id", b"run_id", "sequence_client_id", b"sequence_client_id", "type", b"type", "use_after_commit", b"use_after_commit", "user_created", b"user_created"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "aliases", b"aliases", "base_id", b"base_id", "client_id", b"client_id", "description", b"description", "digest", b"digest", "distributed_id", b"distributed_id", "entity", b"entity", "finalize", b"finalize", "incremental_beta1", b"incremental_beta1", "manifest", b"manifest", "metadata", b"metadata", "name", b"name", "project", b"project", "run_id", b"run_id", "sequence_client_id", b"sequence_client_id", "type", b"type", "use_after_commit", b"use_after_commit", "user_created", b"user_created"]) -> None: ...
 
 global___ArtifactRecord = ArtifactRecord
 
@@ -2843,6 +2846,157 @@ class KeepaliveResponse(google.protobuf.message.Message):
 
 global___KeepaliveResponse = KeepaliveResponse
 
+class ArtifactInfo(google.protobuf.message.Message):
+    """
+    Job info specific for Partial -> Job upgrade
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ARTIFACT_FIELD_NUMBER: builtins.int
+    ENTRYPOINT_FIELD_NUMBER: builtins.int
+    NOTEBOOK_FIELD_NUMBER: builtins.int
+    artifact: builtins.str
+    @property
+    def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    notebook: builtins.bool
+    def __init__(
+        self,
+        *,
+        artifact: builtins.str = ...,
+        entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
+        notebook: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "entrypoint", b"entrypoint", "notebook", b"notebook"]) -> None: ...
+
+global___ArtifactInfo = ArtifactInfo
+
+class GitInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    REMOTE_FIELD_NUMBER: builtins.int
+    COMMIT_FIELD_NUMBER: builtins.int
+    remote: builtins.str
+    commit: builtins.str
+    def __init__(
+        self,
+        *,
+        remote: builtins.str = ...,
+        commit: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["commit", b"commit", "remote", b"remote"]) -> None: ...
+
+global___GitInfo = GitInfo
+
+class GitSource(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    GIT_INFO_FIELD_NUMBER: builtins.int
+    ENTRYPOINT_FIELD_NUMBER: builtins.int
+    NOTEBOOK_FIELD_NUMBER: builtins.int
+    @property
+    def git_info(self) -> global___GitInfo: ...
+    @property
+    def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    notebook: builtins.bool
+    def __init__(
+        self,
+        *,
+        git_info: global___GitInfo | None = ...,
+        entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
+        notebook: builtins.bool = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["git_info", b"git_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["entrypoint", b"entrypoint", "git_info", b"git_info", "notebook", b"notebook"]) -> None: ...
+
+global___GitSource = GitSource
+
+class ImageSource(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    IMAGE_FIELD_NUMBER: builtins.int
+    image: builtins.str
+    def __init__(
+        self,
+        *,
+        image: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["image", b"image"]) -> None: ...
+
+global___ImageSource = ImageSource
+
+class Source(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    GIT_FIELD_NUMBER: builtins.int
+    ARTIFACT_FIELD_NUMBER: builtins.int
+    IMAGE_FIELD_NUMBER: builtins.int
+    @property
+    def git(self) -> global___GitSource: ...
+    @property
+    def artifact(self) -> global___ArtifactInfo: ...
+    @property
+    def image(self) -> global___ImageSource: ...
+    def __init__(
+        self,
+        *,
+        git: global___GitSource | None = ...,
+        artifact: global___ArtifactInfo | None = ...,
+        image: global___ImageSource | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "git", b"git", "image", b"image"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "git", b"git", "image", b"image"]) -> None: ...
+
+global___Source = Source
+
+class JobSource(google.protobuf.message.Message):
+    """
+    Mirrors JobSourceDict:
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    _VERSION_FIELD_NUMBER: builtins.int
+    SOURCE_TYPE_FIELD_NUMBER: builtins.int
+    SOURCE_FIELD_NUMBER: builtins.int
+    RUNTIME_FIELD_NUMBER: builtins.int
+    _version: builtins.str
+    source_type: builtins.str
+    @property
+    def source(self) -> global___Source: ...
+    runtime: builtins.str
+    def __init__(
+        self,
+        *,
+        _version: builtins.str = ...,
+        source_type: builtins.str = ...,
+        source: global___Source | None = ...,
+        runtime: builtins.str = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["source", b"source"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_version", b"_version", "runtime", b"runtime", "source", b"source", "source_type", b"source_type"]) -> None: ...
+
+global___JobSource = JobSource
+
+class PartialJobArtifact(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    JOB_NAME_FIELD_NUMBER: builtins.int
+    SOURCE_INFO_FIELD_NUMBER: builtins.int
+    job_name: builtins.str
+    @property
+    def source_info(self) -> global___JobSource: ...
+    def __init__(
+        self,
+        *,
+        job_name: builtins.str = ...,
+        source_info: global___JobSource | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["source_info", b"source_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["job_name", b"job_name", "source_info", b"source_info"]) -> None: ...
+
+global___PartialJobArtifact = PartialJobArtifact
+
 class UseArtifactRecord(google.protobuf.message.Message):
     """
     UseArtifact:
@@ -2853,10 +3007,13 @@ class UseArtifactRecord(google.protobuf.message.Message):
     ID_FIELD_NUMBER: builtins.int
     TYPE_FIELD_NUMBER: builtins.int
     NAME_FIELD_NUMBER: builtins.int
+    PARTIAL_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     id: builtins.str
     type: builtins.str
     name: builtins.str
+    @property
+    def partial(self) -> global___PartialJobArtifact: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -2865,10 +3022,11 @@ class UseArtifactRecord(google.protobuf.message.Message):
         id: builtins.str = ...,
         type: builtins.str = ...,
         name: builtins.str = ...,
+        partial: global___PartialJobArtifact | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "id", b"id", "name", b"name", "type", b"type"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "partial", b"partial"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "id", b"id", "name", b"name", "partial", b"partial", "type", b"type"]) -> None: ...
 
 global___UseArtifactRecord = UseArtifactRecord
 

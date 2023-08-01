@@ -33,7 +33,7 @@ class Progress:
 
             callback = callback_
 
-        self.callback: "ProgressFn" = callback
+        self.callback: ProgressFn = callback
         self.bytes_read = 0
         self.len = os.fstat(file.fileno()).st_size
 

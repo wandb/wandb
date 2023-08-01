@@ -40,17 +40,16 @@ def mock_upload_urls(
     files,
     run=None,
     entity=None,
-    description=None,
 ):
     return (
         "some-bucket",
         [],
-        {file: {"url": f"http://localhost/{file}"} for file in files},
+        {file: {"uploadUrl": f"http://localhost/{file}"} for file in files},
     )
 
 
 def get_upload_url(save_name: str):
-    return mock_upload_urls("my-proj", [save_name])[2][save_name]["url"]
+    return mock_upload_urls("my-proj", [save_name])[2][save_name]["uploadUrl"]
 
 
 def mock_upload_file_retry(url, file, callback, extra_headers):

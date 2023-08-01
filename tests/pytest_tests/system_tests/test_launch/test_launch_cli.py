@@ -291,7 +291,7 @@ def _setup_agent(monkeypatch, pop_func):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.create_launch_agent",
-        lambda c, e, p, q, g: {"launchAgentId": "mock_agent_id"},
+        lambda c, e, p, q, a, g: {"launchAgentId": "mock_agent_id"},
     )
 
 
@@ -365,7 +365,7 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.run_job",
-        lambda a, b, c: raise_(LaunchError("blah blah")),
+        lambda a, b, c, d: raise_(LaunchError("blah blah")),
     )
 
     monkeypatch.setattr(
@@ -393,6 +393,54 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         assert "except caught, failed item" in result.output
 
 
+@pytest.mark.parametrize(
+    "path,job_type",
+    [
+        ("./test.py", "code"),
+        ("test.py", "code"),
+    ],
+)
+def test_create_job_no_reqs(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        result = runner.invoke(
+            cli.job,
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert "Could not find requirements.txt file" in result.output
+
+
+@pytest.mark.parametrize(
+    "path,job_type",
+    [
+        ("./test.py", "123"),
+        ("./test.py", ""),
+        (".test.py", "docker"),
+        (".test.py", "repo"),
+    ],
+)
+def test_create_job_bad_type(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        with open("requirements.txt", "w") as f:
+            f.write("wandb\n")
+
+        result = runner.invoke(
+            cli.job,
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert (
+            "ERROR" in result.output
+            or "Usage: job create [OPTIONS] {git|code|image} PATH" in result.output
+        )
+
+
 def patched_run_run_entry(cmd, dir):
     print(f"running command: {cmd}")
     return cmd  # noop
@@ -404,6 +452,10 @@ def test_launch_supplied_docker_image(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container.pull_docker_image",
+        lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.docker_image_exists",
         lambda docker_image: None,
     )
     monkeypatch.setattr(

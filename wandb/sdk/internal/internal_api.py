@@ -36,7 +36,7 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
-from wandb.errors import CommError, UsageError
+from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -118,7 +118,6 @@ if TYPE_CHECKING:
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
-
 # This funny if/else construction is the simplest thing I've found that
 # works at runtime, satisfies Mypy, and gives autocomplete in VSCode:
 if TYPE_CHECKING:
@@ -171,7 +170,7 @@ class Api:
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = env.get_http_timeout(10)
+    HTTP_TIMEOUT = env.get_http_timeout(30)
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
@@ -195,7 +194,7 @@ class Api:
         self._environ = environ
         self._global_context = context.Context()
         self._local_data = _ThreadLocalData()
-        self.default_settings: "DefaultSettings" = {
+        self.default_settings: DefaultSettings = {
             "section": "default",
             "git_remote": "origin",
             "ignore_globs": [],
@@ -255,7 +254,7 @@ class Api:
 
         # httpx is an optional dependency, so we lazily instantiate the client
         # only when we need it
-        self._async_httpx_client: Optional["httpx.AsyncClient"] = None
+        self._async_httpx_client: Optional[httpx.AsyncClient] = None
 
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
@@ -289,6 +288,8 @@ class Api:
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
+        self.create_launch_agent_input_info: Optional[List[str]] = None
+        self.server_create_run_queue_supports_drc: Optional[bool] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -583,6 +584,38 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
+    def create_run_queue_introspection(self) -> Tuple[bool, bool]:
+        _, _, mutations = self.server_info_introspection()
+        query_string = """
+           query ProbeCreateRunQueueInput {
+               CreateRunQueueInputType: __type(name: "CreateRunQueueInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+        """
+        if self.server_create_run_queue_supports_drc is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
+                x["name"]
+                for x in (
+                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
+                )
+            ]
+        return (
+            "createRunQueue" in mutations,
+            self.server_create_run_queue_supports_drc,
+        )
+
+    @normalize_exceptions
+    def create_default_resource_config_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "createDefaultResourceConfig" in mutations
+
+    @normalize_exceptions
     def fail_run_queue_item_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "failRunQueueItem" in mutations
@@ -856,7 +889,7 @@ class Api:
         }
         """
         )
-        response: "_Response" = self.gql(
+        response: _Response = self.gql(
             query, variable_values={"entity": entity, "project": project}
         )["model"]
         return response
@@ -1272,18 +1305,73 @@ class Api:
         return project_run_queues
 
     @normalize_exceptions
-    def create_run_queue(
-        self, entity: str, project: str, queue_name: str, access: str
+    def create_default_resource_config(
+        self, entity: str, project: str, resource: str, config: str
     ) -> Optional[Dict[str, Any]]:
+        if not self.create_default_resource_config_introspection():
+            raise Exception()
         query = gql(
             """
-        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+        mutation createDefaultResourceConfig(
+            $entityName: String!
+            $projectName: String
+            $resource: String!
+            $config: JSONString!
+        ) {
+            createDefaultResourceConfig(
+            input: {
+                entityName: $entityName
+                projectName: $projectName
+                resource: $resource
+                config: $config
+            }
+            ) {
+            defaultResourceConfigID
+            success
+            }
+        }
+        """
+        )
+        variable_values = {
+            "entityName": entity,
+            "projectName": project,
+            "resource": resource,
+            "config": config,
+        }
+        result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
+            "createDefaultResourceConfig"
+        ]
+        return result
+
+    @normalize_exceptions
+    def create_run_queue(
+        self,
+        entity: str,
+        project: str,
+        queue_name: str,
+        access: str,
+        config_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        (create_run_queue, supports_drc) = self.create_run_queue_introspection()
+        if not create_run_queue:
+            raise UnsupportedError(
+                "run queue creation is not supported by this version of wandb server."
+            )
+        if not supports_drc and config_id is not None:
+            raise UnsupportedError(
+                "default resource configurations are not supported by this version of wandb server."
+            )
+
+        query = gql(
+            """
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $defaultResourceConfigID: ID) {
             createRunQueue(
                 input: {
                     entityName: $entity,
                     projectName: $project,
                     queueName: $queueName,
-                    access: $access
+                    access: $access,
+                    defaultResourceConfigID: $defaultResourceConfigID
                 }
             ) {
                 success
@@ -1293,10 +1381,11 @@ class Api:
         """
         )
         variable_values = {
-            "project": project,
             "entity": entity,
-            "access": access,
+            "project": project,
             "queueName": queue_name,
+            "access": access,
+            "defaultResourceConfigID": config_id,
         }
         result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
             "createRunQueue"
@@ -1438,9 +1527,11 @@ class Api:
                 queue_id = res["queueID"]
 
             else:
-                wandb.termwarn(
-                    f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
-                )
+                if project_queue == "model-registry":
+                    _msg = f"Unable to push to run queue {queue_name}. Queue not found."
+                else:
+                    _msg = f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
+                wandb.termwarn(_msg)
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
@@ -1528,11 +1619,37 @@ class Api:
         return result
 
     @normalize_exceptions
+    def create_launch_agent_fields_introspection(self) -> List:
+        if self.create_launch_agent_input_info:
+            return self.create_launch_agent_input_info
+        query_string = """
+           query ProbeServerCreateLaunchAgentInput {
+                CreateLaunchAgentInputInfoType: __type(name:"CreateLaunchAgentInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+
+        self.create_launch_agent_input_info = [
+            field.get("name", "")
+            for field in res.get("CreateLaunchAgentInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+        ]
+        return self.create_launch_agent_input_info
+
+    @normalize_exceptions
     def create_launch_agent(
         self,
         entity: str,
         project: str,
         queues: List[str],
+        agent_config: Dict[str, Any],
         gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
@@ -1565,28 +1682,46 @@ class Api:
             }
 
         hostname = socket.gethostname()
-        mutation = gql(
-            """
-            mutation createLaunchAgent($entity: String!, $project: String!, $queues: [ID!]!, $hostname: String!){
-                createLaunchAgent(
-                    input: {
-                        entityName: $entity,
-                        projectName: $project,
-                        runQueues: $queues,
-                        hostname: $hostname
-                    }
-                ) {
-                    launchAgentId
-                }
-            }
-            """
-        )
+
         variable_values = {
             "entity": entity,
             "project": project,
             "queues": polling_queue_ids,
             "hostname": hostname,
         }
+
+        mutation_params = """$entity: String!,
+                $project: String!,
+                $queues: [ID!]!,
+                $hostname: String!"""
+
+        mutation_input = """entityName: $entity,
+                        projectName: $project,
+                        runQueues: $queues,
+                        hostname: $hostname"""
+
+        if "agentConfig" in self.create_launch_agent_fields_introspection():
+            variable_values["agentConfig"] = json.dumps(agent_config)
+            mutation_params += """,
+                $agentConfig: JSONString"""
+            mutation_input += """,
+                        agentConfig: $agentConfig"""
+
+        mutation = gql(
+            f"""
+            mutation createLaunchAgent(
+                {mutation_params}
+            ) {{
+                createLaunchAgent(
+                    input: {{
+                        {mutation_input}
+                    }}
+                ) {{
+                    launchAgentId
+                }}
+            }}
+            """
+        )
         result: dict = self.gql(mutation, variable_values)["createLaunchAgent"]
         return result
 
@@ -1928,6 +2063,11 @@ class Api:
         return run_state
 
     @normalize_exceptions
+    def create_run_files_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "createRunFiles" in mutations
+
+    @normalize_exceptions
     def upload_urls(
         self,
         project: str,
@@ -1942,17 +2082,78 @@ class Api:
             project (str): The project to download
             files (list or dict): The filenames to upload
             run (str, optional): The run to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
+            entity (str, optional): The entity to scope this project to.
             description (str, optional): description
 
         Returns:
-            (bucket_id, file_info)
-            bucket_id: id of bucket we uploaded to
-            file_info: A dict of filenames and urls, also indicates if this revision already has uploaded files.
+            (run_id, upload_headers, file_info)
+            run_id: id of run we uploaded files to
+            upload_headers: A list of headers to use when uploading files.
+            file_info: A dict of filenames and urls.
                 {
-                    'weights.h5': { "url": "https://weights.url" },
-                    'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
+                    "run_id": "run_id",
+                    "upload_headers": [""],
+                    "file_info":  [
+                        { "weights.h5": { "uploadUrl": "https://weights.url" } },
+                        { "model.json": { "uploadUrl": "https://model.json" } }
+                    ]
                 }
+        """
+        run_name = run or self.current_run_id
+        assert run_name, "run must be specified"
+        entity = entity or self.settings("entity")
+        assert entity, "entity must be specified"
+
+        has_create_run_files_mutation = self.create_run_files_introspection()
+        if not has_create_run_files_mutation:
+            return self.legacy_upload_urls(project, files, run, entity, description)
+
+        query = gql(
+            """
+        mutation CreateRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
+            createRunFiles(input: {entityName: $entity, projectName: $project, runName: $run, files: $files}) {
+                runID
+                uploadHeaders
+                files {
+                    name
+                    uploadUrl
+                }
+            }
+        }
+        """
+        )
+
+        query_result = self.gql(
+            query,
+            variable_values={
+                "project": project,
+                "run": run_name,
+                "entity": entity,
+                "files": [file for file in files],
+            },
+        )
+
+        result = query_result["createRunFiles"]
+        run_id = result["runID"]
+        if not run_id:
+            raise CommError(
+                f"Error uploading files to {entity}/{project}/{run_name}. Check that this project exists and you have access to this entity and project"
+            )
+        file_name_urls = {file["name"]: file for file in result["files"]}
+        return run_id, result["uploadHeaders"], file_name_urls
+
+    def legacy_upload_urls(
+        self,
+        project: str,
+        files: Union[List[str], Dict[str, IO]],
+        run: Optional[str] = None,
+        entity: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
+        """Generate temporary resumable upload urls.
+
+        A new mutation createRunFiles was introduced after 0.15.4.
+        This function is used to support older versions.
         """
         query = gql(
             """
@@ -1984,13 +2185,20 @@ class Api:
                 "name": project,
                 "run": run_id,
                 "entity": entity,
-                "description": description,
                 "files": [file for file in files],
+                "description": description,
             },
         )
 
         run_obj = query_result["model"]["bucket"]
         if run_obj:
+            for file_node in run_obj["files"]["edges"]:
+                file = file_node["node"]
+                # we previously used "url" field but now use "uploadUrl"
+                # replace the "url" field with "uploadUrl for downstream compatibility
+                if "url" in file and "uploadUrl" not in file:
+                    file["uploadUrl"] = file.pop("url")
+
             result = {
                 file["name"]: file for file in self._flatten_edges(run_obj["files"])
             }
@@ -2758,7 +2966,7 @@ class Api:
         return responses
 
     def get_project(self) -> str:
-        project: str = self.settings("project")
+        project: str = self.default_settings.get("project") or self.settings("project")
         return project
 
     @normalize_exceptions
@@ -2797,8 +3005,11 @@ class Api:
         # TODO(adrian): we use a retriable version of self.upload_file() so
         # will never retry self.upload_urls() here. Instead, maybe we should
         # make push itself retriable.
-        run_id, upload_headers, result = self.upload_urls(
-            project, files, run, entity, description
+        _, upload_headers, result = self.upload_urls(
+            project,
+            files,
+            run,
+            entity,
         )
         extra_headers = {}
         for upload_header in upload_headers:
@@ -2806,7 +3017,7 @@ class Api:
             extra_headers[key] = val
         responses = []
         for file_name, file_info in result.items():
-            file_url = file_info["url"]
+            file_url = file_info["uploadUrl"]
 
             # If the upload URL is relative, fill it in with the base URL,
             # since it's a proxied file store like the on-prem VM.
@@ -2828,7 +3039,7 @@ class Api:
             if progress is False:
                 responses.append(
                     self.upload_file_retry(
-                        file_info["url"], open_file, extra_headers=extra_headers
+                        file_info["uploadUrl"], open_file, extra_headers=extra_headers
                     )
                 )
             else:
@@ -3197,7 +3408,7 @@ class Api:
         """
         )
 
-        response: "_Response" = self.gql(
+        response: _Response = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
             timeout=60,
@@ -3552,7 +3763,7 @@ class Api:
     def get_sweep_state(
         self, sweep: str, entity: Optional[str] = None, project: Optional[str] = None
     ) -> "SweepState":
-        state: "SweepState" = self.sweep(
+        state: SweepState = self.sweep(
             sweep=sweep, entity=entity, project=project, specs="{}"
         )["state"]
         return state
@@ -3571,7 +3782,7 @@ class Api:
             raise Exception("Cannot resume %s sweep." % curr_state.lower())
         elif state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
             raise Exception("Cannot pause %s sweep." % curr_state.lower())
-        elif curr_state not in ("RUNNING", "PAUSED"):
+        elif curr_state not in ("RUNNING", "PAUSED", "PENDING"):
             raise Exception("Sweep already %s." % curr_state.lower())
         sweep_id = s["id"]
         mutation = gql(

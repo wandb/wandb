@@ -72,6 +72,59 @@ def test_launch_sweep_param_validation(user, wandb_init, test_settings):
 
 
 @pytest.mark.parametrize(
+    "scheduler_args, msg",
+    [
+        ({}, "Scheduler added to launch queue"),
+        ({"job": "placeholder-job"}, "Scheduler added to launch queue"),
+        (
+            {"job": "placeholder-job", "resource": "local-container"},
+            "Scheduler added to launch queue",
+        ),
+        (
+            {"job": "placeholder-job", "resource": "local-process"},
+            "Scheduler jobs cannot be run with the 'local-process' resource",
+        ),
+        (
+            {"docker_image": "test1:v1", "resource": "local-process"},
+            "Scheduler jobs cannot be run with the 'local-process' resource and a docker image",
+        ),
+    ],
+)
+def test_launch_sweep_scheduler_resources(
+    user, wandb_init, test_settings, scheduler_args, msg
+):
+    # make proj and job
+    settings = test_settings({"project": "model-registry"})
+    run = wandb_init(settings=settings)
+    job_artifact = run._log_job_artifact_with_image("test:latest", args=[])
+    job_name = f"{user}/model-registry/{job_artifact.wait().name}"
+    run.finish()
+
+    internal_api = InternalApi()
+    internal_api.create_run_queue(
+        entity=user,
+        project="model-registry",
+        queue_name="q",
+        access="PROJECT",
+    )
+
+    if scheduler_args.get("job"):  # replace placeholder name with actual
+        scheduler_args["job"] = job_name
+
+    config = {
+        "method": "grid",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        "launch": {"queue": "q"},
+        "job": job_name,
+        "scheduler": scheduler_args,
+    }
+    json.dump(config, open("s.yaml", "w"))
+
+    cmd = ["wandb", "launch-sweep", "-e", user, "-p", "p", "s.yaml"]
+    _run_cmd_check_msg(cmd, msg)
+
+
+@pytest.mark.parametrize(
     "image_uri,launch_config",
     [
         ("testing111", {}),
