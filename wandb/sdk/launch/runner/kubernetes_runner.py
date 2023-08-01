@@ -235,7 +235,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 pod.status.container_statuses[0].state.waiting.reason
                 == "ContainerCreating"
             )
-        except AttributeError:
+        except Exception:
             return False
 
     def suspend(self) -> None:
