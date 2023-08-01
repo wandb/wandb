@@ -35,6 +35,11 @@ spec:
                 secretKeyRef:
                   name: wandb-api-key
                   key: password
+            - name: WANDB_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: wandb-launch-configmap
+                  key: wandb-base-url
           volumeMounts:
             - name: wandb-launch-config
               mountPath: /home/launch_agent/.config/wandb

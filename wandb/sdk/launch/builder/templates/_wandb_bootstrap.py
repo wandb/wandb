@@ -20,6 +20,8 @@ if len(ONLY_INCLUDE) == 0:
 else:
     OPTS.append("--force")
 
+TORCH_DEP_REGEX = r"torch(vision|audio)?==\d+\.\d+\.\d+(\+(?:cu[\d]{2,3})|(?:\+cpu))?"
+
 
 def install_deps(
     deps: List[str],
@@ -50,8 +52,16 @@ def install_deps(
         if failed is None:
             failed = set()
         num_failed = len(failed)
+        current_pkg = None
         for line in e.output.decode("utf8").splitlines():
-            if line.startswith("ERROR:"):
+            # Since the name of the package might not be on the same line as
+            # the error msg, keep track of the currently installing package
+            current_pkg = get_current_package(line, clean_deps, current_pkg)
+
+            if "error: subprocess-exited-with-error" in line:
+                if current_pkg is not None:
+                    failed.add(current_pkg)
+            elif line.startswith("ERROR:"):
                 clean_dep = find_package_in_error_string(clean_deps, line)
                 if clean_dep is not None:
                     if clean_dep in deps:
@@ -92,7 +102,7 @@ def main() -> None:
                     if req.startswith("wandb==") and "dev1" in req:
                         req = "wandb"
                     match = re.match(
-                        r"torch(vision|audio)?==\d+\.\d+\.\d+(\+(?:cu[\d]{2,3})|(?:cpu))?",
+                        TORCH_DEP_REGEX,
                         req,
                     )
                     if match:
@@ -119,6 +129,41 @@ def main() -> None:
         print("No frozen requirements found")
 
 
+def add_version_to_package_name(deps: List[str], package: str) -> Optional[str]:
+    """Add the associated version to a package name.
+
+    For example: `my-package` -> `my-package==1.0.0`
+    """
+    for dep in deps:
+        if dep.split("==")[0] == package:
+            return dep
+    return None
+
+
+def get_current_package(
+    line: str, deps: List[str], current_pkg: Optional[str]
+) -> Optional[str]:
+    """Tries to pull a package name from the line.
+
+    Used to keep track of what the currently-installing package is,
+    in case an error message isn't on the same line as the package
+    """
+    # "Collecting my-package==1.0.0"
+    if line.startswith("Collecting"):
+        return line.split(" ")[1]
+    # "Building wheel for my-package (pyproject.toml): finished with status 'error'"
+    elif line.strip().startswith("Building wheel") and line.strip().endswith(
+        "finished with status 'error'"
+    ):
+        return add_version_to_package_name(deps, line.strip().split(" ")[3])
+    # "Running setup.py install for my-package: finished with status 'error'"
+    elif line.strip().startswith("Running setup.py install") and line.strip().endswith(
+        "finished with status 'error'"
+    ):
+        return add_version_to_package_name(deps, line.strip().split(" ")[4][:-1])
+    return current_pkg
+
+
 # hacky way to get the name of the requirement that failed
 # attempt last word which is the name of the package often
 # fall back to checking all words in the line for the package name
@@ -132,7 +177,7 @@ def find_package_in_error_string(deps: List[str], line: str) -> Optional[str]:
     # contains a reference to another package in the deps
     # before the package that failed to install
     for word in line.split(" "):
-        if word in deps:
+        if word.strip(",") in deps:
             return word
     # if we can't find the package, return None
     return None

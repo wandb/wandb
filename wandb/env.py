@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""All of W&B's environment variables
+"""All of W&B's environment variables.
 
 Getters and putters for all of them should go here. That
 way it'll be easier to avoid typos with names and be
@@ -87,8 +87,10 @@ USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
 
 def immutable_keys() -> List[str]:
-    """These are env keys that shouldn't change within a single process.  We use this to maintain
-    certain values between multiple calls to wandb.init within a single process."""
+    """These are env keys that shouldn't change within a single process.
+
+    We use this to maintain certain values between multiple calls to wandb.init within a single process.
+    """
     return [
         DIR,
         ENTITY,

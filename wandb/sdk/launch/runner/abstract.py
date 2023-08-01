@@ -15,7 +15,6 @@ from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject
@@ -29,7 +28,14 @@ else:
     from typing_extensions import Literal
 
 State = Literal[
-    "unknown", "starting", "running", "failed", "finished", "stopping", "stopped"
+    "unknown",
+    "starting",
+    "running",
+    "failed",
+    "finished",
+    "stopping",
+    "stopped",
+    "preempted",
 ]
 
 
@@ -60,6 +66,11 @@ class AbstractRun(ABC):
     @property
     def status(self) -> Status:
         return self._status
+
+    @abstractmethod
+    def get_logs(self) -> Optional[str]:
+        """Return the logs associated with the run."""
+        pass
 
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
@@ -106,7 +117,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> str:
+    def id(self) -> Optional[str]:
         pass
 
 
@@ -118,7 +129,11 @@ class AbstractRunner(ABC):
     (e.g. to run projects against your team's in-house cluster or job scheduler).
     """
 
-    def __init__(self, api: Api, backend_config: Dict[str, Any]) -> None:
+    def __init__(
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+    ) -> None:
         self._settings = Settings()
         self._api = api
         self.backend_config = backend_config
@@ -151,7 +166,7 @@ class AbstractRunner(ABC):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
+        image_uri: str,
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 

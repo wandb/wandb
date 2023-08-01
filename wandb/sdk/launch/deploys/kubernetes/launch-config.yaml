@@ -73,8 +73,8 @@ roleRef:
 ---
 apiVersion: v1
 data:
+  wandb-base-url: https://api.wandb.ai # TODO: set your base_url here
   launch-config.yaml: |
-    base_url: https://api.wandb.ai # TODO: set wandb base url
     max_jobs: -1 # TODO: set max concurrent jobs here
     queues:
     - default # TODO: set queue name here
@@ -87,7 +87,6 @@ data:
     builder:
       type: kaniko
       build-context-store: s3://my-bucket/... # TODO: set your build context store here
-
 kind: ConfigMap
 metadata:
   name: wandb-launch-configmap

@@ -5,11 +5,16 @@ import pytest
 import wandb
 from wandb.errors import CommError
 from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.launch.builder.build import EntryPoint
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.launch import run
-from wandb.sdk.launch.utils import LaunchError
 
 
 def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_settings):
+    launch_project = MagicMock()
+    launch_project.get_single_entry_point.return_value = EntryPoint(
+        "blah", ["python", "test.py"]
+    )
     proj = "test1"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
@@ -18,7 +23,7 @@ def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_se
 
     monkeypatch.setattr(
         "wandb.sdk.launch.launch.fetch_and_validate_project",
-        lambda _1, _2: "something",
+        lambda _1, _2: launch_project,
     )
 
     monkeypatch.setattr(

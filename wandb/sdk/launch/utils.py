@@ -13,7 +13,9 @@ import wandb
 import wandb.docker as docker
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, Error
+from wandb.errors import CommError
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.github_reference import GitHubReference
 from wandb.sdk.launch.wandb_reference import WandbReference
 
 from .builder.templates._wandb_bootstrap import (
@@ -26,31 +28,8 @@ FAILED_PACKAGES_REGEX = re.compile(
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
-
-
-class LaunchError(Error):
-    """Raised when a known error occurs in wandb launch."""
-
-    pass
-
-
-class LaunchDockerError(Error):
-    """Raised when Docker daemon is not running."""
-
-    pass
-
-
-class ExecutionError(Error):
-    """Generic execution exception."""
-
-    pass
-
-
-class SweepError(Error):
-    """Raised when a known error occurs with wandb sweeps."""
-
-    pass
+    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -69,13 +48,12 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
-API_KEY_REGEX = r"WANDB_API_KEY=\w+"
+API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
-UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
 
@@ -122,7 +100,7 @@ def set_project_entity_defaults(
     project: Optional[str],
     entity: Optional[str],
     launch_config: Optional[Dict[str, Any]],
-) -> Tuple[str, str]:
+) -> Tuple[Optional[str], str]:
     # set the target project and entity if not provided
     source_uri = None
     if uri is not None:
@@ -136,7 +114,7 @@ def set_project_entity_defaults(
         config_project = None
         if launch_config:
             config_project = launch_config.get("project")
-        project = config_project or source_uri or UNCATEGORIZED_PROJECT
+        project = config_project or source_uri or ""
     if entity is None:
         config_entity = None
         if launch_config:
@@ -165,6 +143,7 @@ def construct_launch_spec(
     run_id: Optional[str],
     repository: Optional[str],
     author: Optional[str],
+    sweep_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -192,6 +171,8 @@ def construct_launch_spec(
         launch_spec["docker"] = {}
     if docker_image:
         launch_spec["docker"]["docker_image"] = docker_image
+    if sweep_id:  # all runs in a sweep have this set
+        launch_spec["sweep_id"] = sweep_id
 
     if "resource" not in launch_spec:
         launch_spec["resource"] = resource if resource else None
@@ -462,49 +443,16 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git  # type: ignore
 
     _logger.info("Fetching git repo")
-    repo = git.Repo.init(dst_dir)
-    origin = repo.create_remote("origin", uri)
-    refspec = _make_refspec_from_version(version)
-    origin.fetch(refspec=refspec, depth=1)
-
-    if version is not None:
-        try:
-            repo.git.checkout(version)
-        except git.exc.GitCommandError as e:
-            raise LaunchError(
-                f"Unable to checkout version '{version}' of git repo {uri}"
-                "- please ensure that the version exists in the repo. "
-                f"Error: {e}"
-            ) from e
-    else:
-        if getattr(repo, "references", None) is not None:
-            branches = [ref.name for ref in repo.references]
-        else:
-            branches = []
-        # Check if main is in origin, else set branch to master
-        if "main" in branches or "origin/main" in branches:
-            version = "main"
-        else:
-            version = "master"
-
-        try:
-            repo.create_head(version, origin.refs[version])
-            repo.heads[version].checkout()
-            wandb.termlog(
-                f"{LOG_PREFIX}No git branch passed, defaulted to branch: {version}"
-            )
-        except (AttributeError, IndexError) as e:
-            raise LaunchError(
-                f"Unable to checkout default version '{version}' of git repo {uri} "
-                "- to specify a git version use: --git-version \n"
-                f"Error: {e}"
-            ) from e
-
-    repo.submodule_update(init=True, recursive=True)
-    return version
+    ref = GitHubReference.parse(uri)
+    if ref is None:
+        raise LaunchError(f"Unable to parse git uri: {uri}")
+    if version:
+        ref.update_ref(version)
+    ref.fetch(dst_dir)
+    assert version is not None or ref.ref is not None or ref.default_branch is not None
+    return version or ref.ref or ref.default_branch  # type: ignore
 
 
 def merge_parameters(
@@ -523,9 +471,17 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
     )
 
     _logger.info("Converting notebook to script")
-    new_name = fname.rstrip(".ipynb") + ".py"
+    new_name = fname.replace(".ipynb", ".py")
     with open(os.path.join(project_dir, fname)) as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
+        for cell in nb.cells:
+            if cell.cell_type == "code":
+                source_lines = cell.source.split("\n")
+                modified_lines = []
+                for line in source_lines:
+                    if not line.startswith("!"):
+                        modified_lines.append(line)
+                cell.source = "\n".join(modified_lines)
 
     exporter = nbconvert.PythonExporter()
     source, meta = exporter.from_notebook_node(nb)
@@ -537,7 +493,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> Optional["PublicArtifact"]:
+) -> Optional["Artifact"]:
     _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
@@ -664,12 +620,23 @@ def make_name_dns_safe(name: str) -> str:
     return resp
 
 
-def warn_failed_packages_from_build_logs(log: str, image_uri: str) -> None:
+def warn_failed_packages_from_build_logs(
+    log: str, image_uri: str, api: Api, job_tracker: Optional["JobAndRunStatusTracker"]
+) -> None:
     match = FAILED_PACKAGES_REGEX.search(log)
     if match:
-        wandb.termwarn(
-            f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
-        )
+        _msg = f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
+        wandb.termwarn(_msg)
+        if job_tracker is not None:
+            res = job_tracker.saver.save_contents(
+                _msg, "failed-packages.log", "warning"
+            )
+            api.update_run_queue_item_warning(
+                job_tracker.run_queue_item_id,
+                "Some packages were not successfully installed during the build",
+                "build",
+                res,
+            )
 
 
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
@@ -690,9 +657,6 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
 
 def pull_docker_image(docker_image: str) -> None:
     """Pull the requested docker image."""
-    if docker_image_exists(docker_image):
-        # don't pull images if they exist already, eg if they are local images
-        return
     try:
         docker.run(["docker", "pull", docker_image])
     except docker.DockerError as e:
