@@ -246,7 +246,7 @@ class Api:
             You can also set defaults for `entity`, `project`, and `run`.
     """
 
-    _HTTP_TIMEOUT = env.get_http_timeout(60)
+    _HTTP_TIMEOUT = env.get_http_timeout(29)
     VIEWER_QUERY = gql(
         """
         query Viewer{
