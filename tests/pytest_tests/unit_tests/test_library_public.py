@@ -27,6 +27,7 @@ SYMBOLS_ROOT_DATATYPES = {
 }
 
 SYMBOLS_ROOT_SDK = {
+    "ArtifactTTL",
     "login",
     "init",
     "log",
@@ -54,7 +55,6 @@ SYMBOLS_ROOT_OTHER = {
     "AlertLevel",
     "Api",
     "Artifact",
-    "ArtifactTTL",
     "CommError",
     "Config",
     "Error",
