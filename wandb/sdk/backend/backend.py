@@ -118,7 +118,7 @@ class Backend:
         main_mod_path = getattr(main_module, "__file__", None)
         if main_mod_spec is None:  # hack for pdb
             # Note: typing has trouble with BuiltinImporter
-            loader: "Loader" = importlib.machinery.BuiltinImporter  # type: ignore # noqa: F821
+            loader: Loader = importlib.machinery.BuiltinImporter  # type: ignore # noqa: F821
             main_mod_spec = importlib.machinery.ModuleSpec(
                 name="wandb.mpmain", loader=loader
             )
