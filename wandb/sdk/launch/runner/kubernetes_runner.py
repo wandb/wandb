@@ -99,6 +99,7 @@ class KubernetesSubmittedRun(AbstractRun):
         self._fail_count = 0
         self.pod_names = pod_names
         self.secret = secret
+        self._last_msg_time = 0.0
 
     @property
     def id(self) -> str:
@@ -117,8 +118,8 @@ class KubernetesSubmittedRun(AbstractRun):
                     f"Retrieved no logs for kubernetes pod(s): {self.pod_names}"
                 )
             return None
-        except Exception as e:
-            wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
+        except Exception:
+            wandb.termwarn(f"{LOG_PREFIX}Failed to get pod logs.")
             return None
 
     def get_job(self) -> "V1Job":
@@ -194,8 +195,6 @@ class KubernetesSubmittedRun(AbstractRun):
 
         now = time.time()
         if self._is_container_creating(pod):
-            if not self._last_msg_time:
-                self._last_msg_time = 0
             if now - self._last_msg_time > FAIL_MESSAGE_INTERVAL:
                 wandb.termlog(f"{LOG_PREFIX}Container is creating for job: {self.name}")
                 self._last_msg_time = now
@@ -203,7 +202,6 @@ class KubernetesSubmittedRun(AbstractRun):
         if pod.status.phase in ["Pending", "Unknown"]:
             if self._fail_count == 0:
                 self._fail_first_msg_time = now
-                self._last_msg_time = 0.0
             self._fail_count += 1
             if now - self._last_msg_time > FAIL_MESSAGE_INTERVAL:
                 minutes = round(
@@ -238,6 +236,7 @@ class KubernetesSubmittedRun(AbstractRun):
             hasattr(pod.status, "container_statuses")
             and pod.status.container_statuses
             and hasattr(pod.status.container_statuses[0].state, "waiting")
+            and hasattr(pod.status.container_statuses[0].state.waiting, "reason")
             and pod.status.container_statuses[0].state.waiting.reason
             == "ContainerCreating"
         )

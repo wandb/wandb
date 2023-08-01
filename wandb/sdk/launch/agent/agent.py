@@ -674,6 +674,7 @@ class LaunchAgent:
             known_error = True
             with self._jobs_lock:
                 job_tracker.failed_to_start = True
+                job_tracker.completed_status = "failed"
         # TODO: make get_status robust to errors for each runner, and handle them
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error getting status for job {run.id}")
