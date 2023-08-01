@@ -399,13 +399,29 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 }
 
 func (h *Handler) updateSummary(history *service.HistoryRecord) {
+	var summaryItems []*service.SummaryItem
 	if h.summary == nil {
+		// TODO(memory): persist this in the future as it will grow with number of distinct keys
 		h.summary = make(map[string]string)
 	}
-	items := history.Item
-	for i := 0; i < len(items); i++ {
-		h.summary[items[i].Key] = items[i].ValueJson
+
+	historyItems := history.Item
+	for i := 0; i < len(historyItems); i++ {
+		h.summary[historyItems[i].Key] = historyItems[i].ValueJson
+		summaryItems = append(summaryItems,
+			&service.SummaryItem{
+				Key:       historyItems[i].Key,
+				ValueJson: historyItems[i].ValueJson})
 	}
+
+	rec := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: summaryItems,
+			},
+		},
+	}
+	h.sendRecord(rec)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

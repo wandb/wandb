@@ -53,6 +53,9 @@ type Sender struct {
 
 	// RunRecord is the run record
 	RunRecord *service.RunRecord
+
+	// Keep track of summary which is being updated incrementally
+	summaryMap map[string]*service.SummaryItem
 }
 
 func emptyAsNil(s *string) *string {
@@ -74,6 +77,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		settings:      settings,
 		logger:        logger,
 		graphqlClient: newGraphqlClient(url, apiKey, logger),
+		summaryMap:    make(map[string]*service.SummaryItem),
 	}
 }
 
@@ -106,6 +110,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
 		s.sendHistory(record, x.History)
+	case *service.Record_Summary:
+		s.sendSummary(record, x.Summary)
 	case *service.Record_Stats:
 		s.sendSystemMetrics(record, x.Stats)
 	case *service.Record_OutputRaw:
@@ -296,6 +302,37 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
+	}
+}
+
+func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
+	// TODO(network): buffer summary sending for network efficiency until we can send only updates
+	// TODO(compat): handle deletes, nested keys
+	// TODO(compat): write summary file
+
+	// track each key in the in memory summary store
+	// TODO(memory): avoid keeping summary for all distinct keys
+	for _, item := range summary.Update {
+		s.summaryMap[item.Key] = item
+	}
+
+	// build list of summary items from the map
+	var summaryItems []*service.SummaryItem
+	for _, v := range s.summaryMap {
+		summaryItems = append(summaryItems, v)
+	}
+
+	// build a full summary record to send
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: summaryItems,
+			},
+		},
+	}
+
 	if s.fileStream != nil {
 		s.fileStream.StreamRecord(record)
 	}

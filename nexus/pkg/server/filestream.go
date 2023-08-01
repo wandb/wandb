@@ -18,6 +18,7 @@ import (
 const (
 	EventsFileName  = "wandb-events.jsonl"
 	HistoryFileName = "wandb-history.jsonl"
+	SummaryFileName = "wandb-summary.json"
 	OutputFileName  = "output.log"
 	maxItemsPerPush = 5_000
 	delayProcess    = 20 * time.Millisecond
@@ -35,6 +36,7 @@ const (
 	historyChunk chunkFile = iota
 	outputChunk
 	eventsChunk
+	summaryChunk
 )
 
 type chunkData struct {
@@ -152,6 +154,8 @@ func (fs *FileStream) doRecordProcess(inChan <-chan *service.Record) {
 		switch x := record.RecordType.(type) {
 		case *service.Record_History:
 			fs.streamHistory(x.History)
+		case *service.Record_Summary:
+			fs.streamSummary(x.Summary)
 		case *service.Record_Stats:
 			fs.streamSystemMetrics(x.Stats)
 		case *service.Record_OutputRaw:
@@ -230,31 +234,55 @@ func (fs *FileStream) doReplyProcess(inChan <-chan map[string]interface{}) {
 	}
 }
 
-func (fs *FileStream) jsonifyHistory(record *service.HistoryRecord) string {
+type Item interface {
+	GetKey() string
+	GetValueJson() string
+}
+
+func jsonifyItems[V Item](items []V) (string, error) {
 	jsonMap := make(map[string]interface{})
 
-	for _, item := range record.Item {
+	for _, item := range items {
 		var value interface{}
-		if err := json.Unmarshal([]byte(item.ValueJson), &value); err != nil {
+		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
 			e := fmt.Errorf("json unmarshal error: %v, items: %v", err, item)
-			fs.logger.CaptureFatalAndPanic("json unmarshal error", e)
+			return "", e
 		}
-		jsonMap[item.Key] = value
+		jsonMap[item.GetKey()] = value
 	}
 
 	jsonBytes, err := json.Marshal(jsonMap)
 	if err != nil {
-		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+		return "", err
 	}
-	return string(jsonBytes)
+	return string(jsonBytes), nil
 }
 
 func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
+	line, err := jsonifyItems(msg.Item)
+	if err != nil {
+		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+	}
 	chunk := chunkData{
 		fileName: HistoryFileName,
 		fileData: &chunkLine{
 			chunkType: historyChunk,
-			line:      fs.jsonifyHistory(msg),
+			line:      line,
+		},
+	}
+	fs.pushChunk(chunk)
+}
+
+func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
+	line, err := jsonifyItems(msg.Update)
+	if err != nil {
+		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+	}
+	chunk := chunkData{
+		fileName: SummaryFileName,
+		fileData: &chunkLine{
+			chunkType: summaryChunk,
+			line:      line,
 		},
 	}
 	fs.pushChunk(chunk)
