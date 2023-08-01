@@ -192,16 +192,20 @@ class KubernetesSubmittedRun(AbstractRun):
                 ]:
                     return Status("preempted")
 
+        now = time.time()
         if self._is_container_creating(pod):
-            wandb.termlog(f"Container is creating for job: {self.name}.")
+            if not self._last_msg_time:
+                self._last_msg_time = 0
+            if now - self._last_msg_time > FAIL_MESSAGE_INTERVAL:
+                wandb.termlog(f"{LOG_PREFIX}Container is creating for job: {self.name}")
+                self._last_msg_time = now
             return Status("starting")
         if pod.status.phase in ["Pending", "Unknown"]:
-            now = time.time()
             if self._fail_count == 0:
                 self._fail_first_msg_time = now
-                self._fail_last_msg_time = 0.0
+                self._last_msg_time = 0.0
             self._fail_count += 1
-            if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
+            if now - self._last_msg_time > FAIL_MESSAGE_INTERVAL:
                 minutes = round(
                     (MAX_KUBERNETES_RETRIES * 10 - (now - self._fail_first_msg_time))
                     / 60
@@ -209,7 +213,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 wandb.termlog(
                     f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {minutes} minutes."
                 )
-                self._fail_last_msg_time = now
+                self._last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 self.cancel()
                 raise LaunchError(f"Failed to start job {self.name}")
@@ -230,13 +234,13 @@ class KubernetesSubmittedRun(AbstractRun):
         return return_status
 
     def _is_container_creating(self, pod) -> bool:
-        try:
-            return (
-                pod.status.container_statuses[0].state.waiting.reason
-                == "ContainerCreating"
-            )
-        except Exception:
-            return False
+        return (
+            hasattr(pod.status, "container_statuses")
+            and pod.status.container_statuses
+            and hasattr(pod.status.container_statuses[0].state, "waiting")
+            and pod.status.container_statuses[0].state.waiting.reason
+            == "ContainerCreating"
+        )
 
     def suspend(self) -> None:
         """Suspend the run."""
