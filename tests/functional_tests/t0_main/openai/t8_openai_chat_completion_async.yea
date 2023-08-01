@@ -1,4 +1,4 @@
-id: 0.llm-openai.03-chat.completion
+id: 0.llm-openai.08-chat.completion-async
 plugin:
   - wandb
 tag:
