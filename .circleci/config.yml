@@ -613,7 +613,6 @@ jobs:
       - run:
           name: pull base docker images
           command: |
-            docker pull nvidia/cuda:10.0-runtime
             docker pull python:3.7-buster
       - run:
           name: Run tests
@@ -1323,7 +1322,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 9
-          toxenv: "proto3-check,proto4-check,black-check,isort-check,ruff-check,pyupgrade-check,mypy,mypy-report,flake8-base,flake8-docstrings,flake8-darglint,codecov-check,auto-codegen-check"
+          toxenv: "proto3-check,proto4-check,black-check,ruff-check,mypy,mypy-report,codecov-check,auto-codegen-check"
 
       #
       # Prep jobs
@@ -1476,6 +1475,20 @@ workflows:
       - tox-base:
           requires:
             - "functional-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 9 ]
+              shard:
+                - "mitm"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/standalone_tests"
+
+      - tox-base:
+          requires:
+            - "functional-tests"
           context: sdk-third-party-api
           matrix:
             parameters:
@@ -1543,6 +1556,7 @@ workflows:
       #
       # wandb launch tests
       #
+      # todo: fix base docker image for cuda and uncomment this
       - launch:
           requires:
             - "unit-tests-mock-server"

@@ -61,7 +61,7 @@ class RunState(Enum):
     UNKNOWN = "unknown", "alive"
 
     def __new__(cls: Any, *args: List, **kwds: Any) -> "RunState":
-        obj: "RunState" = object.__new__(cls)
+        obj: RunState = object.__new__(cls)
         obj._value_ = args[0]
         return obj
 

@@ -7,6 +7,7 @@ canonicalsrc =
     .tox/func-s_grpc-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_llm-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_metaflow-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_mitm-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_noml-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_ray112-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_ray2-py37/lib/python3.7/site-packages/wandb/

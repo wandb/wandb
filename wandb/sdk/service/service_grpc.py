@@ -10,7 +10,7 @@ import grpc
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 
-from .service_base import ServiceInterface, _pbmap_apply_dict
+from .service_base import ServiceInterface
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -37,8 +37,7 @@ class ServiceGrpcInterface(ServiceInterface):
 
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
-        settings_dict = settings.make_static()
-        _pbmap_apply_dict(inform_init._settings_map, settings_dict)
+        inform_init.settings.CopyFrom(settings.to_proto())
         inform_init._info.stream_id = run_id
 
         assert self._stub
@@ -46,8 +45,7 @@ class ServiceGrpcInterface(ServiceInterface):
 
     def _svc_inform_start(self, settings: "Settings", run_id: str) -> None:
         inform_start = spb.ServerInformStartRequest()
-        settings_dict = settings.make_static()
-        _pbmap_apply_dict(inform_start._settings_map, settings_dict)
+        inform_start.settings.CopyFrom(settings.to_proto())
         inform_start._info.stream_id = run_id
 
         assert self._stub

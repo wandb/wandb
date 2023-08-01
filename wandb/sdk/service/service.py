@@ -62,7 +62,7 @@ class _Service:
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
-        _sentry.configure_scope(process_context="service")
+        _sentry.configure_scope(tags=dict(settings), process_context="service")
 
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
@@ -172,15 +172,21 @@ class _Service:
 
             service_args = []
             if self._settings._require_nexus:
-                # NOTE: the wandb_core module will be distributed at first as an alpha
+                # NOTE: The wandb_core module will be distributed at first as an alpha
                 #       package as "wandb-core-alpha" to avoid polluting the pypi namespace.
+                #
                 #       When the package reaches compatibility milestones, it will be released
                 #       as "wandb-core".
-                wandb_nexus = get_module(
-                    "wandb_core",
-                    required="The nexus experiment requires the wandb_core module.",
-                )
-                nexus_path = wandb_nexus.get_nexus_path()
+                #
+                #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
+                #       to assist in running the nexus service from a live development directory.
+                nexus_path: str = os.environ.get("_WANDB_NEXUS_PATH") or ""
+                if not nexus_path:
+                    wandb_nexus = get_module(
+                        "wandb_core",
+                        required="The nexus experiment requires the wandb_core module.",
+                    )
+                    nexus_path = wandb_nexus.get_nexus_path()
                 service_args.extend([nexus_path])
                 exec_cmd_list = []
             else:
