@@ -63,6 +63,8 @@ if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util
 
+from wandb.sdk.artifacts.artifact_state import ArtifactState
+
 logger = logging.getLogger(__name__)
 
 # Only retry requests for 20 seconds in the public api
@@ -4687,9 +4689,9 @@ class Job:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
-        if code_artifact.state == "DELETED":
+        if code_artifact.state == ArtifactState.DELETED:
             raise LaunchError(
-                f"Code artifact {code_artifact.name} underlying job {self.name} been deleted"
+                f"Job {self.name} references deleted code artifact {code_artifact.name}"
             )
         return code_artifact
 
