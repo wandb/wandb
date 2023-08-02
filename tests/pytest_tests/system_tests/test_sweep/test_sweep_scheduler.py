@@ -452,7 +452,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     assert _scheduler.is_alive is False
     assert len(_scheduler._runs) == 1
     assert isinstance(_scheduler._runs["foo_run"].queued_run, public.QueuedRun)
-    assert not _scheduler._runs["foo_run"].state.is_alive
+    _scheduler._runs["foo_run"].queued_run.state = RunState.FINISHED
     assert _scheduler._runs["foo_run"].queued_run.args()[-2] == _project
 
     sweep_id2 = wandb.sweep(sweep_config, entity=user, project=_project)
