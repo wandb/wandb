@@ -358,6 +358,7 @@ class Scheduler(ABC):
                 f"{LOG_PREFIX}Failed to save state: {traceback.format_exc()}"
             )
 
+        # self._stop_runs()
         status = ""
         if self.state == SchedulerState.FLUSH_RUNS:
             self._set_sweep_state("PAUSED")
@@ -371,7 +372,7 @@ class Scheduler(ABC):
         else:
             self.state = SchedulerState.FAILED
             self._set_sweep_state("CRASHED")
-            status = "marked as failed"
+            raise Exception("Scheduler run in crashed state, excepting.")
 
         self._stop_runs()
         self._wandb_run.finish()

@@ -540,7 +540,7 @@ class LaunchAgent:
                 _logger.debug(f"Fetch sweep state error: {e}")
                 state = None
 
-            if state and state != "RUNNING" and state != "PAUSED":
+            if state != "RUNNING" and state != "PAUSED":
                 raise LaunchError(
                     f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
                 )
@@ -663,9 +663,7 @@ class LaunchAgent:
                                 state="CANCELED",
                             )
                         except CommError as e:
-                            wandb.termerror(
-                                f"{LOG_PREFIX}Failed to update sweep state: {e}"
-                            )
+                            raise LaunchError(f"Failed to update sweep state: {e}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
