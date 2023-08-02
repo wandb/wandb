@@ -1536,7 +1536,7 @@ def job() -> None:
     pass
 
 
-@job.command("list")
+@job.command("list", help="List existing jobs")
 @click.option(
     "--project",
     "-p",
@@ -1578,8 +1578,8 @@ def _list(project, entity):
         wandb.termlog(f"{name} -- versions ({len(aliases)}): {aliases_str}")
 
 
-@job.command()
-@click.argument("job")
+@job.command(help="Describe a job")
+@click.argument("job", help="The W&B Job to be described")
 def describe(job):
     public_api = PublicApi()
     try:
@@ -1596,6 +1596,7 @@ def describe(job):
 
 @job.command(
     no_args_is_help=True,
+    help="Create a job"
 )
 @click.option(
     "--project",
