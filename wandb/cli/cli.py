@@ -1578,7 +1578,7 @@ def _list(project, entity):
         wandb.termlog(f"{name} -- versions ({len(aliases)}): {aliases_str}")
 
 
-@job.command(help="Describe a job")
+@job.command("describe", help="Describe a job")
 @click.argument("job", help="The W&B Job to be described")
 def describe(job):
     public_api = PublicApi()
@@ -1595,6 +1595,7 @@ def describe(job):
 
 
 @job.command(
+    "create",
     no_args_is_help=True,
     help="Create a job"
 )
