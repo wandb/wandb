@@ -368,13 +368,14 @@ class Scheduler(ABC):
         elif self.state in [SchedulerState.CANCELLED, SchedulerState.STOPPED]:
             self._set_sweep_state("CANCELED")  # one L
             status = "cancelled"
+            self._stop_runs()
         else:
             self.state = SchedulerState.FAILED
             self._set_sweep_state("CRASHED")
             status = "crashed"
+            self._stop_runs()
 
         wandb.termlog(f"{LOG_PREFIX}Scheduler {status}")
-        self._stop_runs()
         self._wandb_run.finish()
 
     def _get_num_runs_launched(self, runs: List[Dict[str, Any]]) -> int:
