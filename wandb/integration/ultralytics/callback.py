@@ -228,6 +228,7 @@ class WandBUltralyticsCallback:
     def on_train_start(self, trainer: TRAINER_TYPE):
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.ultralytics_yolov8 = True
+        wandb.config.train = vars(trainer.args)
 
     def on_fit_epoch_end(self, trainer: TRAINER_TYPE):
         if self.task in self.supported_tasks:
