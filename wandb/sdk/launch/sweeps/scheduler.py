@@ -536,7 +536,7 @@ class Scheduler(ABC):
                 wandb.termerror(f"Failed to get queued_run.state: {e}")
                 rqi_state = None
             
-            wandb.termlog(f"{run_id=} {run.state=} {rqi_state=}")
+            wandb.termlog(f"{run_id=} {run.state=} {rqi_state=} {run.queued_run=}")
             if not run.state.is_alive or rqi_state == "failed":
                 wandb.termerror(f"({run_id}) states: ({run.state}, {rqi_state})")
                 runs_to_remove.append(run_id)
