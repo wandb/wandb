@@ -655,12 +655,17 @@ class LaunchAgent:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
                     if status == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
-                        self._api.set_sweep_state(
-                            sweep=job_tracker.run_id,
-                            entity=job_tracker.entity,
-                            project=job_tracker.project,
-                            state="CANCELED",
-                        )
+                        try:
+                            self._api.set_sweep_state(
+                                sweep=job_tracker.run_id,
+                                entity=job_tracker.entity,
+                                project=job_tracker.project,
+                                state="CANCELED",
+                            )
+                        except CommError as e:
+                            wandb.termerror(
+                                f"{LOG_PREFIX}Failed to update sweep state: {e}"
+                            )
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
