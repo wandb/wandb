@@ -295,6 +295,7 @@ class Scheduler(ABC):
         self.state = SchedulerState.RUNNING
         try:
             while True:
+                wandb.termlog(f"[top while true] {self._runs=}")
                 self._update_scheduler_run_state()
                 if not self.is_alive:
                     break
@@ -302,6 +303,7 @@ class Scheduler(ABC):
                 wandb.termlog(f"{LOG_PREFIX}Polling for new runs to launch")
 
                 self._update_run_states()
+                wandb.termlog(f"[after run state update] {self._runs=}")
                 self._poll()
                 if self.state == SchedulerState.FLUSH_RUNS:
                     if self.num_active_runs == 0:
@@ -309,7 +311,8 @@ class Scheduler(ABC):
                         break
                     time.sleep(self._polling_sleep)
                     continue
-
+                
+                wandb.termlog(f"{self.available_workers=}")
                 for worker_id in self.available_workers:
                     if self.at_runcap:
                         wandb.termlog(
@@ -347,6 +350,8 @@ class Scheduler(ABC):
             raise e
         else:
             wandb.termlog(f"{LOG_PREFIX}Scheduler completed successfully")
+            run_state = self._get_run_state(self._wandb_run.id)
+            wandb.termlog(f"{self._state=} {run_state=} {self.available_workers=} \n {self._runs=}")
             # don't overwrite special states (e.g. STOPPED, FAILED)
             if self.state in [SchedulerState.RUNNING, SchedulerState.FLUSH_RUNS]:
                 self.state = SchedulerState.COMPLETED
@@ -493,6 +498,7 @@ class Scheduler(ABC):
     def _update_scheduler_run_state(self) -> None:
         """Update the scheduler state from state of scheduler run and sweep state."""
         state: RunState = self._get_run_state(self._wandb_run.id)
+        wandb.termlog(f"[_update_scheduler_run_state] {state=}")
 
         if state == RunState.KILLED:
             self.state = SchedulerState.STOPPED
@@ -509,6 +515,7 @@ class Scheduler(ABC):
             wandb.termwarn(f"sweep state error: {sweep_state} e: {e}")
             return
 
+        wandb.termlog(f"[_update_scheduler_run_state] {sweep_state=}")
         if sweep_state in ["FINISHED", "CANCELLED"]:
             self.state = SchedulerState.COMPLETED
         elif sweep_state in ["PAUSED", "STOPPED"]:
@@ -528,7 +535,8 @@ class Scheduler(ABC):
             except (CommError, LaunchError) as e:
                 wandb.termerror(f"Failed to get queued_run.state: {e}")
                 rqi_state = None
-
+            
+            wandb.termlog(f"{run_id=} {run.state=} {rqi_state=}")
             if not run.state.is_alive or rqi_state == "failed":
                 wandb.termerror(f"({run_id}) states: ({run.state}, {rqi_state})")
                 runs_to_remove.append(run_id)
