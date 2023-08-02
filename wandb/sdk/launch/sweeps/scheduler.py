@@ -359,7 +359,6 @@ class Scheduler(ABC):
             )
 
         self._stop_runs()
-        self._wandb_run.finish()
 
         status = ""
         if self.state == SchedulerState.FLUSH_RUNS:
@@ -375,7 +374,9 @@ class Scheduler(ABC):
             self.state = SchedulerState.FAILED
             self._set_sweep_state("CRASHED")
             raise Exception("Scheduler run in crashed state, excepting.")
+
         wandb.termlog(f"{LOG_PREFIX}Scheduler {status}")
+        self._wandb_run.finish()
 
     def _get_num_runs_launched(self, runs: List[Dict[str, Any]]) -> int:
         """Returns the number of valid runs in the sweep."""
