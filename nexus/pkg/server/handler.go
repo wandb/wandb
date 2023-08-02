@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/wandb/wandb/nexus/pkg/monitor"
-
-	"github.com/wandb/wandb/nexus/pkg/observability"
-
-	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
-	// "time"
+
+	"github.com/wandb/wandb/nexus/internal/nexuslib"
+	"github.com/wandb/wandb/nexus/pkg/monitor"
+	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 // Handler is the handler for a stream
@@ -42,8 +41,9 @@ type Handler struct {
 	// from the server
 	runRecord *service.RunRecord
 
-	// summary is the summary
-	summary map[string]string
+	// consolidatedSummary is the full summary (all keys)
+	// TODO(memory): persist this in the future as it will grow with number of distinct keys
+	consolidatedSummary map[string]string
 
 	// historyRecord is the history record used to track
 	// current active history record for the stream
@@ -61,10 +61,11 @@ func NewHandler(
 	systemMonitor *monitor.SystemMonitor,
 ) *Handler {
 	h := &Handler{
-		ctx:           ctx,
-		settings:      settings,
-		logger:        logger,
-		systemMonitor: systemMonitor,
+		ctx:                 ctx,
+		settings:            settings,
+		logger:              logger,
+		systemMonitor:       systemMonitor,
+		consolidatedSummary: make(map[string]string),
 	}
 	return h
 }
@@ -135,6 +136,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Stats:
 		h.handleSystemMetrics(record)
 	case *service.Record_Summary:
+		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
 	case *service.Record_Telemetry:
 	case nil:
@@ -285,7 +287,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
 	var items []*service.SummaryItem
 
-	for key, element := range h.summary {
+	for key, element := range h.consolidatedSummary {
 		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
 	}
 	response.ResponseType = &service.Response_GetSummaryResponse{
@@ -320,11 +322,12 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
 	)
 
-	rec := &service.Record{
+	record := &service.Record{
 		RecordType: &service.Record_History{History: history},
 	}
-	h.updateSummary(history)
-	h.sendRecord(rec)
+	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
+	h.sendRecord(summaryRecord)
+	h.sendRecord(record)
 }
 
 func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
@@ -398,30 +401,9 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	}
 }
 
-func (h *Handler) updateSummary(history *service.HistoryRecord) {
-	var summaryItems []*service.SummaryItem
-	if h.summary == nil {
-		// TODO(memory): persist this in the future as it will grow with number of distinct keys
-		h.summary = make(map[string]string)
-	}
-
-	historyItems := history.Item
-	for i := 0; i < len(historyItems); i++ {
-		h.summary[historyItems[i].Key] = historyItems[i].ValueJson
-		summaryItems = append(summaryItems,
-			&service.SummaryItem{
-				Key:       historyItems[i].Key,
-				ValueJson: historyItems[i].ValueJson})
-	}
-
-	rec := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: &service.SummaryRecord{
-				Update: summaryItems,
-			},
-		},
-	}
-	h.sendRecord(rec)
+func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {
+	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
+	h.sendRecord(summaryRecord)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
-
 	"github.com/hashicorp/go-retryablehttp"
+
+	"github.com/wandb/wandb/nexus/internal/nexuslib"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -234,32 +235,8 @@ func (fs *FileStream) doReplyProcess(inChan <-chan map[string]interface{}) {
 	}
 }
 
-type Item interface {
-	GetKey() string
-	GetValueJson() string
-}
-
-func jsonifyItems[V Item](items []V) (string, error) {
-	jsonMap := make(map[string]interface{})
-
-	for _, item := range items {
-		var value interface{}
-		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
-			e := fmt.Errorf("json unmarshal error: %v, items: %v", err, item)
-			return "", e
-		}
-		jsonMap[item.GetKey()] = value
-	}
-
-	jsonBytes, err := json.Marshal(jsonMap)
-	if err != nil {
-		return "", err
-	}
-	return string(jsonBytes), nil
-}
-
 func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
-	line, err := jsonifyItems(msg.Item)
+	line, err := nexuslib.JsonifyItems(msg.Item)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}
@@ -274,7 +251,7 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 }
 
 func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
-	line, err := jsonifyItems(msg.Update)
+	line, err := nexuslib.JsonifyItems(msg.Update)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}
