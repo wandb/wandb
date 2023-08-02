@@ -1,5 +1,4 @@
 import atexit
-import datetime
 import json
 import queue
 import threading
@@ -7,13 +6,11 @@ import typing
 import uuid
 
 from wandb import errors
+from wandb.sdk.artifacts.artifact import Artifact
 
 from .lib.ipython import _get_python_type
 from .lib.printer import get_printer
 from .wandb_lite_run import InMemoryLazyLiteRun, wandb_public_api
-
-if typing.TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact
 
 ROW_TYPE = typing.Union[dict, typing.List[dict]]
 
@@ -38,7 +35,7 @@ class _StreamTableSync:
         config: typing.Optional[dict] = None,
         project_name: typing.Optional[str] = None,
         entity_name: typing.Optional[str] = None,
-        _disable_async_file_stream: bool = False,
+        hidden: bool = True,
     ):
         self._client_id = str(uuid.uuid1())
         self._lock = threading.Lock()
@@ -78,9 +75,12 @@ class _StreamTableSync:
             table_name,
             config=config,
             group="weave_stream_tables",
-            _hide_in_wb=True,
-            _use_async_file_stream=not _disable_async_file_stream,
+            _hide_in_wb=hidden,
         )
+        if not wandb_public_api().supports_streamtable:
+            raise errors.Error(
+                "Streamtable isn't supported in this version of wandb.  Contact your adminstrator to upgrade."
+            )
         self._table_name = self._lite_run._run_name
         self._project_name = self._lite_run._project_name
         self._entity_name = self._lite_run._entity_name
@@ -91,8 +91,7 @@ class _StreamTableSync:
         with self._lock:
             self._lite_run.ensure_run()
             print_url = False
-            # TODO: decide if we want an artifact for wandb native runs
-            # self._artifact = self._stream_table_artifact()
+            self._artifact = self._stream_table_artifact()
             if print_url:
                 base_url = wandb_public_api().settings["base_url"]
                 if base_url.endswith("api.wandb.ai"):
@@ -152,8 +151,6 @@ class _StreamTableSync:
     def _log_row(self, row: dict) -> None:
         row_copy = {**row}
         row_copy["_client_id"] = self._client_id
-        if "timestamp" not in row_copy:
-            row_copy["timestamp"] = datetime.datetime.now()
         self._lite_run.log(row_copy)
 
     def finish(self) -> None:
@@ -182,15 +179,17 @@ class StreamTable(_StreamTableSync):
         self,
         table_name: str,
         *,
+        config: typing.Optional[dict] = None,
         project_name: typing.Optional[str] = None,
         entity_name: typing.Optional[str] = None,
-        _disable_async_file_stream: bool = False,
+        hidden: bool = True,
     ):
         super().__init__(
             table_name=table_name,
             project_name=project_name,
             entity_name=entity_name,
-            _disable_async_file_stream=_disable_async_file_stream,
+            config=config,
+            hidden=hidden,
         )
 
         self.queue: queue.Queue = queue.Queue()

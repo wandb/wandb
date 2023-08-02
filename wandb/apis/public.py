@@ -188,6 +188,7 @@ class RetryingClient:
         query ServerInfo{
             serverInfo {
                 cliVersionInfo
+                licenseFlags
                 latestLocalVersionInfo {
                     outOfDate
                     latestVersionString
@@ -614,6 +615,14 @@ class Api:
             )
             self._default_entity = self._viewer.entity
         return self._viewer
+
+    @property
+    def supports_streamtable(self):
+        # SaaS always supports streamtable
+        if self.settings["base_url"].endswith("wandb.ai"):
+            return True
+        # dedicated / self-hosted tells us if streamtable is available via licenseFlags
+        return "streamtable" in self.client.server_info.get("licenseFlags", [])
 
     def flush(self):
         """Flush the local cache.

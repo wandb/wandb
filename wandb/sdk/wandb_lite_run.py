@@ -1,6 +1,5 @@
 import datetime
 import logging
-import os
 import platform
 import typing
 
@@ -21,15 +20,20 @@ if typing.TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_p_api = None
+
 
 def wandb_public_api() -> public.Api:
-    return public.Api(timeout=30)
+    global _p_api
+    if _p_api is None:
+        _p_api = public.Api(timeout=30)
+    return _p_api
 
 
 def assert_wandb_authenticated() -> None:
     authenticated = (
-        wandb_public_api().api_key is not None
-        or _thread_local_api_settings.cookies is not None
+        _thread_local_api_settings.cookies is not None
+        or wandb_public_api().api_key is not None
     )
     if not authenticated:
         raise wandb_errors.AuthenticationError(
@@ -62,7 +66,6 @@ class InMemoryLazyLiteRun:
     _run: typing.Optional[public.Run] = None
     _stream: typing.Optional[file_stream.FileStreamApi] = None
     _pusher: typing.Optional[FilePusher] = None
-    _use_async_file_stream: bool = False
 
     def __init__(
         self,
@@ -74,7 +77,6 @@ class InMemoryLazyLiteRun:
         job_type: typing.Optional[str] = None,
         group: typing.Optional[str] = None,
         _hide_in_wb: bool = False,
-        _use_async_file_stream: bool = False,
     ):
         assert_wandb_authenticated()
 
@@ -107,11 +109,6 @@ class InMemoryLazyLiteRun:
             group = "weave_hidden_runs"
         self._group = group
 
-        self._use_async_file_stream = (
-            _use_async_file_stream
-            and os.getenv("WEAVE_DISABLE_ASYNC_FILE_STREAM") is None
-        )
-
     def ensure_run(self) -> public.Run:
         return self.run
 
@@ -124,13 +121,16 @@ class InMemoryLazyLiteRun:
         return self._i_api
 
     @property
+    def id(self) -> str:
+        return self._run_name
+
+    @property
+    def project(self) -> str:
+        return self._project_name
+
+    @property
     def run(self) -> public.Run:
         if self._run is None:
-            # Ensure project exists
-            self.i_api.upsert_project(
-                project=self._project_name, entity=self._entity_name
-            )
-
             # TODO: decide if we want to merge an existing run
             # Produce a run
             run_res, _, _ = self.i_api.upsert_run(
@@ -161,11 +161,6 @@ class InMemoryLazyLiteRun:
             )
 
             self.i_api.set_current_run_id(self._run.id)
-            # No need to get the last step if we're using the async file stream
-            if self._use_async_file_stream:
-                self._step = 0
-            else:
-                self._step = self._run.lastHistoryStep + 1
 
         return self._run
 
@@ -176,13 +171,12 @@ class InMemoryLazyLiteRun:
             self._stream = file_stream.FileStreamApi(
                 self.i_api, self.run.id, datetime.datetime.utcnow().timestamp()
             )
-            if self._use_async_file_stream:
-                self._stream._client.headers.update(
-                    {"X-WANDB-USE-ASYNC-FILESTREAM": "true"}
-                )
+            self._stream._client.headers.update(
+                {"X-WANDB-USE-ASYNC-FILESTREAM": "true"}
+            )
             self._stream.set_file_policy(
                 "wandb-history.jsonl",
-                file_stream.JsonlFilePolicy(start_chunk_id=self._step),
+                file_stream.JsonlFilePolicy(start_chunk_id=0),
             )
             self._stream.start()
 
@@ -225,9 +219,6 @@ class InMemoryLazyLiteRun:
             **row_dict,
             "_timestamp": datetime.datetime.utcnow().timestamp(),
         }
-        if not self._use_async_file_stream:
-            row_dict["_step"] = self._step
-        self._step += 1
         stream.push("wandb-history.jsonl", util.json_dumps_safer_history(row_dict))
 
     def finish(self) -> None:
@@ -245,7 +236,6 @@ class InMemoryLazyLiteRun:
         self._pusher = None
         self._run = None
         self._i_api = None
-        self._step = 0
 
     def __del__(self) -> None:
         self.finish()
