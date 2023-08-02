@@ -1213,7 +1213,6 @@ def launch_sweep(
 )
 @click.option(
     "--async",
-    "run_async",
     is_flag=True,
     help="Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for "
     "the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be "
@@ -1531,7 +1530,7 @@ def scheduler(
         raise e
 
 
-@cli.group("job")
+@cli.group("job", help="Commands for creating and viewing W&B Jobs")
 def job() -> None:
     pass
 
