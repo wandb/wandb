@@ -191,12 +191,12 @@ class Scheduler(ABC):
 
     @property
     def state(self) -> SchedulerState:
-        _logger.debug(f"{LOG_PREFIX}Scheduler state is {self._state.name}")
+        wandb.termwarn(f"{LOG_PREFIX}Scheduler state is {self._state.name}")
         return self._state
 
     @state.setter
     def state(self, value: SchedulerState) -> None:
-        _logger.debug(f"{LOG_PREFIX}Scheduler was {self.state.name} is {value.name}")
+        wandb.termwarn(f"{LOG_PREFIX}Scheduler was {self.state.name} is {value.name}")
         self._state = value
 
     @property
@@ -382,7 +382,7 @@ class Scheduler(ABC):
             if run.get("state", "") in ["killed", "crashed"] and not run.get(
                 "summaryMetrics"
             ):
-                _logger.debug(
+                wandb.termwarn(
                     f"excluding run: {run['name']} with state: {run['state']} from run cap \n{run}"
                 )
                 continue
@@ -413,7 +413,7 @@ class Scheduler(ABC):
 
     def _register_agents(self) -> None:
         for worker_id in range(self._num_workers):
-            _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
+            wandb.termwarn(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
             try:
                 agent_config = self._api.register_agent(
                     f"{socket.gethostname()}-{worker_id}",  # host
@@ -422,7 +422,7 @@ class Scheduler(ABC):
                     entity=self._entity,
                 )
             except Exception as e:
-                _logger.debug(f"failed to register agent: {e}")
+                wandb.termwarn(f"failed to register agent: {e}")
                 self.fail_sweep(f"failed to register agent: {e}")
 
             self._workers[worker_id] = _Worker(
@@ -459,14 +459,14 @@ class Scheduler(ABC):
     def _stop_run(self, run_id: str) -> bool:
         """Stops a run and removes it from the scheduler."""
         if run_id not in self._runs:
-            _logger.debug(f"run: {run_id} not in _runs: {self._runs}")
+            wandb.termwarn(f"run: {run_id} not in _runs: {self._runs}")
             return False
 
         run = self._runs[run_id]
         del self._runs[run_id]
 
         if not run.queued_run:
-            _logger.debug(
+            wandb.termwarn(
                 f"tried to _stop_run but run not queued yet (run_id:{run.id})"
             )
             return False
@@ -486,7 +486,7 @@ class Scheduler(ABC):
                 wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
                 return True
         except Exception as e:
-            _logger.debug(f"error stopping run ({run_id}): {e}")
+            wandb.termwarn(f"error stopping run ({run_id}): {e}")
 
         return False
 
@@ -506,7 +506,7 @@ class Scheduler(ABC):
                 self._sweep_id, self._entity, self._project
             )
         except Exception as e:
-            _logger.debug(f"sweep state error: {sweep_state} e: {e}")
+            wandb.termwarn(f"sweep state error: {sweep_state} e: {e}")
             return
 
         if sweep_state in ["FINISHED", "CANCELLED"]:
@@ -526,11 +526,11 @@ class Scheduler(ABC):
             try:
                 rqi_state = run.queued_run.state if run.queued_run else None
             except (CommError, LaunchError) as e:
-                _logger.debug(f"Failed to get queued_run.state: {e}")
+                wandb.termerror(f"Failed to get queued_run.state: {e}")
                 rqi_state = None
 
             if not run.state.is_alive or rqi_state == "failed":
-                _logger.debug(f"({run_id}) states: ({run.state}, {rqi_state})")
+                wandb.termerror(f"({run_id}) states: ({run.state}, {rqi_state})")
                 runs_to_remove.append(run_id)
         self._cleanup_runs(runs_to_remove)
 
@@ -554,7 +554,7 @@ class Scheduler(ABC):
 
             return metrics
         except Exception as e:
-            _logger.debug(f"[_get_metrics_from_run] {e}")
+            wandb.termwarn(f"[_get_metrics_from_run] {e}")
         return []
 
     def _get_run_info(self, run_id: str) -> Dict[str, Any]:
@@ -566,7 +566,7 @@ class Scheduler(ABC):
             if info:
                 return info
         except Exception as e:
-            _logger.debug(f"[_get_run_info] {e}")
+            wandb.termwarn(f"[_get_run_info] {e}")
         return {}
 
     def _get_run_state(
@@ -578,7 +578,7 @@ class Scheduler(ABC):
             state = self._api.get_run_state(self._entity, self._project, run_id)
             run_state = RunState(state)
         except CommError as e:
-            _logger.debug(f"error getting state for run ({run_id}): {e}")
+            wandb.termwarn(f"error getting state for run ({run_id}): {e}")
             if prev_run_state == RunState.UNKNOWN:
                 # triggers when we get an unknown state for the second time
                 wandb.termwarn(
@@ -605,7 +605,7 @@ class Scheduler(ABC):
             if run:
                 return run[0]
         except Exception as e:
-            _logger.debug(f"[_create_run] {e}")
+            wandb.termwarn(f"[_create_run] {e}")
             raise SchedulerError(
                 "Error creating run from scheduler, check API connection and CLI version."
             )
@@ -616,7 +616,7 @@ class Scheduler(ABC):
         try:
             self._api.set_sweep_state(sweep=self._sweep_id, state=state)
         except Exception as e:
-            _logger.debug(f"[set_sweep_state] {e}")
+            wandb.termwarn(f"[set_sweep_state] {e}")
 
     def _encode(self, _id: str) -> str:
         return (
