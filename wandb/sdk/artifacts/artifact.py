@@ -3,6 +3,7 @@ import concurrent.futures
 import contextlib
 import datetime
 import json
+import logging
 import multiprocessing.dummy
 import os
 import platform
@@ -71,6 +72,8 @@ reset_path()
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
+
+logger = logging.getLogger(__name__)
 
 
 class Artifact:
@@ -926,6 +929,9 @@ class Artifact:
                 "ttlDurationSeconds: $ttlDurationSeconds,",
             )
         else:
+            logger.error(
+                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
+            )
             mutation_template = mutation_template.replace(
                 "_TTL_DURATION_SECONDS_TYPE_", ""
             ).replace(

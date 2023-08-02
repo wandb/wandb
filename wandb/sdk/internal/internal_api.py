@@ -3173,6 +3173,10 @@ class Api:
 
         # Check if the ttl_duration_seconds exist
         artifact_fields = self.server_create_artifact_introspection()
+        if "ttlDurationSeconds" not in artifact_fields:
+            logger.error(
+                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
+            )
         ttl_field = (
             "ttlDurationSeconds" if "ttlDurationSeconds" in artifact_fields else ""
         )
@@ -3370,6 +3374,10 @@ class Api:
         """
 
         fields = self.server_create_artifact_introspection()
+        if "ttlDurationSeconds" not in fields:
+            logger.error(
+                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
+            )
 
         query_template = self.add_additional_variables_create_artifact(
             query_template, fields, history_step, distributed_id
