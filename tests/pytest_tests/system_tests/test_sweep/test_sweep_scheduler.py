@@ -86,7 +86,8 @@ def test_sweep_scheduler_start_failed(user, monkeypatch):
 
     scheduler.state = SchedulerState.CANCELLED
     scheduler.start()
-    assert scheduler.state == SchedulerState.FAILED
+    # should not be able to start a cancelled scheduler
+    assert scheduler.state == SchedulerState.CANCELLED
 
 
 def test_sweep_scheduler_runcap(user, monkeypatch):

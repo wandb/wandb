@@ -358,8 +358,6 @@ class Scheduler(ABC):
                 f"{LOG_PREFIX}Failed to save state: {traceback.format_exc()}"
             )
 
-        self._stop_runs()
-
         status = ""
         if self.state == SchedulerState.FLUSH_RUNS:
             self._set_sweep_state("PAUSED")
@@ -373,9 +371,10 @@ class Scheduler(ABC):
         else:
             self.state = SchedulerState.FAILED
             self._set_sweep_state("CRASHED")
-            raise Exception("Scheduler run in crashed state, excepting.")
+            status = "crashed"
 
         wandb.termlog(f"{LOG_PREFIX}Scheduler {status}")
+        self._stop_runs()
         self._wandb_run.finish()
 
     def _get_num_runs_launched(self, runs: List[Dict[str, Any]]) -> int:
