@@ -11,7 +11,7 @@ import torch
 from tqdm.auto import tqdm
 
 try:
-    from ultralytics.engine.model import TASK_MAP, YOLO
+    from ultralytics.models import YOLO
     from ultralytics.models.yolo.classify import (
         ClassificationPredictor,
         ClassificationTrainer,
@@ -116,6 +116,7 @@ class WandBUltralyticsCallback:
         self.enable_model_checkpointing = enable_model_checkpointing
         self.visualize_skeleton = visualize_skeleton
         self.task = model.task
+        self.task_map = model.task_map
         self.model_name = model.overrides["model"].split(".")[0]
         self._make_tables()
         self._make_predictor(model)
@@ -198,7 +199,9 @@ class WandBUltralyticsCallback:
     def _make_predictor(self, model: YOLO):
         overrides = copy.deepcopy(model.overrides)
         overrides["conf"] = 0.1
-        self.predictor = TASK_MAP[self.task][3](overrides=overrides, _callbacks=None)
+        self.predictor = self.task_map[self.task]["predictor"](
+            overrides=overrides, _callbacks=None
+        )
 
     def _save_model(self, trainer: TRAINER_TYPE):
         model_checkpoint_artifact = wandb.Artifact(
