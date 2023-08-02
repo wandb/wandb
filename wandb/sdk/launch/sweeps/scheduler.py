@@ -362,13 +362,13 @@ class Scheduler(ABC):
         status = ""
         if self.state == SchedulerState.FLUSH_RUNS:
             self._set_sweep_state("PAUSED")
-            status = "completed successfully"
+            status = "paused"
         elif self.state == SchedulerState.COMPLETED:
             self._set_sweep_state("FINISHED")
-            status = "paused successfully"
+            status = "completed"
         elif self.state in [SchedulerState.CANCELLED, SchedulerState.STOPPED]:
             self._set_sweep_state("CANCELED")  # one L
-            status = "cancelled successfully"
+            status = "cancelled"
         else:
             self.state = SchedulerState.FAILED
             self._set_sweep_state("CRASHED")
