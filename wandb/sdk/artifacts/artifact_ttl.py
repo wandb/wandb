@@ -3,4 +3,4 @@ from enum import Enum
 
 
 class ArtifactTTL(Enum):
-    DELETE = -1
+    DEFAULT = -1

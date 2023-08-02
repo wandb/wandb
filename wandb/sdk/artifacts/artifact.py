@@ -187,48 +187,6 @@ class Artifact:
         # Cache.
         get_artifacts_cache().store_client_artifact(self)
 
-    @staticmethod
-    def _get_artifact_fragment() -> str:
-        api = InternalApi()
-        fields = api.server_create_artifact_introspection()
-        temp = """
-        fragment ArtifactFragment on Artifact {
-            id
-            artifactSequence {
-                project {
-                    entityName
-                    name
-                }
-                name
-            }
-            versionIndex
-            artifactType {
-                name
-            }
-            description
-            metadata
-            ttlDurationSeconds
-            aliases {
-                artifactCollection {
-                    project {
-                        entityName
-                        name
-                    }
-                    name
-                }
-                alias
-            }
-            state
-            commitHash
-            fileCount
-            createdAt
-            updatedAt
-        }
-        """
-        if "ttlDurationSeconds" not in fields:
-            return temp.replace("ttlDurationSeconds", "")
-        return temp
-
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
@@ -251,7 +209,7 @@ class Artifact:
                 }
             }
             """
-            + cls._get_artifact_fragment()
+            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -283,7 +241,7 @@ class Artifact:
                 }
             }
             """
-            + cls._get_artifact_fragment()
+            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -515,6 +473,44 @@ class Artifact:
         self._metadata = self._normalize_metadata(metadata)
 
     @property
+    def ttl(self) -> Union[datetime.timedelta, ArtifactTTL, None]:
+        """Artifact TTL(time to live).
+
+        Once the artifact's created_at is older than the ttl, the artifact is marked as deleted.
+        To turn off previously set artifact TTL, reset the TTL to wandb.ArtifactTTL.DEFAULT
+        EX: Artifact.created_at = 1/1/2000, ttl=10 days.
+            This artifact will be marked for deletion on 1/11/2000.
+        """
+        if self._ttl_duration_seconds is None:
+            return None
+        if self._ttl_duration_seconds == ArtifactTTL.DEFAULT.value:
+            return ArtifactTTL.DEFAULT
+        return datetime.timedelta(seconds=self._ttl_duration_seconds)
+
+    @ttl.setter
+    def ttl(self, ttl: Union[datetime.timedelta, ArtifactTTL]) -> None:
+        """Artifact TTL(time to live).
+
+        Note:
+            This ttl is set on the artifact version level.
+
+        Arguments:
+            ttl: How long the artifact will remain active from its creation.
+            To turn off previously set artifact TTL, set TTL to wandb.ArtifactTTL.DEFAULT
+        """
+        if self.type == "wandb-history":
+            raise ValueError("Cannot set artifact TTL for type wandb-history")
+
+        if isinstance(ttl, ArtifactTTL):
+            self._ttl_duration_seconds = ttl.value
+        elif ttl.total_seconds() <= 0:
+            raise ValueError(
+                f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
+            )
+        else:
+            self._ttl_duration_seconds = int(ttl.total_seconds())
+
+    @property
     def aliases(self) -> List[str]:
         """The aliases associated with this artifact.
 
@@ -650,45 +646,6 @@ class Artifact:
             raise ArtifactNotLoggedError(self, "created_at")
         assert self._created_at is not None
         return self._updated_at or self._created_at
-
-    @property
-    def ttl(self) -> Optional[datetime.timedelta]:
-        """Artifact TTL(time to live).
-
-        Once the artifact's created_at is older than the ttl, the artifact is marked as deleted.
-        To turn off previously set artifact TTL, set TTL to wandb.ArtifactTTL.DELETE
-        EX: Artifact.created_at = 1/1/2000, ttl=10 days.
-            This artifact will be marked for deletion on 1/11/2000.
-        """
-        if (
-            self._ttl_duration_seconds is None
-            or self._ttl_duration_seconds == ArtifactTTL.DELETE.value
-        ):
-            return None
-        return datetime.timedelta(seconds=self._ttl_duration_seconds)
-
-    @ttl.setter
-    def ttl(self, ttl: Union[datetime.timedelta, ArtifactTTL]) -> None:
-        """Artifact TTL(time to live).
-
-        Note:
-            This ttl is set on the artifact version level.
-
-        Arguments:
-            ttl: How long the artifact will remain active from its creation.
-            To turn off previously set artifact TTL, set TTL to wandb.ArtifactTTL.DELETE
-        """
-        if self.type == "wandb-history":
-            raise ValueError("Cannot set artifact TTL for type wandb-history")
-
-        if isinstance(ttl, ArtifactTTL):
-            self._ttl_duration_seconds = ttl.value
-        elif ttl.total_seconds() <= 0:
-            raise ValueError(
-                f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
-            )
-        else:
-            self._ttl_duration_seconds = int(ttl.total_seconds())
 
     # State management.
 
@@ -2176,6 +2133,48 @@ class Artifact:
                 assert self._client is not None
                 dep_artifact = entry._get_referenced_artifact(self._client)
                 self._dependent_artifacts.add(dep_artifact)
+
+    @staticmethod
+    def _get_gql_artifact_fragment() -> str:
+        api = InternalApi()
+        fields = api.server_create_artifact_introspection()
+        fragment = """
+        fragment ArtifactFragment on Artifact {
+            id
+            artifactSequence {
+                project {
+                    entityName
+                    name
+                }
+                name
+            }
+            versionIndex
+            artifactType {
+                name
+            }
+            description
+            metadata
+            ttlDurationSeconds
+            aliases {
+                artifactCollection {
+                    project {
+                        entityName
+                        name
+                    }
+                    name
+                }
+                alias
+            }
+            state
+            commitHash
+            fileCount
+            createdAt
+            updatedAt
+        }
+        """
+        if "ttlDurationSeconds" not in fields:
+            return fragment.replace("ttlDurationSeconds", "")
+        return fragment
 
 
 class _ArtifactVersionType(WBType):
