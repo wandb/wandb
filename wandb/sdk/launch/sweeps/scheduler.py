@@ -346,7 +346,7 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler completed successfully")
+            wandb.termlog(f"{LOG_PREFIX}Scheduler completed")
             # don't overwrite special states (e.g. STOPPED, FAILED)
             if self.state in [SchedulerState.RUNNING, SchedulerState.FLUSH_RUNS]:
                 self.state = SchedulerState.COMPLETED
@@ -506,7 +506,7 @@ class Scheduler(ABC):
                 self._sweep_id, self._entity, self._project
             )
         except Exception as e:
-            _logger.debug(f"sweep state error: {sweep_state} e: {e}")
+            _logger.debug(f"sweep state error: {e}")
             return
 
         if sweep_state in ["FINISHED", "CANCELLED"]:
