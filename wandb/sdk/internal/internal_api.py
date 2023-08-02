@@ -197,7 +197,7 @@ class Api:
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = env.get_http_timeout(10)
+    HTTP_TIMEOUT = env.get_http_timeout(30)
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
@@ -221,7 +221,7 @@ class Api:
         self._environ = environ
         self._global_context = context.Context()
         self._local_data = _ThreadLocalData()
-        self.default_settings: "DefaultSettings" = {
+        self.default_settings: DefaultSettings = {
             "section": "default",
             "git_remote": "origin",
             "ignore_globs": [],
@@ -281,7 +281,7 @@ class Api:
 
         # httpx is an optional dependency, so we lazily instantiate the client
         # only when we need it
-        self._async_httpx_client: Optional["httpx.AsyncClient"] = None
+        self._async_httpx_client: Optional[httpx.AsyncClient] = None
 
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
@@ -916,7 +916,7 @@ class Api:
         }
         """
         )
-        response: "_Response" = self.gql(
+        response: _Response = self.gql(
             query, variable_values={"entity": entity, "project": project}
         )["model"]
         return response
@@ -3449,7 +3449,7 @@ class Api:
         """
         )
 
-        response: "_Response" = self.gql(
+        response: _Response = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
             timeout=60,
@@ -3804,7 +3804,7 @@ class Api:
     def get_sweep_state(
         self, sweep: str, entity: Optional[str] = None, project: Optional[str] = None
     ) -> "SweepState":
-        state: "SweepState" = self.sweep(
+        state: SweepState = self.sweep(
             sweep=sweep, entity=entity, project=project, specs="{}"
         )["state"]
         return state

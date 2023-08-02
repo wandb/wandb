@@ -51,8 +51,8 @@ class FilePusher:
 
         self._stats = stats.Stats()
 
-        self._incoming_queue: "queue.Queue[step_checksum.Event]" = queue.Queue()
-        self._event_queue: "queue.Queue[step_upload.Event]" = queue.Queue()
+        self._incoming_queue: queue.Queue[step_checksum.Event] = queue.Queue()
+        self._event_queue: queue.Queue[step_upload.Event] = queue.Queue()
 
         self._step_checksum = step_checksum.StepChecksum(
             self._api,

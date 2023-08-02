@@ -147,8 +147,8 @@ class NeuronCoreStats:
         self.neuron_monitor_config_path = (
             neuron_monitor_config_path or tempfile.NamedTemporaryFile(delete=False).name
         )
-        self.raw_samples: "Deque[bytes]" = deque(maxlen=10)
-        self.samples: "Deque[_Stats]" = deque()
+        self.raw_samples: Deque[bytes] = deque(maxlen=10)
+        self.samples: Deque[_Stats] = deque()
         self.shutdown_event = threading.Event()
 
         self.neuron_monitor_thread: Optional[threading.Thread] = None
