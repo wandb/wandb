@@ -6,6 +6,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"runtime"
+	"runtime/trace"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -54,23 +55,25 @@ func main() {
 		slog.Bool("serveGrpc", *serveGrpc),
 	)
 
-	f, err := os.Create("trace.out")
-	if err != nil {
-		slog.Error("failed to create trace output file", "err", err)
-		panic(err)
-	}
-	defer func() {
-		if err = f.Close(); err != nil {
-			slog.Error("failed to close trace file", "err", err)
+	if os.Getenv("_WANDB_TRACE") != "" {
+		f, err := os.Create("trace.out")
+		if err != nil {
+			slog.Error("failed to create trace output file", "err", err)
 			panic(err)
 		}
-	}()
+		defer func() {
+			if err = f.Close(); err != nil {
+				slog.Error("failed to close trace file", "err", err)
+				panic(err)
+			}
+		}()
 
-	// if err = trace.Start(f); err != nil {
-	//	 slog.Error("failed to start trace", "err", err)
-	//	 panic(err)
-	// }
-	// defer trace.Stop()
+		if err = trace.Start(f); err != nil {
+			slog.Error("failed to start trace", "err", err)
+			panic(err)
+		}
+		defer trace.Stop()
+	}
 
 	nexus := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
 	nexus.Close()
