@@ -53,15 +53,6 @@ class FilePusher:
         self._incoming_queue: queue.Queue[step_checksum.Event] = queue.Queue()
         self._event_queue: queue.Queue[step_upload.Event] = queue.Queue()
 
-        self._step_checksum = step_checksum.StepChecksum(
-            self._api,
-            self._tempdir,
-            self._incoming_queue,
-            self._event_queue,
-            self._stats,
-        )
-        self._step_checksum.start()
-
         self._step_upload = step_upload.StepUpload(
             self._api,
             self._stats,
@@ -70,6 +61,17 @@ class FilePusher:
             file_stream=file_stream,
             settings=settings,
         )
+
+        self._step_checksum = step_checksum.StepChecksum(
+            self._api,
+            self._tempdir,
+            self._incoming_queue,
+            self._event_queue,
+            self._stats,
+            self._step_upload,  # TODO: hack, fix later
+        )
+        self._step_checksum.start()
+
         self._step_upload.start()
 
     def get_status(self) -> Tuple[bool, stats.Summary]:
@@ -137,9 +139,15 @@ class FilePusher:
         prepare_step: step_prepare.StepPrepare,
         save_fn: "artifact_saver.SaveFn",
         save_fn_async: "artifact_saver.SaveFnAsync",
+        interleave_batches: bool = False,
     ) -> None:
         event = step_checksum.RequestStoreManifestFiles(
-            manifest, artifact_id, prepare_step, save_fn, save_fn_async
+            manifest,
+            artifact_id,
+            prepare_step,
+            save_fn,
+            save_fn_async,
+            interleave_batches,
         )
         self._incoming_queue.put(event)
 

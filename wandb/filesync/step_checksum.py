@@ -7,7 +7,7 @@ import os
 import queue
 import shutil
 import threading
-from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
+from typing import TYPE_CHECKING, List, NamedTuple, Optional, Union, cast
 
 from wandb.filesync import step_upload
 from wandb.sdk.lib import filesystem, runid
@@ -17,9 +17,10 @@ if TYPE_CHECKING:
     import tempfile
 
     from wandb.filesync import stats
-    from wandb.filesync.step_prepare import StepPrepare
+    from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
     from wandb.sdk.artifacts import artifact_saver
     from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+    from wandb.sdk.interface.artifacts import ArtifactManifestEntry
     from wandb.sdk.internal import internal_api
 
 
@@ -35,6 +36,7 @@ class RequestStoreManifestFiles(NamedTuple):
     prepare_step: "StepPrepare"
     save_fn: "artifact_saver.SaveFn"
     save_fn_async: "artifact_saver.SaveFnAsync"
+    interleave_uploads: bool
 
 
 class RequestCommitArtifact(NamedTuple):
@@ -61,12 +63,14 @@ class StepChecksum:
         request_queue: "queue.Queue[Event]",
         output_queue: "queue.Queue[step_upload.Event]",
         stats: "stats.Stats",
+        artifact_tracker: Optional[step_upload.StepUpload],
     ) -> None:
         self._api = api
         self._tempdir = tempdir
         self._request_queue = request_queue
         self._output_queue = output_queue
         self._stats = stats
+        self._artifact_tracker = artifact_tracker
 
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
@@ -103,25 +107,11 @@ class StepChecksum:
                     )
                 )
             elif isinstance(req, RequestStoreManifestFiles):
-                for entry in self._prepare_batches_early(req):
-                    if entry.local_path:
-                        self._stats.init_file(
-                            entry.local_path,
-                            cast(int, entry.size),
-                            is_artifact_file=True,
-                        )
-                        self._output_queue.put(
-                            step_upload.RequestUpload(
-                                entry.local_path,
-                                entry.path,
-                                req.artifact_id,
-                                entry.digest,
-                                False,
-                                functools.partial(req.save_fn, entry),
-                                functools.partial(req.save_fn_async, entry),
-                                entry.digest,
-                            )
-                        )
+                if req.interleave_uploads:
+                    asyncio.run(self._interleave_uploads(req))
+                else:
+                    for entry in asyncio.run(self._prepare_batches_early(req)):
+                        self.start_upload(entry, req)
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(
                     step_upload.RequestCommitArtifact(
@@ -138,24 +128,61 @@ class StepChecksum:
 
         self._output_queue.put(step_upload.RequestFinish(req.callback))
 
-    async def _prepare_batches_early(self, req: RequestStoreManifestFiles):
-        entries = [entry for entry in req.manifest.entries.values() if entry.local_path]
-        file_specs = [
+    async def _prepare_entry(
+        self, entry: "ArtifactManifestEntry", req: RequestStoreManifestFiles
+    ) -> Optional["ResponsePrepare"]:
+        if not entry.local_path:
+            return
+        response = await req.prepare_step.prepare_async(
             {
                 "artifactID": req.artifact_id,
                 "artifactManifestID": req.artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
-            for entry in entries
-        ]
-        tasks = [req.prepare_step.prepare_async(spec) for spec in file_specs]
-        responses = await asyncio.gather(*tasks)
-        for entry, response in zip(entries, responses):
-            entry.birth_artifact_id = response.birth_artifact_id
-            entry._upload_url = response.upload_url
-            entry._upload_headers = response.upload_headers or {}
-        return [entry for entry in entries if entry._upload_url]
+        )
+        entry.birth_artifact_id = response.birth_artifact_id
+        entry._upload_url = response.upload_url
+        entry._upload_headers = response.upload_headers or {}
+        return entry
+
+    async def _prepare_batches_early(
+        self, req: RequestStoreManifestFiles
+    ) -> List["ArtifactManifestEntry"]:
+        entries = [entry for entry in req.manifest.entries.values() if entry.local_path]
+        return await asyncio.gather(
+            *[self._prepare_entry(entry, req) for entry in entries]
+        )
+
+    def start_upload(
+        self, entry: "ArtifactManifestEntry", req: RequestStoreManifestFiles
+    ) -> None:
+        self._stats.init_file(
+            entry.local_path,
+            cast(int, entry.size),
+            is_artifact_file=True,
+        )
+        self._output_queue.put(
+            step_upload.RequestUpload(
+                entry.local_path,
+                entry.path,
+                req.artifact_id,
+                entry.digest,
+                False,
+                functools.partial(req.save_fn, entry),
+                functools.partial(req.save_fn_async, entry),
+                entry.digest,
+            )
+        )
+
+    async def _upload_entry(
+        self, entry: "ArtifactManifestEntry", req: RequestStoreManifestFiles
+    ) -> None:
+        self.start_upload(await self._prepare_entry(entry, req))
+
+    async def _interleave_uploads(self, req: RequestStoreManifestFiles) -> None:
+        entries = [entry for entry in req.manifest.entries.values() if entry.local_path]
+        asyncio.gather(*[self._upload_entry(entry, req) for entry in entries])
 
     def start(self) -> None:
         self._thread.start()
