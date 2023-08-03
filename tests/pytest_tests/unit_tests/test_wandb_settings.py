@@ -1,5 +1,4 @@
 import copy
-import inspect
 import json
 import os
 import subprocess
@@ -17,12 +16,8 @@ from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
-elif sys.version_info >= (3, 7):
-    from typing_extensions import get_type_hints
 else:
-
-    def get_type_hints(obj):
-        return obj.__annotations__
+    from typing_extensions import get_type_hints
 
 
 Property = wandb_settings.Property
@@ -32,7 +27,7 @@ is_instance_recursive = wandb_settings.is_instance_recursive
 
 
 def test_multiproc_strict_bad(test_settings):
-    with pytest.raises(ValueError):
+    with pytest.raises(wandb_settings.SettingsPreprocessingError):
         test_settings(dict(strict="bad"))
 
 
@@ -122,21 +117,10 @@ def test_property_multiple_validators():
 
 
 # fixme: remove this once full validation is restored
-def test_property_strict_validation(capsys):
-    attributes = inspect.getmembers(Property, lambda a: not (inspect.isroutine(a)))
-    strict_validate_settings = [
-        a for a in attributes if a[0] == "_Property__strict_validate_settings"
-    ][0][1]
-    for name in strict_validate_settings:
-        p = Property(name=name, validator=lambda x: isinstance(x, int))
-        with pytest.raises(ValueError):
-            p.update(value="rubbish")
-
+def test_property_strict_validation():
     p = Property(name="api_key", validator=lambda x: isinstance(x, str))
-    p.update(value=31415926)
-    captured = capsys.readouterr().err
-    msg = "Invalid value for property api_key: 31415926"
-    assert msg in captured
+    with pytest.raises(wandb_settings.SettingsValidationError):
+        p.update(value=31415926)
 
 
 def test_settings_validator_method_names():
@@ -297,35 +281,20 @@ def test_default_props_match_class_attributes():
     assert set(default_props) - set(class_attributes) == set()
 
 
-# fixme: remove this once full validation is restored
-def test_settings_strict_validation(capsys):
-    s = Settings(api_key=271828, lol=True)
-    assert s.api_key == 271828
-    with pytest.raises(AttributeError):
-        s.lol  # noqa: B018
-    captured = capsys.readouterr().err
-    msgs = (
-        "Ignoring unexpected arguments: ['lol']",
-        "Invalid value for property api_key: 271828",
-    )
-    for msg in msgs:
-        assert msg in captured
+def test_settings_strict_validation():
+    with pytest.raises(wandb_settings.SettingsUnexpectedArgsError):
+        Settings(api_key=271828, lol=True)
+
+
+def test_settings_strict_validation_2():
+    with pytest.raises(wandb_settings.SettingsValidationError):
+        Settings(api_key=271828)
 
 
 def test_static_settings_json_dump():
     s = Settings()
-    static_settings = s.make_static()
+    static_settings = s.to_dict()
     assert json.dumps(static_settings)
-
-
-# fixme: remove this once full validation is restored
-def test_no_repeat_warnings(capsys):
-    s = Settings(api_key=234)
-    assert s.api_key == 234
-    s.update(api_key=234)
-    captured = capsys.readouterr().err
-    msg = "Invalid value for property api_key: 234"
-    assert captured.count(msg) == 1
 
 
 def test_program_python_m():
@@ -926,9 +895,9 @@ class TestAsyncUploadConcurrency:
 def test_settings_static():
     from wandb.sdk.internal.settings_static import SettingsStatic
 
-    static_settings = SettingsStatic(Settings().make_static())
+    static_settings = SettingsStatic(Settings().to_proto())
     assert "base_url" in static_settings
-    assert static_settings.get("base_url") == "https://api.wandb.ai"
+    assert static_settings.base_url == "https://api.wandb.ai"
 
 
 # --------------------------
@@ -1013,17 +982,16 @@ def test_wandb_dir_run(mock_run):
 
 def test_console_run(mock_run):
     run = mock_run(settings={"console": "auto", "mode": "offline"})
-    assert run._settings.console == "auto"
-    assert run._settings._console == wandb_settings.SettingsConsole.WRAP
+    assert run._settings.console == "wrap"
 
 
 def test_console(test_settings):
     test_settings = test_settings()
-    assert test_settings._console == wandb_settings.SettingsConsole.OFF
+    assert test_settings.console == "off"
     test_settings.update({"console": "redirect"}, source=Source.BASE)
-    assert test_settings._console == wandb_settings.SettingsConsole.REDIRECT
+    assert test_settings.console == "redirect"
     test_settings.update({"console": "wrap"}, source=Source.BASE)
-    assert test_settings._console == wandb_settings.SettingsConsole.WRAP
+    assert test_settings.console == "wrap"
 
 
 def test_code_saving_save_code_env_false(mock_run, test_settings):

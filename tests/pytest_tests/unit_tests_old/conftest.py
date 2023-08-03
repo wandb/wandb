@@ -35,7 +35,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.writer import WriteManager
 from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.gitlib import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.module import unset_globals
 
@@ -61,8 +61,7 @@ servers = ServerMap()
 
 
 def get_temp_dir_kwargs(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    return dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    return dict(temp_dir=tmp_path)
 
 
 def test_cleanup(*args, **kwargs):

@@ -1,6 +1,5 @@
 import os
 import shutil
-import sys
 import unittest.mock
 from pathlib import Path
 from queue import Queue
@@ -18,7 +17,7 @@ from click.testing import CliRunner  # noqa: E402
 from wandb import Api  # noqa: E402
 from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
 from wandb.sdk.lib import filesystem, runid  # noqa: E402
-from wandb.sdk.lib.git import GitRepo  # noqa: E402
+from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
 from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 # --------------------------------
@@ -52,8 +51,7 @@ def copy_asset(assets_path) -> Generator[Callable, None, None]:
 
 @pytest.fixture(scope="function", autouse=True)
 def filesystem_isolate(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    kwargs = dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    kwargs = dict(temp_dir=tmp_path)
     with CliRunner().isolated_filesystem(**kwargs):
         yield
 

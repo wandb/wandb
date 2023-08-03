@@ -2,8 +2,9 @@
 
 Backend server process can be connected to using tcp sockets or grpc transport.
 """
-
+import datetime
 import os
+import pathlib
 import platform
 import shutil
 import subprocess
@@ -14,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry
 from wandb.errors import Error
+from wandb.util import get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -61,7 +63,7 @@ class _Service:
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
-        _sentry.configure_scope(process_context="service")
+        _sentry.configure_scope(tags=dict(settings), process_context="service")
 
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
@@ -168,9 +170,30 @@ class _Service:
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
-            service_args = [
-                "wandb",
-                "service",
+
+            service_args = []
+            if self._settings._require_nexus:
+                # NOTE: The wandb_core module will be distributed at first as an alpha
+                #       package as "wandb-core-alpha" to avoid polluting the pypi namespace.
+                #
+                #       When the package reaches compatibility milestones, it will be released
+                #       as "wandb-core".
+                #
+                #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
+                #       to assist in running the nexus service from a live development directory.
+                nexus_path: str = os.environ.get("_WANDB_NEXUS_PATH") or ""
+                if not nexus_path:
+                    wandb_nexus = get_module(
+                        "wandb_core",
+                        required="The nexus experiment requires the wandb_core module.",
+                    )
+                    nexus_path = wandb_nexus.get_nexus_path()
+                service_args.extend([nexus_path])
+                exec_cmd_list = []
+            else:
+                service_args.extend(["wandb", "service"])
+
+            service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
@@ -181,11 +204,50 @@ class _Service:
                 service_args.append("--serve-grpc")
             else:
                 service_args.append("--serve-sock")
-            internal_proc = subprocess.Popen(
-                exec_cmd_list + service_args,
-                env=os.environ,
-                **kwargs,
-            )
+
+            if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
+                # enable memory profiling with memray
+                import wandb
+
+                _ = get_module(
+                    "memray",
+                    required=(
+                        "wandb service memory profiling requires memray, "
+                        "install with `pip install memray`"
+                    ),
+                )
+                time_tag = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                output_file = f"wandb_service.memray.{time_tag}.bin"
+                cli_executable = (
+                    pathlib.Path(__file__).parent.parent.parent.parent
+                    / "tools"
+                    / "cli.py"
+                )
+                exec_cmd_list = [
+                    executable,
+                    "-m",
+                    "memray",
+                    "run",
+                    "-o",
+                    output_file,
+                ]
+                service_args[0] = str(cli_executable)
+                wandb.termlog(
+                    f"wandb service memory profiling enabled, output file: {output_file}"
+                )
+                wandb.termlog(
+                    f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
+                )
+
+            try:
+                internal_proc = subprocess.Popen(
+                    exec_cmd_list + service_args,
+                    env=os.environ,
+                    **kwargs,
+                )
+            except Exception as e:
+                _sentry.reraise(e)
+
             self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)

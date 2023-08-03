@@ -4,23 +4,23 @@ import base64
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import State, Status
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )
@@ -104,6 +104,22 @@ class KubernetesSubmittedRun(AbstractRun):
         """Return the run id."""
         return self.name
 
+    def get_logs(self) -> Optional[str]:
+        try:
+            logs = self.core_api.read_namespaced_pod_log(
+                name=self.pod_names[0], namespace=self.namespace
+            )
+            if logs:
+                return str(logs)
+            else:
+                wandb.termwarn(
+                    f"Retrieved no logs for kubernetes pod(s): {self.pod_names}"
+                )
+            return None
+        except Exception as e:
+            wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
+            return None
+
     def get_job(self) -> "V1Job":
         """Return the job object."""
         return self.batch_api.read_namespaced_job(
@@ -126,16 +142,54 @@ class KubernetesSubmittedRun(AbstractRun):
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
+    def _delete_secret_if_completed(self, state: str) -> None:
+        """If the runner has a secret and the run is completed, delete the secret."""
+        if state in ["stopped", "failed", "finished"] and self.secret is not None:
+            try:
+                self.core_api.delete_namespaced_secret(
+                    self.secret.metadata.name, self.namespace
+                )
+            except Exception as e:
+                wandb.termerror(
+                    f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
+                )
+
     def get_status(self) -> Status:
         """Return the run status."""
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
+        try:
+            job_response = self.batch_api.read_namespaced_job_status(
+                name=self.name, namespace=self.namespace
+            )
+        except ApiException as e:
+            if e.status == 404:
+                wandb.termerror(
+                    f"Could not reach job {self.name} in namespace {self.namespace}"
+                )
+                self._delete_secret_if_completed("failed")
+                return Status("failed")
+
         status = job_response.status
 
-        pod = self.core_api.read_namespaced_pod(
-            name=self.pod_names[0], namespace=self.namespace
-        )
+        try:
+            pod = self.core_api.read_namespaced_pod(
+                name=self.pod_names[0], namespace=self.namespace
+            )
+        except ApiException as e:
+            if e.status == 404:
+                wandb.termerror(
+                    f"Could not reach pod {self.pod_names[0]} in namespace {self.namespace}"
+                )
+                self._delete_secret_if_completed("failed")
+                return Status("failed")
+
+        if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
+            for condition in pod.status.conditions:
+                if condition.type == "DisruptionTarget" and condition.reason in [
+                    "EvictionByEvictionAPI",
+                    "PreemptionByScheduler",
+                    "TerminationByKubelet",
+                ]:
+                    return Status("preempted")
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
@@ -161,18 +215,8 @@ class KubernetesSubmittedRun(AbstractRun):
             return_status = Status("stopped")
         else:
             return_status = Status("unknown")
-        if (
-            return_status.state in ["stopped", "failed", "finished"]
-            and self.secret is not None
-        ):
-            try:
-                self.core_api.delete_namespaced_secret(
-                    self.secret.metadata.name, self.namespace
-                )
-            except Exception as e:
-                wandb.termerror(
-                    f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
-                )
+
+        self._delete_secret_if_completed(return_status.state)
         return return_status
 
     def suspend(self) -> None:
@@ -261,6 +305,23 @@ class CrdSubmittedRun(AbstractRun):
         """Get the name of the custom object."""
         return self.name
 
+    def get_logs(self) -> Optional[str]:
+        """Get logs for custom object."""
+        # TODO: test more carefully once we release multi-node support
+        logs: Dict[str, Optional[str]] = {}
+        try:
+            for pod_name in self.pod_names:
+                logs[pod_name] = self.core_api.read_namespaced_pod_log(
+                    name=pod_name, namespace=self.namespace
+                )
+        except ApiException as e:
+            wandb.termwarn(f"Failed to get logs for {self.name}: {str(e)}")
+            return None
+        if not logs:
+            return None
+        logs_as_array = [f"Pod {pod_name}:\n{log}" for pod_name, log in logs.items()]
+        return "\n".join(logs_as_array)
+
     def get_status(self) -> Status:
         """Get status of custom object."""
         try:
@@ -318,7 +379,11 @@ class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
     def __init__(
-        self, api: Api, backend_config: Dict[str, Any], environment: AbstractEnvironment
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Create a Kubernetes runner.
 
@@ -332,6 +397,7 @@ class KubernetesRunner(AbstractRunner):
         """
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def wait_job_launch(
         self,
@@ -391,8 +457,11 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         return (  # type: ignore[no-any-return]
-            self.backend_config.get("runner", {}).get("namespace")
-            or resource_args.get("namespace")
+            resource_args.get("metadata", {}).get("namespace")
+            or resource_args.get(
+                "namespace"
+            )  # continue support for malformed namespace
+            or self.backend_config.get("runner", {}).get("namespace")
             or default_namespace
         )
 
@@ -400,7 +469,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
+        image_uri: str,
         namespace: str,
         core_api: "CoreV1Api",
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
@@ -454,7 +523,7 @@ class KubernetesRunner(AbstractRunner):
                     "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             # dont specify run id if user provided image, could have multiple runs
-            containers[0]["image"] = launch_project.docker_image
+            containers[0]["image"] = image_uri
             # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
@@ -462,23 +531,18 @@ class KubernetesRunner(AbstractRunner):
                     "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             assert entry_point is not None
-            assert builder is not None
-            image_uri = builder.build_image(launch_project, entry_point)
+            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
-            if not builder.registry:
-                raise LaunchError(
-                    "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
-                )
-            secret = maybe_create_imagepull_secret(
-                core_api, builder.registry, launch_project.run_id, namespace
-            )
-            if secret is not None:
-                pod_spec["imagePullSecrets"] = [
-                    {"name": f"regcred-{launch_project.run_id}"}
-                ]
-
             containers[0]["image"] = image_uri
+            launch_project.fill_macros(image_uri)
+        secret = maybe_create_imagepull_secret(
+            core_api, self.registry, launch_project.run_id, namespace
+        )
+        if secret is not None:
+            pod_spec["imagePullSecrets"] = [
+                {"name": f"regcred-{launch_project.run_id}"}
+            ]
 
         inject_entrypoint_and_args(
             containers,
@@ -505,9 +569,7 @@ class KubernetesRunner(AbstractRunner):
         return job, secret
 
     def run(
-        self,
-        launch_project: LaunchProject,
-        builder: AbstractBuilder,
+        self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -538,12 +600,6 @@ class KubernetesRunner(AbstractRunner):
         # run by creating a custom object.
         api_version = resource_args.get("apiVersion", "batch/v1")
         if api_version not in ["batch/v1", "batch/v1beta1"]:
-            entrypoint = launch_project.get_single_entry_point()
-            if launch_project.docker_image:
-                image_uri = launch_project.docker_image
-            else:
-                assert entrypoint is not None
-                image_uri = builder.build_image(launch_project, entrypoint)
             launch_project.fill_macros(image_uri)
             env_vars = get_env_vars_dict(launch_project, self._api)
             # Crawl the resource args and add our env vars to the containers.
@@ -552,6 +608,15 @@ class KubernetesRunner(AbstractRunner):
             # necessary for the agent to find the pods later on.
             add_label_to_pods(
                 launch_project.resource_args, "wandb/run-id", launch_project.run_id
+            )
+            overrides = {}
+            if launch_project.override_args:
+                overrides["args"] = launch_project.override_args
+            if launch_project.override_entrypoint:
+                overrides["command"] = launch_project.override_entrypoint.command
+            add_entrypoint_args_overrides(
+                launch_project.resource_args,
+                overrides,
             )
             api = client.CustomObjectsApi(api_client)
             # Infer the attributes of a custom object from the apiVersion and/or
@@ -592,17 +657,10 @@ class KubernetesRunner(AbstractRunner):
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
-
         namespace = self.get_namespace(resource_args, context)
-
         job, secret = self._inject_defaults(
-            resource_args,
-            launch_project,
-            builder,
-            namespace,
-            core_api,
+            resource_args, launch_project, image_uri, namespace, core_api
         )
-
         msg = "Creating Kubernetes job"
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
@@ -613,16 +671,12 @@ class KubernetesRunner(AbstractRunner):
             0
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.name
-
         pod_names = self.wait_job_launch(job_name, namespace, core_api)
-
         submitted_job = KubernetesSubmittedRun(
             batch_api, core_api, job_name, pod_names, namespace, secret
         )
-
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
-
         return submitted_job
 
 
@@ -670,7 +724,9 @@ def maybe_create_imagepull_secret(
         A secret if one was created, otherwise None.
     """
     secret = None
-    if isinstance(registry, LocalRegistry):
+    if isinstance(registry, LocalRegistry) or isinstance(
+        registry, AzureContainerRegistry
+    ):
         # Secret not required
         return None
     uname, token = registry.get_username_password()
@@ -693,7 +749,15 @@ def maybe_create_imagepull_secret(
         type="kubernetes.io/dockerconfigjson",
     )
     try:
-        return core_api.create_namespaced_secret(namespace, secret)
+        try:
+            return core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            # 409 = conflict = secret already exists
+            if e.status == 409:
+                return core_api.read_namespaced_secret(
+                    name=f"regcred-{run_id}", namespace=namespace
+                )
+            raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 
@@ -704,30 +768,37 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
     Recursively walks the spec and injects the environment variables into
     every container spec. Containers are identified by the "containers" key.
 
+    This function treats the WANDB_RUN_ID and WANDB_GROUP_ID environment variables
+    specially. If they are present in the spec, they will be overwritten. If a setting
+    for WANDB_RUN_ID is provided in env_vars, then that environment variable will only be
+    set in the first container modified by this function.
+
     Arguments:
         root: The spec to modify.
         env_vars: The environment variables to inject.
 
     Returns: None.
     """
-    if isinstance(root, dict):
-        for k, v in root.items():
-            if k == "containers":
-                if isinstance(v, list):
-                    for cont in v:
-                        env = cont.get("env", [])
-                        env.extend(
-                            [
-                                {"name": key, "value": value}
-                                for key, value in env_vars.items()
-                            ]
-                        )
-                        cont["env"] = env
-            elif isinstance(v, (dict, list)):
-                add_wandb_env(v, env_vars)
-    elif isinstance(root, list):
-        for item in root:
-            add_wandb_env(item, env_vars)
+
+    def yield_containers(root: Any) -> Iterator[dict]:
+        if isinstance(root, dict):
+            for k, v in root.items():
+                if k == "containers":
+                    if isinstance(v, list):
+                        yield from v
+                elif isinstance(v, (dict, list)):
+                    yield from yield_containers(v)
+        elif isinstance(root, list):
+            for item in root:
+                yield from yield_containers(item)
+
+    for cont in yield_containers(root):
+        env = cont.setdefault("env", [])
+        env.extend([{"name": key, "value": value} for key, value in env_vars.items()])
+        cont["env"] = env
+        # After we have set WANDB_RUN_ID once, we don't want to set it again
+        if "WANDB_RUN_ID" in env_vars:
+            env_vars.pop("WANDB_RUN_ID")
 
 
 def add_label_to_pods(
@@ -746,13 +817,47 @@ def add_label_to_pods(
 
     Returns: None.
     """
+
+    def yield_pods(manifest: Any) -> Iterator[dict]:
+        if isinstance(manifest, list):
+            for item in manifest:
+                yield from yield_pods(item)
+        elif isinstance(manifest, dict):
+            if "spec" in manifest and "containers" in manifest["spec"]:
+                yield manifest
+            for value in manifest.values():
+                if isinstance(value, (dict, list)):
+                    yield from yield_pods(value)
+
+    for pod in yield_pods(manifest):
+        metadata = pod.setdefault("metadata", {})
+        labels = metadata.setdefault("labels", {})
+        labels[label_key] = label_value
+
+
+def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) -> None:
+    """Add entrypoint and args overrides to all containers in a manifest.
+
+    Recursively traverses the manifest and adds the entrypoint and args overrides
+    to all containers. Containers are identified by the presence of a "spec" key
+    with a "containers" key in the value.
+
+    Arguments:
+        manifest: The manifest to modify.
+        overrides: Dictionary with args and entrypoint keys.
+
+    Returns: None.
+    """
     if isinstance(manifest, list):
         for item in manifest:
-            add_label_to_pods(item, label_key, label_value)
+            add_entrypoint_args_overrides(item, overrides)
     elif isinstance(manifest, dict):
         if "spec" in manifest and "containers" in manifest["spec"]:
-            metadata = manifest.setdefault("metadata", {})
-            labels = metadata.setdefault("labels", {})
-            labels[label_key] = label_value
+            containers = manifest["spec"]["containers"]
+            for container in containers:
+                if "command" in overrides:
+                    container["command"] = overrides["command"]
+                if "args" in overrides:
+                    container["args"] = overrides["args"]
         for value in manifest.values():
-            add_label_to_pods(value, label_key, label_value)
+            add_entrypoint_args_overrides(value, overrides)

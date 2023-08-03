@@ -370,7 +370,7 @@ class TestStepPrepare:
             upload_headers=caf_result["foo"]["uploadHeaders"],
             upload_id=upload_id,
             storage_path=caf_result["foo"]["storagePath"],
-            multipart_upload_url=caf_result["foo"]["uploadMultipartUrls"],
+            multipart_upload_urls=caf_result["foo"]["uploadMultipartUrls"],
         )
 
     def test_batches_requests(self, prepare: "PrepareFixture"):

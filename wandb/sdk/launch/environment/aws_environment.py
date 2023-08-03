@@ -5,7 +5,7 @@ import os
 import re
 from typing import Dict
 
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
 from .abstract import AbstractEnvironment
@@ -51,6 +51,7 @@ class AwsEnvironment(AbstractEnvironment):
         self._access_key = access_key
         self._secret_key = secret_key
         self._session_token = session_token
+        self._account = None
         if verify:
             self.verify()
 
@@ -131,7 +132,7 @@ class AwsEnvironment(AbstractEnvironment):
         try:
             session = self.get_session()
             client = session.client("sts")
-            client.get_caller_identity()
+            self._account = client.get_caller_identity().get("Account")
             # TODO: log identity details from the response
         except botocore.exceptions.ClientError as e:
             raise LaunchError(

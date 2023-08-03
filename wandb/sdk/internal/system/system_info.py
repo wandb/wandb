@@ -18,7 +18,7 @@ from wandb.sdk.lib.filenames import (
     METADATA_FNAME,
     REQUIREMENTS_FNAME,
 )
-from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.gitlib import GitRepo
 
 from .assets.interfaces import Interface
 
@@ -35,7 +35,7 @@ class SystemInfo:
         self.backend_interface = interface
         self.git = GitRepo(
             root=self.settings.git_root,
-            remote=self.settings.git_remote,  # type: ignore
+            remote=self.settings.git_remote,
             remote_url=self.settings.git_remote_url,
             commit=self.settings.git_commit,
         )
@@ -142,8 +142,8 @@ class SystemInfo:
                         os.path.relpath(patch_path, start=self.settings.files_dir)
                     )
 
-            upstream_commit = self.git.get_upstream_fork_point()  # type: ignore
-            if upstream_commit and upstream_commit != self.git.repo.head.commit:
+            upstream_commit = self.git.get_upstream_fork_point()
+            if upstream_commit and upstream_commit != self.git.repo.head.commit:  # type: ignore
                 sha = upstream_commit.hexsha
                 upstream_patch_path = os.path.join(
                     self.settings.files_dir, f"upstream_diff_{sha}.patch"
@@ -205,7 +205,7 @@ class SystemInfo:
         data["docker"] = self.settings.docker
 
         data["cuda"] = self.settings._cuda
-        data["args"] = self.settings._args
+        data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
 
         if self.settings.program is not None:

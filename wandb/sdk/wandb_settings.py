@@ -3,6 +3,7 @@ import configparser
 import enum
 import getpass
 import json
+import logging
 import multiprocessing
 import os
 import platform
@@ -12,6 +13,7 @@ import socket
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from distutils.util import strtobool
 from functools import reduce
@@ -32,36 +34,40 @@ from typing import (
 )
 from urllib.parse import quote, urlencode, urlparse, urlsplit
 
+from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
+
 import wandb
 import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
-from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
-from .lib.git import GitRepo
+from .lib.gitlib import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
-elif sys.version_info >= (3, 7):
-    from typing_extensions import get_args, get_origin, get_type_hints
 else:
+    from typing_extensions import get_args, get_origin, get_type_hints
 
-    def get_args(obj: Any) -> Optional[Any]:
-        return obj.__args__ if hasattr(obj, "__args__") else None
 
-    def get_origin(obj: Any) -> Optional[Any]:
-        return obj.__origin__ if hasattr(obj, "__origin__") else None
+class SettingsPreprocessingError(UsageError):
+    """Raised when the value supplied to a wandb.Settings() setting does not pass preprocessing."""
 
-    def get_type_hints(obj: Any) -> Dict[str, Any]:
-        return dict(obj.__annotations__) if hasattr(obj, "__annotations__") else dict()
+
+class SettingsValidationError(UsageError):
+    """Raised when the value supplied to a wandb.Settings() setting does not pass validation."""
+
+
+class SettingsUnexpectedArgsError(UsageError):
+    """Raised when unexpected arguments are passed to wandb.Settings()."""
 
 
 def _get_wandb_dir(root_dir: str) -> str:
@@ -87,7 +93,6 @@ def _get_wandb_dir(root_dir: str) -> str:
     return os.path.expanduser(path)
 
 
-# todo: should either return bool or error out. fix once confident.
 def _str_as_bool(val: Union[str, bool]) -> bool:
     """Parse a string as a bool."""
     if isinstance(val, bool):
@@ -98,11 +103,6 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     except (AttributeError, ValueError):
         pass
 
-    # todo: remove this and only raise error once we are confident.
-    wandb.termwarn(
-        f"Could not parse value {val} as a bool. ",
-        repeat=False,
-    )
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
@@ -115,11 +115,6 @@ def _str_as_json(val: Union[str, Dict[str, Any]]) -> Any:
     except (AttributeError, ValueError):
         pass
 
-    # todo: remove this and only raise error once we are confident.
-    wandb.termwarn(
-        f"Could not parse value {val} as JSON. ",
-        repeat=False,
-    )
     raise UsageError(f"Could not parse value {val} as JSON.")
 
 
@@ -128,6 +123,13 @@ def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
     if isinstance(val, str):
         return tuple(val.split(","))
     return tuple(val)
+
+
+def _datetime_as_str(val: Union[datetime, str]) -> str:
+    """Parse a datetime object as a string."""
+    if isinstance(val, datetime):
+        return datetime.strftime(val, "%Y%m%d_%H%M%S")
+    return val
 
 
 def _redact_dict(
@@ -265,13 +267,171 @@ class Source(enum.IntEnum):
     RUN: int = 14
 
 
-@enum.unique
-class SettingsConsole(enum.IntEnum):
-    OFF = 0
-    WRAP = 1
-    REDIRECT = 2
-    WRAP_RAW = 3
-    WRAP_EMU = 4
+ConsoleValue = {
+    "auto",
+    "off",
+    "wrap",
+    "redirect",
+    # internal console states
+    "wrap_raw",
+    "wrap_emu",
+}
+
+
+@dataclass()
+class SettingsData:
+    """Settings for the W&B SDK."""
+
+    _args: Sequence[str]
+    _aws_lambda: bool
+    _async_upload_concurrency_limit: int
+    _cli_only_mode: bool  # Avoid running any code specific for runs
+    _colab: bool
+    # _config_dict: Config
+    _cuda: str
+    _disable_meta: bool  # Do not collect system metadata
+    _disable_service: bool  # Disable wandb-service, spin up internal process the old way
+    _disable_setproctitle: bool  # Do not use setproctitle on internal process
+    _disable_stats: bool  # Do not collect system metrics
+    _disable_viewer: bool  # Prevent early viewer query
+    _except_exit: bool
+    _executable: str
+    _extra_http_headers: Mapping[str, str]
+    _file_stream_timeout_seconds: float
+    _flow_control_custom: bool
+    _flow_control_disabled: bool
+    _internal_check_process: float
+    _internal_queue_timeout: float
+    _ipython: bool
+    _jupyter: bool
+    _jupyter_name: str
+    _jupyter_path: str
+    _jupyter_root: str
+    _kaggle: bool
+    _live_policy_rate_limit: int
+    _live_policy_wait_time: int
+    _log_level: int
+    _network_buffer: int
+    _noop: bool
+    _notebook: bool
+    _offline: bool
+    _sync: bool
+    _os: str
+    _platform: str
+    _python: str
+    _runqueue_item_id: str
+    _require_nexus: bool
+    _save_requirements: bool
+    _service_transport: str
+    _service_wait: float
+    _start_datetime: str
+    _start_time: float
+    _stats_pid: int  # (internal) base pid for system stats
+    _stats_sample_rate_seconds: float
+    _stats_samples_to_average: int
+    _stats_join_assets: bool  # join metrics from different assets before sending to backend
+    _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
+    _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
+    # open metrics filters in one of the two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
+    _tmp_code_dir: str
+    _tracelog: str
+    _unsaved_keys: Sequence[str]
+    _windows: bool
+    allow_val_change: bool
+    anonymous: str
+    api_key: str
+    azure_account_url_to_access_key: Dict[str, str]
+    base_url: str  # The base url for the wandb api
+    code_dir: str
+    config_paths: Sequence[str]
+    console: str
+    deployment: str
+    disable_code: bool
+    disable_git: bool
+    disable_hints: bool
+    disable_job_creation: bool
+    disabled: bool  # Alias for mode=dryrun, not supported yet
+    docker: str
+    email: str
+    entity: str
+    files_dir: str
+    force: bool
+    git_commit: str
+    git_remote: str
+    git_remote_url: str
+    git_root: str
+    heartbeat_seconds: int
+    host: str
+    ignore_globs: Tuple[str]
+    init_timeout: float
+    is_local: bool
+    job_name: str
+    job_source: str
+    label_disable: bool
+    launch: bool
+    launch_config_path: str
+    log_dir: str
+    log_internal: str
+    log_symlink_internal: str
+    log_symlink_user: str
+    log_user: str
+    login_timeout: float
+    # magic: Union[str, bool, dict]  # never used in code, deprecated
+    mode: str
+    notebook_name: str
+    problem: str
+    program: str
+    program_relpath: Optional[str]
+    project: str
+    project_url: str
+    quiet: bool
+    reinit: bool
+    relogin: bool
+    # todo: add a preprocessing step to convert this to string
+    resume: Union[str, bool]
+    resume_fname: str
+    resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
+    root_dir: str
+    run_group: str
+    run_id: str
+    run_job_type: str
+    run_mode: str
+    run_name: str
+    run_notes: str
+    run_tags: Tuple[str]
+    run_url: str
+    sagemaker_disable: bool
+    save_code: bool
+    settings_system: str
+    settings_workspace: str
+    show_colors: bool
+    show_emoji: bool
+    show_errors: bool
+    show_info: bool
+    show_warnings: bool
+    silent: bool
+    start_method: str
+    strict: bool
+    summary_errors: int
+    summary_timeout: int
+    summary_warnings: int
+    sweep_id: str
+    sweep_param_path: str
+    sweep_url: str
+    symlink: bool
+    sync_dir: str
+    sync_file: str
+    sync_symlink_latest: str
+    system_sample: int
+    system_sample_seconds: int
+    table_raise_on_max_row_limit_exceeded: bool
+    timespec: str
+    tmp_dir: str
+    username: str
+    wandb_dir: str
 
 
 class Property:
@@ -285,25 +445,6 @@ class Property:
     - The `is_policy` attribute determines the source priority when updating the property value.
     E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
-
-    # todo: this is a temporary measure to bypass validation of the settings
-    #  whose validation was not previously enforced to make sure we don't brake anything.
-    __strict_validate_settings = {
-        "project",
-        "start_method",
-        "mode",
-        "console",
-        "problem",
-        "anonymous",
-        "strict",
-        "silent",
-        "show_info",
-        "show_warnings",
-        "show_errors",
-        "base_url",
-        "login_timeout",
-        "_async_upload_concurrency_limit",
-    }
 
     def __init__(  # pylint: disable=unused-argument
         self,
@@ -328,10 +469,6 @@ class Property:
         self._auto_hook = auto_hook
         self._is_policy = is_policy
         self._source = source
-
-        # todo: this is a temporary measure to collect stats on failed preprocessing and validation
-        self.__failed_preprocessing: bool = False
-        self.__failed_validation: bool = False
 
         # preprocess and validate value
         self._value = self._validate(self._preprocess(value))
@@ -366,38 +503,24 @@ class Property:
             for p in _preprocessor:
                 try:
                     value = p(value)
-                except (UsageError, ValueError):
-                    wandb.termwarn(
-                        f"Unable to preprocess value for property {self.name}: {value}. "
-                        "This will raise an error in the future.",
-                        repeat=False,
+                except Exception:
+                    raise SettingsPreprocessingError(
+                        f"Unable to preprocess value for property {self.name}: {value}."
                     )
-                    self.__failed_preprocessing = True
-                    break
         return value
 
     def _validate(self, value: Any) -> Any:
-        self.__failed_validation = False  # todo: this is a temporary measure
         if value is not None and self._validator is not None:
             _validator = (
                 [self._validator] if callable(self._validator) else self._validator
             )
             for v in _validator:
                 if not v(value):
-                    # todo: this is a temporary measure to bypass validation of certain settings.
-                    #  remove this once we are confident
-                    if self.name in self.__strict_validate_settings:
-                        raise ValueError(
-                            f"Invalid value for property {self.name}: {value}"
-                        )
-                    else:
-                        wandb.termwarn(
-                            f"Invalid value for property {self.name}: {value}. "
-                            "This will raise an error in the future.",
-                            repeat=False,
-                        )
-                        self.__failed_validation = True
-                        break
+                    # failed validation will likely cause a downstream error
+                    # when trying to convert to protobuf, so we raise a hard error
+                    raise SettingsValidationError(
+                        f"Invalid value for property {self.name}: {value}."
+                    )
         return value
 
     def update(self, value: Any, source: int = Source.OVERRIDE) -> None:
@@ -444,156 +567,8 @@ class Property:
         # return self.__dict__.__repr__()
 
 
-class Settings:
-    """Settings for the wandb client."""
-
-    # settings are declared as class attributes for static type checking purposes
-    # and to help with IDE autocomplete.
-    _args: Sequence[str]
-    _aws_lambda: bool
-    _async_upload_concurrency_limit: int
-    _cli_only_mode: bool  # Avoid running any code specific for runs
-    _colab: bool
-    _config_dict: Config
-    _console: SettingsConsole
-    _cuda: str
-    _disable_meta: bool
-    _disable_service: bool
-    _disable_stats: bool
-    _disable_viewer: bool  # Prevent early viewer query
-    _except_exit: bool
-    _executable: str
-    _extra_http_headers: Mapping[str, str]
-    _flow_control_custom: bool
-    _flow_control_disabled: bool
-    _internal_check_process: Union[int, float]
-    _internal_queue_timeout: Union[int, float]
-    _ipython: bool
-    _jupyter: bool
-    _jupyter_name: str
-    _jupyter_path: str
-    _jupyter_root: str
-    _kaggle: bool
-    _live_policy_rate_limit: int
-    _live_policy_wait_time: int
-    _log_level: int
-    _network_buffer: int
-    _noop: bool
-    _notebook: bool
-    _offline: bool
-    _sync: bool
-    _os: str
-    _platform: str
-    _python: str
-    _runqueue_item_id: str
-    _save_requirements: bool
-    _service_transport: str
-    _service_wait: float
-    _start_datetime: datetime
-    _start_time: float
-    _stats_pid: int  # (internal) base pid for system stats
-    _stats_sample_rate_seconds: float
-    _stats_samples_to_average: int
-    _stats_join_assets: bool  # join metrics from different assets before sending to backend
-    _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
-    _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
-    # open metrics filters in one of the two formats:
-    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
-    _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
-    _tmp_code_dir: str
-    _tracelog: str
-    _unsaved_keys: Sequence[str]
-    _windows: bool
-    allow_val_change: bool
-    anonymous: str
-    api_key: str
-    base_url: str  # The base url for the wandb api
-    code_dir: str
-    config_paths: Sequence[str]
-    console: str
-    deployment: str
-    disable_code: bool
-    disable_git: bool
-    disable_hints: bool
-    disable_job_creation: bool
-    disabled: bool  # Alias for mode=dryrun, not supported yet
-    docker: str
-    email: str
-    entity: str
-    files_dir: str
-    force: bool
-    git_commit: str
-    git_remote: str
-    git_remote_url: str
-    git_root: str
-    heartbeat_seconds: int
-    host: str
-    ignore_globs: Tuple[str]
-    init_timeout: float
-    is_local: bool
-    job_source: str
-    label_disable: bool
-    launch: bool
-    launch_config_path: str
-    log_dir: str
-    log_internal: str
-    log_symlink_internal: str
-    log_symlink_user: str
-    log_user: str
-    login_timeout: float
-    magic: Union[str, bool, dict]
-    mode: str
-    notebook_name: str
-    problem: str
-    program: str
-    program_relpath: str
-    project: str
-    project_url: str
-    quiet: bool
-    reinit: bool
-    relogin: bool
-    resume: Union[str, int, bool]
-    resume_fname: str
-    resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
-    root_dir: str
-    run_group: str
-    run_id: str
-    run_job_type: str
-    run_mode: str
-    run_name: str
-    run_notes: str
-    run_tags: Tuple[str]
-    run_url: str
-    sagemaker_disable: bool
-    save_code: bool
-    settings_system: str
-    settings_workspace: str
-    show_colors: bool
-    show_emoji: bool
-    show_errors: bool
-    show_info: bool
-    show_warnings: bool
-    silent: bool
-    start_method: str
-    strict: bool
-    summary_errors: int
-    summary_timeout: int
-    summary_warnings: int
-    sweep_id: str
-    sweep_param_path: str
-    sweep_url: str
-    symlink: bool
-    sync_dir: str
-    sync_file: str
-    sync_symlink_latest: str
-    system_sample: int
-    system_sample_seconds: int
-    table_raise_on_max_row_limit_exceeded: bool
-    timespec: str
-    tmp_dir: str
-    username: str
-    wandb_dir: str
+class Settings(SettingsData):
+    """A class to represent modifiable settings."""
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -616,6 +591,7 @@ class Settings:
                 "preprocessor": _str_as_bool,
                 "is_policy": True,
             },
+            _disable_setproctitle={"value": False, "preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
@@ -624,9 +600,8 @@ class Settings:
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
             },
-            _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
-            _internal_check_process={"value": 8},
-            _internal_queue_timeout={"value": 2},
+            _internal_check_process={"value": 8, "preprocessor": float},
+            _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
                 "hook": lambda _: _get_python_type() == "ipython",
                 "auto_hook": True,
@@ -636,6 +611,7 @@ class Settings:
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
+            _log_level={"value": logging.DEBUG},
             _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
             _notebook={
                 "hook": lambda _: self._ipython
@@ -652,6 +628,10 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _file_stream_timeout_seconds={
+                "value": 60,
+                "preprocessor": float,
+            },
             _flow_control_disabled={
                 "hook": lambda _: self._network_buffer == 0,
                 "auto_hook": True,
@@ -662,12 +642,14 @@ class Settings:
             },
             _sync={"value": False},
             _platform={"value": util.get_platform_name()},
+            _require_nexus={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
                 "value": 30,
                 "preprocessor": float,
                 "validator": self._validate__service_wait,
             },
+            _start_datetime={"preprocessor": _datetime_as_str},
             _stats_sample_rate_seconds={
                 "value": 2.0,
                 "preprocessor": float,
@@ -705,8 +687,13 @@ class Settings:
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
-            config_paths={"prepocessor": _str_as_tuple},
-            console={"value": "auto", "validator": self._validate_console},
+            config_paths={"preprocessor": _str_as_tuple},
+            console={
+                "value": "auto",
+                "validator": self._validate_console,
+                "hook": lambda x: self._convert_console(x),
+                "auto_hook": True,
+            },
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
@@ -738,6 +725,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            job_name={"preprocessor": str},
             job_source={"validator": self._validate_job_source},
             label_disable={"preprocessor": _str_as_bool},
             launch={"preprocessor": _str_as_bool},
@@ -771,6 +759,8 @@ class Settings:
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
+            # todo: hack to make to_proto() always happy
+            resume={"preprocessor": lambda x: None if x is False else x},
             resume_fname={
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
@@ -842,13 +832,7 @@ class Settings:
                 "preprocessor": _str_as_bool,
             },
             timespec={
-                "hook": (
-                    lambda _: (
-                        datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
-                        if self._start_datetime
-                        else None
-                    )
-                ),
+                "hook": lambda _: self._start_datetime,
                 "auto_hook": True,
             },
             tmp_dir={
@@ -922,16 +906,7 @@ class Settings:
 
     @staticmethod
     def _validate_console(value: str) -> bool:
-        # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
-        choices: Set[str] = {
-            "auto",
-            "redirect",
-            "off",
-            "wrap",
-            # internal console states
-            "wrap_emu",
-            "wrap_raw",
-        }
+        choices = ConsoleValue
         if value not in choices:
             # do not advertise internal console states
             choices -= {"wrap_emu", "wrap_raw"}
@@ -1136,15 +1111,7 @@ class Settings:
         """Join path and apply os.path.expanduser to it."""
         return os.path.expanduser(os.path.join(*args))
 
-    def _convert_console(self) -> SettingsConsole:
-        convert_dict: Dict[str, SettingsConsole] = dict(
-            off=SettingsConsole.OFF,
-            wrap=SettingsConsole.WRAP,
-            wrap_raw=SettingsConsole.WRAP_RAW,
-            wrap_emu=SettingsConsole.WRAP_EMU,
-            redirect=SettingsConsole.REDIRECT,
-        )
-        console: str = str(self.console)
+    def _convert_console(self, console: str) -> str:
         if console == "auto":
             if (
                 self._jupyter
@@ -1155,8 +1122,7 @@ class Settings:
                 console = "wrap"
             else:
                 console = "redirect"
-        convert: SettingsConsole = convert_dict[console]
-        return convert
+        return console
 
     def _get_url_query_string(self) -> str:
         # TODO(settings) use `wandb_setting` (if self.anonymous != "true":)
@@ -1199,10 +1165,11 @@ class Settings:
         """
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
-        object.__setattr__(self, "_Settings_start_datetime", datetime_now)
+        datetime_now_str = _datetime_as_str(datetime_now)
+        object.__setattr__(self, "_Settings_start_datetime", datetime_now_str)
         object.__setattr__(self, "_Settings_start_time", time_stamp)
         self.update(
-            _start_datetime=datetime_now,
+            _start_datetime=datetime_now_str,
             _start_time=time_stamp,
             source=source,
         )
@@ -1222,12 +1189,6 @@ class Settings:
 
         self.__modification_order = SETTINGS_TOPOLOGICALLY_SORTED
 
-        # todo: this is collect telemetry on validation errors and unexpected args
-        # values are stored as strings to avoid potential json serialization errors down the line
-        self.__preprocessing_warnings: Dict[str, str] = dict()
-        self.__validation_warnings: Dict[str, str] = dict()
-        self.__unexpected_args: Set[str] = set()
-
         # Set default settings values
         # We start off with the class attributes and `default_props` dicts
         # and then create Property objects.
@@ -1238,7 +1199,7 @@ class Settings:
         # Type hints of class attributes are used to generate a type validator function
         # for runtime checks for each attribute.
         # These are defaults, using Source.BASE for non-policy attributes and Source.RUN for policies.
-        for prop, type_hint in get_type_hints(Settings).items():
+        for prop, type_hint in get_type_hints(SettingsData).items():
             validators = [self._validator_factory(type_hint)]
 
             if prop in default_props:
@@ -1272,26 +1233,13 @@ class Settings:
                     ),
                 )
 
-            # todo: this is to collect stats on preprocessing and validation errors
-            if self.__dict__[prop].__dict__["_Property__failed_preprocessing"]:
-                self.__preprocessing_warnings[prop] = str(self.__dict__[prop]._value)
-            if self.__dict__[prop].__dict__["_Property__failed_validation"]:
-                self.__validation_warnings[prop] = str(self.__dict__[prop]._value)
-
         # update overridden defaults from kwargs
         unexpected_arguments = [k for k in kwargs.keys() if k not in self.__dict__]
         # allow only explicitly defined arguments
         if unexpected_arguments:
-            # todo: remove this and raise error instead once we are confident
-            self.__unexpected_args.update(unexpected_arguments)
-            wandb.termwarn(
-                f"Ignoring unexpected arguments: {unexpected_arguments}. "
-                "This will raise an error in the future."
+            raise SettingsUnexpectedArgsError(
+                f"Got unexpected arguments: {unexpected_arguments}. "
             )
-            for k in unexpected_arguments:
-                kwargs.pop(k)
-
-            # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
 
         # automatically inspect setting validators and runtime hooks and topologically sort them
         # so that we can safely update them. throw error if there are cycles.
@@ -1375,14 +1323,14 @@ class Settings:
         object.__setattr__(self, key, value)
 
     def __iter__(self) -> Iterable:
-        return iter(self.make_static())
+        return iter(self.to_dict())
 
     def copy(self) -> "Settings":
         return self.__copy__()
 
     # implement the Mapping interface
     def keys(self) -> Iterable[str]:
-        return self.make_static().keys()
+        return self.to_dict().keys()
 
     @no_type_check  # this is a hack to make mypy happy
     def __getitem__(self, name: str) -> Any:
@@ -1413,15 +1361,6 @@ class Settings:
                 if isinstance(v, Property):
                     if v._value != defaults.__dict__[k]._value:
                         settings_dict[k] = v._value
-            # todo: store warnings from the passed Settings object, if any,
-            #  to collect telemetry on validation errors and unexpected args.
-            #  remove this once strict checking is enforced.
-            for attr in (
-                "_Settings__unexpected_args",
-                "_Settings__preprocessing_warnings",
-                "_Settings__validation_warnings",
-            ):
-                getattr(self, attr).update(getattr(settings, attr))
             # replace with the generated dict
             settings = settings_dict
 
@@ -1439,7 +1378,7 @@ class Settings:
         # only if all keys are valid, update them
 
         # store settings to be updated in a dict to preserve stats on preprocessing and validation errors
-        updated_settings = settings.copy()
+        settings.copy()
 
         # update properties that have deps or are dependent on in the topologically-sorted order
         for key in self.__modification_order:
@@ -1450,23 +1389,11 @@ class Settings:
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
-        for key in updated_settings.keys():
-            # todo: this is to collect stats on preprocessing and validation errors
-            if self.__dict__[key].__dict__["_Property__failed_preprocessing"]:
-                self.__preprocessing_warnings[key] = str(self.__dict__[key]._value)
-            else:
-                self.__preprocessing_warnings.pop(key, None)
-
-            if self.__dict__[key].__dict__["_Property__failed_validation"]:
-                self.__validation_warnings[key] = str(self.__dict__[key]._value)
-            else:
-                self.__validation_warnings.pop(key, None)
-
     def items(self) -> ItemsView[str, Any]:
-        return self.make_static().items()
+        return self.to_dict().items()
 
     def get(self, key: str, default: Optional[Any] = None) -> Any:
-        return self.make_static().get(key, default)
+        return self.to_dict().get(key, default)
 
     def freeze(self) -> None:
         object.__setattr__(self, "_Settings__frozen", True)
@@ -1477,13 +1404,62 @@ class Settings:
     def is_frozen(self) -> bool:
         return self.__frozen
 
-    def make_static(self) -> Dict[str, Any]:
-        """Generate a static, serializable version of the settings."""
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a dict representation of the settings."""
         # get attributes that are instances of the Property class:
         attributes = {
             k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)
         }
         return attributes
+
+    def to_proto(self) -> wandb_settings_pb2.Settings:
+        """Generate a protobuf representation of the settings."""
+        from dataclasses import fields
+
+        settings = wandb_settings_pb2.Settings()
+        for field in fields(SettingsData):
+            k = field.name
+            v = getattr(self, k)
+            # special case for _stats_open_metrics_filters
+            if k == "_stats_open_metrics_filters":
+                if isinstance(v, (list, set, tuple)):
+                    setting = getattr(settings, k)
+                    setting.sequence.value.extend(v)
+                elif isinstance(v, dict):
+                    setting = getattr(settings, k)
+                    for key, value in v.items():
+                        for kk, vv in value.items():
+                            setting.mapping.value[key].value[kk] = vv
+                else:
+                    raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+                continue
+
+            if isinstance(v, bool):
+                getattr(settings, k).CopyFrom(BoolValue(value=v))
+            elif isinstance(v, int):
+                getattr(settings, k).CopyFrom(Int32Value(value=v))
+            elif isinstance(v, float):
+                getattr(settings, k).CopyFrom(DoubleValue(value=v))
+            elif isinstance(v, str):
+                getattr(settings, k).CopyFrom(StringValue(value=v))
+            elif isinstance(v, (list, set, tuple)):
+                # we only support sequences of strings for now
+                sequence = getattr(settings, k)
+                sequence.value.extend(v)
+            elif isinstance(v, dict):
+                mapping = getattr(settings, k)
+                for key, value in v.items():
+                    # we only support dicts with string values for now
+                    mapping.value[key] = value
+            elif v is None:
+                # None is the default value for all settings, so we don't need to set it,
+                # i.e. None means that the value was not set.
+                pass
+            else:
+                raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+        # TODO: store property sources in the protobuf so that we can reconstruct the
+        #  settings object from the protobuf
+        return settings
 
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
@@ -1506,12 +1482,6 @@ class Settings:
         for k, v in attributes.items():
             # note that only the same/higher priority settings are propagated
             self.update({k: v._value}, source=v.source)
-
-        # todo: this is to pass on info on unexpected args in settings
-        if settings.__dict__["_Settings__unexpected_args"]:
-            self.__dict__["_Settings__unexpected_args"].update(
-                settings.__dict__["_Settings__unexpected_args"]
-            )
 
     @staticmethod
     def _load_config_file(file_name: str, section: str = "default") -> dict:
@@ -1559,6 +1529,7 @@ class Settings:
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
+            "WANDB_REQUIRE_NEXUS": "_require_nexus",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",
@@ -1715,6 +1686,9 @@ class Settings:
         self.update(user_settings, source=Source.USER)
 
     def _apply_init(self, init_settings: Dict[str, Union[str, int, None]]) -> None:
+        # pop magic from init settings
+        init_settings.pop("magic", None)
+
         # prevent setting project, entity if in sweep
         # TODO(jhr): these should be locked elements in the future
         if self.sweep_id:
@@ -1725,9 +1699,14 @@ class Settings:
                         f"Ignored wandb.init() arg {key} when running a sweep."
                     )
         if self.launch:
-            for key in ("project", "entity", "id"):
-                val = init_settings.pop(key, None)
-                if val:
+            if self.project is not None and init_settings.pop("project", None):
+                wandb.termwarn(
+                    "Project is ignored when running from wandb launch context. "
+                    "Ignored wandb.init() arg project when running running from launch.",
+                )
+            for key in ("entity", "id"):
+                # Init settings cannot override launch settings.
+                if init_settings.pop(key, None):
                     wandb.termwarn(
                         "Project, entity and id are ignored when running from wandb launch context. "
                         f"Ignored wandb.init() arg {key} when running running from launch.",

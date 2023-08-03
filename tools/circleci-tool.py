@@ -49,25 +49,24 @@ NIGHTLY_SHARDS = (
     "standalone-gpu",
     "kfp",
     "standalone-gpu-win",
-    "imports",
     "regression",
 )
 
 platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
 platforms_short_dict = dict(linux="lin", lin="lin", mac="mac", win="win")
 py_name_dict = dict(
-    py36="py36",
     py37="py37",
     py38="py38",
     py39="py39",
     py310="py310",
+    py311="py311",
 )
 py_image_dict = dict(
-    py36="python:3.6",
     py37="python:3.7",
     py38="python:3.8",
     py39="python:3.9",
     py310="python:3.10",
+    py311="python:3.11",
 )
 
 
@@ -252,11 +251,7 @@ def grab(args, vhash, bnum):
         os.mkdir(cachedir)
     if os.path.exists(cfname):
         return
-    url = (
-        "https://circleci.com/api/v1.1/project/github/wandb/wandb/{}/artifacts".format(
-            bnum
-        )
-    )
+    url = f"https://circleci.com/api/v1.1/project/github/wandb/wandb/{bnum}/artifacts"
     r = requests.get(url, auth=(args.api_token, ""))
     assert r.status_code == 200, f"Error making api request: {r}"
     lst = r.json()
@@ -328,7 +323,7 @@ def process_args():
     parse_trigger_nightly.add_argument(
         "--shards",
         default=",".join(NIGHTLY_SHARDS),
-        help="comma-separated shards (standalone-{cpu,gpu,gpu-win},kfp,imports,regression)",
+        help="comma-separated shards (standalone-{cpu,gpu,gpu-win},kfp,regression)",
     )
     parse_trigger_nightly.add_argument(
         "--wait", action="store_true", help="Wait for finish or error"

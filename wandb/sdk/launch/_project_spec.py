@@ -7,17 +7,21 @@ import json
 import logging
 import os
 import tempfile
-from typing import Any, Dict, List, Optional
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
-from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
 from wandb.sdk.launch import utils
 from wandb.sdk.lib.runid import generate_id
 
-from .utils import LOG_PREFIX, LaunchError, recursive_macro_sub
+from .errors import LaunchError
+from .utils import LOG_PREFIX, recursive_macro_sub
+
+if TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact import Artifact
 
 _logger = logging.getLogger(__name__)
 
@@ -59,6 +63,7 @@ class LaunchProject:
         resource: str,
         resource_args: Dict[str, Any],
         run_id: Optional[str],
+        sweep_id: Optional[str] = None,
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -67,7 +72,7 @@ class LaunchProject:
         self.job = job
         if job is not None:
             wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
-        self._job_artifact: Optional[PublicArtifact] = None
+        self._job_artifact: Optional[Artifact] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
@@ -76,13 +81,15 @@ class LaunchProject:
         # the builder key can be passed in through the resource args
         # but these resource_args are then passed to the appropriate
         # runner, so we need to pop the builder key out
-        resource_args_build = resource_args.get(resource, {}).pop("builder", {})
+        resource_args_copy = deepcopy(resource_args)
+        resource_args_build = resource_args_copy.get(resource, {}).pop("builder", {})
         self.resource = resource
-        self.resource_args = resource_args
+        self.resource_args = resource_args_copy
+        self.sweep_id = sweep_id
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda_base_image: Optional[str] = resource_args_build.get("cuda", {}).get(
-            "base_image"
-        )
+        self.accelerator_base_image: Optional[str] = resource_args_build.get(
+            "accelerator", {}
+        ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
         self._base_image: Optional[str] = launch_spec.get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
@@ -110,6 +117,9 @@ class LaunchProject:
             self.override_entrypoint = self.add_entry_point(
                 overrides.get("entry_point")  # type: ignore
             )
+        if overrides.get("sweep_id") is not None:
+            _logger.info("Adding override sweep id")
+            self.sweep_id = overrides["sweep_id"]
         if self.docker_image is not None:
             self.source = LaunchSource.DOCKER
             self.project_dir = None
@@ -453,6 +463,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("resource", None),
         launch_spec.get("resource_args", {}),
         launch_spec.get("run_id", None),
+        launch_spec.get("sweep_id", {}),
     )
 
 

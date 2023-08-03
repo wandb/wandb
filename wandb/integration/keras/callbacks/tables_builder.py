@@ -28,29 +28,17 @@ class WandbEvalCallback(Callback, abc.ABC):
     - Each new `pred_table` is logged as a new version with aliases.
 
     Example:
-        ```
+        ```python
         class WandbClfEvalCallback(WandbEvalCallback):
-            def __init__(
-                self,
-                validation_data,
-                data_table_columns,
-                pred_table_columns
-            ):
-                super().__init__(
-                    data_table_columns,
-                    pred_table_columns
-                )
+            def __init__(self, validation_data, data_table_columns, pred_table_columns):
+                super().__init__(data_table_columns, pred_table_columns)
 
                 self.x = validation_data[0]
                 self.y = validation_data[1]
 
             def add_ground_truth(self):
                 for idx, (image, label) in enumerate(zip(self.x, self.y)):
-                    self.data_table.add_data(
-                        idx,
-                        wandb.Image(image),
-                        label
-                    )
+                    self.data_table.add_data(idx, wandb.Image(image), label)
 
             def add_model_predictions(self, epoch):
                 preds = self.model.predict(self.x, verbose=0)
@@ -66,8 +54,9 @@ class WandbEvalCallback(Callback, abc.ABC):
                         data_table_ref.data[idx][0],
                         data_table_ref.data[idx][1],
                         data_table_ref.data[idx][2],
-                        pred
+                        pred,
                     )
+
 
         model.fit(
             x,
@@ -78,7 +67,8 @@ class WandbEvalCallback(Callback, abc.ABC):
                 WandbClfEvalCallback(
                     validation_data=(x, y),
                     data_table_columns=["idx", "image", "label"],
-                    pred_table_columns=["epoch", "idx", "image", "label", "pred"])
+                    pred_table_columns=["epoch", "idx", "image", "label", "pred"],
+                )
             ],
         )
         ```
@@ -132,12 +122,9 @@ class WandbEvalCallback(Callback, abc.ABC):
         `data_table` initialized using `init_data_table` method.
 
         Example:
-            ```
+            ```python
             for idx, data in enumerate(dataloader):
-                self.data_table.add_data(
-                    idx,
-                    data
-                )
+                self.data_table.add_data(idx, data)
             ```
         This method is called once `on_train_begin` or equivalent hook.
         """
@@ -153,14 +140,12 @@ class WandbEvalCallback(Callback, abc.ABC):
         training data to `pred_table` initialized using `init_pred_table` method.
 
         Example:
-            ```
+            ```python
             # Assuming the dataloader is not shuffling the samples.
             for idx, data in enumerate(dataloader):
                 preds = model.predict(data)
                 self.pred_table.add_data(
-                    self.data_table_ref.data[idx][0],
-                    self.data_table_ref.data[idx][1],
-                    preds
+                    self.data_table_ref.data[idx][0], self.data_table_ref.data[idx][1], preds
                 )
             ```
         This method is called `on_epoch_end` or equivalent hook.

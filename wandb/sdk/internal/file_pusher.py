@@ -12,8 +12,9 @@ from wandb.filesync import stats, step_checksum, step_upload
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
-    from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import artifact_saver, file_stream, internal_api
+    from wandb.sdk.artifacts import artifact_saver
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+    from wandb.sdk.internal import file_stream, internal_api
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
@@ -49,8 +50,8 @@ class FilePusher:
 
         self._stats = stats.Stats()
 
-        self._incoming_queue: "queue.Queue[step_checksum.Event]" = queue.Queue()
-        self._event_queue: "queue.Queue[step_upload.Event]" = queue.Queue()
+        self._incoming_queue: queue.Queue[step_checksum.Event] = queue.Queue()
+        self._event_queue: queue.Queue[step_upload.Event] = queue.Queue()
 
         self._step_checksum = step_checksum.StepChecksum(
             self._api,
@@ -131,7 +132,7 @@ class FilePusher:
 
     def store_manifest_files(
         self,
-        manifest: "artifacts.ArtifactManifest",
+        manifest: "ArtifactManifest",
         artifact_id: str,
         save_fn: "artifact_saver.SaveFn",
         save_fn_async: "artifact_saver.SaveFnAsync",

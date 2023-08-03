@@ -130,7 +130,7 @@ def test_dcgm(test_settings):
                     _stats_sample_rate_seconds=1,
                     _stats_samples_to_average=1,
                 )
-            ).make_static()
+            ).to_proto()
         )
         shutdown_event = threading.Event()
 
