@@ -169,6 +169,7 @@ class KubernetesSubmittedRun(AbstractRun):
                     f"Could not reach job {self.name} in namespace {self.namespace}"
                 )
                 self._delete_secret_if_completed("failed")
+                self.cancel()
                 return Status("failed")
 
         status = job_response.status
@@ -183,6 +184,7 @@ class KubernetesSubmittedRun(AbstractRun):
                     f"Could not reach pod {self.pod_names[0]} in namespace {self.namespace}"
                 )
                 self._delete_secret_if_completed("failed")
+                self.cancel()
                 return Status("failed")
 
         if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
