@@ -61,7 +61,7 @@ class RunState(Enum):
     UNKNOWN = "unknown", "alive"
 
     def __new__(cls: Any, *args: List, **kwds: Any) -> "RunState":
-        obj: "RunState" = object.__new__(cls)
+        obj: RunState = object.__new__(cls)
         obj._value_ = args[0]
         return obj
 
@@ -346,10 +346,6 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler completed successfully")
-            # don't overwrite special states (e.g. STOPPED, FAILED)
-            if self.state in [SchedulerState.RUNNING, SchedulerState.FLUSH_RUNS]:
-                self.state = SchedulerState.COMPLETED
             self.exit()
 
     def exit(self) -> None:
@@ -362,16 +358,24 @@ class Scheduler(ABC):
                 f"{LOG_PREFIX}Failed to save state: {traceback.format_exc()}"
             )
 
-        if self.state not in [
-            SchedulerState.COMPLETED,
-            SchedulerState.STOPPED,
-        ]:
+        status = ""
+        if self.state == SchedulerState.FLUSH_RUNS:
+            self._set_sweep_state("PAUSED")
+            status = "paused"
+        elif self.state == SchedulerState.COMPLETED:
+            self._set_sweep_state("FINISHED")
+            status = "completed"
+        elif self.state in [SchedulerState.CANCELLED, SchedulerState.STOPPED]:
+            self._set_sweep_state("CANCELED")  # one L
+            status = "cancelled"
+            self._stop_runs()
+        else:
             self.state = SchedulerState.FAILED
             self._set_sweep_state("CRASHED")
-        else:
-            self._set_sweep_state("FINISHED")
+            status = "crashed"
+            self._stop_runs()
 
-        self._stop_runs()
+        wandb.termlog(f"{LOG_PREFIX}Scheduler {status}")
         self._wandb_run.finish()
 
     def _get_num_runs_launched(self, runs: List[Dict[str, Any]]) -> int:
@@ -494,6 +498,7 @@ class Scheduler(ABC):
         """Update the scheduler state from state of scheduler run and sweep state."""
         state: RunState = self._get_run_state(self._wandb_run.id)
 
+        # map scheduler run-state to scheduler-state
         if state == RunState.KILLED:
             self.state = SchedulerState.STOPPED
         elif state in [RunState.FAILED, RunState.CRASHED]:
@@ -501,17 +506,20 @@ class Scheduler(ABC):
         elif state == RunState.FINISHED:
             self.state = SchedulerState.COMPLETED
 
+        # check sweep state for completed states, overwrite scheduler state
         try:
             sweep_state = self._api.get_sweep_state(
                 self._sweep_id, self._entity, self._project
             )
         except Exception as e:
-            _logger.debug(f"sweep state error: {sweep_state} e: {e}")
+            _logger.debug(f"sweep state error: {e}")
             return
 
-        if sweep_state in ["FINISHED", "CANCELLED"]:
+        if sweep_state == "FINISHED":
             self.state = SchedulerState.COMPLETED
-        elif sweep_state in ["PAUSED", "STOPPED"]:
+        elif sweep_state in ["CANCELLED", "STOPPED"]:
+            self.state = SchedulerState.CANCELLED
+        elif sweep_state == "PAUSED":
             self.state = SchedulerState.FLUSH_RUNS
 
     def _update_run_states(self) -> None:

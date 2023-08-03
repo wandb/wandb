@@ -149,6 +149,7 @@ class LaunchAgent:
             self._entity,
             self._project,
             self._queues,
+            self.default_config,
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
@@ -527,6 +528,8 @@ class LaunchAgent:
         thread_id: int,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
+        project = create_project_from_spec(launch_spec, api)
+        api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         # don't launch sweep runs if the sweep isn't healthy
         if launch_spec.get("sweep_id"):
             try:
@@ -539,12 +542,11 @@ class LaunchAgent:
                 _logger.debug(f"Fetch sweep state error: {e}")
                 state = None
 
-            if state and state != "RUNNING" and state != "PAUSED":
+            if state != "RUNNING" and state != "PAUSED":
                 raise LaunchError(
                     f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
                 )
 
-        project = create_project_from_spec(launch_spec, api)
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, api)
@@ -569,7 +571,7 @@ class LaunchAgent:
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
-        api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
+
         if not (project.docker_image or isinstance(backend, LocalProcessRunner)):
             assert entrypoint is not None
             image_uri = builder.build_image(project, entrypoint, job_tracker)
@@ -637,6 +639,12 @@ class LaunchAgent:
                 wandb.termlog(
                     f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
                 )
+
+                if "sweep_id" in config:
+                    # allow resumed runs from sweeps that have already completed by removing
+                    # the sweep id before pushing to queue
+                    del config["sweep_id"]
+
                 launch_add(
                     config=config,
                     project_queue=self._project,
@@ -649,9 +657,15 @@ class LaunchAgent:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
                     if status == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
-                        self._api.set_sweep_state(
-                            sweep=job_tracker.run_id, state="CANCELED"
-                        )
+                        try:
+                            self._api.set_sweep_state(
+                                sweep=job_tracker.run_id,
+                                entity=job_tracker.entity,
+                                project=job_tracker.project,
+                                state="CANCELED",
+                            )
+                        except CommError as e:
+                            raise LaunchError(f"Failed to update sweep state: {e}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
