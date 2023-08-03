@@ -13,6 +13,7 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
@@ -144,7 +145,15 @@ class LocalContainerRunner(AbstractRunner):
 
         if launch_project.docker_image:
             if image_uri.endswith(":latest") or not docker_image_exists(image_uri):
-                pull_docker_image(image_uri)
+                try:
+                    pull_docker_image(image_uri)
+                except Exception as e:
+                    wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
+                    if not docker_image_exists(image_uri):
+                        raise LaunchError(
+                            f"Failed to pull docker image {image_uri} with error: {e}"
+                        )
+
             assert launch_project.docker_image == image_uri
 
         additional_args = (

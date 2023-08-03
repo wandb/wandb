@@ -1,3 +1,5 @@
+import asyncio
+
 import openai
 from wandb.integration.openai import autolog as openai_autolog
 
@@ -14,7 +16,7 @@ def main():
         presence_penalty=0,
     )
 
-    _ = openai.Completion.create(**request_kwargs)
+    _ = asyncio.run(openai.Completion.acreate(**request_kwargs))
 
 
 if __name__ == "__main__":

@@ -126,7 +126,7 @@ class StepPrepare:
         self._inter_event_time = inter_event_time
         self._batch_time = batch_time
         self._max_batch_size = max_batch_size
-        self._request_queue: "queue.Queue[Request]" = request_queue or queue.Queue()
+        self._request_queue: queue.Queue[Request] = request_queue or queue.Queue()
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 
@@ -171,7 +171,7 @@ class StepPrepare:
         self, file_spec: "CreateArtifactFileSpecInput"
     ) -> "asyncio.Future[ResponsePrepare]":
         """Request the backend to prepare a file for upload."""
-        response: "asyncio.Future[ResponsePrepare]" = asyncio.Future()
+        response: asyncio.Future[ResponsePrepare] = asyncio.Future()
         self._request_queue.put(
             RequestPrepare(file_spec, (asyncio.get_event_loop(), response))
         )
@@ -181,7 +181,7 @@ class StepPrepare:
     def prepare_sync(
         self, file_spec: "CreateArtifactFileSpecInput"
     ) -> "queue.Queue[ResponsePrepare]":
-        response_queue: "queue.Queue[ResponsePrepare]" = queue.Queue()
+        response_queue: queue.Queue[ResponsePrepare] = queue.Queue()
         self._request_queue.put(RequestPrepare(file_spec, response_queue))
         return response_queue
 
