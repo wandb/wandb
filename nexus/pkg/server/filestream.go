@@ -84,7 +84,7 @@ type FileStream struct {
 	path string
 
 	// FIXME this should be per db
-	offset int
+	offset map[chunkFile]int
 
 	// settings is the settings for the filestream
 	settings *service.Settings
@@ -99,7 +99,6 @@ type FileStream struct {
 // NewFileStream creates a new filestream
 func NewFileStream(path string, settings *service.Settings, logger *observability.NexusLogger) *FileStream {
 	fs := FileStream{
-		path:       path,
 		settings:   settings,
 		logger:     logger,
 		httpClient: newRetryClient(settings.GetApiKey().GetValue(), logger),
@@ -109,8 +108,14 @@ func NewFileStream(path string, settings *service.Settings, logger *observabilit
 		recordChan: make(chan *service.Record, BufferSize),
 		chunkChan:  make(chan chunkData, BufferSize),
 		replyChan:  make(chan map[string]interface{}, BufferSize),
+		offset:     make(map[chunkFile]int),
+		path:       path,
 	}
 	return &fs
+}
+
+func (fs *FileStream) SetOffset(file chunkFile, offset int) {
+	fs.offset[file] = offset
 }
 
 func (fs *FileStream) Start() {
@@ -338,14 +343,15 @@ func (fs *FileStream) sendChunkList(chunks []chunkData) {
 			exitcode = chunks[i].Exitcode
 		}
 	}
-
-	fsChunk := FsChunkData{
-		Offset:  fs.offset,
-		Content: lines}
-	fs.offset += len(lines)
-	chunkFileName := chunks[0].fileName // all chunks in the list should have the same file name
 	var files map[string]FsChunkData
 	if len(lines) > 0 {
+		// all chunks in the list should have the same file name
+		chunkType := chunks[0].fileData.chunkType
+		chunkFileName := chunks[0].fileName
+		fsChunk := FsChunkData{
+			Offset:  fs.offset[chunkType],
+			Content: lines}
+		fs.offset[chunkType] += len(lines)
 		files = map[string]FsChunkData{
 			chunkFileName: fsChunk,
 		}

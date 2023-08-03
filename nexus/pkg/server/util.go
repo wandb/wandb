@@ -37,17 +37,13 @@ func (ns *NexusStream) Start(s *Stream) {
 }
 
 func (ns *NexusStream) CaptureResult(result *service.Result) {
-	// fmt.Println("GOT CAPTURE", result)
-
 	switch x := result.ResultType.(type) {
 	case *service.Result_RunResult:
 		if ns.Run == nil {
 			ns.Run = x.RunResult.GetRun()
-			// ns.printHeader()
-			// fmt.Println("GOT RUN from RESULT", ns.runRecord)
+
 		}
 	case *service.Result_ExitResult:
-		// ns.printFooter()
 	}
 
 	if ns.Callback != nil {

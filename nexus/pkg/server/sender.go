@@ -24,6 +24,16 @@ const (
 	MetaFilename = "wandb-metadata.json"
 )
 
+type ResumeState struct {
+	Resumed          bool
+	ResumeStep       int64
+	ResumeRuntime    time.Time
+	Summary          *service.SummaryRecord
+	Config           *service.ConfigRecord
+	FileStreamOffset map[chunkFile]int
+	Error            service.ErrorInfo
+}
+
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
@@ -53,6 +63,8 @@ type Sender struct {
 
 	// RunRecord is the run record
 	RunRecord *service.RunRecord
+
+	resumeState *ResumeState
 
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
@@ -152,9 +164,13 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 		s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
+		for k, v := range s.resumeState.FileStreamOffset {
+			s.fileStream.SetOffset(k, v)
+		}
 		s.fileStream.Start()
 	}
 	s.uploader = uploader.NewUploader(s.ctx, s.logger)
+	s.uploader.Start()
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -173,7 +189,9 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 func (s *Sender) sendDefer(request *service.DeferRequest) {
 	switch request.State {
 	case service.DeferRequest_FLUSH_FP:
-		s.uploader.Close()
+		if s.uploader != nil {
+			s.uploader.Close()
+		}
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
@@ -237,13 +255,153 @@ func (s *Sender) getValueConfig(config map[string]interface{}) map[string]map[st
 	return datas
 }
 
+func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
+	s.resumeState = &ResumeState{}
+
+	// There was no resume status set, so we don't need to do anything
+	if s.settings.GetResume().GetValue() == "" {
+		return nil
+	}
+
+	// If we couldn't get the resume status, we should fail if resume is set
+	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, emptyAsNil(&run.Entity), run.RunId)
+	if err != nil {
+		err = fmt.Errorf("failed to get run resume status: %s", err)
+		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
+		s.resumeState.Error = service.ErrorInfo{
+			Message: err.Error(),
+			Code:    service.ErrorInfo_INTERNAL,
+		}
+		return err
+	}
+
+	// If we get that the run is not a resume run, we should fail if resume is set to must
+	// for any other case of resume status, it is fine to ignore it
+	// If we get that the run is a resume run, we should fail if resume is set to never
+	// for any other case of resume status, we should continue to process the resume response
+	if data.GetModel() == nil || data.GetModel().GetBucket() == nil {
+		if s.settings.GetResume().GetValue() == "must" {
+			err = fmt.Errorf("You provided an invalid value for the `resume` argument. "+
+				"The value 'must' is not a valid option for resuming a run (%s/%s) that does not exist. "+
+				"Please check your inputs and try again with a valid run ID. "+
+				"If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.\n", run.Project, run.RunId)
+			s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
+			s.resumeState.Error = service.ErrorInfo{
+				Message: err.Error(),
+				Code:    service.ErrorInfo_USAGE,
+			}
+			return err
+		}
+		return nil
+	} else if s.settings.GetResume().GetValue() == "never" {
+		err = fmt.Errorf("You provided an invalid value for the `resume` argument. "+
+			"The value 'never' is not a valid option for resuming a run (%s/%s) that already exists. "+
+			"Please check your inputs and try again with a valid value for the `resume` argument.\n", run.Project, run.RunId)
+		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
+		s.resumeState.Error = service.ErrorInfo{
+			Message: err.Error(),
+			Code:    service.ErrorInfo_USAGE,
+		}
+		return err
+	}
+
+	var rerr error
+	bucket := data.GetModel().GetBucket()
+	s.resumeState.Resumed = true
+
+	var historyTail []string
+	var historyTailMap map[string]interface{}
+	if err = json.Unmarshal([]byte(*bucket.GetHistoryTail()), &historyTail); err != nil {
+		err = fmt.Errorf("failed to unmarshal history tail: %s", err)
+		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
+		rerr = err
+		// TODO: verify the list is not empty and has one element
+	} else if err = json.Unmarshal([]byte(historyTail[0]), &historyTailMap); err != nil {
+		err = fmt.Errorf("failed to unmarshal history tail map: %s", err)
+		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
+		rerr = err
+	} else {
+		if step, ok := historyTailMap["_step"].(float64); ok {
+			s.resumeState.ResumeStep = int64(step)
+		}
+	}
+
+	if s.resumeState.FileStreamOffset == nil {
+		s.resumeState.FileStreamOffset = make(map[chunkFile]int)
+	}
+	s.resumeState.FileStreamOffset[historyChunk] = *bucket.GetHistoryLineCount()
+	s.resumeState.FileStreamOffset[eventsChunk] = *bucket.GetEventsLineCount()
+	s.resumeState.FileStreamOffset[outputChunk] = *bucket.GetLogLineCount()
+
+	// If we are unable to parse the config, we should fail if resume is set to must
+	// for any other case of resume status, it is fine to ignore it
+	var summary map[string]interface{}
+	if err = json.Unmarshal([]byte(*bucket.GetSummaryMetrics()), &summary); err != nil {
+		err = fmt.Errorf("failed to unmarshal summary metrics: %s", err)
+		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
+		rerr = err
+	} else {
+		summaryRecord := service.SummaryRecord{}
+		for key, value := range summary {
+			jsonValue, _ := json.Marshal(value)
+			summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
+				Key:       key,
+				ValueJson: string(jsonValue),
+			})
+		}
+		s.resumeState.Summary = &summaryRecord
+	}
+
+	var config map[string]interface{}
+	if err = json.Unmarshal([]byte(*bucket.GetConfig()), &config); err != nil {
+		err = fmt.Errorf("sender: checkAndUpdateResumeState: failed to unmarshal config: %s", err)
+		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
+		rerr = err
+	} else {
+		configRecord := service.ConfigRecord{}
+		for key, value := range config {
+			jsonValue, _ := json.Marshal(value)
+			configRecord.Update = append(configRecord.Update, &service.ConfigItem{
+				Key:       key,
+				ValueJson: string(jsonValue),
+			})
+		}
+		s.resumeState.Config = &configRecord
+	}
+	if rerr != nil && s.settings.GetResume().GetValue() == "must" {
+		err = fmt.Errorf("failed to parse resume state but resume is set to must")
+		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
+		s.resumeState.Error = service.ErrorInfo{
+			Message: err.Error(),
+			Code:    service.ErrorInfo_INTERNAL,
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 	var ok bool
 	s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
 	if !ok {
-		err := fmt.Errorf("sender: sendRun: failed to clone RunRecord")
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		err := fmt.Errorf("failed to clone RunRecord")
+		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+	}
+
+	if err := s.checkAndUpdateResumeState(s.RunRecord); err != nil {
+		s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
+		result := &service.Result{
+			ResultType: &service.Result_RunResult{
+				RunResult: &service.RunUpdateResult{
+					Error: &s.resumeState.Error,
+				},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
+		s.resultChan <- result
+		return
 	}
 
 	config := s.parseConfigUpdate(run.Config)
@@ -251,8 +409,8 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	valueConfig := s.getValueConfig(config)
 	configJson, err := json.Marshal(valueConfig)
 	if err != nil {
-		err = fmt.Errorf("sender: sendRun: failed to marshal config: %s", err)
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		err = fmt.Errorf("failed to marshal config: %s", err)
+		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 	}
 	configString := string(configJson)
 
@@ -281,13 +439,36 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		nil,                      // summaryMetrics
 	)
 	if err != nil {
-		err = fmt.Errorf("sender: sendRun: failed to upsert bucket: %s", err)
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		err = fmt.Errorf("failed to upsert bucket: %s", err)
+		s.logger.Error("sender: sendRun:", "error", err)
+		result := &service.Result{
+			ResultType: &service.Result_RunResult{
+				RunResult: &service.RunUpdateResult{
+					Error: &service.ErrorInfo{
+						Message: err.Error(),
+						Code:    service.ErrorInfo_INTERNAL,
+					},
+				},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
+		s.resultChan <- result
+		return
 	}
 
 	s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
 	s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
 	s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
+	s.RunRecord.Resumed = s.resumeState.Resumed
+	// if we are resuming, we need to update the starting step
+	// to be the next step after the last step we ran
+	if s.RunRecord.Resumed && s.resumeState.ResumeStep > 0 {
+		s.RunRecord.StartingStep = s.resumeState.ResumeStep + 1
+	}
+	if s.resumeState.Summary != nil {
+		s.RunRecord.Summary = s.resumeState.Summary
+	}
 
 	result := &service.Result{
 		ResultType: &service.Result_RunResult{
@@ -366,7 +547,10 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
-
+	if s.RunRecord == nil {
+		err := fmt.Errorf("sender: sendFile: RunRecord not set")
+		s.logger.CaptureFatalAndPanic("sender received error", err)
+	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
 	waitDuration := time.Duration(alert.WaitDuration) * time.Second
@@ -430,24 +614,15 @@ func (s *Sender) sendFile(name string) {
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
-	data, err := gql.RunUploadUrls(
-		s.ctx,
-		s.graphqlClient,
-		s.RunRecord.Project,
-		[]*string{&name},
-		&s.RunRecord.Entity,
-		s.RunRecord.RunId,
-		nil,
-	)
+	data, err := gql.CreateRunFiles(s.ctx, s.graphqlClient, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId, []string{name})
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
-	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), name)
-	edges := data.GetModel().GetBucket().GetFiles().GetEdges()
-	for _, e := range edges {
-		task := &uploader.UploadTask{Path: fullPath, Url: *e.GetNode().GetUrl()}
+	for _, file := range data.GetCreateRunFiles().GetFiles() {
+		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
+		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl}
 		s.uploader.AddTask(task)
 	}
 }

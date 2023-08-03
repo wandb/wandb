@@ -16,7 +16,9 @@ import (
 var m = make(map[int]*NexusStream)
 
 func PrintHeadFoot(run *service.RunRecord, settings *service.Settings) {
-	// fmt.Println("GOT", ns.runRecord)
+	if run == nil {
+		return
+	}
 	colorReset := "\033[0m"
 	colorBrightBlue := "\033[1;34m"
 	colorBlue := "\033[34m"
@@ -127,14 +129,12 @@ func LibStartSettings(settings *service.Settings, runId string) int {
 func LibRecv(num int) *service.Result {
 	ns := m[num]
 	got := <-ns.Recv
-	// fmt.Println("GOT", &got)
 	return got
 }
 
 func LibRunStart(n int) {
 	ns := m[n]
 	run := m[n].Run
-	// fmt.Println("SEND RUN START", n, run)
 
 	if run == nil {
 		panic("run cant be nil")
@@ -153,7 +153,6 @@ func LibRunStart(n int) {
 
 func LibLogScaler(n int, logKey string, logValue float64) {
 	ns := m[n]
-	// fmt.Println("GOT", n, logKey, logValue)
 	valueJson := fmt.Sprintf("%v", logValue)
 	historyRequest := service.PartialHistoryRequest{
 		Item: []*service.HistoryItem{

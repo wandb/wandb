@@ -147,6 +147,7 @@ message ErrorInfo {
     PERMISSION = 2;
     NETWORK = 3;
     INTERNAL = 4;
+    USAGE = 5;
   }
   string  message = 1;
   ErrorCode code = 2;

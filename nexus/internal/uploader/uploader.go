@@ -91,12 +91,11 @@ func NewUploader(ctx context.Context, logger *observability.NexusLogger) *Upload
 		logger:      logger,
 		wg:          &sync.WaitGroup{},
 	}
-	uploader.do()
 	return uploader
 }
 
-// do is the main loop for the uploader
-func (u *Uploader) do() {
+// Start is the main loop for the uploader
+func (u *Uploader) Start() {
 
 	u.wg.Add(1)
 	go func() {

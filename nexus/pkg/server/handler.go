@@ -341,7 +341,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 		if request.Step != nil {
 			h.historyRecord.Step = request.Step
 		} else {
-			h.historyRecord.Step = &service.HistoryStep{Num: 0}
+			h.historyRecord.Step = &service.HistoryStep{Num: h.runRecord.StartingStep}
 		}
 	}
 
