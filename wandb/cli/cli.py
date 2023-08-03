@@ -1497,11 +1497,11 @@ def scheduler(
     ctx,
     sweep_id,
 ):
-    api = _get_cling_api()
+    api = InternalApi()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
+        api = InternalApi(reset=True)
 
     wandb._sentry.configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
