@@ -6,7 +6,7 @@ from enum import Enum, auto
 from typing import Dict, List, Optional
 
 import aiofiles
-import aiohttp
+import httpx
 
 from wandb.filesync import stats
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
@@ -34,7 +34,7 @@ CONCURRENT_UPLOAD_LIMIT = 500
 concurrent_upload_limit = asyncio.Semaphore(CONCURRENT_UPLOAD_LIMIT)
 concurrent_batch_limit = asyncio.Semaphore(CONCURRENT_UPLOAD_LIMIT / UPLOAD_BATCH_SIZE)
 
-shared_session = aiohttp.ClientSession()
+shared_session = httpx.AsyncClient()
 
 
 class UploadStatus(Enum):
@@ -60,13 +60,13 @@ class ArtifactFileUploader:
         artifact_id: str,
         manifest_id: str,
         manifest: ArtifactManifest,
-        # file_tracker: stats.Stats,
+        file_tracker: stats.Stats,
         api: internal_api.Api,
     ) -> None:
         self.artifact_id = artifact_id
         self.manifest_id = manifest_id
         self.manifest = manifest
-        # self._file_tracker = file_tracker
+        self._file_tracker = file_tracker
         self._api = api
 
         self.status = UploadStatus.PENDING
@@ -87,8 +87,8 @@ class ArtifactFileUploader:
 
     async def _async_body(self) -> None:
         entries = [e for e in self.manifest.entries.values() if e.local_path]
-        # for entry in entries:
-        #     self._file_tracker.init_file(entry.local_path, entry.size)
+        for entry in entries:
+            self._file_tracker.init_file(entry.local_path, entry.size)
 
         batch_tasks = []
         for batch in batches(entries):
@@ -121,22 +121,18 @@ class ArtifactFileUploader:
         try:
             async with concurrent_upload_limit:
                 async with aiofiles.open(entry.local_path, "rb") as f:
-                    async with shared_session.put(
+                    response = await shared_session.put(
                         response["uploadUrl"],
-                        data=f,
+                        content=f,
                         headers=split_headers(response["uploadHeaders"]),
-                        skip_auto_headers=["Content-Type"],
-                    ) as response:
-                        response.raise_for_status()
+                    )
+                    response.raise_for_status()
+            self._file_tracker.finish_file(entry.local_path)
         except Exception as e:
             logger.error(
                 f"Failed to upload file {entry.local_path} "
                 f"to {response['uploadUrl']}: {e}"
             )
-            return False
-
-        # self._file_tracker.finish_file(entry.local_path)
-        return True
 
     def _file_spec(self, entry: ArtifactManifestEntry) -> CreateFileSpec:
         return CreateFileSpec(

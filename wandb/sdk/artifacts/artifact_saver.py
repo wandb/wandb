@@ -7,7 +7,7 @@ import tempfile
 from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 from wandb import env, util
-from wandb.filesync.grabthars_hammer import ArtifactFileUploader
+from wandb.filesync.artifact_file_uploader import ArtifactFileUploader
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
