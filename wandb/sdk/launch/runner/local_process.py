@@ -32,7 +32,6 @@ class LocalProcessRunner(AbstractRunner):
 
     """
 
-
     def run(  # type: ignore
         self,
         launch_project: LaunchProject,

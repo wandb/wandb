@@ -93,7 +93,6 @@ class LocalSubmittedRun(AbstractRun):
 class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
-
     def __init__(
         self,
         api: wandb.apis.internal.Api,

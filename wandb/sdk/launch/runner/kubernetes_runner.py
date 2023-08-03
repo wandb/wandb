@@ -379,7 +379,6 @@ class CrdSubmittedRun(AbstractRun):
 class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
-
     def __init__(
         self,
         api: Api,
