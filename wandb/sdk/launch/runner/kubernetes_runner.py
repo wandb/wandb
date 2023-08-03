@@ -169,7 +169,6 @@ class KubernetesSubmittedRun(AbstractRun):
                     f"Could not reach job {self.name} in namespace {self.namespace}"
                 )
                 self._delete_secret_if_completed("failed")
-                self.cancel()
                 return Status("failed")
 
         status = job_response.status
@@ -184,7 +183,6 @@ class KubernetesSubmittedRun(AbstractRun):
                     f"Could not reach pod {self.pod_names[0]} in namespace {self.namespace}"
                 )
                 self._delete_secret_if_completed("failed")
-                self.cancel()
                 return Status("failed")
 
         if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
@@ -215,7 +213,6 @@ class KubernetesSubmittedRun(AbstractRun):
                 )
                 self._last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
-                self.cancel()
                 raise LaunchError(f"Failed to start job {self.name}")
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         return_status = None
@@ -271,7 +268,6 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def cancel(self) -> None:
         """Cancel the run."""
-        self.suspend()
         self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
 
 

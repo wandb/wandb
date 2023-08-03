@@ -602,6 +602,8 @@ class LaunchAgent:
             job_tracker.run = run
         while self._jobs_event.is_set():
             if self._check_run_finished(job_tracker, launch_spec):
+                # Ensure run is actually cancelled
+                job_tracker.run.cancel()
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
