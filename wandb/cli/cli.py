@@ -1531,7 +1531,7 @@ def scheduler(
         raise e
 
 
-@cli.group(help="Commands for managing and viewing W&B")
+@cli.group(help="Commands for managing and viewing W&B jobs")
 def job() -> None:
     pass
 
