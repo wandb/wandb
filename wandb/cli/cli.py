@@ -1536,7 +1536,7 @@ def job() -> None:
     pass
 
 
-@job.command(help="List jobs in a project")
+@job.command("list", help="List jobs in a project")
 @click.option(
     "--project",
     "-p",
