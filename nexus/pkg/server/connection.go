@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"strings"
+	"net/url"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/auth"
@@ -170,9 +170,17 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 		if s.GetApiKey().GetValue() != "" {
 			return
 		}
-		host := strings.TrimPrefix(s.GetBaseUrl().GetValue(), "https://")
-		host = strings.TrimPrefix(host, "http://")
-
+		baseUrl := s.GetBaseUrl().GetValue()
+		u, err := url.Parse(baseUrl)
+		if err != nil {
+			slog.Error("error parsing url", "err", err, "url", baseUrl)
+			panic(err)
+		}
+		host, _, err := net.SplitHostPort(u.Host)
+		if err != nil {
+			slog.Error("error split host", "err", err, "host", u.Host)
+			panic(err)
+		}
 		_, password, err := auth.GetNetrcLogin(host)
 		if err != nil {
 			slog.Error("error getting password from netrc", "err", err, "id", nc.id)
