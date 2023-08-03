@@ -82,7 +82,6 @@ class VertexSubmittedRun(AbstractRun):
 class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun."""
 
-    _type = "VertexAI"
 
     def __init__(
         self,
@@ -158,7 +157,7 @@ class VertexRunner(AbstractRunner):
                     "env": [
                         {"name": k, "value": v}
                         for k, v in get_env_vars_dict(
-                            launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+                            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
                         ).items()
                     ],
                 },

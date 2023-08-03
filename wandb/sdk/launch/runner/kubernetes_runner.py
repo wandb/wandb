@@ -379,7 +379,6 @@ class CrdSubmittedRun(AbstractRun):
 class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
-    _type = "Kubernetes"
 
     def __init__(
         self,
@@ -558,7 +557,7 @@ class KubernetesRunner(AbstractRunner):
         )
 
         env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
         for cont in containers:
             # Add our env vars to user supplied env vars
@@ -610,7 +609,7 @@ class KubernetesRunner(AbstractRunner):
         if api_version not in ["batch/v1", "batch/v1beta1"]:
             launch_project.fill_macros(image_uri)
             env_vars = get_env_vars_dict(
-                launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+                launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
             )
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(launch_project.resource_args, env_vars)

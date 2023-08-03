@@ -32,7 +32,6 @@ class LocalProcessRunner(AbstractRunner):
 
     """
 
-    _type = "LocalProcess"
 
     def run(  # type: ignore
         self,
@@ -81,7 +80,7 @@ class LocalProcessRunner(AbstractRunner):
             except Exception:
                 wandb.termwarn("Unable to validate python dependencies")
         env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]

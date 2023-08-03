@@ -93,7 +93,6 @@ class LocalSubmittedRun(AbstractRun):
 class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
-    _type = "LocalContainer"
 
     def __init__(
         self,
@@ -130,7 +129,7 @@ class LocalContainerRunner(AbstractRunner):
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
         env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self._type]
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
 
         # When running against local port, need to swap to local docker host
