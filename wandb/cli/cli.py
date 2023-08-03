@@ -1213,11 +1213,11 @@ def launch_sweep(
 )
 @click.option(
     "--async",
+    "run_async",
     is_flag=True,
-    default=False,
-    help="Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for "
-    "the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be "
-    "set on wandb launch-agent.",
+    help="""Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for
+    the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be
+    set on wandb launch-agent.""",
 )
 @click.option(
     "--resource-args",
@@ -1531,12 +1531,12 @@ def scheduler(
         raise e
 
 
-@cli.group("job", help="Commands for creating and viewing W&B Jobs")
+@cli.group("job")
 def job() -> None:
     pass
 
 
-@job.command("list", help="List existing jobs")
+@job.command("list")
 @click.option(
     "--project",
     "-p",
@@ -1578,8 +1578,8 @@ def _list(project, entity):
         wandb.termlog(f"{name} -- versions ({len(aliases)}): {aliases_str}")
 
 
-@job.command("describe", help="Describe a job")
-@click.argument("job", help="The W&B Job to be described")
+@job.command()
+@click.argument("job")
 def describe(job):
     public_api = PublicApi()
     try:
@@ -1595,9 +1595,7 @@ def describe(job):
 
 
 @job.command(
-    "create",
     no_args_is_help=True,
-    help="Create a job"
 )
 @click.option(
     "--project",
