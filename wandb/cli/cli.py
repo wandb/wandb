@@ -1531,12 +1531,12 @@ def scheduler(
         raise e
 
 
-@cli.group("job")
+@cli.group(help="Commands for managing and viewing W&B jobs")
 def job() -> None:
     pass
 
 
-@job.command("list")
+@job.command("list", help="List jobs in a project")
 @click.option(
     "--project",
     "-p",
@@ -1578,7 +1578,7 @@ def _list(project, entity):
         wandb.termlog(f"{name} -- versions ({len(aliases)}): {aliases_str}")
 
 
-@job.command()
+@job.command(help="Describe a job")
 @click.argument("job")
 def describe(job):
     public_api = PublicApi()
