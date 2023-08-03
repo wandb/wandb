@@ -63,6 +63,8 @@ if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util
 
+from wandb.sdk.artifacts.artifact_state import ArtifactState
+
 logger = logging.getLogger(__name__)
 
 # Only retry requests for 20 seconds in the public api
@@ -253,7 +255,7 @@ class Api:
             You can also set defaults for `entity`, `project`, and `run`.
     """
 
-    _HTTP_TIMEOUT = env.get_http_timeout(9)
+    _HTTP_TIMEOUT = env.get_http_timeout(29)
     VIEWER_QUERY = gql(
         """
         query Viewer{
@@ -4687,6 +4689,10 @@ class Job:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
+        if code_artifact.state == ArtifactState.DELETED:
+            raise LaunchError(
+                f"Job {self.name} references deleted code artifact {code_artifact.name}"
+            )
         return code_artifact
 
     def _configure_launch_project_notebook(self, launch_project):
