@@ -346,6 +346,9 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
+            # scheduler succeeds if at runcap
+            if self.state == SchedulerState.FLUSH_RUNS and self.at_runcap:
+                self.state = SchedulerState.COMPLETED
             self.exit()
 
     def exit(self) -> None:
