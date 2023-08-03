@@ -4,7 +4,7 @@ import dataclasses
 import queue
 import threading
 from typing import TYPE_CHECKING, Iterable, Mapping, Tuple
-from unittest.mock import Mock, call
+from unittest.mock import MagicMock, Mock, call
 
 import pytest
 from wandb.filesync.step_prepare import (
@@ -421,3 +421,27 @@ class TestStepPrepare:
 
         step_prepare._thread.join()
         assert not step_prepare.is_alive()
+
+
+@pytest.mark.asyncio
+async def test_prepare_async():
+    # Mock the api
+    mock_api = MagicMock()
+    mock_api.create_artifact_files.return_value = {"file1": {}, "file2": {}}
+
+    step_prepare = StepPrepare(
+        api=mock_api, batch_time=1, inter_event_time=1, max_batch_size=10
+    )
+
+    file_spec1 = simple_file_spec(name="file1")
+    file_spec2 = simple_file_spec(name="file2")
+
+    step_prepare.start()
+
+    future1 = await step_prepare.prepare_async(file_spec1)
+    future2 = await step_prepare.prepare_async(file_spec2)
+
+    assert future1.done()
+    assert future2.done()
+
+    step_prepare.finish()
