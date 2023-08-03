@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 class AssetInterface:
     def __init__(self) -> None:
-        self.metrics_queue: "queue.Queue[dict]" = queue.Queue()
-        self.telemetry_queue: "queue.Queue[TelemetryRecord]" = queue.Queue()
+        self.metrics_queue: queue.Queue[dict] = queue.Queue()
+        self.telemetry_queue: queue.Queue[TelemetryRecord] = queue.Queue()
 
     def publish_stats(self, stats: dict) -> None:
         self.metrics_queue.put(stats)
@@ -77,7 +77,7 @@ class SystemMonitor:
         )
 
         # hardware assets
-        self.assets: List["Asset"] = self._get_assets()
+        self.assets: List[Asset] = self._get_assets()
 
         # OpenMetrics/Prometheus-compatible endpoints
         self.assets.extend(self._get_open_metrics_assets())

@@ -38,7 +38,7 @@ class IPUStats:
     }
 
     def __init__(self, pid: int, gc_ipu_info: Optional[Any] = None) -> None:
-        self.samples: "Deque[dict]" = deque()
+        self.samples: Deque[dict] = deque()
 
         if gc_ipu_info is None:
             if not gcipuinfo:
