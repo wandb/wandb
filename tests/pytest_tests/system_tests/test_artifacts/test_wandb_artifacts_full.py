@@ -1,3 +1,4 @@
+import asyncio
 import os
 import platform
 import shutil
@@ -5,9 +6,11 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Optional
+from unittest import mock
 
 import numpy as np
 import pytest
+import responses
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_saver import get_staging_dir
@@ -326,6 +329,61 @@ def test_artifact_upload_succeeds_with_async(
         using_artifact: Artifact = using_run.use_artifact("art:latest")
         using_artifact.download(root=str(tmp_path / "downloaded"))
         assert (tmp_path / "downloaded" / "my-file.txt").read_text() == "my contents"
+
+
+@pytest.mark.parametrize("_async_upload_concurrency_limit", [None, 1, 10, 100])
+def test_artifact_upload_1000_files(
+    wandb_init,
+    _async_upload_concurrency_limit,
+    tmp_path: Path,
+):
+    with wandb_init(
+        settings={"_async_upload_concurrency_limit": _async_upload_concurrency_limit}
+    ) as run:
+        artifact = wandb.Artifact("art", type="dataset")
+
+        for i in range(1000):
+            (tmp_path / f"file{i}.txt").write_text(f"contents{i}")
+
+        artifact.add_dir(str(tmp_path))
+        run.log_artifact(artifact).wait(timeout=5)
+
+    with wandb.init() as using_run:
+        using_artifact: Artifact = using_run.use_artifact("art:latest")
+        using_artifact.download(root=str(tmp_path / "downloaded"))
+        for i in range(1000):
+            assert (
+                tmp_path / "downloaded" / f"file{i}.txt"
+            ).read_text() == f"contents{i}"
+
+
+def test_artifact_upload_gql_timeout(wandb_init, tmp_path):
+    with mock.patch.object(
+        wandb.Api, "create_artifact_files", side_effect=[asyncio.TimeoutError, None]
+    ) as mock_method:
+        with wandb_init(settings={"_async_upload_concurrency_limit": 10}) as run:
+            artifact = wandb.Artifact("art", type="dataset")
+            (tmp_path / "my-file.txt").write_text("my contents")
+            artifact.add_file(str(tmp_path))
+            run.log_artifact(artifact).wait(timeout=5)
+
+        assert mock_method.call_count == 2  # Ensure the method was retried
+
+
+@responses.activate
+def test_artifact_upload_httpx_404(
+    wandb_init,
+    tmp_path,
+):
+    # Mock the httpx client to return a 404 status
+    responses.add(responses.PUT, "http://example.com/upload", status=404)
+    responses.add(responses.PUT, "http://example.com/upload", status=200)
+
+    with wandb_init() as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        (tmp_path / "my-file.txt").write_text("my contents")
+        artifact.add_dir(str(tmp_path))
+        run.log_artifact(artifact).wait(timeout=5)
 
 
 def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
