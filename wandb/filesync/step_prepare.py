@@ -10,7 +10,6 @@ from typing import (
     Callable,
     Dict,
     List,
-    Mapping,
     NamedTuple,
     Optional,
     Sequence,
@@ -139,33 +138,33 @@ class StepPrepare:
                 max_batch_size=self._max_batch_size,
             )
             if batch:
-                batch_response = self._prepare_batch(batch)
-                # send responses
-                for prepare_request in batch:
-                    name = prepare_request.file_spec["name"]
-                    response_file = batch_response[name]
-                    response = prepare_response(response_file)
-                    if isinstance(prepare_request.response_channel, queue.Queue):
-                        prepare_request.response_channel.put(response)
-                    else:
-                        loop, future = prepare_request.response_channel
-                        loop.call_soon_threadsafe(future.set_result, response)
+                asyncio.ensure_future(self._handle_batch(batch))
             if finish:
                 break
 
-    def _prepare_batch(
-        self, batch: Sequence[RequestPrepare]
-    ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
-        """Execute the prepareFiles API call.
+    async def _handle_batch(self, batch: Sequence[RequestPrepare]) -> None:
+        """Execute the prepareFiles API call in the background.
 
         Arguments:
             batch: List of RequestPrepare objects
-        Returns:
-            dict of (save_name: ResponseFile) pairs where ResponseFile is a dict with
-                an uploadUrl key. The value of the uploadUrl key is None if the file
-                already exists, or a url string if the file should be uploaded.
         """
-        return self._api.create_artifact_files([req.file_spec for req in batch])
+        batch_response = await self._api.create_artifact_files(
+            [req.file_spec for req in batch]
+        )
+
+        future = self._event_loop.run_in_executor(
+            None,
+        )
+        future.add_done_callback(self._batch_done_callback(batch, future))
+        for prepare_request in batch:
+            name = prepare_request.file_spec["name"]
+            response_file = batch_response[name]
+            response = prepare_response(response_file)
+            if isinstance(prepare_request.response_channel, queue.Queue):
+                prepare_request.response_channel.put(response)
+            else:
+                loop, future = prepare_request.response_channel
+                loop.call_soon_threadsafe(future.set_result, response)
 
     def prepare_async(
         self, file_spec: "CreateArtifactFileSpecInput"

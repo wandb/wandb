@@ -30,8 +30,9 @@ from typing import (
 import click
 import requests
 import yaml
-from wandb_gql import Client, gql
-from wandb_gql.client import RetryError
+from gql import Client, gql
+from gql.client import RetryError
+from gql.transport.aiohttp import AIOHTTPTransport
 
 import wandb
 from wandb import env, util
@@ -234,22 +235,36 @@ class Api:
         if _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
         extra_http_headers.update(_thread_local_api_settings.headers or {})
-        self.client = Client(
+
+        gql_url = f"{self.settings('base_url')}/graphql"
+        gql_headers = {
+            "User-Agent": self.user_agent,
+            "X-WANDB-USERNAME": env.get_username(env=self._environ),
+            "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+            **extra_http_headers,
+        }
+        session_params = {
+            "headers": gql_headers,
+            # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
+            # https://bugs.python.org/issue22889
+            "timeout": self.HTTP_TIMEOUT,
+            "auth": auth,
+            "cookies": _thread_local_api_settings.cookies,
+        }
+        self.gql_sync_client = Client(
             transport=GraphQLSession(
-                headers={
-                    "User-Agent": self.user_agent,
-                    "X-WANDB-USERNAME": env.get_username(env=self._environ),
-                    "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
-                    **extra_http_headers,
-                },
+                url=gql_url,
                 use_json=True,
-                # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
-                # https://bugs.python.org/issue22889
-                timeout=self.HTTP_TIMEOUT,
-                auth=auth,
-                url=f"{self.settings('base_url')}/graphql",
-                cookies=_thread_local_api_settings.cookies,
+                **session_params,
             )
+        )
+        self.gql_async_client = Client(
+            transport=AIOHTTPTransport(
+                url=gql_url,
+                use_json=True,
+                session_params=session_params,
+            ),
+            fetch_schema_from_transport=True,
         )
 
         # httpx is an optional dependency, so we lazily instantiate the client
@@ -257,12 +272,26 @@ class Api:
         self._async_httpx_client: Optional[httpx.AsyncClient] = None
 
         self.retry_callback = retry_callback
-        self._retry_gql = retry.Retry(
-            self.execute,
+        self._retry_gql_sync = retry.Retry(
+            self.execute_sync,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
             retryable_exceptions=(RetryError, requests.RequestException),
             retry_callback=retry_callback,
+        )
+        async_backoff = retry.FilteredBackoff(
+            filter=check_httpx_exc_retriable,
+            wrapped=retry.ExponentialBackoff(
+                initial_sleep=retry_timedelta,
+                max_sleep=datetime.timedelta(seconds=60),
+                max_retries=100,
+                timeout_at=datetime.datetime.now() + datetime.timedelta(days=7),
+            ),
+        )
+        self._retry_gql_async = retry.retry_async(
+            async_backoff,
+            self.execute_async,
+            on_exc=retry_callback,
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
@@ -291,8 +320,16 @@ class Api:
         self.create_launch_agent_input_info: Optional[List[str]] = None
         self.server_create_run_queue_supports_drc: Optional[bool] = None
 
-    def gql(self, *args: Any, **kwargs: Any) -> Any:
-        ret = self._retry_gql(
+    def gql_sync(self, *args: Any, **kwargs: Any) -> Any:
+        ret = self._retry_gql_sync(
+            *args,
+            retry_cancel_event=self.context.cancel_event,
+            **kwargs,
+        )
+        return ret
+
+    def gql_sync(self, *args: Any, **kwargs: Any) -> Any:
+        ret = self._retry_gql_async(
             *args,
             retry_cancel_event=self.context.cancel_event,
             **kwargs,
@@ -311,16 +348,30 @@ class Api:
 
     def reauth(self) -> None:
         """Ensure the current api key is set in the transport."""
-        self.client.transport.session.auth = ("api", self.api_key or "")
+        for client in (self.gql_sync_client, self.gql_async_client):
+            client.transport.session.auth = ("api", self.api_key or "")
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
-        self.client.transport.url = "%s/graphql" % self.settings("base_url")
+        for client in (self.gql_sync_client, self.gql_async_client):
+            client.transport.url = "%s/graphql" % self.settings("base_url")
 
-    def execute(self, *args: Any, **kwargs: Any) -> "_Response":
+    def execute_sync(self, *args: Any, **kwargs: Any) -> "_Response":
         """Wrapper around execute that logs in cases of failure."""
         try:
-            return self.client.execute(*args, **kwargs)  # type: ignore
+            return self.gql_sync_client.execute(*args, **kwargs)  # type: ignore
+        except requests.exceptions.HTTPError as err:
+            response = err.response
+            logger.error(f"{response.status_code} response executing GraphQL.")
+            logger.error(response.text)
+            for error in parse_backend_error_messages(response):
+                wandb.termerror(f"Error while calling W&B API: {error} ({response})")
+            raise
+
+    async def execute_async(self, *args: Any, **kwargs: Any) -> "_Response":
+        """Wrapper around execute that logs in cases of failure."""
+        try:
+            return await self.gql_async_client.execute(*args, **kwargs)  # type: ignore
         except requests.exceptions.HTTPError as err:
             response = err.response
             logger.error(f"{response.status_code} response executing GraphQL.")
@@ -502,7 +553,7 @@ class Api:
             or self.server_info_types is None
         ):
             query = gql(query_string)
-            res = self.gql(query)
+            res = self.gql_sync(query)
 
             self.query_types = [
                 field.get("name", "")
@@ -535,7 +586,7 @@ class Api:
         """
         if self._server_settings_type is None:
             query = gql(query_string)
-            res = self.gql(query)
+            res = self.gql_sync(query)
             self._server_settings_type = (
                 [
                     field.get("name", "")
@@ -559,7 +610,7 @@ class Api:
 
         if self.server_use_artifact_input_info is None:
             query = gql(query_string)
-            res = self.gql(query)
+            res = self.gql_sync(query)
             self.server_use_artifact_input_info = [
                 field.get("name", "")
                 for field in res.get("UseArtifactInputInfoType", {}).get(
@@ -580,7 +631,7 @@ class Api:
         """
         )
 
-        res = self.gql(query)
+        res = self.gql_sync(query)
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
@@ -598,7 +649,7 @@ class Api:
         """
         if self.server_create_run_queue_supports_drc is None:
             query = gql(query_string)
-            res = self.gql(query)
+            res = self.gql_sync(query)
             self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
                 x["name"]
                 for x in (
@@ -635,7 +686,7 @@ class Api:
         """
 
         query = gql(query_string)
-        res = self.gql(query)
+        res = self.gql_sync(query)
 
         self.fail_run_queue_item_input_info = [
             field.get("name", "")
@@ -690,7 +741,7 @@ class Api:
             """
 
         mutation = gql(mutation_string)
-        response = self.gql(mutation, variable_values=variable_values)
+        response = self.gql_sync(mutation, variable_values=variable_values)
         result: bool = response["failRunQueueItem"]["success"]
         return result
 
@@ -725,7 +776,7 @@ class Api:
         }
         """
         )
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "runQueueItemId": run_queue_item_id,
@@ -758,7 +809,7 @@ class Api:
         }
         """
         )
-        res = self.gql(query)
+        res = self.gql_sync(query)
         return res.get("viewer") or {}
 
     @normalize_exceptions
@@ -830,7 +881,7 @@ class Api:
             "_LOCAL_QUERY_", local_query_string
         )
         query = gql(query_string)
-        res = self.gql(query)
+        res = self.gql_sync(query)
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
@@ -859,7 +910,7 @@ class Api:
         """
         )
         project_list: List[Dict[str, str]] = self._flatten_edges(
-            self.gql(
+            self.gql_sync(
                 query, variable_values={"entity": entity or self.settings("entity")}
             )["models"]
         )
@@ -889,7 +940,7 @@ class Api:
         }
         """
         )
-        response: _Response = self.gql(
+        response: _Response = self.gql_sync(
             query, variable_values={"entity": entity, "project": project}
         )["model"]
         return response
@@ -955,7 +1006,7 @@ class Api:
         )
         entity = entity or self.settings("entity")
         project = project or self.settings("project")
-        response = self.gql(
+        response = self.gql_sync(
             query,
             variable_values={
                 "entity": entity,
@@ -1003,7 +1054,7 @@ class Api:
         """
         )
         return self._flatten_edges(
-            self.gql(
+            self.gql_sync(
                 query,
                 variable_values={
                     "entity": entity or self.settings("entity"),
@@ -1077,7 +1128,7 @@ class Api:
         # our 2 files, we would need something like regex for that.
         for filename in [DIFF_FNAME, METADATA_FNAME]:
             variable_values["pattern"] = filename
-            response = self.gql(query, variable_values=variable_values)
+            response = self.gql_sync(query, variable_values=variable_values)
             if response["model"] is None:
                 raise CommError(f"Run {entity}/{project}/{run} not found")
             run_obj: Dict = response["model"]["bucket"]
@@ -1138,7 +1189,7 @@ class Api:
         """
         )
 
-        response = self.gql(
+        response = self.gql_sync(
             query,
             variable_values={
                 "entity": entity,
@@ -1175,7 +1226,7 @@ class Api:
         """
         )
 
-        response = self.gql(
+        response = self.gql_sync(
             query,
             variable_values={
                 "projectName": project_name,
@@ -1224,7 +1275,7 @@ class Api:
         }
         """
         )
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "name": self.format_project(project),
@@ -1254,7 +1305,7 @@ class Api:
             "entity": entity,
         }
 
-        res = self.gql(query, variable_values)
+        res = self.gql_sync(query, variable_values)
         if res.get("entity") is None:
             raise Exception(
                 f"Error fetching entity {entity} "
@@ -1285,7 +1336,7 @@ class Api:
             "entity": entity,
         }
 
-        res = self.gql(query, variable_values)
+        res = self.gql_sync(query, variable_values)
         if res.get("project") is None:
             # circular dependency: (LAUNCH_DEFAULT_PROJECT = model-registry)
             if project == "model-registry":
@@ -1338,7 +1389,7 @@ class Api:
             "resource": resource,
             "config": config,
         }
-        result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
+        result: Optional[Dict[str, Any]] = self.gql_sync(query, variable_values)[
             "createDefaultResourceConfig"
         ]
         return result
@@ -1387,7 +1438,7 @@ class Api:
             "access": access,
             "defaultResourceConfigID": config_id,
         }
-        result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
+        result: Optional[Dict[str, Any]] = self.gql_sync(query, variable_values)[
             "createRunQueue"
         ]
         return result
@@ -1426,7 +1477,7 @@ class Api:
             "runSpec": run_spec,
         }
         try:
-            result: Optional[Dict[str, Any]] = self.gql(
+            result: Optional[Dict[str, Any]] = self.gql_sync(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
 
@@ -1468,7 +1519,7 @@ class Api:
         )
 
         try:
-            result = self.gql(
+            result = self.gql_sync(
                 mutation_no_runspec, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
         except Exception:
@@ -1556,7 +1607,7 @@ class Api:
         """
         )
         spec_json = json.dumps(launch_spec)
-        response = self.gql(
+        response = self.gql_sync(
             mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
         )
         result: Optional[Dict[str, Any]] = response["pushToRunQueue"]
@@ -1585,7 +1636,7 @@ class Api:
         }
         """
         )
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "entity": entity,
@@ -1608,7 +1659,7 @@ class Api:
         }
         """
         )
-        response = self.gql(
+        response = self.gql_sync(
             mutation, variable_values={"itemId": item_id, "runId": str(run_id)}
         )
         if not response["ackRunQueueItem"]["success"]:
@@ -1633,7 +1684,7 @@ class Api:
         """
 
         query = gql(query_string)
-        res = self.gql(query)
+        res = self.gql_sync(query)
 
         self.create_launch_agent_input_info = [
             field.get("name", "")
@@ -1722,7 +1773,7 @@ class Api:
             }}
             """
         )
-        result: dict = self.gql(mutation, variable_values)["createLaunchAgent"]
+        result: dict = self.gql_sync(mutation, variable_values)["createLaunchAgent"]
         return result
 
     @normalize_exceptions
@@ -1756,7 +1807,7 @@ class Api:
             "agentId": agent_id,
             "agentStatus": status,
         }
-        result: dict = self.gql(mutation, variable_values)["updateLaunchAgent"]
+        result: dict = self.gql_sync(mutation, variable_values)["updateLaunchAgent"]
         return result
 
     @normalize_exceptions
@@ -1785,7 +1836,7 @@ class Api:
         variable_values = {
             "agentId": agent_id,
         }
-        result: dict = self.gql(query, variable_values)["launchAgent"]
+        result: dict = self.gql_sync(query, variable_values)["launchAgent"]
         return result
 
     @normalize_exceptions
@@ -1955,7 +2006,7 @@ class Api:
             fallback_retry_fn=util.no_retry_auth,
         )
 
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values=variable_values,
             check_retry_fn=check_retry_fn,
@@ -2019,7 +2070,7 @@ class Api:
         """
         )
         variable_values = {"project": project, "entity": entity, "name": name}
-        res = self.gql(query, variable_values)
+        res = self.gql_sync(query, variable_values)
         if res.get("project") is None:
             raise CommError(
                 "Error fetching run info for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
@@ -2056,7 +2107,7 @@ class Api:
             "entity": entity,
             "name": name,
         }
-        res = self.gql(query, variable_values)
+        res = self.gql_sync(query, variable_values)
         if res.get("project") is None or res["project"].get("run") is None:
             raise CommError(f"Error fetching run state for {entity}/{project}/{name}.")
         run_state: str = res["project"]["run"]["state"]
@@ -2123,7 +2174,7 @@ class Api:
         """
         )
 
-        query_result = self.gql(
+        query_result = self.gql_sync(
             query,
             variable_values={
                 "project": project,
@@ -2179,7 +2230,7 @@ class Api:
         run_id = run or self.current_run_id
         assert run_id, "run must be specified"
         entity = entity or self.settings("entity")
-        query_result = self.gql(
+        query_result = self.gql_sync(
             query,
             variable_values={
                 "name": project,
@@ -2251,7 +2302,7 @@ class Api:
         run = run or self.current_run_id
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
-        query_result = self.gql(
+        query_result = self.gql_sync(
             query,
             variable_values={
                 "name": project,
@@ -2308,7 +2359,7 @@ class Api:
         )
         run = run or self.current_run_id
         assert run, "run must be specified"
-        query_result = self.gql(
+        query_result = self.gql_sync(
             query,
             variable_values={
                 "name": project,
@@ -2663,7 +2714,7 @@ class Api:
         if project_name is None:
             project_name = self.settings("project")
 
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "host": host,
@@ -2713,7 +2764,7 @@ class Api:
             raise ValueError("Cannot call heartbeat with an unregistered agent.")
 
         try:
-            response = self.gql(
+            response = self.gql_sync(
                 mutation,
                 variable_values={
                     "id": agent_id,
@@ -2890,7 +2941,7 @@ class Api:
                 if state:
                     variables["state"] = state
 
-                response = self.gql(
+                response = self.gql_sync(
                     mutation,
                     variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
@@ -2932,7 +2983,7 @@ class Api:
         """
         )
 
-        response = self.gql(mutation, variable_values={})
+        response = self.gql_sync(mutation, variable_values={})
         key: str = str(response["createAnonymousEntity"]["apiKey"]["name"])
         return key
 
@@ -3121,7 +3172,7 @@ class Api:
         }
 
         mutation = gql(template)
-        response = self.gql(mutation, variable_values=variable_values)
+        response = self.gql_sync(mutation, variable_values=variable_values)
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
@@ -3177,7 +3228,7 @@ class Api:
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
-        response = self.gql(
+        response = self.gql_sync(
             query,
             variable_values={
                 "entityName": entity_name,
@@ -3223,7 +3274,7 @@ class Api:
         )
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "entityName": entity_name,
@@ -3353,7 +3404,7 @@ class Api:
         if aliases is None:
             aliases = []
 
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "entityName": entity_name,
@@ -3408,7 +3459,7 @@ class Api:
         """
         )
 
-        response: _Response = self.gql(
+        response: _Response = self.gql_sync(
             mutation,
             variable_values={"artifactID": artifact_id},
             timeout=60,
@@ -3446,7 +3497,7 @@ class Api:
         }
         """
         )
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "completeMultipartAction": complete_multipart_action,
@@ -3516,7 +3567,7 @@ class Api:
         project_name = project or self.settings("project")
         run_name = run or self.current_run_id
 
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "name": name,
@@ -3570,7 +3621,7 @@ class Api:
         """
         )
 
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "artifactManifestID": artifact_manifest_id,
@@ -3601,7 +3652,7 @@ class Api:
             }
         """
         )
-        response = self.gql(
+        response = self.gql_sync(
             query,
             variable_values={
                 "clientID": client_id,
@@ -3628,7 +3679,7 @@ class Api:
         """
 
         query = gql(query_string)
-        res = self.gql(query)
+        res = self.gql_sync(query)
         create_artifact_file_spec_input_info = [
             field.get("name", "")
             for field in res.get("CreateArtifactFileSpecInputInfoType", {}).get(
@@ -3638,7 +3689,7 @@ class Api:
         return create_artifact_file_spec_input_info
 
     @normalize_exceptions
-    def create_artifact_files(
+    async def create_artifact_files(
         self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
     ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
         query_template = """
@@ -3697,7 +3748,7 @@ class Api:
             query_template = query_template.replace("_MULTIPART_UPLOAD_FIELDS_", "")
 
         mutation = gql(query_template)
-        response = self.gql(
+        response = await self.gql_async(
             mutation,
             variable_values={
                 "storageLayout": storage_layout,
@@ -3745,7 +3796,7 @@ class Api:
         """
         )
 
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "entityName": self.settings("entity"),
@@ -3806,7 +3857,7 @@ class Api:
         }
         """
         )
-        self.gql(
+        self.gql_sync(
             mutation,
             variable_values={
                 "id": sweep_id,
@@ -3889,7 +3940,7 @@ class Api:
             """
         )
 
-        response = self.gql(
+        response = self.gql_sync(
             mutation,
             variable_values={
                 "id": run_id,

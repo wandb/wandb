@@ -106,7 +106,9 @@ class ArtifactFileUploader:
         create_file_specs = [self._file_spec(entry) for entry in batch]
         async with concurrent_batch_limit:
             # TODO(hugh): Move GQLClient to async so we can await here.
-            request_store_response = self._api.create_artifact_files(create_file_specs)
+            request_store_response = await self._api.create_artifact_files(
+                create_file_specs
+            )
 
         file_upload_tasks = []
         for entry in batch:
