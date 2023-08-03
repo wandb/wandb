@@ -335,6 +335,7 @@ class FileStreamApi:
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
+        timeout = timeout or 0
         if timeout > 0:
             self._client.post = functools.partial(self._client.post, timeout=timeout)  # type: ignore[method-assign]
         self._client.auth = api.client.transport.session.auth
