@@ -10,14 +10,14 @@ on: # Whenever a release is published,
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Reference (tag or commit sha) to generate docs from'
+        description: "Reference (tag or commit sha) to generate docs from"
         required: false
 
 jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: wandb/docugen@v0.3.0
+      - uses: wandb/docugen@v0.4.0
         with:
           docodile-branch: main
           wandb-branch: ${{ github.event.inputs.ref || github.ref }}
