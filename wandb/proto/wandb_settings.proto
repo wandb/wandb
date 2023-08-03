@@ -106,6 +106,7 @@ message Settings {
   ListStringValue ignore_globs = 78;
   google.protobuf.DoubleValue init_timeout = 79;
   google.protobuf.BoolValue is_local = 80;
+  google.protobuf.StringValue job_name = 145;
   google.protobuf.StringValue job_source = 81;
   google.protobuf.BoolValue label_disable = 82;
   google.protobuf.BoolValue launch = 83;

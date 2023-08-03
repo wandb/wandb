@@ -8,13 +8,12 @@ if False:
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
+from ..registry.abstract import AbstractRegistry
 from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, to_camel_case
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -109,7 +108,11 @@ class SageMakerRunner(AbstractRunner):
     """Runner class, uses a project to create a SagemakerSubmittedRun."""
 
     def __init__(
-        self, api: Api, backend_config: Dict[str, Any], environment: AwsEnvironment
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+        environment: AwsEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Initialize the SagemakerRunner.
 
@@ -123,18 +126,17 @@ class SageMakerRunner(AbstractRunner):
         """
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
     def run(
         self,
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        image_uri: str,
     ) -> Optional[AbstractRun]:
         """Run a project on Amazon Sagemaker.
 
         Arguments:
             launch_project (LaunchProject): The project to run.
-            builder (AbstractBuilder): The builder to use.
 
         Returns:
             Optional[AbstractRun]: The run instance.
@@ -200,17 +202,7 @@ class SageMakerRunner(AbstractRunner):
                 run.wait()
             return run
 
-        if launch_project.docker_image:
-            image = launch_project.docker_image
-        else:
-            assert entry_point is not None
-            assert builder is not None
-            # build our own image
-            _logger.info("Building docker image...")
-            image = builder.build_image(launch_project, entry_point, job_tracker)
-            _logger.info(f"Docker image built with uri {image}")
-
-        launch_project.fill_macros(image)
+        launch_project.fill_macros(image_uri)
         _logger.info("Connecting to sagemaker client")
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
@@ -225,7 +217,7 @@ class SageMakerRunner(AbstractRunner):
                 f"{LOG_PREFIX}Launching run on sagemaker with user-provided entrypoint in image"
             )
         sagemaker_args = build_sagemaker_args(
-            launch_project, self._api, role_arn, image, default_output_path
+            launch_project, self._api, role_arn, image_uri, default_output_path
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(
