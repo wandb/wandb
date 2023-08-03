@@ -244,7 +244,6 @@ class KanikoBuilder(AbstractBuilder):
             launch_project, entrypoint, launch_project.resource, "kaniko"
         )
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
-
         repo_uri = self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
 

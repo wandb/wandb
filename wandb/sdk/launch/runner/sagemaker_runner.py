@@ -107,8 +107,6 @@ class SagemakerSubmittedRun(AbstractRun):
 class SageMakerRunner(AbstractRunner):
     """Runner class, uses a project to create a SagemakerSubmittedRun."""
 
-    _type = "SageMaker"
-
     def __init__(
         self,
         api: Api,
@@ -190,7 +188,7 @@ class SageMakerRunner(AbstractRunner):
                 role_arn,
                 launch_project.override_entrypoint,
                 launch_project.override_args,
-                MAX_ENV_LENGTHS[self._type],
+                MAX_ENV_LENGTHS[self.__class__.__name__],
                 given_sagemaker_args.get("AlgorithmSpecification", {}).get(
                     "TrainingImage"
                 ),
@@ -246,7 +244,7 @@ class SageMakerRunner(AbstractRunner):
 def merge_image_uri_with_algorithm_specification(
     algorithm_specification: Optional[Dict[str, Any]],
     image_uri: Optional[str],
-    entrypoint: Optional[EntryPoint],
+    entrypoint_command: List[str],
     args: Optional[List[str]],
 ) -> Dict[str, Any]:
     """Create an AWS AlgorithmSpecification.
@@ -264,8 +262,8 @@ def merge_image_uri_with_algorithm_specification(
     else:
         if image_uri:
             algorithm_specification["TrainingImage"] = image_uri
-    if entrypoint:
-        algorithm_specification["ContainerEntrypoint"] = entrypoint.command
+    if entrypoint_command:
+        algorithm_specification["ContainerEntrypoint"] = entrypoint_command
     if args:
         algorithm_specification["ContainerArguments"] = args
 
@@ -311,6 +309,7 @@ def build_sagemaker_args(
         str, (given_sagemaker_args.get("TrainingJobName") or launch_project.run_id)
     )
     sagemaker_args["TrainingJobName"] = training_job_name
+    entry_cmd = entry_point.command if entry_point else []
 
     sagemaker_args[
         "AlgorithmSpecification"
@@ -320,7 +319,7 @@ def build_sagemaker_args(
             given_sagemaker_args.get("algorithm_specification"),
         ),
         image_uri,
-        entry_point,
+        entry_cmd,
         args,
     )
 

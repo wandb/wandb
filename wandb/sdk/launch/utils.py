@@ -62,7 +62,7 @@ _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
-MAX_ENV_LENGTHS["SageMaker"] = 512
+MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
 
 def _is_wandb_uri(uri: str) -> bool:
