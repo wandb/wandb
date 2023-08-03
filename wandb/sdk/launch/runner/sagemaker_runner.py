@@ -228,7 +228,7 @@ class SageMakerRunner(AbstractRunner):
             role_arn,
             launch_project.override_entrypoint,
             launch_project.override_args,
-            MAX_ENV_LENGTHS[self._type],
+            MAX_ENV_LENGTHS[self.__class__.__name__],
             image_uri,
             default_output_path,
         )
