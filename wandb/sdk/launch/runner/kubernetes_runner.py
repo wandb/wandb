@@ -45,7 +45,7 @@ from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 
-PENDING_TIMEOUT = int(os.environ.get("WANDB_AGENT_TIMEOUT", 1800))  # default 30 minutes
+PENDING_TIMEOUT = int(os.environ.get("WANDB_AGENT_TIMEOUT", 600))  # default 10 minutes
 MAX_KUBERNETES_RETRIES = PENDING_TIMEOUT // AGENT_POLLING_INTERVAL
 FAIL_MESSAGE_INTERVAL = 60
 
