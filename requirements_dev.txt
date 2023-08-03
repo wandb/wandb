@@ -24,7 +24,7 @@ nbclient
 
 scikit-learn
 tensorflow>=1.15.2; sys_platform != 'darwin'
-tensorflow>=1.15.2; python_version > '3.6' and sys_platform == 'darwin' and platform.machine != 'arm64'
+tensorflow>=1.15.2; sys_platform == 'darwin' and platform.machine != 'arm64'
 tensorflow-macos; python_version > '3.7' and python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 tensorboard
 torch
@@ -51,9 +51,3 @@ google-cloud-aiplatform
 .[launch]
 .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]
-
-
-
-
-
-
