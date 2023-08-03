@@ -286,7 +286,7 @@ class SendManager:
         self._api_settings = dict()
 
         # queue filled by retry_callback
-        self._retry_q: "Queue[HttpResponse]" = queue.Queue()
+        self._retry_q: Queue[HttpResponse] = queue.Queue()
 
         # do we need to debounce?
         self._config_needs_debounce: bool = False
@@ -330,8 +330,8 @@ class SendManager:
             _file_stream_timeout_seconds=0,
         )
         settings = SettingsStatic(settings.to_proto())
-        record_q: "Queue[Record]" = queue.Queue()
-        result_q: "Queue[Result]" = queue.Queue()
+        record_q: Queue[Record] = queue.Queue()
+        result_q: Queue[Result] = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
@@ -1244,7 +1244,7 @@ class SendManager:
         if not self._fs:
             return
         out = record.output
-        stream: "StreamLiterals" = "stdout"
+        stream: StreamLiterals = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
@@ -1254,7 +1254,7 @@ class SendManager:
         if not self._fs:
             return
         out = record.output_raw
-        stream: "StreamLiterals" = "stdout"
+        stream: StreamLiterals = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRawRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line

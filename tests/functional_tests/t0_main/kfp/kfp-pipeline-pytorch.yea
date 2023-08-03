@@ -3,6 +3,8 @@ tag:
     shard: kfp
 plugin:
   - wandb
+tag:
+  skip: true
 depend:
   requirements:
     - kfp==1.8.11

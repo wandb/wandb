@@ -85,7 +85,7 @@ class Context:
         # parsed/merged data. keys are the individual wandb run id's.
         self._entries = defaultdict(dict)
         # container for raw requests and responses:
-        self.raw_data: List["RawRequestResponse"] = []
+        self.raw_data: List[RawRequestResponse] = []
         # concatenated file contents for all runs:
         self._history: Optional[pd.DataFrame] = None
         self._events: Optional[pd.DataFrame] = None
@@ -233,7 +233,7 @@ class QueryResolver:
     """
 
     def __init__(self):
-        self.resolvers: List["Resolver"] = [
+        self.resolvers: List[Resolver] = [
             {
                 "name": "upsert_bucket",
                 "resolver": self.resolve_upsert_bucket,
@@ -433,7 +433,7 @@ class TokenizedCircularPattern:
 
         if set(pattern) - known_tokens:
             raise ValueError(f"Pattern can only contain {known_tokens}")
-        self.pattern: "Deque[str]" = deque(pattern)
+        self.pattern: Deque[str] = deque(pattern)
 
     def next(self):
         if self.pattern[0] == self.STOP_TOKEN:
@@ -665,7 +665,7 @@ class RelayServer:
             self.relay_control.process(request)
 
         # store raw data
-        raw_data: "RawRequestResponse" = {
+        raw_data: RawRequestResponse = {
             "url": request.url,
             "request": request_data,
             "response": response_data,
