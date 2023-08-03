@@ -1,6 +1,5 @@
 import atexit
 import json
-import queue
 import threading
 import typing
 import uuid
@@ -10,13 +9,15 @@ from wandb.sdk.artifacts.artifact import Artifact
 
 from .lib.ipython import _get_python_type
 from .lib.printer import get_printer
-from .wandb_lite_run import InMemoryLazyLiteRun, wandb_public_api
+from .wandb_lite_run import _InMemoryLazyLiteRun, wandb_public_api
 
 ROW_TYPE = typing.Union[dict, typing.List[dict]]
 
 
-class _StreamTableSync:
-    _lite_run: InMemoryLazyLiteRun
+class StreamTable:
+    """StreamTable supports multiple writers streaming data to a single table."""
+
+    _lite_run: _InMemoryLazyLiteRun
     _table_name: str
     _project_name: str
     _entity_name: str
@@ -69,7 +70,7 @@ class _StreamTableSync:
         elif table_name is None or table_name == "":
             raise ValueError("Must specify table_name")
 
-        self._lite_run = InMemoryLazyLiteRun(
+        self._lite_run = _InMemoryLazyLiteRun(
             entity_name,
             project_name,
             table_name,
@@ -170,63 +171,3 @@ class _StreamTableSync:
 
     def _at_exit(self) -> None:
         self.finish()
-
-
-class StreamTable(_StreamTableSync):
-    MAX_UNSAVED_SECONDS = 2
-
-    def __init__(
-        self,
-        table_name: str,
-        *,
-        config: typing.Optional[dict] = None,
-        project_name: typing.Optional[str] = None,
-        entity_name: typing.Optional[str] = None,
-        hidden: bool = True,
-    ):
-        super().__init__(
-            table_name=table_name,
-            project_name=project_name,
-            entity_name=entity_name,
-            config=config,
-            hidden=hidden,
-        )
-
-        self.queue: queue.Queue = queue.Queue()
-        self._join_event = threading.Event()
-        self._thread = threading.Thread(target=self._thread_body)
-        self._thread.daemon = True
-        self._thread.start()
-
-    def log(self, row_or_rows: ROW_TYPE) -> None:
-        self.queue.put(row_or_rows)
-
-    def _flush(self) -> None:
-        with self._lock:
-            for log_payload in self._iterate_queue():
-                super().log(log_payload)
-
-    def _iterate_queue(
-        self,
-    ) -> typing.Generator[ROW_TYPE, None, None]:
-        while True:
-            try:
-                record = self.queue.get_nowait()
-            except queue.Empty:
-                break
-            else:
-                yield record
-                self.queue.task_done()
-
-    def _thread_body(self) -> None:
-        join_requested = False
-        while not join_requested:
-            join_requested = self._join_event.wait(self.MAX_UNSAVED_SECONDS)
-            self._flush()
-
-    # Override methods of _StreamTableSync
-    def finish(self) -> None:
-        if hasattr(self, "_thread"):
-            self._join_event.set()
-            self._thread.join()
-            super().finish()

@@ -48,7 +48,12 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 WANDB_HIDDEN_JOB_TYPE = "sweep-controller"
 
 
-class InMemoryLazyLiteRun:
+class _InMemoryLazyLiteRun:
+    """This class is only used by StreamTable and will be superseeded in the future.
+
+    It provides a light weight interface to init a run, log data to it and log artifacts.
+    """
+
     # ID
     _entity_name: str
     _project_name: str

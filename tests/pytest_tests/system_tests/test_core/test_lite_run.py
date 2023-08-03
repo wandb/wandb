@@ -1,7 +1,7 @@
 import urllib.parse
 from unittest import mock
 
-from wandb.sdk.wandb_lite_run import InMemoryLazyLiteRun
+from wandb.sdk.wandb_lite_run import _InMemoryLazyLiteRun
 from wandb.testing.relay import (
     DeliberateHTTPError,
     InjectedResponse,
@@ -11,7 +11,7 @@ from wandb.testing.relay import (
 
 def test_basic_lite_run(user, relay_server):
     with relay_server() as relay:
-        lr = InMemoryLazyLiteRun(
+        lr = _InMemoryLazyLiteRun(
             user,
             "test",
             "streamtable",
@@ -33,7 +33,7 @@ def test_lite_run_file_stream_retry(user, relay_server, inject_file_stream_respo
         application_pattern="112",
     )
     with relay_server(inject=[injected_response]) as relay:
-        lr = InMemoryLazyLiteRun(
+        lr = _InMemoryLazyLiteRun(
             user,
             "test",
             "streamtable",
@@ -63,7 +63,7 @@ def test_lite_run_graphql_retry(
         application_pattern=TokenizedCircularPattern("112"),
     )
     with relay_server(inject=[injected_response]) as relay:
-        lr = InMemoryLazyLiteRun(
+        lr = _InMemoryLazyLiteRun(
             user,
             "test",
             "streamtable",

@@ -5,7 +5,7 @@ import wandb
 
 
 @pytest.fixture
-@mock.patch("wandb.sdk.wandb_streamtable.InMemoryLazyLiteRun")
+@mock.patch("wandb.sdk.wandb_streamtable._InMemoryLazyLiteRun")
 @mock.patch(
     "wandb.apis.public.Api.supports_streamtable", new_callable=mock.PropertyMock
 )
@@ -47,7 +47,7 @@ def test_streamtable_no_support(supports_streamtable, runner):
 def test_streamtable_logging(st):
     st.log({"a": 1, "b": 2, "c": 3})
     st._lite_run.log_artifact.assert_called_once()
-    st._flush()
+    st.finish()
     st._lite_run.log.assert_called_once_with(
         {"a": 1, "b": 2, "c": 3, "_client_id": st._client_id}
     )
