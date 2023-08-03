@@ -335,10 +335,15 @@ def _create_repo_metadata(
         entrypoint = rel_entrypoint
 
     # check if requirements.txt exists
+    # Note: local_dir will be a subdirectory of the git repo
+    # requirements_entrypoint = os.path.join(local_dir, "requirements.txt")
+    # while not os.path.exists(requirements_entrypoint) and requirements_entrypoint :
+    wandb.termlog(f"{local_dir=}")
+    wandb.termlog(f"{entrypoint=}")
+
     if not os.path.exists(os.path.join(local_dir, "requirements.txt")):
-        repo_formd = path.replace(entrypoint, "")
         wandb.termerror(
-            f"Could not find requirements.txt file in git repo at: {repo_formd}/requirements.txt"
+            f"Could not find requirements.txt file in git repo at: {os.path.join(local_dir, "requirements.txt")}"
         )
         return None
 
