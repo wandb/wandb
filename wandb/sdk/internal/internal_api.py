@@ -298,7 +298,7 @@ class Api:
         self._file_stream_api = None
         self._upload_file_session = requests.Session()
         if self.FILE_PUSHER_TIMEOUT:
-            self._upload_file_session.put = functools.partial(
+            self._upload_file_session.put = functools.partial(  # type: ignore
                 self._upload_file_session.put,
                 timeout=self.FILE_PUSHER_TIMEOUT,
             )
