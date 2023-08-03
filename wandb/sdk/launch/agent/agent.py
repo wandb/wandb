@@ -426,21 +426,23 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
-                            file_saver = RunQueueItemFileSaver(
-                                self._wandb_run, job["runQueueItemId"]
-                            )
-                            if _is_scheduler_job(job.get("runSpec")):
-                                # If job is a scheduler, and we are already at the cap, ignore,
-                                #    don't ack, and it will be pushed back onto the queue in 1 min
-                                if self.num_running_schedulers >= self._max_schedulers:
-                                    wandb.termwarn(
-                                        f"{LOG_PREFIX}Agent already running the maximum number "
-                                        f"of sweep schedulers: {self._max_schedulers}. To set "
-                                        "this value use `max_schedulers` key in the agent config"
-                                    )
-                                    continue
-
                             try:
+                                file_saver = RunQueueItemFileSaver(
+                                    self._wandb_run, job["runQueueItemId"]
+                                )
+                                if _is_scheduler_job(job.get("runSpec")):
+                                    # If job is a scheduler, and we are already at the cap, ignore,
+                                    #    don't ack, and it will be pushed back onto the queue in 1 min
+                                    if (
+                                        self.num_running_schedulers
+                                        >= self._max_schedulers
+                                    ):
+                                        wandb.termwarn(
+                                            f"{LOG_PREFIX}Agent already running the maximum number "
+                                            f"of sweep schedulers: {self._max_schedulers}. To set "
+                                            "this value use `max_schedulers` key in the agent config"
+                                        )
+                                        continue
                                 self.run_job(job, queue, file_saver)
                             except Exception as e:
                                 wandb.termerror(
