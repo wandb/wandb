@@ -58,13 +58,7 @@ if TYPE_CHECKING:
 
     class Resolver(TypedDict):
         name: ResolverName
-        resolver: Callable[[Any], Optional[Resolved]]  # noqa: F821
-
-
-@dataclasses.dataclass
-class Resolved:
-    data: Dict[str, Any]
-    response_data: Optional[Dict[str, Any]] = None
+        resolver: Callable[[Any], Optional[Dict[str, Any]]]
 
 
 class DeliberateHTTPError(Exception):
@@ -91,7 +85,7 @@ class Context:
         # parsed/merged data. keys are the individual wandb run id's.
         self._entries = defaultdict(dict)
         # container for raw requests and responses:
-        self.raw_data: List["RawRequestResponse"] = []
+        self.raw_data: List[RawRequestResponse] = []
         # concatenated file contents for all runs:
         self._history: Optional[pd.DataFrame] = None
         self._events: Optional[pd.DataFrame] = None
@@ -239,7 +233,7 @@ class QueryResolver:
     """
 
     def __init__(self):
-        self.resolvers: List["Resolver"] = [
+        self.resolvers: List[Resolver] = [
             {
                 "name": "upsert_bucket",
                 "resolver": self.resolve_upsert_bucket,
@@ -251,6 +245,10 @@ class QueryResolver:
             {
                 "name": "uploaded_files",
                 "resolver": self.resolve_uploaded_files,
+            },
+            {
+                "name": "uploaded_files_legacy",
+                "resolver": self.resolve_uploaded_files_legacy,
             },
             {
                 "name": "preempting",
@@ -275,7 +273,7 @@ class QueryResolver:
         if query:
             data = response_data["data"]["upsertBucket"].get("bucket")
             data["config"] = json.loads(data["config"])
-            return Resolved(data)
+            return data
         return None
 
     @staticmethod
@@ -306,7 +304,7 @@ class QueryResolver:
                 else [],
                 "files": files,
             }
-            return Resolved(post_processed_data)
+            return post_processed_data
         return None
 
     @staticmethod
@@ -315,6 +313,30 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict) or not isinstance(response_data, dict):
             return None
+
+        query = "CreateRunFiles" in request_data.get("query", "")
+        if query:
+            run_name = request_data["variables"]["run"]
+            files = (
+                response_data.get("data", {}).get("createRunFiles", {}).get("files", {})
+            )
+            post_processed_data = {
+                "name": run_name,
+                "uploaded": [file["name"] for file in files] if files else [""],
+            }
+            return post_processed_data
+        return None
+
+    @staticmethod
+    def resolve_uploaded_files_legacy(
+        request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
+        # This is a legacy resolver for uploaded files
+        # No longer used by tests but leaving it here in case we need it in the future
+        # Please refer to upload_urls() in internal_api.py for more details
+        if not isinstance(request_data, dict) or not isinstance(response_data, dict):
+            return None
+
         query = "RunUploadUrls" in request_data.get("query", "")
         if query:
             # todo: refactor this 🤮🤮🤮🤮🤮 eventually?
@@ -326,28 +348,12 @@ class QueryResolver:
                 .get("files", {})
                 .get("edges", [])
             )
-
-            # alter response data urls so we can intercept file requests through the relay
-            for _n, edge in enumerate(files):
-                node = edge.get("node")
-                if not node:
-                    continue
-                url = node.get("url")
-                if not url:
-                    continue
-                relay_url = kwargs.get("relay_url")
-                assert relay_url, "Must provide relay_url to resolver"
-                url_params = urllib.parse.urlencode(
-                    dict(name=node.get("name"), original_url=url)
-                )
-                node["url"] = relay_url + "/storage?" + url_params
-
             # note: we count all attempts to upload files
             post_processed_data = {
                 "name": name,
                 "uploaded": [files[0].get("node", {}).get("name")] if files else [""],
             }
-            return Resolved(post_processed_data, response_data)
+            return post_processed_data
         return None
 
     @staticmethod
@@ -363,7 +369,7 @@ class QueryResolver:
                 "name": name,
                 "preempting": [request_data["preempting"]],
             }
-            return Resolved(post_processed_data)
+            return post_processed_data
         return None
 
     @staticmethod
@@ -375,7 +381,7 @@ class QueryResolver:
         query = response_data.get("data", {}).get("upsertSweep") is not None
         if query:
             data = response_data["data"]["upsertSweep"].get("sweep")
-            return Resolved(data)
+            return data
         return None
 
     def resolve_create_artifact(
@@ -399,7 +405,7 @@ class QueryResolver:
                     }
                 ],
             }
-            return Resolved(post_processed_data)
+            return post_processed_data
         return None
 
     def resolve(
@@ -407,7 +413,7 @@ class QueryResolver:
         request_data: Dict[str, Any],
         response_data: Dict[str, Any],
         **kwargs: Any,
-    ) -> Optional[Resolved]:
+    ) -> Optional[Dict[str, Any]]:
         for resolver in self.resolvers:
             result = resolver.get("resolver")(request_data, response_data, **kwargs)
             if result is not None:
@@ -427,7 +433,7 @@ class TokenizedCircularPattern:
 
         if set(pattern) - known_tokens:
             raise ValueError(f"Pattern can only contain {known_tokens}")
-        self.pattern: "Deque[str]" = deque(pattern)
+        self.pattern: Deque[str] = deque(pattern)
 
     def next(self):
         if self.pattern[0] == self.STOP_TOKEN:
@@ -610,36 +616,21 @@ class RelayServer:
     def relay(
         self,
         request: "flask.Request",
-        url: Optional[str] = None,
     ) -> Union["responses.Response", "requests.Response"]:
         # replace the relay url with the real backend url (self.base_url)
-        url = url or (
+        url = (
             urllib.parse.urlparse(request.url)
             ._replace(netloc=self.base_url.netloc, scheme=self.base_url.scheme)
             .geturl()
         )
         headers = {key: value for (key, value) in request.headers if key != "Host"}
-        try:
-            request_data = request.get_data()
-            request_json = (
-                request.get_json()
-                if request.headers.get("content-type") == "application/json"
-                else None
-            )
-        except Exception as e:
-            print("ERROR", e, url)
-            raise
-        try:
-            prepared_relayed_request = requests.Request(
-                method=request.method,
-                url=url,
-                headers=headers,
-                data=request_data,
-                json=request_json,
-            ).prepare()
-        except Exception as e:
-            print("ERROR", e, url)
-            raise
+        prepared_relayed_request = requests.Request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            data=request.get_data(),
+            json=request.get_json(),
+        ).prepare()
 
         for injected_response in self.inject:
             # where are we in the application pattern?
@@ -657,12 +648,7 @@ class RelayServer:
                         return relayed_response
 
         # normal case: no injected response matches the request
-        try:
-            relayed_response = self.session.send(prepared_relayed_request)
-        except Exception as e:
-            print("ERROR", url, e)
-            raise
-
+        relayed_response = self.session.send(prepared_relayed_request)
         return relayed_response
 
     def snoop_context(
@@ -671,19 +657,15 @@ class RelayServer:
         response: "requests.Response",
         time_elapsed: float,
         **kwargs: Any,
-    ) -> Optional[responses.Response]:
-        if request.headers.get("content-type") == "application/json":
-            request_data = request.get_json()
-            response_data = response.json() or {}
-        else:
-            request_data = {}
-            response_data = {}
+    ) -> None:
+        request_data = request.get_json()
+        response_data = response.json() or {}
 
         if self.relay_control:
             self.relay_control.process(request)
 
         # store raw data
-        raw_data: "RawRequestResponse" = {
+        raw_data: RawRequestResponse = {
             "url": request.url,
             "request": request_data,
             "response": response_data,
@@ -695,7 +677,6 @@ class RelayServer:
             snooped_context = self.resolver.resolve(
                 request_data,
                 response_data,
-                relay_url=self.relay_url,
                 **kwargs,
             )
         except Exception as e:
@@ -704,8 +685,7 @@ class RelayServer:
             snooped_context = None
 
         if snooped_context is not None:
-            self.context.upsert(snooped_context.data)
-            return snooped_context.response_data
+            self.context.upsert(snooped_context)
 
         return None
 
@@ -720,14 +700,14 @@ class RelayServer:
         # print(relayed_response.status_code, relayed_response.json())
         # print("*****************")
         # snoop work to extract the context
-        response_data = self.snoop_context(request, relayed_response, timer.elapsed)
+        self.snoop_context(request, relayed_response, timer.elapsed)
         # print("*****************")
         # print("SNOOPED CONTEXT:")
         # print(self.context.entries)
         # print(len(self.context.raw_data))
         # print("*****************")
 
-        return response_data or relayed_response.json()
+        return relayed_response.json()
 
     def file_stream(self, path) -> Mapping[str, str]:
         request = flask.request
@@ -744,18 +724,14 @@ class RelayServer:
         # print(relayed_response.status_code, relayed_response.json())
         # print("*****************")
 
-        response_data = self.snoop_context(
-            request, relayed_response, timer.elapsed, path=path
-        )
+        self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
-        return response_data or relayed_response.json()
+        return relayed_response.json()
 
     def storage(self) -> Mapping[str, str]:
         request = flask.request
-        request.args.get("name")
-        original_url = request.args.get("original_url")
         with Timer() as timer:
-            relayed_response = self.relay(request, url=original_url)
+            relayed_response = self.relay(request)
         # print("*****************")
         # print("STORAGE REQUEST:")
         # print(request.get_json())
@@ -765,7 +741,7 @@ class RelayServer:
 
         self.snoop_context(request, relayed_response, timer.elapsed)
 
-        return {}
+        return relayed_response.json()
 
     def storage_file(self, path) -> Mapping[str, str]:
         request = flask.request
@@ -781,11 +757,9 @@ class RelayServer:
         # print(relayed_response.json())
         # print("*****************")
 
-        response_data = self.snoop_context(
-            request, relayed_response, timer.elapsed, path=path
-        )
+        self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
-        return response_data or relayed_response.json()
+        return relayed_response.json()
 
     def control(self) -> Mapping[str, str]:
         assert self.relay_control
