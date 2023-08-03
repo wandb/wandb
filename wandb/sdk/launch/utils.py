@@ -60,7 +60,7 @@ LAUNCH_DEFAULT_PROJECT = "model-registry"
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
-AGENT_POLLING_INTERVAL = os.environ.get("WANDB_AGENT_POLLING_INTERVAL", 10)
+AGENT_POLLING_INTERVAL = int(os.environ.get("WANDB_AGENT_POLLING_INTERVAL", 10))
 
 
 def _is_wandb_uri(uri: str) -> bool:

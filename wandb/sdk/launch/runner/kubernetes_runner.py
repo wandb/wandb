@@ -45,7 +45,7 @@ from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 
-PENDING_TIMEOUT = os.environ.get("WANDB_AGENT_TIMEOUT", 1800)  # default 30 minutes
+PENDING_TIMEOUT = int(os.environ.get("WANDB_AGENT_TIMEOUT", 1800))  # default 30 minutes
 MAX_KUBERNETES_RETRIES = PENDING_TIMEOUT // AGENT_POLLING_INTERVAL
 FAIL_MESSAGE_INTERVAL = 60
 
@@ -120,7 +120,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 )
             return None
         except Exception:
-            wandb.termwarn(f"{LOG_PREFIX}Failed to get pod logs.")
+            wandb.termwarn(f"{LOG_PREFIX}Failed to get logs for job: {self.name}")
             return None
 
     def get_job(self) -> "V1Job":
@@ -205,7 +205,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 self._fail_first_msg_time = now
             self._fail_count += 1
             if now - self._last_msg_time > FAIL_MESSAGE_INTERVAL:
-                minutes = round(
+                minutes = int(
                     (PENDING_TIMEOUT - (now - self._fail_first_msg_time)) / 60
                 )
                 wandb.termlog(
