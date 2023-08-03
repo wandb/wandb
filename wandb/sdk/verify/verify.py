@@ -8,8 +8,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import click
 import requests
+from gql import gql
 from pkg_resources import parse_version
-from wandb_gql import gql
 
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact

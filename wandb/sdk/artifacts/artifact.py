@@ -63,7 +63,7 @@ from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 reset_path = util.vendor_setup()
 
-from wandb_gql import gql  # noqa: E402
+from gql import gql  # noqa: E402
 
 reset_path()
 

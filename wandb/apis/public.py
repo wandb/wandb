@@ -38,8 +38,8 @@ else:
     from typing_extensions import Literal
 
 import requests
-from wandb_gql import Client, gql
-from wandb_gql.client import RetryError
+from gql import Client, gql
+from gql.client import RetryError
 
 import wandb
 from wandb import env, util
