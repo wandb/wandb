@@ -2,6 +2,7 @@ import ast
 import asyncio
 import base64
 import datetime
+import functools
 import http.client
 import json
 import logging
@@ -132,7 +133,8 @@ else:
 #     def __getitem__(self, name: str) -> Any: ...
 
 httpclient_logger = logging.getLogger("http.client")
-httpclient_logger.setLevel(logging.DEBUG)
+if os.environ.get("WANDB_DEBUG"):
+    httpclient_logger.setLevel(logging.DEBUG)
 
 
 def check_httpclient_logger_handler() -> None:
@@ -198,6 +200,7 @@ class Api:
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(30)
+    FILE_PUSHER_TIMEOUT = env.get_file_pusher_timeout()
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
@@ -294,6 +297,11 @@ class Api:
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
         self._upload_file_session = requests.Session()
+        if self.FILE_PUSHER_TIMEOUT:
+            self._upload_file_session.put = functools.partial(
+                self._upload_file_session.put,
+                timeout=self.FILE_PUSHER_TIMEOUT,
+            )
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
