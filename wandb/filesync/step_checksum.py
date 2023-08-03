@@ -1,5 +1,6 @@
 """Batching file prepare requests to our API."""
 
+import asyncio
 import concurrent.futures
 import functools
 import os
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     import tempfile
 
     from wandb.filesync import stats
+    from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.artifacts import artifact_saver
     from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
     from wandb.sdk.internal import internal_api
@@ -30,6 +32,7 @@ class RequestUpload(NamedTuple):
 class RequestStoreManifestFiles(NamedTuple):
     manifest: "ArtifactManifest"
     artifact_id: str
+    prepare_step: "StepPrepare"
     save_fn: "artifact_saver.SaveFn"
     save_fn_async: "artifact_saver.SaveFnAsync"
 
@@ -100,7 +103,7 @@ class StepChecksum:
                     )
                 )
             elif isinstance(req, RequestStoreManifestFiles):
-                for entry in req.manifest.entries.values():
+                for entry in self._prepare_batches_early(req):
                     if entry.local_path:
                         self._stats.init_file(
                             entry.local_path,
@@ -119,7 +122,6 @@ class StepChecksum:
                                 entry.digest,
                             )
                         )
-
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(
                     step_upload.RequestCommitArtifact(
@@ -135,6 +137,25 @@ class StepChecksum:
                 raise Exception("internal error")
 
         self._output_queue.put(step_upload.RequestFinish(req.callback))
+
+    async def _prepare_batches_early(self, req: RequestStoreManifestFiles):
+        entries = [entry for entry in req.manifest.entries.values() if entry.local_path]
+        file_specs = [
+            {
+                "artifactID": req.artifact_id,
+                "artifactManifestID": req.artifact_manifest_id,
+                "name": entry.path,
+                "md5": entry.digest,
+            }
+            for entry in entries
+        ]
+        tasks = [req.prepare_step.prepare_async(spec) for spec in file_specs]
+        responses = await asyncio.gather(*tasks)
+        for entry, response in zip(entries, responses):
+            entry.birth_artifact_id = response.birth_artifact_id
+            entry._upload_url = response.upload_url
+            entry._upload_headers = response.upload_headers or {}
+        return [entry for entry in entries if entry._upload_url]
 
     def start(self) -> None:
         self._thread.start()

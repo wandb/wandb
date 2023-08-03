@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
 import wandb.util
-from wandb.filesync import stats, step_checksum, step_upload
+from wandb.filesync import stats, step_checksum, step_prepare, step_upload
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -134,12 +134,12 @@ class FilePusher:
         self,
         manifest: "ArtifactManifest",
         artifact_id: str,
+        prepare_step: step_prepare.StepPrepare,
         save_fn: "artifact_saver.SaveFn",
         save_fn_async: "artifact_saver.SaveFnAsync",
     ) -> None:
-        raise NotImplementedError
         event = step_checksum.RequestStoreManifestFiles(
-            manifest, artifact_id, save_fn, save_fn_async
+            manifest, artifact_id, prepare_step, save_fn, save_fn_async
         )
         self._incoming_queue.put(event)
 

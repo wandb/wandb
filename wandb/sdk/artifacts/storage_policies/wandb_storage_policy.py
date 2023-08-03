@@ -338,30 +338,32 @@ class WandbStoragePolicy(StoragePolicy):
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
         """Async equivalent to `store_file_sync`."""
-        resp = await preparer.prepare_async(
-            {
-                "artifactID": artifact_id,
-                "artifactManifestID": artifact_manifest_id,
-                "name": entry.path,
-                "md5": entry.digest,
-            }
-        )
-
-        entry.birth_artifact_id = resp.birth_artifact_id
-        if resp.upload_url is None:
-            return True
         if entry.local_path is None:
             return False
+        if entry._upload_url is None:
+            resp = await preparer.prepare_async(
+                {
+                    "artifactID": artifact_id,
+                    "artifactManifestID": artifact_manifest_id,
+                    "name": entry.path,
+                    "md5": entry.digest,
+                }
+            )
+            entry.birth_artifact_id = resp.birth_artifact_id
+            if resp.upload_url is None:
+                return True
+            entry._upload_url = resp.upload_url
+            entry._upload_headers = resp.upload_headers
 
         with open(entry.local_path, "rb") as file:
             # This fails if we don't send the first byte before the signed URL expires.
             await self._api.upload_file_retry_async(
-                resp.upload_url,
+                entry._upload_url,
                 file,
                 progress_callback,
                 extra_headers={
                     header.split(":", 1)[0]: header.split(":", 1)[1]
-                    for header in (resp.upload_headers or {})
+                    for header in (entry.upload_headers or {})
                 },
             )
 
