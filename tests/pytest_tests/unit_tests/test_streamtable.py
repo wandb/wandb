@@ -53,6 +53,22 @@ def test_streamtable_logging(st):
     )
 
 
+@mock.patch("wandb.run")
+def test_streamtable_with_run(run, st):
+    run.path = "testing/other/run"
+    st.log({"a": 1, "b": 2, "c": 3})
+    st.finish()
+    st._lite_run.log.assert_called_once_with(
+        {
+            "a": 1,
+            "b": 2,
+            "c": 3,
+            "_client_id": st._client_id,
+            "_run": "testing/other/run",
+        }
+    )
+
+
 def test_streamtable_finish(st):
     st.log({"a": 1, "b": 2, "c": 3})
     st._lite_run.log_artifact.assert_called_once()

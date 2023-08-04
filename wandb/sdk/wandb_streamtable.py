@@ -4,6 +4,7 @@ import threading
 import typing
 import uuid
 
+import wandb
 from wandb import errors
 from wandb.sdk.artifacts.artifact import Artifact
 
@@ -151,6 +152,8 @@ class StreamTable:
 
     def _log_row(self, row: dict) -> None:
         row_copy = {**row}
+        if wandb.run is not None:
+            row_copy["_run"] = wandb.run.path
         row_copy["_client_id"] = self._client_id
         self._lite_run.log(row_copy)
 
