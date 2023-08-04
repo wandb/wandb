@@ -25,11 +25,6 @@ const (
 )
 
 type ResumeState struct {
-	Resumed          bool
-	ResumeStep       int64
-	ResumeRuntime    time.Time
-	Summary          *service.SummaryRecord
-	Config           *service.ConfigRecord
 	FileStreamOffset map[chunkFile]int
 	Error            service.ErrorInfo
 }
@@ -278,7 +273,7 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 
 	var rerr error
 	bucket := data.GetModel().GetBucket()
-	s.resumeState.Resumed = true
+	run.Resumed = true
 
 	var historyTail []string
 	var historyTailMap map[string]interface{}
@@ -293,7 +288,14 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 		rerr = err
 	} else {
 		if step, ok := historyTailMap["_step"].(float64); ok {
-			s.resumeState.ResumeStep = int64(step)
+			// if we are resuming, we need to update the starting step
+			// to be the next step after the last step we ran
+			if step > 0 {
+				run.StartingStep = int64(step) + 1
+			}
+		}
+		if runtime, ok := historyTailMap["_runtime"].(float64); ok {
+			run.Runtime = int32(runtime)
 		}
 	}
 
@@ -320,7 +322,7 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 				ValueJson: string(jsonValue),
 			})
 		}
-		s.resumeState.Summary = &summaryRecord
+		run.Summary = &summaryRecord
 	}
 
 	var config map[string]interface{}
@@ -385,7 +387,6 @@ func (s *Sender) updateTelemetry(configRecord *service.TelemetryRecord) {
 		if configRecord.PythonVersion != "" {
 			v["python_version"] = configRecord.PythonVersion
 		}
-
 		// todo: add the rest of the telemetry from configRecord
 	default:
 		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
@@ -406,33 +407,33 @@ func (s *Sender) serializeConfig() string {
 		err = fmt.Errorf("failed to marshal config: %s", err)
 		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 	}
-	configString := string(configJson)
-
-	return configString
+	return string(configJson)
 }
 
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
-	var ok bool
-	s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
-	if !ok {
-		err := fmt.Errorf("failed to clone RunRecord")
-		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
-	}
-
-	if err := s.checkAndUpdateResumeState(s.RunRecord); err != nil {
-		s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
-		result := &service.Result{
-			ResultType: &service.Result_RunResult{
-				RunResult: &service.RunUpdateResult{
-					Error: &s.resumeState.Error,
-				},
-			},
-			Control: record.Control,
-			Uuid:    record.Uuid,
+	if s.RunRecord == nil {
+		var ok bool
+		s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
+		if !ok {
+			err := fmt.Errorf("failed to clone RunRecord")
+			s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 		}
-		s.resultChan <- result
-		return
+
+		if err := s.checkAndUpdateResumeState(s.RunRecord); err != nil {
+			s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
+			result := &service.Result{
+				ResultType: &service.Result_RunResult{
+					RunResult: &service.RunUpdateResult{
+						Error: &s.resumeState.Error,
+					},
+				},
+				Control: record.Control,
+				Uuid:    record.Uuid,
+			}
+			s.resultChan <- result
+			return
+		}
 	}
 
 	s.updateConfig(run.Config)
@@ -495,15 +496,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
 	s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
 	s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
-	s.RunRecord.Resumed = s.resumeState.Resumed
-	// if we are resuming, we need to update the starting step
-	// to be the next step after the last step we ran
-	if s.RunRecord.Resumed && s.resumeState.ResumeStep > 0 {
-		s.RunRecord.StartingStep = s.resumeState.ResumeStep + 1
-	}
-	if s.resumeState.Summary != nil {
-		s.RunRecord.Summary = s.resumeState.Summary
-	}
 
 	result := &service.Result{
 		ResultType: &service.Result_RunResult{

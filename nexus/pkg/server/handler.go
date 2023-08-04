@@ -251,13 +251,19 @@ func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest
 		RecordType: &service.Record_Request{
 			Request: &service.Request{RequestType: &service.Request_Metadata{
 				Metadata: &service.MetadataRequest{
-					Os:        h.settings.GetXOs().GetValue(),
-					Python:    h.settings.GetXPython().GetValue(),
-					Host:      h.settings.GetHost().GetValue(),
-					Cuda:      h.settings.GetXCuda().GetValue(),
-					Program:   h.settings.GetProgram().GetValue(),
-					StartedAt: req.Run.StartTime}}}}}
-
+					Os:         h.settings.GetXOs().GetValue(),
+					Python:     h.settings.GetXPython().GetValue(),
+					Host:       h.settings.GetHost().GetValue(),
+					Cuda:       h.settings.GetXCuda().GetValue(),
+					Program:    h.settings.GetProgram().GetValue(),
+					Email:      h.settings.GetEmail().GetValue(),
+					Root:       h.settings.GetRootDir().GetValue(),
+					Username:   h.settings.GetUsername().GetValue(),
+					Docker:     h.settings.GetDocker().GetValue(),
+					Executable: h.settings.GetXExecutable().GetValue(),
+					Args:       h.settings.GetXArgs().GetValue(),
+					StartedAt:  req.Run.StartTime,
+				}}}}}
 	h.sendRecord(record)
 }
 
