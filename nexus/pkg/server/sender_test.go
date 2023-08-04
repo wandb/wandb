@@ -40,7 +40,11 @@ func TestSendRun(t *testing.T) {
 				Config:  to.MakeConfig(),
 				Project: "testProject",
 				Entity:  "testEntity",
-			}}}
+			}},
+		Control: &service.Control{
+			MailboxSlot: "junk",
+		},
+	}
 
 	respEncode := &graphql.Response{
 		Data: &gql.UpsertBucketResponse{

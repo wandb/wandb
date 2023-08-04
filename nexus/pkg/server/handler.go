@@ -140,6 +140,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
 	case *service.Record_Telemetry:
+		h.handleTelemetry(record)
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -410,6 +411,10 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 			},
 		}
 	}
+}
+
+func (h *Handler) handleTelemetry(record *service.Record) {
+	h.sendRecord(record)
 }
 
 func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {

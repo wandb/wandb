@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
+	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -62,6 +63,8 @@ type Sender struct {
 	// resumeState is the resume state
 	resumeState *ResumeState
 
+	telemetry *service.TelemetryRecord
+
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
 
@@ -83,6 +86,7 @@ func emptyAsNil(s *string) *string {
 func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
 	url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 	apiKey := settings.GetApiKey().GetValue()
+	telemetry := &service.TelemetryRecord{CoreVersion: NexusVersion}
 	return &Sender{
 		ctx:           ctx,
 		settings:      settings,
@@ -90,6 +94,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		graphqlClient: newGraphqlClient(url, apiKey, logger),
 		summaryMap:    make(map[string]*service.SummaryItem),
 		configMap:     make(map[string]interface{}),
+		telemetry:     telemetry,
 	}
 }
 
@@ -130,6 +135,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendSystemMetrics(record, x.Stats)
 	case *service.Record_OutputRaw:
 		s.sendOutputRaw(record, x.OutputRaw)
+	case *service.Record_Telemetry:
+		s.sendTelemetry(record, x.Telemetry)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
 	case nil:
@@ -219,6 +226,13 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		Control: &service.Control{AlwaysSend: true},
 	}
 	s.recordChan <- rec
+}
+
+func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
+	proto.Merge(s.telemetry, telemetry)
+	s.updateConfigPrivate(s.telemetry)
+	// TODO(perf): improve when debounce config is added, for now this sends all the time
+	s.sendConfig(nil, nil)
 }
 
 func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
@@ -368,8 +382,8 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 	}
 }
 
-// updateTelemetry updates the config map with the telemetry record
-func (s *Sender) updateTelemetry(configRecord *service.TelemetryRecord) {
+// updateConfigPrivate updates the private part of the config map
+func (s *Sender) updateConfigPrivate(configRecord *service.TelemetryRecord) {
 	if configRecord == nil {
 		return
 	}
@@ -380,13 +394,13 @@ func (s *Sender) updateTelemetry(configRecord *service.TelemetryRecord) {
 
 	switch v := s.configMap["_wandb"].(type) {
 	case map[string]interface{}:
-		v["nexus_version"] = NexusVersion
 		if configRecord.CliVersion != "" {
 			v["cli_version"] = configRecord.CliVersion
 		}
 		if configRecord.PythonVersion != "" {
 			v["python_version"] = configRecord.PythonVersion
 		}
+		v["t"] = nexuslib.ProtoEncodeToDict(s.telemetry)
 		// todo: add the rest of the telemetry from configRecord
 	default:
 		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
@@ -437,7 +451,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	}
 
 	s.updateConfig(run.Config)
-	s.updateTelemetry(run.Telemetry)
+	s.updateConfigPrivate(run.Telemetry)
 	config := s.serializeConfig()
 
 	var tags []string
@@ -477,19 +491,21 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	if err != nil {
 		err = fmt.Errorf("failed to upsert bucket: %s", err)
 		s.logger.Error("sender: sendRun:", "error", err)
-		result := &service.Result{
-			ResultType: &service.Result_RunResult{
-				RunResult: &service.RunUpdateResult{
-					Error: &service.ErrorInfo{
-						Message: err.Error(),
-						Code:    service.ErrorInfo_INTERNAL,
+		if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+			result := &service.Result{
+				ResultType: &service.Result_RunResult{
+					RunResult: &service.RunUpdateResult{
+						Error: &service.ErrorInfo{
+							Message: err.Error(),
+							Code:    service.ErrorInfo_INTERNAL,
+						},
 					},
 				},
-			},
-			Control: record.Control,
-			Uuid:    record.Uuid,
+				Control: record.Control,
+				Uuid:    record.Uuid,
+			}
+			s.resultChan <- result
 		}
-		s.resultChan <- result
 		return
 	}
 
@@ -497,14 +513,16 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
 	s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
 
-	result := &service.Result{
-		ResultType: &service.Result_RunResult{
-			RunResult: &service.RunUpdateResult{Run: s.RunRecord},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
+	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+		result := &service.Result{
+			ResultType: &service.Result_RunResult{
+				RunResult: &service.RunUpdateResult{Run: s.RunRecord},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
+		s.resultChan <- result
 	}
-	s.resultChan <- result
 }
 
 // sendHistory sends a history record to the file stream,
@@ -549,7 +567,9 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 // sendConfig sends a config record to the server via an upsertBucket mutation
 // and updates the in memory config
 func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
-	s.updateConfig(configRecord)
+	if configRecord != nil {
+		s.updateConfig(configRecord)
+	}
 	config := s.serializeConfig()
 
 	_, err := gql.UpsertBucket(
