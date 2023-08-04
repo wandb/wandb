@@ -280,8 +280,10 @@ class KubernetesSubmittedRun(AbstractRun):
                 propagation_policy="Foreground",
             )
             wandb.termwarn(f"Job was cancelled: {self.name}")
-        except Exception:
-            pass
+        except ApiException as e:
+            # Only expect a 404 since job may already be deleted, anything else is a legitimate exception
+            if e.status != 404:
+                raise
 
     def is_cancelled(self) -> bool:
         try:
@@ -289,8 +291,16 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.pod_names[0], namespace=self.namespace
             )
             return False
-        except Exception:
-            return True
+        except ApiException as e:
+            if e.status != 404:
+                raise
+        try:
+            self.batch_api.read_namespaced_job(name=self.name, namespace=self.namespace)
+        except ApiException as e:
+            if e.status != 404:
+                raise
+        # Both returned 404s, so the pod and job are both deleted
+        return True
 
 
 class CrdSubmittedRun(AbstractRun):
