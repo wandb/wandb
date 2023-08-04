@@ -385,6 +385,7 @@ func (s *Sender) updateTelemetry(configRecord *service.TelemetryRecord) {
 		if configRecord.PythonVersion != "" {
 			v["python_version"] = configRecord.PythonVersion
 		}
+
 		// todo: add the rest of the telemetry from configRecord
 	default:
 		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
@@ -439,28 +440,38 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	config := s.serializeConfig()
 
 	var tags []string
+	tags = append(tags, run.Tags...)
+
+	var commit, repo string
+	git := run.GetGit()
+	if git != nil {
+		commit = git.GetCommit()
+		repo = git.GetRemoteUrl()
+	}
+
+	program := s.settings.GetProgram().GetValue()
 	data, err := gql.UpsertBucket(
-		s.ctx,                    // ctx
-		s.graphqlClient,          // client
-		nil,                      // id
-		&run.RunId,               // name
-		emptyAsNil(&run.Project), // project
-		emptyAsNil(&run.Entity),  // entity
-		nil,                      // groupName
-		nil,                      // description
-		nil,                      // displayName
-		nil,                      // notes
-		nil,                      // commit
-		&config,                  // config
-		nil,                      // host
-		nil,                      // debug
-		nil,                      // program
-		nil,                      // repo
-		nil,                      // jobType
-		nil,                      // state
-		nil,                      // sweep
-		tags,                     // tags []string,
-		nil,                      // summaryMetrics
+		s.ctx,                        // ctx
+		s.graphqlClient,              // client
+		nil,                          // id
+		&run.RunId,                   // name
+		emptyAsNil(&run.Project),     // project
+		emptyAsNil(&run.Entity),      // entity
+		emptyAsNil(&run.RunGroup),    // groupName
+		nil,                          // description
+		emptyAsNil(&run.DisplayName), // displayName
+		emptyAsNil(&run.Notes),       // notes
+		emptyAsNil(&commit),          // commit
+		&config,                      // config
+		emptyAsNil(&run.Host),        // host
+		nil,                          // debug
+		emptyAsNil(&program),         // program
+		emptyAsNil(&repo),            // repo
+		emptyAsNil(&run.JobType),     // jobType
+		nil,                          // state
+		nil,                          // sweep
+		tags,                         // tags []string,
+		nil,                          // summaryMetrics
 	)
 	if err != nil {
 		err = fmt.Errorf("failed to upsert bucket: %s", err)
