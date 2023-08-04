@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	CliVersion   = "0.0.1a2"
 	MetaFilename = "wandb-metadata.json"
+	NexusVersion = "0.0.1a2"
 )
 
 type ResumeState struct {
@@ -64,10 +64,14 @@ type Sender struct {
 	// RunRecord is the run record
 	RunRecord *service.RunRecord
 
+	// resumeState is the resume state
 	resumeState *ResumeState
 
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
+
+	// Keep track of config which is being updated incrementally
+	configMap map[string]interface{}
 }
 
 func emptyAsNil(s *string) *string {
@@ -90,6 +94,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		logger:        logger,
 		graphqlClient: newGraphqlClient(url, apiKey, logger),
 		summaryMap:    make(map[string]*service.SummaryItem),
+		configMap:     make(map[string]interface{}),
 	}
 }
 
@@ -124,6 +129,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendHistory(record, x.History)
 	case *service.Record_Summary:
 		s.sendSummary(record, x.Summary)
+	case *service.Record_Config:
+		s.sendConfig(record, x.Config)
 	case *service.Record_Stats:
 		s.sendSystemMetrics(record, x.Stats)
 	case *service.Record_OutputRaw:
@@ -217,42 +224,6 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		Control: &service.Control{AlwaysSend: true},
 	}
 	s.recordChan <- rec
-}
-
-func (s *Sender) parseConfigUpdate(config *service.ConfigRecord) map[string]interface{} {
-	datas := make(map[string]interface{})
-
-	// TODO: handle deletes and nested key updates
-	for _, d := range config.GetUpdate() {
-		j := d.GetValueJson()
-		var data interface{}
-		if err := json.Unmarshal([]byte(j), &data); err != nil {
-			s.logger.CaptureFatalAndPanic("unmarshal problem", err)
-		}
-		datas[d.GetKey()] = data
-	}
-	return datas
-}
-
-func (s *Sender) updateConfigTelemetry(config map[string]interface{}) {
-	got := config["_wandb"]
-	switch v := got.(type) {
-	case map[string]interface{}:
-		v["cli_version"] = CliVersion
-	default:
-		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
-		s.logger.CaptureFatalAndPanic("sender received error", err)
-	}
-}
-
-func (s *Sender) getValueConfig(config map[string]interface{}) map[string]map[string]interface{} {
-
-	datas := make(map[string]map[string]interface{})
-	for key, elem := range config {
-		datas[key] = make(map[string]interface{})
-		datas[key]["value"] = elem
-	}
-	return datas
 }
 
 func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
@@ -358,15 +329,14 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
 		rerr = err
 	} else {
-		configRecord := service.ConfigRecord{}
 		for key, value := range config {
-			jsonValue, _ := json.Marshal(value)
-			configRecord.Update = append(configRecord.Update, &service.ConfigItem{
-				Key:       key,
-				ValueJson: string(jsonValue),
-			})
+			switch v := value.(type) {
+			case map[string]interface{}:
+				s.configMap[key] = v["value"]
+			default:
+				s.logger.Error("sender: checkAndUpdateResumeState: config value is not a map[string]interface{}")
+			}
 		}
-		s.resumeState.Config = &configRecord
 	}
 	if rerr != nil && s.settings.GetResume().GetValue() == "must" {
 		err = fmt.Errorf("failed to parse resume state but resume is set to must")
@@ -378,6 +348,66 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 		return err
 	}
 	return nil
+}
+
+// updateConfig updates the config map with the config record
+func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
+	// TODO: handle nested key updates and deletes
+	for _, d := range configRecord.GetUpdate() {
+		var value interface{}
+		if err := json.Unmarshal([]byte(d.GetValueJson()), &value); err != nil {
+			s.logger.CaptureError("unmarshal problem", err)
+			continue
+		}
+		s.configMap[d.GetKey()] = value
+	}
+	for _, d := range configRecord.GetRemove() {
+		delete(s.configMap, d.GetKey())
+	}
+}
+
+// updateTelemetry updates the config map with the telemetry record
+func (s *Sender) updateTelemetry(configRecord *service.TelemetryRecord) {
+	if configRecord == nil {
+		return
+	}
+
+	if _, ok := s.configMap["_wandb"]; !ok {
+		s.configMap["_wandb"] = make(map[string]interface{})
+	}
+
+	switch v := s.configMap["_wandb"].(type) {
+	case map[string]interface{}:
+		v["nexus_version"] = NexusVersion
+		if configRecord.CliVersion != "" {
+			v["cli_version"] = configRecord.CliVersion
+		}
+		if configRecord.PythonVersion != "" {
+			v["python_version"] = configRecord.PythonVersion
+		}
+		// todo: add the rest of the telemetry from configRecord
+	default:
+		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
+		s.logger.CaptureFatalAndPanic("sender received error", err)
+	}
+}
+
+// serializeConfig serializes the config map to a json string
+// that can be sent to the server
+func (s *Sender) serializeConfig() string {
+	valueConfig := make(map[string]map[string]interface{})
+	for key, elem := range s.configMap {
+		valueConfig[key] = make(map[string]interface{})
+		valueConfig[key]["value"] = elem
+	}
+	configJson, err := json.Marshal(valueConfig)
+	if err != nil {
+		err = fmt.Errorf("failed to marshal config: %s", err)
+		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+	}
+	configString := string(configJson)
+
+	return configString
 }
 
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
@@ -404,15 +434,9 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		return
 	}
 
-	config := s.parseConfigUpdate(run.Config)
-	s.updateConfigTelemetry(config)
-	valueConfig := s.getValueConfig(config)
-	configJson, err := json.Marshal(valueConfig)
-	if err != nil {
-		err = fmt.Errorf("failed to marshal config: %s", err)
-		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
-	}
-	configString := string(configJson)
+	s.updateConfig(run.Config)
+	s.updateTelemetry(run.Telemetry)
+	config := s.serializeConfig()
 
 	var tags []string
 	data, err := gql.UpsertBucket(
@@ -427,7 +451,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		nil,                      // displayName
 		nil,                      // notes
 		nil,                      // commit
-		&configString,            // config
+		&config,                  // config
 		nil,                      // host
 		nil,                      // debug
 		nil,                      // program
@@ -519,6 +543,41 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 	}
 }
 
+// sendConfig sends a config record to the server via an upsertBucket mutation
+// and updates the in memory config
+func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
+	s.updateConfig(configRecord)
+	config := s.serializeConfig()
+
+	_, err := gql.UpsertBucket(
+		s.ctx,                            // ctx
+		s.graphqlClient,                  // client
+		nil,                              // id
+		&s.RunRecord.RunId,               // name
+		emptyAsNil(&s.RunRecord.Project), // project
+		emptyAsNil(&s.RunRecord.Entity),  // entity
+		nil,                              // groupName
+		nil,                              // description
+		nil,                              // displayName
+		nil,                              // notes
+		nil,                              // commit
+		&config,                          // config
+		nil,                              // host
+		nil,                              // debug
+		nil,                              // program
+		nil,                              // repo
+		nil,                              // jobType
+		nil,                              // state
+		nil,                              // sweep
+		nil,                              // tags []string,
+		nil,                              // summaryMetrics
+	)
+	if err != nil {
+		s.logger.Error("sender: sendConfig:", "error", err)
+	}
+}
+
+// sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
 	if s.fileStream != nil {
 		s.fileStream.StreamRecord(record)

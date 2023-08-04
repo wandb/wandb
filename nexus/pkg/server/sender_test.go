@@ -22,6 +22,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) Sender {
 		},
 		graphqlClient: client,
 		resultChan:    resultChan,
+		configMap:     make(map[string]interface{}),
 	}
 	return sender
 }

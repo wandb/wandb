@@ -115,6 +115,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleAlert(record)
 	case *service.Record_Artifact:
 	case *service.Record_Config:
+		h.handleConfig(record)
 	case *service.Record_Exit:
 		h.handleExit(record)
 	case *service.Record_Files:
@@ -269,6 +270,10 @@ func (h *Handler) handleOutputRaw(record *service.Record) {
 }
 
 func (h *Handler) handleRun(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleConfig(record *service.Record) {
 	h.sendRecord(record)
 }
 
