@@ -3827,11 +3827,9 @@ class Api:
         assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
-        if state == "RUNNING" and curr_state in ("CANCELED", "FINISHED"):
-            raise Exception("Cannot resume %s sweep." % curr_state.lower())
-        elif state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
+        if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
             raise Exception("Cannot pause %s sweep." % curr_state.lower())
-        elif curr_state not in ("RUNNING", "PAUSED", "PENDING"):
+        elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
             raise Exception("Sweep already %s." % curr_state.lower())
         sweep_id = s["id"]
         mutation = gql(
