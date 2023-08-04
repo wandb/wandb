@@ -89,6 +89,14 @@ class SagemakerSubmittedRun(AbstractRun):
             self.client.stop_training_job(TrainingJobName=self.training_job_name)
             self.wait()
 
+    def cancel_with_warning(self) -> None:
+        if self.get_status().state == "running":
+            wandb.termwarn(f"Job was cancelled: {self.training_job_name}")
+        self.cancel()
+
+    def is_cancelled(self) -> bool:
+        return self.get_status().state not in ["running", "stopping"]
+
     def get_status(self) -> Status:
         job_status = self.client.describe_training_job(
             TrainingJobName=self.training_job_name

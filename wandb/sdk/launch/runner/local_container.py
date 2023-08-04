@@ -75,6 +75,14 @@ class LocalSubmittedRun(AbstractRun):
         # indicates to thread to not start command proc if not already started
         self._terminate_flag = True
 
+    def cancel_with_warning(self) -> None:
+        if not self._terminate_flag:
+            wandb.termwarn(f"Job was cancelled: {self.id}")
+        self._terminate_flag = True
+
+    def is_cancelled(self) -> bool:
+        return self._thread is not None and not self._thread.is_alive()
+
     def get_status(self) -> Status:
         assert self._thread is not None, "Failed to get status, self._thread = None"
         if self._command_proc is None:

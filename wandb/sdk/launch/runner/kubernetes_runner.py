@@ -268,7 +268,35 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def cancel(self) -> None:
         """Cancel the run."""
+        self.suspend()
         self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
+
+    def cancel_with_warning(self) -> None:
+        try:
+            self.batch_api.delete_namespaced_job(
+                name=self.name,
+                namespace=self.namespace,
+                grace_period_seconds=0,
+                propagation_policy="Foreground",
+            )
+            wandb.termwarn(f"Job was cancelled: {self.name}")
+        except Exception:
+            pass
+
+    def is_cancelled(self) -> bool:
+        try:
+            pod = self.core_api.read_namespaced_pod(
+                name=self.pod_names[0], namespace=self.namespace
+            )
+            wandb.termlog(f"DEBUG: {pod=}")
+            job = self.batch_api.read_namespaced_job(
+                name=self.name, namespace=self.namespace
+            )
+            wandb.termlog(f"DEBUG: {job=}")
+            return False
+        except Exception as e:
+            wandb.termlog(f"DEBUG: exception {e}")
+            return True
 
 
 class CrdSubmittedRun(AbstractRun):
