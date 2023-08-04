@@ -127,12 +127,12 @@ class _InMemoryLazyLiteRun:
         return self._i_api
 
     @property
-    def supports_streamtable(self):
+    def supports_streamtable(self) -> bool:
         # SaaS always supports streamtable
-        if self._i_api.settings("base_url").endswith("wandb.ai"):
+        if self.i_api.settings("base_url").endswith("wandb.ai"):
             return True
         if self._server_info is None:
-            _, self._server_info = self._i_api.viewer_server_info()
+            _, self._server_info = self.i_api.viewer_server_info()
         return self._server_info.get("streamTableEnabled", False)
 
     @property
