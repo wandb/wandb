@@ -15,5 +15,4 @@ setuptools
 appdirs>=1.4.3
 dataclasses; python_version < '3.7'
 typing_extensions; python_version < '3.10'
-wandb-core@git+https://github.com/wandb/nexus@update-telem-1#subdirectory=nexus
-# wandb-core@git+https://github.com/wandb/nexus@main#subdirectory=nexus
+wandb-core@git+https://github.com/wandb/nexus@main#subdirectory=nexus
