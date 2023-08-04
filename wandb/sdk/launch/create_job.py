@@ -348,6 +348,7 @@ def _create_repo_metadata(
             "remote": ref.url,
         },
         "root": ref.repo,
+        "codePathLocal": entrypoint,  # not in git context, optionally also set local
         "codePath": entrypoint,
         "entrypoint": [f"python{python_version}", entrypoint],
         "python": python_version,  # used to build container
