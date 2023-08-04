@@ -418,6 +418,14 @@ class CrdSubmittedRun(AbstractRun):
                 f"Failed to delete CRD {self.name} in namespace {self.namespace}: {str(e)}"
             ) from e
 
+    def cancel_with_warning(self) -> None:
+        if self.get_status().state in ["starting", "running", "stopping"]:
+            wandb.termwarn(f"Job was cancelled: {self.name}")
+        self.cancel()
+
+    def is_cancelled(self) -> bool:
+        return self.get_status().state not in ["starting", "running", "stopping"]
+
     def wait(self) -> bool:
         """Wait for this custom object to finish running."""
         while True:
