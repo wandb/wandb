@@ -149,6 +149,7 @@ class LaunchAgent:
             self._entity,
             self._project,
             self._queues,
+            self.default_config,
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
@@ -421,21 +422,23 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
-                            file_saver = RunQueueItemFileSaver(
-                                self._wandb_run, job["runQueueItemId"]
-                            )
-                            if _is_scheduler_job(job.get("runSpec")):
-                                # If job is a scheduler, and we are already at the cap, ignore,
-                                #    don't ack, and it will be pushed back onto the queue in 1 min
-                                if self.num_running_schedulers >= self._max_schedulers:
-                                    wandb.termwarn(
-                                        f"{LOG_PREFIX}Agent already running the maximum number "
-                                        f"of sweep schedulers: {self._max_schedulers}. To set "
-                                        "this value use `max_schedulers` key in the agent config"
-                                    )
-                                    continue
-
                             try:
+                                file_saver = RunQueueItemFileSaver(
+                                    self._wandb_run, job["runQueueItemId"]
+                                )
+                                if _is_scheduler_job(job.get("runSpec")):
+                                    # If job is a scheduler, and we are already at the cap, ignore,
+                                    #    don't ack, and it will be pushed back onto the queue in 1 min
+                                    if (
+                                        self.num_running_schedulers
+                                        >= self._max_schedulers
+                                    ):
+                                        wandb.termwarn(
+                                            f"{LOG_PREFIX}Agent already running the maximum number "
+                                            f"of sweep schedulers: {self._max_schedulers}. To set "
+                                            "this value use `max_schedulers` key in the agent config"
+                                        )
+                                        continue
                                 self.run_job(job, queue, file_saver)
                             except Exception as e:
                                 wandb.termerror(
@@ -539,7 +542,7 @@ class LaunchAgent:
                 _logger.debug(f"Fetch sweep state error: {e}")
                 state = None
 
-            if state and state != "RUNNING" and state != "PAUSED":
+            if state != "RUNNING" and state != "PAUSED":
                 raise LaunchError(
                     f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
                 )
@@ -636,6 +639,12 @@ class LaunchAgent:
                 wandb.termlog(
                     f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
                 )
+
+                if "sweep_id" in config:
+                    # allow resumed runs from sweeps that have already completed by removing
+                    # the sweep id before pushing to queue
+                    del config["sweep_id"]
+
                 launch_add(
                     config=config,
                     project_queue=self._project,
@@ -648,12 +657,15 @@ class LaunchAgent:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
                     if status == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
-                        self._api.set_sweep_state(
-                            sweep=job_tracker.run_id,
-                            entity=job_tracker.entity,
-                            project=job_tracker.project,
-                            state="CANCELED",
-                        )
+                        try:
+                            self._api.set_sweep_state(
+                                sweep=job_tracker.run_id,
+                                entity=job_tracker.entity,
+                                project=job_tracker.project,
+                                state="CANCELED",
+                            )
+                        except CommError as e:
+                            raise LaunchError(f"Failed to update sweep state: {e}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:

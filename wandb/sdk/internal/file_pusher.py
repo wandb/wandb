@@ -3,6 +3,7 @@ import logging
 import os
 import queue
 import tempfile
+import threading
 import time
 from typing import TYPE_CHECKING, Optional, Tuple
 
@@ -50,8 +51,8 @@ class FilePusher:
 
         self._stats = stats.Stats()
 
-        self._incoming_queue: "queue.Queue[step_checksum.Event]" = queue.Queue()
-        self._event_queue: "queue.Queue[step_upload.Event]" = queue.Queue()
+        self._incoming_queue: queue.Queue[step_checksum.Event] = queue.Queue()
+        self._event_queue: queue.Queue[step_upload.Event] = queue.Queue()
 
         self._step_checksum = step_checksum.StepChecksum(
             self._api,
@@ -71,6 +72,21 @@ class FilePusher:
             settings=settings,
         )
         self._step_upload.start()
+
+        self._stats_thread_stop = threading.Event()
+        if os.environ.get("WANDB_DEBUG"):
+            # debug thread to monitor and report file pusher stats
+            self._stats_thread = threading.Thread(
+                target=self._file_pusher_stats,
+                daemon=True,
+                name="FPStatsThread",
+            )
+            self._stats_thread.start()
+
+    def _file_pusher_stats(self) -> None:
+        while not self._stats_thread_stop.is_set():
+            logger.info(f"FilePusher stats: {self._stats._stats}")
+            time.sleep(1)
 
     def get_status(self) -> Tuple[bool, stats.Summary]:
         running = self.is_alive()
@@ -158,6 +174,7 @@ class FilePusher:
     def finish(self, callback: Optional[step_upload.OnRequestFinishFn] = None):
         logger.info("shutting down file pusher")
         self._incoming_queue.put(step_checksum.RequestFinish(callback))
+        self._stats_thread_stop.set()
 
     def join(self) -> None:
         # NOTE: must have called finish before join
