@@ -45,7 +45,7 @@ from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 
-PENDING_TIMEOUT = int(os.environ.get("WANDB_AGENT_TIMEOUT", 600))  # default 10 minutes
+PENDING_TIMEOUT = int(os.environ.get("WANDB_AGENT_TIMEOUT", 1800))  # default 30 minutes
 MAX_KUBERNETES_RETRIES = PENDING_TIMEOUT // AGENT_POLLING_INTERVAL
 FAIL_MESSAGE_INTERVAL = 60
 
@@ -285,17 +285,11 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def is_cancelled(self) -> bool:
         try:
-            pod = self.core_api.read_namespaced_pod(
+            self.core_api.read_namespaced_pod(
                 name=self.pod_names[0], namespace=self.namespace
             )
-            wandb.termlog(f"DEBUG: {pod=}")
-            job = self.batch_api.read_namespaced_job(
-                name=self.name, namespace=self.namespace
-            )
-            wandb.termlog(f"DEBUG: {job=}")
             return False
-        except Exception as e:
-            wandb.termlog(f"DEBUG: exception {e}")
+        except Exception:
             return True
 
 
