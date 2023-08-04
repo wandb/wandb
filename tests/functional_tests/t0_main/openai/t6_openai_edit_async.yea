@@ -1,4 +1,4 @@
-id: 0.llm-openai.01-edit
+id: 0.llm-openai.06-edit-async
 plugin:
   - wandb
 tag:
