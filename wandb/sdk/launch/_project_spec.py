@@ -72,7 +72,7 @@ class LaunchProject:
         self.job = job
         if job is not None:
             wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
-        self._job_artifact: Optional["Artifact"] = None
+        self._job_artifact: Optional[Artifact] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity

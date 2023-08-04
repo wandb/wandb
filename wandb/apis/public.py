@@ -16,7 +16,6 @@ import io
 import json
 import logging
 import os
-import platform
 import shutil
 import sys
 import tempfile
@@ -63,6 +62,8 @@ from wandb.sdk.lib.paths import LogicalPath
 if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util
+
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 
 logger = logging.getLogger(__name__)
 
@@ -231,7 +232,10 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
-        from pkg_resources import parse_version
+        try:
+            from packaging.version import Version as parse_version  # noqa: N813
+        except ImportError:
+            from pkg_resources import parse_version
 
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
@@ -251,7 +255,7 @@ class Api:
             You can also set defaults for `entity`, `project`, and `run`.
     """
 
-    _HTTP_TIMEOUT = env.get_http_timeout(9)
+    _HTTP_TIMEOUT = env.get_http_timeout(29)
     VIEWER_QUERY = gql(
         """
         query Viewer{
@@ -3423,8 +3427,6 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
-    from pkg_resources import parse_version
-
     SPACER = "----------"
     DECIMAL_SPACER = ";;;"
     FRONTEND_NAME_MAPPING = {
@@ -3464,7 +3466,7 @@ class PythonMongoishQueryGenerator:
         ast.Not: "$not",
     }
 
-    if parse_version(platform.python_version()) >= parse_version("3.8"):
+    if sys.version_info >= (3, 8):
         AST_FIELDS = {
             ast.Constant: "value",
             ast.Name: "id",
@@ -4687,6 +4689,10 @@ class Job:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
+        if code_artifact.state == ArtifactState.DELETED:
+            raise LaunchError(
+                f"Job {self.name} references deleted code artifact {code_artifact.name}"
+            )
         return code_artifact
 
     def _configure_launch_project_notebook(self, launch_project):
