@@ -71,6 +71,7 @@ class _InMemoryLazyLiteRun:
     _run: typing.Optional[public.Run] = None
     _stream: typing.Optional[file_stream.FileStreamApi] = None
     _pusher: typing.Optional[FilePusher] = None
+    _server_info: typing.Optional[typing.Dict] = None
 
     def __init__(
         self,
@@ -88,9 +89,9 @@ class _InMemoryLazyLiteRun:
         # Technically, we could use the default entity and project here, but
         # heeding Shawn's advice, we should be explicit about what we're doing.
         # We can always move to the default later, but we can't go back.
-        if entity_name is None or entity_name == "":
+        if entity_name == "":
             raise ValueError("Must specify entity_name")
-        elif project_name is None or project_name == "":
+        elif project_name == "":
             raise ValueError("Must specify project_name")
 
         self._entity_name = entity_name
@@ -124,6 +125,15 @@ class _InMemoryLazyLiteRun:
                 {"project": self._project_name, "entity": self._entity_name}
             )
         return self._i_api
+
+    @property
+    def supports_streamtable(self):
+        # SaaS always supports streamtable
+        if self._i_api.settings("base_url").endswith("wandb.ai"):
+            return True
+        if self._server_info is None:
+            _, self._server_info = self._i_api.viewer_server_info()
+        return self._server_info.get("streamTableEnabled", False)
 
     @property
     def id(self) -> str:

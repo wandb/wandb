@@ -6,15 +6,12 @@ import wandb
 
 @pytest.fixture
 @mock.patch("wandb.sdk.wandb_streamtable._InMemoryLazyLiteRun")
-@mock.patch(
-    "wandb.apis.public.Api.supports_streamtable", new_callable=mock.PropertyMock
-)
-def st(supports_streamtable, lite_run_class, runner):
-    supports_streamtable.return_value = True
+def st(lite_run_class, runner):
     run_instance = mock.MagicMock()
     run_instance._run_name = "streamtable"
     run_instance._project_name = "test"
     run_instance._entity_name = "test"
+    run_instance.supports_streamtable = True
     lite_run_class.return_value = run_instance
     st = wandb.StreamTable("test/test/streamtable")
     return st
@@ -36,7 +33,8 @@ def test_streamtable_no_project():
 
 
 @mock.patch(
-    "wandb.apis.public.Api.supports_streamtable", new_callable=mock.PropertyMock
+    "wandb.sdk.wandb_streamtable._InMemoryLazyLiteRun.supports_streamtable",
+    new_callable=mock.PropertyMock,
 )
 def test_streamtable_no_support(supports_streamtable, runner):
     supports_streamtable.return_value = False

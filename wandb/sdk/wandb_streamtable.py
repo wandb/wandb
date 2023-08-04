@@ -79,7 +79,7 @@ class StreamTable:
             group="weave_stream_tables",
             _hide_in_wb=hidden,
         )
-        if not wandb_public_api().supports_streamtable:
+        if not self._lite_run.supports_streamtable:
             raise errors.Error(
                 "Streamtable isn't supported in this version of wandb.  Contact your adminstrator to upgrade."
             )

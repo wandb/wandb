@@ -826,7 +826,11 @@ class Api:
             serverInfo {
                 cliVersionInfo
                 _LOCAL_QUERY_
+                _STREAMTABLE_QUERY_
             }
+        """
+        streamtable_query = """
+            streamTableEnabled
         """
         query_template = """
         query Viewer{
@@ -858,11 +862,18 @@ class Api:
             and "latestLocalVersionInfo" in server_info_types
         )
 
+        streamtable_exists = (
+            "serverInfo" in query_types and "streamTableEnabled" in server_info_types
+        )
+
         cli_query_string = "" if not cli_version_exists else cli_query
         local_query_string = "" if not local_version_exists else local_query
+        streamtable_query_string = "" if not streamtable_exists else streamtable_query
 
-        query_string = query_template.replace("_CLI_QUERY_", cli_query_string).replace(
-            "_LOCAL_QUERY_", local_query_string
+        query_string = (
+            query_template.replace("_CLI_QUERY_", cli_query_string)
+            .replace("_LOCAL_QUERY_", local_query_string)
+            .replace("_STREAMTABLE_QUERY_", streamtable_query_string)
         )
         query = gql(query_string)
         res = self.gql(query)
