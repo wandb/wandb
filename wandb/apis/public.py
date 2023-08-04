@@ -509,7 +509,7 @@ class Api:
         # 2. create default resource config, receive config id
         config_json = json.dumps({"resource_args": {type: config}})
         create_config_result = api.create_default_resource_config(
-            entity, LAUNCH_DEFAULT_PROJECT, type, config_json
+            entity, type, config_json
         )
         if not create_config_result["success"]:
             raise wandb.Error("failed to create default resource config")
