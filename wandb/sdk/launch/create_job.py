@@ -335,15 +335,19 @@ def _create_repo_metadata(
         entrypoint = rel_entrypoint
 
     # check if requirements.txt exists
-    # Note: local_dir will be a subdirectory of the git repo
-    # requirements_entrypoint = os.path.join(local_dir, "requirements.txt")
-    # while not os.path.exists(requirements_entrypoint) and requirements_entrypoint :
-    wandb.termlog(f"{local_dir=}")
-    wandb.termlog(f"{entrypoint=}")
+    # start at the location of the python file and recurse up to the git root
+    req_dir = local_dir
+    while (
+        not os.path.exists(os.path.join(req_dir, "requirements.txt"))
+        and req_dir != tempdir
+    ):
+        req_dir = os.path.dirname(req_dir)
 
-    if not os.path.exists(os.path.join(local_dir, "requirements.txt")):
+    if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
         wandb.termerror(
-            f"Could not find requirements.txt file in git repo at: {os.path.join(local_dir, "requirements.txt")}"
+            "Could not find requirements.txt file in git repo at "
+            f"{os.path.join(local_dir, 'requirements.txt')} "
+            "or parent directories"
         )
         return None
 
