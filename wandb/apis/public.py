@@ -4428,22 +4428,60 @@ class ArtifactCollection:
         return self._attrs
 
     @normalize_exceptions
-    def delete(self):
-        """Delete the entire artifact collection."""
-        mutation = gql(
+    def is_sequence(self) -> bool:
+        """Return True if this is a sequence."""
+        query = gql(
             """
-        mutation deleteArtifactSequence($id: ID!) {
-            deleteArtifactSequence(input: {
-                artifactSequenceID: $id
-            }) {
-                artifactCollection {
-                    state
+            query getCollectionType($entity: String!, $project: String!, $collection: String!) {
+                project(name: $project, entityName: $entity) {
+                    artifactCollection(name: $collection) {
+                        __typename
+                    }
                 }
             }
-        }
-        """
+            """
         )
-        self.client.execute(mutation, variable_values={"id": [self.id]})
+        variables = {
+            "entity": self.entity,
+            "project": self.project,
+            "collection": self.name,
+        }
+        res = self.client.execute(query, variable_values=variables)
+        typename = res["project"]["artifactCollection"]["__typename"]
+        return typename == "ArtifactSequence"
+
+    @normalize_exceptions
+    def delete(self):
+        """Delete the entire artifact collection."""
+        if self.is_sequence():
+            mutation = gql(
+                """
+                mutation deleteArtifactSequence($id: ID!) {
+                    deleteArtifactSequence(input: {
+                        artifactSequenceID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        else:
+            mutation = gql(
+                """
+                mutation deleteArtifactCollection($id: ID!) {
+                    deleteArtifactCollection(input: {
+                        artifactCollectionID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        self.client.execute(mutation, variable_values={"id": self.id})
 
     def __repr__(self):
         return f"<ArtifactCollection {self.name} ({self.type})>"
