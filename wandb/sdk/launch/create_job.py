@@ -351,6 +351,10 @@ def _create_repo_metadata(
         )
         return None
 
+    wandb.termlog(
+        f"Using requirements.txt in {req_dir.replace(tempdir, '') or 'repository root'}"
+    )
+
     metadata = {
         "git": {
             "commit": commit,
