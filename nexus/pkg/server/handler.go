@@ -401,11 +401,11 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 		if request.Step.Num > h.historyRecord.Step.Num {
 			h.flushHistory(h.historyRecord)
 			h.historyRecord = &service.HistoryRecord{
-				Step: request.Step,
+				Step: &service.HistoryStep{Num: request.Step.Num},
 			}
 		} else if request.Step.Num < h.historyRecord.Step.Num {
-			// h.logger.CaptureWarn("received history record for a step that has already been received",
-			//	"received", request.Step, "current", h.historyRecord.Step)
+			h.logger.CaptureWarn("received history record for a step that has already been received",
+				"received", request.Step, "current", h.historyRecord.Step)
 			return
 		}
 	}
@@ -415,7 +415,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
-	if (request.Step == nil && request.Action == nil) || request.Action.Flush {
+	if (request.Step == nil && request.Action == nil) || (request.Action != nil && request.Action.Flush) {
 		h.flushHistory(h.historyRecord)
 		h.historyRecord = &service.HistoryRecord{
 			Step: &service.HistoryStep{

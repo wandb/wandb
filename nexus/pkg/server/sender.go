@@ -87,20 +87,23 @@ func emptyAsNil(s *string) *string {
 
 // NewSender creates a new Sender with the given settings
 func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
-	url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-	apiKey := settings.GetApiKey().GetValue()
-	telemetry := &service.TelemetryRecord{CoreVersion: NexusVersion}
-	return &Sender{
-		ctx:           ctx,
-		settings:      settings,
-		logger:        logger,
-		graphqlClient: newGraphqlClient(url, apiKey, logger),
-		summaryMap:    make(map[string]*service.SummaryItem),
-		configMap:     make(map[string]interface{}),
-		recordChan:    make(chan *service.Record, BufferSize),
-		resultChan:    make(chan *service.Result, BufferSize),
-		telemetry:     telemetry,
+
+	sender := &Sender{
+		ctx:        ctx,
+		settings:   settings,
+		logger:     logger,
+		summaryMap: make(map[string]*service.SummaryItem),
+		configMap:  make(map[string]interface{}),
+		recordChan: make(chan *service.Record, BufferSize),
+		resultChan: make(chan *service.Result, BufferSize),
+		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
+	if !settings.GetXOffline().GetValue() {
+		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
+		apiKey := settings.GetApiKey().GetValue()
+		sender.graphqlClient = newGraphqlClient(url, apiKey, logger)
+	}
+	return sender
 }
 
 // do sending of messages to the server
@@ -173,13 +176,16 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 		s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
-		for k, v := range s.resumeState.FileStreamOffset {
-			s.fileStream.SetOffset(k, v)
+		if s.resumeState != nil {
+			for k, v := range s.resumeState.FileStreamOffset {
+				s.fileStream.SetOffset(k, v)
+			}
 		}
 		s.fileStream.Start()
+		s.uploader = uploader.NewUploader(s.ctx, s.logger)
+		s.uploader.Start()
 	}
-	s.uploader = uploader.NewUploader(s.ctx, s.logger)
-	s.uploader.Start()
+
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -275,13 +281,15 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 }
 
 func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
-	s.resumeState = &ResumeState{}
-
+	if s.graphqlClient == nil {
+		return nil
+	}
 	// There was no resume status set, so we don't need to do anything
 	if s.settings.GetResume().GetValue() == "" {
 		return nil
 	}
 
+	s.resumeState = &ResumeState{}
 	// If we couldn't get the resume status, we should fail if resume is set
 	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, emptyAsNil(&run.Entity), run.RunId)
 	if err != nil {
@@ -465,7 +473,7 @@ func (s *Sender) serializeConfig() string {
 
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
-	if s.RunRecord == nil {
+	if s.RunRecord == nil && s.graphqlClient != nil {
 		var ok bool
 		s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
 		if !ok {
@@ -489,73 +497,80 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 	}
 
-	s.updateConfig(run.Config)
-	s.updateConfigPrivate(run.Telemetry)
-	config := s.serializeConfig()
+	if s.graphqlClient != nil {
 
-	var tags []string
-	tags = append(tags, run.Tags...)
+		s.updateConfig(run.Config)
+		s.updateConfigPrivate(run.Telemetry)
+		config := s.serializeConfig()
 
-	var commit, repo string
-	git := run.GetGit()
-	if git != nil {
-		commit = git.GetCommit()
-		repo = git.GetRemoteUrl()
-	}
+		var tags []string
+		tags = append(tags, run.Tags...)
 
-	program := s.settings.GetProgram().GetValue()
-	data, err := gql.UpsertBucket(
-		s.ctx,                        // ctx
-		s.graphqlClient,              // client
-		nil,                          // id
-		&run.RunId,                   // name
-		emptyAsNil(&run.Project),     // project
-		emptyAsNil(&run.Entity),      // entity
-		emptyAsNil(&run.RunGroup),    // groupName
-		nil,                          // description
-		emptyAsNil(&run.DisplayName), // displayName
-		emptyAsNil(&run.Notes),       // notes
-		emptyAsNil(&commit),          // commit
-		&config,                      // config
-		emptyAsNil(&run.Host),        // host
-		nil,                          // debug
-		emptyAsNil(&program),         // program
-		emptyAsNil(&repo),            // repo
-		emptyAsNil(&run.JobType),     // jobType
-		nil,                          // state
-		nil,                          // sweep
-		tags,                         // tags []string,
-		nil,                          // summaryMetrics
-	)
-	if err != nil {
-		err = fmt.Errorf("failed to upsert bucket: %s", err)
-		s.logger.Error("sender: sendRun:", "error", err)
-		if record.Control.ReqResp || record.Control.MailboxSlot != "" {
-			result := &service.Result{
-				ResultType: &service.Result_RunResult{
-					RunResult: &service.RunUpdateResult{
-						Error: &service.ErrorInfo{
-							Message: err.Error(),
-							Code:    service.ErrorInfo_INTERNAL,
+		var commit, repo string
+		git := run.GetGit()
+		if git != nil {
+			commit = git.GetCommit()
+			repo = git.GetRemoteUrl()
+		}
+
+		program := s.settings.GetProgram().GetValue()
+		data, err := gql.UpsertBucket(
+			s.ctx,                        // ctx
+			s.graphqlClient,              // client
+			nil,                          // id
+			&run.RunId,                   // name
+			emptyAsNil(&run.Project),     // project
+			emptyAsNil(&run.Entity),      // entity
+			emptyAsNil(&run.RunGroup),    // groupName
+			nil,                          // description
+			emptyAsNil(&run.DisplayName), // displayName
+			emptyAsNil(&run.Notes),       // notes
+			emptyAsNil(&commit),          // commit
+			&config,                      // config
+			emptyAsNil(&run.Host),        // host
+			nil,                          // debug
+			emptyAsNil(&program),         // program
+			emptyAsNil(&repo),            // repo
+			emptyAsNil(&run.JobType),     // jobType
+			nil,                          // state
+			nil,                          // sweep
+			tags,                         // tags []string,
+			nil,                          // summaryMetrics
+		)
+		if err != nil {
+			err = fmt.Errorf("failed to upsert bucket: %s", err)
+			s.logger.Error("sender: sendRun:", "error", err)
+			if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+				result := &service.Result{
+					ResultType: &service.Result_RunResult{
+						RunResult: &service.RunUpdateResult{
+							Error: &service.ErrorInfo{
+								Message: err.Error(),
+								Code:    service.ErrorInfo_INTERNAL,
+							},
 						},
 					},
-				},
-				Control: record.Control,
-				Uuid:    record.Uuid,
+					Control: record.Control,
+					Uuid:    record.Uuid,
+				}
+				s.resultChan <- result
 			}
-			s.resultChan <- result
+			return
 		}
-		return
+
+		s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
+		s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
+		s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
 	}
 
-	s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
-	s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
-	s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
-
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+		runResult := s.RunRecord
+		if runResult == nil {
+			runResult = run
+		}
 		result := &service.Result{
 			ResultType: &service.Result_RunResult{
-				RunResult: &service.RunUpdateResult{Run: s.RunRecord},
+				RunResult: &service.RunUpdateResult{Run: runResult},
 			},
 			Control: record.Control,
 			Uuid:    record.Uuid,
@@ -606,9 +621,14 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 // sendConfig sends a config record to the server via an upsertBucket mutation
 // and updates the in memory config
 func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
+	if s.graphqlClient == nil {
+		return
+	}
+
 	if configRecord != nil {
 		s.updateConfig(configRecord)
 	}
+
 	config := s.serializeConfig()
 
 	_, err := gql.UpsertBucket(
@@ -672,6 +692,10 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
+	if s.graphqlClient == nil {
+		return
+	}
+
 	if s.RunRecord == nil {
 		err := fmt.Errorf("sender: sendFile: RunRecord not set")
 		s.logger.CaptureFatalAndPanic("sender received error", err)
@@ -735,6 +759,10 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 
 // sendFile sends a file to the server
 func (s *Sender) sendFile(name string) {
+	if s.graphqlClient == nil || s.uploader == nil {
+		return
+	}
+
 	if s.RunRecord == nil {
 		err := fmt.Errorf("sender: sendFile: RunRecord not set")
 		s.logger.CaptureFatalAndPanic("sender received error", err)
