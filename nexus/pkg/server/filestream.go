@@ -91,6 +91,9 @@ type FileStream struct {
 
 	// httpClient is the http client
 	httpClient *retryablehttp.Client
+
+	// keep track of the exit chunk for when we shut down filestream
+	stageExitChunk *chunkData
 }
 
 // NewFileStream creates a new filestream
@@ -225,6 +228,9 @@ func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 				}
 			}
 		}
+		if fs.stageExitChunk != nil {
+			fs.sendChunkList([]chunkData{*fs.stageExitChunk})
+		}
 	}
 }
 
@@ -311,9 +317,9 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 }
 
 func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
-	// todo: handle the exit code passed from the user process
-	chunk := chunkData{Complete: &completeTrue, Exitcode: &exitRecord.ExitCode}
-	fs.pushChunk(chunk)
+	// exitChunk is sent last, so instead of pushing to the chunk channel we
+	// stage it to be sent after processing all other chunks
+	fs.stageExitChunk = &chunkData{Complete: &completeTrue, Exitcode: &exitRecord.ExitCode}
 }
 
 func (fs *FileStream) StreamRecord(rec *service.Record) {
@@ -359,6 +365,7 @@ func (fs *FileStream) send(data interface{}) {
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json marshal error", err)
 	}
+	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
 	buffer := bytes.NewBuffer(jsonData)
 	req, err := retryablehttp.NewRequest(http.MethodPost, fs.path, buffer)

@@ -238,14 +238,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
 		if s.fileStream != nil {
-			if s.exitRecord == nil {
-				// todo: revisit this logic as this should never happen
-				s.exitRecord = &service.Record{
-					RecordType: &service.Record_Exit{Exit: &service.RunExitRecord{ExitCode: 1}},
-					Control:    &service.Control{AlwaysSend: true},
-				}
-			}
-			s.fileStream.StreamRecord(s.exitRecord)
 			s.fileStream.Close()
 		}
 		request.State++
@@ -255,6 +247,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
+		if s.exitRecord != nil {
+			s.respondExit(s.exitRecord)
+		}
 		close(s.recordChan)
 		close(s.resultChan)
 	default:
@@ -724,17 +719,26 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 }
 
+// respondExit called from the end of the defer state machine
+func (s *Sender) respondExit(record *service.Record) {
+	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+		result := &service.Result{
+			ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
+			Control:    record.Control,
+			Uuid:       record.Uuid,
+		}
+		s.resultChan <- result
+	}
+}
+
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
+	// response is done by respondExit() and called when defer state machine is complete
 	s.exitRecord = record
 
-	// todo: this should probably happen later on
-	result := &service.Result{
-		ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
-		Control:    record.Control,
-		Uuid:       record.Uuid,
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
 	}
-	s.resultChan <- result
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
