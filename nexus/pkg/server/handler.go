@@ -189,8 +189,6 @@ func (h *Handler) handleDefer(record *service.Record) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 	case service.DeferRequest_FLUSH_STATS:
-		// Jeff, can we just get rid of the defer state machine, please? ;)
-		// h.systemMonitor.Stop()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.flushHistory(h.historyRecord)
 	case service.DeferRequest_FLUSH_TB:
