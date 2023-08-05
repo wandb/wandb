@@ -203,20 +203,26 @@ func (s *Stream) GetRun() *service.RunRecord {
 //
 // This will finish the Stream's wait group, which will allow the stream to be
 // garbage collected.
-func (s *Stream) Close(force bool) {
-	// send exit record to handler
-	if force {
-		record := &service.Record{
-			RecordType: &service.Record_Exit{Exit: &service.RunExitRecord{}},
-			Control:    &service.Control{AlwaysSend: true},
-		}
-		s.HandleRecord(record)
-	}
+func (s *Stream) Close() {
+	// Close and wait for input channel to shutdown
 	close(s.inChan)
 	s.wg.Wait()
-	if force {
-		s.PrintFooter()
+}
+
+func (s *Stream) FinishAndClose(exitCode int32) {
+	// send exit record to handler
+	record := &service.Record{
+		RecordType: &service.Record_Exit{
+			Exit: &service.RunExitRecord{
+				ExitCode: exitCode,
+			}},
+		Control: &service.Control{AlwaysSend: true},
 	}
+	s.HandleRecord(record)
+
+	s.Close()
+
+	s.PrintFooter()
 	s.logger.Info("closed stream", "id", s.settings.RunId)
 }
 

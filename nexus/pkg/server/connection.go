@@ -255,15 +255,15 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 	if stream, err := streamMux.RemoveStream(streamId); err != nil {
 		slog.Error("handleInformFinish:", "err", err, "streamId", streamId, "id", nc.id)
 	} else {
-		stream.Close(false)
+		stream.Close()
 	}
 }
 
 // handleInformTeardown is called when the client sends a teardown message
 // for the entire server session
-func (nc *Connection) handleInformTeardown(_ *service.ServerInformTeardownRequest) {
+func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
 	slog.Debug("handle teardown received", "id", nc.id)
 	close(nc.teardownChan)
-	streamMux.CloseAllStreams(true) // TODO: this seems wrong to Close all streams from a single connection
+	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
 	nc.Close()
 }

@@ -58,8 +58,8 @@ func (sm *StreamMux) RemoveStream(streamId string) (*Stream, error) {
 	}
 }
 
-// CloseAllStreams closes all streams in the mux.
-func (sm *StreamMux) CloseAllStreams(force bool) {
+// FinishAndCloseAllStreams closes all streams in the mux.
+func (sm *StreamMux) FinishAndCloseAllStreams(exitCode int32) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -67,7 +67,7 @@ func (sm *StreamMux) CloseAllStreams(force bool) {
 	for streamId, stream := range sm.mux {
 		wg.Add(1)
 		go func(stream *Stream) {
-			stream.Close(force)
+			stream.FinishAndClose(exitCode)
 			wg.Done()
 		}(stream)
 		// delete all streams from mux
