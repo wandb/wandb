@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/wandb/wandb/nexus/pkg/monitor"
+
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
-	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -58,36 +59,31 @@ func NewHandler(
 	ctx context.Context,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
-	systemMonitor *monitor.SystemMonitor,
 ) *Handler {
+	// init the system monitor
+	systemMonitor := monitor.NewSystemMonitor(settings, logger)
 	h := &Handler{
 		ctx:                 ctx,
 		settings:            settings,
 		logger:              logger,
 		systemMonitor:       systemMonitor,
 		consolidatedSummary: make(map[string]string),
+		recordChan:          make(chan *service.Record, BufferSize),
+		resultChan:          make(chan *service.Result, BufferSize),
 	}
 	return h
 }
 
 // do this starts the handler
-func (h *Handler) do(inChan <-chan *service.Record) (<-chan *service.Record, <-chan *service.Result) {
+func (h *Handler) do(inChan <-chan *service.Record) {
 	defer observability.Reraise()
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-
-	h.recordChan = make(chan *service.Record, BufferSize)
-	h.resultChan = make(chan *service.Result, BufferSize)
-
-	go func() {
-		for record := range inChan {
-			h.handleRecord(record)
-		}
-		close(h.recordChan)
-		close(h.resultChan)
-		h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
-	}()
-	return h.recordChan, h.resultChan
+	for record := range inChan {
+		h.handleRecord(record)
+	}
+	h.close()
+	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendResponse(record *service.Record, response *service.Response) {
@@ -97,6 +93,11 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 		Uuid:       record.Uuid,
 	}
 	h.resultChan <- result
+}
+
+func (h *Handler) close() {
+	close(h.resultChan)
+	close(h.recordChan)
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
@@ -188,7 +189,8 @@ func (h *Handler) handleDefer(record *service.Record) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 	case service.DeferRequest_FLUSH_STATS:
-		h.systemMonitor.Stop()
+		// Jeff, can we just get rid of the defer state machine, please? ;)
+		// h.systemMonitor.Stop()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.flushHistory(h.historyRecord)
 	case service.DeferRequest_FLUSH_TB:
@@ -233,6 +235,15 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
+	go func() {
+		// this goroutine reads from the system monitor channel and writes
+		// to the handler's record channel. it will exit when the system
+		// monitor channel is closed
+		for msg := range h.systemMonitor.OutChan {
+			h.recordChan <- msg
+		}
+		h.logger.Debug("system monitor channel closed")
+	}()
 	h.systemMonitor.Do()
 }
 
@@ -289,6 +300,9 @@ func (h *Handler) handleAlert(record *service.Record) {
 }
 
 func (h *Handler) handleExit(record *service.Record) {
+	// stop the system monitor to ensure that we don't send any more system metrics
+	// after the run has exited
+	h.systemMonitor.Stop()
 	h.sendRecord(record)
 }
 

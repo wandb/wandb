@@ -12,6 +12,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const BufferSize = 32
+
 func Average(nums []float64) float64 {
 	if len(nums) == 0 {
 		return 0.0
@@ -69,7 +71,7 @@ type SystemMonitor struct {
 	assets []Asset
 
 	//	outChan is the channel for outgoing messages
-	OutChan chan<- *service.Record
+	OutChan chan *service.Record
 
 	// settings is the settings for the system monitor
 	settings *service.Settings
@@ -80,7 +82,6 @@ type SystemMonitor struct {
 
 // NewSystemMonitor creates a new SystemMonitor with the given settings
 func NewSystemMonitor(
-	outChan chan<- *service.Record,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
 ) *SystemMonitor {
@@ -90,7 +91,7 @@ func NewSystemMonitor(
 		ctx:      ctx,
 		cancel:   cancel,
 		wg:       sync.WaitGroup{},
-		OutChan:  outChan,
+		OutChan:  make(chan *service.Record, BufferSize),
 		settings: settings,
 		logger:   logger,
 	}

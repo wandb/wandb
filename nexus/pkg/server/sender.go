@@ -70,6 +70,9 @@ type Sender struct {
 
 	// Keep track of config which is being updated incrementally
 	configMap map[string]interface{}
+
+	// Keep track of exit record to pass to file stream when the time comes
+	exitRecord *service.Record
 }
 
 func emptyAsNil(s *string) *string {
@@ -94,23 +97,20 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		graphqlClient: newGraphqlClient(url, apiKey, logger),
 		summaryMap:    make(map[string]*service.SummaryItem),
 		configMap:     make(map[string]interface{}),
+		recordChan:    make(chan *service.Record, BufferSize),
+		resultChan:    make(chan *service.Result, BufferSize),
 		telemetry:     telemetry,
 	}
 }
 
 // do sending of messages to the server
-func (s *Sender) do(inChan <-chan *service.Record) (<-chan *service.Result, <-chan *service.Record) {
+func (s *Sender) do(inChan <-chan *service.Record) {
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
-	s.recordChan = make(chan *service.Record, BufferSize)
-	s.resultChan = make(chan *service.Result, BufferSize)
 
-	go func() {
-		for record := range inChan {
-			s.sendRecord(record)
-		}
-		s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
-	}()
-	return s.resultChan, s.recordChan
+	for record := range inChan {
+		s.sendRecord(record)
+	}
+	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
 }
 
 // sendRecord sends a record
@@ -197,24 +197,63 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
 	switch request.State {
+	case service.DeferRequest_BEGIN:
+		request.State++
+		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_STATS:
+		request.State++
+		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
+		request.State++
+		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_TB:
+		request.State++
+		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_SUM:
+		request.State++
+		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_DEBOUNCER:
+		request.State++
+		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_OUTPUT:
+		request.State++
+		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_DIR:
+		request.State++
+		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
 		if s.uploader != nil {
 			s.uploader.Close()
 		}
 		request.State++
 		s.sendRequestDefer(request)
+	case service.DeferRequest_JOIN_FP:
+		request.State++
+		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
 		if s.fileStream != nil {
+			if s.exitRecord == nil {
+				// todo: revisit this logic as this should never happen
+				s.exitRecord = &service.Record{
+					RecordType: &service.Record_Exit{Exit: &service.RunExitRecord{ExitCode: 1}},
+					Control:    &service.Control{AlwaysSend: true},
+				}
+			}
+			s.fileStream.StreamRecord(s.exitRecord)
 			s.fileStream.Close()
 		}
 		request.State++
 		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_FINAL:
+		request.State++
+		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
+		request.State++
 		close(s.recordChan)
 		close(s.resultChan)
 	default:
-		request.State++
-		s.sendRequestDefer(request)
+		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
+		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
 	}
 }
 
@@ -607,11 +646,15 @@ func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecor
 	}
 }
 
-func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.OutputRawRecord) {
+func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecord) {
 	// TODO: match logic handling of lines to the one in the python version
 	// - handle carriage returns (for tqdm-like progress bars)
 	// - handle caching multiple (non-new lines) and sending them in one chunk
 	// - handle lines longer than ~60_000 characters
+
+	// copy the record to avoid mutating the original
+	recordCopy := proto.Clone(record).(*service.Record)
+	outputRaw := recordCopy.GetOutputRaw()
 
 	// ignore empty "new lines"
 	if outputRaw.Line == "\n" {
@@ -624,7 +667,7 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 	}
 
 	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
+		s.fileStream.StreamRecord(recordCopy)
 	}
 }
 
@@ -659,9 +702,9 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.exitRecord = record
+
+	// todo: this should probably happen later on
 	result := &service.Result{
 		ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
 		Control:    record.Control,
@@ -669,6 +712,8 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	}
 	s.resultChan <- result
 
+	// send a defer request to the handler to indicate that the user requested to finish the stream
+	// and the defer state machine can kick in triggering the shutdown process
 	request := &service.Request{RequestType: &service.Request_Defer{
 		Defer: &service.DeferRequest{State: service.DeferRequest_BEGIN}},
 	}
@@ -677,7 +722,6 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	// s.sendRecord(rec)
 	s.recordChan <- rec
 }
 

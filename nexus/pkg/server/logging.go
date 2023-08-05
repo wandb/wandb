@@ -11,11 +11,15 @@ import (
 )
 
 func setupLogger(opts *slog.HandlerOptions, writers ...io.Writer) *slog.Logger {
+	level := slog.LevelInfo
+	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
+		level = slog.LevelDebug
+	}
 
 	writer := io.MultiWriter(writers...)
 	if opts == nil {
 		opts = &slog.HandlerOptions{
-			Level: slog.LevelInfo,
+			Level: level,
 		}
 	}
 	logger := slog.New(slog.NewJSONHandler(writer, opts))

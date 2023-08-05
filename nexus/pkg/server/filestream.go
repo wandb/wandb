@@ -26,10 +26,7 @@ const (
 	heartbeatTime   = 2 * time.Second
 )
 
-var (
-	exitcodeZero int  = 0
-	completeTrue bool = true
-)
+var completeTrue bool = true
 
 type chunkFile int8
 
@@ -43,7 +40,7 @@ const (
 type chunkData struct {
 	fileName string
 	fileData *chunkLine
-	Exitcode *int
+	Exitcode *int32
 	Complete *bool
 }
 
@@ -61,7 +58,7 @@ type FsChunkData struct {
 type FsData struct {
 	Files    map[string]FsChunkData `json:"files,omitempty"`
 	Complete *bool                  `json:"complete,omitempty"`
-	Exitcode *int                   `json:"exitcode,omitempty"`
+	Exitcode *int32                 `json:"exitcode,omitempty"`
 }
 
 // FileStream is a stream of data to the server
@@ -129,6 +126,7 @@ func (fs *FileStream) Start() {
 
 	fs.chunkWait.Add(1)
 	go func() {
+		// todo: treat different file types separately
 		fs.doChunkProcess(fs.chunkChan)
 		fs.chunkWait.Done()
 	}()
@@ -167,7 +165,7 @@ func (fs *FileStream) doRecordProcess(inChan <-chan *service.Record) {
 		case *service.Record_OutputRaw:
 			fs.streamOutputRaw(x.OutputRaw)
 		case *service.Record_Exit:
-			fs.streamFinish()
+			fs.streamFinish(x.Exit)
 		case nil:
 			err := fmt.Errorf("filestream: field not set")
 			fs.logger.CaptureFatalAndPanic("filestream error:", err)
@@ -189,11 +187,6 @@ func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 			if !ok {
 				active = false
 				break
-			}
-
-			if chunk.fileName == EventsFileName {
-				fs.sendChunkList([]chunkData{chunk})
-				continue
 			}
 
 			chunkMaps[chunk.fileName] = append(chunkMaps[chunk.fileName], chunk)
@@ -317,8 +310,9 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 	fs.pushChunk(chunk)
 }
 
-func (fs *FileStream) streamFinish() {
-	chunk := chunkData{Complete: &completeTrue, Exitcode: &exitcodeZero}
+func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
+	// todo: handle the exit code passed from the user process
+	chunk := chunkData{Complete: &completeTrue, Exitcode: &exitRecord.ExitCode}
 	fs.pushChunk(chunk)
 }
 
@@ -330,7 +324,7 @@ func (fs *FileStream) StreamRecord(rec *service.Record) {
 func (fs *FileStream) sendChunkList(chunks []chunkData) {
 	var lines []string
 	var complete *bool
-	var exitcode *int
+	var exitcode *int32
 
 	for i := range chunks {
 		if chunks[i].fileData != nil {
@@ -399,5 +393,4 @@ func (fs *FileStream) Close() {
 	close(fs.replyChan)
 	fs.replyWait.Wait()
 	fs.logger.Debug("filestream: closed")
-
 }

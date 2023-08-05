@@ -38,17 +38,18 @@ type Writer struct {
 func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Writer {
 
 	w := &Writer{
-		ctx:      ctx,
-		settings: settings,
-		logger:   logger,
+		ctx:        ctx,
+		settings:   settings,
+		logger:     logger,
+		recordChan: make(chan *service.Record, BufferSize),
 	}
 	return w
 }
 
 // do is the main loop of the writer to process incoming messages
-func (w *Writer) do(inChan <-chan *service.Record) <-chan *service.Record {
+func (w *Writer) do(inChan <-chan *service.Record) {
 	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
-	w.recordChan = make(chan *service.Record, BufferSize)
+
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
@@ -72,13 +73,10 @@ func (w *Writer) do(inChan <-chan *service.Record) <-chan *service.Record {
 		w.wg.Done()
 	}()
 
-	go func() {
-		for record := range inChan {
-			w.handleRecord(record)
-		}
-		w.close()
-	}()
-	return w.recordChan
+	for record := range inChan {
+		w.handleRecord(record)
+	}
+	w.close()
 }
 
 // close closes the writer and all its resources

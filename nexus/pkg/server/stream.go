@@ -4,8 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wandb/wandb/nexus/pkg/monitor"
-
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -102,42 +100,50 @@ func (s *Stream) Start() {
 	// TODO: fix input channel, either remove the defer state machine or make
 	//  a pattern to handle multiple writers
 
-	// init the system monitor
-	systemMonitorChan := make(chan *service.Record, BufferSize)
-	systemMonitor := monitor.NewSystemMonitor(systemMonitorChan, s.settings, s.logger)
-
-	// handle the client requests
-	s.handler = NewHandler(s.ctx, s.settings, s.logger, systemMonitor)
 	handlerInChan := make(chan *service.Record, BufferSize)
-	handleChan, handlerResultChan := s.handler.do(handlerInChan)
+	// handle the client requests
+	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	s.wg.Add(1)
+	go func() {
+		s.handler.do(handlerInChan)
+		s.wg.Done()
+	}()
 
 	// write the data to a transaction log
 	s.writer = NewWriter(s.ctx, s.settings, s.logger)
-	writerChan := s.writer.do(handleChan)
+	s.wg.Add(1)
+	go func() {
+		s.writer.do(s.handler.recordChan)
+		s.wg.Done()
+	}()
 
 	// send the data to the server
 	s.sender = NewSender(s.ctx, s.settings, s.logger)
-	senderResultChan, senderInChan := s.sender.do(writerChan)
+	s.wg.Add(1)
+	go func() {
+		s.sender.do(s.writer.recordChan)
+		s.wg.Done()
+	}()
 
-	s.logger.Debug("starting stream", "id", handlerResultChan)
+	s.logger.Debug("starting stream", "id", s.settings.RunId)
 
 	// handle dispatching between components
 	// TODO: revisit both of these as we probably just want to use the defer state machine
 	//  to resolve the order of closing. We can also use a single channel to handle
-	//  all of the components, hence reducing the extra channels.
+	//  all the components, hence reducing the extra channels.
 	s.wg.Add(1)
 	go func() {
-		for senderResultChan != nil || handlerResultChan != nil {
+		for s.sender.resultChan != nil || s.handler.resultChan != nil {
 			select {
-			case result, ok := <-senderResultChan:
+			case result, ok := <-s.sender.resultChan:
 				if !ok {
-					senderResultChan = nil
+					s.sender.resultChan = nil
 					continue
 				}
 				s.handleRespond(result)
-			case result, ok := <-handlerResultChan:
+			case result, ok := <-s.handler.resultChan:
 				if !ok {
-					handlerResultChan = nil
+					s.handler.resultChan = nil
 					continue
 				}
 				s.handleRespond(result)
@@ -154,23 +160,17 @@ func (s *Stream) Start() {
 	//  on the close channel for writes coming from the connections.
 	streamInChan := s.inChan
 	go func() {
-		for senderInChan != nil || streamInChan != nil || systemMonitorChan != nil {
+		for s.sender.recordChan != nil || streamInChan != nil {
 			select {
-			case record, ok := <-senderInChan:
+			case record, ok := <-s.sender.recordChan:
 				if !ok {
-					senderInChan = nil
+					s.sender.recordChan = nil
 					continue
 				}
 				handlerInChan <- record
 			case record, ok := <-streamInChan:
 				if !ok {
 					streamInChan = nil
-					continue
-				}
-				handlerInChan <- record
-			case record, ok := <-systemMonitorChan:
-				if !ok {
-					systemMonitorChan = nil
 					continue
 				}
 				handlerInChan <- record
