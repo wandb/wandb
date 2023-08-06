@@ -1,15 +1,11 @@
 package server
 
 import (
-	"bufio"
 	"context"
 	"net"
 	"sync"
 
 	"golang.org/x/exp/slog"
-
-	"github.com/wandb/wandb/nexus/pkg/service"
-	"google.golang.org/protobuf/proto"
 )
 
 const BufferSize = 32
@@ -73,7 +69,8 @@ func (s *Server) Serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				s.handleConnection(s.ctx, conn)
+				nc := NewConnection(s.ctx, conn, s.teardownChan)
+				nc.HandleConnection()
 				s.wg.Done()
 			}()
 		}
@@ -89,26 +86,4 @@ func (s *Server) Close() {
 	}
 	s.wg.Wait()
 	slog.Info("server is closed")
-}
-
-// handleConnection handles a single connection
-func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
-	nc := NewConnection(ctx, conn, s.teardownChan)
-
-	scanner := bufio.NewScanner(conn)
-	tokenizer := &Tokenizer{}
-	scanner.Split(tokenizer.split)
-	for scanner.Scan() {
-		msg := &service.ServerRequest{}
-		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
-			slog.Error(
-				"unmarshalling error",
-				"err", err,
-				"conn", conn.RemoteAddr())
-		} else {
-			slog.Debug("received message", "msg", msg, "conn", conn.RemoteAddr())
-			nc.inChan <- msg
-		}
-	}
-	close(nc.inChan)
 }
