@@ -336,6 +336,7 @@ class SettingsData:
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
+    _stats_auto_dcgm_exporter: bool  # automatically try to consume dcgm-exporter metrics (NVIDIA GPUs)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
@@ -671,11 +672,15 @@ class Settings(SettingsData):
             },
             _stats_open_metrics_endpoints={
                 "preprocessor": _str_as_json,
+                "hook": self._auto_open_metrics_endpoints,
+                "auto_hook": True,
             },
             _stats_open_metrics_filters={
                 # capture all metrics on all endpoints by default
                 "value": (".*",),
                 "preprocessor": _str_as_json,
+                # "hook": self._auto_open_metrics_filters,
+                # "auto_hook": True,
             },
             _tmp_code_dir={
                 "value": "code",
@@ -1115,6 +1120,69 @@ class Settings(SettingsData):
     def _path_convert(*args: str) -> str:
         """Join path and apply os.path.expanduser to it."""
         return os.path.expanduser(os.path.join(*args))
+
+    @staticmethod
+    def _unpack_slurm_node_list(regex_string: str) -> Tuple[str]:
+        """Unpacks a regex with the SLURM node list string into a list of strings."""
+        pattern = re.compile(r"\[([\d,-]+)\]")
+        match = pattern.search(regex_string)
+
+        if match:
+            segments = match.group(1).split(",")
+            unpacked_strings = []
+
+            for segment in segments:
+                if "-" in segment:
+                    start_number, end_number = (int(x) for x in segment.split("-"))
+                    for number in range(start_number, end_number + 1):
+                        unpacked_strings.append(
+                            regex_string[: match.start()]
+                            + str(number)
+                            + regex_string[match.end() :]
+                        )
+                else:
+                    unpacked_strings.append(
+                        regex_string[: match.start()]
+                        + segment
+                        + regex_string[match.end() :]
+                    )
+
+            return tuple(unpacked_strings)
+
+    def _auto_open_metrics_endpoints(
+        self, value: Optional[str]
+    ) -> Optional[Mapping[str, str]]:
+        if value is not None:
+            # the user has explicitly set metrics endpoint(s), don't try to auto-discover
+            return None
+        if not self._stats_auto_dcgm_exporter:
+            # auto-discovery not enabled
+            return None
+
+        slurm_node_id = os.environ.get("SLURM_NODEID")
+        slurm_nodelist = os.environ.get("SLURM_NODELIST")
+        slurm_nodename = os.environ.get("SLURMD_NODENAME")
+
+        # capture all metrics from the rank 0 node
+        if slurm_node_id != "0" or slurm_nodelist is None or slurm_nodename is None:
+            return None
+
+        # drop this node:
+        node_list = [
+            node
+            for node in self._unpack_slurm_node_list(slurm_nodelist)
+            if node != slurm_nodename
+        ]
+
+        return {
+            **{
+                "node1": "http://localhost:9400/metrics",
+            },
+            **{
+                f"node{n + 2}": f"http://{node}:9400/metrics"
+                for n, node in enumerate(node_list)
+            },
+        }
 
     def _convert_console(self, console: str) -> str:
         if console == "auto":
