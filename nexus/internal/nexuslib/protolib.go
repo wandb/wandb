@@ -30,12 +30,11 @@ func ProtoEncodeToDict(p *service.TelemetryRecord) map[int]interface{} {
 		}
 		switch fd.Kind() {
 		case protoreflect.Int32Kind:
-			m[int(num)] = v
+			m[int(num)] = v.Int()
 		case protoreflect.StringKind:
-			// TODO(compat): figure out how to get a string out of this
-			// m[int(num)] = v
+			m[int(num)] = v.String()
 		case protoreflect.EnumKind:
-			m[int(num)] = v
+			m[int(num)] = v.Enum()
 		case protoreflect.MessageKind:
 			pm2 := pm.Get(fd).Message()
 			// TODO(perf2): cache isBoolMessage based on field number
@@ -50,7 +49,10 @@ func ProtoEncodeToDict(p *service.TelemetryRecord) map[int]interface{} {
 			} else {
 				m2 := make(map[int]interface{})
 				pm2.Range(func(fd2 protoreflect.FieldDescriptor, v2 protoreflect.Value) bool {
-					m2[int(fd2.Number())] = v2
+					// NOTE: only messages of strings are currently used
+					if fd.Kind() == protoreflect.StringKind {
+						m2[int(fd2.Number())] = v2.String()
+					}
 					return true
 				})
 				m[int(num)] = m2
