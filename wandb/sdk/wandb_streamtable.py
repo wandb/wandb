@@ -61,11 +61,8 @@ class StreamTable:
             project_name = splits[1]
             table_name = splits[2]
 
-        # For now, we force the user to specify the entity and project
-        # technically, we could infer the entity from the API key, but
-        # that tends to confuse users.
         if entity_name is None or entity_name == "":
-            raise ValueError("Must specify entity_name")
+            entity_name = wandb_public_api().default_entity
         elif project_name is None or project_name == "":
             raise ValueError("Must specify project_name")
         elif table_name is None or table_name == "":

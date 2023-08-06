@@ -823,6 +823,7 @@ def create_app(user_ctx=None):
                 ] = f'{{"code_saving_enabled": {str(code_saving_enabled).lower()}}}'
             server_info = {
                 "serverInfo": {
+                    "streamTableEnabled": True,
                     "cliVersionInfo": {
                         "max_cli_version": str(ctx.get("max_cli_version", "0.10.33"))
                     },
@@ -897,6 +898,7 @@ def create_app(user_ctx=None):
                         },
                         "ServerInfoType": {
                             "fields": [
+                                {"name": "streamTableEnabled"},
                                 {"name": "cliVersionInfo"},
                                 {"name": "latestLocalVersionInfo"},
                                 {"name": "exposesExplicitRunQueueAckPath"},
