@@ -1122,39 +1122,41 @@ class Settings(SettingsData):
         return os.path.expanduser(os.path.join(*args))
 
     @staticmethod
-    def _unpack_slurm_node_list(regex_string: str) -> Tuple[str]:
+    def _unpack_slurm_node_list(regex_string: str) -> Tuple[str, ...]:
         """Unpacks a regex with the SLURM node list string into a list of strings."""
         pattern = re.compile(r"\[([\d,-]+)\]")
         match = pattern.search(regex_string)
 
-        if match:
-            segments = match.group(1).split(",")
-            unpacked_strings = []
+        if match is None:
+            return (regex_string,)
 
-            for segment in segments:
-                if "-" in segment:
-                    start_number, end_number = (int(x) for x in segment.split("-"))
-                    for number in range(start_number, end_number + 1):
-                        unpacked_strings.append(
-                            regex_string[: match.start()]
-                            + str(number)
-                            + regex_string[match.end() :]
-                        )
-                else:
+        segments = match.group(1).split(",")
+        unpacked_strings = []
+
+        for segment in segments:
+            if "-" in segment:
+                start_number, end_number = (int(x) for x in segment.split("-"))
+                for number in range(start_number, end_number + 1):
                     unpacked_strings.append(
                         regex_string[: match.start()]
-                        + segment
+                        + str(number)
                         + regex_string[match.end() :]
                     )
+            else:
+                unpacked_strings.append(
+                    regex_string[: match.start()]
+                    + segment
+                    + regex_string[match.end() :]
+                )
 
-            return tuple(unpacked_strings)
+        return tuple(unpacked_strings)
 
     def _auto_open_metrics_endpoints(
-        self, value: Optional[str]
+        self, value: Optional[Mapping[str, str]]
     ) -> Optional[Mapping[str, str]]:
         if value is not None:
             # the user has explicitly set metrics endpoint(s), don't try to auto-discover
-            return None
+            return value
 
         # discover DCGM Exporter metrics endpoints
         if not self._stats_auto_dcgm_exporter:
@@ -1187,11 +1189,11 @@ class Settings(SettingsData):
         }
 
     def _auto_open_metrics_filters(
-        self, value: Optional[str]
-    ) -> Optional[Mapping[str, Mapping[str, str]]]:
+        self, value: Optional[Union[Sequence[str], Mapping[str, Mapping[str, str]]]]
+    ) -> Optional[Union[Sequence[str], Mapping[str, Mapping[str, str]]]]:
         if value is not None:
             # the user has explicitly set metrics endpoint(s), don't try to auto-discover
-            return None
+            return value
         # discover DCGM Exporter metrics endpoints
         if not self._stats_auto_dcgm_exporter:
             # auto-discovery not enabled
