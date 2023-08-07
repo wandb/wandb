@@ -15,6 +15,7 @@ from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
@@ -124,8 +125,10 @@ class LocalContainerRunner(AbstractRunner):
     ) -> Optional[AbstractRun]:
         docker_args = self._populate_docker_args(launch_project)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        entry_point = launch_project.get_single_entry_point()
-        env_vars = get_env_vars_dict(launch_project, self._api)
+
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
 
         # When running against local port, need to swap to local docker host
         if (
@@ -146,11 +149,13 @@ class LocalContainerRunner(AbstractRunner):
         additional_args = (
             launch_project.override_args if launch_project.docker_image else None
         )
+
         entry_cmd = (
-            None
-            if not (launch_project.docker_image and entry_point)
-            else entry_point.command
+            launch_project.override_entrypoint.command
+            if launch_project.override_entrypoint is not None
+            else None
         )
+
         command_str = " ".join(
             get_docker_command(
                 image_uri,
