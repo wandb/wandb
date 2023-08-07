@@ -39,7 +39,7 @@ class SettingsStatic(SettingsData):
                         unpacked_mapping[outer_key] = unpacked_inner
                     value = unpacked_mapping
             else:
-                if proto.HasField(key):  # type: ignore [arg-type]
+                if proto.HasField(key):  # type: ignore[arg-type]
                     value = getattr(proto, key).value
                     if field.type == Sequence[str]:
                         value = list(value)
