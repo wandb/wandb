@@ -5,7 +5,10 @@ from wandb import util
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ...wandb_run import Run as LocalRun
+    from ...wandb_lite_run import _InMemoryLazyLiteRun as LocalLiteRun
+    from ...wandb_run import Run as WandbRun
+
+    LocalRun = Union[WandbRun, LocalLiteRun]
 
     TypeMappingType = Dict[str, Type["WBValue"]]
 

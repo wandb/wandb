@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import platform
 import tempfile
 import typing
@@ -64,6 +65,8 @@ class _InMemoryLazyLiteRun:
     _run_name: str
     _step: int = 0
     _config: typing.Optional[typing.Dict]
+    _init_pid: int
+    _attach_pid: int
 
     # Optional
     _display_name: typing.Optional[str] = None
@@ -120,13 +123,15 @@ class _InMemoryLazyLiteRun:
         if _hide_in_wb and group is None:
             group = "weave_hidden_runs"
         self._group = group
+        self._init_pid = os.getpid()
+        self._attach_pid = os.getpid()
 
     def ensure_run(self) -> public.Run:
         return self.run
 
     @property
-    def dir(self) -> str:
-        return self._dir.name
+    def dir(self) -> tempfile.TemporaryDirectory:
+        return self._dir
 
     @property
     def i_api(self) -> InternalApi:
@@ -228,7 +233,7 @@ class _InMemoryLazyLiteRun:
         artifact.finalize()
         ## TODO: use a cleaner interace here
         manifest_dict = _manifest_json_from_proto(
-            InterfaceBase()._make_artifact(artifact).manifest  # type: ignore[abstract, attr-defined]
+            InterfaceBase()._make_artifact(artifact).manifest  # type: ignore[abstract]
         )
         saver = artifact_saver.ArtifactSaver(
             api=self.i_api,

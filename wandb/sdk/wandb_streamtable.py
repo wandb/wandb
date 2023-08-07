@@ -63,6 +63,8 @@ class StreamTable:
 
         if entity_name is None or entity_name == "":
             entity_name = wandb_public_api().default_entity
+            if entity_name is None:
+                raise ValueError("Must specify entity_name")
         elif project_name is None or project_name == "":
             raise ValueError("Must specify project_name")
         elif table_name is None or table_name == "":
@@ -70,7 +72,7 @@ class StreamTable:
 
         self._lite_run = _InMemoryLazyLiteRun(
             entity_name,
-            project_name,
+            str(project_name),
             table_name,
             config=config,
             group="weave_stream_tables",

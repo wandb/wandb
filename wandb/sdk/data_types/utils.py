@@ -16,7 +16,10 @@ if TYPE_CHECKING:  # pragma: no cover
     import pandas as pd
     import plotly  # type: ignore
 
-    from ..wandb_run import Run as LocalRun
+    from ..wandb_lite_run import _InMemoryLazyLiteRun as LocalLiteRun
+    from ..wandb_run import Run as WandbRun
+
+    LocalRun = Union[WandbRun, LocalLiteRun]
 
     ValToJsonType = Union[
         dict,
