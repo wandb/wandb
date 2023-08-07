@@ -206,6 +206,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_BEGIN:
 		request.State++
 		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_RUN:
+		request.State++
+		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_STATS:
 		request.State++
 		s.sendRequestDefer(request)
@@ -222,6 +225,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
+		request.State++
+		s.sendRequestDefer(request)
+	case service.DeferRequest_FLUSH_JOB:
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DIR:
@@ -292,7 +298,7 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
 		s.resumeState.Error = service.ErrorInfo{
 			Message: err.Error(),
-			Code:    service.ErrorInfo_INTERNAL,
+			Code:    service.ErrorInfo_COMMUNICATION,
 		}
 		return err
 	}
@@ -401,7 +407,7 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 		s.logger.Error("sender: checkAndUpdateResumeState:", "error", err)
 		s.resumeState.Error = service.ErrorInfo{
 			Message: err.Error(),
-			Code:    service.ErrorInfo_INTERNAL,
+			Code:    service.ErrorInfo_COMMUNICATION,
 		}
 		return err
 	}
@@ -541,7 +547,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 						RunResult: &service.RunUpdateResult{
 							Error: &service.ErrorInfo{
 								Message: err.Error(),
-								Code:    service.ErrorInfo_INTERNAL,
+								Code:    service.ErrorInfo_COMMUNICATION,
 							},
 						},
 					},

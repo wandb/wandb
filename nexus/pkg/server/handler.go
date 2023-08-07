@@ -189,6 +189,7 @@ func (h *Handler) handleDefer(record *service.Record) {
 	request := record.GetRequest().GetDefer()
 	switch request.State {
 	case service.DeferRequest_BEGIN:
+	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.flushHistory(h.historyRecord)
@@ -196,6 +197,7 @@ func (h *Handler) handleDefer(record *service.Record) {
 	case service.DeferRequest_FLUSH_SUM:
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
+	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:

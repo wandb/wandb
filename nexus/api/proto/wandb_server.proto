@@ -18,6 +18,7 @@ service InternalService {
   rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
   rpc ServerInfo(ServerInfoRequest) returns (ServerInfoResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
+  rpc RunStatus(RunStatusRequest) returns (RunStatusResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
   rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
   rpc Metric(MetricRecord) returns (MetricResult) {}
@@ -32,6 +33,8 @@ service InternalService {
   rpc Alert(AlertRecord) returns (AlertResult) {}
   rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
   rpc LinkArtifact(LinkArtifactRecord) returns (LinkArtifactResult) {}
+  rpc UseArtifact(UseArtifactRecord) returns (UseArtifactResult) {}
+  rpc JobInfo(JobInfoRequest) returns (JobInfoResponse) {}
 
   // rpc messages for async operations: Send, Poll, Cancel, Release
   rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}

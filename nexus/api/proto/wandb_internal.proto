@@ -45,6 +45,7 @@ message Record {
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
+    UseArtifactRecord use_artifact = 25;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -59,6 +60,8 @@ message Control {
   string relay_id = 3;  // used by service transport to identify correct stream
   string mailbox_slot = 4;  // mailbox slot
   bool always_send = 5;  // message to sender
+  bool flow_control = 6;  // message should be passed to flow control
+  int64 end_offset = 7;  // end of message offset of this written message
   string connection_id = 8;  // connection id
 }
 
@@ -78,7 +81,7 @@ message Result {
   }
   Control             control = 16;
   string              uuid = 24;
-  _ResultInfo _info = 200;
+  _ResultInfo         _info = 200;
 }
 
 /*
@@ -143,11 +146,10 @@ message RunUpdateResult {
 message ErrorInfo {
   enum ErrorCode {
     UNKNOWN = 0;
-    INVALID = 1;
-    PERMISSION = 2;
-    NETWORK = 3;
-    INTERNAL = 4;
-    USAGE = 5;
+    COMMUNICATION = 1;
+    AUTHENTICATION = 2;
+    USAGE = 3;
+    UNSUPPORTED = 4;
   }
   string  message = 1;
   ErrorCode code = 2;
@@ -389,6 +391,7 @@ message ArtifactRecord {
   bool                          finalize=14;
   string                        client_id=15;
   string                        sequence_client_id=16;
+  string                        base_id=17;
   bool                          incremental_beta1=100;
   _RecordInfo                   _info = 200;
 }
@@ -493,14 +496,19 @@ message Request {
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
     KeepaliveRequest      keepalive = 17;
-    CancelRequest         cancel = 18;
-    RespondRequest        respond = 19;
-    MetadataRequest       metadata = 20;
+    RunStatusRequest      run_status = 20;
+    CancelRequest         cancel = 21;
+    MetadataRequest       metadata = 22;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
     ServerInfoRequest     server_info = 67;
-    JobInfoRequest        job_info = 73;
+    SenderMarkRequest     sender_mark = 68;
+    SenderReadRequest     sender_read = 69;
+    StatusReportRequest   status_report = 70;
+    SummaryRecordRequest  summary_record = 71;
+    TelemetryRecordRequest telemetry_record = 72;
+    JobInfoRequest      job_info = 73;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -510,6 +518,7 @@ message Request {
  */
 message Response {
   oneof response_type {
+    KeepaliveResponse      keepalive_response = 18;
     StopStatusResponse     stop_status_response = 19;
     NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
@@ -521,8 +530,8 @@ message Response {
     LogArtifactResponse    log_artifact_response = 30;
     ArtifactSendResponse   artifact_send_response = 31;
     ArtifactPollResponse   artifact_poll_response = 32;
-    KeepaliveResponse      keepalive_response = 18;
-    CancelResponse         cancel_response = 21;
+    RunStatusResponse      run_status_response = 35;
+    CancelResponse         cancel_response = 36;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
@@ -538,18 +547,20 @@ message Response {
 message DeferRequest {
   enum DeferState {
     BEGIN = 0;
-    FLUSH_STATS = 1;
-    FLUSH_PARTIAL_HISTORY = 2;
-    FLUSH_TB = 3;
-    FLUSH_SUM = 4;
-    FLUSH_DEBOUNCER = 5;
-    FLUSH_OUTPUT = 6;
-    FLUSH_DIR = 7;
-    FLUSH_FP = 8;
-    JOIN_FP = 9;
-    FLUSH_FS = 10;
-    FLUSH_FINAL = 11;
-    END = 12;
+    FLUSH_RUN = 1;
+    FLUSH_STATS = 2;
+    FLUSH_PARTIAL_HISTORY = 3;
+    FLUSH_TB = 4;
+    FLUSH_SUM = 5;
+    FLUSH_DEBOUNCER = 6;
+    FLUSH_OUTPUT = 7;
+    FLUSH_JOB = 8;
+    FLUSH_DIR = 9;
+    FLUSH_FP = 10;
+    JOIN_FP = 11;
+    FLUSH_FS = 12;
+    FLUSH_FINAL = 13;
+    END = 14;
   }
   DeferState state = 1;
   // Internal message, no _info field needed
@@ -645,15 +656,33 @@ message PollExitResponse {
 }
 
 /*
-* JobInfo:
-*/
-message JobInfoRequest {
-  _RequestInfo _info = 200;
+ * Sender requests
+ */
+message SenderMarkRequest {
 }
 
-message JobInfoResponse {
-  string sequenceId = 1;
-  string version = 2;
+message SenderReadRequest {
+  int64 start_offset = 1;
+  int64 final_offset = 2;
+  // TODO: implement cancel for paused ops
+  // repeated string cancel_list = 3;
+}
+
+message StatusReportRequest {
+  int64 record_num = 1;
+  int64 sent_offset = 2;
+  google.protobuf.Timestamp sync_time = 3;
+}
+
+/*
+ * Requests wrapping Records
+ */
+message SummaryRecordRequest {
+  SummaryRecord   summary = 1;
+}
+
+message TelemetryRecordRequest {
+  TelemetryRecord telemetry = 1;
 }
 
 /*
@@ -780,6 +809,22 @@ message SampledHistoryResponse {
 }
 
 /*
+ * RunStatusRequest:
+ */
+message RunStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message RunStatusResponse {
+  int64 sync_items_total = 1;
+  int64 sync_items_pending = 2;
+  google.protobuf.Timestamp sync_time = 3;
+  // TODO(flowcontrol): can we give the user an indication of step position
+  // int64 sync_history_step = 3;
+  // google.protobuf.Timestamp sync_history_time = 4;
+}
+
+/*
  * RunStartRequest: start the run
  */
 message RunStartRequest {
@@ -802,6 +847,19 @@ message CheckVersionResponse {
   string upgrade_message = 1;
   string yank_message = 2;
   string delete_message = 3;
+}
+
+
+/*
+* JobInfo:
+*/
+message JobInfoRequest {
+    _RequestInfo _info = 200;
+}
+
+message JobInfoResponse {
+  string sequenceId = 1;
+  string version = 2;
 }
 
 /*
@@ -866,6 +924,67 @@ message KeepaliveResponse {
 }
 
 /*
+ * Job info specific for Partial -> Job upgrade
+ */
+message ArtifactInfo {
+  string artifact = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
+}
+
+message GitInfo {
+  string remote = 1;
+  string commit = 2;
+}
+
+message GitSource {
+  GitInfo git_info = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
+}
+
+message ImageSource {
+  string image = 1;
+}
+
+message Source {
+  GitSource git = 1;
+  ArtifactInfo artifact = 2;
+  ImageSource image = 3;
+}
+
+/*
+ * Mirrors JobSourceDict:
+ */
+message JobSource {
+  string _version = 1;
+  string source_type = 2;
+  Source source = 3;
+  string runtime = 4;
+}
+
+message PartialJobArtifact {
+  string job_name = 1;
+  JobSource source_info = 2;
+}
+
+/*
+ * UseArtifact:
+ */
+message UseArtifactRecord {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+
+  PartialJobArtifact partial = 4;
+
+  _RecordInfo     _info = 200;
+}
+
+message UseArtifactResult {
+}
+
+/*
  * Cancel:
  */
 message CancelRequest {
@@ -874,15 +993,6 @@ message CancelRequest {
 }
 
 message CancelResponse {
-}
-
-/*
- * RespondRequest:
- */
-message RespondRequest {
-  Result result = 1;
-
-  // Internal message, no _info field needed
 }
 
 /*
