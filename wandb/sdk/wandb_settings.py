@@ -679,8 +679,8 @@ class Settings(SettingsData):
                 # capture all metrics on all endpoints by default
                 "value": (".*",),
                 "preprocessor": _str_as_json,
-                # "hook": self._auto_open_metrics_filters,
-                # "auto_hook": True,
+                "hook": self._auto_open_metrics_filters,
+                "auto_hook": True,
             },
             _tmp_code_dir={
                 "value": "code",
@@ -1155,6 +1155,8 @@ class Settings(SettingsData):
         if value is not None:
             # the user has explicitly set metrics endpoint(s), don't try to auto-discover
             return None
+
+        # discover DCGM Exporter metrics endpoints
         if not self._stats_auto_dcgm_exporter:
             # auto-discovery not enabled
             return None
@@ -1181,6 +1183,32 @@ class Settings(SettingsData):
             **{
                 f"node{n + 2}": f"http://{node}:9400/metrics"
                 for n, node in enumerate(node_list)
+            },
+        }
+
+    def _auto_open_metrics_filters(
+        self, value: Optional[str]
+    ) -> Optional[Mapping[str, Mapping[str, str]]]:
+        if value is not None:
+            # the user has explicitly set metrics endpoint(s), don't try to auto-discover
+            return None
+        # discover DCGM Exporter metrics endpoints
+        if not self._stats_auto_dcgm_exporter:
+            # auto-discovery not enabled
+            return None
+
+        slurm_node_id = os.environ.get("SLURM_NODEID")
+        slurm_nodelist = os.environ.get("SLURM_NODELIST")
+        slurm_nodename = os.environ.get("SLURMD_NODENAME")
+
+        # capture all metrics from the rank 0 node
+        if slurm_node_id != "0" or slurm_nodelist is None or slurm_nodename is None:
+            return None
+
+        # collect the most useful stats for all GPUs on all nodes:
+        return {
+            ".*DCGM_FI_DEV_(POWER_USAGE|MEM_COPY_UTIL|TOTAL_ENERGY_CONSUMPTION|GPU_TEMP|MEMORY_TEMP)": {
+                "gpu": ".*",
             },
         }
 
