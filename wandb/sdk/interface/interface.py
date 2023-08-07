@@ -16,10 +16,10 @@ import time
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
 
-from wandb.sdk.lib import json_util as json
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
