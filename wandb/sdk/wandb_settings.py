@@ -1197,7 +1197,7 @@ class Settings(SettingsData):
         # discover DCGM Exporter metrics endpoints
         if not self._stats_auto_dcgm_exporter:
             # auto-discovery not enabled
-            return None
+            return (".*",)
 
         slurm_node_id = os.environ.get("SLURM_NODEID")
         slurm_nodelist = os.environ.get("SLURM_NODELIST")
@@ -1205,7 +1205,7 @@ class Settings(SettingsData):
 
         # capture all metrics from the rank 0 node
         if slurm_node_id != "0" or slurm_nodelist is None or slurm_nodename is None:
-            return None
+            return (".*",)
 
         # collect the most useful stats for all GPUs on all nodes:
         return {
