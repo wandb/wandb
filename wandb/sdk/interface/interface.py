@@ -16,7 +16,7 @@ import time
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
 
-import wandb.sdk.lib.json_util as json
+from wandb.sdk.lib.json_util import dumps, load
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
@@ -254,7 +254,7 @@ class InterfaceBase:
         for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
-            update.value_json = json.dumps(v)
+            update.value_json = dumps(v)
         return summary
 
     def _summary_encode(self, value: Any, path_from_root: str) -> dict:
@@ -310,7 +310,7 @@ class InterfaceBase:
             json_value = self._summary_encode(item.value, path_from_root)
             json_value, _ = json_friendly(json_value)  # type: ignore
 
-            pb_summary_item.value_json = json.dumps(
+            pb_summary_item.value_json = dumps(
                 json_value,
                 cls=WandBJSONEncoderOld,
             )
@@ -385,7 +385,7 @@ class InterfaceBase:
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+            proto_artifact.metadata = dumps(json_friendly_val(artifact.metadata))
         if artifact._base_id:
             proto_artifact.base_id = artifact._base_id
         proto_artifact.incremental_beta1 = artifact.incremental
@@ -404,7 +404,7 @@ class InterfaceBase:
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
-            cfg.value_json = json.dumps(v)
+            cfg.value_json = dumps(v)
 
         for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
             proto_entry = proto_manifest.contents.add()
@@ -421,7 +421,7 @@ class InterfaceBase:
             for k, v in entry.extra.items():
                 proto_extra = proto_entry.extra.add()
                 proto_extra.key = k
-                proto_extra.value_json = json.dumps(v)
+                proto_extra.value_json = dumps(v)
         return proto_manifest
 
     def publish_link_artifact(
@@ -513,7 +513,7 @@ class InterfaceBase:
             try:
                 path = artifact.get_path("wandb-job.json").download()
                 with open(path) as f:
-                    job_info = json.load(f)
+                    job_info = load(f)
             except Exception as e:
                 logger.warning(
                     f"Failed to download partial job info from artifact {artifact}, : {e}"
