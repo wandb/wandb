@@ -57,6 +57,7 @@ if sys.version_info >= (3, 8):
 elif sys.version_info >= (3, 7):
     from typing_extensions import get_args, get_origin, get_type_hints
 else:
+
     def get_args(obj: Any) -> Optional[Any]:
         return obj.__args__ if hasattr(obj, "__args__") else None
 
