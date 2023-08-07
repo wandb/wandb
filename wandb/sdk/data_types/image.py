@@ -426,7 +426,13 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+        elif not isinstance(
+            run_or_artifact,
+            (
+                wandb.wandb_sdk.wandb_run.Run,
+                wandb.wandb_sdk.wandb_lite_run._InMemoryLazyLiteRun,
+            ),
+        ):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:

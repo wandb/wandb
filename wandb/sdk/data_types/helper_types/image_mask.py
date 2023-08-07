@@ -193,7 +193,13 @@ class ImageMask(Media):
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+        if isinstance(
+            run_or_artifact,
+            (
+                wandb.wandb_sdk.wandb_run.Run,
+                wandb.wandb_sdk.wandb_lite_run._InMemoryLazyLiteRun,
+            ),
+        ):
             json_dict["_type"] = self.type_name()
             return json_dict
         elif isinstance(run_or_artifact, wandb.Artifact):

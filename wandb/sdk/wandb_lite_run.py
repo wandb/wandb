@@ -1,6 +1,7 @@
 import datetime
 import logging
 import platform
+import tempfile
 import typing
 
 from wandb import __version__, util
@@ -8,9 +9,12 @@ from wandb import errors as wandb_errors
 from wandb.apis import public
 
 from .artifacts import artifact_saver
+from .data_types.utils import history_dict_to_json
+from .interface.interface import InterfaceBase
 from .internal import file_stream
 from .internal.file_pusher import FilePusher
 from .internal.internal_api import Api as InternalApi
+from .internal.sender import _manifest_json_from_proto
 from .internal.thread_local_settings import _thread_local_api_settings
 from .lib import config_util, runid
 from .lib.ipython import _get_python_type
@@ -72,6 +76,7 @@ class _InMemoryLazyLiteRun:
     _stream: typing.Optional[file_stream.FileStreamApi] = None
     _pusher: typing.Optional[FilePusher] = None
     _server_info: typing.Optional[typing.Dict] = None
+    _dir: tempfile.TemporaryDirectory
 
     def __init__(
         self,
@@ -111,12 +116,17 @@ class _InMemoryLazyLiteRun:
             }
         )
         self._job_type = job_type if not _hide_in_wb else WANDB_HIDDEN_JOB_TYPE
+        self._dir = tempfile.TemporaryDirectory()
         if _hide_in_wb and group is None:
             group = "weave_hidden_runs"
         self._group = group
 
     def ensure_run(self) -> public.Run:
         return self.run
+
+    @property
+    def dir(self) -> str:
+        return self._dir.name
 
     @property
     def i_api(self) -> InternalApi:
@@ -204,11 +214,26 @@ class _InMemoryLazyLiteRun:
 
         return self._pusher
 
-    def log_artifact(self, artifact: "Artifact") -> typing.Optional[dict]:
+    def log_artifact(
+        self, artifact: "Artifact", additional_aliases: typing.Optional[list] = None
+    ) -> typing.Optional[dict]:
+        if additional_aliases is None:
+            additional_aliases = []
+        # Ensure type is created
+        self.i_api.create_artifact_type(
+            artifact_type_name=artifact.type,
+            entity_name=self.run.entity,
+            project_name=self.run.project,
+        )
+        artifact.finalize()
+        ## TODO: use a cleaner interace here
+        manifest_dict = _manifest_json_from_proto(
+            InterfaceBase()._make_artifact(artifact).manifest  # type: ignore[abstract, attr-defined]
+        )
         saver = artifact_saver.ArtifactSaver(
             api=self.i_api,
             digest=artifact.digest,
-            manifest_json=artifact.manifest.to_manifest_json(),
+            manifest_json=manifest_dict,
             file_pusher=self.pusher,
             is_user_created=False,
         )
@@ -219,13 +244,9 @@ class _InMemoryLazyLiteRun:
             sequence_client_id=artifact._sequence_client_id,
             metadata=artifact.metadata,
             description=artifact.description or None,
-            aliases=artifact._aliases,
+            aliases=["latest"] + additional_aliases,
             use_after_commit=False,
-            distributed_id=None,
             finalize=True,
-            incremental=False,
-            history_step=0,
-            base_id=artifact._base_id or None,
         )
 
     def log(self, row_dict: dict) -> None:
@@ -234,7 +255,11 @@ class _InMemoryLazyLiteRun:
             **row_dict,
             "_timestamp": datetime.datetime.utcnow().timestamp(),
         }
-        stream.push("wandb-history.jsonl", util.json_dumps_safer_history(row_dict))
+        # TODO: we're always setting step to 0 here, this will overwrite media
+        processed_dict = history_dict_to_json(self, row_dict, step=0)
+        stream.push(
+            "wandb-history.jsonl", util.json_dumps_safer_history(processed_dict)
+        )
 
     def finish(self) -> None:
         if self._stream is not None:
@@ -245,6 +270,9 @@ class _InMemoryLazyLiteRun:
             # Wait for the FilePusher and FileStream to finish
             self.pusher.finish()
             self.pusher.join()
+
+        # Cleanup any files
+        self.dir.cleanup()
 
         # Reset fields
         self._stream = None
