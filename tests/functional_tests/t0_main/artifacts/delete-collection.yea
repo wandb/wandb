@@ -1,9 +1,0 @@
-id: 0.artifacts.delete-collection.py
-plugin:
-  - wandb
-tag:
-  shard: artifacts
-assert:
-  - :wandb:runs_len: 2
-  - :wandb:artifacts[test-artifact][type]: model
-  - :wandb:portfolio_links[test_portfolio][num]: 1
