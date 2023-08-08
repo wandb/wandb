@@ -56,7 +56,7 @@ def test_configure_notebook_repo_job(mocker, tmp_path):
     mock_launch_project.project_dir = tmp_path / proj_path
 
     job.configure_launch_project(mock_launch_project)
-    assert mock_launch_project.add_entry_point.called_with(["python3", new_fname])
+    assert mock_launch_project.set_entry_point.called_with(["python3", new_fname])
     assert job._entrypoint == ["python3", new_fname]
 
 
@@ -105,5 +105,5 @@ def test_configure_notebook_artifact_job(mocker, tmp_path):
     mock_launch_project.project_dir = tmp_path / proj_path
 
     job.configure_launch_project(mock_launch_project)
-    assert mock_launch_project.add_entry_point.called_with(["python3", new_fname])
+    assert mock_launch_project.set_entry_point.called_with(["python3", new_fname])
     assert job._entrypoint == ["python3", new_fname]
