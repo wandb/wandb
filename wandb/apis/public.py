@@ -4470,9 +4470,9 @@ class ArtifactCollection:
         else:
             mutation = gql(
                 """
-                mutation deleteArtifactCollection($id: ID!) {
-                    deleteArtifactCollection(input: {
-                        artifactCollectionID: $id
+                mutation deleteArtifactPortfolio($id: ID!) {
+                    deleteArtifactPortfolio(input: {
+                        artifactPortfolioID: $id
                     }) {
                         artifactCollection {
                             state
