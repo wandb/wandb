@@ -43,6 +43,15 @@ def logged_artifact(wandb_init, example_files) -> Artifact:
     return artifact
 
 
+@pytest.fixture
+def linked_artifact(wandb_init, logged_artifact) -> Artifact:
+    with wandb.init() as run:
+        run.link_artifact(logged_artifact, "linked-from-portfolio")
+
+    with wandb.init() as run:
+        return run.use_artifact("linked-from-portfolio:latest")
+
+
 def test_add_table_from_dataframe(wandb_init):
     import pandas as pd
 
@@ -450,24 +459,12 @@ def test_get_artifact_collection(logged_artifact):
     assert logged_artifact.type == collection.type
 
 
-def test_get_artifact_collection_portfolio(wandb_init, logged_artifact):
-    portfolio = f"{logged_artifact.entity}/registry/test-portfolio"
-    with wandb_init() as run:
-        run.link_artifact(logged_artifact, portfolio)
-    linked_artifact = run.use_artifact(f"{portfolio}:latest")
-
+def test_get_artifact_collection_from_linked_artifact(linked_artifact):
     collection = linked_artifact.collection
     assert linked_artifact.entity == collection.entity
     assert linked_artifact.project == collection.project
     assert linked_artifact.name.startswith(collection.name)
     assert linked_artifact.type == collection.type
-
-
-def test_get_artifact_collection_sequence(wandb_init, logged_artifact):
-    portfolio = f"{logged_artifact.entity}/registry/test-portfolio"
-    with wandb_init() as run:
-        run.link_artifact(logged_artifact, portfolio)
-    linked_artifact = run.use_artifact(f"{portfolio}:latest")
 
     collection = linked_artifact.source_collection
     assert linked_artifact.source_entity == collection.entity
