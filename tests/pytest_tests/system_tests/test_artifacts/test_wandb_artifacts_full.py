@@ -440,3 +440,37 @@ def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
 
     downloaded = Path(logged_artifact.download())
     assert downloaded == art_dir / name_path
+
+
+def test_get_artifact_collection(logged_artifact):
+    collection = logged_artifact.collection
+    assert logged_artifact.entity == collection.entity
+    assert logged_artifact.project == collection.project
+    assert logged_artifact.name.startswith(collection.name)
+    assert logged_artifact.type == collection.type
+
+
+def test_get_artifact_collection_portfolio(wandb_init, logged_artifact):
+    portfolio = f"{logged_artifact.entity}/registry/test-portfolio"
+    with wandb_init() as run:
+        run.link_artifact(logged_artifact, portfolio)
+    linked_artifact = run.use_artifact(f"{portfolio}:latest")
+
+    collection = linked_artifact.collection
+    assert linked_artifact.entity == collection.entity
+    assert linked_artifact.project == collection.project
+    assert linked_artifact.name.startswith(collection.name)
+    assert linked_artifact.type == collection.type
+
+
+def test_get_artifact_collection_sequence(wandb_init, logged_artifact):
+    portfolio = f"{logged_artifact.entity}/registry/test-portfolio"
+    with wandb_init() as run:
+        run.link_artifact(logged_artifact, portfolio)
+    linked_artifact = run.use_artifact(f"{portfolio}:latest")
+
+    collection = linked_artifact.source_collection
+    assert linked_artifact.source_entity == collection.entity
+    assert linked_artifact.source_project == collection.project
+    assert linked_artifact.source_name.startswith(collection.name)
+    assert linked_artifact.type == collection.type
