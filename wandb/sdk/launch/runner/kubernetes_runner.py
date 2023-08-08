@@ -79,6 +79,14 @@ class KubernetesSubmittedRun(AbstractRun):
     ) -> None:
         """Initialize a KubernetesSubmittedRun.
 
+        Other implementations of the AbstractRun interface poll on the run
+        when `get_status` is called, but KubernetesSubmittedRun uses
+        Kubernetes watch streams to update the run status. One thread handles
+        events from the job object and another thread handles events from the
+        rank 0 pod. These threads updated the `_status` attributed of the
+        KubernetesSubmittedRun object. When `get_status` is called, the
+        `_status` attribute is returned.
+
         Arguments:
             batch_api: Kubernetes BatchV1Api object.
             core_api: Kubernetes CoreV1Api object.
@@ -113,7 +121,7 @@ class KubernetesSubmittedRun(AbstractRun):
             self._status = status
 
     def _watch_pod(self, pod_name: str) -> None:
-        """Watch the pod with the K8s watch API."""
+        """Handle event stream from rank 0 pod."""
         w = watch.Watch()
         try:
             for event in w.stream(
@@ -127,7 +135,20 @@ class KubernetesSubmittedRun(AbstractRun):
                 "Exception when calling CoreV1Api->read_namespaced_pod: %s\n" % e
             )
 
-    def _handle_pod_event(self, event: Dict) -> None:
+    def _handle_pod_event(self, event: Dict[str, Any]) -> None:
+        """Update status according to an event on the rank 0 pod.
+
+        Arguments:
+            event: Kubernetes event. This is a dict that maps the string
+                "type" to the type of event and the string "object" to the
+                object that the event is about.
+
+        Returns:
+            None.
+
+        Raises:
+            LaunchError: If the pod fails to start after MAX_KUBERNETES_RETRIES.
+        """
         pod = event.get("object")
         if pod is None:
             return
@@ -154,7 +175,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 raise LaunchError(f"Failed to start job {self.name}")
 
     def _watch_job(self) -> None:
-        """Watch the run with the K8s watch API."""
+        """Handle event stream from Kuberntes job."""
         w = watch.Watch()
         try:
             for event in w.stream(
@@ -169,7 +190,16 @@ class KubernetesSubmittedRun(AbstractRun):
             )
 
     def _handle_job_event(self, event: Dict[str, Any]) -> None:
-        """Update status according to Kubernetes event."""
+        """Update status according to an event on the Kuberntes job.
+
+        Arguments:
+            event: Kubernetes event. This is a dict that maps the string
+                "type" to the type of event and the string "object" to the
+                object that the event is about.
+
+        Returns:
+            None.
+        """
         job = event.get("object")
         if job is None:
             return
