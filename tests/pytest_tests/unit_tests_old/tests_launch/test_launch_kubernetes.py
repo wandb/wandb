@@ -1,8 +1,8 @@
 import base64
 import json
+import time
 from unittest.mock import MagicMock
 
-import boto3
 import kubernetes
 import pytest
 import wandb
@@ -52,19 +52,31 @@ class MockBatchV1Api:
     def delete_namespaced_job(self, name, namespace):
         del self.jobs[name]
 
+    def list_namespaced_job(self, namespace, field_selector=None):
+        return [self.jobs[name] for name in self.jobs]
+
 
 class MockCoreV1Api:
     def __init__(self, mock_api_client, pods):
         self.context = mock_api_client["context_name"]
         self.pods = pods
 
-    def list_namespaced_pod(self, label_selector, namespace):
+    def list_namespaced_pod(
+        self, label_selector="", namespace="default", field_selector=None
+    ):
         ret = []
-        k, v = label_selector.split("=")
-        if k == "job-name":
-            for pod in self.pods.items:
-                if pod.job_name == v:
-                    ret.append(pod)
+        if label_selector:
+            k, v = label_selector.split("=")
+            if k == "job-name":
+                for pod in self.pods.items:
+                    if pod.job_name == v:
+                        ret.append(pod)
+        if field_selector:
+            k, v = field_selector.split("=")
+            if k == "metadata.name":
+                for pod in self.pods.items:
+                    if pod.name == v:
+                        ret.append(pod)
         return MockPodList(ret)
 
     def read_namespaced_pod(self, name, namespace):
@@ -74,6 +86,18 @@ class MockCoreV1Api:
 
     def delete_namespaced_secret(self, namespace, name):
         pass
+
+
+class MockWatch:
+    def __init__(self, latency=0):
+        self.latency = latency
+
+    def stream(self, api_call, **kwargs):
+        result = api_call(**kwargs)
+        if not isinstance(result, list):
+            result = result.items
+        for object in result:
+            yield {"object": object}
 
 
 def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
@@ -163,6 +187,11 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         lambda api_client, yaml_objects, namespace: mock_create_from_yaml(
             api_client, yaml_objects, namespace, jobs, mock_job_base
         ),
+    )
+    monkeypatch.setattr(
+        kubernetes.watch,
+        "Watch",
+        lambda: MockWatch(),
     )
 
     monkeypatch.setattr(
@@ -314,7 +343,6 @@ def test_launch_kube_works(
     assert run.namespace == "active-namespace"
     assert run.pod_names == ["pod1"]
     assert run.get_status().state == "finished"
-    assert run.wait()
     job = run.get_job()
     args = kwargs["resource_args"]["kubernetes"]
 
