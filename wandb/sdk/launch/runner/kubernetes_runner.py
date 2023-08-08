@@ -120,7 +120,6 @@ class KubernetesSubmittedRun(AbstractRun):
                 self.core_api.list_namespaced_pod,
                 namespace=self.namespace,
                 field_selector=f"metadata.name={pod_name}",
-                timeout_seconds=10,
             ):
                 self._handle_pod_event(event)
         except ApiException as e:
@@ -159,7 +158,9 @@ class KubernetesSubmittedRun(AbstractRun):
         w = watch.Watch()
         try:
             for event in w.stream(
-                self.batch_api.list_namespaced_job, namespace=self.namespace
+                self.batch_api.list_namespaced_job,
+                namespace=self.namespace,
+                field_selector=f"metadata.name={self.name}",
             ):
                 self._handle_job_event(event)
         except ApiException as e:
