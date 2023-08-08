@@ -106,8 +106,7 @@ def resolve_repository_name(repo_name: str) -> Tuple[str, str]:
     index_name, remote_name = split_repo_name(repo_name)
     if index_name[0] == "-" or index_name[-1] == "-":
         raise InvalidRepositoryError(
-            "Invalid index name ({}). Cannot begin or end with a"
-            " hyphen.".format(index_name)
+            f"Invalid index name ({index_name}). Cannot begin or end with a" " hyphen."
         )
     return resolve_index_name(index_name), remote_name
 
@@ -182,8 +181,8 @@ class AuthConfig(dict):
                 # a valid value in the auth's config.
                 # https://github.com/docker/compose/issues/3265
                 log.debug(
-                    "Auth data for {} is absent. Client might be using a "
-                    "credentials store instead.".format(registry)
+                    f"Auth data for {registry} is absent. Client might be using a "
+                    "credentials store instead."
                 )
                 conf[registry] = {}
                 continue
