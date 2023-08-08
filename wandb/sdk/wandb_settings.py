@@ -54,8 +54,18 @@ from .lib.runid import generate_id
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
-else:
+elif sys.version_info >= (3, 7):
     from typing_extensions import get_args, get_origin, get_type_hints
+else:
+
+    def get_args(obj: Any) -> Optional[Any]:
+        return obj.__args__ if hasattr(obj, "__args__") else None
+
+    def get_origin(obj: Any) -> Optional[Any]:
+        return obj.__origin__ if hasattr(obj, "__origin__") else None
+
+    def get_type_hints(obj: Any) -> Dict[str, Any]:
+        return dict(obj.__annotations__) if hasattr(obj, "__annotations__") else dict()
 
 
 class SettingsPreprocessingError(UsageError):
@@ -160,13 +170,18 @@ def _get_program() -> Optional[str]:
         return None
 
 
-def _get_program_relpath_from_gitrepo(
-    program: str, _logger: Optional[_EarlyLogger] = None
+def _get_program_relpath(
+    program: str, root: Optional[str] = None, _logger: Optional[_EarlyLogger] = None
 ) -> Optional[str]:
-    repo = GitRepo()
-    root = repo.root
+    if not program:
+        if _logger is not None:
+            _logger.warning("Empty program passed to get_program_relpath")
+        return None
+
+    root = root or os.getcwd()
     if not root:
-        root = os.getcwd()
+        return None
+
     full_path_to_program = os.path.join(
         root, os.path.relpath(os.getcwd(), root), program
     )
@@ -1655,8 +1670,9 @@ class Settings(SettingsData):
         settings: Dict[str, Union[bool, str, None]] = dict()
         program = self.program or _get_program()
         if program is not None:
-            program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
-                program, _logger=_logger
+            repo = GitRepo()
+            program_relpath = self.program_relpath or _get_program_relpath(
+                program, repo.root, _logger=_logger
             )
             settings["program_relpath"] = program_relpath
         else:
