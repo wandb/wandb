@@ -95,6 +95,8 @@ for proto_file in [
         (
             "",
             "-I",
+            "wandb/proto/",
+            "-I",
             proto_root,
             "-I",
             ".",
@@ -110,6 +112,8 @@ ret = protoc.main(
     (
         "",
         "-I",
+        "wandb/proto/",
+        "-I",
         proto_root,
         "-I",
         ".",
@@ -123,10 +127,11 @@ ret = protoc.main(
 assert not ret
 
 
+# NOTE: Cleanup not needed as we are generating in place now
 # clean up tmp dirs
-for p in (tmp_out / "wandb" / "proto").glob("*pb2*"):
-    p.rename(tmp_out / p.name)
-os.rmdir(tmp_out / "wandb" / "proto")
-os.rmdir(tmp_out / "wandb")
+# for p in (tmp_out / "wandb" / "proto").glob("*pb2*"):
+#     p.rename(tmp_out / p.name)
+# os.rmdir(tmp_out / "wandb" / "proto")
+# os.rmdir(tmp_out / "wandb")
 
 generate_deprecated_class_definition()
