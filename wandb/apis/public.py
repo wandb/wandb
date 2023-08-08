@@ -4432,7 +4432,7 @@ class ArtifactCollection:
         """Return True if this is a sequence."""
         query = gql(
             """
-            query getCollectionType($entity: String!, $project: String!, $collection: String!) {
+            query CollectionType($entity: String!, $project: String!, $collection: String!) {
                 project(name: $project, entityName: $entity) {
                     artifactCollection(name: $collection) {
                         __typename
