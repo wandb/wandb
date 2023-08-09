@@ -613,8 +613,8 @@ def json_friendly(  # noqa: C901
             obj = obj.flatten()[0]
         elif obj.size <= 32:
             obj = obj.tolist()
-        else:
-            converted = False
+        # confusingly at this point if obj.size > 32 obj is a numpy array and
+        # converted is true, changing converted to False broke tests
     elif np and isinstance(obj, np.generic):
         obj = _numpy_generic_convert(obj)
     elif isinstance(obj, bytes):
@@ -817,9 +817,9 @@ class WandBJSONEncoderWeave(json.JSONEncoder):
 
     def default(self, obj: Any) -> Any:
         obj, converted = json_friendly(obj)
-        if converted:
+        # confusingly json_friendly claims to have converted big numpy arrays :(
+        if converted and not is_numpy_array(obj):
             return obj
-        # json_friendly doesn't touch numpy arrays >= 32 elements, so we do that here
         if is_numpy_array(obj):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
