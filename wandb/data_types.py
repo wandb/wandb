@@ -626,13 +626,7 @@ class Table(Media):
     def to_json(self, run_or_artifact):
         json_dict = super().to_json(run_or_artifact)
 
-        if isinstance(
-            run_or_artifact,
-            (
-                wandb.wandb_sdk.wandb_run.Run,
-                wandb.wandb_sdk.wandb_lite_run._InMemoryLazyLiteRun,
-            ),
-        ):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.AbstractRun):
             json_dict.update(
                 {
                     "_type": "table-file",

@@ -19,9 +19,10 @@ from .internal.file_pusher import FilePusher
 from .internal.internal_api import Api as InternalApi
 from .internal.sender import _manifest_json_from_proto
 from .internal.thread_local_settings import _thread_local_api_settings
-from .lib import config_util, runid
+from .lib import config_util, proto_util, runid, telemetry
 from .lib.ipython import _get_python_type
 from .lib.paths import StrPath
+from .wandb_settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ class _InMemoryLazyLiteRun:
     _config: typing.Optional[typing.Dict]
     _init_pid: int
     _attach_id: typing.Optional[str]
+    _settings: Settings
 
     # Optional
     _display_name: typing.Optional[str] = None
@@ -79,7 +81,13 @@ class _InMemoryLazyLiteRun:
     _stream: typing.Optional[file_stream.FileStreamApi] = None
     _pusher: typing.Optional[FilePusher] = None
     _server_info: typing.Optional[typing.Dict] = None
-    _dir: tempfile.TemporaryDirectory
+    _dir: typing.Optional[tempfile.TemporaryDirectory] = None
+
+    # Telemetry
+    _telemetry_obj: telemetry.TelemetryRecord
+    _telemetry_obj_active: bool
+    _telemetry_obj_dirty: bool
+    _telemetry_obj_flushed: bytes
 
     def __init__(
         self,
@@ -87,6 +95,7 @@ class _InMemoryLazyLiteRun:
         project_name: str,
         run_name: typing.Optional[str] = None,
         config: typing.Optional[typing.Dict] = None,
+        settings: typing.Optional[Settings] = None,
         *,
         job_type: typing.Optional[str] = None,
         group: typing.Optional[str] = None,
@@ -106,15 +115,16 @@ class _InMemoryLazyLiteRun:
         self._project_name = project_name
         self._display_name = run_name
         self._run_name = run_name or runid.generate_id()
+        self._settings = settings or Settings()
+        self._setup_telemetry()
         self._config = config or dict()
-        # TODO: wire up actual telemetry?
         self._config.update(
             {
                 "_wandb": {
-                    "streamtable_version": "0.1",
                     "cli_version": __version__,
                     "python_version": platform.python_version(),
                     "is_jupyter_run": _get_python_type() != "python",
+                    "t": proto_util.proto_encode_to_dict(self._telemetry_obj),
                 },
             }
         )
@@ -137,6 +147,32 @@ class _InMemoryLazyLiteRun:
     @property
     def dir(self) -> str:
         return str(self._dir)
+
+    def _setup_telemetry(self) -> None:
+        self._telemetry_obj = telemetry.TelemetryRecord()
+        self._telemetry_obj_active = False
+        self._telemetry_obj_flushed = b""
+        self._telemetry_obj_dirty = False
+        with telemetry.context(self, self._telemetry_obj) as tel:
+            tel.cli_version = __version__
+            tel.python_version = platform.python_version()
+            if self._settings._jupyter:
+                tel.env.jupyter = True
+            if self._settings._ipython:
+                tel.env.ipython = True
+            if self._settings._colab:
+                tel.env.colab = True
+            if self._settings._kaggle:
+                tel.env.kaggle = True
+            if self._settings._windows:
+                tel.env.windows = True
+            tel.feature.stream_table = True
+            for module_name in telemetry.list_telemetry_imports(only_imported=True):
+                setattr(tel.imports_init, module_name, True)
+
+    def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
+        # TODO: support config updating, this is currently a no-op
+        pass
 
     @property
     def i_api(self) -> InternalApi:
@@ -301,7 +337,8 @@ class _InMemoryLazyLiteRun:
             self.pusher.join()
 
         # Cleanup any files
-        self._dir.cleanup()
+        if self._dir is not None:
+            self._dir.cleanup()
 
         # Reset fields
         self._stream = None

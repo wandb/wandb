@@ -31,9 +31,9 @@ from typing import (
     Type,
     Union,
 )
-from typing_extensions import Protocol, runtime_checkable
 
 import requests
+from typing_extensions import Protocol, runtime_checkable
 
 import wandb
 from wandb import errors, trigger
@@ -430,6 +430,9 @@ class AbstractRun(Protocol):
     def _add_singleton(
         self, data_type: str, key: str, value: Dict[Union[int, str], str]
     ) -> None:
+        ...
+
+    def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         ...
 
     @property

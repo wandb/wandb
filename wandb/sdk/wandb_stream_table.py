@@ -80,7 +80,7 @@ class StreamTable:
         )
         if not self._lite_run.supports_streamtable:
             raise errors.Error(
-                "Streamtable isn't supported in this version of wandb.  Contact your adminstrator to upgrade."
+                "StreamTable isn't supported in this version of wandb.  Contact your adminstrator to upgrade."
             )
         self._table_name = self._lite_run._run_name
         self._project_name = self._lite_run._project_name

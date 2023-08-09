@@ -17,12 +17,12 @@ _LABEL_TOKEN: str = "@wandbcode{"
 
 
 class _TelemetryObject:
-    _run: Optional["wandb_run.Run"]
+    _run: Optional["wandb_run.AbstractRun"]
     _obj: TelemetryRecord
 
     def __init__(
         self,
-        run: Optional["wandb_run.Run"] = None,
+        run: Optional["wandb_run.AbstractRun"] = None,
         obj: Optional[TelemetryRecord] = None,
     ) -> None:
         self._run = run or wandb.run
@@ -43,7 +43,7 @@ class _TelemetryObject:
 
 
 def context(
-    run: Optional["wandb_run.Run"] = None, obj: Optional[TelemetryRecord] = None
+    run: Optional["wandb_run.AbstractRun"] = None, obj: Optional[TelemetryRecord] = None
 ) -> ContextManager[TelemetryRecord]:
     return _TelemetryObject(run=run, obj=obj)
 
