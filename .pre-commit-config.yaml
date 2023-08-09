@@ -2,13 +2,6 @@
 default_stages:
   - pre-push
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
-    hooks:
-      - id: check-merge-conflict
-      - id: check-yaml
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.0.277"
     hooks:
@@ -18,32 +11,40 @@ repos:
     rev: 23.3.0
     hooks:
       - id: black-jupyter
-        exclude: '(_pb2|_pb2_grpc)\.py'
+        exclude: ^(wandb/vendor/|wandb/proto/v.*/.*_pb2\.py|wandb/proto/v.*/.*_pb2_grpc\.py|wandb/proto/wandb_deprecated.py)
   - repo: https://github.com/asottile/blacken-docs
     rev: 1.13.0
     hooks:
       - id: blacken-docs
+        exclude: ^(wandb/vendor/)
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
+      - id: check-merge-conflict
       - id: trailing-whitespace
         name: trailing-whitespace
+        exclude: ^(wandb/|tests/|src/)
       - id: end-of-file-fixer
         name: end-of-file-fixer
+        exclude: ^(wandb/|tests/|src/|.*_durations)
       - id: check-yaml
         name: check-yaml
+        exclude: ^(wandb/|tests/)
       - id: check-added-large-files
         name: check-added-large-files
       - id: check-shebang-scripts-are-executable
         name: check-shebang-scripts-are-executable
+        exclude: ^(wandb/|tests/)
       - id: check-executables-have-shebangs
         name: check-executables-have-shebangs
+        exclude: ^(wandb/|tests/)
       - id: check-symlinks
         name: check-symlinks
       - id: check-toml
         name: check-toml
       - id: debug-statements
         name: debug-statements
+        exclude: ^(wandb/__init__.py)
       - id: forbid-submodules
         name: forbid-submodules
   - repo: https://github.com/psf/black
