@@ -6,7 +6,6 @@ import threading
 import time
 import traceback
 from multiprocessing import Event
-from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
@@ -489,9 +488,9 @@ class LaunchAgent:
         api: Api,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
+        thread_id = threading.current_thread().ident
+        assert thread_id
         try:
-            thread_id = threading.current_thread().ident
-            assert thread_id
             with self._jobs_lock:
                 self._jobs[thread_id] = job_tracker
             self._thread_run_job(

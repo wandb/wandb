@@ -140,13 +140,16 @@ def test_requeue_on_preemption(mocker):
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
 
+    job_tracker = JobAndRunStatusTracker(
+        mock_job["runQueueItemId"], "test-queue", MagicMock()
+    )
+
     agent.thread_run_job(
         launch_spec=mock_launch_spec,
         job=mock_job,
         default_config={},
         api=mocker.api,
-        queue="test-queue",
-        file_saver=MagicMock(),
+        job_tracker=job_tracker,
     )
 
     expected_config = {"run_id": "test-run-id", "_resume_count": 1}
