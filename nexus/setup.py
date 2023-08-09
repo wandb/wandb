@@ -12,7 +12,6 @@ from setuptools.command.develop import develop
 # from distutils.command.bdist import bdist
 from wheel.bdist_wheel import bdist_wheel
 
-
 # Package naming
 # --------------
 #   wandb-core:         Package containing architecture specific code
