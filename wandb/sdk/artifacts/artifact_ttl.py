@@ -3,4 +3,5 @@ from enum import Enum
 
 
 class ArtifactTTL(Enum):
-    DEFAULT = -1
+    INHERIT = -1
+    DISABLE = -2

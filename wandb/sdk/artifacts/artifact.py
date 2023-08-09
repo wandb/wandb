@@ -487,14 +487,17 @@ class Artifact:
             artifact.save() # or log the artifact if its new
             ```
         """
-        if self._ttl_duration_seconds is None:
+        if (
+            self._ttl_duration_seconds is None
+            or self._ttl_duration_seconds == ArtifactTTL.INHERIT.value
+        ):
             return None
-        if self._ttl_duration_seconds == ArtifactTTL.DEFAULT.value:
-            return ArtifactTTL.DEFAULT
+        if self._ttl_duration_seconds == ArtifactTTL.DISABLE.value:
+            return ArtifactTTL.DISABLE
         return datetime.timedelta(seconds=self._ttl_duration_seconds)
 
     @ttl.setter
-    def ttl(self, ttl: Union[datetime.timedelta, ArtifactTTL]) -> None:
+    def ttl(self, ttl: Union[datetime.timedelta, ArtifactTTL, None]) -> None:
         """Artifact TTL(time to live).
 
         Note:
@@ -502,13 +505,15 @@ class Artifact:
 
         Arguments:
             ttl: How long the artifact will remain active from its creation. timedelta must be positive,
-            To turn off previously set artifact TTL, reset TTL to wandb.ArtifactTTL.DEFAULT
+            To turn off previously set artifact TTL set `artifact.ttl = None`
         """
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
 
-        if isinstance(ttl, ArtifactTTL):
-            self._ttl_duration_seconds = ttl.value
+        if ttl is None:
+            self._ttl_duration_seconds = ArtifactTTL.INHERIT.value
+        elif isinstance(ttl, ArtifactTTL):
+            self._ttl_duration_seconds = ttl
         elif ttl.total_seconds() <= 0:
             raise ValueError(
                 f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
