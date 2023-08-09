@@ -28,6 +28,9 @@ def toggle_button(what="run"):
 
 
 def _get_python_type() -> PythonType:
+    if "IPython" not in sys.modules:
+        return "python"
+
     try:
         from IPython import get_ipython  # type: ignore
 
