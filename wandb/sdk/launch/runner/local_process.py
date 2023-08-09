@@ -46,7 +46,10 @@ class LocalProcessRunner(AbstractRunner):
             _logger.warning(_msg)
 
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
 
         cmd: List[Any] = []
 
