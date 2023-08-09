@@ -7,7 +7,14 @@ from urllib.parse import urlparse
 
 import pytest
 import wandb
-from wandb.sdk import wandb_artifacts
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
+from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
+from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
+from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
+from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.internal import staging
 
 
@@ -201,11 +208,11 @@ def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_artifacts.LocalFileHandler()
+    handler = LocalFileHandler()
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=digest,
@@ -224,11 +231,11 @@ def test_s3_storage_handler_load_path_uses_cache(cache):
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_artifacts.S3Handler()
+    handler = S3Handler()
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -243,9 +250,9 @@ def test_gcs_storage_handler_load_path_nonlocal():
     uri = "gs://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    handler = wandb_artifacts.GCSHandler()
+    handler = GCSHandler()
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -264,11 +271,11 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_artifacts.GCSHandler()
+    handler = GCSHandler()
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -279,20 +286,26 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     assert local_path == path
 
 
+class FakePublicApi:
+    @property
+    def client(self):
+        return None
+
+
 def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
     artifact = wandb.Artifact("test", type="dataset")
-    manifest_entry = wandb_artifacts.ArtifactManifestEntry(
+    manifest_entry = ArtifactManifestEntry(
         path=path,
         ref=uri,
         digest="XUFAKrxLKna5cZ2REBfFkg==",
         size=123,
     )
 
-    handler = wandb_artifacts.WBArtifactHandler()
-    handler._client = lambda: None
-    monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
+    handler = WBArtifactHandler()
+    handler._client = FakePublicApi()
+    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.ref_target = lambda: uri
 
@@ -304,16 +317,16 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
     artifact = wandb.Artifact("test", type="dataset")
-    manifest_entry = wandb_artifacts.ArtifactManifestEntry(
+    manifest_entry = ArtifactManifestEntry(
         path=path,
         ref=uri,
         digest="XUFAKrxLKna5cZ2REBfFkg==",
         size=123,
     )
 
-    handler = wandb_artifacts.WBArtifactHandler()
-    handler._client = lambda: None
-    monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
+    handler = WBArtifactHandler()
+    handler._client = FakePublicApi()
+    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.download = lambda: path
 
@@ -322,7 +335,7 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
 
 
 def test_storage_policy_incomplete():
-    class UnfinishedStoragePolicy(wandb_artifacts.StoragePolicy):
+    class UnfinishedStoragePolicy(StoragePolicy):
         pass
 
     # Invalid argument values since we're only testing abstract code coverage.
@@ -353,15 +366,15 @@ def test_storage_policy_incomplete():
 
     UnfinishedStoragePolicy.name = lambda: "UnfinishedStoragePolicy"
 
-    policy = wandb_artifacts.StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
+    policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
-    not_policy = wandb_artifacts.StoragePolicy.lookup_by_name("NotAStoragePolicy")
+    not_policy = StoragePolicy.lookup_by_name("NotAStoragePolicy")
     assert not_policy is None
 
 
 def test_storage_handler_incomplete():
-    class UnfinishedStorageHandler(wandb_artifacts.StorageHandler):
+    class UnfinishedStorageHandler(StorageHandler):
         pass
 
     ush = UnfinishedStorageHandler()

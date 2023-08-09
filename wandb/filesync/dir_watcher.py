@@ -15,9 +15,9 @@ if TYPE_CHECKING:
     import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
     import wandb.vendor.watchdog_0_9_0.observers.polling as wd_polling
     import wandb.vendor.watchdog_0_9_0.watchdog.events as wd_events
-    from wandb.sdk import wandb_settings
     from wandb.sdk.interface.interface import PolicyName
     from wandb.sdk.internal.file_pusher import FilePusher
+    from wandb.sdk.internal.settings_static import SettingsStatic
 else:
     wd_polling = util.vendor_import("wandb_watchdog.observers.polling")
     wd_events = util.vendor_import("wandb_watchdog.events")
@@ -114,7 +114,7 @@ class PolicyLive(FileEventHandler):
         file_path: PathStr,
         save_name: LogicalPath,
         file_pusher: "FilePusher",
-        settings: Optional["wandb_settings.Settings"] = None,
+        settings: Optional["SettingsStatic"] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -188,15 +188,15 @@ class PolicyLive(FileEventHandler):
 class DirWatcher:
     def __init__(
         self,
-        settings: "wandb_settings.Settings",
+        settings: "SettingsStatic",
         file_pusher: "FilePusher",
         file_dir: Optional[PathStr] = None,
     ) -> None:
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
-        self._savename_file_policies: MutableMapping[LogicalPath, "PolicyName"] = {}
-        self._user_file_policies: Mapping["PolicyName", MutableSet[GlobStr]] = {
+        self._savename_file_policies: MutableMapping[LogicalPath, PolicyName] = {}
+        self._user_file_policies: Mapping[PolicyName, MutableSet[GlobStr]] = {
             "end": set(),
             "live": set(),
             "now": set(),
@@ -262,7 +262,6 @@ class DirWatcher:
             os.path.join(self._dir, ".*"),
             os.path.join(self._dir, "*/.*"),
         ]
-        # TODO: pipe in actual settings
         for glb in self._settings.ignore_globs:
             file_event_handler._ignore_patterns.append(os.path.join(self._dir, glb))
 
@@ -360,7 +359,7 @@ class DirWatcher:
         try:
             # avoid hanging if we crashed before the observer was started
             if self._file_observer.is_alive():
-                # rather unfortunatly we need to manually do a final scan of the dir
+                # rather unfortunately we need to manually do a final scan of the dir
                 # with `queue_events`, then iterate through all events before stopping
                 # the observer to catch all files written.  First we need to prevent the
                 # existing thread from consuming our final events, then we process them

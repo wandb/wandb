@@ -1,6 +1,8 @@
 id: 0.artifacts.link-model-outside-run
 plugin:
   - wandb
+tag:
+  shard: artifacts
 depend:
   requirements:
     - torch

@@ -18,7 +18,7 @@ from click.testing import CliRunner  # noqa: E402
 from wandb import Api  # noqa: E402
 from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
 from wandb.sdk.lib import filesystem, runid  # noqa: E402
-from wandb.sdk.lib.git import GitRepo  # noqa: E402
+from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
 from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 # --------------------------------

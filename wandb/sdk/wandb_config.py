@@ -251,20 +251,15 @@ class Config:
         if _is_artifact_representation(val):
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
-        if not (
-            isinstance(val, wandb.Artifact)
-            or isinstance(val, wandb.apis.public.Artifact)
-        ):
+        if not isinstance(val, wandb.Artifact):
             val = json_friendly_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
-                    (
-                        'Attempted to change value of key "{}" '
-                        "from {} to {}\n"
-                        "If you really want to do this, pass"
-                        " allow_val_change=True to config.update()"
-                    ).format(key, self._items[key], val)
+                    f'Attempted to change value of key "{key}" '
+                    f"from {self._items[key]} to {val}\n"
+                    "If you really want to do this, pass"
+                    " allow_val_change=True to config.update()"
                 )
         return key, val
 
@@ -273,8 +268,7 @@ class Config:
         # best if we don't allow nested artifacts until we can lock nested keys in the config
         if isinstance(v, dict) and check_dict_contains_nested_artifact(v, nested):
             raise ValueError(
-                "Instances of wandb.Artifact and wandb.apis.public.Artifact"
-                " can only be top level keys in wandb.config"
+                "Instances of wandb.Artifact can only be top level keys in wandb.config"
             )
 
 

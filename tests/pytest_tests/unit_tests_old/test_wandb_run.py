@@ -84,7 +84,7 @@ def test_use_artifact(live_mock_server, test_settings):
     artifact = wandb.Artifact("arti", type="dataset")
     run.use_artifact(artifact)
     artifact.wait()
-    assert artifact.digest == "abc123"
+    assert artifact.digest == "e74a08a632c8151960f676ca9cc4c0a5"
     run.finish()
 
 
@@ -102,21 +102,21 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         run.config.nested_dataset = {"nested": artifact}
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
 
     with pytest.raises(ValueError) as e_info:
         run.config.dict_nested = {"one_nest": {"two_nest": artifact}}
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
 
     with pytest.raises(ValueError) as e_info:
         run.config.update({"one_nest": {"two_nest": artifact}})
         assert (
             str(e_info.value)
-            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+            == "Instances of wandb.Artifact and PublicArtifact can only be top level keys in wandb.config"
         )
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
@@ -422,12 +422,16 @@ def test_artifact_job_creation(live_mock_server, test_settings, runner):
 
 def test_container_job_creation(live_mock_server, test_settings):
     test_settings.update({"disable_git": True})
-    with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:v0"):
+    with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:docker-tag"):
         run = wandb.init(settings=test_settings)
         run.finish()
         ctx = live_mock_server.get_ctx()
         artifact_name = list(ctx["artifacts"].keys())[0]
-        assert artifact_name == "job-dummy-container_v0"
+        assert artifact_name == "job-dummy-container"
+        aliases = [
+            x["alias"] for x in ctx["artifacts"]["job-dummy-container"][0]["aliases"]
+        ]
+        assert "docker-tag" in aliases
 
 
 def test_manual_git_run_metadata_from_settings(live_mock_server, test_settings):

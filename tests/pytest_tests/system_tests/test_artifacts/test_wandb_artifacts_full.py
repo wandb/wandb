@@ -9,9 +9,10 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 import wandb
-from wandb import wandb_sdk
-from wandb.sdk.wandb_artifacts import Artifact
-from wandb.sdk.wandb_run import Run, WaitTimeoutError
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_saver import get_staging_dir
+from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
+from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -223,10 +224,24 @@ def test_edit_after_add(wandb_init):
     assert open(filename).read() == "goodbye."
 
 
+def test_remove_after_log(wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact(name="hi-art", type="dataset")
+        artifact.add_reference(Path(__file__).as_uri())
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    with wandb_init() as run:
+        retrieved = run.use_artifact("hi-art:latest")
+
+        with pytest.raises(ArtifactFinalizedError):
+            retrieved.remove("file1.txt")
+
+
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
-    staging_dir = Path(wandb_sdk.internal.staging.get_staging_dir())
+    staging_dir = Path(get_staging_dir())
 
     def dir_size():
         files = [f for f in staging_dir.rglob("*") if f.is_file()]

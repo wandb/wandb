@@ -16,6 +16,10 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
     )
 
     monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.docker_image_exists",
+        lambda x: None,
+    )
+    monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container.pull_docker_image",
         lambda x: None,
     )
@@ -37,6 +41,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.target_project = project_name
         project.name = None
         project.run_id = "asdasd"
+        project.sweep_id = "sweeeeep"
         project.override_config = {}
         project.override_entrypoint = entrypoint
         project.get_single_entry_point.return_value = entrypoint
@@ -45,26 +50,24 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.image_name = "testimage"
         project.job = "testjob"
         project.launch_spec = {}
-        string_args = " ".join(project.override_args)
         environment = loader.environment_from_config({})
-        registry = loader.registry_from_config({}, environment)
-        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
         api = Api()
         runner = loader.runner_from_config(
             "local-container",
             api,
             {"type": "local-container", "SYNCHRONOUS": False},
             environment,
+            MagicMock(),
         )
-        command = runner.run(launch_project=project, builder=builder)
+        command = runner.run(project, project.docker_image)
         assert (
             f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
             in command
         )
 
         # test with no user provided image
-        project.docker_image = None
-        project.image_name = None
-        command = runner.run(launch_project=project, builder=builder)
-        assert f"WANDB_ARGS='{string_args}'" in command
-        assert f"WANDB_ARGS='{string_args}'" in command
+        command = runner.run(project, project.docker_image)
+        assert (
+            f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
+            in command
+        )
