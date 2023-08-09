@@ -355,25 +355,19 @@ class LaunchAgent:
 
         # Abort if this job attempts to override secure mode
         self._assert_secure(launch_spec)
-
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
         t = threading.Thread(
-            self.thread_run_job,
-            (
+            target=self.thread_run_job,
+            args=(
                 launch_spec,
                 job,
                 self.default_config,
                 self._api,
-                queue,
-                file_saver,
+                job_tracker,
             ),
         )
 
         t.start()
-        thread_id = t.ident
-        assert thread_id is not None
-        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
-        with self._jobs_lock:
-            self._jobs[thread_id] = job_tracker
 
     def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
         """If secure mode is set, make sure no vulnerable keys are overridden."""
@@ -493,10 +487,13 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
-        queue: str,
-        file_saver: RunQueueItemFileSaver,
+        job_tracker: JobAndRunStatusTracker,
     ) -> None:
         try:
+            thread_id = threading.current_thread().ident
+            assert thread_id
+            with self._jobs_lock:
+                self._jobs[thread_id] = job_tracker
             self._thread_run_job(
                 launch_spec, job, default_config, api, thread_id, job_tracker
             )
