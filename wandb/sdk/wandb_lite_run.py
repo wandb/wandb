@@ -276,12 +276,6 @@ class _InMemoryLazyLiteRun:
             aliases = []
         if not isinstance(artifact, Artifact):
             raise AttributeError("We don't support logging paths in this interface")
-        # Ensure type is created
-        self.i_api.create_artifact_type(
-            artifact_type_name=artifact.type,
-            entity_name=self.run.entity,
-            project_name=self.run.project,
-        )
         artifact.finalize()
         ## TODO: use a cleaner interace here
         manifest_dict = _manifest_json_from_proto(
