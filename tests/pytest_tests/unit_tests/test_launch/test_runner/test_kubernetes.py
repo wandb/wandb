@@ -212,26 +212,6 @@ def test_launch_custom(mocker, test_settings, volcano_spec):
     assert submitted_run.wait()
 
 
-def test_get_status_preempted(mocker):
-    mocker.pod = MagicMock()
-    mock_preempt_condition = MagicMock()
-    mock_preempt_condition.type = "DisruptionTarget"
-    mock_preempt_condition.reason = "EvictionByEvictionAPI"
-    mocker.pod.status.conditions = [MagicMock(), mock_preempt_condition]
-    mocker.core_api = MagicMock()
-    mocker.core_api.read_namespaced_pod = MagicMock(return_value=mocker.pod)
-
-    run = KubernetesSubmittedRun(
-        batch_api=MagicMock(),
-        core_api=mocker.core_api,
-        name="test-run",
-        pod_names=["pod-1", "pod-2"],
-    )
-    status = run.get_status()
-
-    assert status.state == "preempted"
-
-
 class MockDict(dict):
     # use a dict to mock an object
     __getattr__ = dict.get
@@ -257,7 +237,7 @@ class MockEventStream:
     def __iter__(self):
         while True:
             while not self.queue:
-                time.sleep(0.1)
+                time.sleep(0.05)
             yield self.queue.pop(0)
 
     def add(self, event: Any):
@@ -268,10 +248,7 @@ class MockBatchApi:
     """Mocks a kubernetes batch API client."""
 
     def __init__(self):
-        self.jobs = []
-
-    def add(self, job: Any):
-        self.jobs.append(job)
+        self.jobs = dict()
 
     def read_namespaced_job(self, name, namespace):
         return self.jobs[name]
@@ -292,32 +269,19 @@ class MockBatchApi:
 
 
 class MockCoreV1Api:
-    def __init__(self, mock_api_client, pods):
-        self.context = mock_api_client["context_name"]
-        self.pods = pods
+    def __init__(self):
+        self.pods = dict()
 
     def list_namespaced_pod(
-        self, label_selector="", namespace="default", field_selector=None
+        self, label_selector=None, namespace="default", field_selector=None
     ):
         ret = []
-        if label_selector:
-            k, v = label_selector.split("=")
-            if k == "job-name":
-                for pod in self.pods.items:
-                    if pod.job_name == v:
-                        ret.append(pod)
-        if field_selector:
-            k, v = field_selector.split("=")
-            if k == "metadata.name":
-                for pod in self.pods.items:
-                    if pod.name == v:
-                        ret.append(pod)
+        for _, pod in self.pods.items():
+            ret.append(pod)
         return MockPodList(ret)
 
     def read_namespaced_pod(self, name, namespace):
-        for pod in self.pods.items:
-            if pod.metadata.name == name:
-                return pod
+        return self.pods[name]
 
     def delete_namespaced_secret(self, namespace, name):
         pass
@@ -354,6 +318,17 @@ def mock_batch_api(monkeypatch):
         lambda *args, **kwargs: batch_api,
     )
     return batch_api
+
+
+@pytest.fixture
+def mock_core_api(monkeypatch):
+    """Patches the kubernetes core api with a mock and returns it."""
+    core_api = MockCoreV1Api()
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.client.CoreV1Api",
+        lambda *args, **kwargs: core_api,
+    )
+    return core_api
 
 
 @pytest.fixture
@@ -516,3 +491,60 @@ def test_launch_kube_failed(
     submitted_run = runner.run(project, MagicMock())
     submitted_run.wait()
     assert str(submitted_run.get_status()) == "failed"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    ["EvictionByEvictionAPI", "PreemptionByScheduler", "TerminationByKubelet"],
+)
+def test_get_status_preempted(
+    reason, monkeypatch, mock_event_streams, mock_batch_api, mock_core_api, manifest
+):
+    """Test that we can detect a preempted job."""
+    _, pod_stream = mock_event_streams
+    mock_batch_api.jobs = {
+        "test-run": MockDict(manifest),
+    }
+    mock_core_api.pods = {
+        "test-pod": MockDict(
+            {
+                "metadata": MockDict({"name": "test-pod"}),
+                "status": MockDict({"phase": "Running"}),
+            }
+        )
+    }
+    run = KubernetesSubmittedRun(
+        batch_api=mock_batch_api,
+        core_api=mock_core_api,
+        name="test-run",
+        pod_names=["pod-1", "pod-2"],
+    )
+    pod_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict(
+                    {
+                        "status": MockDict(
+                            {
+                                "conditions": [
+                                    MockDict(
+                                        {"type": "DisruptionTarget", "reason": reason},
+                                    )
+                                ]
+                            }
+                        ),
+                    }
+                ),
+            }
+        )
+    )
+
+    def _wait():
+        run.wait()
+
+    thread = threading.Thread(target=_wait, daemon=True)
+    thread.start()
+    blink()
+    status = run.get_status()
+    assert status.state == "preempted"
