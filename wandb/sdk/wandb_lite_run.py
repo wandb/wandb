@@ -11,6 +11,7 @@ from wandb import errors as wandb_errors
 from wandb.apis import public
 
 from .artifacts import artifact_saver
+from .artifacts.artifact import Artifact
 from .data_types.utils import history_dict_to_weave
 from .interface.interface import InterfaceBase
 from .internal import file_stream
@@ -22,9 +23,6 @@ from .lib import config_util, runid
 from .lib.ipython import _get_python_type
 from .lib.paths import StrPath
 from .wandb_run import AbstractRun
-
-if typing.TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact
 
 logger = logging.getLogger(__name__)
 
