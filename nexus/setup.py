@@ -129,7 +129,7 @@ class WrapBdistWheel(bdist_wheel, NexusBase):
 
 setup(
     name="wandb-core" if not _is_wandb_core_alpha else "wandb-core-alpha",
-    version="0.0.1a2",
+    version="0.0.1a3",
     description="Wandb core",
     packages=[PACKAGE],
     zip_safe=False,
