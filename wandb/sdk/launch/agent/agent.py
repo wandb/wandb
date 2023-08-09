@@ -129,10 +129,6 @@ class LaunchAgent:
         self._access = _convert_access("project")
         self._max_jobs = _max_from_config(config, "max_jobs")
         self._max_schedulers = _max_from_config(config, "max_schedulers")
-        self._pool = ThreadPool(
-            processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
-            initargs=(self._jobs, self._jobs_lock),
-        )
         self._secure_mode = config.get("secure_mode", False)
         self.default_config: Dict[str, Any] = config
 
@@ -360,7 +356,7 @@ class LaunchAgent:
         # Abort if this job attempts to override secure mode
         self._assert_secure(launch_spec)
 
-        self._pool.apply_async(
+        t = threading.Thread(
             self.thread_run_job,
             (
                 launch_spec,
@@ -371,6 +367,13 @@ class LaunchAgent:
                 file_saver,
             ),
         )
+
+        t.start()
+        thread_id = t.ident
+        assert thread_id is not None
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
+        with self._jobs_lock:
+            self._jobs[thread_id] = job_tracker
 
     def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
         """If secure mode is set, make sure no vulnerable keys are overridden."""
@@ -482,8 +485,6 @@ class LaunchAgent:
             self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()
-            self._pool.close()
-            self._pool.join()
 
     # Threaded functions
     def thread_run_job(
@@ -495,11 +496,6 @@ class LaunchAgent:
         queue: str,
         file_saver: RunQueueItemFileSaver,
     ) -> None:
-        thread_id = threading.current_thread().ident
-        assert thread_id is not None
-        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
-        with self._jobs_lock:
-            self._jobs[thread_id] = job_tracker
         try:
             self._thread_run_job(
                 launch_spec, job, default_config, api, thread_id, job_tracker
