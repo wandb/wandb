@@ -576,18 +576,10 @@ class KubernetesRunner(AbstractRunner):
             or launch_project.get_single_entry_point()
         )
         if launch_project.docker_image:
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
-                )
             # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = image_uri
             # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
-                )
             assert entry_point is not None
             launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret

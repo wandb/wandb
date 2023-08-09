@@ -1,3 +1,6 @@
+import threading
+import time
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,6 +14,10 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     add_label_to_pods,
     add_wandb_env,
 )
+
+
+def blink():
+    time.sleep(0.25)
 
 
 @pytest.fixture
@@ -222,3 +229,232 @@ def test_get_status_preempted(mocker):
     status = run.get_status()
 
     assert status.state == "preempted"
+
+
+class MockDict(dict):
+    # use a dict to mock an object
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+
+class MockPodList:
+    def __init__(self, pods):
+        self.pods = pods
+
+    @property
+    def items(self):
+        return self.pods
+
+
+class MockEventStream:
+    """Mocks a kubernetes event stream that can be populated from tests."""
+
+    def __init__(self):
+        self.queue = []
+
+    def __iter__(self):
+        while True:
+            while not self.queue:
+                time.sleep(0.1)
+            yield self.queue.pop(0)
+
+    def add(self, event: Any):
+        self.queue.append(event)
+
+
+class MockBatchApi:
+    """Mocks a kubernetes batch API client."""
+
+    def __init__(self):
+        self.jobs = []
+
+    def add(self, job: Any):
+        self.jobs.append(job)
+
+    def read_namespaced_job(self, name, namespace):
+        return self.jobs[name]
+
+    def read_namespaced_job_status(self, name, namespace):
+        return self.jobs[name]
+
+    def patch_namespaced_job(self, name, namespace, body):
+        if body.spec.suspend:
+            self.jobs[name].status.conditions = [MockDict({"type": "Suspended"})]
+            self.jobs[name].status.active -= 1
+
+    def delete_namespaced_job(self, name, namespace):
+        del self.jobs[name]
+
+    def list_namespaced_job(self, namespace, field_selector=None):
+        return [self.jobs[name] for name in self.jobs]
+
+
+class MockCoreV1Api:
+    def __init__(self, mock_api_client, pods):
+        self.context = mock_api_client["context_name"]
+        self.pods = pods
+
+    def list_namespaced_pod(
+        self, label_selector="", namespace="default", field_selector=None
+    ):
+        ret = []
+        if label_selector:
+            k, v = label_selector.split("=")
+            if k == "job-name":
+                for pod in self.pods.items:
+                    if pod.job_name == v:
+                        ret.append(pod)
+        if field_selector:
+            k, v = field_selector.split("=")
+            if k == "metadata.name":
+                for pod in self.pods.items:
+                    if pod.name == v:
+                        ret.append(pod)
+        return MockPodList(ret)
+
+    def read_namespaced_pod(self, name, namespace):
+        for pod in self.pods.items:
+            if pod.metadata.name == name:
+                return pod
+
+    def delete_namespaced_secret(self, namespace, name):
+        pass
+
+
+@pytest.fixture
+def mock_event_streams(monkeypatch):
+    """Patches the kubernetes event stream with a mock and returns it."""
+    job_stream = MockEventStream()
+    pod_stream = MockEventStream()
+
+    def _select_stream(_, api_call, *args, **kwargs):
+        if api_call.__name__ == "list_namespaced_pod":
+            return pod_stream
+        elif api_call.__name__ == "list_namespaced_job":
+            return job_stream
+        raise Exception(
+            f"Event stream requested for unsupported API call: {api_call.__name__} "
+        )
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.watch.Watch.stream",
+        _select_stream,
+    )
+    return job_stream, pod_stream
+
+
+@pytest.fixture
+def mock_batch_api(monkeypatch):
+    """Patches the kubernetes batch api with a mock and returns it."""
+    batch_api = MockBatchApi()
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.client.BatchV1Api",
+        lambda *args, **kwargs: batch_api,
+    )
+    return batch_api
+
+
+@pytest.fixture
+def mock_kube_context_and_api_client(monkeypatch):
+    """Patches the kubernetes context and api client with a mock and returns it."""
+    mock_api_client = {"context_name": "test-context"}
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.get_kube_context_and_api_client",
+        lambda *args, **kwargs: (None, None),
+    )
+    return mock_api_client
+
+
+@pytest.fixture
+def mock_create_from_yaml(monkeypatch):
+    """Patches the kubernetes create_from_yaml with a mock and returns it."""
+    function_mock = MagicMock()
+    function_mock.return_value = [
+        [MockDict({"metadata": MockDict({"name": "test-job"})})]
+    ]
+    monkeypatch.setattr(
+        "kubernetes.utils.create_from_yaml",
+        function_mock,
+    )
+    return function_mock
+
+
+def test_launch_kube_works(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_create_from_yaml,
+    test_api,
+    manifest,
+):
+    """Test that we can launch a kubernetes job."""
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        lambda *args, **kwargs: None,
+    )
+    mock_batch_api.jobs = {"test-job": MockDict(manifest)}
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    runner.wait_job_launch = MagicMock()
+    submitted_run = runner.run(project, MagicMock())
+
+    def _wait():
+        submitted_run.wait()
+
+    thread = threading.Thread(target=_wait, daemon=True)
+    thread.start()
+    blink()
+    assert str(submitted_run.get_status()) == "running"
+    job_stream, pod_stream = mock_event_streams
+    pod_stream.add(
+        MockDict(
+            {
+                "type": "ADDED",
+                "object": MockDict(
+                    {
+                        "metadata": MockDict({"name": "test-pod"}),
+                        "status": MockDict({"phase": "Pending"}),
+                    }
+                ),
+            }
+        )
+    )
+    blink()
+    assert str(submitted_run.get_status()) == "running"
+    job_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict(
+                    {
+                        "metadata": MockDict({"name": "test-job"}),
+                        "status": MockDict({"succeeded": 1}),
+                    }
+                ),
+            }
+        )
+    )
+    blink()
+    assert str(submitted_run.get_status()) == "finished"
+    thread.join()
