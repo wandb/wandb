@@ -34,7 +34,6 @@ AGENT_KILLED = "KILLED"
 
 HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
-MAX_THREADS = 64
 MAX_RESUME_COUNT = 5
 
 _logger = logging.getLogger(__name__)
