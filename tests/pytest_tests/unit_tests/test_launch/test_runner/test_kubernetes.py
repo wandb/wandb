@@ -459,3 +459,60 @@ def test_launch_kube_works(
     blink()
     assert str(submitted_run.get_status()) == "finished"
     thread.join()
+
+
+@pytest.mark.timeout(320)
+def test_launch_kube_failed(
+    monkeypatch,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_create_from_yaml,
+    mock_event_streams,
+    test_api,
+    manifest,
+):
+    """Test that we can launch a kubernetes job."""
+    mock_batch_api.jobs = {"test-job": MockDict(manifest)}
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    runner.wait_job_launch = MagicMock()
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        lambda *args, **kwargs: None,
+    )
+    job_stream, pod_stream = mock_event_streams
+    job_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict(
+                    {
+                        "metadata": MockDict({"name": "test-job"}),
+                        "status": MockDict({"failed": 1}),
+                    }
+                ),
+            }
+        )
+    )
+    submitted_run = runner.run(project, MagicMock())
+    submitted_run.wait()
+    assert str(submitted_run.get_status()) == "failed"
