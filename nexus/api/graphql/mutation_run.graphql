@@ -1,0 +1,61 @@
+mutation UpsertBucket(
+            $id: String,
+            $name: String,
+            $project: String,
+            $entity: String,
+            $groupName: String,
+            $description: String,
+            $displayName: String,
+            $notes: String,
+            $commit: String,
+            $config: JSONString,
+            $host: String,
+            $debug: Boolean,
+            $program: String,
+            $repo: String,
+            $jobType: String,
+            $state: String,
+            $sweep: String,
+            $tags: [String!],
+            $summaryMetrics: JSONString,
+        ) {
+            upsertBucket(input: {
+                id: $id,
+                name: $name,
+                groupName: $groupName,
+                modelName: $project,
+                entityName: $entity,
+                description: $description,
+                displayName: $displayName,
+                notes: $notes,
+                config: $config,
+                commit: $commit,
+                host: $host,
+                debug: $debug,
+                jobProgram: $program,
+                jobRepo: $repo,
+                jobType: $jobType,
+                state: $state,
+                sweep: $sweep,
+                tags: $tags,
+                summaryMetrics: $summaryMetrics,
+            }) {
+                bucket {
+                    id
+                    name
+                    displayName
+                    description
+                    config
+                    sweepName
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+                }
+                inserted
+            }
+        }

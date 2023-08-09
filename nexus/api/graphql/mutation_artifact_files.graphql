@@ -1,0 +1,24 @@
+mutation CreateArtifactFiles(
+            $storageLayout: ArtifactStorageLayout!
+            $artifactFiles: [CreateArtifactFileSpecInput!]!
+        ) {
+            createArtifactFiles(input: {
+                artifactFiles: $artifactFiles,
+                storageLayout: $storageLayout,
+            }) {
+                files {
+                    edges {
+                        node {
+                            id
+                            name
+                            displayName
+                            uploadUrl
+                            uploadHeaders
+                            artifact {
+                                id
+                            }
+                        }
+                    }
+                }
+            }
+        }
