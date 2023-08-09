@@ -16,7 +16,7 @@ What lines of wandb code are you using? This could be wandb.init(), wandb.log(),
 **How to reproduce**
 1. Link to a reproducible script we can run to see the bug
 2. Describe what we have to do in order to trigger the issue
-3. Add a zip file with the run folder 
+3. Add a zip file with the run folder
 
 **Environment**
 - OS: [e.g. Mac OS Catalina 10.15.7]
