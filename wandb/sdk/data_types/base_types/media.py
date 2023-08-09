@@ -18,11 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ...wandb_lite_run import _InMemoryLazyLiteRun as LocalLiteRun
-    from ...wandb_run import Run as WandbRun
-
-    LocalRun = Union[WandbRun, LocalLiteRun]
-
+    from ...wandb_run import AbstractRun as LocalRun
 
 SYS_PLATFORM = platform.system()
 
@@ -164,7 +160,7 @@ class Media(WBValue):
         from wandb.data_types import Audio
 
         json_obj = {}
-        if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
+        if isinstance(run, wandb.wandb_sdk.wandb_run.AbstractRun):
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.

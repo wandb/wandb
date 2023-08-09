@@ -158,10 +158,10 @@ class StreamTable:
 
     def finish(self) -> None:
         with self._lock:
-            if self._artifact:
-                self._artifact.cleanup()
             if self._lite_run:
                 self._lite_run.finish()
+            if self._artifact:
+                self._artifact.cleanup()
 
     def __del__(self) -> None:
         try:

@@ -17,7 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ..wandb_run import Run as LocalRun
+    from ..wandb_run import AbstractRun as LocalRun
 
 
 # This helper function is a workaround for the issue discussed here:

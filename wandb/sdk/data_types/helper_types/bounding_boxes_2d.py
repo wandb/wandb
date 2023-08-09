@@ -10,7 +10,7 @@ from ..base_types.json_metadata import JSONMetadata
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ...wandb_run import Run as LocalRun
+    from ...wandb_run import AbstractRun as LocalRun
 
 
 class BoundingBoxes2D(JSONMetadata):
@@ -276,10 +276,7 @@ class BoundingBoxes2D(JSONMetadata):
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         if isinstance(
             run_or_artifact,
-            (
-                wandb.wandb_sdk.wandb_run.Run,
-                wandb.wandb_sdk.wandb_lite_run._InMemoryLazyLiteRun,
-            ),
+            wandb.wandb_sdk.wandb_run.AbstractRun,
         ):
             return super().to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb.Artifact):

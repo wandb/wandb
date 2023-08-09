@@ -12,6 +12,7 @@ import threading
 import time
 import traceback
 import warnings
+from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -399,7 +400,73 @@ class RunStatus:
     sync_time: Optional[datetime] = field(default=None)
 
 
-class Run:
+class AbstractRun(metaclass=ABCMeta):
+    """This defines all methods that are required for any implementations of Run."""
+
+    @abstractmethod
+    def log(
+        self,
+        data: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+        sync: Optional[bool] = None,
+    ) -> None:
+        ...
+
+    @abstractmethod
+    def log_artifact(
+        self,
+        artifact_or_path: Union[Artifact, StrPath],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> Artifact:
+        ...
+
+    @abstractmethod
+    def finish(
+        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+    ) -> None:
+        ...
+
+    @property
+    @abstractmethod
+    def dir(self) -> str:
+        ...
+
+    @property
+    @abstractmethod
+    def id(self) -> str:
+        ...
+
+    @property
+    @abstractmethod
+    def project(self) -> str:
+        ...
+
+    @property
+    @abstractmethod
+    def entity(self) -> str:
+        ...
+
+    @abstractmethod
+    def _add_singleton(
+        self, data_type: str, key: str, value: Dict[Union[int, str], str]
+    ) -> None:
+        ...
+
+    @property
+    @abstractmethod
+    def _attach_id(self) -> Optional[str]:
+        ...
+
+    @property
+    @abstractmethod
+    def _init_pid(self) -> int:
+        ...
+
+
+class Run(AbstractRun):
     """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:

@@ -24,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ..wandb_run import Run as LocalRun
+    from ..wandb_run import AbstractRun as LocalRun
 
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
@@ -426,13 +426,7 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(
-            run_or_artifact,
-            (
-                wandb.wandb_sdk.wandb_run.Run,
-                wandb.wandb_sdk.wandb_lite_run._InMemoryLazyLiteRun,
-            ),
-        ):
+        elif not isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.AbstractRun):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:

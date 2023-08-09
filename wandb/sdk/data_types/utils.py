@@ -16,10 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import pandas as pd
     import plotly  # type: ignore
 
-    from ..wandb_lite_run import _InMemoryLazyLiteRun as LocalLiteRun
-    from ..wandb_run import Run as WandbRun
-
-    LocalRun = Union[WandbRun, LocalLiteRun]
+    from ..wandb_run import AbstractRun as LocalRun
 
     ValToJsonType = Union[
         dict,
@@ -30,6 +27,25 @@ if TYPE_CHECKING:  # pragma: no cover
         "pd.DataFrame",
         object,
     ]
+
+
+def history_dict_to_weave(run: Optional["LocalRun"], payload: dict) -> dict:
+    # We use list here because we were still seeing cases of RuntimeError dict changed size
+    for key in list(payload):
+        val = payload[key]
+        if isinstance(val, dict):
+            payload[key] = history_dict_to_weave(run, val)
+        else:
+            if isinstance(val, WBValue):
+                if not hasattr(val, "to_weave"):
+                    wandb.termwarn(
+                        f"ignoring unsupported type for StreamTable[{key}]: {type(val)}",
+                        repeat=False,
+                    )
+                    payload[key] = None
+                else:
+                    payload[key] = val.to_weave(run)
+    return payload
 
 
 def history_dict_to_json(
@@ -53,7 +69,11 @@ def history_dict_to_json(
             )
         else:
             payload[key] = val_to_json(
-                run, key, val, namespace=step, ignore_copy_err=ignore_copy_err
+                run,
+                key,
+                val,
+                namespace=step,
+                ignore_copy_err=ignore_copy_err,
             )
 
     return payload

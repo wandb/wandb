@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 import os
 import platform
@@ -10,7 +11,7 @@ from wandb import errors as wandb_errors
 from wandb.apis import public
 
 from .artifacts import artifact_saver
-from .data_types.utils import history_dict_to_json
+from .data_types.utils import history_dict_to_weave
 from .interface.interface import InterfaceBase
 from .internal import file_stream
 from .internal.file_pusher import FilePusher
@@ -19,6 +20,8 @@ from .internal.sender import _manifest_json_from_proto
 from .internal.thread_local_settings import _thread_local_api_settings
 from .lib import config_util, runid
 from .lib.ipython import _get_python_type
+from .lib.paths import StrPath
+from .wandb_run import AbstractRun
 
 if typing.TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -53,7 +56,7 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 WANDB_HIDDEN_JOB_TYPE = "sweep-controller"
 
 
-class _InMemoryLazyLiteRun:
+class _InMemoryLazyLiteRun(AbstractRun):
     """This class is only used by StreamTable and will be superseeded in the future.
 
     It provides a light weight interface to init a run, log data to it and log artifacts.
@@ -66,7 +69,7 @@ class _InMemoryLazyLiteRun:
     _step: int = 0
     _config: typing.Optional[typing.Dict]
     _init_pid: int
-    _attach_pid: int
+    _attach_id: typing.Optional[str]
 
     # Optional
     _display_name: typing.Optional[str] = None
@@ -124,14 +127,19 @@ class _InMemoryLazyLiteRun:
             group = "weave_hidden_runs"
         self._group = group
         self._init_pid = os.getpid()
-        self._attach_pid = os.getpid()
+        self._attach_id = self._run_name
 
     def ensure_run(self) -> public.Run:
         return self.run
 
+    def _add_singleton(
+        self, data_type: str, key: str, value: typing.Dict[typing.Union[int, str], str]
+    ) -> None:
+        raise NotImplementedError("Not implemented for _InMemoryLazyLiteRun")
+
     @property
-    def dir(self) -> tempfile.TemporaryDirectory:
-        return self._dir
+    def dir(self) -> str:
+        return str(self._dir)
 
     @property
     def i_api(self) -> InternalApi:
@@ -159,6 +167,10 @@ class _InMemoryLazyLiteRun:
         return self._project_name
 
     @property
+    def entity(self) -> str:
+        return self._entity_name
+
+    @property
     def run(self) -> public.Run:
         if self._run is None:
             # TODO: decide if we want to merge an existing run
@@ -180,7 +192,7 @@ class _InMemoryLazyLiteRun:
                 run_res["name"],
                 {
                     "id": run_res["id"],
-                    "config": "{}",
+                    "config": json.dumps(self._config),
                     "systemMetrics": "{}",
                     "summaryMetrics": "{}",
                     "tags": [],
@@ -214,16 +226,23 @@ class _InMemoryLazyLiteRun:
 
     @property
     def pusher(self) -> FilePusher:
+        # TODO: figure out how to trigger file uploads
         if self._pusher is None:
             self._pusher = FilePusher(self.i_api, self.stream)
 
         return self._pusher
 
     def log_artifact(
-        self, artifact: "Artifact", additional_aliases: typing.Optional[list] = None
-    ) -> typing.Optional[dict]:
-        if additional_aliases is None:
-            additional_aliases = []
+        self,
+        artifact: typing.Union[Artifact, StrPath],
+        name: typing.Optional[str] = None,
+        type: typing.Optional[str] = None,
+        aliases: typing.Optional[typing.List[str]] = None,
+    ) -> Artifact:
+        if aliases is None:
+            aliases = []
+        if not isinstance(artifact, Artifact):
+            raise AttributeError("We don't support logging paths in this interface")
         # Ensure type is created
         self.i_api.create_artifact_type(
             artifact_type_name=artifact.type,
@@ -242,31 +261,39 @@ class _InMemoryLazyLiteRun:
             file_pusher=self.pusher,
             is_user_created=False,
         )
-        return saver.save(
+        saver.save(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact._client_id,
             sequence_client_id=artifact._sequence_client_id,
             metadata=artifact.metadata,
             description=artifact.description or None,
-            aliases=["latest"] + additional_aliases,
+            aliases=["latest"] + aliases,
             use_after_commit=False,
             finalize=True,
         )
+        return artifact
 
-    def log(self, row_dict: dict) -> None:
+    def log(
+        self,
+        row_dict: typing.Dict[str, typing.Any],
+        step: typing.Optional[int] = None,
+        commit: typing.Optional[bool] = None,
+        sync: typing.Optional[bool] = None,
+    ) -> None:
         stream = self.stream
         row_dict = {
             **row_dict,
             "_timestamp": datetime.datetime.utcnow().timestamp(),
         }
-        # TODO: we're always setting step to 0 here, this will overwrite media
-        processed_dict = history_dict_to_json(self, row_dict, step=0)
-        stream.push(
-            "wandb-history.jsonl", util.json_dumps_safer_history(processed_dict)
-        )
+        processed_dict = history_dict_to_weave(self, row_dict)
+        stream.push("wandb-history.jsonl", util.json_dumps_weave(processed_dict))
 
-    def finish(self) -> None:
+    def finish(
+        self,
+        exit_code: typing.Optional[int] = None,
+        quiet: typing.Optional[bool] = None,
+    ) -> None:
         if self._stream is not None:
             # Finalize the run
             self.stream.finish(0)
@@ -277,7 +304,7 @@ class _InMemoryLazyLiteRun:
             self.pusher.join()
 
         # Cleanup any files
-        self.dir.cleanup()
+        self._dir.cleanup()
 
         # Reset fields
         self._stream = None

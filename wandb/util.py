@@ -799,11 +799,25 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
 class JSONEncoderUncompressed(json.JSONEncoder):
     """A JSON Encoder that handles some extra types.
 
-    This encoder turns numpy like objects with a size > 32 into histograms.
+    This encoder turns numpy like objects into json lists
     """
 
     def default(self, obj: Any) -> Any:
         if is_numpy_array(obj):
+            return obj.tolist()
+        elif np and isinstance(obj, np.generic):
+            obj = obj.item()
+        return json.JSONEncoder.default(self, obj)
+
+
+class WandBJSONEncoderWeave(json.JSONEncoder):
+    """A JSON Encoder for weave objects, used by StreamTable today."""
+
+    def default(self, obj: Any) -> Any:
+        obj, converted = json_friendly(obj)
+        if converted:
+            return obj
+        elif is_numpy_array(obj):
             return obj.tolist()
         elif np and isinstance(obj, np.generic):
             obj = obj.item()
@@ -824,6 +838,11 @@ def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
 def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
     return dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
+
+
+def json_dumps_weave(obj: Any, **kwargs: Any) -> str:
+    """Convert obj to json, with some extra encodable types."""
+    return dumps(obj, cls=WandBJSONEncoderWeave, **kwargs)
 
 
 def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
