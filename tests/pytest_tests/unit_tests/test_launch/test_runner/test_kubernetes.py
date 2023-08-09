@@ -1,9 +1,9 @@
+import base64
+import json
 import threading
 import time
 from typing import Any
 from unittest.mock import MagicMock
-import base64
-import json
 
 import pytest
 import wandb
