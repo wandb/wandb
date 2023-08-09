@@ -17,7 +17,8 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
 
 
 def blink():
-    time.sleep(0.25)
+    """Sleep for a short time to allow the thread to run."""
+    time.sleep(0.1)
 
 
 @pytest.fixture
