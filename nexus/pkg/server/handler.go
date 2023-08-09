@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 
@@ -49,6 +51,12 @@ type Handler struct {
 	// historyRecord is the history record used to track
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
+
+	// metrics is the map of metrics for the stream
+	metrics map[string]*service.MetricRecord
+
+	// globMetrics is the map of metrics for the stream
+	globMetrics map[string]*service.MetricRecord
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
@@ -128,6 +136,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_History:
 	case *service.Record_LinkArtifact:
 	case *service.Record_Metric:
+		h.handleMetric(record, x.Metric)
 	case *service.Record_Output:
 	case *service.Record_OutputRaw:
 		h.handleOutputRaw(record)
@@ -192,7 +201,7 @@ func (h *Handler) handleDefer(record *service.Record) {
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.flushHistory(h.historyRecord)
+		h.handleHistory(h.historyRecord)
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 	case service.DeferRequest_FLUSH_DEBOUNCER:
@@ -307,6 +316,37 @@ func (h *Handler) handleExit(record *service.Record) {
 	h.sendRecord(record)
 }
 
+func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
+	if h.metrics == nil {
+		h.metrics = make(map[string]*service.MetricRecord)
+	}
+
+	metricName := metric.GetName()
+	if metricName != "" {
+		// TODO handle merge case
+		h.metrics[metricName] = metric
+
+		metricStepName := metric.GetStepMetric()
+		if metricName != "" {
+			if _, ok := h.metrics[metricStepName]; !ok {
+				stepMetricRecord := service.Record{
+					RecordType: &service.Record_Metric{
+						Metric: &service.MetricRecord{
+							Name: metricStepName,
+						},
+					},
+					Control: &service.Control{
+						Local: true,
+					},
+				}
+				h.metrics[metricStepName] = stepMetricRecord.GetMetric()
+				h.sendRecord(&stepMetricRecord)
+			}
+		}
+		h.sendRecord(record)
+	}
+}
+
 func (h *Handler) handleFiles(record *service.Record) {
 	h.sendRecord(record)
 }
@@ -324,7 +364,26 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 	}
 }
 
-func (h *Handler) flushHistory(history *service.HistoryRecord) {
+func (h *Handler) expandGlobMetric(key string, metric *service.MetricRecord) {
+	if strings.HasPrefix(key, "_") {
+		return
+	}
+
+	for pattern, globMetric := range h.globMetrics {
+		if match, err := filepath.Match(pattern, key); err != nil {
+			h.logger.CaptureError("error matching metric", err)
+			continue
+		} else if match {
+			metric = proto.Clone(globMetric).(*service.MetricRecord)
+			metric.Name = key
+			metric.Options.Defined = false
+			metric.GlobName = ""
+			break
+		}
+	}
+}
+
+func (h *Handler) handleHistory(history *service.HistoryRecord) {
 
 	if history == nil || history.Item == nil {
 		return
@@ -343,18 +402,39 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 			}
 		}
 	}
-
 	history.Item = append(history.Item,
 		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
 		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
 	)
 
+	if h.metrics != nil {
+		for _, item := range items {
+			key := item.Key
+			if metric, ok := h.metrics[key]; !ok {
+				h.expandGlobMetric(key, metric)
+				if metric != nil {
+					record := &service.Record{
+						RecordType: &service.Record_Metric{
+							Metric: metric,
+						},
+						Control: &service.Control{
+							Local: true,
+						},
+					}
+					h.handleMetric(record, record.GetMetric())
+				}
+			}
+		}
+	}
+
 	record := &service.Record{
 		RecordType: &service.Record_History{History: history},
 	}
+	h.sendRecord(record)
+
+	// TODO unify with handleSummary
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
 	h.sendRecord(summaryRecord)
-	h.sendRecord(record)
 }
 
 func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
@@ -402,7 +482,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	//	being set to true.
 	if request.Step != nil {
 		if request.Step.Num > h.historyRecord.Step.Num {
-			h.flushHistory(h.historyRecord)
+			h.handleHistory(h.historyRecord)
 			h.historyRecord = &service.HistoryRecord{
 				Step: &service.HistoryStep{Num: request.Step.Num},
 			}
@@ -419,7 +499,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	// Flush the history record and start to collect a new one with
 	// the next step number.
 	if (request.Step == nil && request.Action == nil) || (request.Action != nil && request.Action.Flush) {
-		h.flushHistory(h.historyRecord)
+		h.handleHistory(h.historyRecord)
 		h.historyRecord = &service.HistoryRecord{
 			Step: &service.HistoryStep{
 				Num: h.historyRecord.Step.Num + 1,
@@ -432,7 +512,7 @@ func (h *Handler) handleTelemetry(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {
+func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
 	h.sendRecord(summaryRecord)
 }

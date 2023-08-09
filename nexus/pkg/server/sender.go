@@ -126,6 +126,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendExit(record, x.Exit)
 	case *service.Record_Alert:
 		s.sendAlert(record, x.Alert)
+	case *service.Record_Metric:
+		s.sendMetric(record, x.Metric)
 	case *service.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
@@ -757,6 +759,12 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Uuid:       record.Uuid,
 	}
 	s.recordChan <- rec
+}
+
+// sendMetric sends a metrics record to the file stream,
+// which will then send it to the server
+func (s *Sender) sendMetric(record *service.Record, _ *service.MetricRecord) {
+	fmt.Println("sendMetric", record)
 }
 
 // sendFiles iterates over the files in the FilesRecord and sends them to
