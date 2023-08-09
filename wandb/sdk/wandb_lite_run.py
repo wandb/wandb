@@ -22,7 +22,6 @@ from .internal.thread_local_settings import _thread_local_api_settings
 from .lib import config_util, runid
 from .lib.ipython import _get_python_type
 from .lib.paths import StrPath
-from .wandb_run import AbstractRun
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 WANDB_HIDDEN_JOB_TYPE = "sweep-controller"
 
 
-class _InMemoryLazyLiteRun(AbstractRun):
+class _InMemoryLazyLiteRun:
     """This class is only used by StreamTable and will be superseeded in the future.
 
     It provides a light weight interface to init a run, log data to it and log artifacts.
