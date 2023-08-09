@@ -1,4 +1,4 @@
-"""nexus"""
+"""nexus."""
 
 import platform
 from pathlib import Path
