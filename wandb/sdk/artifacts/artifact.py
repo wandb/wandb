@@ -73,8 +73,6 @@ reset_path()
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
 
-logger = logging.getLogger(__name__)
-
 
 class Artifact:
     """Flexible and lightweight building block for dataset and model versioning.
@@ -479,10 +477,15 @@ class Artifact:
     def ttl(self) -> Union[datetime.timedelta, ArtifactTTL, None]:
         """Artifact TTL(time to live).
 
-        Once the artifact's created_at is older than the ttl, the artifact is marked as deleted.
-        To turn off previously set artifact TTL, reset the TTL to wandb.ArtifactTTL.DEFAULT
-        EX: Artifact.created_at = 1/1/2000, ttl=10 days.
-            This artifact will be marked for deletion on 1/11/2000.
+        Set a TTL to mark the artifact for deletion after the given duration from Artifact creation has passed.
+        To turn off previously set artifact TTL, reset TTL to wandb.ArtifactTTL.DEFAULT.
+
+        Examples:
+            Basic usage
+            ```
+            artifact.ttl = timedelta(days=10) # artifact will be marked for deletion on artifact.created_at + 10 days
+            artifact.save() # or log the artifact if its new
+            ```
         """
         if self._ttl_duration_seconds is None:
             return None
@@ -498,8 +501,8 @@ class Artifact:
             This ttl is set on the artifact version level.
 
         Arguments:
-            ttl: How long the artifact will remain active from its creation.
-            To turn off previously set artifact TTL, set TTL to wandb.ArtifactTTL.DEFAULT
+            ttl: How long the artifact will remain active from its creation. timedelta must be positive,
+            To turn off previously set artifact TTL, reset TTL to wandb.ArtifactTTL.DEFAULT
         """
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
@@ -897,30 +900,29 @@ class Artifact:
             ]
 
         mutation_template = """
-        mutation updateArtifact(
-            $artifactID: ID!,
-            $description: String,
-            $metadata: JSONString,
-            _TTL_DURATION_SECONDS_TYPE_
-            $aliases: [ArtifactAliasInput!]
-        ) {
-            updateArtifact(
-                input: {
-                    artifactID: $artifactID,
-                    description: $description,
-                    metadata: $metadata,
-                    _TTL_DURATION_SECONDS_VALUE_
-                    aliases: $aliases
-                }
+            mutation updateArtifact(
+                $artifactID: ID!,
+                $description: String,
+                $metadata: JSONString,
+                _TTL_DURATION_SECONDS_TYPE_
+                $aliases: [ArtifactAliasInput!]
             ) {
-                artifact {
-                    id
+                updateArtifact(
+                    input: {
+                        artifactID: $artifactID,
+                        description: $description,
+                        metadata: $metadata,
+                        _TTL_DURATION_SECONDS_VALUE_
+                        aliases: $aliases
+                    }
+                ) {
+                    artifact {
+                        id
+                    }
                 }
             }
-        }
         """
-        api = InternalApi()
-        fields = api.server_create_artifact_introspection()
+        fields = InternalApi().server_create_artifact_introspection()
         if "ttlDurationSeconds" in fields:
             mutation_template = mutation_template.replace(
                 "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
@@ -929,9 +931,10 @@ class Artifact:
                 "ttlDurationSeconds: $ttlDurationSeconds,",
             )
         else:
-            logger.error(
-                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
-            )
+            if self._ttl_duration_seconds:
+                termwarn(
+                    "Server not compatible with setting Artifact TTLs, please upgrade the server"
+                )
             mutation_template = mutation_template.replace(
                 "_TTL_DURATION_SECONDS_TYPE_", ""
             ).replace(
@@ -1928,8 +1931,8 @@ class Artifact:
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "link")
         if self.ttl is not None:
-            wandb.termwarn(
-                "Artifact TTL will be removed for source artifacts that are linked to portfolios."
+            termwarn(
+                "Artifacts linked to a portfolio cannot have a TTL. The artifact will no longer have a TTL."
                 f" Former TTL: {self.ttl}"
             )
         self._link(target_path, aliases)
@@ -2142,41 +2145,40 @@ class Artifact:
 
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
-        api = InternalApi()
-        fields = api.server_create_artifact_introspection()
+        fields = InternalApi().server_create_artifact_introspection()
         fragment = """
-        fragment ArtifactFragment on Artifact {
-            id
-            artifactSequence {
-                project {
-                    entityName
-                    name
-                }
-                name
-            }
-            versionIndex
-            artifactType {
-                name
-            }
-            description
-            metadata
-            ttlDurationSeconds
-            aliases {
-                artifactCollection {
+            fragment ArtifactFragment on Artifact {
+                id
+                artifactSequence {
                     project {
                         entityName
                         name
                     }
                     name
                 }
-                alias
+                versionIndex
+                artifactType {
+                    name
+                }
+                description
+                metadata
+                ttlDurationSeconds
+                aliases {
+                    artifactCollection {
+                        project {
+                            entityName
+                            name
+                        }
+                        name
+                    }
+                    alias
+                }
+                state
+                commitHash
+                fileCount
+                createdAt
+                updatedAt
             }
-            state
-            commitHash
-            fileCount
-            createdAt
-            updatedAt
-        }
         """
         if "ttlDurationSeconds" not in fields:
             return fragment.replace("ttlDurationSeconds", "")

@@ -224,9 +224,8 @@ class Api:
 
         # todo: remove this hacky hack after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
-        extra_http = self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         extra_http_headers = self.settings("_extra_http_headers") or json.loads(
-            extra_http
+            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
 
         auth = None
@@ -284,6 +283,7 @@ class Api:
         self.mutation_types: Optional[List[str]] = None
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
+        self.server_create_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -3155,7 +3155,6 @@ class Api:
                     createdAt
                     labels
                     metadata
-                    _TTL_DURATION_SECONDS_
                 }
             }
         }
@@ -3170,17 +3169,6 @@ class Api:
             query_template = query_template.replace("_USED_AS_TYPE_", "").replace(
                 "_USED_AS_VALUE_", ""
             )
-
-        # Check if the ttl_duration_seconds exist
-        artifact_fields = self.server_create_artifact_introspection()
-        if "ttlDurationSeconds" not in artifact_fields:
-            logger.error(
-                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
-            )
-        ttl_field = (
-            "ttlDurationSeconds" if "ttlDurationSeconds" in artifact_fields else ""
-        )
-        query_template = query_template.replace("_TTL_DURATION_SECONDS_", ttl_field)
 
         query = gql(query_template)
 
@@ -3257,19 +3245,20 @@ class Api:
             }
         """
 
-        query = gql(query_string)
-        res = self.gql(query)
-        input_fields = res.get("CreateArtifactInputInfoType", {}).get(
-            "inputFields", [{}]
-        )
-        create_artifact_input_info = [
-            field["name"] for field in input_fields if "name" in field
-        ]
-        return create_artifact_input_info
+        if self.server_create_artifact_input_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("CreateArtifactInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+            self.server_create_artifact_input_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
 
-    def add_additional_variables_create_artifact(
+        return self.server_create_artifact_input_info
+
+    def _get_create_artifact_mutation(
         self,
-        query_template: str,
         fields: List,
         history_step: Optional[int],
         distributed_id: Optional[str],
@@ -3301,6 +3290,54 @@ class Api:
             types += "$ttlDurationSeconds: Int64,"
             values += "ttlDurationSeconds: $ttlDurationSeconds,"
 
+        query_template = """
+            mutation CreateArtifact(
+                $artifactTypeName: String!,
+                $artifactCollectionNames: [String!],
+                $entityName: String!,
+                $projectName: String!,
+                $runName: String,
+                $description: String,
+                $digest: String!,
+                $labels: JSONString,
+                $aliases: [ArtifactAliasInput!],
+                $metadata: JSONString,
+                _CREATE_ARTIFACT_ADDITIONAL_TYPE_
+            ) {
+                createArtifact(input: {
+                    artifactTypeName: $artifactTypeName,
+                    artifactCollectionNames: $artifactCollectionNames,
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    runName: $runName,
+                    description: $description,
+                    digest: $digest,
+                    digestAlgorithm: MANIFEST_MD5,
+                    labels: $labels,
+                    aliases: $aliases,
+                    metadata: $metadata,
+                    _CREATE_ARTIFACT_ADDITIONAL_VALUE_
+                }) {
+                    artifact {
+                        id
+                        digest
+                        state
+                        aliases {
+                            artifactCollectionName
+                            alias
+                        }
+                        artifactSequence {
+                            id
+                            latestArtifact {
+                                id
+                                versionIndex
+                            }
+                        }
+                    }
+                }
+            }
+        """
+
         return query_template.replace(
             "_CREATE_ARTIFACT_ADDITIONAL_TYPE_", types
         ).replace("_CREATE_ARTIFACT_ADDITIONAL_VALUE_", values)
@@ -3325,62 +3362,14 @@ class Api:
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
-        query_template = """
-        mutation CreateArtifact(
-            $artifactTypeName: String!,
-            $artifactCollectionNames: [String!],
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String,
-            $description: String,
-            $digest: String!,
-            $labels: JSONString,
-            $aliases: [ArtifactAliasInput!],
-            $metadata: JSONString,
-            _CREATE_ARTIFACT_ADDITIONAL_TYPE_
-        ) {
-            createArtifact(input: {
-                artifactTypeName: $artifactTypeName,
-                artifactCollectionNames: $artifactCollectionNames,
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                description: $description,
-                digest: $digest,
-                digestAlgorithm: MANIFEST_MD5,
-                labels: $labels,
-                aliases: $aliases,
-                metadata: $metadata,
-                _CREATE_ARTIFACT_ADDITIONAL_VALUE_
-            }) {
-                artifact {
-                    id
-                    digest
-                    state
-                    aliases {
-                        artifactCollectionName
-                        alias
-                    }
-                    artifactSequence {
-                        id
-                        latestArtifact {
-                            id
-                            versionIndex
-                        }
-                    }
-                }
-            }
-        }
-        """
-
         fields = self.server_create_artifact_introspection()
-        if "ttlDurationSeconds" not in fields:
-            logger.error(
+        if "ttlDurationSeconds" not in fields and ttl_duration_seconds:
+            logger.warning(
                 "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
 
-        query_template = self.add_additional_variables_create_artifact(
-            query_template, fields, history_step, distributed_id
+        query_template = self._get_create_artifact_mutation(
+            fields, history_step, distributed_id
         )
 
         entity_name = entity_name or self.settings("entity")
