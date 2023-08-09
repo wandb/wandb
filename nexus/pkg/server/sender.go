@@ -22,7 +22,7 @@ import (
 
 const (
 	MetaFilename = "wandb-metadata.json"
-	NexusVersion = "0.0.1a2"
+	NexusVersion = "0.0.1a3"
 )
 
 type ResumeState struct {
