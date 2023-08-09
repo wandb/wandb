@@ -2,6 +2,8 @@ import threading
 import time
 from typing import Any
 from unittest.mock import MagicMock
+import base64
+import json
 
 import pytest
 import wandb
@@ -13,6 +15,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
+    maybe_create_imagepull_secret,
 )
 
 
@@ -548,3 +551,31 @@ def test_get_status_preempted(
     blink()
     status = run.get_status()
     assert status.state == "preempted"
+
+
+def test_maybe_create_imagepull_secret_given_creds():
+    mock_registry = MagicMock()
+    mock_registry.get_username_password.return_value = ("testuser", "testpass")
+    mock_registry.uri = "test.com"
+    api = MagicMock()
+    maybe_create_imagepull_secret(
+        api,
+        mock_registry,
+        "12345678",
+        "wandb",
+    )
+    namespace, secret = api.create_namespaced_secret.call_args[0]
+    assert namespace == "wandb"
+    assert secret.metadata.name == "regcred-12345678"
+    assert secret.data[".dockerconfigjson"] == base64.b64encode(
+        json.dumps(
+            {
+                "auths": {
+                    "test.com": {
+                        "auth": "dGVzdHVzZXI6dGVzdHBhc3M=",  # testuser:testpass
+                        "email": "deprecated@wandblaunch.com",
+                    }
+                }
+            }
+        ).encode("utf-8")
+    ).decode("utf-8")
