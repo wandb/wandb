@@ -12,8 +12,8 @@ import (
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/pkg/service"
