@@ -684,12 +684,7 @@ class Artifact:
         if wandb.run is None:
             if settings is None:
                 settings = wandb.Settings(silent="true")
-            with wandb.init(
-                entity=self._source_entity,
-                project=project or self._source_project,
-                job_type="auto",
-                settings=settings,
-            ) as run:
+            with wandb.init(project=project, job_type="auto", settings=settings) as run:
                 # redoing this here because in this branch we know we didn't
                 # have the run at the beginning of the method
                 if self._incremental:
