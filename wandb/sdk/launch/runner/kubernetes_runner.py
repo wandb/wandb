@@ -39,6 +39,7 @@ from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: 
 from kubernetes.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
+from kubernetes.client.models.v1_pod_status import V1PodStatus  # type: ignore # noqa: E402
 from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
 from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
@@ -65,11 +66,132 @@ CRD_STATE_DICT: Dict[str, State] = {
 }
 
 
+def _is_preempted(status: "V1PodStatus") -> bool:
+    """Check if this pod has been preempted."""
+    if hasattr(status, "conditions") and status.conditions is not None:
+        for condition in status.conditions:
+            if condition.type == "DisruptionTarget" and condition.reason in [
+                "EvictionByEvictionAPI",
+                "PreemptionByScheduler",
+                "TerminationByKubelet",
+            ]:
+                return True
+    return False
+
+
+class KubernetesRunMonitor:
+    def __init__(
+        self,
+        job_field_selector: str,
+        pod_label_selector: str,
+        namespace: str,
+        batch_api: "BatchV1Api",
+        core_api: "CoreV1Api",
+    ) -> None:
+        """Initial KubernetesRunMonitor.
+
+        Arguments:
+            jobname: Name of the job.
+
+        Returns:
+            None.
+        """
+        self.pod_label_selector = pod_label_selector
+        self.job_field_selector = job_field_selector
+        self.namespace = namespace
+        self.batch_api = batch_api
+        self.core_api = core_api
+
+        self._status_lock = Lock()
+        self._status = Status("starting")
+
+        self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
+        self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
+
+    def start(self):
+        """Start the run monitor."""
+        if self._watch_job_thread.is_alive() or self._watch_pods_thread.is_alive():
+            raise LaunchError(
+                "Attempted to start monitor that has already started"
+            )  # TODO: what should I do here?
+        self._watch_job_thread.start()
+        self._watch_pods_thread.start()
+
+    def _set_status(self, status: Status) -> None:
+        """Set the run status."""
+        with self._status_lock:
+            self._status = status
+
+    def get_status(self) -> Status:
+        """Get the run status."""
+        with self._status_lock:
+            return self._status
+
+    def _watch_pods(self):
+        """Watch for pods created matching the jobname."""
+        watcher = watch.Watch()
+        try:
+            # Start stream with a small timeout to check if the pods have been created
+            # within the time limit
+            for event in watcher.stream(
+                self.core_api.list_namespaced_pod,
+                namespace=self.namespace,
+                label_selector=self.pod_label_selector,
+                _request_timeout=10,  # TODO: make this a configurable constant
+            ):
+                # We just want to know that the pods have been created within time limit
+                if event.get("type") in ["ADDED", "MODIFIED"]:
+                    break
+
+            # Stream with no timeout polling for pod status updates
+            for event in watcher.stream(
+                self.core_api.list_namespaced_pod,
+                namespace=self.namespace,
+                label_selector=self.pod_label_selector,
+            ):
+                object = event.get("object")
+                if _is_preempted(object.status):
+                    self._set_status(Status("preempted"))
+                    break
+
+        # This can happen if the connection is lost to the Kubernetes API server
+        # and cannot be re-established.
+        except ApiException as e:
+            raise LaunchError(
+                "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
+            )
+
+    def _watch_job(self):
+        """Watch for job matching the jobname."""
+        watcher = watch.Watch()
+        try:
+            for event in watcher.stream(
+                self.batch_api.list_namespaced_job,
+                namespace="default",
+                field_selector=self.job_field_selector,
+            ):
+                object = event.get("object")
+                if object.status.active == 1:
+                    self._set_status(Status("running"))
+                elif object.status.succeeded == 1:
+                    self._set_status(Status("finished"))
+                    break
+                elif object.status.failed is not None and object.status.failed >= 1:
+                    self._set_status(Status("failed"))
+                    break
+
+        except ApiException as e:
+            raise LaunchError(
+                "Exception when calling CoreV1Api->list_namespaced_job: %s\n" % e
+            )
+
+
 class KubernetesSubmittedRun(AbstractRun):
     """Wrapper for a launched run on Kubernetes."""
 
     def __init__(
         self,
+        monitor: KubernetesRunMonitor,
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         name: str,
@@ -98,6 +220,7 @@ class KubernetesSubmittedRun(AbstractRun):
         Returns:
             None.
         """
+        self.monitor = monitor
         self.batch_api = batch_api
         self.core_api = core_api
         self.name = name
@@ -108,110 +231,6 @@ class KubernetesSubmittedRun(AbstractRun):
         self._fail_count = 0
         self.pod_names = pod_names
         self.secret = secret
-        self._status_lock = Lock()
-        self._status = Status("running")
-        self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
-        self._watch_pod_thread = Thread(
-            target=self._watch_pod, args=(pod_names[0],), daemon=True
-        )
-
-    def _set_status(self, status: Status) -> None:
-        """Set the run status."""
-        with self._status_lock:
-            self._status = status
-
-    def _watch_pod(self, pod_name: str) -> None:
-        """Handle event stream from rank 0 pod."""
-        w = watch.Watch()
-        try:
-            for event in w.stream(
-                self.core_api.list_namespaced_pod,
-                namespace=self.namespace,
-                field_selector=f"metadata.name={pod_name}",
-            ):
-                self._handle_pod_event(event)
-        except ApiException as e:
-            raise LaunchError(
-                "Exception when calling CoreV1Api->read_namespaced_pod: %s\n" % e
-            )
-
-    def _handle_pod_event(self, event: Dict[str, Any]) -> None:
-        """Update status according to an event on the rank 0 pod.
-
-        Arguments:
-            event: Kubernetes event. This is a dict that maps the string
-                "type" to the type of event and the string "object" to the
-                object that the event is about.
-
-        Returns:
-            None.
-
-        Raises:
-            LaunchError: If the pod fails to start after MAX_KUBERNETES_RETRIES.
-        """
-        pod = event.get("object")
-        if pod is None:
-            return
-        if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
-            for condition in pod.status.conditions:
-                if condition.type == "DisruptionTarget" and condition.reason in [
-                    "EvictionByEvictionAPI",
-                    "PreemptionByScheduler",
-                    "TerminationByKubelet",
-                ]:
-                    self._set_status(Status("preempted"))
-        if pod.status.phase in ["Pending", "Unknown"]:
-            now = time.time()
-            if self._fail_count == 0:
-                self._fail_first_msg_time = now
-                self._fail_last_msg_time = 0.0
-            self._fail_count += 1
-            if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes."
-                )
-                self._fail_last_msg_time = now
-            if self._fail_count > MAX_KUBERNETES_RETRIES:
-                raise LaunchError(f"Failed to start job {self.name}")
-
-    def _watch_job(self) -> None:
-        """Handle event stream from Kuberntes job."""
-        w = watch.Watch()
-        try:
-            for event in w.stream(
-                self.batch_api.list_namespaced_job,
-                namespace=self.namespace,
-                field_selector=f"metadata.name={self.name}",
-            ):
-                self._handle_job_event(event)
-        except ApiException as e:
-            raise LaunchError(
-                "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
-            )
-
-    def _handle_job_event(self, event: Dict[str, Any]) -> None:
-        """Update status according to an event on the Kuberntes job.
-
-        Arguments:
-            event: Kubernetes event. This is a dict that maps the string
-                "type" to the type of event and the string "object" to the
-                object that the event is about.
-
-        Returns:
-            None.
-        """
-        job = event.get("object")
-        if job is None:
-            return
-        status = job.status
-        if status.succeeded == 1:
-            self._set_status(Status("finished"))
-        elif status.failed is not None and status.failed >= 1:
-            self._set_status(Status("failed"))
-        elif status.active == 1:
-            self._set_status(Status("running"))
-        else:
-            self._set_status(Status("unknown"))
 
     @property
     def id(self) -> str:
@@ -246,8 +265,6 @@ class KubernetesSubmittedRun(AbstractRun):
         Returns:
             True if the run finished successfully, False otherwise.
         """
-        self._watch_job_thread.start()
-        self._watch_pod_thread.start()
         while True:
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
@@ -271,8 +288,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 )
 
     def get_status(self) -> Status:
-        with self._status_lock:
-            return self._status
+        return self.monitor.get_status()
 
     def suspend(self) -> None:
         """Suspend the run."""
@@ -725,12 +741,27 @@ class KubernetesRunner(AbstractRunner):
             0
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.name
-        pod_names = self.wait_job_launch(job_name, namespace, core_api)
+
+        # Event stream monitor to ensure pod creation and job completion.
+        monitor = (
+            KubernetesRunMonitor(
+                job_field_selector=f"metadata.name={job_name}",
+                pod_label_selector=f"job-name={job_name}",
+                namespace=namespace,
+                batch_api=batch_api,
+                core_api=core_api,
+            )
+            if self.backend_config[PROJECT_SYNCHRONOUS]
+            else None
+        )
+        if monitor:
+            monitor.start()
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, pod_names, namespace, secret
+            monitor, batch_api, core_api, job_name, [], namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
+
         return submitted_job
 
 
