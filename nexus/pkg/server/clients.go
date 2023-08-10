@@ -28,8 +28,8 @@ func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.wrapped.RoundTrip(req)
 }
 
-// NewRetryClient creates a new http client
-func NewRetryClient(apiKey string, logger *observability.NexusLogger) *retryablehttp.Client {
+// newRetryClient creates a new http client
+func newRetryClient(apiKey string, logger *observability.NexusLogger) *retryablehttp.Client {
 	tr := &authedTransport{
 		key:     apiKey,
 		wrapped: http.DefaultTransport,
@@ -42,7 +42,7 @@ func NewRetryClient(apiKey string, logger *observability.NexusLogger) *retryable
 
 // newGraphqlClient creates a new graphql client
 func newGraphqlClient(url, apiKey string, logger *observability.NexusLogger) graphql.Client {
-	retryClient := NewRetryClient(apiKey, logger)
+	retryClient := newRetryClient(apiKey, logger)
 	httpClient := retryClient.StandardClient()
 	return graphql.NewClient(url, httpClient)
 }

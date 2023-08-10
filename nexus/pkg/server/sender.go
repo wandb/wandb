@@ -175,11 +175,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	if !s.settings.GetXOffline().GetValue() {
 		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-		s.fileStream = NewFileStream(
-			WithPath(fsPath),
-			WithSettings(s.settings),
-			WithLogger(s.logger),
-			WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)))
+		s.fileStream = NewFileStream(fsPath, s.settings, s.logger)
 		if s.resumeState != nil {
 			for k, v := range s.resumeState.FileStreamOffset {
 				s.fileStream.SetOffset(k, v)

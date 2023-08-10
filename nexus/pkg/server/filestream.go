@@ -96,35 +96,12 @@ type FileStream struct {
 	stageExitChunk *chunkData
 }
 
-type FileStreamOption func(fs *FileStream)
-
-func WithSettings(settings *service.Settings) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.settings = settings
-	}
-}
-
-func WithLogger(logger *observability.NexusLogger) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.logger = logger
-	}
-}
-
-func WithPath(path string) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.path = path
-	}
-}
-
-func WithHttpClient(client *retryablehttp.Client) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.httpClient = client
-	}
-}
-
 // NewFileStream creates a new filestream
-func NewFileStream(opts ...FileStreamOption) *FileStream {
-	fs := &FileStream{
+func NewFileStream(path string, settings *service.Settings, logger *observability.NexusLogger) *FileStream {
+	fs := FileStream{
+		settings:   settings,
+		logger:     logger,
+		httpClient: newRetryClient(settings.GetApiKey().GetValue(), logger),
 		recordWait: &sync.WaitGroup{},
 		chunkWait:  &sync.WaitGroup{},
 		replyWait:  &sync.WaitGroup{},
@@ -132,11 +109,9 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 		chunkChan:  make(chan chunkData, BufferSize),
 		replyChan:  make(chan map[string]interface{}, BufferSize),
 		offset:     make(map[chunkFile]int),
+		path:       path,
 	}
-	for _, opt := range opts {
-		opt(fs)
-	}
-	return fs
+	return &fs
 }
 
 func (fs *FileStream) SetOffset(file chunkFile, offset int) {
