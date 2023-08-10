@@ -20,6 +20,7 @@ from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
     make_name_dns_safe,
@@ -142,29 +143,54 @@ class KubernetesSubmittedRun(AbstractRun):
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
+    def _delete_secret_if_completed(self, state: str) -> None:
+        """If the runner has a secret and the run is completed, delete the secret."""
+        if state in ["stopped", "failed", "finished"] and self.secret is not None:
+            try:
+                self.core_api.delete_namespaced_secret(
+                    self.secret.metadata.name, self.namespace
+                )
+            except Exception as e:
+                wandb.termerror(
+                    f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
+                )
+
     def get_status(self) -> Status:
         """Return the run status."""
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
+        try:
+            job_response = self.batch_api.read_namespaced_job_status(
+                name=self.name, namespace=self.namespace
+            )
+        except ApiException as e:
+            if e.status == 404:
+                wandb.termerror(
+                    f"Could not reach job {self.name} in namespace {self.namespace}"
+                )
+                self._delete_secret_if_completed("failed")
+                return Status("failed")
+
         status = job_response.status
 
-        pod = self.core_api.read_namespaced_pod(
-            name=self.pod_names[0], namespace=self.namespace
-        )
+        try:
+            pod = self.core_api.read_namespaced_pod(
+                name=self.pod_names[0], namespace=self.namespace
+            )
+        except ApiException as e:
+            if e.status == 404:
+                wandb.termerror(
+                    f"Could not reach pod {self.pod_names[0]} in namespace {self.namespace}"
+                )
+                self._delete_secret_if_completed("failed")
+                return Status("failed")
 
-        if (
-            hasattr(pod.status, "conditions")
-            and pod.status.conditions is not None
-            and pod.status.conditions[0].type == "DisruptionTarget"
-            and pod.status.conditions[0].reason
-            in [
-                "EvictionByEvictionAPI",
-                "PreemptionByScheduler",
-                "TerminationByKubelet",
-            ]
-        ):
-            return Status("preempted")
+        if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
+            for condition in pod.status.conditions:
+                if condition.type == "DisruptionTarget" and condition.reason in [
+                    "EvictionByEvictionAPI",
+                    "PreemptionByScheduler",
+                    "TerminationByKubelet",
+                ]:
+                    return Status("preempted")
         if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
@@ -190,18 +216,8 @@ class KubernetesSubmittedRun(AbstractRun):
             return_status = Status("stopped")
         else:
             return_status = Status("unknown")
-        if (
-            return_status.state in ["stopped", "failed", "finished"]
-            and self.secret is not None
-        ):
-            try:
-                self.core_api.delete_namespaced_secret(
-                    self.secret.metadata.name, self.namespace
-                )
-            except Exception as e:
-                wandb.termerror(
-                    f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
-                )
+
+        self._delete_secret_if_completed(return_status.state)
         return return_status
 
     def suspend(self) -> None:
@@ -501,7 +517,10 @@ class KubernetesRunner(AbstractRunner):
                 }
 
         secret = None
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
         if launch_project.docker_image:
             if len(containers) > 1:
                 raise LaunchError(
@@ -536,7 +555,9 @@ class KubernetesRunner(AbstractRunner):
             launch_project.override_entrypoint is not None,
         )
 
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
         for cont in containers:
             # Add our env vars to user supplied env vars
             env = cont.get("env", [])
@@ -586,7 +607,9 @@ class KubernetesRunner(AbstractRunner):
         api_version = resource_args.get("apiVersion", "batch/v1")
         if api_version not in ["batch/v1", "batch/v1beta1"]:
             launch_project.fill_macros(image_uri)
-            env_vars = get_env_vars_dict(launch_project, self._api)
+            env_vars = get_env_vars_dict(
+                launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+            )
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(launch_project.resource_args, env_vars)
             # Crawl the resource arsg and add our labels to the pods. This is
@@ -734,7 +757,15 @@ def maybe_create_imagepull_secret(
         type="kubernetes.io/dockerconfigjson",
     )
     try:
-        return core_api.create_namespaced_secret(namespace, secret)
+        try:
+            return core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            # 409 = conflict = secret already exists
+            if e.status == 409:
+                return core_api.read_namespaced_secret(
+                    name=f"regcred-{run_id}", namespace=namespace
+                )
+            raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 

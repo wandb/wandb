@@ -273,7 +273,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         intervals = self.get_consecutive_offsets(console)
         ret = []
         for a, b in intervals:
-            processed_chunk: "ProcessedChunk" = {
+            processed_chunk: ProcessedChunk = {
                 "offset": a,
                 "content": [console[i] for i in range(a, b + 1)],
             }
@@ -335,12 +335,13 @@ class FileStreamApi:
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
+        timeout = timeout or 0
         if timeout > 0:
             self._client.post = functools.partial(self._client.post, timeout=timeout)  # type: ignore[method-assign]
         self._client.auth = api.client.transport.session.auth
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
-        self._file_policies: Dict[str, "DefaultFilePolicy"] = {}
+        self._file_policies: Dict[str, DefaultFilePolicy] = {}
         self._dropped_chunks: int = 0
         self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
@@ -410,7 +411,7 @@ class FileStreamApi:
         posted_anything_time = time.time()
         ready_chunks = []
         uploaded: Set[str] = set()
-        finished: Optional["FileStreamApi.Finish"] = None
+        finished: Optional[FileStreamApi.Finish] = None
         while finished is None:
             items = self._read_queue()
             for item in items:
@@ -625,7 +626,7 @@ def request_with_retry(
     retry_count = 0
     while True:
         try:
-            response: "requests.Response" = func(*args, **kwargs)
+            response: requests.Response = func(*args, **kwargs)
             response.raise_for_status()
             return response
         except (

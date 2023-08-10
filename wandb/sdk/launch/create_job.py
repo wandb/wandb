@@ -348,6 +348,7 @@ def _create_repo_metadata(
             "remote": ref.url,
         },
         "root": ref.repo,
+        "codePathLocal": entrypoint,  # not in git context, optionally also set local
         "codePath": entrypoint,
         "entrypoint": [f"python{python_version}", entrypoint],
         "python": python_version,  # used to build container
@@ -452,6 +453,11 @@ def _make_code_artifact(
         type="code",
         description="Code artifact for job",
     )
+
+    # Update path and entrypoint vars to match metadata
+    # TODO(gst): consolidate into one place
+    path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
+
     try:
         code_artifact.add_dir(path)
     except Exception as e:

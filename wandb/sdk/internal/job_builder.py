@@ -5,6 +5,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
+import wandb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
@@ -223,13 +224,11 @@ class JobBuilder:
             # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
             if not os.path.exists(full_program_relpath):
                 # when users call log code in a notebook the code artifact starts
-                # at the directory the notebook is in instead of the jupyter
-                # core
-                if os.path.exists(os.path.basename(program_relpath)):
-                    full_program_relpath = os.path.basename(program_relpath)
-                else:
+                # at the directory the notebook is in instead of the jupyter core
+                if not os.path.exists(os.path.basename(program_relpath)):
                     _logger.info("target path does not exist, exiting")
                     return None, None
+                full_program_relpath = os.path.basename(program_relpath)
         else:
             full_program_relpath = program_relpath
         entrypoint = [
@@ -287,14 +286,9 @@ class JobBuilder:
             return None
 
         runtime: Optional[str] = metadata.get("python")
-        program_relpath: Optional[str] = metadata.get("codePath")
         # can't build a job without a python version
         if runtime is None:
             return None
-
-        if self._is_notebook_run():
-            _logger.info("run is notebook based run")
-            program_relpath = metadata.get("program")
 
         input_types = TypeRegistry.type_of(self._config).to_json()
         output_types = TypeRegistry.type_of(self._summary).to_json()
@@ -314,8 +308,12 @@ class JobBuilder:
             source_type = source_info.get("source_type")
         else:
             # configure job from environment
-            source_type = self._get_source_type(metadata, program_relpath)
+            source_type = self._get_source_type(metadata)
             if not source_type:
+                return None
+
+            program_relpath = self._get_program_relpath(source_type, metadata)
+            if source_type != "image" and not program_relpath:
                 return None
 
             source: Union[
@@ -326,21 +324,27 @@ class JobBuilder:
 
             # make source dict
             if source_type == "repo":
-                assert program_relpath is not None
+                assert program_relpath
                 source, name = self._build_repo_job_source(
                     metadata,
                     program_relpath,
                     metadata.get("root"),
                 )
             elif source_type == "artifact":
-                assert program_relpath is not None
+                assert program_relpath
                 source, name = self._build_artifact_job_source(program_relpath)
-            elif source_type == "image":
+            elif source_type == "image" and self._has_image_job_ingredients(metadata):
                 source, name = self._build_image_job_source(metadata)
             else:
                 source = None
 
             if source is None:
+                if source_type:
+                    wandb.termwarn(
+                        f"Source type is set to '{source_type}' but some required information is missing "
+                        "from the environment. A job will not be created from this run. See "
+                        "https://docs.wandb.ai/guides/launch/create-job"
+                    )
                 return None
 
             source_info = {
@@ -379,17 +383,15 @@ class JobBuilder:
 
         return artifact
 
-    def _get_source_type(
-        self, metadata: Dict[str, Any], relpath: Optional[str]
-    ) -> Optional[str]:
+    def _get_source_type(self, metadata: Dict[str, Any]) -> Optional[str]:
         if self._source_type:
             return self._source_type
 
-        if self._has_git_job_ingredients(metadata, relpath):
+        if self._has_git_job_ingredients(metadata):
             _logger.info("is repo sourced job")
             return "repo"
 
-        if self._has_artifact_job_ingredients(relpath):
+        if self._has_artifact_job_ingredients():
             _logger.info("is artifact sourced job")
             return "artifact"
 
@@ -399,6 +401,21 @@ class JobBuilder:
 
         _logger.info("no source found")
         return None
+
+    def _get_program_relpath(
+        self, source_type: str, metadata: Dict[str, Any]
+    ) -> Optional[str]:
+        if self._is_notebook_run():
+            _logger.info("run is notebook based run")
+            return metadata.get("program")
+
+        if source_type == "artifact" or self._settings.job_source == "artifact":
+            # if the job is set to be an artifact, use relpath guaranteed
+            # to be correct. 'codePath' uses the root path when in git repo
+            # fallback to codePath if strictly local relpath not present
+            return metadata.get("codePathLocal") or metadata.get("codePath")
+
+        return metadata.get("codePath")
 
     def _handle_metadata_file(
         self,
@@ -410,18 +427,14 @@ class JobBuilder:
 
         return None
 
-    def _has_git_job_ingredients(
-        self, metadata: Dict[str, Any], program_relpath: Optional[str]
-    ) -> bool:
+    def _has_git_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
         git_info: Dict[str, str] = metadata.get("git", {})
-        if program_relpath is None:
-            return False
         if self._is_notebook_run() and metadata.get("root") is None:
             return False
         return git_info.get("remote") is not None and git_info.get("commit") is not None
 
-    def _has_artifact_job_ingredients(self, program_relpath: Optional[str]) -> bool:
-        return self._logged_code_artifact is not None and program_relpath is not None
+    def _has_artifact_job_ingredients(self) -> bool:
+        return self._logged_code_artifact is not None
 
     def _has_image_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
         return metadata.get("docker") is not None

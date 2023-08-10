@@ -195,8 +195,8 @@ class DirWatcher:
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
-        self._savename_file_policies: MutableMapping[LogicalPath, "PolicyName"] = {}
-        self._user_file_policies: Mapping["PolicyName", MutableSet[GlobStr]] = {
+        self._savename_file_policies: MutableMapping[LogicalPath, PolicyName] = {}
+        self._user_file_policies: Mapping[PolicyName, MutableSet[GlobStr]] = {
             "end": set(),
             "live": set(),
             "now": set(),

@@ -9,7 +9,6 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
-import json
 import logging
 import os
 import sys
@@ -20,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple,
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,

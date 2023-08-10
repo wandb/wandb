@@ -18,7 +18,7 @@ from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
+from ..utils import LOG_PREFIX, MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -120,10 +120,9 @@ class VertexRunner(AbstractRunner):
         )
         gcp_accelerator_count = int(resource_args.get("accelerator_count") or 0)
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        gcp_training_job_name = resource_args.get(
-            "job_name"
-        ) or "{project}_{time}".format(
-            project=launch_project.target_project, time=timestamp
+        gcp_training_job_name = (
+            resource_args.get("job_name")
+            or f"{launch_project.target_project}_{timestamp}"
         )
         service_account = resource_args.get("service_account")
         tensorboard = resource_args.get("tensorboard")
@@ -134,7 +133,10 @@ class VertexRunner(AbstractRunner):
         )
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
 
         launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
@@ -153,7 +155,11 @@ class VertexRunner(AbstractRunner):
                     "command": entry_cmd,
                     "env": [
                         {"name": k, "value": v}
-                        for k, v in get_env_vars_dict(launch_project, self._api).items()
+                        for k, v in get_env_vars_dict(
+                            launch_project,
+                            self._api,
+                            MAX_ENV_LENGTHS[self.__class__.__name__],
+                        ).items()
                     ],
                 },
             }
