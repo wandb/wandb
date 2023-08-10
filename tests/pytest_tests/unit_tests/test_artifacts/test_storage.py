@@ -15,7 +15,7 @@ from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHan
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.internal import staging
+from wandb.sdk.artifacts import staging
 
 
 def test_opener_rejects_append_mode(cache):
