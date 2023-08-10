@@ -108,7 +108,7 @@ class KubernetesRunMonitor:
         self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
         self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
 
-    def start(self):
+    def start(self) -> None:
         """Start the run monitor."""
         if self._watch_job_thread.is_alive() or self._watch_pods_thread.is_alive():
             raise LaunchError(
@@ -127,7 +127,7 @@ class KubernetesRunMonitor:
         with self._status_lock:
             return self._status
 
-    def _watch_pods(self):
+    def _watch_pods(self) -> None:
         """Watch for pods created matching the jobname."""
         watcher = watch.Watch()
         try:
@@ -161,7 +161,7 @@ class KubernetesRunMonitor:
                 "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
             )
 
-    def _watch_job(self):
+    def _watch_job(self) -> None:
         """Watch for job matching the jobname."""
         watcher = watch.Watch()
         try:
@@ -743,18 +743,14 @@ class KubernetesRunner(AbstractRunner):
         job_name = job_response.metadata.name
 
         # Event stream monitor to ensure pod creation and job completion.
-        monitor = (
-            KubernetesRunMonitor(
-                job_field_selector=f"metadata.name={job_name}",
-                pod_label_selector=f"job-name={job_name}",
-                namespace=namespace,
-                batch_api=batch_api,
-                core_api=core_api,
-            )
-            if self.backend_config[PROJECT_SYNCHRONOUS]
-            else None
+        monitor = KubernetesRunMonitor(
+            job_field_selector=f"metadata.name={job_name}",
+            pod_label_selector=f"job-name={job_name}",
+            namespace=namespace,
+            batch_api=batch_api,
+            core_api=core_api,
         )
-        if monitor:
+        if self.backend_config[PROJECT_SYNCHRONOUS]:
             monitor.start()
         submitted_job = KubernetesSubmittedRun(
             monitor, batch_api, core_api, job_name, [], namespace, secret
