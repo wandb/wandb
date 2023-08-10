@@ -3434,10 +3434,16 @@ class Api:
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
         fields = self.server_create_artifact_introspection()
-        if "ttlDurationSeconds" not in fields and ttl_duration_seconds:
+        artifact_fields = self.server_artifact_introspection()
+        if (
+            "ttlDurationSeconds" not in artifact_fields
+            or "ttlIsInherited" not in artifact_fields
+        ) and ttl_duration_seconds:
             logger.warning(
                 "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
+            # ttlDurationSeconds is only usable if ttlIsInherited is also present
+            fields.remove("ttlDurationSeconds")
 
         query_template = self._get_create_artifact_mutation(
             fields, history_step, distributed_id

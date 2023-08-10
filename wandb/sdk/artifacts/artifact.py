@@ -948,7 +948,7 @@ class Artifact:
         else:
             if self._ttl_duration_seconds or self._ttl_change:
                 termwarn(
-                    "Server not compatible with setting Artifact TTLs, please upgrade the server"
+                    "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
                 )
             mutation_template = mutation_template.replace(
                 "_TTL_DURATION_SECONDS_TYPE_", ""
@@ -959,9 +959,7 @@ class Artifact:
         mutation = gql(mutation_template)
         assert self._client is not None
 
-        ttl_duration_input = self._ttl_duration_seconds_to_gql(
-            self._ttl_duration_seconds, self._ttl_change
-        )
+        ttl_duration_input = self._ttl_duration_seconds_to_gql()
         self._client.execute(
             mutation,
             variable_values={
