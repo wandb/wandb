@@ -17,26 +17,29 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	}
 
 	h.handleInternal(history)
+
+	// TODO unify with handleSummary
+	// TODO add an option to disable summary (this could be quite expensive)
+	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
+	h.sendRecord(summaryRecord)
+
+	// Need Summary to be executed first, since we use the consolidated summary
+	// to determine how to handle step syncing for missing metrics.
 	h.handleMetricHistory(history)
 
 	record := &service.Record{
 		RecordType: &service.Record_History{History: history},
 	}
 	h.sendRecord(record)
-
-	// TODO unify with handleSummary
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
-	h.sendRecord(summaryRecord)
 }
 
 // handleInternal adds internal history items to the history record
 // these items are used for internal bookkeeping and are not sent by the client
 func (h *Handler) handleInternal(history *service.HistoryRecord) {
-	// walk through items looking for _timestamp
+
 	// TODO: add a timestamp field to the history record
-	items := history.GetItem()
 	var runTime float64 = 0
-	for _, item := range items {
+	for _, item := range history.GetItem() {
 		if item.Key == "_timestamp" {
 			val, err := strconv.ParseFloat(item.ValueJson, 64)
 			if err != nil {

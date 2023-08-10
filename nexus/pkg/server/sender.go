@@ -768,6 +768,12 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 	if s.ms == nil {
 		s.ms = NewMetricSender()
 	}
+
+	if metric.GetGlobName() != "" {
+		s.logger.Warn("sender: sendMetric: glob name is not supported in the backend", "globName", metric.GetGlobName())
+		return
+	}
+
 	s.handleMetricIndex(record, metric)
 	s.updateConfigPrivate(nil /*telemetry*/)
 	s.sendConfig(nil, nil /*configRecord*/)

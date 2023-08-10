@@ -112,11 +112,10 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 	if metric.GetGlobName() != "" {
 		if _, err := addMetric(metric, metric.GetGlobName(), &h.mh.globMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
+			return
 		}
-		return
-	}
-
-	if metric.GetName() != "" {
+		h.sendRecord(record)
+	} else if metric.GetName() != "" {
 		if _, err := addMetric(metric, metric.GetName(), &h.mh.definedMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
 			return
@@ -124,6 +123,8 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 
 		h.handleStepMetric(metric.GetStepMetric())
 		h.sendRecord(record)
+	} else {
+		h.logger.CaptureError("invalid metric", errors.New("invalid metric"))
 	}
 }
 
