@@ -52,11 +52,11 @@ from wandb.sdk.artifacts.exceptions import (
     ArtifactNotLoggedError,
     WaitTimeoutError,
 )
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
-from wandb.sdk.internal.staging import get_staging_dir
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64

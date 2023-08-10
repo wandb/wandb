@@ -2,7 +2,7 @@
 import logging
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional
 
-from wandb.sdk.internal.staging import is_staged_copy, remove_from_staging
+from wandb.sdk.artifacts.staging import is_staged_copy, remove_from_staging
 from wandb.sdk.lib.hashutil import HexMD5
 
 if TYPE_CHECKING:

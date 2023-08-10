@@ -313,7 +313,7 @@ def test_add_changed():
 
 def test_add_changed_by_name(monkeypatch, tmp_path):
     staging_dir = tmp_path / "staging"
-    monkeypatch.setattr(wandb.sdk.internal.staging, "_staging_dir", staging_dir)
+    monkeypatch.setattr(wandb.sdk.artifacts.staging, "_staging_dir", staging_dir)
 
     file1 = Path("file1.txt")
     file1.write_text("hello")

@@ -10,7 +10,7 @@ import wandb
 import wandb.filesync.step_prepare
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.internal.staging import remove_from_staging
+from wandb.sdk.artifacts.staging import remove_from_staging
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import URIStr
 
