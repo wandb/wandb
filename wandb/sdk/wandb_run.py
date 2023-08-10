@@ -2958,25 +2958,35 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
-        if not self._settings._offline:
-            try:
-                public_api = self._public_api()
-                expected_type = Artifact._expected_type(
-                    public_api.settings["entity"],
-                    public_api.settings["project"],
-                    artifact.name,
-                    public_api.client,
-                )
-            except requests.exceptions.RequestException:
-                # Just return early if there is a network error. This is
-                # ok, as this function is intended to help catch an invalid
-                # type early, but not a hard requirement for valid operation.
-                return
-            if expected_type is not None and artifact.type != expected_type:
-                raise ValueError(
-                    f"Artifact {artifact.name} already exists with type {expected_type}; "
-                    f"cannot create another with type {artifact.type}"
-                )
+        if self._settings._offline:
+            return
+        try:
+            public_api = self._public_api()
+            entity = public_api.settings["entity"]
+            project = public_api.settings["project"]
+            expected_type = Artifact._expected_type(
+                entity, project, artifact.name, public_api.client
+            )
+        except requests.exceptions.RequestException:
+            # Just return early if there is a network error. This is
+            # ok, as this function is intended to help catch an invalid
+            # type early, but not a hard requirement for valid operation.
+            return
+        if expected_type is not None and artifact.type != expected_type:
+            raise ValueError(
+                f"Artifact {artifact.name} already exists with type {expected_type}; "
+                f"cannot create another with type {artifact.type}"
+            )
+        if entity and entity != artifact.source_entity:
+            raise ValueError(
+                f"Artifact {artifact.name} is owned by entity {artifact.source_entity};"
+                f" it can't be moved to entity {entity}"
+            )
+        if project and project != artifact.source_project:
+            raise ValueError(
+                f"Artifact {artifact.name} exists in project {artifact.source_project};"
+                f" it can't be moved to project {project}"
+            )
 
     def _prepare_artifact(
         self,
