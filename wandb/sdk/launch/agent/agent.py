@@ -363,6 +363,7 @@ class LaunchAgent:
                 self._api,
                 job_tracker,
             ),
+            daemon=True,
         )
 
         t.start()
