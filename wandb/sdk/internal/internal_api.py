@@ -2,6 +2,8 @@ import ast
 import asyncio
 import base64
 import datetime
+import functools
+import http.client
 import json
 import logging
 import os
@@ -130,6 +132,33 @@ else:
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
 
+httpclient_logger = logging.getLogger("http.client")
+if os.environ.get("WANDB_DEBUG"):
+    httpclient_logger.setLevel(logging.DEBUG)
+
+
+def check_httpclient_logger_handler() -> None:
+    # Only enable http.client logging if WANDB_DEBUG is set
+    if not os.environ.get("WANDB_DEBUG"):
+        return
+    if httpclient_logger.handlers:
+        return
+
+    # Enable HTTPConnection debug logging to the logging framework
+    level = logging.DEBUG
+
+    def httpclient_log(*args: Any) -> None:
+        httpclient_logger.log(level, " ".join(args))
+
+    # mask the print() built-in in the http.client module to use logging instead
+    http.client.print = httpclient_log  # type: ignore[attr-defined]
+    # enable debugging
+    http.client.HTTPConnection.debuglevel = 1
+
+    root_logger = logging.getLogger("wandb")
+    if root_logger.handlers:
+        httpclient_logger.addHandler(root_logger.handlers[0])
+
 
 def check_httpx_exc_retriable(exc: Exception) -> bool:
     retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
@@ -171,6 +200,7 @@ class Api:
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(30)
+    FILE_PUSHER_TIMEOUT = env.get_file_pusher_timeout()
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
@@ -267,6 +297,11 @@ class Api:
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
         self._upload_file_session = requests.Session()
+        if self.FILE_PUSHER_TIMEOUT:
+            self._upload_file_session.put = functools.partial(  # type: ignore
+                self._upload_file_session.put,
+                timeout=self.FILE_PUSHER_TIMEOUT,
+            )
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -1023,6 +1058,8 @@ class Api:
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
         """
+        check_httpclient_logger_handler()
+
         query = gql(
             """
         query RunConfigs(
@@ -2340,6 +2377,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
+        check_httpclient_logger_handler()
         auth = None
         if _thread_local_api_settings.cookies is None:
             auth = ("user", self.api_key or "")
@@ -2433,10 +2471,15 @@ class Api:
         Returns:
             The `requests` library response object
         """
+        check_httpclient_logger_handler()
         try:
+            if env.is_debug(env=self._environ):
+                logger.debug("upload_file: %s", url)
             response = self._upload_file_session.put(
                 url, data=upload_chunk, headers=extra_headers
             )
+            if env.is_debug(env=self._environ):
+                logger.debug("upload_file: %s complete", url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -2483,6 +2526,7 @@ class Api:
         Returns:
             The `requests` library response object
         """
+        check_httpclient_logger_handler()
         extra_headers = extra_headers.copy() if extra_headers else {}
         response: Optional[requests.Response] = None
         progress = Progress(file, callback=callback)
@@ -2495,9 +2539,13 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
+                if env.is_debug(env=self._environ):
+                    logger.debug("upload_file: %s", url)
                 response = self._upload_file_session.put(
                     url, data=progress, headers=extra_headers
                 )
+                if env.is_debug(env=self._environ):
+                    logger.debug("upload_file: %s complete", url)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -2512,7 +2560,7 @@ class Api:
                 and status_code == 400
                 and "RequestTimeout" in str(response_content)
             )
-            # We need to rewind the file for the next retry (the file passed in is seeked to 0)
+            # We need to rewind the file for the next retry (the file passed in is `seek`'ed to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
             if (
@@ -2549,6 +2597,7 @@ class Api:
             - This method doesn't wrap retryable errors in `TransientError`.
               It leaves that determination to the caller.
         """
+        check_httpclient_logger_handler()
         must_delegate = False
 
         if httpx is None:
@@ -3785,11 +3834,9 @@ class Api:
         assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
-        if state == "RUNNING" and curr_state in ("CANCELED", "FINISHED"):
-            raise Exception("Cannot resume %s sweep." % curr_state.lower())
-        elif state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
+        if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
             raise Exception("Cannot pause %s sweep." % curr_state.lower())
-        elif curr_state not in ("RUNNING", "PAUSED", "PENDING"):
+        elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
             raise Exception("Sweep already %s." % curr_state.lower())
         sweep_id = s["id"]
         mutation = gql(
@@ -3869,6 +3916,7 @@ class Api:
 
     def _status_request(self, url: str, length: int) -> requests.Response:
         """Ask google how much we've uploaded."""
+        check_httpclient_logger_handler()
         return requests.put(
             url=url,
             headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},

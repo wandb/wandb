@@ -346,6 +346,9 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
+            # scheduler succeeds if at runcap
+            if self.state == SchedulerState.FLUSH_RUNS and self.at_runcap:
+                self.state = SchedulerState.COMPLETED
             self.exit()
 
     def exit(self) -> None:
@@ -678,6 +681,9 @@ class Scheduler(ABC):
                 f' {"job" if _job else "image_uri"} entrypoint'
             )
 
+        # override resource and args of job
+        _job_launch_config = self._wandb_run.config.get("launch") or {}
+
         run_id = run.id or generate_id()
         queued_run = launch_add(
             run_id=run_id,
@@ -689,8 +695,8 @@ class Scheduler(ABC):
             entity=self._entity,
             queue_name=self._kwargs.get("queue"),
             project_queue=self._project_queue,
-            resource=self._kwargs.get("resource", None),
-            resource_args=self._kwargs.get("resource_args", None),
+            resource=_job_launch_config.get("resource"),
+            resource_args=_job_launch_config.get("resource_args"),
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
         )
