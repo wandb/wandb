@@ -30,6 +30,7 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 }
 
 // handleInternal adds internal history items to the history record
+// these items are used for internal bookkeeping and are not sent by the client
 func (h *Handler) handleInternal(history *service.HistoryRecord) {
 	// walk through items looking for _timestamp
 	// TODO: add a timestamp field to the history record
