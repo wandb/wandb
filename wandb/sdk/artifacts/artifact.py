@@ -3,7 +3,6 @@ import concurrent.futures
 import contextlib
 import datetime
 import json
-import logging
 import multiprocessing.dummy
 import os
 import platform
@@ -47,7 +46,7 @@ from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
 )
 from wandb.sdk.artifacts.artifact_saver import get_staging_dir
 from wandb.sdk.artifacts.artifact_state import ArtifactState
-from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL, ArtifactTTLChange
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -185,6 +184,7 @@ class Artifact:
         self._created_at: Optional[str] = None
         self._updated_at: Optional[str] = None
         self._final: bool = False
+        self._ttl_change: Optional[ArtifactTTLChange] = None
         # Cache.
         get_artifacts_cache().store_client_artifact(self)
 
@@ -298,7 +298,12 @@ class Artifact:
         artifact.metadata = cls._normalize_metadata(
             json.loads(attrs["metadata"] or "{}")
         )
-        artifact._ttl_duration_seconds = attrs.get("ttlDurationSeconds")
+        attrs_ttl_duration = attrs.get("ttlDurationSeconds")
+        artifact._ttl_duration_seconds = (
+            attrs_ttl_duration
+            if attrs_ttl_duration and attrs_ttl_duration > 0
+            else None
+        )
         artifact._aliases = [
             alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
@@ -474,7 +479,7 @@ class Artifact:
         self._metadata = self._normalize_metadata(metadata)
 
     @property
-    def ttl(self) -> Union[datetime.timedelta, ArtifactTTL, None]:
+    def ttl(self) -> Union[datetime.timedelta, None]:
         """Artifact TTL(time to live).
 
         Set a TTL to mark the artifact for deletion after the given duration from Artifact creation has passed.
@@ -487,13 +492,12 @@ class Artifact:
             artifact.save() # or log the artifact if its new
             ```
         """
-        if (
-            self._ttl_duration_seconds is None
-            or self._ttl_duration_seconds == ArtifactTTL.INHERIT.value
-        ):
+        if self._ttl_change == ArtifactTTLChange.INHERITED:
+            raise Exception(
+                "Unable to fetch Inherited TTL until artifact is logged/saved"
+            )
+        if self._ttl_duration_seconds is None:
             return None
-        if self._ttl_duration_seconds == ArtifactTTL.DISABLE.value:
-            return ArtifactTTL.DISABLE
         return datetime.timedelta(seconds=self._ttl_duration_seconds)
 
     @ttl.setter
@@ -505,21 +509,25 @@ class Artifact:
 
         Arguments:
             ttl: How long the artifact will remain active from its creation. timedelta must be positive,
-            To turn off previously set artifact TTL set `artifact.ttl = None`
+            To reset artifact TTL to inherit from collection level rules `artifact.ttl = wandb.ArtifactTTL.INHERIT`
         """
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
 
         if ttl is None:
-            self._ttl_duration_seconds = ArtifactTTL.INHERIT.value
+            self._ttl_duration_seconds = None
+            self._ttl_change = ArtifactTTLChange.NOT_INHERITED
         elif isinstance(ttl, ArtifactTTL):
-            self._ttl_duration_seconds = ttl
+            if ttl == ArtifactTTL.INHERIT:
+                self._ttl_duration_seconds = None
+                self._ttl_change = ArtifactTTLChange.INHERITED
         elif ttl.total_seconds() <= 0:
             raise ValueError(
                 f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
             )
         else:
             self._ttl_duration_seconds = int(ttl.total_seconds())
+            self._ttl_change = ArtifactTTLChange.NOT_INHERITED
 
     @property
     def aliases(self) -> List[str]:
@@ -948,13 +956,17 @@ class Artifact:
             )
         mutation = gql(mutation_template)
         assert self._client is not None
+
+        ttl_duration_input = self._ttl_duration_seconds_to_gql(
+            self._ttl_duration_seconds, self._ttl_change
+        )
         self._client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
-                "ttlDurationSeconds": self._ttl_duration_seconds,
+                "ttlDurationSeconds": ttl_duration_input,
                 "aliases": aliases,
             },
         )
@@ -2188,6 +2200,19 @@ class Artifact:
         if "ttlDurationSeconds" not in fields:
             return fragment.replace("ttlDurationSeconds", "")
         return fragment
+
+    @staticmethod
+    def _ttl_duration_seconds_to_gql(
+        ttl_duration_seconds: Optional[int], ttl_status: Optional[ArtifactTTLChange]
+    ) -> Optional[int]:
+        # Set artifact ttl value to ttl_duration_seconds if the user set a value
+        # otherwise use ttl_status to indicate to backend INHERIT or NOT_INHERIT the None ttl value
+        # Ttl_duration_seconds = None and ttl_status = None is a no op
+        return (
+            ttl_status.value
+            if ttl_duration_seconds is None and ttl_status
+            else ttl_duration_seconds
+        )
 
 
 class _ArtifactVersionType(WBType):
