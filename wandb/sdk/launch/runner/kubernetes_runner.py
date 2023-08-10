@@ -102,11 +102,17 @@ class KubernetesRunMonitor:
         self.batch_api = batch_api
         self.core_api = core_api
 
+        self.pod_event_queue = []
+        self.job_event_queue = []
+
         self._status_lock = Lock()
         self._status = Status("starting")
 
         self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
         self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
+
+        self._job_watcher = watch.Watch()
+        self._pod_watcher = watch.Watch()
 
     def start(self) -> None:
         """Start the run monitor."""
@@ -116,6 +122,11 @@ class KubernetesRunMonitor:
             )  # TODO: what should I do here?
         self._watch_job_thread.start()
         self._watch_pods_thread.start()
+
+    def stop(self) -> None:
+        """Stop the run monitor."""
+        self._job_watcher.stop()
+        self._pod_watcher.stop()
 
     def _set_status(self, status: Status) -> None:
         """Set the run status."""
@@ -129,30 +140,21 @@ class KubernetesRunMonitor:
 
     def _watch_pods(self) -> None:
         """Watch for pods created matching the jobname."""
-        watcher = watch.Watch()
         try:
-            # Start stream with a small timeout to check if the pods have been created
-            # within the time limit
-            for event in watcher.stream(
-                self.core_api.list_namespaced_pod,
-                namespace=self.namespace,
-                label_selector=self.pod_label_selector,
-                _request_timeout=10,  # TODO: make this a configurable constant
-            ):
-                # We just want to know that the pods have been created within time limit
-                if event.get("type") in ["ADDED", "MODIFIED"]:
-                    break
-
             # Stream with no timeout polling for pod status updates
-            for event in watcher.stream(
+            for event in self._pod_watcher.stream(
                 self.core_api.list_namespaced_pod,
                 namespace=self.namespace,
                 label_selector=self.pod_label_selector,
             ):
+                type = event.get("type")
                 object = event.get("object")
+                if type == "MODIFIED":
+                    if object.status.phase == "Running":
+                        self._set_status(Status("running"))
                 if _is_preempted(object.status):
                     self._set_status(Status("preempted"))
-                    break
+                    self.stop()
 
         # This can happen if the connection is lost to the Kubernetes API server
         # and cannot be re-established.
@@ -163,22 +165,19 @@ class KubernetesRunMonitor:
 
     def _watch_job(self) -> None:
         """Watch for job matching the jobname."""
-        watcher = watch.Watch()
         try:
-            for event in watcher.stream(
+            for event in self._job_watcher.stream(
                 self.batch_api.list_namespaced_job,
                 namespace="default",
                 field_selector=self.job_field_selector,
             ):
                 object = event.get("object")
-                if object.status.active == 1:
-                    self._set_status(Status("running"))
-                elif object.status.succeeded == 1:
+                if object.status.succeeded == 1:
                     self._set_status(Status("finished"))
-                    break
+                    self.stop()
                 elif object.status.failed is not None and object.status.failed >= 1:
                     self._set_status(Status("failed"))
-                    break
+                    self.stop()
 
         except ApiException as e:
             raise LaunchError(
@@ -316,6 +315,7 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def cancel(self) -> None:
         """Cancel the run."""
+        self.monitor.stop()
         self.suspend()
         self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
 
