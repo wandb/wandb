@@ -22,9 +22,9 @@ const (
 	HistoryFileName = "wandb-history.jsonl"
 	SummaryFileName = "wandb-summary.json"
 	OutputFileName  = "output.log"
-	maxItemsPerPush = 5_000
-	delayProcess    = 20 * time.Millisecond
-	heartbeatTime   = 2 * time.Second
+	defaultMaxItemsPerPush = 5_000
+	defaultDelayProcess    = 20 * time.Millisecond
+	defaultHeartbeatTime   = 2 * time.Second
 )
 
 var completeTrue bool = true
@@ -95,6 +95,10 @@ type FileStream struct {
 
 	// keep track of the exit chunk for when we shut down filestream
 	stageExitChunk *chunkData
+
+	maxItemsPerPush  int
+	delayProcess    time.Duration
+	heartbeatTime   time.Duration
 }
 
 type FileStreamOption func(fs *FileStream)
@@ -123,6 +127,24 @@ func WithHttpClient(client *retryablehttp.Client) FileStreamOption {
 	}
 }
 
+func WithMaxItemsPerPush(maxItemsPerPush int) FileStreamOption {
+	return func(fs *FileStream) {
+		fs.maxItemsPerPush = maxItemsPerPush
+	}
+}
+
+func WithDelayProcess(delayProcess time.Duration) FileStreamOption {
+	return func(fs *FileStream) {
+		fs.delayProcess = delayProcess
+	}
+}
+
+func WithHeartbeatTime(heartbeatTime time.Duration) FileStreamOption {
+	return func(fs *FileStream) {
+		fs.heartbeatTime = heartbeatTime
+	}
+}
+
 // NewFileStream creates a new filestream
 func NewFileStream(opts ...FileStreamOption) *FileStream {
 	fs := &FileStream{
@@ -133,6 +155,9 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 		chunkChan:  make(chan chunkData, BufferSize),
 		replyChan:  make(chan map[string]interface{}, BufferSize),
 		offset:     make(map[ChunkFile]int),
+		maxItemsPerPush: defaultMaxItemsPerPush,
+		delayProcess: defaultDelayProcess,
+	    heartbeatTime: defaultHeartbeatTime,
 	}
 	for _, opt := range opts {
 		opt(fs)
@@ -220,7 +245,7 @@ func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 
 			chunkMaps[chunk.fileName] = append(chunkMaps[chunk.fileName], chunk)
 
-			delayTime := delayProcess
+			delayTime := fs.delayProcess
 			if overflow {
 				delayTime = 0
 			}
@@ -236,7 +261,7 @@ func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 						break
 					}
 					chunkMaps[chunk.fileName] = append(chunkMaps[chunk.fileName], chunk)
-					if len(chunkMaps[chunk.fileName]) >= maxItemsPerPush {
+					if len(chunkMaps[chunk.fileName]) >= fs.maxItemsPerPush {
 						ready = false
 						overflow = true
 					}
@@ -247,7 +272,7 @@ func (fs *FileStream) doChunkProcess(inChan <-chan chunkData) {
 			for _, chunkList := range chunkMaps {
 				fs.sendChunkList(chunkList)
 			}
-		case <-time.After(heartbeatTime):
+		case <-time.After(fs.heartbeatTime):
 			for _, chunkList := range chunkMaps {
 				if len(chunkList) > 0 {
 					fs.sendChunkList(chunkList)
