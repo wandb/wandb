@@ -312,7 +312,8 @@ def test_add_changed():
 
 
 def test_add_changed_by_name(monkeypatch, tmp_path):
-    monkeypatch.setattr(wandb.sdk.internal.staging, "_staging_dir", tmp_path)
+    staging_dir = tmp_path / "staging"
+    monkeypatch.setattr(wandb.sdk.internal.staging, "_staging_dir", staging_dir)
 
     file1 = Path("file1.txt")
     file1.write_text("hello")
@@ -326,7 +327,7 @@ def test_add_changed_by_name(monkeypatch, tmp_path):
     assert len(artifact.manifest.entries) == 1
 
     # The first staging copy should have been deleted.
-    staging_files = list(str(f) for f in tmp_path.rglob("*") if f.is_file())
+    staging_files = list(str(f) for f in staging_dir.rglob("*") if f.is_file())
     for f in staging_files:
         assert "file1.txt" not in f
 
