@@ -364,7 +364,7 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 	}
 
 	if s.resumeState.FileStreamOffset == nil {
-		s.resumeState.FileStreamOffset = make(map[fs.ChunkFile]int)
+		s.resumeState.FileStreamOffset = make(fs.FileStreamOffsetMap)
 	}
 	s.resumeState.FileStreamOffset[fs.HistoryChunk] = *bucket.GetHistoryLineCount()
 	s.resumeState.FileStreamOffset[fs.EventsChunk] = *bucket.GetEventsLineCount()
