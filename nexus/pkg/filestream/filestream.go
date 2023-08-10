@@ -33,10 +33,9 @@ const (
 
 // FileStream is a stream of data to the server
 type FileStream struct {
-
 	path string
 
-	processChan chan *service.Record
+	processChan  chan *service.Record
 	transmitChan chan chunkData
 	feedbackChan chan map[string]interface{}
 
@@ -118,12 +117,12 @@ func WithOffsets(offsetMap FileStreamOffsetMap) FileStreamOption {
 
 func NewFileStream(opts ...FileStreamOption) *FileStream {
 	fs := &FileStream{
-		processWait:      &sync.WaitGroup{},
-		transmitWait:       &sync.WaitGroup{},
-		feedbackWait:       &sync.WaitGroup{},
-		processChan:      make(chan *service.Record, BufferSize),
-		transmitChan:       make(chan chunkData, BufferSize),
-		feedbackChan:       make(chan map[string]interface{}, BufferSize),
+		processWait:     &sync.WaitGroup{},
+		transmitWait:    &sync.WaitGroup{},
+		feedbackWait:    &sync.WaitGroup{},
+		processChan:     make(chan *service.Record, BufferSize),
+		transmitChan:    make(chan chunkData, BufferSize),
+		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		delayProcess:    defaultDelayProcess,
