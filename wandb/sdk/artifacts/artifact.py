@@ -674,6 +674,12 @@ class Artifact:
             settings: A settings object to use when initializing an automatic run. Most
                 commonly used in testing harness.
         """
+        if project and self.source_project != project:
+            raise ValueError(
+                "Artifacts must be saved to the project where they were created."
+                f"Source project: {self.source_project}; requested project: {project}"
+            )
+
         if self._state != ArtifactState.PENDING:
             return self._update()
 
@@ -684,7 +690,12 @@ class Artifact:
         if wandb.run is None:
             if settings is None:
                 settings = wandb.Settings(silent="true")
-            with wandb.init(project=project, job_type="auto", settings=settings) as run:
+            with wandb.init(
+                entity=self.source_entity,
+                project=self.source_project or project,
+                job_type="auto",
+                settings=settings,
+            ) as run:
                 # redoing this here because in this branch we know we didn't
                 # have the run at the beginning of the method
                 if self._incremental:
