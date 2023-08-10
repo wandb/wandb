@@ -177,7 +177,10 @@ func NewMetricSender() *MetricSender {
 
 func (s *Sender) handleMetricIndex(_ *service.Record, metric *service.MetricRecord) {
 
-	addMetric(metric, metric.GetName(), &s.ms.definedMetrics)
+	_, err := addMetric(metric, metric.GetName(), &s.ms.definedMetrics)
+	if err != nil {
+		return
+	}
 
 	if metric.GetStepMetric() != "" {
 		index, ok := s.ms.metricIndex[metric.GetStepMetric()]
