@@ -14,17 +14,18 @@ def get_staging_dir() -> Path:
     global _staging_dir
     if _staging_dir is None:
         path = Path(env.get_data_dir()) / "artifacts" / "staging"
-        filesystem.mkdir_exists_ok(path)
         _staging_dir = path.expanduser().resolve()
+    filesystem.mkdir_exists_ok(_staging_dir)
     return _staging_dir
 
 
 def is_staged_copy(local_path: Union[str, os.PathLike]) -> bool:
     """Returns True if the given path is a staging copy of a local file."""
+    local_path = Path(local_path)
     try:
         # Raises if the path is not a child of the staging directory.
-        Path(local_path).relative_to(get_staging_dir())
-        return True
+        local_path.relative_to(get_staging_dir())
+        return local_path.is_file()
     except ValueError:
         return False
 
