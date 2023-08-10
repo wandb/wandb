@@ -2,11 +2,12 @@ package server
 
 import (
 	"errors"
+	"path/filepath"
+	"strings"
+
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
-	"path/filepath"
-	"strings"
 )
 
 type MetricHandler struct {
@@ -21,6 +22,8 @@ func NewMetricHandler() *MetricHandler {
 	}
 }
 
+// addMetric adds a metric to the target map. If the metric already exists, it will be merged
+// with the existing metric. If the overwrite flag is set, the metric will be overwritten.
 func addMetric(arg interface{}, key string, target *map[string]*service.MetricRecord) (*service.MetricRecord, error) {
 	var metric *service.MetricRecord
 
@@ -48,18 +51,20 @@ func addMetric(arg interface{}, key string, target *map[string]*service.MetricRe
 	return metric, nil
 }
 
+// matchGlobMetrics matches a metric name against the defined metrics and glob metrics.
+// If the metric is defined, nil is returned. If the metric is a glob metric, a copy of the
+// glob metric is returned with the name set to the metric name.
 func (mh *MetricHandler) matchGlobMetrics(key string) *service.MetricRecord {
-	metric, ok := mh.definedMetrics[key]
-	if ok {
+	if _, ok := mh.definedMetrics[key]; ok {
 		return nil
 	}
 
 	for pattern, globMetric := range mh.globMetrics {
 		if match, err := filepath.Match(pattern, key); err != nil {
-			//h.logger.CaptureError("error matching metric", err)
+			// h.logger.CaptureError("error matching metric", err)
 			continue
 		} else if match {
-			metric = proto.Clone(globMetric).(*service.MetricRecord)
+			metric := proto.Clone(globMetric).(*service.MetricRecord)
 			metric.Name = key
 			metric.Options.Defined = false
 			metric.GlobName = ""
@@ -69,6 +74,8 @@ func (mh *MetricHandler) matchGlobMetrics(key string) *service.MetricRecord {
 	return nil
 }
 
+// handleStepMetric handles the step metric for a given metric key. If the step metric is
+// defined, it will be added to the defined metrics map.
 func (h *Handler) handleStepMetric(key string) {
 	if key == "" {
 		return

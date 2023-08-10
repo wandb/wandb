@@ -282,7 +282,7 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
-	s.sendConfig(nil, nil)
+	s.sendConfig(nil, nil /*configRecord*/)
 }
 
 func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
@@ -769,8 +769,8 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 		s.ms = NewMetricSender()
 	}
 	s.handleMetricIndex(record, metric)
-	s.updateConfigPrivate(nil)
-	s.sendConfig(nil, nil)
+	s.updateConfigPrivate(nil /*telemetry*/)
+	s.sendConfig(nil, nil /*configRecord*/)
 }
 
 // sendFiles iterates over the files in the FilesRecord and sends them to
