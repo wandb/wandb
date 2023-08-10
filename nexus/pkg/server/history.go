@@ -9,7 +9,7 @@ import (
 
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
 
-	if history == nil || history.Item == nil {
+	if history.GetItem() == nil {
 		return
 	}
 
