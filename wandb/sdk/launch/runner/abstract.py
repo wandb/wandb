@@ -115,16 +115,6 @@ class AbstractRun(ABC):
         """
         pass
 
-    @abstractmethod
-    def cancel_with_warning(self) -> None:
-        """Try to cancel the run (see self.cancel()). Give a warning if the run was still running."""
-        pass
-
-    @abstractmethod
-    def is_cancelled(self) -> bool:
-        """Check if a run has finished cancelling and all resources are deleted."""
-        pass
-
     @property
     @abstractmethod
     def id(self) -> Optional[str]:

@@ -45,7 +45,7 @@ from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 
-PENDING_TIMEOUT = int(os.environ.get("WANDB_AGENT_TIMEOUT", 1800))  # default 30 minutes
+PENDING_TIMEOUT = int(os.environ.get("WANDB_AGENT_TIMEOUT", 600))  # default 10 minutes
 MAX_KUBERNETES_RETRIES = PENDING_TIMEOUT // AGENT_POLLING_INTERVAL
 FAIL_MESSAGE_INTERVAL = 60
 
@@ -271,37 +271,6 @@ class KubernetesSubmittedRun(AbstractRun):
         self.suspend()
         self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
 
-    def cancel_with_warning(self) -> None:
-        try:
-            self.batch_api.delete_namespaced_job(
-                name=self.name,
-                namespace=self.namespace,
-                grace_period_seconds=0,
-                propagation_policy="Foreground",
-            )
-            wandb.termwarn(f"Job was cancelled: {self.name}")
-        except ApiException as e:
-            # Only expect a 404 since job may already be deleted, anything else is a legitimate exception
-            if e.status != 404:
-                raise
-
-    def is_cancelled(self) -> bool:
-        try:
-            self.core_api.read_namespaced_pod(
-                name=self.pod_names[0], namespace=self.namespace
-            )
-            return False
-        except ApiException as e:
-            if e.status != 404:
-                raise
-        try:
-            self.batch_api.read_namespaced_job(name=self.name, namespace=self.namespace)
-        except ApiException as e:
-            if e.status != 404:
-                raise
-        # Both returned 404s, so the pod and job are both deleted
-        return True
-
 
 class CrdSubmittedRun(AbstractRun):
     """Run submitted to a CRD backend, e.g. Volcano."""
@@ -417,14 +386,6 @@ class CrdSubmittedRun(AbstractRun):
             raise LaunchError(
                 f"Failed to delete CRD {self.name} in namespace {self.namespace}: {str(e)}"
             ) from e
-
-    def cancel_with_warning(self) -> None:
-        if self.get_status().state in ["starting", "running", "stopping"]:
-            wandb.termwarn(f"Job was cancelled: {self.name}")
-        self.cancel()
-
-    def is_cancelled(self) -> bool:
-        return self.get_status().state not in ["starting", "running", "stopping"]
 
     def wait(self) -> bool:
         """Wait for this custom object to finish running."""

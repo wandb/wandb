@@ -78,14 +78,6 @@ class VertexSubmittedRun(AbstractRun):
     def cancel(self) -> None:
         self._job.cancel()
 
-    def cancel_with_warning(self) -> None:
-        if self.get_status().state == "running":
-            wandb.termwarn(f"Job was cancelled: {self.name}")
-        self.cancel()
-
-    def is_cancelled(self) -> bool:
-        return self.get_status().state not in ["running", "starting"]
-
 
 class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun."""
