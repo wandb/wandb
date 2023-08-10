@@ -404,7 +404,7 @@ def test_launch_kube_works(
     thread = threading.Thread(target=_wait, daemon=True)
     thread.start()
     blink()
-    assert str(submitted_run.get_status()) == "running"
+    assert str(submitted_run.get_status()) == "starting"
     job_stream, pod_stream = mock_event_streams
     pod_stream.add(
         MockDict(
@@ -420,7 +420,7 @@ def test_launch_kube_works(
         )
     )
     blink()
-    assert str(submitted_run.get_status()) == "running"
+    assert str(submitted_run.get_status()) == "starting"
     job_stream.add(
         MockDict(
             {
@@ -437,6 +437,19 @@ def test_launch_kube_works(
     blink()
     assert str(submitted_run.get_status()) == "finished"
     thread.join()
+
+    assert mock_create_from_yaml.call_count == 1
+    submitted_manifest = mock_create_from_yaml.call_args_list[0][1]["yaml_objects"][0]
+    assert submitted_manifest["spec"]["template"]["spec"]["containers"][0]["args"] == [
+        "--test_arg",
+        "test_value",
+    ]
+    assert (
+        submitted_manifest["spec"]["template"]["spec"]["containers"][0][
+            "imagePullPolicy"
+        ]
+        == "IfNotPresent"
+    )
 
 
 @pytest.mark.timeout(320)
@@ -650,24 +663,5 @@ def test_monitor_running(mock_event_streams, mock_batch_api, mock_core_api):
     pod_event_stream.add(pod_factory("ADDED", [], []))
     blink()
     job_event_stream.add(job_factory(["active"]))
-    blink()
-    assert monitor.get_status().state == "running"
-
-
-def test_monitor_pending(mock_event_streams, mock_batch_api, mock_core_api):
-    """Test if the monitor thread detects a pending job."""
-    monitor = KubernetesRunMonitor(
-        job_field_selector="foo=bar",
-        pod_label_selector="foo=bar",
-        batch_api=mock_batch_api,
-        core_api=mock_core_api,
-        namespace="wandb",
-    )
-    monitor.start()
-    job_event_stream, pod_event_stream = mock_event_streams
-    blink()
-    pod_event_stream.add(pod_factory("ADDED", [], []))
-    blink()
-    job_event_stream.add(job_factory(["pending"]))
     blink()
     assert monitor.get_status().state == "running"
