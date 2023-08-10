@@ -750,8 +750,7 @@ class KubernetesRunner(AbstractRunner):
             batch_api=batch_api,
             core_api=core_api,
         )
-        if self.backend_config[PROJECT_SYNCHRONOUS]:
-            monitor.start()
+        monitor.start()
         submitted_job = KubernetesSubmittedRun(
             monitor, batch_api, core_api, job_name, [], namespace, secret
         )

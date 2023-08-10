@@ -11,7 +11,7 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
     CrdSubmittedRun,
     KubernetesRunner,
-    KubernetesSubmittedRun,
+    KubernetesRunMonitor,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -496,63 +496,6 @@ def test_launch_kube_failed(
     assert str(submitted_run.get_status()) == "failed"
 
 
-@pytest.mark.parametrize(
-    "reason",
-    ["EvictionByEvictionAPI", "PreemptionByScheduler", "TerminationByKubelet"],
-)
-def test_get_status_preempted(
-    reason, monkeypatch, mock_event_streams, mock_batch_api, mock_core_api, manifest
-):
-    """Test that we can detect a preempted job."""
-    _, pod_stream = mock_event_streams
-    mock_batch_api.jobs = {
-        "test-run": MockDict(manifest),
-    }
-    mock_core_api.pods = {
-        "test-pod": MockDict(
-            {
-                "metadata": MockDict({"name": "test-pod"}),
-                "status": MockDict({"phase": "Running"}),
-            }
-        )
-    }
-    run = KubernetesSubmittedRun(
-        batch_api=mock_batch_api,
-        core_api=mock_core_api,
-        name="test-run",
-        pod_names=["pod-1", "pod-2"],
-    )
-    pod_stream.add(
-        MockDict(
-            {
-                "type": "MODIFIED",
-                "object": MockDict(
-                    {
-                        "status": MockDict(
-                            {
-                                "conditions": [
-                                    MockDict(
-                                        {"type": "DisruptionTarget", "reason": reason},
-                                    )
-                                ]
-                            }
-                        ),
-                    }
-                ),
-            }
-        )
-    )
-
-    def _wait():
-        run.wait()
-
-    thread = threading.Thread(target=_wait, daemon=True)
-    thread.start()
-    blink()
-    status = run.get_status()
-    assert status.state == "preempted"
-
-
 def test_maybe_create_imagepull_secret_given_creds():
     mock_registry = MagicMock()
     mock_registry.get_username_password.return_value = ("testuser", "testpass")
@@ -579,3 +522,152 @@ def test_maybe_create_imagepull_secret_given_creds():
             }
         ).encode("utf-8")
     ).decode("utf-8")
+
+
+# Test monitor class.
+
+
+def job_factory(statuses):
+    """Factory for creating job events."""
+    return MockDict(
+        {
+            "object": MockDict(
+                {"status": MockDict({f"{status}": 1 for status in statuses})}
+            ),
+        }
+    )
+
+
+def pod_factory(event_type, condition_types, condition_reasons):
+    """Factory for creating pod events.
+
+    Args:
+        event_type (str): The type of event to create.
+        condition_types (list): The types of conditions to create.
+        condition_reasons (list): The reasons of conditions to create.
+
+    Returns:
+        dict: The pod event.
+    """
+    return MockDict(
+        {
+            "type": event_type,
+            "object": MockDict(
+                {
+                    "status": MockDict(
+                        {
+                            "conditions": [
+                                MockDict(
+                                    {
+                                        "type": condition_type,
+                                        "reason": condition_reason,
+                                    }
+                                )
+                                for condition_type, condition_reason in zip(
+                                    condition_types, condition_reasons
+                                )
+                            ],
+                        }
+                    ),
+                }
+            ),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    ["EvictionByEvictionAPI", "PreemptionByScheduler", "TerminationByKubelet"],
+)
+def test_monitor_preempted(mock_event_streams, mock_batch_api, mock_core_api, reason):
+    """Test if the monitor thread detects a preempted job."""
+    monitor = KubernetesRunMonitor(
+        job_field_selector="foo=bar",
+        pod_label_selector="foo=bar",
+        batch_api=mock_batch_api,
+        core_api=mock_core_api,
+        namespace="wandb",
+    )
+    monitor.start()
+    _, pod_event_stream = mock_event_streams
+    pod_event_stream.add(pod_factory("ADDED", [], []))
+    blink()
+    pod_event_stream.add(pod_factory("MODIFIED", ["DisruptionTarget"], [reason]))
+    blink()
+    assert monitor.get_status().state == "preempted"
+
+
+def test_monitor_succeeded(mock_event_streams, mock_batch_api, mock_core_api):
+    """Test if the monitor thread detects a succeeded job."""
+    monitor = KubernetesRunMonitor(
+        job_field_selector="foo=bar",
+        pod_label_selector="foo=bar",
+        batch_api=mock_batch_api,
+        core_api=mock_core_api,
+        namespace="wandb",
+    )
+    monitor.start()
+    job_event_stream, pod_event_stream = mock_event_streams
+    blink()
+    pod_event_stream.add(pod_factory("ADDED", [], []))
+    blink()
+    job_event_stream.add(job_factory(["succeeded"]))
+    blink()
+    assert monitor.get_status().state == "finished"
+
+
+def test_monitor_failed(mock_event_streams, mock_batch_api, mock_core_api):
+    """Test if the monitor thread detects a failed job."""
+    monitor = KubernetesRunMonitor(
+        job_field_selector="foo=bar",
+        pod_label_selector="foo=bar",
+        batch_api=mock_batch_api,
+        core_api=mock_core_api,
+        namespace="wandb",
+    )
+    monitor.start()
+    job_event_stream, pod_event_stream = mock_event_streams
+    blink()
+    pod_event_stream.add(pod_factory("ADDED", [], []))
+    blink()
+    job_event_stream.add(job_factory(["failed"]))
+    blink()
+    assert monitor.get_status().state == "failed"
+
+
+def test_monitor_running(mock_event_streams, mock_batch_api, mock_core_api):
+    """Test if the monitor thread detects a running job."""
+    monitor = KubernetesRunMonitor(
+        job_field_selector="foo=bar",
+        pod_label_selector="foo=bar",
+        batch_api=mock_batch_api,
+        core_api=mock_core_api,
+        namespace="wandb",
+    )
+    monitor.start()
+    job_event_stream, pod_event_stream = mock_event_streams
+    blink()
+    pod_event_stream.add(pod_factory("ADDED", [], []))
+    blink()
+    job_event_stream.add(job_factory(["active"]))
+    blink()
+    assert monitor.get_status().state == "running"
+
+
+def test_monitor_pending(mock_event_streams, mock_batch_api, mock_core_api):
+    """Test if the monitor thread detects a pending job."""
+    monitor = KubernetesRunMonitor(
+        job_field_selector="foo=bar",
+        pod_label_selector="foo=bar",
+        batch_api=mock_batch_api,
+        core_api=mock_core_api,
+        namespace="wandb",
+    )
+    monitor.start()
+    job_event_stream, pod_event_stream = mock_event_streams
+    blink()
+    pod_event_stream.add(pod_factory("ADDED", [], []))
+    blink()
+    job_event_stream.add(job_factory(["pending"]))
+    blink()
+    assert monitor.get_status().state == "running"
