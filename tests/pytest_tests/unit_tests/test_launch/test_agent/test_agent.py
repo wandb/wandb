@@ -192,7 +192,7 @@ def test_max_scheduler_setup(mocker, num_schedulers):
         num_schedulers = 1  # default for none
     elif num_schedulers == -1:
         num_schedulers = float("inf")
-    elif type(num_schedulers) is str:
+    elif isinstance(num_schedulers, str):
         num_schedulers = int(num_schedulers)
 
     assert agent._max_schedulers == num_schedulers
