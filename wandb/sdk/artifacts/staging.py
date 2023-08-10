@@ -15,7 +15,13 @@ def get_staging_dir() -> Path:
     if _staging_dir is None:
         path = Path(env.get_data_dir()) / "artifacts" / "staging"
         _staging_dir = path.expanduser().resolve()
-    filesystem.mkdir_exists_ok(_staging_dir)
+    try:
+        filesystem.mkdir_exists_ok(_staging_dir)
+    except OSError as e:
+        raise PermissionError(
+            f"Unable to write staging files to {_staging_dir}. To fix this problem "
+            f"please set {env.DATA_DIR} to a directory where you have write access."
+        ) from e
     return _staging_dir
 
 
