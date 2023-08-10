@@ -155,6 +155,7 @@ class Control(google.protobuf.message.Message):
     ALWAYS_SEND_FIELD_NUMBER: builtins.int
     FLOW_CONTROL_FIELD_NUMBER: builtins.int
     END_OFFSET_FIELD_NUMBER: builtins.int
+    CONNECTION_ID_FIELD_NUMBER: builtins.int
     req_resp: builtins.bool
     """record is expecting a result"""
     local: builtins.bool
@@ -169,6 +170,8 @@ class Control(google.protobuf.message.Message):
     """message should be passed to flow control"""
     end_offset: builtins.int
     """end of message offset of this written message"""
+    connection_id: builtins.str
+    """connection id"""
     def __init__(
         self,
         *,
@@ -179,8 +182,9 @@ class Control(google.protobuf.message.Message):
         always_send: builtins.bool = ...,
         flow_control: builtins.bool = ...,
         end_offset: builtins.int = ...,
+        connection_id: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["always_send", b"always_send", "end_offset", b"end_offset", "flow_control", b"flow_control", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["always_send", b"always_send", "connection_id", b"connection_id", "end_offset", b"end_offset", "flow_control", b"flow_control", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
 
 global___Control = Control
 
@@ -1519,6 +1523,7 @@ class Request(google.protobuf.message.Message):
     KEEPALIVE_FIELD_NUMBER: builtins.int
     RUN_STATUS_FIELD_NUMBER: builtins.int
     CANCEL_FIELD_NUMBER: builtins.int
+    METADATA_FIELD_NUMBER: builtins.int
     SHUTDOWN_FIELD_NUMBER: builtins.int
     ATTACH_FIELD_NUMBER: builtins.int
     STATUS_FIELD_NUMBER: builtins.int
@@ -1569,6 +1574,8 @@ class Request(google.protobuf.message.Message):
     @property
     def cancel(self) -> global___CancelRequest: ...
     @property
+    def metadata(self) -> global___MetadataRequest: ...
+    @property
     def shutdown(self) -> global___ShutdownRequest: ...
     @property
     def attach(self) -> global___AttachRequest: ...
@@ -1612,6 +1619,7 @@ class Request(google.protobuf.message.Message):
         keepalive: global___KeepaliveRequest | None = ...,
         run_status: global___RunStatusRequest | None = ...,
         cancel: global___CancelRequest | None = ...,
+        metadata: global___MetadataRequest | None = ...,
         shutdown: global___ShutdownRequest | None = ...,
         attach: global___AttachRequest | None = ...,
         status: global___StatusRequest | None = ...,
@@ -1624,9 +1632,9 @@ class Request(google.protobuf.message.Message):
         job_info: global___JobInfoRequest | None = ...,
         test_inject: global___TestInjectRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "get_summary", b"get_summary", "job_info", b"job_info", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "get_summary", b"get_summary", "job_info", b"job_info", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "artifact_send", "artifact_poll", "artifact_done", "keepalive", "run_status", "cancel", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "test_inject"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "get_summary", b"get_summary", "job_info", b"job_info", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "get_summary", b"get_summary", "job_info", b"job_info", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "artifact_send", "artifact_poll", "artifact_done", "keepalive", "run_status", "cancel", "metadata", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "test_inject"] | None: ...
 
 global___Request = Request
 
@@ -3198,3 +3206,141 @@ class CancelResponse(google.protobuf.message.Message):
     ) -> None: ...
 
 global___CancelResponse = CancelResponse
+
+@typing_extensions.final
+class MetaDiskInfo(google.protobuf.message.Message):
+    """
+    MetadataRequest
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    TOTAL_FIELD_NUMBER: builtins.int
+    USED_FIELD_NUMBER: builtins.int
+    total: builtins.float
+    used: builtins.float
+    def __init__(
+        self,
+        *,
+        total: builtins.float = ...,
+        used: builtins.float = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["total", b"total", "used", b"used"]) -> None: ...
+
+global___MetaDiskInfo = MetaDiskInfo
+
+@typing_extensions.final
+class MetaGpuAppleInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    GPUTYPE_FIELD_NUMBER: builtins.int
+    VENDOR_FIELD_NUMBER: builtins.int
+    gpuType: builtins.str
+    vendor: builtins.str
+    def __init__(
+        self,
+        *,
+        gpuType: builtins.str = ...,
+        vendor: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["gpuType", b"gpuType", "vendor", b"vendor"]) -> None: ...
+
+global___MetaGpuAppleInfo = MetaGpuAppleInfo
+
+@typing_extensions.final
+class MetaMemInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    TOTAL_FIELD_NUMBER: builtins.int
+    total: builtins.float
+    def __init__(
+        self,
+        *,
+        total: builtins.float = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["total", b"total"]) -> None: ...
+
+global___MetaMemInfo = MetaMemInfo
+
+@typing_extensions.final
+class MetadataRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    OS_FIELD_NUMBER: builtins.int
+    PYTHON_FIELD_NUMBER: builtins.int
+    HEARTBEATAT_FIELD_NUMBER: builtins.int
+    STARTEDAT_FIELD_NUMBER: builtins.int
+    DOCKER_FIELD_NUMBER: builtins.int
+    CUDA_FIELD_NUMBER: builtins.int
+    ARGS_FIELD_NUMBER: builtins.int
+    STATE_FIELD_NUMBER: builtins.int
+    PROGRAM_FIELD_NUMBER: builtins.int
+    CODEPATH_FIELD_NUMBER: builtins.int
+    GIT_FIELD_NUMBER: builtins.int
+    EMAIL_FIELD_NUMBER: builtins.int
+    ROOT_FIELD_NUMBER: builtins.int
+    HOST_FIELD_NUMBER: builtins.int
+    USERNAME_FIELD_NUMBER: builtins.int
+    EXECUTABLE_FIELD_NUMBER: builtins.int
+    CPU_COUNT_FIELD_NUMBER: builtins.int
+    CPU_COUNT_LOGICAL_FIELD_NUMBER: builtins.int
+    DISK_FIELD_NUMBER: builtins.int
+    GPUAPPLE_FIELD_NUMBER: builtins.int
+    MEMORY_FIELD_NUMBER: builtins.int
+    os: builtins.str
+    python: builtins.str
+    @property
+    def heartbeatAt(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    @property
+    def startedAt(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    docker: builtins.str
+    cuda: builtins.str
+    @property
+    def args(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    state: builtins.str
+    program: builtins.str
+    codePath: builtins.str
+    @property
+    def git(self) -> global___GitRepoRecord: ...
+    email: builtins.str
+    root: builtins.str
+    host: builtins.str
+    username: builtins.str
+    executable: builtins.str
+    cpu_count: builtins.int
+    cpu_count_logical: builtins.int
+    @property
+    def disk(self) -> global___MetaDiskInfo: ...
+    @property
+    def gpuapple(self) -> global___MetaGpuAppleInfo: ...
+    @property
+    def memory(self) -> global___MetaMemInfo: ...
+    def __init__(
+        self,
+        *,
+        os: builtins.str = ...,
+        python: builtins.str = ...,
+        heartbeatAt: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        startedAt: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        docker: builtins.str = ...,
+        cuda: builtins.str = ...,
+        args: collections.abc.Iterable[builtins.str] | None = ...,
+        state: builtins.str = ...,
+        program: builtins.str = ...,
+        codePath: builtins.str = ...,
+        git: global___GitRepoRecord | None = ...,
+        email: builtins.str = ...,
+        root: builtins.str = ...,
+        host: builtins.str = ...,
+        username: builtins.str = ...,
+        executable: builtins.str = ...,
+        cpu_count: builtins.int = ...,
+        cpu_count_logical: builtins.int = ...,
+        disk: global___MetaDiskInfo | None = ...,
+        gpuapple: global___MetaGpuAppleInfo | None = ...,
+        memory: global___MetaMemInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["disk", b"disk", "git", b"git", "gpuapple", b"gpuapple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "codePath", b"codePath", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpuapple", b"gpuapple", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
+
+global___MetadataRequest = MetadataRequest

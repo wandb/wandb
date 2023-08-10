@@ -7,6 +7,7 @@ from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import message as _message
 from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
+
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
@@ -17,1272 +18,1824 @@ from wandb.proto import wandb_base_pb2 as wandb_dot_proto_dot_wandb__base__pb2
 from wandb.proto import wandb_telemetry_pb2 as wandb_dot_proto_dot_wandb__telemetry__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x9c\t\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12\x30\n\x07history\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.HistoryRecordH\x00\x12\x30\n\x07summary\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecordH\x00\x12.\n\x06output\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.OutputRecordH\x00\x12.\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecordH\x00\x12,\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x1b.wandb_internal.FilesRecordH\x00\x12,\n\x05stats\x18\x07 \x01(\x0b\x32\x1b.wandb_internal.StatsRecordH\x00\x12\x32\n\x08\x61rtifact\x18\x08 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecordH\x00\x12,\n\x08tbrecord\x18\t \x01(\x0b\x32\x18.wandb_internal.TBRecordH\x00\x12,\n\x05\x61lert\x18\n \x01(\x0b\x32\x1b.wandb_internal.AlertRecordH\x00\x12\x34\n\ttelemetry\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecordH\x00\x12.\n\x06metric\x18\x0c \x01(\x0b\x32\x1c.wandb_internal.MetricRecordH\x00\x12\x35\n\noutput_raw\x18\r \x01(\x0b\x32\x1f.wandb_internal.OutputRawRecordH\x00\x12(\n\x03run\x18\x11 \x01(\x0b\x32\x19.wandb_internal.RunRecordH\x00\x12-\n\x04\x65xit\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitRecordH\x00\x12,\n\x05\x66inal\x18\x14 \x01(\x0b\x32\x1b.wandb_internal.FinalRecordH\x00\x12.\n\x06header\x18\x15 \x01(\x0b\x32\x1c.wandb_internal.HeaderRecordH\x00\x12.\n\x06\x66ooter\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.FooterRecordH\x00\x12\x39\n\npreempting\x18\x17 \x01(\x0b\x32#.wandb_internal.RunPreemptingRecordH\x00\x12;\n\rlink_artifact\x18\x18 \x01(\x0b\x32\".wandb_internal.LinkArtifactRecordH\x00\x12\x39\n\x0cuse_artifact\x18\x19 \x01(\x0b\x32!.wandb_internal.UseArtifactRecordH\x00\x12*\n\x07request\x18\x64 \x01(\x0b\x32\x17.wandb_internal.RequestH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x13 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfoB\r\n\x0brecord_type\"\x91\x01\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\x12\r\n\x05local\x18\x02 \x01(\x08\x12\x10\n\x08relay_id\x18\x03 \x01(\t\x12\x14\n\x0cmailbox_slot\x18\x04 \x01(\t\x12\x13\n\x0b\x61lways_send\x18\x05 \x01(\x08\x12\x14\n\x0c\x66low_control\x18\x06 \x01(\x08\x12\x12\n\nend_offset\x18\x07 \x01(\x03\"\xf3\x03\n\x06Result\x12\x35\n\nrun_result\x18\x11 \x01(\x0b\x32\x1f.wandb_internal.RunUpdateResultH\x00\x12\x34\n\x0b\x65xit_result\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitResultH\x00\x12\x33\n\nlog_result\x18\x14 \x01(\x0b\x32\x1d.wandb_internal.HistoryResultH\x00\x12\x37\n\x0esummary_result\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.SummaryResultH\x00\x12\x35\n\routput_result\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.OutputResultH\x00\x12\x35\n\rconfig_result\x18\x17 \x01(\x0b\x32\x1c.wandb_internal.ConfigResultH\x00\x12,\n\x08response\x18\x64 \x01(\x0b\x32\x18.wandb_internal.ResponseH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x18 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._ResultInfoB\r\n\x0bresult_type\":\n\x0b\x46inalRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\";\n\x0cHeaderRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\";\n\x0c\x46ooterRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xce\x04\n\tRunRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\x12\x0f\n\x07project\x18\x03 \x01(\t\x12,\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecord\x12.\n\x07summary\x18\x05 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\x12\x11\n\trun_group\x18\x06 \x01(\t\x12\x10\n\x08job_type\x18\x07 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x08 \x01(\t\x12\r\n\x05notes\x18\t \x01(\t\x12\x0c\n\x04tags\x18\n \x03(\t\x12\x30\n\x08settings\x18\x0b \x01(\x0b\x32\x1e.wandb_internal.SettingsRecord\x12\x10\n\x08sweep_id\x18\x0c \x01(\t\x12\x0c\n\x04host\x18\r \x01(\t\x12\x15\n\rstarting_step\x18\x0e \x01(\x03\x12\x12\n\nstorage_id\x18\x10 \x01(\t\x12.\n\nstart_time\x18\x11 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07resumed\x18\x12 \x01(\x08\x12\x32\n\ttelemetry\x18\x13 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\x12\x0f\n\x07runtime\x18\x14 \x01(\x05\x12*\n\x03git\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.GitRepoRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"3\n\rGitRepoRecord\x12\x12\n\nremote_url\x18\x01 \x01(\t\x12\x0e\n\x06\x63ommit\x18\x02 \x01(\t\"c\n\x0fRunUpdateResult\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"\xac\x01\n\tErrorInfo\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x31\n\x04\x63ode\x18\x02 \x01(\x0e\x32#.wandb_internal.ErrorInfo.ErrorCode\"[\n\tErrorCode\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x11\n\rCOMMUNICATION\x10\x01\x12\x12\n\x0e\x41UTHENTICATION\x10\x02\x12\t\n\x05USAGE\x10\x03\x12\x0f\n\x0bUNSUPPORTED\x10\x04\"`\n\rRunExitRecord\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12\x0f\n\x07runtime\x18\x02 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x0f\n\rRunExitResult\"B\n\x13RunPreemptingRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x15\n\x13RunPreemptingResult\"i\n\x0eSettingsRecord\x12*\n\x04item\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.SettingsItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"/\n\x0cSettingsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x1a\n\x0bHistoryStep\x12\x0b\n\x03num\x18\x01 \x01(\x03\"\x92\x01\n\rHistoryRecord\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\x0bHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rHistoryResult\"\xdc\x01\n\x0cOutputRecord\x12<\n\x0boutput_type\x18\x01 \x01(\x0e\x32\'.wandb_internal.OutputRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\"\x0e\n\x0cOutputResult\"\xe2\x01\n\x0fOutputRawRecord\x12?\n\x0boutput_type\x18\x01 \x01(\x0e\x32*.wandb_internal.OutputRawRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\"\x11\n\x0fOutputRawResult\"\x98\x03\n\x0cMetricRecord\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\tglob_name\x18\x02 \x01(\t\x12\x13\n\x0bstep_metric\x18\x04 \x01(\t\x12\x19\n\x11step_metric_index\x18\x05 \x01(\x05\x12.\n\x07options\x18\x06 \x01(\x0b\x32\x1d.wandb_internal.MetricOptions\x12.\n\x07summary\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.MetricSummary\x12\x35\n\x04goal\x18\x08 \x01(\x0e\x32\'.wandb_internal.MetricRecord.MetricGoal\x12/\n\x08_control\x18\t \x01(\x0b\x32\x1d.wandb_internal.MetricControl\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\nMetricGoal\x12\x0e\n\nGOAL_UNSET\x10\x00\x12\x11\n\rGOAL_MINIMIZE\x10\x01\x12\x11\n\rGOAL_MAXIMIZE\x10\x02\"\x0e\n\x0cMetricResult\"C\n\rMetricOptions\x12\x11\n\tstep_sync\x18\x01 \x01(\x08\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x0f\n\x07\x64\x65\x66ined\x18\x03 \x01(\x08\"\"\n\rMetricControl\x12\x11\n\toverwrite\x18\x01 \x01(\x08\"o\n\rMetricSummary\x12\x0b\n\x03min\x18\x01 \x01(\x08\x12\x0b\n\x03max\x18\x02 \x01(\x08\x12\x0c\n\x04mean\x18\x03 \x01(\x08\x12\x0c\n\x04\x62\x65st\x18\x04 \x01(\x08\x12\x0c\n\x04last\x18\x05 \x01(\x08\x12\x0c\n\x04none\x18\x06 \x01(\x08\x12\x0c\n\x04\x63opy\x18\x07 \x01(\x08\"\x93\x01\n\x0c\x43onfigRecord\x12*\n\x06update\x18\x01 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12*\n\x06remove\x18\x02 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"A\n\nConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0e\n\x0c\x43onfigResult\"\x96\x01\n\rSummaryRecord\x12+\n\x06update\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x06remove\x18\x02 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\x0bSummaryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rSummaryResult\"d\n\x0b\x46ilesRecord\x12(\n\x05\x66iles\x18\x01 \x03(\x0b\x32\x19.wandb_internal.FilesItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x90\x01\n\tFilesItem\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x34\n\x06policy\x18\x02 \x01(\x0e\x32$.wandb_internal.FilesItem.PolicyType\x12\x15\n\rexternal_path\x18\x10 \x01(\t\"(\n\nPolicyType\x12\x07\n\x03NOW\x10\x00\x12\x07\n\x03\x45ND\x10\x01\x12\x08\n\x04LIVE\x10\x02\"\r\n\x0b\x46ilesResult\"\xe6\x01\n\x0bStatsRecord\x12\x39\n\nstats_type\x18\x01 \x01(\x0e\x32%.wandb_internal.StatsRecord.StatsType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\'\n\x04item\x18\x03 \x03(\x0b\x32\x19.wandb_internal.StatsItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x17\n\tStatsType\x12\n\n\x06SYSTEM\x10\x00\",\n\tStatsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\xd9\x03\n\x0e\x41rtifactRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0f\n\x07project\x18\x02 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\x0c\n\x04name\x18\x05 \x01(\t\x12\x0e\n\x06\x64igest\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12\x10\n\x08metadata\x18\x08 \x01(\t\x12\x14\n\x0cuser_created\x18\t \x01(\x08\x12\x18\n\x10use_after_commit\x18\n \x01(\x08\x12\x0f\n\x07\x61liases\x18\x0b \x03(\t\x12\x32\n\x08manifest\x18\x0c \x01(\x0b\x32 .wandb_internal.ArtifactManifest\x12\x16\n\x0e\x64istributed_id\x18\r \x01(\t\x12\x10\n\x08\x66inalize\x18\x0e \x01(\x08\x12\x11\n\tclient_id\x18\x0f \x01(\t\x12\x1a\n\x12sequence_client_id\x18\x10 \x01(\t\x12\x0f\n\x07\x62\x61se_id\x18\x11 \x01(\t\x12\x1c\n\x14ttl_duration_seconds\x18\x12 \x01(\x03\x12\x19\n\x11incremental_beta1\x18\x64 \x01(\x08\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xbc\x01\n\x10\x41rtifactManifest\x12\x0f\n\x07version\x18\x01 \x01(\x05\x12\x16\n\x0estorage_policy\x18\x02 \x01(\t\x12\x46\n\x15storage_policy_config\x18\x03 \x03(\x0b\x32\'.wandb_internal.StoragePolicyConfigItem\x12\x37\n\x08\x63ontents\x18\x04 \x03(\x0b\x32%.wandb_internal.ArtifactManifestEntry\"\xbb\x01\n\x15\x41rtifactManifestEntry\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x0e\n\x06\x64igest\x18\x02 \x01(\t\x12\x0b\n\x03ref\x18\x03 \x01(\t\x12\x0c\n\x04size\x18\x04 \x01(\x03\x12\x10\n\x08mimetype\x18\x05 \x01(\t\x12\x12\n\nlocal_path\x18\x06 \x01(\t\x12\x19\n\x11\x62irth_artifact_id\x18\x07 \x01(\t\x12(\n\x05\x65xtra\x18\x10 \x03(\x0b\x32\x19.wandb_internal.ExtraItem\",\n\tExtraItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\":\n\x17StoragePolicyConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\"\x10\n\x0e\x41rtifactResult\"\x14\n\x12LinkArtifactResult\"\xcf\x01\n\x12LinkArtifactRecord\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x11\n\tserver_id\x18\x02 \x01(\t\x12\x16\n\x0eportfolio_name\x18\x03 \x01(\t\x12\x18\n\x10portfolio_entity\x18\x04 \x01(\t\x12\x19\n\x11portfolio_project\x18\x05 \x01(\t\x12\x19\n\x11portfolio_aliases\x18\x06 \x03(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"h\n\x08TBRecord\x12\x0f\n\x07log_dir\x18\x01 \x01(\t\x12\x0c\n\x04save\x18\x02 \x01(\x08\x12\x10\n\x08root_dir\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\n\n\x08TBResult\"}\n\x0b\x41lertRecord\x12\r\n\x05title\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\t\x12\x15\n\rwait_duration\x18\x04 \x01(\x03\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\r\n\x0b\x41lertResult\"\xc5\r\n\x07Request\x12\x38\n\x0bstop_status\x18\x01 \x01(\x0b\x32!.wandb_internal.StopStatusRequestH\x00\x12>\n\x0enetwork_status\x18\x02 \x01(\x0b\x32$.wandb_internal.NetworkStatusRequestH\x00\x12-\n\x05\x64\x65\x66\x65r\x18\x03 \x01(\x0b\x32\x1c.wandb_internal.DeferRequestH\x00\x12\x38\n\x0bget_summary\x18\x04 \x01(\x0b\x32!.wandb_internal.GetSummaryRequestH\x00\x12-\n\x05login\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.LoginRequestH\x00\x12-\n\x05pause\x18\x06 \x01(\x0b\x32\x1c.wandb_internal.PauseRequestH\x00\x12/\n\x06resume\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.ResumeRequestH\x00\x12\x34\n\tpoll_exit\x18\x08 \x01(\x0b\x32\x1f.wandb_internal.PollExitRequestH\x00\x12@\n\x0fsampled_history\x18\t \x01(\x0b\x32%.wandb_internal.SampledHistoryRequestH\x00\x12@\n\x0fpartial_history\x18\n \x01(\x0b\x32%.wandb_internal.PartialHistoryRequestH\x00\x12\x34\n\trun_start\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.RunStartRequestH\x00\x12<\n\rcheck_version\x18\x0c \x01(\x0b\x32#.wandb_internal.CheckVersionRequestH\x00\x12:\n\x0clog_artifact\x18\r \x01(\x0b\x32\".wandb_internal.LogArtifactRequestH\x00\x12<\n\rartifact_send\x18\x0e \x01(\x0b\x32#.wandb_internal.ArtifactSendRequestH\x00\x12<\n\rartifact_poll\x18\x0f \x01(\x0b\x32#.wandb_internal.ArtifactPollRequestH\x00\x12<\n\rartifact_done\x18\x10 \x01(\x0b\x32#.wandb_internal.ArtifactDoneRequestH\x00\x12\x35\n\tkeepalive\x18\x11 \x01(\x0b\x32 .wandb_internal.KeepaliveRequestH\x00\x12\x36\n\nrun_status\x18\x14 \x01(\x0b\x32 .wandb_internal.RunStatusRequestH\x00\x12/\n\x06\x63\x61ncel\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.CancelRequestH\x00\x12\x33\n\x08shutdown\x18@ \x01(\x0b\x32\x1f.wandb_internal.ShutdownRequestH\x00\x12/\n\x06\x61ttach\x18\x41 \x01(\x0b\x32\x1d.wandb_internal.AttachRequestH\x00\x12/\n\x06status\x18\x42 \x01(\x0b\x32\x1d.wandb_internal.StatusRequestH\x00\x12\x38\n\x0bserver_info\x18\x43 \x01(\x0b\x32!.wandb_internal.ServerInfoRequestH\x00\x12\x38\n\x0bsender_mark\x18\x44 \x01(\x0b\x32!.wandb_internal.SenderMarkRequestH\x00\x12\x38\n\x0bsender_read\x18\x45 \x01(\x0b\x32!.wandb_internal.SenderReadRequestH\x00\x12<\n\rstatus_report\x18\x46 \x01(\x0b\x32#.wandb_internal.StatusReportRequestH\x00\x12>\n\x0esummary_record\x18G \x01(\x0b\x32$.wandb_internal.SummaryRecordRequestH\x00\x12\x42\n\x10telemetry_record\x18H \x01(\x0b\x32&.wandb_internal.TelemetryRecordRequestH\x00\x12\x32\n\x08job_info\x18I \x01(\x0b\x32\x1e.wandb_internal.JobInfoRequestH\x00\x12\x39\n\x0btest_inject\x18\xe8\x07 \x01(\x0b\x32!.wandb_internal.TestInjectRequestH\x00\x42\x0e\n\x0crequest_type\"\xca\n\n\x08Response\x12?\n\x12keepalive_response\x18\x12 \x01(\x0b\x32!.wandb_internal.KeepaliveResponseH\x00\x12\x42\n\x14stop_status_response\x18\x13 \x01(\x0b\x32\".wandb_internal.StopStatusResponseH\x00\x12H\n\x17network_status_response\x18\x14 \x01(\x0b\x32%.wandb_internal.NetworkStatusResponseH\x00\x12\x37\n\x0elogin_response\x18\x18 \x01(\x0b\x32\x1d.wandb_internal.LoginResponseH\x00\x12\x42\n\x14get_summary_response\x18\x19 \x01(\x0b\x32\".wandb_internal.GetSummaryResponseH\x00\x12>\n\x12poll_exit_response\x18\x1a \x01(\x0b\x32 .wandb_internal.PollExitResponseH\x00\x12J\n\x18sampled_history_response\x18\x1b \x01(\x0b\x32&.wandb_internal.SampledHistoryResponseH\x00\x12>\n\x12run_start_response\x18\x1c \x01(\x0b\x32 .wandb_internal.RunStartResponseH\x00\x12\x46\n\x16\x63heck_version_response\x18\x1d \x01(\x0b\x32$.wandb_internal.CheckVersionResponseH\x00\x12\x44\n\x15log_artifact_response\x18\x1e \x01(\x0b\x32#.wandb_internal.LogArtifactResponseH\x00\x12\x46\n\x16\x61rtifact_send_response\x18\x1f \x01(\x0b\x32$.wandb_internal.ArtifactSendResponseH\x00\x12\x46\n\x16\x61rtifact_poll_response\x18  \x01(\x0b\x32$.wandb_internal.ArtifactPollResponseH\x00\x12@\n\x13run_status_response\x18# \x01(\x0b\x32!.wandb_internal.RunStatusResponseH\x00\x12\x39\n\x0f\x63\x61ncel_response\x18$ \x01(\x0b\x32\x1e.wandb_internal.CancelResponseH\x00\x12=\n\x11shutdown_response\x18@ \x01(\x0b\x32 .wandb_internal.ShutdownResponseH\x00\x12\x39\n\x0f\x61ttach_response\x18\x41 \x01(\x0b\x32\x1e.wandb_internal.AttachResponseH\x00\x12\x39\n\x0fstatus_response\x18\x42 \x01(\x0b\x32\x1e.wandb_internal.StatusResponseH\x00\x12\x42\n\x14server_info_response\x18\x43 \x01(\x0b\x32\".wandb_internal.ServerInfoResponseH\x00\x12<\n\x11job_info_response\x18\x44 \x01(\x0b\x32\x1f.wandb_internal.JobInfoResponseH\x00\x12\x43\n\x14test_inject_response\x18\xe8\x07 \x01(\x0b\x32\".wandb_internal.TestInjectResponseH\x00\x42\x0f\n\rresponse_type\"\xc0\x02\n\x0c\x44\x65\x66\x65rRequest\x12\x36\n\x05state\x18\x01 \x01(\x0e\x32\'.wandb_internal.DeferRequest.DeferState\"\xf7\x01\n\nDeferState\x12\t\n\x05\x42\x45GIN\x10\x00\x12\r\n\tFLUSH_RUN\x10\x01\x12\x0f\n\x0b\x46LUSH_STATS\x10\x02\x12\x19\n\x15\x46LUSH_PARTIAL_HISTORY\x10\x03\x12\x0c\n\x08\x46LUSH_TB\x10\x04\x12\r\n\tFLUSH_SUM\x10\x05\x12\x13\n\x0f\x46LUSH_DEBOUNCER\x10\x06\x12\x10\n\x0c\x46LUSH_OUTPUT\x10\x07\x12\r\n\tFLUSH_JOB\x10\x08\x12\r\n\tFLUSH_DIR\x10\t\x12\x0c\n\x08\x46LUSH_FP\x10\n\x12\x0b\n\x07JOIN_FP\x10\x0b\x12\x0c\n\x08\x46LUSH_FS\x10\x0c\x12\x0f\n\x0b\x46LUSH_FINAL\x10\r\x12\x07\n\x03\x45ND\x10\x0e\"<\n\x0cPauseRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x0f\n\rPauseResponse\"=\n\rResumeRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x10\n\x0eResumeResponse\"M\n\x0cLoginRequest\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"&\n\rLoginResponse\x12\x15\n\ractive_entity\x18\x01 \x01(\t\"A\n\x11GetSummaryRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"?\n\x12GetSummaryResponse\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\"=\n\rStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\")\n\x0eStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08\"A\n\x11StopStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"-\n\x12StopStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08\"D\n\x14NetworkStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"P\n\x15NetworkStatusResponse\x12\x37\n\x11network_responses\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.HttpResponse\"D\n\x0cHttpResponse\x12\x18\n\x10http_status_code\x18\x01 \x01(\x05\x12\x1a\n\x12http_response_text\x18\x02 \x01(\t\"?\n\x0fPollExitRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\xbc\x01\n\x10PollExitResponse\x12\x0c\n\x04\x64one\x18\x01 \x01(\x08\x12\x32\n\x0b\x65xit_result\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.RunExitResult\x12\x35\n\x0cpusher_stats\x18\x03 \x01(\x0b\x32\x1f.wandb_internal.FilePusherStats\x12/\n\x0b\x66ile_counts\x18\x04 \x01(\x0b\x32\x1a.wandb_internal.FileCounts\"\x13\n\x11SenderMarkRequest\"?\n\x11SenderReadRequest\x12\x14\n\x0cstart_offset\x18\x01 \x01(\x03\x12\x14\n\x0c\x66inal_offset\x18\x02 \x01(\x03\"m\n\x13StatusReportRequest\x12\x12\n\nrecord_num\x18\x01 \x01(\x03\x12\x13\n\x0bsent_offset\x18\x02 \x01(\x03\x12-\n\tsync_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"F\n\x14SummaryRecordRequest\x12.\n\x07summary\x18\x01 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\"L\n\x16TelemetryRecordRequest\x12\x32\n\ttelemetry\x18\x01 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\"A\n\x11ServerInfoRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"|\n\x12ServerInfoResponse\x12-\n\nlocal_info\x18\x01 \x01(\x0b\x32\x19.wandb_internal.LocalInfo\x12\x37\n\x0fserver_messages\x18\x02 \x01(\x0b\x32\x1e.wandb_internal.ServerMessages\"=\n\x0eServerMessages\x12+\n\x04item\x18\x01 \x03(\x0b\x32\x1d.wandb_internal.ServerMessage\"e\n\rServerMessage\x12\x12\n\nplain_text\x18\x01 \x01(\t\x12\x10\n\x08utf_text\x18\x02 \x01(\t\x12\x11\n\thtml_text\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\r\n\x05level\x18\x05 \x01(\x05\"c\n\nFileCounts\x12\x13\n\x0bwandb_count\x18\x01 \x01(\x05\x12\x13\n\x0bmedia_count\x18\x02 \x01(\x05\x12\x16\n\x0e\x61rtifact_count\x18\x03 \x01(\x05\x12\x13\n\x0bother_count\x18\x04 \x01(\x05\"U\n\x0f\x46ilePusherStats\x12\x16\n\x0euploaded_bytes\x18\x01 \x01(\x03\x12\x13\n\x0btotal_bytes\x18\x02 \x01(\x03\x12\x15\n\rdeduped_bytes\x18\x03 \x01(\x03\"1\n\tLocalInfo\x12\x0f\n\x07version\x18\x01 \x01(\t\x12\x13\n\x0bout_of_date\x18\x02 \x01(\x08\"?\n\x0fShutdownRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x12\n\x10ShutdownResponse\"P\n\rAttachRequest\x12\x11\n\tattach_id\x18\x14 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"b\n\x0e\x41ttachResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"\xd5\x02\n\x11TestInjectRequest\x12\x13\n\x0bhandler_exc\x18\x01 \x01(\x08\x12\x14\n\x0chandler_exit\x18\x02 \x01(\x08\x12\x15\n\rhandler_abort\x18\x03 \x01(\x08\x12\x12\n\nsender_exc\x18\x04 \x01(\x08\x12\x13\n\x0bsender_exit\x18\x05 \x01(\x08\x12\x14\n\x0csender_abort\x18\x06 \x01(\x08\x12\x0f\n\x07req_exc\x18\x07 \x01(\x08\x12\x10\n\x08req_exit\x18\x08 \x01(\x08\x12\x11\n\treq_abort\x18\t \x01(\x08\x12\x10\n\x08resp_exc\x18\n \x01(\x08\x12\x11\n\tresp_exit\x18\x0b \x01(\x08\x12\x12\n\nresp_abort\x18\x0c \x01(\x08\x12\x10\n\x08msg_drop\x18\r \x01(\x08\x12\x10\n\x08msg_hang\x18\x0e \x01(\x08\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x14\n\x12TestInjectResponse\"\x1e\n\rHistoryAction\x12\r\n\x05\x66lush\x18\x01 \x01(\x08\"\xca\x01\n\x15PartialHistoryRequest\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\x12-\n\x06\x61\x63tion\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.HistoryAction\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x18\n\x16PartialHistoryResponse\"E\n\x15SampledHistoryRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"_\n\x12SampledHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x14\n\x0cvalues_float\x18\x03 \x03(\x02\x12\x12\n\nvalues_int\x18\x04 \x03(\x03\"J\n\x16SampledHistoryResponse\x12\x30\n\x04item\x18\x01 \x03(\x0b\x32\".wandb_internal.SampledHistoryItem\"@\n\x10RunStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"x\n\x11RunStatusResponse\x12\x18\n\x10sync_items_total\x18\x01 \x01(\x03\x12\x1a\n\x12sync_items_pending\x18\x02 \x01(\x03\x12-\n\tsync_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"g\n\x0fRunStartRequest\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x12\n\x10RunStartResponse\"\\\n\x13\x43heckVersionRequest\x12\x17\n\x0f\x63urrent_version\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"]\n\x14\x43heckVersionResponse\x12\x17\n\x0fupgrade_message\x18\x01 \x01(\t\x12\x14\n\x0cyank_message\x18\x02 \x01(\t\x12\x16\n\x0e\x64\x65lete_message\x18\x03 \x01(\t\">\n\x0eJobInfoRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"6\n\x0fJobInfoResponse\x12\x12\n\nsequenceId\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\"\x8a\x01\n\x12LogArtifactRequest\x12\x30\n\x08\x61rtifact\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecord\x12\x14\n\x0chistory_step\x18\x02 \x01(\x03\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"A\n\x13LogArtifactResponse\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\t\"u\n\x13\x41rtifactSendRequest\x12\x30\n\x08\x61rtifact\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecord\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"#\n\x14\x41rtifactSendResponse\x12\x0b\n\x03xid\x18\x01 \x01(\t\"P\n\x13\x41rtifactPollRequest\x12\x0b\n\x03xid\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"Q\n\x14\x41rtifactPollResponse\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\r\n\x05ready\x18\x10 \x01(\x08\"N\n\x13\x41rtifactDoneRequest\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x0b\n\x03xid\x18\x10 \x01(\t\"@\n\x10KeepaliveRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x13\n\x11KeepaliveResponse\"F\n\x0c\x41rtifactInfo\x12\x10\n\x08\x61rtifact\x18\x01 \x01(\t\x12\x12\n\nentrypoint\x18\x02 \x03(\t\x12\x10\n\x08notebook\x18\x03 \x01(\x08\")\n\x07GitInfo\x12\x0e\n\x06remote\x18\x01 \x01(\t\x12\x0e\n\x06\x63ommit\x18\x02 \x01(\t\"\\\n\tGitSource\x12)\n\x08git_info\x18\x01 \x01(\x0b\x32\x17.wandb_internal.GitInfo\x12\x12\n\nentrypoint\x18\x02 \x03(\t\x12\x10\n\x08notebook\x18\x03 \x01(\x08\"\x1c\n\x0bImageSource\x12\r\n\x05image\x18\x01 \x01(\t\"\x8c\x01\n\x06Source\x12&\n\x03git\x18\x01 \x01(\x0b\x32\x19.wandb_internal.GitSource\x12.\n\x08\x61rtifact\x18\x02 \x01(\x0b\x32\x1c.wandb_internal.ArtifactInfo\x12*\n\x05image\x18\x03 \x01(\x0b\x32\x1b.wandb_internal.ImageSource\"k\n\tJobSource\x12\x10\n\x08_version\x18\x01 \x01(\t\x12\x13\n\x0bsource_type\x18\x02 \x01(\t\x12&\n\x06source\x18\x03 \x01(\x0b\x32\x16.wandb_internal.Source\x12\x0f\n\x07runtime\x18\x04 \x01(\t\"V\n\x12PartialJobArtifact\x12\x10\n\x08job_name\x18\x01 \x01(\t\x12.\n\x0bsource_info\x18\x02 \x01(\x0b\x32\x19.wandb_internal.JobSource\"\x9d\x01\n\x11UseArtifactRecord\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x33\n\x07partial\x18\x04 \x01(\x0b\x32\".wandb_internal.PartialJobArtifact\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x13\n\x11UseArtifactResult\"R\n\rCancelRequest\x12\x13\n\x0b\x63\x61ncel_slot\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x10\n\x0e\x43\x61ncelResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
+    b'\n wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a!wandb/proto/wandb_telemetry.proto"\x9c\t\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12\x30\n\x07history\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.HistoryRecordH\x00\x12\x30\n\x07summary\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecordH\x00\x12.\n\x06output\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.OutputRecordH\x00\x12.\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecordH\x00\x12,\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x1b.wandb_internal.FilesRecordH\x00\x12,\n\x05stats\x18\x07 \x01(\x0b\x32\x1b.wandb_internal.StatsRecordH\x00\x12\x32\n\x08\x61rtifact\x18\x08 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecordH\x00\x12,\n\x08tbrecord\x18\t \x01(\x0b\x32\x18.wandb_internal.TBRecordH\x00\x12,\n\x05\x61lert\x18\n \x01(\x0b\x32\x1b.wandb_internal.AlertRecordH\x00\x12\x34\n\ttelemetry\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecordH\x00\x12.\n\x06metric\x18\x0c \x01(\x0b\x32\x1c.wandb_internal.MetricRecordH\x00\x12\x35\n\noutput_raw\x18\r \x01(\x0b\x32\x1f.wandb_internal.OutputRawRecordH\x00\x12(\n\x03run\x18\x11 \x01(\x0b\x32\x19.wandb_internal.RunRecordH\x00\x12-\n\x04\x65xit\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitRecordH\x00\x12,\n\x05\x66inal\x18\x14 \x01(\x0b\x32\x1b.wandb_internal.FinalRecordH\x00\x12.\n\x06header\x18\x15 \x01(\x0b\x32\x1c.wandb_internal.HeaderRecordH\x00\x12.\n\x06\x66ooter\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.FooterRecordH\x00\x12\x39\n\npreempting\x18\x17 \x01(\x0b\x32#.wandb_internal.RunPreemptingRecordH\x00\x12;\n\rlink_artifact\x18\x18 \x01(\x0b\x32".wandb_internal.LinkArtifactRecordH\x00\x12\x39\n\x0cuse_artifact\x18\x19 \x01(\x0b\x32!.wandb_internal.UseArtifactRecordH\x00\x12*\n\x07request\x18\x64 \x01(\x0b\x32\x17.wandb_internal.RequestH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x13 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfoB\r\n\x0brecord_type"\xa8\x01\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\x12\r\n\x05local\x18\x02 \x01(\x08\x12\x10\n\x08relay_id\x18\x03 \x01(\t\x12\x14\n\x0cmailbox_slot\x18\x04 \x01(\t\x12\x13\n\x0b\x61lways_send\x18\x05 \x01(\x08\x12\x14\n\x0c\x66low_control\x18\x06 \x01(\x08\x12\x12\n\nend_offset\x18\x07 \x01(\x03\x12\x15\n\rconnection_id\x18\x08 \x01(\t"\xf3\x03\n\x06Result\x12\x35\n\nrun_result\x18\x11 \x01(\x0b\x32\x1f.wandb_internal.RunUpdateResultH\x00\x12\x34\n\x0b\x65xit_result\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitResultH\x00\x12\x33\n\nlog_result\x18\x14 \x01(\x0b\x32\x1d.wandb_internal.HistoryResultH\x00\x12\x37\n\x0esummary_result\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.SummaryResultH\x00\x12\x35\n\routput_result\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.OutputResultH\x00\x12\x35\n\rconfig_result\x18\x17 \x01(\x0b\x32\x1c.wandb_internal.ConfigResultH\x00\x12,\n\x08response\x18\x64 \x01(\x0b\x32\x18.wandb_internal.ResponseH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x18 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._ResultInfoB\r\n\x0bresult_type":\n\x0b\x46inalRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo";\n\x0cHeaderRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo";\n\x0c\x46ooterRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\xce\x04\n\tRunRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\x12\x0f\n\x07project\x18\x03 \x01(\t\x12,\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecord\x12.\n\x07summary\x18\x05 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\x12\x11\n\trun_group\x18\x06 \x01(\t\x12\x10\n\x08job_type\x18\x07 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x08 \x01(\t\x12\r\n\x05notes\x18\t \x01(\t\x12\x0c\n\x04tags\x18\n \x03(\t\x12\x30\n\x08settings\x18\x0b \x01(\x0b\x32\x1e.wandb_internal.SettingsRecord\x12\x10\n\x08sweep_id\x18\x0c \x01(\t\x12\x0c\n\x04host\x18\r \x01(\t\x12\x15\n\rstarting_step\x18\x0e \x01(\x03\x12\x12\n\nstorage_id\x18\x10 \x01(\t\x12.\n\nstart_time\x18\x11 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07resumed\x18\x12 \x01(\x08\x12\x32\n\ttelemetry\x18\x13 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\x12\x0f\n\x07runtime\x18\x14 \x01(\x05\x12*\n\x03git\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.GitRepoRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"3\n\rGitRepoRecord\x12\x12\n\nremote_url\x18\x01 \x01(\t\x12\x0e\n\x06\x63ommit\x18\x02 \x01(\t"c\n\x0fRunUpdateResult\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo"\xac\x01\n\tErrorInfo\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x31\n\x04\x63ode\x18\x02 \x01(\x0e\x32#.wandb_internal.ErrorInfo.ErrorCode"[\n\tErrorCode\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x11\n\rCOMMUNICATION\x10\x01\x12\x12\n\x0e\x41UTHENTICATION\x10\x02\x12\t\n\x05USAGE\x10\x03\x12\x0f\n\x0bUNSUPPORTED\x10\x04"`\n\rRunExitRecord\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12\x0f\n\x07runtime\x18\x02 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\x0f\n\rRunExitResult"B\n\x13RunPreemptingRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\x15\n\x13RunPreemptingResult"i\n\x0eSettingsRecord\x12*\n\x04item\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.SettingsItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"/\n\x0cSettingsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t"\x1a\n\x0bHistoryStep\x12\x0b\n\x03num\x18\x01 \x01(\x03"\x92\x01\n\rHistoryRecord\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"B\n\x0bHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t"\x0f\n\rHistoryResult"\xdc\x01\n\x0cOutputRecord\x12<\n\x0boutput_type\x18\x01 \x01(\x0e\x32\'.wandb_internal.OutputRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01"\x0e\n\x0cOutputResult"\xe2\x01\n\x0fOutputRawRecord\x12?\n\x0boutput_type\x18\x01 \x01(\x0e\x32*.wandb_internal.OutputRawRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01"\x11\n\x0fOutputRawResult"\x98\x03\n\x0cMetricRecord\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\tglob_name\x18\x02 \x01(\t\x12\x13\n\x0bstep_metric\x18\x04 \x01(\t\x12\x19\n\x11step_metric_index\x18\x05 \x01(\x05\x12.\n\x07options\x18\x06 \x01(\x0b\x32\x1d.wandb_internal.MetricOptions\x12.\n\x07summary\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.MetricSummary\x12\x35\n\x04goal\x18\x08 \x01(\x0e\x32\'.wandb_internal.MetricRecord.MetricGoal\x12/\n\x08_control\x18\t \x01(\x0b\x32\x1d.wandb_internal.MetricControl\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"B\n\nMetricGoal\x12\x0e\n\nGOAL_UNSET\x10\x00\x12\x11\n\rGOAL_MINIMIZE\x10\x01\x12\x11\n\rGOAL_MAXIMIZE\x10\x02"\x0e\n\x0cMetricResult"C\n\rMetricOptions\x12\x11\n\tstep_sync\x18\x01 \x01(\x08\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x0f\n\x07\x64\x65\x66ined\x18\x03 \x01(\x08""\n\rMetricControl\x12\x11\n\toverwrite\x18\x01 \x01(\x08"o\n\rMetricSummary\x12\x0b\n\x03min\x18\x01 \x01(\x08\x12\x0b\n\x03max\x18\x02 \x01(\x08\x12\x0c\n\x04mean\x18\x03 \x01(\x08\x12\x0c\n\x04\x62\x65st\x18\x04 \x01(\x08\x12\x0c\n\x04last\x18\x05 \x01(\x08\x12\x0c\n\x04none\x18\x06 \x01(\x08\x12\x0c\n\x04\x63opy\x18\x07 \x01(\x08"\x93\x01\n\x0c\x43onfigRecord\x12*\n\x06update\x18\x01 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12*\n\x06remove\x18\x02 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"A\n\nConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t"\x0e\n\x0c\x43onfigResult"\x96\x01\n\rSummaryRecord\x12+\n\x06update\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x06remove\x18\x02 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"B\n\x0bSummaryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t"\x0f\n\rSummaryResult"d\n\x0b\x46ilesRecord\x12(\n\x05\x66iles\x18\x01 \x03(\x0b\x32\x19.wandb_internal.FilesItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\x90\x01\n\tFilesItem\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x34\n\x06policy\x18\x02 \x01(\x0e\x32$.wandb_internal.FilesItem.PolicyType\x12\x15\n\rexternal_path\x18\x10 \x01(\t"(\n\nPolicyType\x12\x07\n\x03NOW\x10\x00\x12\x07\n\x03\x45ND\x10\x01\x12\x08\n\x04LIVE\x10\x02"\r\n\x0b\x46ilesResult"\xe6\x01\n\x0bStatsRecord\x12\x39\n\nstats_type\x18\x01 \x01(\x0e\x32%.wandb_internal.StatsRecord.StatsType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\'\n\x04item\x18\x03 \x03(\x0b\x32\x19.wandb_internal.StatsItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\x17\n\tStatsType\x12\n\n\x06SYSTEM\x10\x00",\n\tStatsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t"\xbb\x03\n\x0e\x41rtifactRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0f\n\x07project\x18\x02 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\x0c\n\x04name\x18\x05 \x01(\t\x12\x0e\n\x06\x64igest\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12\x10\n\x08metadata\x18\x08 \x01(\t\x12\x14\n\x0cuser_created\x18\t \x01(\x08\x12\x18\n\x10use_after_commit\x18\n \x01(\x08\x12\x0f\n\x07\x61liases\x18\x0b \x03(\t\x12\x32\n\x08manifest\x18\x0c \x01(\x0b\x32 .wandb_internal.ArtifactManifest\x12\x16\n\x0e\x64istributed_id\x18\r \x01(\t\x12\x10\n\x08\x66inalize\x18\x0e \x01(\x08\x12\x11\n\tclient_id\x18\x0f \x01(\t\x12\x1a\n\x12sequence_client_id\x18\x10 \x01(\t\x12\x0f\n\x07\x62\x61se_id\x18\x11 \x01(\t\x12\x19\n\x11incremental_beta1\x18\x64 \x01(\x08\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\xbc\x01\n\x10\x41rtifactManifest\x12\x0f\n\x07version\x18\x01 \x01(\x05\x12\x16\n\x0estorage_policy\x18\x02 \x01(\t\x12\x46\n\x15storage_policy_config\x18\x03 \x03(\x0b\x32\'.wandb_internal.StoragePolicyConfigItem\x12\x37\n\x08\x63ontents\x18\x04 \x03(\x0b\x32%.wandb_internal.ArtifactManifestEntry"\xbb\x01\n\x15\x41rtifactManifestEntry\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x0e\n\x06\x64igest\x18\x02 \x01(\t\x12\x0b\n\x03ref\x18\x03 \x01(\t\x12\x0c\n\x04size\x18\x04 \x01(\x03\x12\x10\n\x08mimetype\x18\x05 \x01(\t\x12\x12\n\nlocal_path\x18\x06 \x01(\t\x12\x19\n\x11\x62irth_artifact_id\x18\x07 \x01(\t\x12(\n\x05\x65xtra\x18\x10 \x03(\x0b\x32\x19.wandb_internal.ExtraItem",\n\tExtraItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t":\n\x17StoragePolicyConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t"\x10\n\x0e\x41rtifactResult"\x14\n\x12LinkArtifactResult"\xcf\x01\n\x12LinkArtifactRecord\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x11\n\tserver_id\x18\x02 \x01(\t\x12\x16\n\x0eportfolio_name\x18\x03 \x01(\t\x12\x18\n\x10portfolio_entity\x18\x04 \x01(\t\x12\x19\n\x11portfolio_project\x18\x05 \x01(\t\x12\x19\n\x11portfolio_aliases\x18\x06 \x03(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"h\n\x08TBRecord\x12\x0f\n\x07log_dir\x18\x01 \x01(\t\x12\x0c\n\x04save\x18\x02 \x01(\x08\x12\x10\n\x08root_dir\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\n\n\x08TBResult"}\n\x0b\x41lertRecord\x12\r\n\x05title\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\t\x12\x15\n\rwait_duration\x18\x04 \x01(\x03\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\r\n\x0b\x41lertResult"\xfa\r\n\x07Request\x12\x38\n\x0bstop_status\x18\x01 \x01(\x0b\x32!.wandb_internal.StopStatusRequestH\x00\x12>\n\x0enetwork_status\x18\x02 \x01(\x0b\x32$.wandb_internal.NetworkStatusRequestH\x00\x12-\n\x05\x64\x65\x66\x65r\x18\x03 \x01(\x0b\x32\x1c.wandb_internal.DeferRequestH\x00\x12\x38\n\x0bget_summary\x18\x04 \x01(\x0b\x32!.wandb_internal.GetSummaryRequestH\x00\x12-\n\x05login\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.LoginRequestH\x00\x12-\n\x05pause\x18\x06 \x01(\x0b\x32\x1c.wandb_internal.PauseRequestH\x00\x12/\n\x06resume\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.ResumeRequestH\x00\x12\x34\n\tpoll_exit\x18\x08 \x01(\x0b\x32\x1f.wandb_internal.PollExitRequestH\x00\x12@\n\x0fsampled_history\x18\t \x01(\x0b\x32%.wandb_internal.SampledHistoryRequestH\x00\x12@\n\x0fpartial_history\x18\n \x01(\x0b\x32%.wandb_internal.PartialHistoryRequestH\x00\x12\x34\n\trun_start\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.RunStartRequestH\x00\x12<\n\rcheck_version\x18\x0c \x01(\x0b\x32#.wandb_internal.CheckVersionRequestH\x00\x12:\n\x0clog_artifact\x18\r \x01(\x0b\x32".wandb_internal.LogArtifactRequestH\x00\x12<\n\rartifact_send\x18\x0e \x01(\x0b\x32#.wandb_internal.ArtifactSendRequestH\x00\x12<\n\rartifact_poll\x18\x0f \x01(\x0b\x32#.wandb_internal.ArtifactPollRequestH\x00\x12<\n\rartifact_done\x18\x10 \x01(\x0b\x32#.wandb_internal.ArtifactDoneRequestH\x00\x12\x35\n\tkeepalive\x18\x11 \x01(\x0b\x32 .wandb_internal.KeepaliveRequestH\x00\x12\x36\n\nrun_status\x18\x14 \x01(\x0b\x32 .wandb_internal.RunStatusRequestH\x00\x12/\n\x06\x63\x61ncel\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.CancelRequestH\x00\x12\x33\n\x08metadata\x18\x16 \x01(\x0b\x32\x1f.wandb_internal.MetadataRequestH\x00\x12\x33\n\x08shutdown\x18@ \x01(\x0b\x32\x1f.wandb_internal.ShutdownRequestH\x00\x12/\n\x06\x61ttach\x18\x41 \x01(\x0b\x32\x1d.wandb_internal.AttachRequestH\x00\x12/\n\x06status\x18\x42 \x01(\x0b\x32\x1d.wandb_internal.StatusRequestH\x00\x12\x38\n\x0bserver_info\x18\x43 \x01(\x0b\x32!.wandb_internal.ServerInfoRequestH\x00\x12\x38\n\x0bsender_mark\x18\x44 \x01(\x0b\x32!.wandb_internal.SenderMarkRequestH\x00\x12\x38\n\x0bsender_read\x18\x45 \x01(\x0b\x32!.wandb_internal.SenderReadRequestH\x00\x12<\n\rstatus_report\x18\x46 \x01(\x0b\x32#.wandb_internal.StatusReportRequestH\x00\x12>\n\x0esummary_record\x18G \x01(\x0b\x32$.wandb_internal.SummaryRecordRequestH\x00\x12\x42\n\x10telemetry_record\x18H \x01(\x0b\x32&.wandb_internal.TelemetryRecordRequestH\x00\x12\x32\n\x08job_info\x18I \x01(\x0b\x32\x1e.wandb_internal.JobInfoRequestH\x00\x12\x39\n\x0btest_inject\x18\xe8\x07 \x01(\x0b\x32!.wandb_internal.TestInjectRequestH\x00\x42\x0e\n\x0crequest_type"\xca\n\n\x08Response\x12?\n\x12keepalive_response\x18\x12 \x01(\x0b\x32!.wandb_internal.KeepaliveResponseH\x00\x12\x42\n\x14stop_status_response\x18\x13 \x01(\x0b\x32".wandb_internal.StopStatusResponseH\x00\x12H\n\x17network_status_response\x18\x14 \x01(\x0b\x32%.wandb_internal.NetworkStatusResponseH\x00\x12\x37\n\x0elogin_response\x18\x18 \x01(\x0b\x32\x1d.wandb_internal.LoginResponseH\x00\x12\x42\n\x14get_summary_response\x18\x19 \x01(\x0b\x32".wandb_internal.GetSummaryResponseH\x00\x12>\n\x12poll_exit_response\x18\x1a \x01(\x0b\x32 .wandb_internal.PollExitResponseH\x00\x12J\n\x18sampled_history_response\x18\x1b \x01(\x0b\x32&.wandb_internal.SampledHistoryResponseH\x00\x12>\n\x12run_start_response\x18\x1c \x01(\x0b\x32 .wandb_internal.RunStartResponseH\x00\x12\x46\n\x16\x63heck_version_response\x18\x1d \x01(\x0b\x32$.wandb_internal.CheckVersionResponseH\x00\x12\x44\n\x15log_artifact_response\x18\x1e \x01(\x0b\x32#.wandb_internal.LogArtifactResponseH\x00\x12\x46\n\x16\x61rtifact_send_response\x18\x1f \x01(\x0b\x32$.wandb_internal.ArtifactSendResponseH\x00\x12\x46\n\x16\x61rtifact_poll_response\x18  \x01(\x0b\x32$.wandb_internal.ArtifactPollResponseH\x00\x12@\n\x13run_status_response\x18# \x01(\x0b\x32!.wandb_internal.RunStatusResponseH\x00\x12\x39\n\x0f\x63\x61ncel_response\x18$ \x01(\x0b\x32\x1e.wandb_internal.CancelResponseH\x00\x12=\n\x11shutdown_response\x18@ \x01(\x0b\x32 .wandb_internal.ShutdownResponseH\x00\x12\x39\n\x0f\x61ttach_response\x18\x41 \x01(\x0b\x32\x1e.wandb_internal.AttachResponseH\x00\x12\x39\n\x0fstatus_response\x18\x42 \x01(\x0b\x32\x1e.wandb_internal.StatusResponseH\x00\x12\x42\n\x14server_info_response\x18\x43 \x01(\x0b\x32".wandb_internal.ServerInfoResponseH\x00\x12<\n\x11job_info_response\x18\x44 \x01(\x0b\x32\x1f.wandb_internal.JobInfoResponseH\x00\x12\x43\n\x14test_inject_response\x18\xe8\x07 \x01(\x0b\x32".wandb_internal.TestInjectResponseH\x00\x42\x0f\n\rresponse_type"\xc0\x02\n\x0c\x44\x65\x66\x65rRequest\x12\x36\n\x05state\x18\x01 \x01(\x0e\x32\'.wandb_internal.DeferRequest.DeferState"\xf7\x01\n\nDeferState\x12\t\n\x05\x42\x45GIN\x10\x00\x12\r\n\tFLUSH_RUN\x10\x01\x12\x0f\n\x0b\x46LUSH_STATS\x10\x02\x12\x19\n\x15\x46LUSH_PARTIAL_HISTORY\x10\x03\x12\x0c\n\x08\x46LUSH_TB\x10\x04\x12\r\n\tFLUSH_SUM\x10\x05\x12\x13\n\x0f\x46LUSH_DEBOUNCER\x10\x06\x12\x10\n\x0c\x46LUSH_OUTPUT\x10\x07\x12\r\n\tFLUSH_JOB\x10\x08\x12\r\n\tFLUSH_DIR\x10\t\x12\x0c\n\x08\x46LUSH_FP\x10\n\x12\x0b\n\x07JOIN_FP\x10\x0b\x12\x0c\n\x08\x46LUSH_FS\x10\x0c\x12\x0f\n\x0b\x46LUSH_FINAL\x10\r\x12\x07\n\x03\x45ND\x10\x0e"<\n\x0cPauseRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\x0f\n\rPauseResponse"=\n\rResumeRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\x10\n\x0eResumeResponse"M\n\x0cLoginRequest\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"&\n\rLoginResponse\x12\x15\n\ractive_entity\x18\x01 \x01(\t"A\n\x11GetSummaryRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"?\n\x12GetSummaryResponse\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem"=\n\rStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo")\n\x0eStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08"A\n\x11StopStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"-\n\x12StopStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08"D\n\x14NetworkStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"P\n\x15NetworkStatusResponse\x12\x37\n\x11network_responses\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.HttpResponse"D\n\x0cHttpResponse\x12\x18\n\x10http_status_code\x18\x01 \x01(\x05\x12\x1a\n\x12http_response_text\x18\x02 \x01(\t"?\n\x0fPollExitRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\xbc\x01\n\x10PollExitResponse\x12\x0c\n\x04\x64one\x18\x01 \x01(\x08\x12\x32\n\x0b\x65xit_result\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.RunExitResult\x12\x35\n\x0cpusher_stats\x18\x03 \x01(\x0b\x32\x1f.wandb_internal.FilePusherStats\x12/\n\x0b\x66ile_counts\x18\x04 \x01(\x0b\x32\x1a.wandb_internal.FileCounts"\x13\n\x11SenderMarkRequest"?\n\x11SenderReadRequest\x12\x14\n\x0cstart_offset\x18\x01 \x01(\x03\x12\x14\n\x0c\x66inal_offset\x18\x02 \x01(\x03"m\n\x13StatusReportRequest\x12\x12\n\nrecord_num\x18\x01 \x01(\x03\x12\x13\n\x0bsent_offset\x18\x02 \x01(\x03\x12-\n\tsync_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp"F\n\x14SummaryRecordRequest\x12.\n\x07summary\x18\x01 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord"L\n\x16TelemetryRecordRequest\x12\x32\n\ttelemetry\x18\x01 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord"A\n\x11ServerInfoRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"|\n\x12ServerInfoResponse\x12-\n\nlocal_info\x18\x01 \x01(\x0b\x32\x19.wandb_internal.LocalInfo\x12\x37\n\x0fserver_messages\x18\x02 \x01(\x0b\x32\x1e.wandb_internal.ServerMessages"=\n\x0eServerMessages\x12+\n\x04item\x18\x01 \x03(\x0b\x32\x1d.wandb_internal.ServerMessage"e\n\rServerMessage\x12\x12\n\nplain_text\x18\x01 \x01(\t\x12\x10\n\x08utf_text\x18\x02 \x01(\t\x12\x11\n\thtml_text\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\r\n\x05level\x18\x05 \x01(\x05"c\n\nFileCounts\x12\x13\n\x0bwandb_count\x18\x01 \x01(\x05\x12\x13\n\x0bmedia_count\x18\x02 \x01(\x05\x12\x16\n\x0e\x61rtifact_count\x18\x03 \x01(\x05\x12\x13\n\x0bother_count\x18\x04 \x01(\x05"U\n\x0f\x46ilePusherStats\x12\x16\n\x0euploaded_bytes\x18\x01 \x01(\x03\x12\x13\n\x0btotal_bytes\x18\x02 \x01(\x03\x12\x15\n\rdeduped_bytes\x18\x03 \x01(\x03"1\n\tLocalInfo\x12\x0f\n\x07version\x18\x01 \x01(\t\x12\x13\n\x0bout_of_date\x18\x02 \x01(\x08"?\n\x0fShutdownRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\x12\n\x10ShutdownResponse"P\n\rAttachRequest\x12\x11\n\tattach_id\x18\x14 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"b\n\x0e\x41ttachResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo"\xd5\x02\n\x11TestInjectRequest\x12\x13\n\x0bhandler_exc\x18\x01 \x01(\x08\x12\x14\n\x0chandler_exit\x18\x02 \x01(\x08\x12\x15\n\rhandler_abort\x18\x03 \x01(\x08\x12\x12\n\nsender_exc\x18\x04 \x01(\x08\x12\x13\n\x0bsender_exit\x18\x05 \x01(\x08\x12\x14\n\x0csender_abort\x18\x06 \x01(\x08\x12\x0f\n\x07req_exc\x18\x07 \x01(\x08\x12\x10\n\x08req_exit\x18\x08 \x01(\x08\x12\x11\n\treq_abort\x18\t \x01(\x08\x12\x10\n\x08resp_exc\x18\n \x01(\x08\x12\x11\n\tresp_exit\x18\x0b \x01(\x08\x12\x12\n\nresp_abort\x18\x0c \x01(\x08\x12\x10\n\x08msg_drop\x18\r \x01(\x08\x12\x10\n\x08msg_hang\x18\x0e \x01(\x08\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\x14\n\x12TestInjectResponse"\x1e\n\rHistoryAction\x12\r\n\x05\x66lush\x18\x01 \x01(\x08"\xca\x01\n\x15PartialHistoryRequest\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\x12-\n\x06\x61\x63tion\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.HistoryAction\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\x18\n\x16PartialHistoryResponse"E\n\x15SampledHistoryRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"_\n\x12SampledHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x14\n\x0cvalues_float\x18\x03 \x03(\x02\x12\x12\n\nvalues_int\x18\x04 \x03(\x03"J\n\x16SampledHistoryResponse\x12\x30\n\x04item\x18\x01 \x03(\x0b\x32".wandb_internal.SampledHistoryItem"@\n\x10RunStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"x\n\x11RunStatusResponse\x12\x18\n\x10sync_items_total\x18\x01 \x01(\x03\x12\x1a\n\x12sync_items_pending\x18\x02 \x01(\x03\x12-\n\tsync_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp"g\n\x0fRunStartRequest\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\x12\n\x10RunStartResponse"\\\n\x13\x43heckVersionRequest\x12\x17\n\x0f\x63urrent_version\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"]\n\x14\x43heckVersionResponse\x12\x17\n\x0fupgrade_message\x18\x01 \x01(\t\x12\x14\n\x0cyank_message\x18\x02 \x01(\t\x12\x16\n\x0e\x64\x65lete_message\x18\x03 \x01(\t">\n\x0eJobInfoRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"6\n\x0fJobInfoResponse\x12\x12\n\nsequenceId\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t"\x8a\x01\n\x12LogArtifactRequest\x12\x30\n\x08\x61rtifact\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecord\x12\x14\n\x0chistory_step\x18\x02 \x01(\x03\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"A\n\x13LogArtifactResponse\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\t"u\n\x13\x41rtifactSendRequest\x12\x30\n\x08\x61rtifact\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecord\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"#\n\x14\x41rtifactSendResponse\x12\x0b\n\x03xid\x18\x01 \x01(\t"P\n\x13\x41rtifactPollRequest\x12\x0b\n\x03xid\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"Q\n\x14\x41rtifactPollResponse\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\r\n\x05ready\x18\x10 \x01(\x08"N\n\x13\x41rtifactDoneRequest\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x0b\n\x03xid\x18\x10 \x01(\t"@\n\x10KeepaliveRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\x13\n\x11KeepaliveResponse"F\n\x0c\x41rtifactInfo\x12\x10\n\x08\x61rtifact\x18\x01 \x01(\t\x12\x12\n\nentrypoint\x18\x02 \x03(\t\x12\x10\n\x08notebook\x18\x03 \x01(\x08")\n\x07GitInfo\x12\x0e\n\x06remote\x18\x01 \x01(\t\x12\x0e\n\x06\x63ommit\x18\x02 \x01(\t"\\\n\tGitSource\x12)\n\x08git_info\x18\x01 \x01(\x0b\x32\x17.wandb_internal.GitInfo\x12\x12\n\nentrypoint\x18\x02 \x03(\t\x12\x10\n\x08notebook\x18\x03 \x01(\x08"\x1c\n\x0bImageSource\x12\r\n\x05image\x18\x01 \x01(\t"\x8c\x01\n\x06Source\x12&\n\x03git\x18\x01 \x01(\x0b\x32\x19.wandb_internal.GitSource\x12.\n\x08\x61rtifact\x18\x02 \x01(\x0b\x32\x1c.wandb_internal.ArtifactInfo\x12*\n\x05image\x18\x03 \x01(\x0b\x32\x1b.wandb_internal.ImageSource"k\n\tJobSource\x12\x10\n\x08_version\x18\x01 \x01(\t\x12\x13\n\x0bsource_type\x18\x02 \x01(\t\x12&\n\x06source\x18\x03 \x01(\x0b\x32\x16.wandb_internal.Source\x12\x0f\n\x07runtime\x18\x04 \x01(\t"V\n\x12PartialJobArtifact\x12\x10\n\x08job_name\x18\x01 \x01(\t\x12.\n\x0bsource_info\x18\x02 \x01(\x0b\x32\x19.wandb_internal.JobSource"\x9d\x01\n\x11UseArtifactRecord\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x33\n\x07partial\x18\x04 \x01(\x0b\x32".wandb_internal.PartialJobArtifact\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo"\x13\n\x11UseArtifactResult"R\n\rCancelRequest\x12\x13\n\x0b\x63\x61ncel_slot\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo"\x10\n\x0e\x43\x61ncelResponse"+\n\x0cMetaDiskInfo\x12\r\n\x05total\x18\x01 \x01(\x02\x12\x0c\n\x04used\x18\x02 \x01(\x02"3\n\x10MetaGpuAppleInfo\x12\x0f\n\x07gpuType\x18\x01 \x01(\t\x12\x0e\n\x06vendor\x18\x02 \x01(\t"\x1c\n\x0bMetaMemInfo\x12\r\n\x05total\x18\x01 \x01(\x02"\xc1\x04\n\x0fMetadataRequest\x12\n\n\x02os\x18\x01 \x01(\t\x12\x0e\n\x06python\x18\x02 \x01(\t\x12/\n\x0bheartbeatAt\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12-\n\tstartedAt\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06\x64ocker\x18\x05 \x01(\t\x12\x0c\n\x04\x63uda\x18\x06 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x07 \x03(\t\x12\r\n\x05state\x18\x08 \x01(\t\x12\x0f\n\x07program\x18\t \x01(\t\x12\x10\n\x08\x63odePath\x18\n \x01(\t\x12*\n\x03git\x18\x0b \x01(\x0b\x32\x1d.wandb_internal.GitRepoRecord\x12\r\n\x05\x65mail\x18\x0c \x01(\t\x12\x0c\n\x04root\x18\r \x01(\t\x12\x0c\n\x04host\x18\x0e \x01(\t\x12\x10\n\x08username\x18\x0f \x01(\t\x12\x12\n\nexecutable\x18\x10 \x01(\t\x12\x1c\n\tcpu_count\x18\x11 \x01(\x05R\tcpu_count\x12,\n\x11\x63pu_count_logical\x18\x12 \x01(\x05R\x11\x63pu_count_logical\x12*\n\x04\x64isk\x18\x13 \x01(\x0b\x32\x1c.wandb_internal.MetaDiskInfo\x12\x32\n\x08gpuapple\x18\x14 \x01(\x0b\x32 .wandb_internal.MetaGpuAppleInfo\x12+\n\x06memory\x18\x15 \x01(\x0b\x32\x1b.wandb_internal.MetaMemInfob\x06proto3'
+)
 
 
-
-_RECORD = DESCRIPTOR.message_types_by_name['Record']
-_CONTROL = DESCRIPTOR.message_types_by_name['Control']
-_RESULT = DESCRIPTOR.message_types_by_name['Result']
-_FINALRECORD = DESCRIPTOR.message_types_by_name['FinalRecord']
-_HEADERRECORD = DESCRIPTOR.message_types_by_name['HeaderRecord']
-_FOOTERRECORD = DESCRIPTOR.message_types_by_name['FooterRecord']
-_RUNRECORD = DESCRIPTOR.message_types_by_name['RunRecord']
-_GITREPORECORD = DESCRIPTOR.message_types_by_name['GitRepoRecord']
-_RUNUPDATERESULT = DESCRIPTOR.message_types_by_name['RunUpdateResult']
-_ERRORINFO = DESCRIPTOR.message_types_by_name['ErrorInfo']
-_RUNEXITRECORD = DESCRIPTOR.message_types_by_name['RunExitRecord']
-_RUNEXITRESULT = DESCRIPTOR.message_types_by_name['RunExitResult']
-_RUNPREEMPTINGRECORD = DESCRIPTOR.message_types_by_name['RunPreemptingRecord']
-_RUNPREEMPTINGRESULT = DESCRIPTOR.message_types_by_name['RunPreemptingResult']
-_SETTINGSRECORD = DESCRIPTOR.message_types_by_name['SettingsRecord']
-_SETTINGSITEM = DESCRIPTOR.message_types_by_name['SettingsItem']
-_HISTORYSTEP = DESCRIPTOR.message_types_by_name['HistoryStep']
-_HISTORYRECORD = DESCRIPTOR.message_types_by_name['HistoryRecord']
-_HISTORYITEM = DESCRIPTOR.message_types_by_name['HistoryItem']
-_HISTORYRESULT = DESCRIPTOR.message_types_by_name['HistoryResult']
-_OUTPUTRECORD = DESCRIPTOR.message_types_by_name['OutputRecord']
-_OUTPUTRESULT = DESCRIPTOR.message_types_by_name['OutputResult']
-_OUTPUTRAWRECORD = DESCRIPTOR.message_types_by_name['OutputRawRecord']
-_OUTPUTRAWRESULT = DESCRIPTOR.message_types_by_name['OutputRawResult']
-_METRICRECORD = DESCRIPTOR.message_types_by_name['MetricRecord']
-_METRICRESULT = DESCRIPTOR.message_types_by_name['MetricResult']
-_METRICOPTIONS = DESCRIPTOR.message_types_by_name['MetricOptions']
-_METRICCONTROL = DESCRIPTOR.message_types_by_name['MetricControl']
-_METRICSUMMARY = DESCRIPTOR.message_types_by_name['MetricSummary']
-_CONFIGRECORD = DESCRIPTOR.message_types_by_name['ConfigRecord']
-_CONFIGITEM = DESCRIPTOR.message_types_by_name['ConfigItem']
-_CONFIGRESULT = DESCRIPTOR.message_types_by_name['ConfigResult']
-_SUMMARYRECORD = DESCRIPTOR.message_types_by_name['SummaryRecord']
-_SUMMARYITEM = DESCRIPTOR.message_types_by_name['SummaryItem']
-_SUMMARYRESULT = DESCRIPTOR.message_types_by_name['SummaryResult']
-_FILESRECORD = DESCRIPTOR.message_types_by_name['FilesRecord']
-_FILESITEM = DESCRIPTOR.message_types_by_name['FilesItem']
-_FILESRESULT = DESCRIPTOR.message_types_by_name['FilesResult']
-_STATSRECORD = DESCRIPTOR.message_types_by_name['StatsRecord']
-_STATSITEM = DESCRIPTOR.message_types_by_name['StatsItem']
-_ARTIFACTRECORD = DESCRIPTOR.message_types_by_name['ArtifactRecord']
-_ARTIFACTMANIFEST = DESCRIPTOR.message_types_by_name['ArtifactManifest']
-_ARTIFACTMANIFESTENTRY = DESCRIPTOR.message_types_by_name['ArtifactManifestEntry']
-_EXTRAITEM = DESCRIPTOR.message_types_by_name['ExtraItem']
-_STORAGEPOLICYCONFIGITEM = DESCRIPTOR.message_types_by_name['StoragePolicyConfigItem']
-_ARTIFACTRESULT = DESCRIPTOR.message_types_by_name['ArtifactResult']
-_LINKARTIFACTRESULT = DESCRIPTOR.message_types_by_name['LinkArtifactResult']
-_LINKARTIFACTRECORD = DESCRIPTOR.message_types_by_name['LinkArtifactRecord']
-_TBRECORD = DESCRIPTOR.message_types_by_name['TBRecord']
-_TBRESULT = DESCRIPTOR.message_types_by_name['TBResult']
-_ALERTRECORD = DESCRIPTOR.message_types_by_name['AlertRecord']
-_ALERTRESULT = DESCRIPTOR.message_types_by_name['AlertResult']
-_REQUEST = DESCRIPTOR.message_types_by_name['Request']
-_RESPONSE = DESCRIPTOR.message_types_by_name['Response']
-_DEFERREQUEST = DESCRIPTOR.message_types_by_name['DeferRequest']
-_PAUSEREQUEST = DESCRIPTOR.message_types_by_name['PauseRequest']
-_PAUSERESPONSE = DESCRIPTOR.message_types_by_name['PauseResponse']
-_RESUMEREQUEST = DESCRIPTOR.message_types_by_name['ResumeRequest']
-_RESUMERESPONSE = DESCRIPTOR.message_types_by_name['ResumeResponse']
-_LOGINREQUEST = DESCRIPTOR.message_types_by_name['LoginRequest']
-_LOGINRESPONSE = DESCRIPTOR.message_types_by_name['LoginResponse']
-_GETSUMMARYREQUEST = DESCRIPTOR.message_types_by_name['GetSummaryRequest']
-_GETSUMMARYRESPONSE = DESCRIPTOR.message_types_by_name['GetSummaryResponse']
-_STATUSREQUEST = DESCRIPTOR.message_types_by_name['StatusRequest']
-_STATUSRESPONSE = DESCRIPTOR.message_types_by_name['StatusResponse']
-_STOPSTATUSREQUEST = DESCRIPTOR.message_types_by_name['StopStatusRequest']
-_STOPSTATUSRESPONSE = DESCRIPTOR.message_types_by_name['StopStatusResponse']
-_NETWORKSTATUSREQUEST = DESCRIPTOR.message_types_by_name['NetworkStatusRequest']
-_NETWORKSTATUSRESPONSE = DESCRIPTOR.message_types_by_name['NetworkStatusResponse']
-_HTTPRESPONSE = DESCRIPTOR.message_types_by_name['HttpResponse']
-_POLLEXITREQUEST = DESCRIPTOR.message_types_by_name['PollExitRequest']
-_POLLEXITRESPONSE = DESCRIPTOR.message_types_by_name['PollExitResponse']
-_SENDERMARKREQUEST = DESCRIPTOR.message_types_by_name['SenderMarkRequest']
-_SENDERREADREQUEST = DESCRIPTOR.message_types_by_name['SenderReadRequest']
-_STATUSREPORTREQUEST = DESCRIPTOR.message_types_by_name['StatusReportRequest']
-_SUMMARYRECORDREQUEST = DESCRIPTOR.message_types_by_name['SummaryRecordRequest']
-_TELEMETRYRECORDREQUEST = DESCRIPTOR.message_types_by_name['TelemetryRecordRequest']
-_SERVERINFOREQUEST = DESCRIPTOR.message_types_by_name['ServerInfoRequest']
-_SERVERINFORESPONSE = DESCRIPTOR.message_types_by_name['ServerInfoResponse']
-_SERVERMESSAGES = DESCRIPTOR.message_types_by_name['ServerMessages']
-_SERVERMESSAGE = DESCRIPTOR.message_types_by_name['ServerMessage']
-_FILECOUNTS = DESCRIPTOR.message_types_by_name['FileCounts']
-_FILEPUSHERSTATS = DESCRIPTOR.message_types_by_name['FilePusherStats']
-_LOCALINFO = DESCRIPTOR.message_types_by_name['LocalInfo']
-_SHUTDOWNREQUEST = DESCRIPTOR.message_types_by_name['ShutdownRequest']
-_SHUTDOWNRESPONSE = DESCRIPTOR.message_types_by_name['ShutdownResponse']
-_ATTACHREQUEST = DESCRIPTOR.message_types_by_name['AttachRequest']
-_ATTACHRESPONSE = DESCRIPTOR.message_types_by_name['AttachResponse']
-_TESTINJECTREQUEST = DESCRIPTOR.message_types_by_name['TestInjectRequest']
-_TESTINJECTRESPONSE = DESCRIPTOR.message_types_by_name['TestInjectResponse']
-_HISTORYACTION = DESCRIPTOR.message_types_by_name['HistoryAction']
-_PARTIALHISTORYREQUEST = DESCRIPTOR.message_types_by_name['PartialHistoryRequest']
-_PARTIALHISTORYRESPONSE = DESCRIPTOR.message_types_by_name['PartialHistoryResponse']
-_SAMPLEDHISTORYREQUEST = DESCRIPTOR.message_types_by_name['SampledHistoryRequest']
-_SAMPLEDHISTORYITEM = DESCRIPTOR.message_types_by_name['SampledHistoryItem']
-_SAMPLEDHISTORYRESPONSE = DESCRIPTOR.message_types_by_name['SampledHistoryResponse']
-_RUNSTATUSREQUEST = DESCRIPTOR.message_types_by_name['RunStatusRequest']
-_RUNSTATUSRESPONSE = DESCRIPTOR.message_types_by_name['RunStatusResponse']
-_RUNSTARTREQUEST = DESCRIPTOR.message_types_by_name['RunStartRequest']
-_RUNSTARTRESPONSE = DESCRIPTOR.message_types_by_name['RunStartResponse']
-_CHECKVERSIONREQUEST = DESCRIPTOR.message_types_by_name['CheckVersionRequest']
-_CHECKVERSIONRESPONSE = DESCRIPTOR.message_types_by_name['CheckVersionResponse']
-_JOBINFOREQUEST = DESCRIPTOR.message_types_by_name['JobInfoRequest']
-_JOBINFORESPONSE = DESCRIPTOR.message_types_by_name['JobInfoResponse']
-_LOGARTIFACTREQUEST = DESCRIPTOR.message_types_by_name['LogArtifactRequest']
-_LOGARTIFACTRESPONSE = DESCRIPTOR.message_types_by_name['LogArtifactResponse']
-_ARTIFACTSENDREQUEST = DESCRIPTOR.message_types_by_name['ArtifactSendRequest']
-_ARTIFACTSENDRESPONSE = DESCRIPTOR.message_types_by_name['ArtifactSendResponse']
-_ARTIFACTPOLLREQUEST = DESCRIPTOR.message_types_by_name['ArtifactPollRequest']
-_ARTIFACTPOLLRESPONSE = DESCRIPTOR.message_types_by_name['ArtifactPollResponse']
-_ARTIFACTDONEREQUEST = DESCRIPTOR.message_types_by_name['ArtifactDoneRequest']
-_KEEPALIVEREQUEST = DESCRIPTOR.message_types_by_name['KeepaliveRequest']
-_KEEPALIVERESPONSE = DESCRIPTOR.message_types_by_name['KeepaliveResponse']
-_ARTIFACTINFO = DESCRIPTOR.message_types_by_name['ArtifactInfo']
-_GITINFO = DESCRIPTOR.message_types_by_name['GitInfo']
-_GITSOURCE = DESCRIPTOR.message_types_by_name['GitSource']
-_IMAGESOURCE = DESCRIPTOR.message_types_by_name['ImageSource']
-_SOURCE = DESCRIPTOR.message_types_by_name['Source']
-_JOBSOURCE = DESCRIPTOR.message_types_by_name['JobSource']
-_PARTIALJOBARTIFACT = DESCRIPTOR.message_types_by_name['PartialJobArtifact']
-_USEARTIFACTRECORD = DESCRIPTOR.message_types_by_name['UseArtifactRecord']
-_USEARTIFACTRESULT = DESCRIPTOR.message_types_by_name['UseArtifactResult']
-_CANCELREQUEST = DESCRIPTOR.message_types_by_name['CancelRequest']
-_CANCELRESPONSE = DESCRIPTOR.message_types_by_name['CancelResponse']
-_ERRORINFO_ERRORCODE = _ERRORINFO.enum_types_by_name['ErrorCode']
-_OUTPUTRECORD_OUTPUTTYPE = _OUTPUTRECORD.enum_types_by_name['OutputType']
-_OUTPUTRAWRECORD_OUTPUTTYPE = _OUTPUTRAWRECORD.enum_types_by_name['OutputType']
-_METRICRECORD_METRICGOAL = _METRICRECORD.enum_types_by_name['MetricGoal']
-_FILESITEM_POLICYTYPE = _FILESITEM.enum_types_by_name['PolicyType']
-_STATSRECORD_STATSTYPE = _STATSRECORD.enum_types_by_name['StatsType']
-_DEFERREQUEST_DEFERSTATE = _DEFERREQUEST.enum_types_by_name['DeferState']
-Record = _reflection.GeneratedProtocolMessageType('Record', (_message.Message,), {
-  'DESCRIPTOR' : _RECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.Record)
-  })
+_RECORD = DESCRIPTOR.message_types_by_name["Record"]
+_CONTROL = DESCRIPTOR.message_types_by_name["Control"]
+_RESULT = DESCRIPTOR.message_types_by_name["Result"]
+_FINALRECORD = DESCRIPTOR.message_types_by_name["FinalRecord"]
+_HEADERRECORD = DESCRIPTOR.message_types_by_name["HeaderRecord"]
+_FOOTERRECORD = DESCRIPTOR.message_types_by_name["FooterRecord"]
+_RUNRECORD = DESCRIPTOR.message_types_by_name["RunRecord"]
+_GITREPORECORD = DESCRIPTOR.message_types_by_name["GitRepoRecord"]
+_RUNUPDATERESULT = DESCRIPTOR.message_types_by_name["RunUpdateResult"]
+_ERRORINFO = DESCRIPTOR.message_types_by_name["ErrorInfo"]
+_RUNEXITRECORD = DESCRIPTOR.message_types_by_name["RunExitRecord"]
+_RUNEXITRESULT = DESCRIPTOR.message_types_by_name["RunExitResult"]
+_RUNPREEMPTINGRECORD = DESCRIPTOR.message_types_by_name["RunPreemptingRecord"]
+_RUNPREEMPTINGRESULT = DESCRIPTOR.message_types_by_name["RunPreemptingResult"]
+_SETTINGSRECORD = DESCRIPTOR.message_types_by_name["SettingsRecord"]
+_SETTINGSITEM = DESCRIPTOR.message_types_by_name["SettingsItem"]
+_HISTORYSTEP = DESCRIPTOR.message_types_by_name["HistoryStep"]
+_HISTORYRECORD = DESCRIPTOR.message_types_by_name["HistoryRecord"]
+_HISTORYITEM = DESCRIPTOR.message_types_by_name["HistoryItem"]
+_HISTORYRESULT = DESCRIPTOR.message_types_by_name["HistoryResult"]
+_OUTPUTRECORD = DESCRIPTOR.message_types_by_name["OutputRecord"]
+_OUTPUTRESULT = DESCRIPTOR.message_types_by_name["OutputResult"]
+_OUTPUTRAWRECORD = DESCRIPTOR.message_types_by_name["OutputRawRecord"]
+_OUTPUTRAWRESULT = DESCRIPTOR.message_types_by_name["OutputRawResult"]
+_METRICRECORD = DESCRIPTOR.message_types_by_name["MetricRecord"]
+_METRICRESULT = DESCRIPTOR.message_types_by_name["MetricResult"]
+_METRICOPTIONS = DESCRIPTOR.message_types_by_name["MetricOptions"]
+_METRICCONTROL = DESCRIPTOR.message_types_by_name["MetricControl"]
+_METRICSUMMARY = DESCRIPTOR.message_types_by_name["MetricSummary"]
+_CONFIGRECORD = DESCRIPTOR.message_types_by_name["ConfigRecord"]
+_CONFIGITEM = DESCRIPTOR.message_types_by_name["ConfigItem"]
+_CONFIGRESULT = DESCRIPTOR.message_types_by_name["ConfigResult"]
+_SUMMARYRECORD = DESCRIPTOR.message_types_by_name["SummaryRecord"]
+_SUMMARYITEM = DESCRIPTOR.message_types_by_name["SummaryItem"]
+_SUMMARYRESULT = DESCRIPTOR.message_types_by_name["SummaryResult"]
+_FILESRECORD = DESCRIPTOR.message_types_by_name["FilesRecord"]
+_FILESITEM = DESCRIPTOR.message_types_by_name["FilesItem"]
+_FILESRESULT = DESCRIPTOR.message_types_by_name["FilesResult"]
+_STATSRECORD = DESCRIPTOR.message_types_by_name["StatsRecord"]
+_STATSITEM = DESCRIPTOR.message_types_by_name["StatsItem"]
+_ARTIFACTRECORD = DESCRIPTOR.message_types_by_name["ArtifactRecord"]
+_ARTIFACTMANIFEST = DESCRIPTOR.message_types_by_name["ArtifactManifest"]
+_ARTIFACTMANIFESTENTRY = DESCRIPTOR.message_types_by_name["ArtifactManifestEntry"]
+_EXTRAITEM = DESCRIPTOR.message_types_by_name["ExtraItem"]
+_STORAGEPOLICYCONFIGITEM = DESCRIPTOR.message_types_by_name["StoragePolicyConfigItem"]
+_ARTIFACTRESULT = DESCRIPTOR.message_types_by_name["ArtifactResult"]
+_LINKARTIFACTRESULT = DESCRIPTOR.message_types_by_name["LinkArtifactResult"]
+_LINKARTIFACTRECORD = DESCRIPTOR.message_types_by_name["LinkArtifactRecord"]
+_TBRECORD = DESCRIPTOR.message_types_by_name["TBRecord"]
+_TBRESULT = DESCRIPTOR.message_types_by_name["TBResult"]
+_ALERTRECORD = DESCRIPTOR.message_types_by_name["AlertRecord"]
+_ALERTRESULT = DESCRIPTOR.message_types_by_name["AlertResult"]
+_REQUEST = DESCRIPTOR.message_types_by_name["Request"]
+_RESPONSE = DESCRIPTOR.message_types_by_name["Response"]
+_DEFERREQUEST = DESCRIPTOR.message_types_by_name["DeferRequest"]
+_PAUSEREQUEST = DESCRIPTOR.message_types_by_name["PauseRequest"]
+_PAUSERESPONSE = DESCRIPTOR.message_types_by_name["PauseResponse"]
+_RESUMEREQUEST = DESCRIPTOR.message_types_by_name["ResumeRequest"]
+_RESUMERESPONSE = DESCRIPTOR.message_types_by_name["ResumeResponse"]
+_LOGINREQUEST = DESCRIPTOR.message_types_by_name["LoginRequest"]
+_LOGINRESPONSE = DESCRIPTOR.message_types_by_name["LoginResponse"]
+_GETSUMMARYREQUEST = DESCRIPTOR.message_types_by_name["GetSummaryRequest"]
+_GETSUMMARYRESPONSE = DESCRIPTOR.message_types_by_name["GetSummaryResponse"]
+_STATUSREQUEST = DESCRIPTOR.message_types_by_name["StatusRequest"]
+_STATUSRESPONSE = DESCRIPTOR.message_types_by_name["StatusResponse"]
+_STOPSTATUSREQUEST = DESCRIPTOR.message_types_by_name["StopStatusRequest"]
+_STOPSTATUSRESPONSE = DESCRIPTOR.message_types_by_name["StopStatusResponse"]
+_NETWORKSTATUSREQUEST = DESCRIPTOR.message_types_by_name["NetworkStatusRequest"]
+_NETWORKSTATUSRESPONSE = DESCRIPTOR.message_types_by_name["NetworkStatusResponse"]
+_HTTPRESPONSE = DESCRIPTOR.message_types_by_name["HttpResponse"]
+_POLLEXITREQUEST = DESCRIPTOR.message_types_by_name["PollExitRequest"]
+_POLLEXITRESPONSE = DESCRIPTOR.message_types_by_name["PollExitResponse"]
+_SENDERMARKREQUEST = DESCRIPTOR.message_types_by_name["SenderMarkRequest"]
+_SENDERREADREQUEST = DESCRIPTOR.message_types_by_name["SenderReadRequest"]
+_STATUSREPORTREQUEST = DESCRIPTOR.message_types_by_name["StatusReportRequest"]
+_SUMMARYRECORDREQUEST = DESCRIPTOR.message_types_by_name["SummaryRecordRequest"]
+_TELEMETRYRECORDREQUEST = DESCRIPTOR.message_types_by_name["TelemetryRecordRequest"]
+_SERVERINFOREQUEST = DESCRIPTOR.message_types_by_name["ServerInfoRequest"]
+_SERVERINFORESPONSE = DESCRIPTOR.message_types_by_name["ServerInfoResponse"]
+_SERVERMESSAGES = DESCRIPTOR.message_types_by_name["ServerMessages"]
+_SERVERMESSAGE = DESCRIPTOR.message_types_by_name["ServerMessage"]
+_FILECOUNTS = DESCRIPTOR.message_types_by_name["FileCounts"]
+_FILEPUSHERSTATS = DESCRIPTOR.message_types_by_name["FilePusherStats"]
+_LOCALINFO = DESCRIPTOR.message_types_by_name["LocalInfo"]
+_SHUTDOWNREQUEST = DESCRIPTOR.message_types_by_name["ShutdownRequest"]
+_SHUTDOWNRESPONSE = DESCRIPTOR.message_types_by_name["ShutdownResponse"]
+_ATTACHREQUEST = DESCRIPTOR.message_types_by_name["AttachRequest"]
+_ATTACHRESPONSE = DESCRIPTOR.message_types_by_name["AttachResponse"]
+_TESTINJECTREQUEST = DESCRIPTOR.message_types_by_name["TestInjectRequest"]
+_TESTINJECTRESPONSE = DESCRIPTOR.message_types_by_name["TestInjectResponse"]
+_HISTORYACTION = DESCRIPTOR.message_types_by_name["HistoryAction"]
+_PARTIALHISTORYREQUEST = DESCRIPTOR.message_types_by_name["PartialHistoryRequest"]
+_PARTIALHISTORYRESPONSE = DESCRIPTOR.message_types_by_name["PartialHistoryResponse"]
+_SAMPLEDHISTORYREQUEST = DESCRIPTOR.message_types_by_name["SampledHistoryRequest"]
+_SAMPLEDHISTORYITEM = DESCRIPTOR.message_types_by_name["SampledHistoryItem"]
+_SAMPLEDHISTORYRESPONSE = DESCRIPTOR.message_types_by_name["SampledHistoryResponse"]
+_RUNSTATUSREQUEST = DESCRIPTOR.message_types_by_name["RunStatusRequest"]
+_RUNSTATUSRESPONSE = DESCRIPTOR.message_types_by_name["RunStatusResponse"]
+_RUNSTARTREQUEST = DESCRIPTOR.message_types_by_name["RunStartRequest"]
+_RUNSTARTRESPONSE = DESCRIPTOR.message_types_by_name["RunStartResponse"]
+_CHECKVERSIONREQUEST = DESCRIPTOR.message_types_by_name["CheckVersionRequest"]
+_CHECKVERSIONRESPONSE = DESCRIPTOR.message_types_by_name["CheckVersionResponse"]
+_JOBINFOREQUEST = DESCRIPTOR.message_types_by_name["JobInfoRequest"]
+_JOBINFORESPONSE = DESCRIPTOR.message_types_by_name["JobInfoResponse"]
+_LOGARTIFACTREQUEST = DESCRIPTOR.message_types_by_name["LogArtifactRequest"]
+_LOGARTIFACTRESPONSE = DESCRIPTOR.message_types_by_name["LogArtifactResponse"]
+_ARTIFACTSENDREQUEST = DESCRIPTOR.message_types_by_name["ArtifactSendRequest"]
+_ARTIFACTSENDRESPONSE = DESCRIPTOR.message_types_by_name["ArtifactSendResponse"]
+_ARTIFACTPOLLREQUEST = DESCRIPTOR.message_types_by_name["ArtifactPollRequest"]
+_ARTIFACTPOLLRESPONSE = DESCRIPTOR.message_types_by_name["ArtifactPollResponse"]
+_ARTIFACTDONEREQUEST = DESCRIPTOR.message_types_by_name["ArtifactDoneRequest"]
+_KEEPALIVEREQUEST = DESCRIPTOR.message_types_by_name["KeepaliveRequest"]
+_KEEPALIVERESPONSE = DESCRIPTOR.message_types_by_name["KeepaliveResponse"]
+_ARTIFACTINFO = DESCRIPTOR.message_types_by_name["ArtifactInfo"]
+_GITINFO = DESCRIPTOR.message_types_by_name["GitInfo"]
+_GITSOURCE = DESCRIPTOR.message_types_by_name["GitSource"]
+_IMAGESOURCE = DESCRIPTOR.message_types_by_name["ImageSource"]
+_SOURCE = DESCRIPTOR.message_types_by_name["Source"]
+_JOBSOURCE = DESCRIPTOR.message_types_by_name["JobSource"]
+_PARTIALJOBARTIFACT = DESCRIPTOR.message_types_by_name["PartialJobArtifact"]
+_USEARTIFACTRECORD = DESCRIPTOR.message_types_by_name["UseArtifactRecord"]
+_USEARTIFACTRESULT = DESCRIPTOR.message_types_by_name["UseArtifactResult"]
+_CANCELREQUEST = DESCRIPTOR.message_types_by_name["CancelRequest"]
+_CANCELRESPONSE = DESCRIPTOR.message_types_by_name["CancelResponse"]
+_METADISKINFO = DESCRIPTOR.message_types_by_name["MetaDiskInfo"]
+_METAGPUAPPLEINFO = DESCRIPTOR.message_types_by_name["MetaGpuAppleInfo"]
+_METAMEMINFO = DESCRIPTOR.message_types_by_name["MetaMemInfo"]
+_METADATAREQUEST = DESCRIPTOR.message_types_by_name["MetadataRequest"]
+_ERRORINFO_ERRORCODE = _ERRORINFO.enum_types_by_name["ErrorCode"]
+_OUTPUTRECORD_OUTPUTTYPE = _OUTPUTRECORD.enum_types_by_name["OutputType"]
+_OUTPUTRAWRECORD_OUTPUTTYPE = _OUTPUTRAWRECORD.enum_types_by_name["OutputType"]
+_METRICRECORD_METRICGOAL = _METRICRECORD.enum_types_by_name["MetricGoal"]
+_FILESITEM_POLICYTYPE = _FILESITEM.enum_types_by_name["PolicyType"]
+_STATSRECORD_STATSTYPE = _STATSRECORD.enum_types_by_name["StatsType"]
+_DEFERREQUEST_DEFERSTATE = _DEFERREQUEST.enum_types_by_name["DeferState"]
+Record = _reflection.GeneratedProtocolMessageType(
+    "Record",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.Record)
+    },
+)
 _sym_db.RegisterMessage(Record)
 
-Control = _reflection.GeneratedProtocolMessageType('Control', (_message.Message,), {
-  'DESCRIPTOR' : _CONTROL,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.Control)
-  })
+Control = _reflection.GeneratedProtocolMessageType(
+    "Control",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _CONTROL,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.Control)
+    },
+)
 _sym_db.RegisterMessage(Control)
 
-Result = _reflection.GeneratedProtocolMessageType('Result', (_message.Message,), {
-  'DESCRIPTOR' : _RESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.Result)
-  })
+Result = _reflection.GeneratedProtocolMessageType(
+    "Result",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.Result)
+    },
+)
 _sym_db.RegisterMessage(Result)
 
-FinalRecord = _reflection.GeneratedProtocolMessageType('FinalRecord', (_message.Message,), {
-  'DESCRIPTOR' : _FINALRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.FinalRecord)
-  })
+FinalRecord = _reflection.GeneratedProtocolMessageType(
+    "FinalRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _FINALRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.FinalRecord)
+    },
+)
 _sym_db.RegisterMessage(FinalRecord)
 
-HeaderRecord = _reflection.GeneratedProtocolMessageType('HeaderRecord', (_message.Message,), {
-  'DESCRIPTOR' : _HEADERRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.HeaderRecord)
-  })
+HeaderRecord = _reflection.GeneratedProtocolMessageType(
+    "HeaderRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _HEADERRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.HeaderRecord)
+    },
+)
 _sym_db.RegisterMessage(HeaderRecord)
 
-FooterRecord = _reflection.GeneratedProtocolMessageType('FooterRecord', (_message.Message,), {
-  'DESCRIPTOR' : _FOOTERRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.FooterRecord)
-  })
+FooterRecord = _reflection.GeneratedProtocolMessageType(
+    "FooterRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _FOOTERRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.FooterRecord)
+    },
+)
 _sym_db.RegisterMessage(FooterRecord)
 
-RunRecord = _reflection.GeneratedProtocolMessageType('RunRecord', (_message.Message,), {
-  'DESCRIPTOR' : _RUNRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunRecord)
-  })
+RunRecord = _reflection.GeneratedProtocolMessageType(
+    "RunRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunRecord)
+    },
+)
 _sym_db.RegisterMessage(RunRecord)
 
-GitRepoRecord = _reflection.GeneratedProtocolMessageType('GitRepoRecord', (_message.Message,), {
-  'DESCRIPTOR' : _GITREPORECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.GitRepoRecord)
-  })
+GitRepoRecord = _reflection.GeneratedProtocolMessageType(
+    "GitRepoRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _GITREPORECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.GitRepoRecord)
+    },
+)
 _sym_db.RegisterMessage(GitRepoRecord)
 
-RunUpdateResult = _reflection.GeneratedProtocolMessageType('RunUpdateResult', (_message.Message,), {
-  'DESCRIPTOR' : _RUNUPDATERESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunUpdateResult)
-  })
+RunUpdateResult = _reflection.GeneratedProtocolMessageType(
+    "RunUpdateResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNUPDATERESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunUpdateResult)
+    },
+)
 _sym_db.RegisterMessage(RunUpdateResult)
 
-ErrorInfo = _reflection.GeneratedProtocolMessageType('ErrorInfo', (_message.Message,), {
-  'DESCRIPTOR' : _ERRORINFO,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ErrorInfo)
-  })
+ErrorInfo = _reflection.GeneratedProtocolMessageType(
+    "ErrorInfo",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ERRORINFO,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ErrorInfo)
+    },
+)
 _sym_db.RegisterMessage(ErrorInfo)
 
-RunExitRecord = _reflection.GeneratedProtocolMessageType('RunExitRecord', (_message.Message,), {
-  'DESCRIPTOR' : _RUNEXITRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunExitRecord)
-  })
+RunExitRecord = _reflection.GeneratedProtocolMessageType(
+    "RunExitRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNEXITRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunExitRecord)
+    },
+)
 _sym_db.RegisterMessage(RunExitRecord)
 
-RunExitResult = _reflection.GeneratedProtocolMessageType('RunExitResult', (_message.Message,), {
-  'DESCRIPTOR' : _RUNEXITRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunExitResult)
-  })
+RunExitResult = _reflection.GeneratedProtocolMessageType(
+    "RunExitResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNEXITRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunExitResult)
+    },
+)
 _sym_db.RegisterMessage(RunExitResult)
 
-RunPreemptingRecord = _reflection.GeneratedProtocolMessageType('RunPreemptingRecord', (_message.Message,), {
-  'DESCRIPTOR' : _RUNPREEMPTINGRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunPreemptingRecord)
-  })
+RunPreemptingRecord = _reflection.GeneratedProtocolMessageType(
+    "RunPreemptingRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNPREEMPTINGRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunPreemptingRecord)
+    },
+)
 _sym_db.RegisterMessage(RunPreemptingRecord)
 
-RunPreemptingResult = _reflection.GeneratedProtocolMessageType('RunPreemptingResult', (_message.Message,), {
-  'DESCRIPTOR' : _RUNPREEMPTINGRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunPreemptingResult)
-  })
+RunPreemptingResult = _reflection.GeneratedProtocolMessageType(
+    "RunPreemptingResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNPREEMPTINGRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunPreemptingResult)
+    },
+)
 _sym_db.RegisterMessage(RunPreemptingResult)
 
-SettingsRecord = _reflection.GeneratedProtocolMessageType('SettingsRecord', (_message.Message,), {
-  'DESCRIPTOR' : _SETTINGSRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SettingsRecord)
-  })
+SettingsRecord = _reflection.GeneratedProtocolMessageType(
+    "SettingsRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SETTINGSRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SettingsRecord)
+    },
+)
 _sym_db.RegisterMessage(SettingsRecord)
 
-SettingsItem = _reflection.GeneratedProtocolMessageType('SettingsItem', (_message.Message,), {
-  'DESCRIPTOR' : _SETTINGSITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SettingsItem)
-  })
+SettingsItem = _reflection.GeneratedProtocolMessageType(
+    "SettingsItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SETTINGSITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SettingsItem)
+    },
+)
 _sym_db.RegisterMessage(SettingsItem)
 
-HistoryStep = _reflection.GeneratedProtocolMessageType('HistoryStep', (_message.Message,), {
-  'DESCRIPTOR' : _HISTORYSTEP,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.HistoryStep)
-  })
+HistoryStep = _reflection.GeneratedProtocolMessageType(
+    "HistoryStep",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _HISTORYSTEP,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.HistoryStep)
+    },
+)
 _sym_db.RegisterMessage(HistoryStep)
 
-HistoryRecord = _reflection.GeneratedProtocolMessageType('HistoryRecord', (_message.Message,), {
-  'DESCRIPTOR' : _HISTORYRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.HistoryRecord)
-  })
+HistoryRecord = _reflection.GeneratedProtocolMessageType(
+    "HistoryRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _HISTORYRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.HistoryRecord)
+    },
+)
 _sym_db.RegisterMessage(HistoryRecord)
 
-HistoryItem = _reflection.GeneratedProtocolMessageType('HistoryItem', (_message.Message,), {
-  'DESCRIPTOR' : _HISTORYITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.HistoryItem)
-  })
+HistoryItem = _reflection.GeneratedProtocolMessageType(
+    "HistoryItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _HISTORYITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.HistoryItem)
+    },
+)
 _sym_db.RegisterMessage(HistoryItem)
 
-HistoryResult = _reflection.GeneratedProtocolMessageType('HistoryResult', (_message.Message,), {
-  'DESCRIPTOR' : _HISTORYRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.HistoryResult)
-  })
+HistoryResult = _reflection.GeneratedProtocolMessageType(
+    "HistoryResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _HISTORYRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.HistoryResult)
+    },
+)
 _sym_db.RegisterMessage(HistoryResult)
 
-OutputRecord = _reflection.GeneratedProtocolMessageType('OutputRecord', (_message.Message,), {
-  'DESCRIPTOR' : _OUTPUTRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.OutputRecord)
-  })
+OutputRecord = _reflection.GeneratedProtocolMessageType(
+    "OutputRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _OUTPUTRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.OutputRecord)
+    },
+)
 _sym_db.RegisterMessage(OutputRecord)
 
-OutputResult = _reflection.GeneratedProtocolMessageType('OutputResult', (_message.Message,), {
-  'DESCRIPTOR' : _OUTPUTRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.OutputResult)
-  })
+OutputResult = _reflection.GeneratedProtocolMessageType(
+    "OutputResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _OUTPUTRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.OutputResult)
+    },
+)
 _sym_db.RegisterMessage(OutputResult)
 
-OutputRawRecord = _reflection.GeneratedProtocolMessageType('OutputRawRecord', (_message.Message,), {
-  'DESCRIPTOR' : _OUTPUTRAWRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.OutputRawRecord)
-  })
+OutputRawRecord = _reflection.GeneratedProtocolMessageType(
+    "OutputRawRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _OUTPUTRAWRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.OutputRawRecord)
+    },
+)
 _sym_db.RegisterMessage(OutputRawRecord)
 
-OutputRawResult = _reflection.GeneratedProtocolMessageType('OutputRawResult', (_message.Message,), {
-  'DESCRIPTOR' : _OUTPUTRAWRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.OutputRawResult)
-  })
+OutputRawResult = _reflection.GeneratedProtocolMessageType(
+    "OutputRawResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _OUTPUTRAWRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.OutputRawResult)
+    },
+)
 _sym_db.RegisterMessage(OutputRawResult)
 
-MetricRecord = _reflection.GeneratedProtocolMessageType('MetricRecord', (_message.Message,), {
-  'DESCRIPTOR' : _METRICRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.MetricRecord)
-  })
+MetricRecord = _reflection.GeneratedProtocolMessageType(
+    "MetricRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METRICRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetricRecord)
+    },
+)
 _sym_db.RegisterMessage(MetricRecord)
 
-MetricResult = _reflection.GeneratedProtocolMessageType('MetricResult', (_message.Message,), {
-  'DESCRIPTOR' : _METRICRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.MetricResult)
-  })
+MetricResult = _reflection.GeneratedProtocolMessageType(
+    "MetricResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METRICRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetricResult)
+    },
+)
 _sym_db.RegisterMessage(MetricResult)
 
-MetricOptions = _reflection.GeneratedProtocolMessageType('MetricOptions', (_message.Message,), {
-  'DESCRIPTOR' : _METRICOPTIONS,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.MetricOptions)
-  })
+MetricOptions = _reflection.GeneratedProtocolMessageType(
+    "MetricOptions",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METRICOPTIONS,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetricOptions)
+    },
+)
 _sym_db.RegisterMessage(MetricOptions)
 
-MetricControl = _reflection.GeneratedProtocolMessageType('MetricControl', (_message.Message,), {
-  'DESCRIPTOR' : _METRICCONTROL,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.MetricControl)
-  })
+MetricControl = _reflection.GeneratedProtocolMessageType(
+    "MetricControl",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METRICCONTROL,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetricControl)
+    },
+)
 _sym_db.RegisterMessage(MetricControl)
 
-MetricSummary = _reflection.GeneratedProtocolMessageType('MetricSummary', (_message.Message,), {
-  'DESCRIPTOR' : _METRICSUMMARY,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.MetricSummary)
-  })
+MetricSummary = _reflection.GeneratedProtocolMessageType(
+    "MetricSummary",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METRICSUMMARY,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetricSummary)
+    },
+)
 _sym_db.RegisterMessage(MetricSummary)
 
-ConfigRecord = _reflection.GeneratedProtocolMessageType('ConfigRecord', (_message.Message,), {
-  'DESCRIPTOR' : _CONFIGRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ConfigRecord)
-  })
+ConfigRecord = _reflection.GeneratedProtocolMessageType(
+    "ConfigRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _CONFIGRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ConfigRecord)
+    },
+)
 _sym_db.RegisterMessage(ConfigRecord)
 
-ConfigItem = _reflection.GeneratedProtocolMessageType('ConfigItem', (_message.Message,), {
-  'DESCRIPTOR' : _CONFIGITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ConfigItem)
-  })
+ConfigItem = _reflection.GeneratedProtocolMessageType(
+    "ConfigItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _CONFIGITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ConfigItem)
+    },
+)
 _sym_db.RegisterMessage(ConfigItem)
 
-ConfigResult = _reflection.GeneratedProtocolMessageType('ConfigResult', (_message.Message,), {
-  'DESCRIPTOR' : _CONFIGRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ConfigResult)
-  })
+ConfigResult = _reflection.GeneratedProtocolMessageType(
+    "ConfigResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _CONFIGRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ConfigResult)
+    },
+)
 _sym_db.RegisterMessage(ConfigResult)
 
-SummaryRecord = _reflection.GeneratedProtocolMessageType('SummaryRecord', (_message.Message,), {
-  'DESCRIPTOR' : _SUMMARYRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SummaryRecord)
-  })
+SummaryRecord = _reflection.GeneratedProtocolMessageType(
+    "SummaryRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SUMMARYRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SummaryRecord)
+    },
+)
 _sym_db.RegisterMessage(SummaryRecord)
 
-SummaryItem = _reflection.GeneratedProtocolMessageType('SummaryItem', (_message.Message,), {
-  'DESCRIPTOR' : _SUMMARYITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SummaryItem)
-  })
+SummaryItem = _reflection.GeneratedProtocolMessageType(
+    "SummaryItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SUMMARYITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SummaryItem)
+    },
+)
 _sym_db.RegisterMessage(SummaryItem)
 
-SummaryResult = _reflection.GeneratedProtocolMessageType('SummaryResult', (_message.Message,), {
-  'DESCRIPTOR' : _SUMMARYRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SummaryResult)
-  })
+SummaryResult = _reflection.GeneratedProtocolMessageType(
+    "SummaryResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SUMMARYRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SummaryResult)
+    },
+)
 _sym_db.RegisterMessage(SummaryResult)
 
-FilesRecord = _reflection.GeneratedProtocolMessageType('FilesRecord', (_message.Message,), {
-  'DESCRIPTOR' : _FILESRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.FilesRecord)
-  })
+FilesRecord = _reflection.GeneratedProtocolMessageType(
+    "FilesRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _FILESRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.FilesRecord)
+    },
+)
 _sym_db.RegisterMessage(FilesRecord)
 
-FilesItem = _reflection.GeneratedProtocolMessageType('FilesItem', (_message.Message,), {
-  'DESCRIPTOR' : _FILESITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.FilesItem)
-  })
+FilesItem = _reflection.GeneratedProtocolMessageType(
+    "FilesItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _FILESITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.FilesItem)
+    },
+)
 _sym_db.RegisterMessage(FilesItem)
 
-FilesResult = _reflection.GeneratedProtocolMessageType('FilesResult', (_message.Message,), {
-  'DESCRIPTOR' : _FILESRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.FilesResult)
-  })
+FilesResult = _reflection.GeneratedProtocolMessageType(
+    "FilesResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _FILESRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.FilesResult)
+    },
+)
 _sym_db.RegisterMessage(FilesResult)
 
-StatsRecord = _reflection.GeneratedProtocolMessageType('StatsRecord', (_message.Message,), {
-  'DESCRIPTOR' : _STATSRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.StatsRecord)
-  })
+StatsRecord = _reflection.GeneratedProtocolMessageType(
+    "StatsRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _STATSRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.StatsRecord)
+    },
+)
 _sym_db.RegisterMessage(StatsRecord)
 
-StatsItem = _reflection.GeneratedProtocolMessageType('StatsItem', (_message.Message,), {
-  'DESCRIPTOR' : _STATSITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.StatsItem)
-  })
+StatsItem = _reflection.GeneratedProtocolMessageType(
+    "StatsItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _STATSITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.StatsItem)
+    },
+)
 _sym_db.RegisterMessage(StatsItem)
 
-ArtifactRecord = _reflection.GeneratedProtocolMessageType('ArtifactRecord', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactRecord)
-  })
+ArtifactRecord = _reflection.GeneratedProtocolMessageType(
+    "ArtifactRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactRecord)
+    },
+)
 _sym_db.RegisterMessage(ArtifactRecord)
 
-ArtifactManifest = _reflection.GeneratedProtocolMessageType('ArtifactManifest', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTMANIFEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactManifest)
-  })
+ArtifactManifest = _reflection.GeneratedProtocolMessageType(
+    "ArtifactManifest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTMANIFEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactManifest)
+    },
+)
 _sym_db.RegisterMessage(ArtifactManifest)
 
-ArtifactManifestEntry = _reflection.GeneratedProtocolMessageType('ArtifactManifestEntry', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTMANIFESTENTRY,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactManifestEntry)
-  })
+ArtifactManifestEntry = _reflection.GeneratedProtocolMessageType(
+    "ArtifactManifestEntry",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTMANIFESTENTRY,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactManifestEntry)
+    },
+)
 _sym_db.RegisterMessage(ArtifactManifestEntry)
 
-ExtraItem = _reflection.GeneratedProtocolMessageType('ExtraItem', (_message.Message,), {
-  'DESCRIPTOR' : _EXTRAITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ExtraItem)
-  })
+ExtraItem = _reflection.GeneratedProtocolMessageType(
+    "ExtraItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _EXTRAITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ExtraItem)
+    },
+)
 _sym_db.RegisterMessage(ExtraItem)
 
-StoragePolicyConfigItem = _reflection.GeneratedProtocolMessageType('StoragePolicyConfigItem', (_message.Message,), {
-  'DESCRIPTOR' : _STORAGEPOLICYCONFIGITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.StoragePolicyConfigItem)
-  })
+StoragePolicyConfigItem = _reflection.GeneratedProtocolMessageType(
+    "StoragePolicyConfigItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _STORAGEPOLICYCONFIGITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.StoragePolicyConfigItem)
+    },
+)
 _sym_db.RegisterMessage(StoragePolicyConfigItem)
 
-ArtifactResult = _reflection.GeneratedProtocolMessageType('ArtifactResult', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactResult)
-  })
+ArtifactResult = _reflection.GeneratedProtocolMessageType(
+    "ArtifactResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactResult)
+    },
+)
 _sym_db.RegisterMessage(ArtifactResult)
 
-LinkArtifactResult = _reflection.GeneratedProtocolMessageType('LinkArtifactResult', (_message.Message,), {
-  'DESCRIPTOR' : _LINKARTIFACTRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LinkArtifactResult)
-  })
+LinkArtifactResult = _reflection.GeneratedProtocolMessageType(
+    "LinkArtifactResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _LINKARTIFACTRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.LinkArtifactResult)
+    },
+)
 _sym_db.RegisterMessage(LinkArtifactResult)
 
-LinkArtifactRecord = _reflection.GeneratedProtocolMessageType('LinkArtifactRecord', (_message.Message,), {
-  'DESCRIPTOR' : _LINKARTIFACTRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LinkArtifactRecord)
-  })
+LinkArtifactRecord = _reflection.GeneratedProtocolMessageType(
+    "LinkArtifactRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _LINKARTIFACTRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.LinkArtifactRecord)
+    },
+)
 _sym_db.RegisterMessage(LinkArtifactRecord)
 
-TBRecord = _reflection.GeneratedProtocolMessageType('TBRecord', (_message.Message,), {
-  'DESCRIPTOR' : _TBRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.TBRecord)
-  })
+TBRecord = _reflection.GeneratedProtocolMessageType(
+    "TBRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _TBRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.TBRecord)
+    },
+)
 _sym_db.RegisterMessage(TBRecord)
 
-TBResult = _reflection.GeneratedProtocolMessageType('TBResult', (_message.Message,), {
-  'DESCRIPTOR' : _TBRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.TBResult)
-  })
+TBResult = _reflection.GeneratedProtocolMessageType(
+    "TBResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _TBRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.TBResult)
+    },
+)
 _sym_db.RegisterMessage(TBResult)
 
-AlertRecord = _reflection.GeneratedProtocolMessageType('AlertRecord', (_message.Message,), {
-  'DESCRIPTOR' : _ALERTRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.AlertRecord)
-  })
+AlertRecord = _reflection.GeneratedProtocolMessageType(
+    "AlertRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ALERTRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.AlertRecord)
+    },
+)
 _sym_db.RegisterMessage(AlertRecord)
 
-AlertResult = _reflection.GeneratedProtocolMessageType('AlertResult', (_message.Message,), {
-  'DESCRIPTOR' : _ALERTRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.AlertResult)
-  })
+AlertResult = _reflection.GeneratedProtocolMessageType(
+    "AlertResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ALERTRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.AlertResult)
+    },
+)
 _sym_db.RegisterMessage(AlertResult)
 
-Request = _reflection.GeneratedProtocolMessageType('Request', (_message.Message,), {
-  'DESCRIPTOR' : _REQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.Request)
-  })
+Request = _reflection.GeneratedProtocolMessageType(
+    "Request",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _REQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.Request)
+    },
+)
 _sym_db.RegisterMessage(Request)
 
-Response = _reflection.GeneratedProtocolMessageType('Response', (_message.Message,), {
-  'DESCRIPTOR' : _RESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.Response)
-  })
+Response = _reflection.GeneratedProtocolMessageType(
+    "Response",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.Response)
+    },
+)
 _sym_db.RegisterMessage(Response)
 
-DeferRequest = _reflection.GeneratedProtocolMessageType('DeferRequest', (_message.Message,), {
-  'DESCRIPTOR' : _DEFERREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.DeferRequest)
-  })
+DeferRequest = _reflection.GeneratedProtocolMessageType(
+    "DeferRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _DEFERREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.DeferRequest)
+    },
+)
 _sym_db.RegisterMessage(DeferRequest)
 
-PauseRequest = _reflection.GeneratedProtocolMessageType('PauseRequest', (_message.Message,), {
-  'DESCRIPTOR' : _PAUSEREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.PauseRequest)
-  })
+PauseRequest = _reflection.GeneratedProtocolMessageType(
+    "PauseRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _PAUSEREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.PauseRequest)
+    },
+)
 _sym_db.RegisterMessage(PauseRequest)
 
-PauseResponse = _reflection.GeneratedProtocolMessageType('PauseResponse', (_message.Message,), {
-  'DESCRIPTOR' : _PAUSERESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.PauseResponse)
-  })
+PauseResponse = _reflection.GeneratedProtocolMessageType(
+    "PauseResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _PAUSERESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.PauseResponse)
+    },
+)
 _sym_db.RegisterMessage(PauseResponse)
 
-ResumeRequest = _reflection.GeneratedProtocolMessageType('ResumeRequest', (_message.Message,), {
-  'DESCRIPTOR' : _RESUMEREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ResumeRequest)
-  })
+ResumeRequest = _reflection.GeneratedProtocolMessageType(
+    "ResumeRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RESUMEREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ResumeRequest)
+    },
+)
 _sym_db.RegisterMessage(ResumeRequest)
 
-ResumeResponse = _reflection.GeneratedProtocolMessageType('ResumeResponse', (_message.Message,), {
-  'DESCRIPTOR' : _RESUMERESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ResumeResponse)
-  })
+ResumeResponse = _reflection.GeneratedProtocolMessageType(
+    "ResumeResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RESUMERESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ResumeResponse)
+    },
+)
 _sym_db.RegisterMessage(ResumeResponse)
 
-LoginRequest = _reflection.GeneratedProtocolMessageType('LoginRequest', (_message.Message,), {
-  'DESCRIPTOR' : _LOGINREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LoginRequest)
-  })
+LoginRequest = _reflection.GeneratedProtocolMessageType(
+    "LoginRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _LOGINREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.LoginRequest)
+    },
+)
 _sym_db.RegisterMessage(LoginRequest)
 
-LoginResponse = _reflection.GeneratedProtocolMessageType('LoginResponse', (_message.Message,), {
-  'DESCRIPTOR' : _LOGINRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LoginResponse)
-  })
+LoginResponse = _reflection.GeneratedProtocolMessageType(
+    "LoginResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _LOGINRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.LoginResponse)
+    },
+)
 _sym_db.RegisterMessage(LoginResponse)
 
-GetSummaryRequest = _reflection.GeneratedProtocolMessageType('GetSummaryRequest', (_message.Message,), {
-  'DESCRIPTOR' : _GETSUMMARYREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.GetSummaryRequest)
-  })
+GetSummaryRequest = _reflection.GeneratedProtocolMessageType(
+    "GetSummaryRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _GETSUMMARYREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.GetSummaryRequest)
+    },
+)
 _sym_db.RegisterMessage(GetSummaryRequest)
 
-GetSummaryResponse = _reflection.GeneratedProtocolMessageType('GetSummaryResponse', (_message.Message,), {
-  'DESCRIPTOR' : _GETSUMMARYRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.GetSummaryResponse)
-  })
+GetSummaryResponse = _reflection.GeneratedProtocolMessageType(
+    "GetSummaryResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _GETSUMMARYRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.GetSummaryResponse)
+    },
+)
 _sym_db.RegisterMessage(GetSummaryResponse)
 
-StatusRequest = _reflection.GeneratedProtocolMessageType('StatusRequest', (_message.Message,), {
-  'DESCRIPTOR' : _STATUSREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.StatusRequest)
-  })
+StatusRequest = _reflection.GeneratedProtocolMessageType(
+    "StatusRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _STATUSREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.StatusRequest)
+    },
+)
 _sym_db.RegisterMessage(StatusRequest)
 
-StatusResponse = _reflection.GeneratedProtocolMessageType('StatusResponse', (_message.Message,), {
-  'DESCRIPTOR' : _STATUSRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.StatusResponse)
-  })
+StatusResponse = _reflection.GeneratedProtocolMessageType(
+    "StatusResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _STATUSRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.StatusResponse)
+    },
+)
 _sym_db.RegisterMessage(StatusResponse)
 
-StopStatusRequest = _reflection.GeneratedProtocolMessageType('StopStatusRequest', (_message.Message,), {
-  'DESCRIPTOR' : _STOPSTATUSREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.StopStatusRequest)
-  })
+StopStatusRequest = _reflection.GeneratedProtocolMessageType(
+    "StopStatusRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _STOPSTATUSREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.StopStatusRequest)
+    },
+)
 _sym_db.RegisterMessage(StopStatusRequest)
 
-StopStatusResponse = _reflection.GeneratedProtocolMessageType('StopStatusResponse', (_message.Message,), {
-  'DESCRIPTOR' : _STOPSTATUSRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.StopStatusResponse)
-  })
+StopStatusResponse = _reflection.GeneratedProtocolMessageType(
+    "StopStatusResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _STOPSTATUSRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.StopStatusResponse)
+    },
+)
 _sym_db.RegisterMessage(StopStatusResponse)
 
-NetworkStatusRequest = _reflection.GeneratedProtocolMessageType('NetworkStatusRequest', (_message.Message,), {
-  'DESCRIPTOR' : _NETWORKSTATUSREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.NetworkStatusRequest)
-  })
+NetworkStatusRequest = _reflection.GeneratedProtocolMessageType(
+    "NetworkStatusRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _NETWORKSTATUSREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.NetworkStatusRequest)
+    },
+)
 _sym_db.RegisterMessage(NetworkStatusRequest)
 
-NetworkStatusResponse = _reflection.GeneratedProtocolMessageType('NetworkStatusResponse', (_message.Message,), {
-  'DESCRIPTOR' : _NETWORKSTATUSRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.NetworkStatusResponse)
-  })
+NetworkStatusResponse = _reflection.GeneratedProtocolMessageType(
+    "NetworkStatusResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _NETWORKSTATUSRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.NetworkStatusResponse)
+    },
+)
 _sym_db.RegisterMessage(NetworkStatusResponse)
 
-HttpResponse = _reflection.GeneratedProtocolMessageType('HttpResponse', (_message.Message,), {
-  'DESCRIPTOR' : _HTTPRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.HttpResponse)
-  })
+HttpResponse = _reflection.GeneratedProtocolMessageType(
+    "HttpResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _HTTPRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.HttpResponse)
+    },
+)
 _sym_db.RegisterMessage(HttpResponse)
 
-PollExitRequest = _reflection.GeneratedProtocolMessageType('PollExitRequest', (_message.Message,), {
-  'DESCRIPTOR' : _POLLEXITREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.PollExitRequest)
-  })
+PollExitRequest = _reflection.GeneratedProtocolMessageType(
+    "PollExitRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _POLLEXITREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.PollExitRequest)
+    },
+)
 _sym_db.RegisterMessage(PollExitRequest)
 
-PollExitResponse = _reflection.GeneratedProtocolMessageType('PollExitResponse', (_message.Message,), {
-  'DESCRIPTOR' : _POLLEXITRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.PollExitResponse)
-  })
+PollExitResponse = _reflection.GeneratedProtocolMessageType(
+    "PollExitResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _POLLEXITRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.PollExitResponse)
+    },
+)
 _sym_db.RegisterMessage(PollExitResponse)
 
-SenderMarkRequest = _reflection.GeneratedProtocolMessageType('SenderMarkRequest', (_message.Message,), {
-  'DESCRIPTOR' : _SENDERMARKREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SenderMarkRequest)
-  })
+SenderMarkRequest = _reflection.GeneratedProtocolMessageType(
+    "SenderMarkRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SENDERMARKREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SenderMarkRequest)
+    },
+)
 _sym_db.RegisterMessage(SenderMarkRequest)
 
-SenderReadRequest = _reflection.GeneratedProtocolMessageType('SenderReadRequest', (_message.Message,), {
-  'DESCRIPTOR' : _SENDERREADREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SenderReadRequest)
-  })
+SenderReadRequest = _reflection.GeneratedProtocolMessageType(
+    "SenderReadRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SENDERREADREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SenderReadRequest)
+    },
+)
 _sym_db.RegisterMessage(SenderReadRequest)
 
-StatusReportRequest = _reflection.GeneratedProtocolMessageType('StatusReportRequest', (_message.Message,), {
-  'DESCRIPTOR' : _STATUSREPORTREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.StatusReportRequest)
-  })
+StatusReportRequest = _reflection.GeneratedProtocolMessageType(
+    "StatusReportRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _STATUSREPORTREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.StatusReportRequest)
+    },
+)
 _sym_db.RegisterMessage(StatusReportRequest)
 
-SummaryRecordRequest = _reflection.GeneratedProtocolMessageType('SummaryRecordRequest', (_message.Message,), {
-  'DESCRIPTOR' : _SUMMARYRECORDREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SummaryRecordRequest)
-  })
+SummaryRecordRequest = _reflection.GeneratedProtocolMessageType(
+    "SummaryRecordRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SUMMARYRECORDREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SummaryRecordRequest)
+    },
+)
 _sym_db.RegisterMessage(SummaryRecordRequest)
 
-TelemetryRecordRequest = _reflection.GeneratedProtocolMessageType('TelemetryRecordRequest', (_message.Message,), {
-  'DESCRIPTOR' : _TELEMETRYRECORDREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.TelemetryRecordRequest)
-  })
+TelemetryRecordRequest = _reflection.GeneratedProtocolMessageType(
+    "TelemetryRecordRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _TELEMETRYRECORDREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.TelemetryRecordRequest)
+    },
+)
 _sym_db.RegisterMessage(TelemetryRecordRequest)
 
-ServerInfoRequest = _reflection.GeneratedProtocolMessageType('ServerInfoRequest', (_message.Message,), {
-  'DESCRIPTOR' : _SERVERINFOREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ServerInfoRequest)
-  })
+ServerInfoRequest = _reflection.GeneratedProtocolMessageType(
+    "ServerInfoRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SERVERINFOREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ServerInfoRequest)
+    },
+)
 _sym_db.RegisterMessage(ServerInfoRequest)
 
-ServerInfoResponse = _reflection.GeneratedProtocolMessageType('ServerInfoResponse', (_message.Message,), {
-  'DESCRIPTOR' : _SERVERINFORESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ServerInfoResponse)
-  })
+ServerInfoResponse = _reflection.GeneratedProtocolMessageType(
+    "ServerInfoResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SERVERINFORESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ServerInfoResponse)
+    },
+)
 _sym_db.RegisterMessage(ServerInfoResponse)
 
-ServerMessages = _reflection.GeneratedProtocolMessageType('ServerMessages', (_message.Message,), {
-  'DESCRIPTOR' : _SERVERMESSAGES,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ServerMessages)
-  })
+ServerMessages = _reflection.GeneratedProtocolMessageType(
+    "ServerMessages",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SERVERMESSAGES,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ServerMessages)
+    },
+)
 _sym_db.RegisterMessage(ServerMessages)
 
-ServerMessage = _reflection.GeneratedProtocolMessageType('ServerMessage', (_message.Message,), {
-  'DESCRIPTOR' : _SERVERMESSAGE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ServerMessage)
-  })
+ServerMessage = _reflection.GeneratedProtocolMessageType(
+    "ServerMessage",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SERVERMESSAGE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ServerMessage)
+    },
+)
 _sym_db.RegisterMessage(ServerMessage)
 
-FileCounts = _reflection.GeneratedProtocolMessageType('FileCounts', (_message.Message,), {
-  'DESCRIPTOR' : _FILECOUNTS,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.FileCounts)
-  })
+FileCounts = _reflection.GeneratedProtocolMessageType(
+    "FileCounts",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _FILECOUNTS,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.FileCounts)
+    },
+)
 _sym_db.RegisterMessage(FileCounts)
 
-FilePusherStats = _reflection.GeneratedProtocolMessageType('FilePusherStats', (_message.Message,), {
-  'DESCRIPTOR' : _FILEPUSHERSTATS,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.FilePusherStats)
-  })
+FilePusherStats = _reflection.GeneratedProtocolMessageType(
+    "FilePusherStats",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _FILEPUSHERSTATS,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.FilePusherStats)
+    },
+)
 _sym_db.RegisterMessage(FilePusherStats)
 
-LocalInfo = _reflection.GeneratedProtocolMessageType('LocalInfo', (_message.Message,), {
-  'DESCRIPTOR' : _LOCALINFO,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LocalInfo)
-  })
+LocalInfo = _reflection.GeneratedProtocolMessageType(
+    "LocalInfo",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _LOCALINFO,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.LocalInfo)
+    },
+)
 _sym_db.RegisterMessage(LocalInfo)
 
-ShutdownRequest = _reflection.GeneratedProtocolMessageType('ShutdownRequest', (_message.Message,), {
-  'DESCRIPTOR' : _SHUTDOWNREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ShutdownRequest)
-  })
+ShutdownRequest = _reflection.GeneratedProtocolMessageType(
+    "ShutdownRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SHUTDOWNREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ShutdownRequest)
+    },
+)
 _sym_db.RegisterMessage(ShutdownRequest)
 
-ShutdownResponse = _reflection.GeneratedProtocolMessageType('ShutdownResponse', (_message.Message,), {
-  'DESCRIPTOR' : _SHUTDOWNRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ShutdownResponse)
-  })
+ShutdownResponse = _reflection.GeneratedProtocolMessageType(
+    "ShutdownResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SHUTDOWNRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ShutdownResponse)
+    },
+)
 _sym_db.RegisterMessage(ShutdownResponse)
 
-AttachRequest = _reflection.GeneratedProtocolMessageType('AttachRequest', (_message.Message,), {
-  'DESCRIPTOR' : _ATTACHREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.AttachRequest)
-  })
+AttachRequest = _reflection.GeneratedProtocolMessageType(
+    "AttachRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ATTACHREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.AttachRequest)
+    },
+)
 _sym_db.RegisterMessage(AttachRequest)
 
-AttachResponse = _reflection.GeneratedProtocolMessageType('AttachResponse', (_message.Message,), {
-  'DESCRIPTOR' : _ATTACHRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.AttachResponse)
-  })
+AttachResponse = _reflection.GeneratedProtocolMessageType(
+    "AttachResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ATTACHRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.AttachResponse)
+    },
+)
 _sym_db.RegisterMessage(AttachResponse)
 
-TestInjectRequest = _reflection.GeneratedProtocolMessageType('TestInjectRequest', (_message.Message,), {
-  'DESCRIPTOR' : _TESTINJECTREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.TestInjectRequest)
-  })
+TestInjectRequest = _reflection.GeneratedProtocolMessageType(
+    "TestInjectRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _TESTINJECTREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.TestInjectRequest)
+    },
+)
 _sym_db.RegisterMessage(TestInjectRequest)
 
-TestInjectResponse = _reflection.GeneratedProtocolMessageType('TestInjectResponse', (_message.Message,), {
-  'DESCRIPTOR' : _TESTINJECTRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.TestInjectResponse)
-  })
+TestInjectResponse = _reflection.GeneratedProtocolMessageType(
+    "TestInjectResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _TESTINJECTRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.TestInjectResponse)
+    },
+)
 _sym_db.RegisterMessage(TestInjectResponse)
 
-HistoryAction = _reflection.GeneratedProtocolMessageType('HistoryAction', (_message.Message,), {
-  'DESCRIPTOR' : _HISTORYACTION,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.HistoryAction)
-  })
+HistoryAction = _reflection.GeneratedProtocolMessageType(
+    "HistoryAction",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _HISTORYACTION,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.HistoryAction)
+    },
+)
 _sym_db.RegisterMessage(HistoryAction)
 
-PartialHistoryRequest = _reflection.GeneratedProtocolMessageType('PartialHistoryRequest', (_message.Message,), {
-  'DESCRIPTOR' : _PARTIALHISTORYREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.PartialHistoryRequest)
-  })
+PartialHistoryRequest = _reflection.GeneratedProtocolMessageType(
+    "PartialHistoryRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _PARTIALHISTORYREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.PartialHistoryRequest)
+    },
+)
 _sym_db.RegisterMessage(PartialHistoryRequest)
 
-PartialHistoryResponse = _reflection.GeneratedProtocolMessageType('PartialHistoryResponse', (_message.Message,), {
-  'DESCRIPTOR' : _PARTIALHISTORYRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.PartialHistoryResponse)
-  })
+PartialHistoryResponse = _reflection.GeneratedProtocolMessageType(
+    "PartialHistoryResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _PARTIALHISTORYRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.PartialHistoryResponse)
+    },
+)
 _sym_db.RegisterMessage(PartialHistoryResponse)
 
-SampledHistoryRequest = _reflection.GeneratedProtocolMessageType('SampledHistoryRequest', (_message.Message,), {
-  'DESCRIPTOR' : _SAMPLEDHISTORYREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SampledHistoryRequest)
-  })
+SampledHistoryRequest = _reflection.GeneratedProtocolMessageType(
+    "SampledHistoryRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SAMPLEDHISTORYREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SampledHistoryRequest)
+    },
+)
 _sym_db.RegisterMessage(SampledHistoryRequest)
 
-SampledHistoryItem = _reflection.GeneratedProtocolMessageType('SampledHistoryItem', (_message.Message,), {
-  'DESCRIPTOR' : _SAMPLEDHISTORYITEM,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SampledHistoryItem)
-  })
+SampledHistoryItem = _reflection.GeneratedProtocolMessageType(
+    "SampledHistoryItem",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SAMPLEDHISTORYITEM,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SampledHistoryItem)
+    },
+)
 _sym_db.RegisterMessage(SampledHistoryItem)
 
-SampledHistoryResponse = _reflection.GeneratedProtocolMessageType('SampledHistoryResponse', (_message.Message,), {
-  'DESCRIPTOR' : _SAMPLEDHISTORYRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.SampledHistoryResponse)
-  })
+SampledHistoryResponse = _reflection.GeneratedProtocolMessageType(
+    "SampledHistoryResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SAMPLEDHISTORYRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.SampledHistoryResponse)
+    },
+)
 _sym_db.RegisterMessage(SampledHistoryResponse)
 
-RunStatusRequest = _reflection.GeneratedProtocolMessageType('RunStatusRequest', (_message.Message,), {
-  'DESCRIPTOR' : _RUNSTATUSREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunStatusRequest)
-  })
+RunStatusRequest = _reflection.GeneratedProtocolMessageType(
+    "RunStatusRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNSTATUSREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunStatusRequest)
+    },
+)
 _sym_db.RegisterMessage(RunStatusRequest)
 
-RunStatusResponse = _reflection.GeneratedProtocolMessageType('RunStatusResponse', (_message.Message,), {
-  'DESCRIPTOR' : _RUNSTATUSRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunStatusResponse)
-  })
+RunStatusResponse = _reflection.GeneratedProtocolMessageType(
+    "RunStatusResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNSTATUSRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunStatusResponse)
+    },
+)
 _sym_db.RegisterMessage(RunStatusResponse)
 
-RunStartRequest = _reflection.GeneratedProtocolMessageType('RunStartRequest', (_message.Message,), {
-  'DESCRIPTOR' : _RUNSTARTREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunStartRequest)
-  })
+RunStartRequest = _reflection.GeneratedProtocolMessageType(
+    "RunStartRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNSTARTREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunStartRequest)
+    },
+)
 _sym_db.RegisterMessage(RunStartRequest)
 
-RunStartResponse = _reflection.GeneratedProtocolMessageType('RunStartResponse', (_message.Message,), {
-  'DESCRIPTOR' : _RUNSTARTRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunStartResponse)
-  })
+RunStartResponse = _reflection.GeneratedProtocolMessageType(
+    "RunStartResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _RUNSTARTRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.RunStartResponse)
+    },
+)
 _sym_db.RegisterMessage(RunStartResponse)
 
-CheckVersionRequest = _reflection.GeneratedProtocolMessageType('CheckVersionRequest', (_message.Message,), {
-  'DESCRIPTOR' : _CHECKVERSIONREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.CheckVersionRequest)
-  })
+CheckVersionRequest = _reflection.GeneratedProtocolMessageType(
+    "CheckVersionRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _CHECKVERSIONREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.CheckVersionRequest)
+    },
+)
 _sym_db.RegisterMessage(CheckVersionRequest)
 
-CheckVersionResponse = _reflection.GeneratedProtocolMessageType('CheckVersionResponse', (_message.Message,), {
-  'DESCRIPTOR' : _CHECKVERSIONRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.CheckVersionResponse)
-  })
+CheckVersionResponse = _reflection.GeneratedProtocolMessageType(
+    "CheckVersionResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _CHECKVERSIONRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.CheckVersionResponse)
+    },
+)
 _sym_db.RegisterMessage(CheckVersionResponse)
 
-JobInfoRequest = _reflection.GeneratedProtocolMessageType('JobInfoRequest', (_message.Message,), {
-  'DESCRIPTOR' : _JOBINFOREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.JobInfoRequest)
-  })
+JobInfoRequest = _reflection.GeneratedProtocolMessageType(
+    "JobInfoRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _JOBINFOREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.JobInfoRequest)
+    },
+)
 _sym_db.RegisterMessage(JobInfoRequest)
 
-JobInfoResponse = _reflection.GeneratedProtocolMessageType('JobInfoResponse', (_message.Message,), {
-  'DESCRIPTOR' : _JOBINFORESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.JobInfoResponse)
-  })
+JobInfoResponse = _reflection.GeneratedProtocolMessageType(
+    "JobInfoResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _JOBINFORESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.JobInfoResponse)
+    },
+)
 _sym_db.RegisterMessage(JobInfoResponse)
 
-LogArtifactRequest = _reflection.GeneratedProtocolMessageType('LogArtifactRequest', (_message.Message,), {
-  'DESCRIPTOR' : _LOGARTIFACTREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LogArtifactRequest)
-  })
+LogArtifactRequest = _reflection.GeneratedProtocolMessageType(
+    "LogArtifactRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _LOGARTIFACTREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.LogArtifactRequest)
+    },
+)
 _sym_db.RegisterMessage(LogArtifactRequest)
 
-LogArtifactResponse = _reflection.GeneratedProtocolMessageType('LogArtifactResponse', (_message.Message,), {
-  'DESCRIPTOR' : _LOGARTIFACTRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LogArtifactResponse)
-  })
+LogArtifactResponse = _reflection.GeneratedProtocolMessageType(
+    "LogArtifactResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _LOGARTIFACTRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.LogArtifactResponse)
+    },
+)
 _sym_db.RegisterMessage(LogArtifactResponse)
 
-ArtifactSendRequest = _reflection.GeneratedProtocolMessageType('ArtifactSendRequest', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTSENDREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactSendRequest)
-  })
+ArtifactSendRequest = _reflection.GeneratedProtocolMessageType(
+    "ArtifactSendRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTSENDREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactSendRequest)
+    },
+)
 _sym_db.RegisterMessage(ArtifactSendRequest)
 
-ArtifactSendResponse = _reflection.GeneratedProtocolMessageType('ArtifactSendResponse', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTSENDRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactSendResponse)
-  })
+ArtifactSendResponse = _reflection.GeneratedProtocolMessageType(
+    "ArtifactSendResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTSENDRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactSendResponse)
+    },
+)
 _sym_db.RegisterMessage(ArtifactSendResponse)
 
-ArtifactPollRequest = _reflection.GeneratedProtocolMessageType('ArtifactPollRequest', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTPOLLREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactPollRequest)
-  })
+ArtifactPollRequest = _reflection.GeneratedProtocolMessageType(
+    "ArtifactPollRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTPOLLREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactPollRequest)
+    },
+)
 _sym_db.RegisterMessage(ArtifactPollRequest)
 
-ArtifactPollResponse = _reflection.GeneratedProtocolMessageType('ArtifactPollResponse', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTPOLLRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactPollResponse)
-  })
+ArtifactPollResponse = _reflection.GeneratedProtocolMessageType(
+    "ArtifactPollResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTPOLLRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactPollResponse)
+    },
+)
 _sym_db.RegisterMessage(ArtifactPollResponse)
 
-ArtifactDoneRequest = _reflection.GeneratedProtocolMessageType('ArtifactDoneRequest', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTDONEREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactDoneRequest)
-  })
+ArtifactDoneRequest = _reflection.GeneratedProtocolMessageType(
+    "ArtifactDoneRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTDONEREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactDoneRequest)
+    },
+)
 _sym_db.RegisterMessage(ArtifactDoneRequest)
 
-KeepaliveRequest = _reflection.GeneratedProtocolMessageType('KeepaliveRequest', (_message.Message,), {
-  'DESCRIPTOR' : _KEEPALIVEREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.KeepaliveRequest)
-  })
+KeepaliveRequest = _reflection.GeneratedProtocolMessageType(
+    "KeepaliveRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _KEEPALIVEREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.KeepaliveRequest)
+    },
+)
 _sym_db.RegisterMessage(KeepaliveRequest)
 
-KeepaliveResponse = _reflection.GeneratedProtocolMessageType('KeepaliveResponse', (_message.Message,), {
-  'DESCRIPTOR' : _KEEPALIVERESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.KeepaliveResponse)
-  })
+KeepaliveResponse = _reflection.GeneratedProtocolMessageType(
+    "KeepaliveResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _KEEPALIVERESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.KeepaliveResponse)
+    },
+)
 _sym_db.RegisterMessage(KeepaliveResponse)
 
-ArtifactInfo = _reflection.GeneratedProtocolMessageType('ArtifactInfo', (_message.Message,), {
-  'DESCRIPTOR' : _ARTIFACTINFO,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactInfo)
-  })
+ArtifactInfo = _reflection.GeneratedProtocolMessageType(
+    "ArtifactInfo",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _ARTIFACTINFO,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ArtifactInfo)
+    },
+)
 _sym_db.RegisterMessage(ArtifactInfo)
 
-GitInfo = _reflection.GeneratedProtocolMessageType('GitInfo', (_message.Message,), {
-  'DESCRIPTOR' : _GITINFO,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.GitInfo)
-  })
+GitInfo = _reflection.GeneratedProtocolMessageType(
+    "GitInfo",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _GITINFO,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.GitInfo)
+    },
+)
 _sym_db.RegisterMessage(GitInfo)
 
-GitSource = _reflection.GeneratedProtocolMessageType('GitSource', (_message.Message,), {
-  'DESCRIPTOR' : _GITSOURCE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.GitSource)
-  })
+GitSource = _reflection.GeneratedProtocolMessageType(
+    "GitSource",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _GITSOURCE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.GitSource)
+    },
+)
 _sym_db.RegisterMessage(GitSource)
 
-ImageSource = _reflection.GeneratedProtocolMessageType('ImageSource', (_message.Message,), {
-  'DESCRIPTOR' : _IMAGESOURCE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ImageSource)
-  })
+ImageSource = _reflection.GeneratedProtocolMessageType(
+    "ImageSource",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _IMAGESOURCE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.ImageSource)
+    },
+)
 _sym_db.RegisterMessage(ImageSource)
 
-Source = _reflection.GeneratedProtocolMessageType('Source', (_message.Message,), {
-  'DESCRIPTOR' : _SOURCE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.Source)
-  })
+Source = _reflection.GeneratedProtocolMessageType(
+    "Source",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _SOURCE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.Source)
+    },
+)
 _sym_db.RegisterMessage(Source)
 
-JobSource = _reflection.GeneratedProtocolMessageType('JobSource', (_message.Message,), {
-  'DESCRIPTOR' : _JOBSOURCE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.JobSource)
-  })
+JobSource = _reflection.GeneratedProtocolMessageType(
+    "JobSource",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _JOBSOURCE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.JobSource)
+    },
+)
 _sym_db.RegisterMessage(JobSource)
 
-PartialJobArtifact = _reflection.GeneratedProtocolMessageType('PartialJobArtifact', (_message.Message,), {
-  'DESCRIPTOR' : _PARTIALJOBARTIFACT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.PartialJobArtifact)
-  })
+PartialJobArtifact = _reflection.GeneratedProtocolMessageType(
+    "PartialJobArtifact",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _PARTIALJOBARTIFACT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.PartialJobArtifact)
+    },
+)
 _sym_db.RegisterMessage(PartialJobArtifact)
 
-UseArtifactRecord = _reflection.GeneratedProtocolMessageType('UseArtifactRecord', (_message.Message,), {
-  'DESCRIPTOR' : _USEARTIFACTRECORD,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.UseArtifactRecord)
-  })
+UseArtifactRecord = _reflection.GeneratedProtocolMessageType(
+    "UseArtifactRecord",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _USEARTIFACTRECORD,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.UseArtifactRecord)
+    },
+)
 _sym_db.RegisterMessage(UseArtifactRecord)
 
-UseArtifactResult = _reflection.GeneratedProtocolMessageType('UseArtifactResult', (_message.Message,), {
-  'DESCRIPTOR' : _USEARTIFACTRESULT,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.UseArtifactResult)
-  })
+UseArtifactResult = _reflection.GeneratedProtocolMessageType(
+    "UseArtifactResult",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _USEARTIFACTRESULT,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.UseArtifactResult)
+    },
+)
 _sym_db.RegisterMessage(UseArtifactResult)
 
-CancelRequest = _reflection.GeneratedProtocolMessageType('CancelRequest', (_message.Message,), {
-  'DESCRIPTOR' : _CANCELREQUEST,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.CancelRequest)
-  })
+CancelRequest = _reflection.GeneratedProtocolMessageType(
+    "CancelRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _CANCELREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.CancelRequest)
+    },
+)
 _sym_db.RegisterMessage(CancelRequest)
 
-CancelResponse = _reflection.GeneratedProtocolMessageType('CancelResponse', (_message.Message,), {
-  'DESCRIPTOR' : _CANCELRESPONSE,
-  '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.CancelResponse)
-  })
+CancelResponse = _reflection.GeneratedProtocolMessageType(
+    "CancelResponse",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _CANCELRESPONSE,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.CancelResponse)
+    },
+)
 _sym_db.RegisterMessage(CancelResponse)
 
-if _descriptor._USE_C_DESCRIPTORS == False:
+MetaDiskInfo = _reflection.GeneratedProtocolMessageType(
+    "MetaDiskInfo",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METADISKINFO,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetaDiskInfo)
+    },
+)
+_sym_db.RegisterMessage(MetaDiskInfo)
 
-  DESCRIPTOR._options = None
-  _RECORD._serialized_start=151
-  _RECORD._serialized_end=1331
-  _CONTROL._serialized_start=1334
-  _CONTROL._serialized_end=1479
-  _RESULT._serialized_start=1482
-  _RESULT._serialized_end=1981
-  _FINALRECORD._serialized_start=1983
-  _FINALRECORD._serialized_end=2041
-  _HEADERRECORD._serialized_start=2043
-  _HEADERRECORD._serialized_end=2102
-  _FOOTERRECORD._serialized_start=2104
-  _FOOTERRECORD._serialized_end=2163
-  _RUNRECORD._serialized_start=2166
-  _RUNRECORD._serialized_end=2756
-  _GITREPORECORD._serialized_start=2758
-  _GITREPORECORD._serialized_end=2809
-  _RUNUPDATERESULT._serialized_start=2811
-  _RUNUPDATERESULT._serialized_end=2910
-  _ERRORINFO._serialized_start=2913
-  _ERRORINFO._serialized_end=3085
-  _ERRORINFO_ERRORCODE._serialized_start=2994
-  _ERRORINFO_ERRORCODE._serialized_end=3085
-  _RUNEXITRECORD._serialized_start=3087
-  _RUNEXITRECORD._serialized_end=3183
-  _RUNEXITRESULT._serialized_start=3185
-  _RUNEXITRESULT._serialized_end=3200
-  _RUNPREEMPTINGRECORD._serialized_start=3202
-  _RUNPREEMPTINGRECORD._serialized_end=3268
-  _RUNPREEMPTINGRESULT._serialized_start=3270
-  _RUNPREEMPTINGRESULT._serialized_end=3291
-  _SETTINGSRECORD._serialized_start=3293
-  _SETTINGSRECORD._serialized_end=3398
-  _SETTINGSITEM._serialized_start=3400
-  _SETTINGSITEM._serialized_end=3447
-  _HISTORYSTEP._serialized_start=3449
-  _HISTORYSTEP._serialized_end=3475
-  _HISTORYRECORD._serialized_start=3478
-  _HISTORYRECORD._serialized_end=3624
-  _HISTORYITEM._serialized_start=3626
-  _HISTORYITEM._serialized_end=3692
-  _HISTORYRESULT._serialized_start=3694
-  _HISTORYRESULT._serialized_end=3709
-  _OUTPUTRECORD._serialized_start=3712
-  _OUTPUTRECORD._serialized_end=3932
-  _OUTPUTRECORD_OUTPUTTYPE._serialized_start=3896
-  _OUTPUTRECORD_OUTPUTTYPE._serialized_end=3932
-  _OUTPUTRESULT._serialized_start=3934
-  _OUTPUTRESULT._serialized_end=3948
-  _OUTPUTRAWRECORD._serialized_start=3951
-  _OUTPUTRAWRECORD._serialized_end=4177
-  _OUTPUTRAWRECORD_OUTPUTTYPE._serialized_start=3896
-  _OUTPUTRAWRECORD_OUTPUTTYPE._serialized_end=3932
-  _OUTPUTRAWRESULT._serialized_start=4179
-  _OUTPUTRAWRESULT._serialized_end=4196
-  _METRICRECORD._serialized_start=4199
-  _METRICRECORD._serialized_end=4607
-  _METRICRECORD_METRICGOAL._serialized_start=4541
-  _METRICRECORD_METRICGOAL._serialized_end=4607
-  _METRICRESULT._serialized_start=4609
-  _METRICRESULT._serialized_end=4623
-  _METRICOPTIONS._serialized_start=4625
-  _METRICOPTIONS._serialized_end=4692
-  _METRICCONTROL._serialized_start=4694
-  _METRICCONTROL._serialized_end=4728
-  _METRICSUMMARY._serialized_start=4730
-  _METRICSUMMARY._serialized_end=4841
-  _CONFIGRECORD._serialized_start=4844
-  _CONFIGRECORD._serialized_end=4991
-  _CONFIGITEM._serialized_start=4993
-  _CONFIGITEM._serialized_end=5058
-  _CONFIGRESULT._serialized_start=5060
-  _CONFIGRESULT._serialized_end=5074
-  _SUMMARYRECORD._serialized_start=5077
-  _SUMMARYRECORD._serialized_end=5227
-  _SUMMARYITEM._serialized_start=5229
-  _SUMMARYITEM._serialized_end=5295
-  _SUMMARYRESULT._serialized_start=5297
-  _SUMMARYRESULT._serialized_end=5312
-  _FILESRECORD._serialized_start=5314
-  _FILESRECORD._serialized_end=5414
-  _FILESITEM._serialized_start=5417
-  _FILESITEM._serialized_end=5561
-  _FILESITEM_POLICYTYPE._serialized_start=5521
-  _FILESITEM_POLICYTYPE._serialized_end=5561
-  _FILESRESULT._serialized_start=5563
-  _FILESRESULT._serialized_end=5576
-  _STATSRECORD._serialized_start=5579
-  _STATSRECORD._serialized_end=5809
-  _STATSRECORD_STATSTYPE._serialized_start=5786
-  _STATSRECORD_STATSTYPE._serialized_end=5809
-  _STATSITEM._serialized_start=5811
-  _STATSITEM._serialized_end=5855
-  _ARTIFACTRECORD._serialized_start=5858
-  _ARTIFACTRECORD._serialized_end=6331
-  _ARTIFACTMANIFEST._serialized_start=6334
-  _ARTIFACTMANIFEST._serialized_end=6522
-  _ARTIFACTMANIFESTENTRY._serialized_start=6525
-  _ARTIFACTMANIFESTENTRY._serialized_end=6712
-  _EXTRAITEM._serialized_start=6714
-  _EXTRAITEM._serialized_end=6758
-  _STORAGEPOLICYCONFIGITEM._serialized_start=6760
-  _STORAGEPOLICYCONFIGITEM._serialized_end=6818
-  _ARTIFACTRESULT._serialized_start=6820
-  _ARTIFACTRESULT._serialized_end=6836
-  _LINKARTIFACTRESULT._serialized_start=6838
-  _LINKARTIFACTRESULT._serialized_end=6858
-  _LINKARTIFACTRECORD._serialized_start=6861
-  _LINKARTIFACTRECORD._serialized_end=7068
-  _TBRECORD._serialized_start=7070
-  _TBRECORD._serialized_end=7174
-  _TBRESULT._serialized_start=7176
-  _TBRESULT._serialized_end=7186
-  _ALERTRECORD._serialized_start=7188
-  _ALERTRECORD._serialized_end=7313
-  _ALERTRESULT._serialized_start=7315
-  _ALERTRESULT._serialized_end=7328
-  _REQUEST._serialized_start=7331
-  _REQUEST._serialized_end=9064
-  _RESPONSE._serialized_start=9067
-  _RESPONSE._serialized_end=10421
-  _DEFERREQUEST._serialized_start=10424
-  _DEFERREQUEST._serialized_end=10744
-  _DEFERREQUEST_DEFERSTATE._serialized_start=10497
-  _DEFERREQUEST_DEFERSTATE._serialized_end=10744
-  _PAUSEREQUEST._serialized_start=10746
-  _PAUSEREQUEST._serialized_end=10806
-  _PAUSERESPONSE._serialized_start=10808
-  _PAUSERESPONSE._serialized_end=10823
-  _RESUMEREQUEST._serialized_start=10825
-  _RESUMEREQUEST._serialized_end=10886
-  _RESUMERESPONSE._serialized_start=10888
-  _RESUMERESPONSE._serialized_end=10904
-  _LOGINREQUEST._serialized_start=10906
-  _LOGINREQUEST._serialized_end=10983
-  _LOGINRESPONSE._serialized_start=10985
-  _LOGINRESPONSE._serialized_end=11023
-  _GETSUMMARYREQUEST._serialized_start=11025
-  _GETSUMMARYREQUEST._serialized_end=11090
-  _GETSUMMARYRESPONSE._serialized_start=11092
-  _GETSUMMARYRESPONSE._serialized_end=11155
-  _STATUSREQUEST._serialized_start=11157
-  _STATUSREQUEST._serialized_end=11218
-  _STATUSRESPONSE._serialized_start=11220
-  _STATUSRESPONSE._serialized_end=11261
-  _STOPSTATUSREQUEST._serialized_start=11263
-  _STOPSTATUSREQUEST._serialized_end=11328
-  _STOPSTATUSRESPONSE._serialized_start=11330
-  _STOPSTATUSRESPONSE._serialized_end=11375
-  _NETWORKSTATUSREQUEST._serialized_start=11377
-  _NETWORKSTATUSREQUEST._serialized_end=11445
-  _NETWORKSTATUSRESPONSE._serialized_start=11447
-  _NETWORKSTATUSRESPONSE._serialized_end=11527
-  _HTTPRESPONSE._serialized_start=11529
-  _HTTPRESPONSE._serialized_end=11597
-  _POLLEXITREQUEST._serialized_start=11599
-  _POLLEXITREQUEST._serialized_end=11662
-  _POLLEXITRESPONSE._serialized_start=11665
-  _POLLEXITRESPONSE._serialized_end=11853
-  _SENDERMARKREQUEST._serialized_start=11855
-  _SENDERMARKREQUEST._serialized_end=11874
-  _SENDERREADREQUEST._serialized_start=11876
-  _SENDERREADREQUEST._serialized_end=11939
-  _STATUSREPORTREQUEST._serialized_start=11941
-  _STATUSREPORTREQUEST._serialized_end=12050
-  _SUMMARYRECORDREQUEST._serialized_start=12052
-  _SUMMARYRECORDREQUEST._serialized_end=12122
-  _TELEMETRYRECORDREQUEST._serialized_start=12124
-  _TELEMETRYRECORDREQUEST._serialized_end=12200
-  _SERVERINFOREQUEST._serialized_start=12202
-  _SERVERINFOREQUEST._serialized_end=12267
-  _SERVERINFORESPONSE._serialized_start=12269
-  _SERVERINFORESPONSE._serialized_end=12393
-  _SERVERMESSAGES._serialized_start=12395
-  _SERVERMESSAGES._serialized_end=12456
-  _SERVERMESSAGE._serialized_start=12458
-  _SERVERMESSAGE._serialized_end=12559
-  _FILECOUNTS._serialized_start=12561
-  _FILECOUNTS._serialized_end=12660
-  _FILEPUSHERSTATS._serialized_start=12662
-  _FILEPUSHERSTATS._serialized_end=12747
-  _LOCALINFO._serialized_start=12749
-  _LOCALINFO._serialized_end=12798
-  _SHUTDOWNREQUEST._serialized_start=12800
-  _SHUTDOWNREQUEST._serialized_end=12863
-  _SHUTDOWNRESPONSE._serialized_start=12865
-  _SHUTDOWNRESPONSE._serialized_end=12883
-  _ATTACHREQUEST._serialized_start=12885
-  _ATTACHREQUEST._serialized_end=12965
-  _ATTACHRESPONSE._serialized_start=12967
-  _ATTACHRESPONSE._serialized_end=13065
-  _TESTINJECTREQUEST._serialized_start=13068
-  _TESTINJECTREQUEST._serialized_end=13409
-  _TESTINJECTRESPONSE._serialized_start=13411
-  _TESTINJECTRESPONSE._serialized_end=13431
-  _HISTORYACTION._serialized_start=13433
-  _HISTORYACTION._serialized_end=13463
-  _PARTIALHISTORYREQUEST._serialized_start=13466
-  _PARTIALHISTORYREQUEST._serialized_end=13668
-  _PARTIALHISTORYRESPONSE._serialized_start=13670
-  _PARTIALHISTORYRESPONSE._serialized_end=13694
-  _SAMPLEDHISTORYREQUEST._serialized_start=13696
-  _SAMPLEDHISTORYREQUEST._serialized_end=13765
-  _SAMPLEDHISTORYITEM._serialized_start=13767
-  _SAMPLEDHISTORYITEM._serialized_end=13862
-  _SAMPLEDHISTORYRESPONSE._serialized_start=13864
-  _SAMPLEDHISTORYRESPONSE._serialized_end=13938
-  _RUNSTATUSREQUEST._serialized_start=13940
-  _RUNSTATUSREQUEST._serialized_end=14004
-  _RUNSTATUSRESPONSE._serialized_start=14006
-  _RUNSTATUSRESPONSE._serialized_end=14126
-  _RUNSTARTREQUEST._serialized_start=14128
-  _RUNSTARTREQUEST._serialized_end=14231
-  _RUNSTARTRESPONSE._serialized_start=14233
-  _RUNSTARTRESPONSE._serialized_end=14251
-  _CHECKVERSIONREQUEST._serialized_start=14253
-  _CHECKVERSIONREQUEST._serialized_end=14345
-  _CHECKVERSIONRESPONSE._serialized_start=14347
-  _CHECKVERSIONRESPONSE._serialized_end=14440
-  _JOBINFOREQUEST._serialized_start=14442
-  _JOBINFOREQUEST._serialized_end=14504
-  _JOBINFORESPONSE._serialized_start=14506
-  _JOBINFORESPONSE._serialized_end=14560
-  _LOGARTIFACTREQUEST._serialized_start=14563
-  _LOGARTIFACTREQUEST._serialized_end=14701
-  _LOGARTIFACTRESPONSE._serialized_start=14703
-  _LOGARTIFACTRESPONSE._serialized_end=14768
-  _ARTIFACTSENDREQUEST._serialized_start=14770
-  _ARTIFACTSENDREQUEST._serialized_end=14887
-  _ARTIFACTSENDRESPONSE._serialized_start=14889
-  _ARTIFACTSENDRESPONSE._serialized_end=14924
-  _ARTIFACTPOLLREQUEST._serialized_start=14926
-  _ARTIFACTPOLLREQUEST._serialized_end=15006
-  _ARTIFACTPOLLRESPONSE._serialized_start=15008
-  _ARTIFACTPOLLRESPONSE._serialized_end=15089
-  _ARTIFACTDONEREQUEST._serialized_start=15091
-  _ARTIFACTDONEREQUEST._serialized_end=15169
-  _KEEPALIVEREQUEST._serialized_start=15171
-  _KEEPALIVEREQUEST._serialized_end=15235
-  _KEEPALIVERESPONSE._serialized_start=15237
-  _KEEPALIVERESPONSE._serialized_end=15256
-  _ARTIFACTINFO._serialized_start=15258
-  _ARTIFACTINFO._serialized_end=15328
-  _GITINFO._serialized_start=15330
-  _GITINFO._serialized_end=15371
-  _GITSOURCE._serialized_start=15373
-  _GITSOURCE._serialized_end=15465
-  _IMAGESOURCE._serialized_start=15467
-  _IMAGESOURCE._serialized_end=15495
-  _SOURCE._serialized_start=15498
-  _SOURCE._serialized_end=15638
-  _JOBSOURCE._serialized_start=15640
-  _JOBSOURCE._serialized_end=15747
-  _PARTIALJOBARTIFACT._serialized_start=15749
-  _PARTIALJOBARTIFACT._serialized_end=15835
-  _USEARTIFACTRECORD._serialized_start=15838
-  _USEARTIFACTRECORD._serialized_end=15995
-  _USEARTIFACTRESULT._serialized_start=15997
-  _USEARTIFACTRESULT._serialized_end=16016
-  _CANCELREQUEST._serialized_start=16018
-  _CANCELREQUEST._serialized_end=16100
-  _CANCELRESPONSE._serialized_start=16102
-  _CANCELRESPONSE._serialized_end=16118
+MetaGpuAppleInfo = _reflection.GeneratedProtocolMessageType(
+    "MetaGpuAppleInfo",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METAGPUAPPLEINFO,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetaGpuAppleInfo)
+    },
+)
+_sym_db.RegisterMessage(MetaGpuAppleInfo)
+
+MetaMemInfo = _reflection.GeneratedProtocolMessageType(
+    "MetaMemInfo",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METAMEMINFO,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetaMemInfo)
+    },
+)
+_sym_db.RegisterMessage(MetaMemInfo)
+
+MetadataRequest = _reflection.GeneratedProtocolMessageType(
+    "MetadataRequest",
+    (_message.Message,),
+    {
+        "DESCRIPTOR": _METADATAREQUEST,
+        "__module__": "wandb.proto.wandb_internal_pb2"
+        # @@protoc_insertion_point(class_scope:wandb_internal.MetadataRequest)
+    },
+)
+_sym_db.RegisterMessage(MetadataRequest)
+
+if _descriptor._USE_C_DESCRIPTORS == False:
+    DESCRIPTOR._options = None
+    _RECORD._serialized_start = 151
+    _RECORD._serialized_end = 1331
+    _CONTROL._serialized_start = 1334
+    _CONTROL._serialized_end = 1502
+    _RESULT._serialized_start = 1505
+    _RESULT._serialized_end = 2004
+    _FINALRECORD._serialized_start = 2006
+    _FINALRECORD._serialized_end = 2064
+    _HEADERRECORD._serialized_start = 2066
+    _HEADERRECORD._serialized_end = 2125
+    _FOOTERRECORD._serialized_start = 2127
+    _FOOTERRECORD._serialized_end = 2186
+    _RUNRECORD._serialized_start = 2189
+    _RUNRECORD._serialized_end = 2779
+    _GITREPORECORD._serialized_start = 2781
+    _GITREPORECORD._serialized_end = 2832
+    _RUNUPDATERESULT._serialized_start = 2834
+    _RUNUPDATERESULT._serialized_end = 2933
+    _ERRORINFO._serialized_start = 2936
+    _ERRORINFO._serialized_end = 3108
+    _ERRORINFO_ERRORCODE._serialized_start = 3017
+    _ERRORINFO_ERRORCODE._serialized_end = 3108
+    _RUNEXITRECORD._serialized_start = 3110
+    _RUNEXITRECORD._serialized_end = 3206
+    _RUNEXITRESULT._serialized_start = 3208
+    _RUNEXITRESULT._serialized_end = 3223
+    _RUNPREEMPTINGRECORD._serialized_start = 3225
+    _RUNPREEMPTINGRECORD._serialized_end = 3291
+    _RUNPREEMPTINGRESULT._serialized_start = 3293
+    _RUNPREEMPTINGRESULT._serialized_end = 3314
+    _SETTINGSRECORD._serialized_start = 3316
+    _SETTINGSRECORD._serialized_end = 3421
+    _SETTINGSITEM._serialized_start = 3423
+    _SETTINGSITEM._serialized_end = 3470
+    _HISTORYSTEP._serialized_start = 3472
+    _HISTORYSTEP._serialized_end = 3498
+    _HISTORYRECORD._serialized_start = 3501
+    _HISTORYRECORD._serialized_end = 3647
+    _HISTORYITEM._serialized_start = 3649
+    _HISTORYITEM._serialized_end = 3715
+    _HISTORYRESULT._serialized_start = 3717
+    _HISTORYRESULT._serialized_end = 3732
+    _OUTPUTRECORD._serialized_start = 3735
+    _OUTPUTRECORD._serialized_end = 3955
+    _OUTPUTRECORD_OUTPUTTYPE._serialized_start = 3919
+    _OUTPUTRECORD_OUTPUTTYPE._serialized_end = 3955
+    _OUTPUTRESULT._serialized_start = 3957
+    _OUTPUTRESULT._serialized_end = 3971
+    _OUTPUTRAWRECORD._serialized_start = 3974
+    _OUTPUTRAWRECORD._serialized_end = 4200
+    _OUTPUTRAWRECORD_OUTPUTTYPE._serialized_start = 3919
+    _OUTPUTRAWRECORD_OUTPUTTYPE._serialized_end = 3955
+    _OUTPUTRAWRESULT._serialized_start = 4202
+    _OUTPUTRAWRESULT._serialized_end = 4219
+    _METRICRECORD._serialized_start = 4222
+    _METRICRECORD._serialized_end = 4630
+    _METRICRECORD_METRICGOAL._serialized_start = 4564
+    _METRICRECORD_METRICGOAL._serialized_end = 4630
+    _METRICRESULT._serialized_start = 4632
+    _METRICRESULT._serialized_end = 4646
+    _METRICOPTIONS._serialized_start = 4648
+    _METRICOPTIONS._serialized_end = 4715
+    _METRICCONTROL._serialized_start = 4717
+    _METRICCONTROL._serialized_end = 4751
+    _METRICSUMMARY._serialized_start = 4753
+    _METRICSUMMARY._serialized_end = 4864
+    _CONFIGRECORD._serialized_start = 4867
+    _CONFIGRECORD._serialized_end = 5014
+    _CONFIGITEM._serialized_start = 5016
+    _CONFIGITEM._serialized_end = 5081
+    _CONFIGRESULT._serialized_start = 5083
+    _CONFIGRESULT._serialized_end = 5097
+    _SUMMARYRECORD._serialized_start = 5100
+    _SUMMARYRECORD._serialized_end = 5250
+    _SUMMARYITEM._serialized_start = 5252
+    _SUMMARYITEM._serialized_end = 5318
+    _SUMMARYRESULT._serialized_start = 5320
+    _SUMMARYRESULT._serialized_end = 5335
+    _FILESRECORD._serialized_start = 5337
+    _FILESRECORD._serialized_end = 5437
+    _FILESITEM._serialized_start = 5440
+    _FILESITEM._serialized_end = 5584
+    _FILESITEM_POLICYTYPE._serialized_start = 5544
+    _FILESITEM_POLICYTYPE._serialized_end = 5584
+    _FILESRESULT._serialized_start = 5586
+    _FILESRESULT._serialized_end = 5599
+    _STATSRECORD._serialized_start = 5602
+    _STATSRECORD._serialized_end = 5832
+    _STATSRECORD_STATSTYPE._serialized_start = 5809
+    _STATSRECORD_STATSTYPE._serialized_end = 5832
+    _STATSITEM._serialized_start = 5834
+    _STATSITEM._serialized_end = 5878
+    _ARTIFACTRECORD._serialized_start = 5881
+    _ARTIFACTRECORD._serialized_end = 6324
+    _ARTIFACTMANIFEST._serialized_start = 6327
+    _ARTIFACTMANIFEST._serialized_end = 6515
+    _ARTIFACTMANIFESTENTRY._serialized_start = 6518
+    _ARTIFACTMANIFESTENTRY._serialized_end = 6705
+    _EXTRAITEM._serialized_start = 6707
+    _EXTRAITEM._serialized_end = 6751
+    _STORAGEPOLICYCONFIGITEM._serialized_start = 6753
+    _STORAGEPOLICYCONFIGITEM._serialized_end = 6811
+    _ARTIFACTRESULT._serialized_start = 6813
+    _ARTIFACTRESULT._serialized_end = 6829
+    _LINKARTIFACTRESULT._serialized_start = 6831
+    _LINKARTIFACTRESULT._serialized_end = 6851
+    _LINKARTIFACTRECORD._serialized_start = 6854
+    _LINKARTIFACTRECORD._serialized_end = 7061
+    _TBRECORD._serialized_start = 7063
+    _TBRECORD._serialized_end = 7167
+    _TBRESULT._serialized_start = 7169
+    _TBRESULT._serialized_end = 7179
+    _ALERTRECORD._serialized_start = 7181
+    _ALERTRECORD._serialized_end = 7306
+    _ALERTRESULT._serialized_start = 7308
+    _ALERTRESULT._serialized_end = 7321
+    _REQUEST._serialized_start = 7324
+    _REQUEST._serialized_end = 9110
+    _RESPONSE._serialized_start = 9113
+    _RESPONSE._serialized_end = 10467
+    _DEFERREQUEST._serialized_start = 10470
+    _DEFERREQUEST._serialized_end = 10790
+    _DEFERREQUEST_DEFERSTATE._serialized_start = 10543
+    _DEFERREQUEST_DEFERSTATE._serialized_end = 10790
+    _PAUSEREQUEST._serialized_start = 10792
+    _PAUSEREQUEST._serialized_end = 10852
+    _PAUSERESPONSE._serialized_start = 10854
+    _PAUSERESPONSE._serialized_end = 10869
+    _RESUMEREQUEST._serialized_start = 10871
+    _RESUMEREQUEST._serialized_end = 10932
+    _RESUMERESPONSE._serialized_start = 10934
+    _RESUMERESPONSE._serialized_end = 10950
+    _LOGINREQUEST._serialized_start = 10952
+    _LOGINREQUEST._serialized_end = 11029
+    _LOGINRESPONSE._serialized_start = 11031
+    _LOGINRESPONSE._serialized_end = 11069
+    _GETSUMMARYREQUEST._serialized_start = 11071
+    _GETSUMMARYREQUEST._serialized_end = 11136
+    _GETSUMMARYRESPONSE._serialized_start = 11138
+    _GETSUMMARYRESPONSE._serialized_end = 11201
+    _STATUSREQUEST._serialized_start = 11203
+    _STATUSREQUEST._serialized_end = 11264
+    _STATUSRESPONSE._serialized_start = 11266
+    _STATUSRESPONSE._serialized_end = 11307
+    _STOPSTATUSREQUEST._serialized_start = 11309
+    _STOPSTATUSREQUEST._serialized_end = 11374
+    _STOPSTATUSRESPONSE._serialized_start = 11376
+    _STOPSTATUSRESPONSE._serialized_end = 11421
+    _NETWORKSTATUSREQUEST._serialized_start = 11423
+    _NETWORKSTATUSREQUEST._serialized_end = 11491
+    _NETWORKSTATUSRESPONSE._serialized_start = 11493
+    _NETWORKSTATUSRESPONSE._serialized_end = 11573
+    _HTTPRESPONSE._serialized_start = 11575
+    _HTTPRESPONSE._serialized_end = 11643
+    _POLLEXITREQUEST._serialized_start = 11645
+    _POLLEXITREQUEST._serialized_end = 11708
+    _POLLEXITRESPONSE._serialized_start = 11711
+    _POLLEXITRESPONSE._serialized_end = 11899
+    _SENDERMARKREQUEST._serialized_start = 11901
+    _SENDERMARKREQUEST._serialized_end = 11920
+    _SENDERREADREQUEST._serialized_start = 11922
+    _SENDERREADREQUEST._serialized_end = 11985
+    _STATUSREPORTREQUEST._serialized_start = 11987
+    _STATUSREPORTREQUEST._serialized_end = 12096
+    _SUMMARYRECORDREQUEST._serialized_start = 12098
+    _SUMMARYRECORDREQUEST._serialized_end = 12168
+    _TELEMETRYRECORDREQUEST._serialized_start = 12170
+    _TELEMETRYRECORDREQUEST._serialized_end = 12246
+    _SERVERINFOREQUEST._serialized_start = 12248
+    _SERVERINFOREQUEST._serialized_end = 12313
+    _SERVERINFORESPONSE._serialized_start = 12315
+    _SERVERINFORESPONSE._serialized_end = 12439
+    _SERVERMESSAGES._serialized_start = 12441
+    _SERVERMESSAGES._serialized_end = 12502
+    _SERVERMESSAGE._serialized_start = 12504
+    _SERVERMESSAGE._serialized_end = 12605
+    _FILECOUNTS._serialized_start = 12607
+    _FILECOUNTS._serialized_end = 12706
+    _FILEPUSHERSTATS._serialized_start = 12708
+    _FILEPUSHERSTATS._serialized_end = 12793
+    _LOCALINFO._serialized_start = 12795
+    _LOCALINFO._serialized_end = 12844
+    _SHUTDOWNREQUEST._serialized_start = 12846
+    _SHUTDOWNREQUEST._serialized_end = 12909
+    _SHUTDOWNRESPONSE._serialized_start = 12911
+    _SHUTDOWNRESPONSE._serialized_end = 12929
+    _ATTACHREQUEST._serialized_start = 12931
+    _ATTACHREQUEST._serialized_end = 13011
+    _ATTACHRESPONSE._serialized_start = 13013
+    _ATTACHRESPONSE._serialized_end = 13111
+    _TESTINJECTREQUEST._serialized_start = 13114
+    _TESTINJECTREQUEST._serialized_end = 13455
+    _TESTINJECTRESPONSE._serialized_start = 13457
+    _TESTINJECTRESPONSE._serialized_end = 13477
+    _HISTORYACTION._serialized_start = 13479
+    _HISTORYACTION._serialized_end = 13509
+    _PARTIALHISTORYREQUEST._serialized_start = 13512
+    _PARTIALHISTORYREQUEST._serialized_end = 13714
+    _PARTIALHISTORYRESPONSE._serialized_start = 13716
+    _PARTIALHISTORYRESPONSE._serialized_end = 13740
+    _SAMPLEDHISTORYREQUEST._serialized_start = 13742
+    _SAMPLEDHISTORYREQUEST._serialized_end = 13811
+    _SAMPLEDHISTORYITEM._serialized_start = 13813
+    _SAMPLEDHISTORYITEM._serialized_end = 13908
+    _SAMPLEDHISTORYRESPONSE._serialized_start = 13910
+    _SAMPLEDHISTORYRESPONSE._serialized_end = 13984
+    _RUNSTATUSREQUEST._serialized_start = 13986
+    _RUNSTATUSREQUEST._serialized_end = 14050
+    _RUNSTATUSRESPONSE._serialized_start = 14052
+    _RUNSTATUSRESPONSE._serialized_end = 14172
+    _RUNSTARTREQUEST._serialized_start = 14174
+    _RUNSTARTREQUEST._serialized_end = 14277
+    _RUNSTARTRESPONSE._serialized_start = 14279
+    _RUNSTARTRESPONSE._serialized_end = 14297
+    _CHECKVERSIONREQUEST._serialized_start = 14299
+    _CHECKVERSIONREQUEST._serialized_end = 14391
+    _CHECKVERSIONRESPONSE._serialized_start = 14393
+    _CHECKVERSIONRESPONSE._serialized_end = 14486
+    _JOBINFOREQUEST._serialized_start = 14488
+    _JOBINFOREQUEST._serialized_end = 14550
+    _JOBINFORESPONSE._serialized_start = 14552
+    _JOBINFORESPONSE._serialized_end = 14606
+    _LOGARTIFACTREQUEST._serialized_start = 14609
+    _LOGARTIFACTREQUEST._serialized_end = 14747
+    _LOGARTIFACTRESPONSE._serialized_start = 14749
+    _LOGARTIFACTRESPONSE._serialized_end = 14814
+    _ARTIFACTSENDREQUEST._serialized_start = 14816
+    _ARTIFACTSENDREQUEST._serialized_end = 14933
+    _ARTIFACTSENDRESPONSE._serialized_start = 14935
+    _ARTIFACTSENDRESPONSE._serialized_end = 14970
+    _ARTIFACTPOLLREQUEST._serialized_start = 14972
+    _ARTIFACTPOLLREQUEST._serialized_end = 15052
+    _ARTIFACTPOLLRESPONSE._serialized_start = 15054
+    _ARTIFACTPOLLRESPONSE._serialized_end = 15135
+    _ARTIFACTDONEREQUEST._serialized_start = 15137
+    _ARTIFACTDONEREQUEST._serialized_end = 15215
+    _KEEPALIVEREQUEST._serialized_start = 15217
+    _KEEPALIVEREQUEST._serialized_end = 15281
+    _KEEPALIVERESPONSE._serialized_start = 15283
+    _KEEPALIVERESPONSE._serialized_end = 15302
+    _ARTIFACTINFO._serialized_start = 15304
+    _ARTIFACTINFO._serialized_end = 15374
+    _GITINFO._serialized_start = 15376
+    _GITINFO._serialized_end = 15417
+    _GITSOURCE._serialized_start = 15419
+    _GITSOURCE._serialized_end = 15511
+    _IMAGESOURCE._serialized_start = 15513
+    _IMAGESOURCE._serialized_end = 15541
+    _SOURCE._serialized_start = 15544
+    _SOURCE._serialized_end = 15684
+    _JOBSOURCE._serialized_start = 15686
+    _JOBSOURCE._serialized_end = 15793
+    _PARTIALJOBARTIFACT._serialized_start = 15795
+    _PARTIALJOBARTIFACT._serialized_end = 15881
+    _USEARTIFACTRECORD._serialized_start = 15884
+    _USEARTIFACTRECORD._serialized_end = 16041
+    _USEARTIFACTRESULT._serialized_start = 16043
+    _USEARTIFACTRESULT._serialized_end = 16062
+    _CANCELREQUEST._serialized_start = 16064
+    _CANCELREQUEST._serialized_end = 16146
+    _CANCELRESPONSE._serialized_start = 16148
+    _CANCELRESPONSE._serialized_end = 16164
+    _METADISKINFO._serialized_start = 16166
+    _METADISKINFO._serialized_end = 16209
+    _METAGPUAPPLEINFO._serialized_start = 16211
+    _METAGPUAPPLEINFO._serialized_end = 16262
+    _METAMEMINFO._serialized_start = 16264
+    _METAMEMINFO._serialized_end = 16292
+    _METADATAREQUEST._serialized_start = 16295
+    _METADATAREQUEST._serialized_end = 16872
 # @@protoc_insertion_point(module_scope)
