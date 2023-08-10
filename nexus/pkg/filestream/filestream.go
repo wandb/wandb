@@ -30,6 +30,7 @@ const (
 var completeTrue bool = true
 
 type ChunkFile int8
+type FileStreamOffsetMap map[ChunkFile]int
 
 const (
 	HistoryChunk ChunkFile = iota
@@ -81,8 +82,8 @@ type FileStream struct {
 
 	path string
 
-	// FIXME this should be per db
-	offset map[ChunkFile]int
+	// keep track of where we are streaming each file chunk
+	offsetMap FileStreamOffsetMap
 
 	// settings is the settings for the filestream
 	settings *service.Settings
@@ -145,6 +146,14 @@ func WithHeartbeatTime(heartbeatTime time.Duration) FileStreamOption {
 	}
 }
 
+func WithOffsets(offsetMap FileStreamOffsetMap) FileStreamOption {
+	return func(fs *FileStream) {
+		for k, v := range offsetMap {
+			fs.offsetMap[k] = v
+		}
+	}
+}
+
 // NewFileStream creates a new filestream
 func NewFileStream(opts ...FileStreamOption) *FileStream {
 	fs := &FileStream{
@@ -154,7 +163,7 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 		recordChan:      make(chan *service.Record, BufferSize),
 		chunkChan:       make(chan chunkData, BufferSize),
 		replyChan:       make(chan map[string]interface{}, BufferSize),
-		offset:          make(map[ChunkFile]int),
+		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		delayProcess:    defaultDelayProcess,
 		heartbeatTime:   defaultHeartbeatTime,
@@ -163,10 +172,6 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 		opt(fs)
 	}
 	return fs
-}
-
-func (fs *FileStream) SetOffset(file ChunkFile, offset int) {
-	fs.offset[file] = offset
 }
 
 func (fs *FileStream) Start() {
@@ -400,9 +405,9 @@ func (fs *FileStream) sendChunkList(chunks []chunkData) {
 		chunkType := chunks[0].fileData.chunkType
 		chunkFileName := chunks[0].fileName
 		fsChunk := FsChunkData{
-			Offset:  fs.offset[chunkType],
+			Offset:  fs.offsetMap[chunkType],
 			Content: lines}
-		fs.offset[chunkType] += len(lines)
+		fs.offsetMap[chunkType] += len(lines)
 		files = map[string]FsChunkData{
 			chunkFileName: fsChunk,
 		}

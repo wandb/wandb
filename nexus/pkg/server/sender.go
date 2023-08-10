@@ -27,7 +27,7 @@ const (
 )
 
 type ResumeState struct {
-	FileStreamOffset map[fs.ChunkFile]int
+	FileStreamOffset fs.FileStreamOffsetMap
 	Error            service.ErrorInfo
 }
 
@@ -180,12 +180,9 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 			fs.WithPath(fsPath),
 			fs.WithSettings(s.settings),
 			fs.WithLogger(s.logger),
-			fs.WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)))
-		if s.resumeState != nil {
-			for k, v := range s.resumeState.FileStreamOffset {
-				s.fileStream.SetOffset(k, v)
-			}
-		}
+			fs.WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)),
+			fs.WithOffsets(s.resumeState.FileStreamOffset),
+		)
 		s.fileStream.Start()
 		s.uploader = uploader.NewUploader(s.ctx, s.logger)
 		s.uploader.Start()
