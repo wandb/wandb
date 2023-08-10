@@ -114,9 +114,6 @@ class KubernetesRunMonitor:
         self.batch_api = batch_api
         self.core_api = core_api
 
-        self.pod_event_queue = []
-        self.job_event_queue = []
-
         self._status_lock = Lock()
         self._status = Status("starting")
 

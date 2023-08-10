@@ -39,12 +39,13 @@ MAX_RESUME_COUNT = 5
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
     try:
-        _env_timeout = float(_env_timeout)
+        RUN_START_TIMEOUT = float(_env_timeout)
     except ValueError:
         raise LaunchError(
             f"Invalid value for WANDB_LAUNCH_START_TIMEOUT: {_env_timeout}"
         )
-RUN_START_TIMEOUT = _env_timeout or 60 * 30  # default 30 minutes
+else:
+    RUN_START_TIMEOUT = 60 * 30  # default 30 minutes
 
 _logger = logging.getLogger(__name__)
 
