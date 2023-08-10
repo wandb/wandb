@@ -2,9 +2,10 @@
 // the W&B backend filestream service.
 //
 // Internally there are three goroutines spun up:
-//   process:  process records into an appopriate format to transmit
-//   transmit: transmit messages to the filestream service
-//   feedback: process feedback from the filestream service
+//
+//	process:  process records into an appopriate format to transmit
+//	transmit: transmit messages to the filestream service
+//	feedback: process feedback from the filestream service
 package filestream
 
 import (
