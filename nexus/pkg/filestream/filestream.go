@@ -1,4 +1,4 @@
-package server
+package filestream
 
 import (
 	"bytes"
@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	BufferSize      = 32
 	EventsFileName  = "wandb-events.jsonl"
 	HistoryFileName = "wandb-history.jsonl"
 	SummaryFileName = "wandb-summary.json"
@@ -28,13 +29,13 @@ const (
 
 var completeTrue bool = true
 
-type chunkFile int8
+type ChunkFile int8
 
 const (
-	historyChunk chunkFile = iota
-	outputChunk
-	eventsChunk
-	summaryChunk
+	HistoryChunk ChunkFile = iota
+	OutputChunk
+	EventsChunk
+	SummaryChunk
 )
 
 type chunkData struct {
@@ -45,7 +46,7 @@ type chunkData struct {
 }
 
 type chunkLine struct {
-	chunkType chunkFile
+	chunkType ChunkFile
 	line      string
 }
 
@@ -81,7 +82,7 @@ type FileStream struct {
 	path string
 
 	// FIXME this should be per db
-	offset map[chunkFile]int
+	offset map[ChunkFile]int
 
 	// settings is the settings for the filestream
 	settings *service.Settings
@@ -131,7 +132,7 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 		recordChan: make(chan *service.Record, BufferSize),
 		chunkChan:  make(chan chunkData, BufferSize),
 		replyChan:  make(chan map[string]interface{}, BufferSize),
-		offset:     make(map[chunkFile]int),
+		offset:     make(map[ChunkFile]int),
 	}
 	for _, opt := range opts {
 		opt(fs)
@@ -139,7 +140,7 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 	return fs
 }
 
-func (fs *FileStream) SetOffset(file chunkFile, offset int) {
+func (fs *FileStream) SetOffset(file ChunkFile, offset int) {
 	fs.offset[file] = offset
 }
 
@@ -272,7 +273,7 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 	chunk := chunkData{
 		fileName: HistoryFileName,
 		fileData: &chunkLine{
-			chunkType: historyChunk,
+			chunkType: HistoryChunk,
 			line:      line,
 		},
 	}
@@ -287,7 +288,7 @@ func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
 	chunk := chunkData{
 		fileName: SummaryFileName,
 		fileData: &chunkLine{
-			chunkType: summaryChunk,
+			chunkType: SummaryChunk,
 			line:      line,
 		},
 	}
@@ -298,7 +299,7 @@ func (fs *FileStream) streamOutputRaw(msg *service.OutputRawRecord) {
 	chunk := chunkData{
 		fileName: OutputFileName,
 		fileData: &chunkLine{
-			chunkType: outputChunk,
+			chunkType: OutputChunk,
 			line:      msg.Line,
 		},
 	}
@@ -336,7 +337,7 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 
 	chunk := chunkData{
 		fileName: EventsFileName,
-		fileData: &chunkLine{chunkType: eventsChunk, line: string(line)},
+		fileData: &chunkLine{chunkType: EventsChunk, line: string(line)},
 	}
 	fs.pushChunk(chunk)
 }

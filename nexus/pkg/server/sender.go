@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	"github.com/wandb/wandb/nexus/pkg/observability"
+	fs "github.com/wandb/wandb/nexus/pkg/filestream"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -26,7 +27,7 @@ const (
 )
 
 type ResumeState struct {
-	FileStreamOffset map[chunkFile]int
+	FileStreamOffset map[fs.ChunkFile]int
 	Error            service.ErrorInfo
 }
 
@@ -52,7 +53,7 @@ type Sender struct {
 	graphqlClient graphql.Client
 
 	// fileStream is the file stream
-	fileStream *FileStream
+	fileStream *fs.FileStream
 
 	// uploader is the file uploader
 	uploader *uploader.Uploader
@@ -175,11 +176,11 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	if !s.settings.GetXOffline().GetValue() {
 		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-		s.fileStream = NewFileStream(
-			WithPath(fsPath),
-			WithSettings(s.settings),
-			WithLogger(s.logger),
-			WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)))
+		s.fileStream = fs.NewFileStream(
+			fs.WithPath(fsPath),
+			fs.WithSettings(s.settings),
+			fs.WithLogger(s.logger),
+			fs.WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)))
 		if s.resumeState != nil {
 			for k, v := range s.resumeState.FileStreamOffset {
 				s.fileStream.SetOffset(k, v)
@@ -366,11 +367,11 @@ func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {
 	}
 
 	if s.resumeState.FileStreamOffset == nil {
-		s.resumeState.FileStreamOffset = make(map[chunkFile]int)
+		s.resumeState.FileStreamOffset = make(map[fs.ChunkFile]int)
 	}
-	s.resumeState.FileStreamOffset[historyChunk] = *bucket.GetHistoryLineCount()
-	s.resumeState.FileStreamOffset[eventsChunk] = *bucket.GetEventsLineCount()
-	s.resumeState.FileStreamOffset[outputChunk] = *bucket.GetLogLineCount()
+	s.resumeState.FileStreamOffset[fs.HistoryChunk] = *bucket.GetHistoryLineCount()
+	s.resumeState.FileStreamOffset[fs.EventsChunk] = *bucket.GetEventsLineCount()
+	s.resumeState.FileStreamOffset[fs.OutputChunk] = *bucket.GetLogLineCount()
 
 	// If we are unable to parse the config, we should fail if resume is set to must
 	// for any other case of resume status, it is fine to ignore it
