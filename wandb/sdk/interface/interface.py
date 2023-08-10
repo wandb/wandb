@@ -388,9 +388,7 @@ class InterfaceBase:
         if artifact._base_id:
             proto_artifact.base_id = artifact._base_id
 
-        ttl_duration_input = Artifact._ttl_duration_seconds_to_gql(
-            artifact._ttl_duration_seconds, artifact._ttl_change
-        )
+        ttl_duration_input = artifact._ttl_duration_seconds_to_gql()
         if ttl_duration_input:
             proto_artifact.ttl_duration_seconds = ttl_duration_input
         proto_artifact.incremental_beta1 = artifact.incremental

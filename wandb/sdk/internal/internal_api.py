@@ -319,6 +319,7 @@ class Api:
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self.server_create_artifact_input_info: Optional[List[str]] = None
+        self.server_artifact_fields_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -3282,6 +3283,27 @@ class Api:
         )
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
+
+    def server_artifact_introspection(self) -> List:
+        query_string = """
+            query ProbeServerArtifact {
+                ArtifactInfoType: __type(name:"Artifact") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_artifact_fields_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("ArtifactInfoType", {}).get("fields", [{}])
+            self.server_artifact_fields_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_artifact_fields_info
 
     def server_create_artifact_introspection(self) -> List:
         query_string = """

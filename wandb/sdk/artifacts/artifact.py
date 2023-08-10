@@ -170,6 +170,8 @@ class Artifact:
         self._description: Optional[str] = description
         self._metadata: dict = self._normalize_metadata(metadata)
         self._ttl_duration_seconds: Optional[int] = None
+        self._ttl_is_inherited: Optional[bool] = None
+        self._ttl_change: Optional[ArtifactTTLChange] = None
         self._aliases: List[str] = []
         self._saved_aliases: List[str] = []
         self._distributed_id: Optional[str] = None
@@ -184,7 +186,6 @@ class Artifact:
         self._created_at: Optional[str] = None
         self._updated_at: Optional[str] = None
         self._final: bool = False
-        self._ttl_change: Optional[ArtifactTTLChange] = None
         # Cache.
         get_artifacts_cache().store_client_artifact(self)
 
@@ -304,6 +305,7 @@ class Artifact:
             if attrs_ttl_duration and attrs_ttl_duration > 0
             else None
         )
+        artifact._ttl_is_inherited = attrs.get("ttlIsInherited")
         artifact._aliases = [
             alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
@@ -935,8 +937,8 @@ class Artifact:
                 }
             }
         """
-        fields = InternalApi().server_create_artifact_introspection()
-        if "ttlDurationSeconds" in fields:
+        fields = InternalApi().server_artifact_introspection()
+        if "ttlDurationSeconds" in fields and "ttlIsInherited" in fields:
             mutation_template = mutation_template.replace(
                 "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
             ).replace(
@@ -944,7 +946,7 @@ class Artifact:
                 "ttlDurationSeconds: $ttlDurationSeconds,",
             )
         else:
-            if self._ttl_duration_seconds:
+            if self._ttl_duration_seconds or self._ttl_change:
                 termwarn(
                     "Server not compatible with setting Artifact TTLs, please upgrade the server"
                 )
@@ -2162,7 +2164,7 @@ class Artifact:
 
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
-        fields = InternalApi().server_create_artifact_introspection()
+        fields = InternalApi().server_artifact_introspection()
         fragment = """
             fragment ArtifactFragment on Artifact {
                 id
@@ -2180,6 +2182,7 @@ class Artifact:
                 description
                 metadata
                 ttlDurationSeconds
+                ttlIsInherited
                 aliases {
                     artifactCollection {
                         project {
@@ -2197,22 +2200,21 @@ class Artifact:
                 updatedAt
             }
         """
-        if "ttlDurationSeconds" not in fields:
-            return fragment.replace("ttlDurationSeconds", "")
+        if "ttlDurationSeconds" not in fields and "ttlIsInherited" not in fields:
+            return fragment.replace("ttlDurationSeconds", "").replace(
+                "ttlIsInherited", ""
+            )
         return fragment
 
-    @staticmethod
-    def _ttl_duration_seconds_to_gql(
-        ttl_duration_seconds: Optional[int], ttl_status: Optional[ArtifactTTLChange]
-    ) -> Optional[int]:
+    def _ttl_duration_seconds_to_gql(self) -> Optional[int]:
         # Set artifact ttl value to ttl_duration_seconds if the user set a value
-        # otherwise use ttl_status to indicate to backend INHERIT or NOT_INHERIT the None ttl value
-        # Ttl_duration_seconds = None and ttl_status = None is a no op
-        return (
-            ttl_status.value
-            if ttl_duration_seconds is None and ttl_status
-            else ttl_duration_seconds
-        )
+        # otherwise use ttl_status to indicate the backend INHERIT(-1) or DISABLE(-2) when the TTL is None
+        # When ttl_change = None its a no op since nothing changed
+        if self._ttl_change is None:
+            return None
+        if self._ttl_change == ArtifactTTLChange.INHERITED:
+            return -1
+        return self._ttl_duration_seconds or -2
 
 
 class _ArtifactVersionType(WBType):

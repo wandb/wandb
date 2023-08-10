@@ -1190,6 +1190,45 @@ def create_app(user_ctx=None):
                 }
             }
 
+        if "query ProbeServerArtifact" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "ArtifactInfoType": {
+                            "fields": [
+                                {"name": "id"},
+                                {"name": "digest"},
+                                {"name": "description"},
+                                {"name": "commitHash"},
+                                {"name": "versionIndex"},
+                                {"name": "aliases"},
+                                {"name": "labels"},
+                                {"name": "metadata"},
+                                {"name": "state"},
+                                {"name": "size"},
+                                {"name": "storageBytes"},
+                                {"name": "fileCount"},
+                                {"name": "artifactType"},
+                                {"name": "artifactCollections"},
+                                {"name": "artifactMemberships"},
+                                {"name": "artifactSequence"},
+                                {"name": "createdAt"},
+                                {"name": "updatedAt"},
+                                {"name": "createdBy"},
+                                {"name": "usedCount"},
+                                {"name": "usedBy"},
+                                {"name": "currentManifest"},
+                                {"name": "files"},
+                                {"name": "historyStep"},
+                                {"name": "artifactLineageDag"},
+                                {"name": "ttlDurationSeconds"},
+                                {"name": "ttlIsInherited"},
+                            ]
+                        },
+                    }
+                }
+            )
+
         if "query ProbeServerCreateArtifactInput" in body["query"]:
             return json.dumps(
                 {
