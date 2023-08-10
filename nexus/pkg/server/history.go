@@ -8,6 +8,8 @@ import (
 )
 
 // handleHistory handles a history record. This is the main entry point for history records.
+// It is responsible for handling the history record internally, processing it for metrics,
+// and forwarding it to the Writer.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
 
 	if history.GetItem() == nil {
