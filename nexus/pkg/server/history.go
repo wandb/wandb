@@ -7,6 +7,7 @@ import (
 	"strconv"
 )
 
+// handleHistory handles a history record. This is the main entry point for history records.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
 
 	if history.GetItem() == nil {
@@ -26,6 +27,7 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	h.sendRecord(summaryRecord)
 }
 
+// handleInternal adds internal history items to the history record
 func (h *Handler) handleInternal(history *service.HistoryRecord) {
 	// walk through items looking for _timestamp
 	// TODO: add a timestamp field to the history record
@@ -47,6 +49,8 @@ func (h *Handler) handleInternal(history *service.HistoryRecord) {
 	)
 }
 
+// handlePartialHistory handles a partial history request. Collects the history items until a full
+// history record is received.
 func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
 
 	// This is the first partial history record we receive
