@@ -685,8 +685,8 @@ class Artifact:
             if settings is None:
                 settings = wandb.Settings(silent="true")
             with wandb.init(
-                entity=self.source_entity,
-                project=project or self.source_project,
+                entity=self._source_entity,
+                project=project or self._source_project,
                 job_type="auto",
                 settings=settings,
             ) as run:

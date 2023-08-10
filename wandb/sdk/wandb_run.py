@@ -2977,12 +2977,12 @@ class Run:
                 f"Artifact {artifact.name} already exists with type {expected_type}; "
                 f"cannot create another with type {artifact.type}"
             )
-        if entity and entity != artifact.source_entity:
+        if entity and entity != artifact._source_entity:
             raise ValueError(
                 f"Artifact {artifact.name} is owned by entity {artifact.source_entity};"
                 f" it can't be moved to entity {entity}"
             )
-        if project and project != artifact.source_project:
+        if project and project != artifact._source_project:
             raise ValueError(
                 f"Artifact {artifact.name} exists in project {artifact.source_project};"
                 f" it can't be moved to project {project}"
