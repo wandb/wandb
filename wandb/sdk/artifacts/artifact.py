@@ -73,6 +73,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 class Artifact:
     """Flexible and lightweight building block for dataset and model versioning.
 
