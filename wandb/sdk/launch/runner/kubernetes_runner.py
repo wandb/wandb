@@ -79,6 +79,18 @@ def _is_preempted(status: "V1PodStatus") -> bool:
     return False
 
 
+def _is_container_creating(status: "V1PodStatus") -> bool:
+    """Check if this pod has started creating containers."""
+    for container_status in status.container_statuses or []:
+        if (
+            container_status.state
+            and container_status.state.waiting
+            and container_status.state.waiting.reason == "ContainerCreating"
+        ):
+            return True
+    return False
+
+
 class KubernetesRunMonitor:
     def __init__(
         self,
@@ -149,12 +161,15 @@ class KubernetesRunMonitor:
             ):
                 type = event.get("type")
                 object = event.get("object")
+
                 if type == "MODIFIED":
                     if object.status.phase == "Running":
                         self._set_status(Status("running"))
                 if _is_preempted(object.status):
                     self._set_status(Status("preempted"))
                     self.stop()
+                if _is_container_creating(object.status):
+                    self._set_status(Status("starting"))
 
         # This can happen if the connection is lost to the Kubernetes API server
         # and cannot be re-established.
@@ -315,7 +330,6 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def cancel(self) -> None:
         """Cancel the run."""
-        self.monitor.stop()
         self.suspend()
         self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
 
