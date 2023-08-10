@@ -134,7 +134,7 @@ class LaunchAgent:
         self._access = _convert_access("project")
         self._max_jobs = _max_from_config(config, "max_jobs")
         self._max_schedulers = _max_from_config(config, "max_schedulers")
-        self._poll_step = PollStep.ACTIVE
+        self._poll_step: PollStep = PollStep.ACTIVE
         self._secure_mode = config.get("secure_mode", False)
         self.default_config: Dict[str, Any] = config
 
