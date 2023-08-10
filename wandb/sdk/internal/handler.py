@@ -788,7 +788,7 @@ class HandleManager:
             self._metric_globs[metric.glob_name].CopyFrom(metric)
         else:
             self._metric_globs[metric.glob_name].MergeFrom(metric)
-        self._dispatch_record(record)
+        # self._dispatch_record(record)
 
     def handle_metric(self, record: Record) -> None:
         """Handle MetricRecord.

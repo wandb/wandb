@@ -1,11 +1,10 @@
 package nexuslib
 
 import (
+	"google.golang.org/protobuf/proto"
 	"strings"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
-
-	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 func isBoolMessage(m protoreflect.Message) bool {
@@ -18,7 +17,7 @@ func isBoolMessage(m protoreflect.Message) bool {
 	return true
 }
 
-func ProtoEncodeToDict(p *service.TelemetryRecord) map[int]interface{} {
+func ProtoEncodeToDict(p proto.Message) map[int]interface{} {
 	pm := p.ProtoReflect()
 
 	m := make(map[int]interface{})

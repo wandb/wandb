@@ -65,6 +65,8 @@ type Sender struct {
 
 	telemetry *service.TelemetryRecord
 
+	ms *MetricSender
+
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
 
@@ -433,25 +435,24 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 }
 
 // updateConfigPrivate updates the private part of the config map
-func (s *Sender) updateConfigPrivate(configRecord *service.TelemetryRecord) {
-	if configRecord == nil {
-		return
-	}
-
+func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
 	if _, ok := s.configMap["_wandb"]; !ok {
 		s.configMap["_wandb"] = make(map[string]interface{})
 	}
 
 	switch v := s.configMap["_wandb"].(type) {
 	case map[string]interface{}:
-		if configRecord.CliVersion != "" {
-			v["cli_version"] = configRecord.CliVersion
+		if telemetry.GetCliVersion() != "" {
+			v["cli_version"] = telemetry.CliVersion
 		}
-		if configRecord.PythonVersion != "" {
-			v["python_version"] = configRecord.PythonVersion
+		if telemetry.GetPythonVersion() != "" {
+			v["python_version"] = telemetry.PythonVersion
 		}
 		v["t"] = nexuslib.ProtoEncodeToDict(s.telemetry)
-		// todo: add the rest of the telemetry from configRecord
+		if s.ms != nil {
+			v["m"] = s.ms.configMetrics
+		}
+		// todo: add the rest of the telemetry from telemetry
 	default:
 		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
 		s.logger.CaptureFatalAndPanic("sender received error", err)
@@ -763,8 +764,13 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 
 // sendMetric sends a metrics record to the file stream,
 // which will then send it to the server
-func (s *Sender) sendMetric(record *service.Record, _ *service.MetricRecord) {
-	fmt.Println("sendMetric", record)
+func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
+	if s.ms == nil {
+		s.ms = NewMetricSender()
+	}
+	s.handleMetricIndex(record, metric)
+	s.updateConfigPrivate(nil)
+	s.sendConfig(nil, nil)
 }
 
 // sendFiles iterates over the files in the FilesRecord and sends them to

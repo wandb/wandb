@@ -3,12 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"strconv"
-	"strings"
-
 	"github.com/wandb/wandb/nexus/pkg/monitor"
-
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
@@ -52,11 +47,8 @@ type Handler struct {
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
 
-	// metrics is the map of metrics for the stream
-	metrics map[string]*service.MetricRecord
-
-	// globMetrics is the map of metrics for the stream
-	globMetrics map[string]*service.MetricRecord
+	// mh is the metric handler for the stream
+	mh *MetricHandler
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
@@ -310,41 +302,10 @@ func (h *Handler) handleAlert(record *service.Record) {
 }
 
 func (h *Handler) handleExit(record *service.Record) {
-	// stop the system monitor to ensure that we don't send any more system metrics
+	// stop the system monitor to ensure that we don't send any more system mh
 	// after the run has exited
 	h.systemMonitor.Stop()
 	h.sendRecord(record)
-}
-
-func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
-	if h.metrics == nil {
-		h.metrics = make(map[string]*service.MetricRecord)
-	}
-
-	metricName := metric.GetName()
-	if metricName != "" {
-		// TODO handle merge case
-		h.metrics[metricName] = metric
-
-		metricStepName := metric.GetStepMetric()
-		if metricName != "" {
-			if _, ok := h.metrics[metricStepName]; !ok {
-				stepMetricRecord := service.Record{
-					RecordType: &service.Record_Metric{
-						Metric: &service.MetricRecord{
-							Name: metricStepName,
-						},
-					},
-					Control: &service.Control{
-						Local: true,
-					},
-				}
-				h.metrics[metricStepName] = stepMetricRecord.GetMetric()
-				h.sendRecord(&stepMetricRecord)
-			}
-		}
-		h.sendRecord(record)
-	}
 }
 
 func (h *Handler) handleFiles(record *service.Record) {
@@ -361,150 +322,6 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 		GetSummaryResponse: &service.GetSummaryResponse{
 			Item: items,
 		},
-	}
-}
-
-func (h *Handler) expandGlobMetric(key string, metric *service.MetricRecord) {
-	if strings.HasPrefix(key, "_") {
-		return
-	}
-
-	for pattern, globMetric := range h.globMetrics {
-		if match, err := filepath.Match(pattern, key); err != nil {
-			h.logger.CaptureError("error matching metric", err)
-			continue
-		} else if match {
-			metric = proto.Clone(globMetric).(*service.MetricRecord)
-			metric.Name = key
-			metric.Options.Defined = false
-			metric.GlobName = ""
-			break
-		}
-	}
-}
-
-func (h *Handler) handleHistory(history *service.HistoryRecord) {
-
-	if history == nil || history.Item == nil {
-		return
-	}
-	// walk through items looking for _timestamp
-	// TODO: add a timestamp field to the history record
-	items := history.GetItem()
-	var runTime float64 = 0
-	for _, item := range items {
-		if item.Key == "_timestamp" {
-			val, err := strconv.ParseFloat(item.ValueJson, 64)
-			if err != nil {
-				h.logger.CaptureError("error parsing timestamp", err)
-			} else {
-				runTime = val - h.startTime
-			}
-		}
-	}
-	history.Item = append(history.Item,
-		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
-		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
-	)
-
-	if h.metrics != nil {
-		for _, item := range items {
-			key := item.Key
-			if metric, ok := h.metrics[key]; !ok {
-				h.expandGlobMetric(key, metric)
-				if metric != nil {
-					record := &service.Record{
-						RecordType: &service.Record_Metric{
-							Metric: metric,
-						},
-						Control: &service.Control{
-							Local: true,
-						},
-					}
-					h.handleMetric(record, record.GetMetric())
-				}
-			}
-		}
-	}
-
-	record := &service.Record{
-		RecordType: &service.Record_History{History: history},
-	}
-	h.sendRecord(record)
-
-	// TODO unify with handleSummary
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
-	h.sendRecord(summaryRecord)
-}
-
-func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
-
-	// This is the first partial history record we receive
-	// for this step, so we need to initialize the history record
-	// and step. If the user provided a step in the request,
-	// use that, otherwise use 0.
-	if h.historyRecord == nil {
-		h.historyRecord = &service.HistoryRecord{}
-		if request.Step != nil {
-			h.historyRecord.Step = request.Step
-		} else {
-			h.historyRecord.Step = &service.HistoryStep{Num: h.runRecord.StartingStep}
-		}
-	}
-
-	// The HistoryRecord struct is responsible for tracking data related to
-	//	a single step in the history. Users can send multiple partial history
-	//	records for a single step. Each partial history record contains a
-	//	step number, a flush flag, and a list of history items.
-	//
-	// The step number indicates the step number for the history record. The
-	// flush flag determines whether the history record should be flushed
-	// after processing the request. The history items are appended to the
-	// existing history record.
-	//
-	// The following logic is used to process the request:
-	//
-	// -  If the request includes a step number and the step number is greater
-	//		than the current step number, the current history record is flushed
-	//		and a new history record is created.
-	// - If the step number in the request is less than the current step number,
-	//		we ignore the request and log a warning.
-	// 		NOTE: the server requires the steps of the history records
-	// 		to be monotonically increasing.
-	// -  If the step number in the request matches the current step number, the
-	//		history items are appended to the current history record.
-	//
-	// - If the request has a flush flag, another flush might occur after for the
-	// current history record after processing the request.
-	//
-	// - If the request doesn't have a step, and doesn't have a flush flag, this is
-	//	equivalent to step being equal to the current step number and a flush flag
-	//	being set to true.
-	if request.Step != nil {
-		if request.Step.Num > h.historyRecord.Step.Num {
-			h.handleHistory(h.historyRecord)
-			h.historyRecord = &service.HistoryRecord{
-				Step: &service.HistoryStep{Num: request.Step.Num},
-			}
-		} else if request.Step.Num < h.historyRecord.Step.Num {
-			h.logger.CaptureWarn("received history record for a step that has already been received",
-				"received", request.Step, "current", h.historyRecord.Step)
-			return
-		}
-	}
-
-	// Append the history items from the request to the current history record.
-	h.historyRecord.Item = append(h.historyRecord.Item, request.Item...)
-
-	// Flush the history record and start to collect a new one with
-	// the next step number.
-	if (request.Step == nil && request.Action == nil) || (request.Action != nil && request.Action.Flush) {
-		h.handleHistory(h.historyRecord)
-		h.historyRecord = &service.HistoryRecord{
-			Step: &service.HistoryStep{
-				Num: h.historyRecord.Step.Num + 1,
-			},
-		}
 	}
 }
 
