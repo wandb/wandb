@@ -551,7 +551,7 @@ def job_factory(statuses):
     )
 
 
-def pod_factory(event_type, condition_types, condition_reasons):
+def pod_factory(event_type, condition_types, condition_reasons, phase=None):
     """Factory for creating pod events.
 
     Args:
@@ -569,6 +569,7 @@ def pod_factory(event_type, condition_types, condition_reasons):
                 {
                     "status": MockDict(
                         {
+                            "phase": phase,
                             "conditions": [
                                 MockDict(
                                     {
@@ -663,5 +664,7 @@ def test_monitor_running(mock_event_streams, mock_batch_api, mock_core_api):
     pod_event_stream.add(pod_factory("ADDED", [], []))
     blink()
     job_event_stream.add(job_factory(["active"]))
+    blink()
+    pod_event_stream.add(pod_factory("MODIFIED", [""], [""]), phase="Running")
     blink()
     assert monitor.get_status().state == "running"
