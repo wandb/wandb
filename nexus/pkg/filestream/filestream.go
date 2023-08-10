@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	BufferSize      = 32
-	EventsFileName  = "wandb-events.jsonl"
-	HistoryFileName = "wandb-history.jsonl"
-	SummaryFileName = "wandb-summary.json"
-	OutputFileName  = "output.log"
+	BufferSize             = 32
+	EventsFileName         = "wandb-events.jsonl"
+	HistoryFileName        = "wandb-history.jsonl"
+	SummaryFileName        = "wandb-summary.json"
+	OutputFileName         = "output.log"
 	defaultMaxItemsPerPush = 5_000
 	defaultDelayProcess    = 20 * time.Millisecond
 	defaultHeartbeatTime   = 2 * time.Second
@@ -96,7 +96,7 @@ type FileStream struct {
 	// keep track of the exit chunk for when we shut down filestream
 	stageExitChunk *chunkData
 
-	maxItemsPerPush  int
+	maxItemsPerPush int
 	delayProcess    time.Duration
 	heartbeatTime   time.Duration
 }
@@ -148,16 +148,16 @@ func WithHeartbeatTime(heartbeatTime time.Duration) FileStreamOption {
 // NewFileStream creates a new filestream
 func NewFileStream(opts ...FileStreamOption) *FileStream {
 	fs := &FileStream{
-		recordWait: &sync.WaitGroup{},
-		chunkWait:  &sync.WaitGroup{},
-		replyWait:  &sync.WaitGroup{},
-		recordChan: make(chan *service.Record, BufferSize),
-		chunkChan:  make(chan chunkData, BufferSize),
-		replyChan:  make(chan map[string]interface{}, BufferSize),
-		offset:     make(map[ChunkFile]int),
+		recordWait:      &sync.WaitGroup{},
+		chunkWait:       &sync.WaitGroup{},
+		replyWait:       &sync.WaitGroup{},
+		recordChan:      make(chan *service.Record, BufferSize),
+		chunkChan:       make(chan chunkData, BufferSize),
+		replyChan:       make(chan map[string]interface{}, BufferSize),
+		offset:          make(map[ChunkFile]int),
 		maxItemsPerPush: defaultMaxItemsPerPush,
-		delayProcess: defaultDelayProcess,
-	    heartbeatTime: defaultHeartbeatTime,
+		delayProcess:    defaultDelayProcess,
+		heartbeatTime:   defaultHeartbeatTime,
 	}
 	for _, opt := range opts {
 		opt(fs)
