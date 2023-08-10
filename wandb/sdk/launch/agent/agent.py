@@ -6,7 +6,6 @@ import threading
 import time
 import traceback
 from multiprocessing import Event
-from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
@@ -36,7 +35,6 @@ AGENT_KILLED = "KILLED"
 
 HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
-MAX_THREADS = 64
 MAX_RESUME_COUNT = 5
 
 _logger = logging.getLogger(__name__)
@@ -137,10 +135,6 @@ class LaunchAgent:
         self._max_jobs = _max_from_config(config, "max_jobs")
         self._max_schedulers = _max_from_config(config, "max_schedulers")
         self._poll_step = PollStep.ACTIVE
-        self._pool = ThreadPool(
-            processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
-            initargs=(self._jobs, self._jobs_lock),
-        )
         self._secure_mode = config.get("secure_mode", False)
         self.default_config: Dict[str, Any] = config
 
@@ -367,18 +361,20 @@ class LaunchAgent:
 
         # Abort if this job attempts to override secure mode
         self._assert_secure(launch_spec)
-
-        self._pool.apply_async(
-            self.thread_run_job,
-            (
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
+        t = threading.Thread(
+            target=self.thread_run_job,
+            args=(
                 launch_spec,
                 job,
                 self.default_config,
                 self._api,
-                queue,
-                file_saver,
+                job_tracker,
             ),
+            daemon=True,
         )
+
+        t.start()
 
     def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
         """If secure mode is set, make sure no vulnerable keys are overridden."""
@@ -493,8 +489,6 @@ class LaunchAgent:
             self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()
-            self._pool.close()
-            self._pool.join()
 
     def agent_sleep(self) -> None:
         """Sleep depending on agent poll step."""
@@ -519,15 +513,13 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
-        queue: str,
-        file_saver: RunQueueItemFileSaver,
+        job_tracker: JobAndRunStatusTracker,
     ) -> None:
         thread_id = threading.current_thread().ident
-        assert thread_id is not None
-        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
-        with self._jobs_lock:
-            self._jobs[thread_id] = job_tracker
+        assert thread_id
         try:
+            with self._jobs_lock:
+                self._jobs[thread_id] = job_tracker
             self._thread_run_job(
                 launch_spec, job, default_config, api, thread_id, job_tracker
             )
