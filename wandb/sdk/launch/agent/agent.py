@@ -26,8 +26,9 @@ from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
 from .job_status_tracker import JobAndRunStatusTracker
 from .run_queue_item_file_saver import RunQueueItemFileSaver
 
-AGENT_POLLING_INTERVAL = 10
-ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
+ACTIVE_POLLING_SLEEP_TIME = 0.1
+BACKOFF_SLEEP_TIME = 3499
+NO_JOBS_POLLING_SLEEP_TIME = 10
 
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
@@ -105,6 +106,12 @@ def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
     return True
 
 
+class PollStep:
+    ACTIVE = "active"
+    NO_JOBS = "no_jobs"
+    BACKOFF = "backoff"
+
+
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
@@ -129,6 +136,7 @@ class LaunchAgent:
         self._access = _convert_access("project")
         self._max_jobs = _max_from_config(config, "max_jobs")
         self._max_schedulers = _max_from_config(config, "max_schedulers")
+        self._poll_step = PollStep.ACTIVE
         self._pool = ThreadPool(
             processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
             initargs=(self._jobs, self._jobs_lock),
@@ -419,13 +427,12 @@ class LaunchAgent:
                     raise KeyboardInterrupt
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
+                    launched_job = False
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
+                            launched_job = True
                             try:
-                                file_saver = RunQueueItemFileSaver(
-                                    self._wandb_run, job["runQueueItemId"]
-                                )
                                 if _is_scheduler_job(job.get("runSpec")):
                                     # If job is a scheduler, and we are already at the cap, ignore,
                                     #    don't ack, and it will be pushed back onto the queue in 1 min
@@ -439,25 +446,37 @@ class LaunchAgent:
                                             "this value use `max_schedulers` key in the agent config"
                                         )
                                         continue
+                                file_saver = RunQueueItemFileSaver(
+                                    self._wandb_run, job["runQueueItemId"]
+                                )
                                 self.run_job(job, queue, file_saver)
                             except Exception as e:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
                                 wandb._sentry.exception(e)
-
-                                # always the first phase, because we only enter phase 2 within the thread
-                                files = file_saver.save_contents(
-                                    contents=traceback.format_exc(),
-                                    fname="error.log",
-                                    file_sub_type="error",
-                                )
+                                if file_saver:
+                                    # always the first phase, because we only enter phase 2 within the thread
+                                    files = file_saver.save_contents(
+                                        contents=traceback.format_exc(),
+                                        fname="error.log",
+                                        file_sub_type="error",
+                                    )
+                                else:
+                                    files = []
                                 self.fail_run_queue_item(
                                     run_queue_item_id=job["runQueueItemId"],
                                     message=str(e),
                                     phase="agent",
                                     files=files,
                                 )
+
+                    if launched_job:
+                        self._poll_step = PollStep.ACTIVE
+                    else:
+                        self._poll_step = PollStep.NO_JOBS
+                else:
+                    self._poll_step = PollStep.BACKOFF
 
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
@@ -468,15 +487,7 @@ class LaunchAgent:
                         self.update_status(AGENT_RUNNING)
                     self.print_status()
 
-                if (
-                    self.num_running_jobs == self._max_jobs
-                    or self.num_running_schedulers == 0
-                ):
-                    # all threads busy or no schedulers running
-                    time.sleep(AGENT_POLLING_INTERVAL)
-                else:
-                    time.sleep(ACTIVE_SWEEP_POLLING_INTERVAL)
-
+                self.agent_sleep()
         except KeyboardInterrupt:
             self._jobs_event.clear()
             self.update_status(AGENT_KILLED)
@@ -484,6 +495,22 @@ class LaunchAgent:
             self.print_status()
             self._pool.close()
             self._pool.join()
+
+    def agent_sleep(self) -> None:
+        """Sleep depending on agent poll step."""
+        if self._poll_step == PollStep.ACTIVE:
+            time.sleep(ACTIVE_POLLING_SLEEP_TIME)
+            return
+
+        if self._poll_step == PollStep.BACKOFF:
+            time.sleep(BACKOFF_SLEEP_TIME)
+            return
+
+        if self._poll_step == PollStep.NO_JOBS:
+            time.sleep(NO_JOBS_POLLING_SLEEP_TIME)
+            return
+
+        raise LaunchError(f"Unknown poll step: {self._poll_step}")
 
     # Threaded functions
     def thread_run_job(
@@ -599,7 +626,7 @@ class LaunchAgent:
         while self._jobs_event.is_set():
             if self._check_run_finished(job_tracker, launch_spec):
                 return
-            time.sleep(AGENT_POLLING_INTERVAL)
+            self.agent_sleep()
         # temp: for local, kill all jobs. we don't yet have good handling for different
         # types of runners in general
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
