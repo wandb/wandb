@@ -20,8 +20,7 @@ if TYPE_CHECKING:
 class DiskUsage:
     """Total system disk usage in percent."""
 
-    # name = "disk_usage"
-    name = "disk"
+    name = "disk.usage"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
@@ -43,7 +42,7 @@ class DiskUsage:
 class DiskIn:
     """Total system disk In."""
 
-    name = "indisk"
+    name = "disk.in"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
@@ -65,7 +64,7 @@ class DiskIn:
 class DiskOut:
     """Total system disk Out."""
 
-    name = "outdisk"
+    name = "disk.out"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
