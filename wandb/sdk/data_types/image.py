@@ -282,13 +282,13 @@ class Image(BatchableMedia):
         elif isinstance(data, pil_image.Image):
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
-            if str(data.dtype) == "torch.uint8":
-                data = data.to(float)
             vis_util = util.get_module(
                 "torchvision.utils", "torchvision is required to render images"
             )
             if hasattr(data, "requires_grad") and data.requires_grad:
                 data = data.detach()  # type: ignore
+            if str(data.dtype) == "torch.uint8":
+                data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
             self._image = pil_image.fromarray(
                 data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
