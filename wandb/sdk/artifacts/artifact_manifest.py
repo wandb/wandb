@@ -1,6 +1,8 @@
 """Artifact manifest."""
+import logging
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional
 
+from wandb.sdk.artifacts.staging import is_staged_copy, remove_from_staging
 from wandb.sdk.lib.hashutil import HexMD5
 
 if TYPE_CHECKING:
@@ -8,6 +10,8 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import (
         WandbStoragePolicy,
     )
+
+logger = logging.getLogger(__name__)
 
 
 class ArtifactManifest:
@@ -46,7 +50,10 @@ class ArtifactManifest:
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
         ):
-            raise ValueError("Cannot add the same path twice: %s" % entry.path)
+            logger.debug(f"Overwriting existing entry {entry.path}")
+            old_local_path = self.entries[entry.path].local_path
+            if old_local_path and is_staged_copy(old_local_path):
+                remove_from_staging(old_local_path)
         self.entries[entry.path] = entry
 
     def remove_entry(self, entry: "ArtifactManifestEntry") -> None:

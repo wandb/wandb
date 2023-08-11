@@ -293,6 +293,48 @@ def test_add_new_file():
     }
 
 
+def test_add_changed():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    with artifact.new_file("file1.txt") as f:
+        f.write("hello")
+
+    entry1 = artifact.manifest.entries["file1.txt"]
+    assert entry1.path == "file1.txt"
+    assert Path(entry1.local_path).read_text() == "hello"
+
+    with artifact.new_file("file1.txt") as f:
+        f.write("goodbye")
+
+    entry2 = artifact.manifest.entries["file1.txt"]
+    assert entry2.path == "file1.txt"
+    assert entry1.local_path != entry2.local_path
+    assert Path(entry2.local_path).read_text() == "goodbye"
+
+
+def test_add_changed_by_name(monkeypatch, tmp_path):
+    staging_dir = tmp_path / "staging"
+    monkeypatch.setattr(wandb.sdk.artifacts.staging, "_staging_dir", staging_dir)
+
+    file1 = Path("file1.txt")
+    file1.write_text("hello")
+    file2 = Path("file2.txt")
+    file2.write_text("goodbye")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_file("file1.txt", name="great-file.txt")
+    artifact.add_file("file2.txt", name="great-file.txt")
+
+    assert len(artifact.manifest.entries) == 1
+
+    # The first staging copy should have been deleted.
+    staging_files = list(str(f) for f in staging_dir.rglob("*") if f.is_file())
+    for f in staging_files:
+        assert "file1.txt" not in f
+
+    entry = artifact.manifest.entries["great-file.txt"]
+    assert Path(entry.local_path).read_text() == "goodbye"
+
+
 def test_add_after_finalize():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.finalize()

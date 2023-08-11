@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_saver import get_staging_dir
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
@@ -240,11 +240,14 @@ def test_remove_after_log(wandb_init):
 
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    staging_base = tmp_path / "staging"
+    monkeypatch.setattr(wandb.sdk.artifacts.staging, "_staging_dir", staging_base)
     staging_dir = Path(get_staging_dir())
 
     def dir_size():
-        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
+        files = [f for f in staging_dir.rglob("*") if f.is_file()]
+        staging_files = [f for f in files if not f.name.startswith(".")]
+        return sum(f.stat().st_size for f in staging_files)
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
     with open("random.bin", "wb") as f:
