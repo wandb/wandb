@@ -949,18 +949,22 @@ class Artifact:
                 ) {
                     artifact {
                         id
-                        ttlDurationSeconds
+                        _TTL_DURATION_SECONDS_FIELD_
                     }
                 }
             }
         """
         fields = InternalApi().server_artifact_introspection()
         if "ttlIsInherited" in fields:
-            mutation_template = mutation_template.replace(
-                "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
-            ).replace(
-                "_TTL_DURATION_SECONDS_VALUE_",
-                "ttlDurationSeconds: $ttlDurationSeconds,",
+            mutation_template = (
+                mutation_template.replace(
+                    "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
+                )
+                .replace(
+                    "_TTL_DURATION_SECONDS_VALUE_",
+                    "ttlDurationSeconds: $ttlDurationSeconds,",
+                )
+                .replace("_TTL_DURATION_SECONDS_FIELD_", "ttlDurationSeconds")
             )
         else:
             if not self._ttl_is_inherited:
@@ -973,7 +977,7 @@ class Artifact:
                     "_TTL_DURATION_SECONDS_VALUE_",
                     "",
                 )
-                .replace("ttlDurationSeconds", "")
+                .replace("_TTL_DURATION_SECONDS_FIELD_", "")
             )
         mutation = gql(mutation_template)
         assert self._client is not None
