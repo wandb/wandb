@@ -176,7 +176,7 @@ class KubernetesRunMonitor:
         # This can happen if the connection is lost to the Kubernetes API server
         # and cannot be re-established.
         except urllib3.exceptions.ProtocolError as e:
-            if self.get_status() in ["failed", "finished"]:
+            if self.get_status().state in ["failed", "finished"]:
                 _logger.warning(f"Hanging monitor thread: {e}")
                 return
             raise LaunchError(
