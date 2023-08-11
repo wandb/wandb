@@ -35,6 +35,8 @@ class ArtifactManifestEntry:
 
     _parent_artifact: Optional["Artifact"] = None
     _download_url: Optional[str] = None
+    _upload_url: Optional[str] = None
+    _upload_headers: Optional[Dict] = None
 
     def __init__(
         self,

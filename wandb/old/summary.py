@@ -2,7 +2,7 @@ import json
 import os
 import time
 
-from wandb_gql import gql
+from gql import gql
 
 import wandb
 from wandb import util

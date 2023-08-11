@@ -115,8 +115,8 @@ def mock_server(mocker):
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
     sdk_path = "wandb.sdk"
-    # From previous wandb_gql transport library.
-    mocker.patch("wandb_gql.transport.requests.requests", mock)
+    # From previous gql transport library.
+    mocker.patch("gql.transport.requests.requests", mock)
 
     mocker.patch("wandb.sdk.artifacts.artifact.requests", mock)
     mocker.patch(

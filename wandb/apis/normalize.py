@@ -6,7 +6,7 @@ from functools import wraps
 from typing import Callable, List, TypeVar
 
 import requests
-from wandb_gql.client import RetryError
+from gql.client import RetryError
 
 from wandb import env
 from wandb.errors import CommError, Error

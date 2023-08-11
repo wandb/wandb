@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
 import wandb.util
-from wandb.filesync import stats, step_checksum, step_upload
+from wandb.filesync import stats, step_checksum, step_prepare, step_upload
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -54,15 +54,6 @@ class FilePusher:
         self._incoming_queue: queue.Queue[step_checksum.Event] = queue.Queue()
         self._event_queue: queue.Queue[step_upload.Event] = queue.Queue()
 
-        self._step_checksum = step_checksum.StepChecksum(
-            self._api,
-            self._tempdir,
-            self._incoming_queue,
-            self._event_queue,
-            self._stats,
-        )
-        self._step_checksum.start()
-
         self._step_upload = step_upload.StepUpload(
             self._api,
             self._stats,
@@ -71,6 +62,17 @@ class FilePusher:
             file_stream=file_stream,
             settings=settings,
         )
+
+        self._step_checksum = step_checksum.StepChecksum(
+            self._api,
+            self._tempdir,
+            self._incoming_queue,
+            self._event_queue,
+            self._stats,
+            self._step_upload,  # TODO: hack, fix later
+        )
+        self._step_checksum.start()
+
         self._step_upload.start()
 
         self._stats_thread_stop = threading.Event()
@@ -150,11 +152,18 @@ class FilePusher:
         self,
         manifest: "ArtifactManifest",
         artifact_id: str,
+        prepare_step: step_prepare.StepPrepare,
         save_fn: "artifact_saver.SaveFn",
         save_fn_async: "artifact_saver.SaveFnAsync",
+        interleave_batches: bool = False,
     ) -> None:
         event = step_checksum.RequestStoreManifestFiles(
-            manifest, artifact_id, save_fn, save_fn_async
+            manifest,
+            artifact_id,
+            prepare_step,
+            save_fn,
+            save_fn_async,
+            interleave_batches,
         )
         self._incoming_queue.put(event)
 

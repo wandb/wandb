@@ -1,4 +1,4 @@
-from wandb_gql import gql
+from gql import gql
 
 VIEW_REPORT = gql(
     """
