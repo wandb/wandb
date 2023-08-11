@@ -6,6 +6,7 @@ import logging
 import time
 from threading import Lock, Thread
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+
 import urllib3
 
 import wandb
@@ -40,8 +41,10 @@ from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: 
 from kubernetes.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
-from kubernetes.client.models.v1_pod_status import V1PodStatus  # type: ignore # noqa: E402
 from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
+from kubernetes.client.models.v1_pod_status import (  # type: ignore # noqa: E402
+    V1PodStatus,
+)
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
 from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 

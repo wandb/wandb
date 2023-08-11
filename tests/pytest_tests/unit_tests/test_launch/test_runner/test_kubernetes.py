@@ -10,8 +10,8 @@ import wandb
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
     CrdSubmittedRun,
-    KubernetesRunner,
     KubernetesRunMonitor,
+    KubernetesRunner,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
