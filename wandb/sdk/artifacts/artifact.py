@@ -494,7 +494,7 @@ class Artifact:
             artifact.save() # or log the artifact if its new
             ```
         """
-        if self._ttl_change == ArtifactTTLChange.INHERITED:
+        if self._ttl_changed and self._ttl_is_inherited:
             raise Exception(
                 "Unable to fetch Inherited TTL until artifact is logged/saved"
             )
