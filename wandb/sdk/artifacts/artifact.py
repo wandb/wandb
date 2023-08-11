@@ -947,6 +947,7 @@ class Artifact:
                 ) {
                     artifact {
                         id
+                        ttlDurationSeconds
                     }
                 }
             }
@@ -964,17 +965,19 @@ class Artifact:
                 termwarn(
                     "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
                 )
-            mutation_template = mutation_template.replace(
-                "_TTL_DURATION_SECONDS_TYPE_", ""
-            ).replace(
-                "_TTL_DURATION_SECONDS_VALUE_",
-                "",
+            mutation_template = (
+                mutation_template.replace("_TTL_DURATION_SECONDS_TYPE_", "")
+                .replace(
+                    "_TTL_DURATION_SECONDS_VALUE_",
+                    "",
+                )
+                .replace("ttlDurationSeconds", "")
             )
         mutation = gql(mutation_template)
         assert self._client is not None
 
         ttl_duration_input = self._ttl_duration_seconds_to_gql()
-        self._client.execute(
+        response = self._client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
@@ -984,6 +987,13 @@ class Artifact:
                 "aliases": aliases,
             },
         )
+        attrs = response["updateArtifact"]["artifact"]
+
+        # Update ttl_duration_seconds based on updateArtifact
+        self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        self._ttl_changed = False  # Reset after updating artifact
 
     # Adding, removing, getting entries.
 
