@@ -6,6 +6,7 @@ import logging
 import time
 from threading import Lock, Thread
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+import urllib3
 
 import wandb
 from wandb.apis.internal import Api
@@ -45,10 +46,6 @@ from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: 
 from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
-MAX_KUBERNETES_RETRIES = (
-    60  # default 10 second loop time on the agent, this is 10 minutes
-)
-FAIL_MESSAGE_INTERVAL = 60
 
 _logger = logging.getLogger(__name__)
 
@@ -165,12 +162,23 @@ class KubernetesRunMonitor:
                 if _is_preempted(object.status):
                     self._set_status(Status("preempted"))
                     self.stop()
+                    break
                 if _is_container_creating(object.status):
                     self._set_status(Status("starting"))
 
         # This can happen if the connection is lost to the Kubernetes API server
         # and cannot be re-established.
         except ApiException as e:
+            raise LaunchError(
+                "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
+            )
+
+        # This can happen if the connection is lost to the Kubernetes API server
+        # and cannot be re-established.
+        except urllib3.exceptions.ProtocolError as e:
+            if self.get_status() in ["failed", "finished"]:
+                _logger.warning(f"Hanging monitor thread: {e}")
+                return
             raise LaunchError(
                 "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
             )
@@ -187,13 +195,25 @@ class KubernetesRunMonitor:
                 if object.status.succeeded == 1:
                     self._set_status(Status("finished"))
                     self.stop()
+                    break
                 elif object.status.failed is not None and object.status.failed >= 1:
                     self._set_status(Status("failed"))
                     self.stop()
+                    break
 
         except ApiException as e:
             raise LaunchError(
                 "Exception when calling CoreV1Api->list_namespaced_job: %s\n" % e
+            )
+
+        # This can happen if the connection is lost to the Kubernetes API server
+        # and cannot be re-established.
+        except urllib3.exceptions.ProtocolError as e:
+            if self.get_status().state in ["finished", "failed"]:
+                _logger.warning(f"Hanging monitor thread: {e}")
+                return
+            raise LaunchError(
+                "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
             )
 
 
