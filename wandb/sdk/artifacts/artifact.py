@@ -305,7 +305,7 @@ class Artifact:
             if attrs_ttl_duration and attrs_ttl_duration > 0
             else None
         )
-        artifact._ttl_is_inherited = attrs.get("ttlIsInherited")
+        artifact._ttl_is_inherited = attrs.get("ttlIsInherited") or True
         artifact._aliases = [
             alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
@@ -938,7 +938,7 @@ class Artifact:
             }
         """
         fields = InternalApi().server_artifact_introspection()
-        if "ttlDurationSeconds" in fields and "ttlIsInherited" in fields:
+        if "ttlIsInherited" in fields:
             mutation_template = mutation_template.replace(
                 "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
             ).replace(
@@ -2198,7 +2198,7 @@ class Artifact:
                 updatedAt
             }
         """
-        if "ttlDurationSeconds" not in fields and "ttlIsInherited" not in fields:
+        if "ttlIsInherited" not in fields:
             return fragment.replace("ttlDurationSeconds", "").replace(
                 "ttlIsInherited", ""
             )
