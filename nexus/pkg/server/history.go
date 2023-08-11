@@ -5,6 +5,7 @@ import (
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"strconv"
+	"strings"
 )
 
 // handleHistory handles a history record. This is the main entry point for history records.
@@ -12,41 +13,99 @@ import (
 // and forwarding it to the Writer.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
 
+	// TODO replace history encoding with a map
 	if history.GetItem() == nil {
 		return
 	}
 
-	h.handleInternal(history)
+	historyMap := make(map[string]string)
+	for _, item := range history.GetItem() {
+		historyMap[item.GetKey()] = item.GetValueJson()
+	}
 
-	// TODO unify with handleSummary
-	// TODO add an option to disable summary (this could be quite expensive)
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
-	h.sendRecord(summaryRecord)
-
-	// Need Summary to be executed first, since we use the consolidated summary
-	// to determine how to handle step syncing for missing metrics.
-	h.handleMetricHistory(history)
+	h.handleHistoryInternal(history, &historyMap)
+	h.handleAllHistoryMetric(history, &historyMap)
 
 	record := &service.Record{
 		RecordType: &service.Record_History{History: history},
 	}
 	h.sendRecord(record)
+
+	// TODO unify with handleSummary
+	// TODO add an option to disable summary (this could be quite expensive)
+	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
+	h.sendRecord(summaryRecord)
 }
 
-// handleInternal adds internal history items to the history record
-// these items are used for internal bookkeeping and are not sent by the client
-func (h *Handler) handleInternal(history *service.HistoryRecord) {
+// handleSingleHistoryMetric handles a single history item. It is responsible for matching current history
+// item with defined metrics, and creating new metrics if needed. It also handles step metric in case
+// it needs to be synced with the metric, but not part of the history record.
+func (h *Handler) handleSingleHistoryMetric(item *service.HistoryItem, historyMap *map[string]string) *service.HistoryItem {
+
+	// ignore internal history items
+	if strings.HasPrefix(item.Key, "_") {
+		return nil
+	}
+
+	metric, created := h.mh.createMatchingGlobMetric(item.Key)
+	if created {
+		record := &service.Record{
+			RecordType: &service.Record_Metric{
+				Metric: metric,
+			},
+			Control: &service.Control{
+				Local: true,
+			},
+		}
+		h.handleMetric(record, metric)
+	}
+
+	// metric has a step metric, and we have not seen it before (and we are in step sync mode)
+	// so we need to add it to the history record
+	if metric.GetOptions().GetStepSync() && metric.GetStepMetric() != "" {
+		key := metric.GetStepMetric()
+		if _, ok := (*historyMap)[key]; ok {
+			return nil
+		}
+		if value, ok := h.consolidatedSummary[key]; ok {
+			(*historyMap)[key] = value
+			return &service.HistoryItem{
+				Key:       key,
+				ValueJson: value,
+			}
+		}
+	}
+	return nil
+}
+
+// handleAllHistoryMetric handles all history items. It is responsible for matching current history
+// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
+// it needs to be synced with the metric, but not part of the history record.
+func (h *Handler) handleAllHistoryMetric(history *service.HistoryRecord, historyMap *map[string]string) {
+	// This means that there are no definedMetrics to send hence we can return early
+	if h.mh == nil {
+		return
+	}
+
+	for _, item := range history.GetItem() {
+		if hi := h.handleSingleHistoryMetric(item, historyMap); hi != nil {
+			history.Item = append(history.Item, hi)
+		}
+	}
+}
+
+// handleHistoryInternal adds internal history items to the history record
+// these items are used for internal bookkeeping and are not sent by the user
+func (h *Handler) handleHistoryInternal(history *service.HistoryRecord, historyMap *map[string]string) {
 
 	// TODO: add a timestamp field to the history record
 	var runTime float64 = 0
-	for _, item := range history.GetItem() {
-		if item.Key == "_timestamp" {
-			val, err := strconv.ParseFloat(item.ValueJson, 64)
-			if err != nil {
-				h.logger.CaptureError("error parsing timestamp", err)
-			} else {
-				runTime = val - h.startTime
-			}
+	if value, ok := (*historyMap)["_timestamp"]; ok {
+		val, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			h.logger.CaptureError("error parsing timestamp", err)
+		} else {
+			runTime = val - h.startTime
 		}
 	}
 	history.Item = append(history.Item,

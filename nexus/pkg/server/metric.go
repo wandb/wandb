@@ -2,12 +2,10 @@ package server
 
 import (
 	"errors"
-	"path/filepath"
-	"strings"
-
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
+	"path/filepath"
 )
 
 type MetricHandler struct {
@@ -51,30 +49,33 @@ func addMetric(arg interface{}, key string, target *map[string]*service.MetricRe
 	return metric, nil
 }
 
-// matchGlobMetrics matches a metric name against the defined metrics and glob metrics.
-// If the metric is defined, nil is returned. If the metric is a glob metric, a copy of the
-// glob metric is returned with the name set to the metric name.
-func (mh *MetricHandler) matchGlobMetrics(key string) *service.MetricRecord {
-	if _, ok := mh.definedMetrics[key]; ok {
-		return nil
+// createMatchingGlobMetric Add a metric to the defined metrics map if it does not already exist.
+// First check if the metric already exists in the defined metrics map. If it does, no need to create it.
+// Otherwise, match against the glob metrics map. If a match is found, create a new metric based on the glob metric.
+// If no match is found, there is no need to create a metric.
+func (mh *MetricHandler) createMatchingGlobMetric(key string) (*service.MetricRecord, bool) {
+	if metric, defined := mh.definedMetrics[key]; defined {
+		return metric, false /*created*/
 	}
 
+	var metric *service.MetricRecord
 	for pattern, globMetric := range mh.globMetrics {
 		if match, err := filepath.Match(pattern, key); err != nil {
 			// h.logger.CaptureError("error matching metric", err)
 			continue
 		} else if match {
-			metric := proto.Clone(globMetric).(*service.MetricRecord)
+			metric = proto.Clone(globMetric).(*service.MetricRecord)
 			metric.Name = key
 			metric.Options.Defined = false
 			metric.GlobName = ""
-			return metric
+			return metric, true /*created*/
 		}
 	}
-	return nil
+
+	return metric, false /*created*/
 }
 
-// handleStepMetric handles the step metric for a given metric key. If the step metric is
+// handleStepMetric handles the step metric for a given metric key. If the step metric is not
 // defined, it will be added to the defined metrics map.
 func (h *Handler) handleStepMetric(key string) {
 	if key == "" {
@@ -82,7 +83,7 @@ func (h *Handler) handleStepMetric(key string) {
 	}
 
 	// already exists no need to add
-	if _, ok := h.mh.definedMetrics[key]; ok {
+	if _, defined := h.mh.definedMetrics[key]; defined {
 		return
 	}
 
@@ -105,10 +106,14 @@ func (h *Handler) handleStepMetric(key string) {
 }
 
 func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
+	// mh is nil when there are no defined metrics to send
+	// on the first metric, we initialize the mh
 	if h.mh == nil {
 		h.mh = NewMetricHandler()
 	}
 
+	// metric can have a glob name or a name
+	// TODO: replace glob-name/name with one-of field
 	if metric.GetGlobName() != "" {
 		if _, err := addMetric(metric, metric.GetGlobName(), &h.mh.globMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
@@ -128,47 +133,6 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 	}
 }
 
-func (h *Handler) handleMetricHistory(history *service.HistoryRecord) {
-	// This means that there are no definedMetrics to send hence we can return early
-	if h.mh == nil {
-		return
-	}
-
-	for _, item := range history.GetItem() {
-		// TODO: add recursion for nested history items
-
-		// ignore internal definedMetrics
-		if strings.HasPrefix(item.Key, "_") {
-			continue
-		}
-
-		metric := h.mh.matchGlobMetrics(item.Key)
-
-		if metric != nil {
-			record := &service.Record{
-				RecordType: &service.Record_Metric{
-					Metric: metric,
-				},
-				Control: &service.Control{
-					Local: true,
-				},
-			}
-			h.handleMetric(record, metric)
-
-			if metric.GetOptions().GetStepSync() && metric.GetStepMetric() != "" {
-				// TODO replace with the correct summary when implemented
-				if value, ok := h.consolidatedSummary[metric.GetStepMetric()]; ok {
-					mItem := &service.HistoryItem{
-						Key:       metric.GetStepMetric(),
-						ValueJson: value,
-					}
-					history.Item = append(history.Item, mItem)
-				}
-			}
-		}
-	}
-}
-
 type MetricSender struct {
 	definedMetrics map[string]*service.MetricRecord
 	metricIndex    map[string]int32
@@ -183,7 +147,9 @@ func NewMetricSender() *MetricSender {
 	}
 }
 
-func (s *Sender) handleMetricIndex(_ *service.Record, metric *service.MetricRecord) {
+// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
+// are used to configure the plots in the UI.
+func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
 
 	_, err := addMetric(metric, metric.GetName(), &s.ms.definedMetrics)
 	if err != nil {

@@ -774,7 +774,7 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 		return
 	}
 
-	s.handleMetricIndex(record, metric)
+	s.encodeMetricHints(record, metric)
 	s.updateConfigPrivate(nil /*telemetry*/)
 	s.sendConfig(nil, nil /*configRecord*/)
 }
