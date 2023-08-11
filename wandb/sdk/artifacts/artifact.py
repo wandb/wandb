@@ -1977,7 +1977,7 @@ class Artifact:
         """
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "link")
-        if self._ttl_changed:
+        if not self._ttl_is_inherited:
             termwarn(
                 "Artifact TTL will be removed for source artifacts that are linked to portfolios."
             )
