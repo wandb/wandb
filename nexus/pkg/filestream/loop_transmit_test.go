@@ -1,7 +1,5 @@
 package filestream
 
-//go:generate mockgen -destination gqltest_gen.go -package filestream_test github.com/hashicorp/go-retryablehttp Client
-
 import (
 	"encoding/json"
 	"io"
