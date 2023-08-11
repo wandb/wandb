@@ -2,7 +2,7 @@ import os
 import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
 
@@ -15,6 +15,7 @@ import wandb.data_types as data_types
 from wandb import util
 from wandb.sdk.artifacts import artifacts_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
@@ -1475,3 +1476,43 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
     # Even though this works in production, the test often fails. I don't know why :(.
     assert found
     assert cache.cleanup(0) == 2**20
+
+
+@pytest.mark.parametrize(
+    "ttl_set,ttl_get,ttl_changed,ttl_is_inherited,ttl_duration_seconds",
+    [
+        ("DO_NOTHING", None, False, True, None),
+        (None, None, True, False, -2),
+        (ArtifactTTL.INHERIT, "ERROR", True, True, -1),
+        (
+            timedelta(days=100),
+            timedelta(days=100),
+            True,
+            False,
+            int(timedelta(days=100).total_seconds),
+        ),
+        (timedelta(days=-1), "N/A", "N/A", "N/A", "N/A"),
+    ],
+)
+def test_artifact_ttl_setter_getter(
+    ttl_set, ttl_get, ttl_changed, ttl_is_inherited, ttl_duration_seconds
+):
+    artifact = wandb.Artifact("test", type="test")
+
+    if ttl_get == "N/A":
+        with pytest.raises(ValueError):
+            artifact.ttl = ttl_set
+        return
+
+    if ttl_set != "DO_NOTHING":
+        artifact.ttl = ttl_set
+
+    if ttl_get == "ERROR":
+        with pytest.raises(ArtifactNotLoggedError):
+            print(artifact.ttl)
+    else:
+        assert artifact.ttl == ttl_get
+
+    assert artifact._ttl_changed == ttl_changed
+    assert artifact._ttl_is_inherited == ttl_is_inherited
+    assert artifact._ttl_duration_seconds == ttl_duration_seconds
