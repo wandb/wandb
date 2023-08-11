@@ -397,5 +397,5 @@ def test_unwritable_staging_dir(monkeypatch):
 
     # we need to unset this if other tests have already opened it.
     staging._staging_dir = None
-    with pytest.raises(PermissionError, match="is not writable"):
+    with pytest.raises(PermissionError, match="Unable to write staging files"):
         _ = staging.get_staging_dir()
