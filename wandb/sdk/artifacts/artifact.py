@@ -949,7 +949,7 @@ class Artifact:
                 ) {
                     artifact {
                         id
-                        _TTL_DURATION_SECONDS_FIELD_
+                        _TTL_DURATION_SECONDS_FIELDS_
                     }
                 }
             }
@@ -964,7 +964,9 @@ class Artifact:
                     "_TTL_DURATION_SECONDS_VALUE_",
                     "ttlDurationSeconds: $ttlDurationSeconds,",
                 )
-                .replace("_TTL_DURATION_SECONDS_FIELD_", "ttlDurationSeconds")
+                .replace(
+                    "_TTL_DURATION_SECONDS_FIELDS_", "ttlDurationSeconds ttlIsInherited"
+                )
             )
         else:
             if not self._ttl_is_inherited:
@@ -998,6 +1000,9 @@ class Artifact:
         # Update ttl_duration_seconds based on updateArtifact
         self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
             attrs.get("ttlDurationSeconds")
+        )
+        self._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
         )
         self._ttl_changed = False  # Reset after updating artifact
 
