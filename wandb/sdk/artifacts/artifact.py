@@ -516,20 +516,19 @@ class Artifact:
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
 
-        if ttl is None:
-            self._ttl_duration_seconds = None
-            self._ttl_change = ArtifactTTLChange.NOT_INHERITED
-        elif isinstance(ttl, ArtifactTTL):
-            if ttl == ArtifactTTL.INHERIT:
-                self._ttl_duration_seconds = None
-                self._ttl_change = ArtifactTTLChange.INHERITED
-        elif ttl.total_seconds() <= 0:
-            raise ValueError(
-                f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
-            )
+        self._ttl_changed = True
+        if ttl == ArtifactTTL.INHERIT:
+            self._ttl_is_inherited = True
         else:
-            self._ttl_duration_seconds = int(ttl.total_seconds())
-            self._ttl_change = ArtifactTTLChange.NOT_INHERITED
+            self._ttl_is_inherited = False
+            if ttl is None:
+                self._ttl_duration_seconds = None
+            else:
+                if ttl.total_seconds() <= 0:
+                    raise ValueError(
+                        f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
+                    )
+                self._ttl_duration_seconds = int(ttl.total_seconds())
 
     @property
     def aliases(self) -> List[str]:
