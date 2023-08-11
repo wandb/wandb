@@ -638,6 +638,11 @@ class Artifact:
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
+    def cleanup(self) -> None:
+        if self._tmp_dir is not None:
+            self._tmp_dir.cleanup()
+            self._tmp_dir = None
+
     # State management.
 
     def finalize(self) -> None:

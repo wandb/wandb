@@ -16,3 +16,4 @@ class _ThreadLocalApiSettings(threading.local):
 
 
 _thread_local_api_settings: _ThreadLocalApiSettings = _ThreadLocalApiSettings()
+__all__ = ["_thread_local_api_settings"]

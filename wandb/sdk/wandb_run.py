@@ -33,6 +33,7 @@ from typing import (
 )
 
 import requests
+from typing_extensions import Protocol, runtime_checkable
 
 import wandb
 from wandb import errors, trigger
@@ -397,6 +398,66 @@ class RunStatus:
     sync_items_total: int = field(default=0)
     sync_items_pending: int = field(default=0)
     sync_time: Optional[datetime] = field(default=None)
+
+
+@runtime_checkable
+class AbstractRun(Protocol):
+    """We use a protocol here primarily for Media / data_types.py to accept alternate implementations of a Run object."""
+
+    def log(
+        self,
+        data: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+        sync: Optional[bool] = None,
+    ) -> None:
+        ...
+
+    def log_artifact(
+        self,
+        artifact_or_path: Union[Artifact, StrPath],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> Artifact:
+        ...
+
+    def finish(
+        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+    ) -> None:
+        ...
+
+    def _add_singleton(
+        self, data_type: str, key: str, value: Dict[Union[int, str], str]
+    ) -> None:
+        ...
+
+    def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
+        ...
+
+    @property
+    def dir(self) -> str:
+        ...
+
+    @property
+    def id(self) -> str:
+        ...
+
+    @property
+    def project(self) -> str:
+        ...
+
+    @property
+    def entity(self) -> str:
+        ...
+
+    @property
+    def _attach_id(self) -> Optional[str]:
+        ...
+
+    @property
+    def _init_pid(self) -> int:
+        ...
 
 
 class Run:
