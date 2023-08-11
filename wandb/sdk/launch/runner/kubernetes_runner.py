@@ -169,21 +169,24 @@ class KubernetesRunMonitor:
                 if _is_container_creating(object.status):
                     self._set_status(Status("starting"))
 
-        # This can happen if the connection is lost to the Kubernetes API server
-        # and cannot be re-established.
+        # This can happen if the initial cluster connection fails.
         except ApiException as e:
             raise LaunchError(
-                "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
+                f"Exception when calling CoreV1Api.list_namespaced_pod with selector {self.pod_label_selector}: {e}"
             )
 
-        # This can happen if the connection is lost to the Kubernetes API server
-        # and cannot be re-established.
+        # This can happen if the stream starts and gets broken, typically because
+        # a thread is hanging. The kubernetes SDK is already implementing a
+        # retry loop so if we get here it means that the pods cannot be monitored.
         except urllib3.exceptions.ProtocolError as e:
-            if self.get_status().state in ["failed", "finished"]:
-                _logger.warning(f"Hanging monitor thread: {e}")
+            state = self.get_status().state
+            if state in ["failed", "finished"]:
+                _logger.warning(
+                    f"Hanging pod monitor thread with selector {self.pod_label_selector}: {e}"
+                )
                 return
             raise LaunchError(
-                "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
+                f"Broken event stream for pod watcher in state '{state}' and selector {self.pod_label_selector}: {e}"
             )
 
     def _watch_job(self) -> None:
@@ -204,19 +207,23 @@ class KubernetesRunMonitor:
                     self.stop()
                     break
 
+        # This can happen if the initial cluster connection fails.
         except ApiException as e:
             raise LaunchError(
-                "Exception when calling CoreV1Api->list_namespaced_job: %s\n" % e
+                f"Exception when calling CoreV1Api.list_namespaced_job with selector {self.job_field_selector}: {e}"
             )
 
         # This can happen if the connection is lost to the Kubernetes API server
         # and cannot be re-established.
         except urllib3.exceptions.ProtocolError as e:
-            if self.get_status().state in ["finished", "failed"]:
-                _logger.warning(f"Hanging monitor thread: {e}")
+            state = self.get_status().state
+            if state in ["finished", "failed"]:
+                _logger.warning(
+                    f"Hanging job monitor thread with select {self.job_field_selector}: {e}"
+                )
                 return
             raise LaunchError(
-                "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
+                f"Broken event stream for job watcher in state {state} with selector {self.job_field_selector}: {e}"
             )
 
 
