@@ -104,11 +104,12 @@ class LocalContainerRunner(AbstractRunner):
         self.environment = environment
         self.registry = registry
 
-    def _populate_docker_args(self, launch_project: LaunchProject) -> Dict[str, Any]:
-        docker_args: Dict[str, Any] = launch_project.resource_args.get(
+    def _populate_docker_args(
+        self, launch_project: LaunchProject, image_uri: str
+    ) -> Dict[str, Any]:
+        docker_args: Dict[str, Any] = launch_project.fill_macros(image_uri).get(
             "local-container", {}
         )
-
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":
                 docker_args["net"] = "host"
@@ -124,7 +125,7 @@ class LocalContainerRunner(AbstractRunner):
         launch_project: LaunchProject,
         image_uri: str,
     ) -> Optional[AbstractRun]:
-        docker_args = self._populate_docker_args(launch_project)
+        docker_args = self._populate_docker_args(launch_project, image_uri)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
         env_vars = get_env_vars_dict(
@@ -173,7 +174,6 @@ class LocalContainerRunner(AbstractRunner):
                 additional_args=additional_args,
             )
         ).strip()
-        launch_project.fill_macros(image_uri)
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)

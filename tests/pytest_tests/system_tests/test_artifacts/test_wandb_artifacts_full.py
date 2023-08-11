@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_saver import get_staging_dir
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
