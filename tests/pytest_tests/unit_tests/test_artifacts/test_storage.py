@@ -7,9 +7,9 @@ from urllib.parse import urlparse
 
 import pytest
 import wandb
+from wandb.sdk.artifacts import staging
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
@@ -395,5 +395,7 @@ def test_unwritable_staging_dir(monkeypatch):
 
     monkeypatch.setattr(os, "makedirs", nope)
 
+    # we need to unset this if other tests have already opened it.
+    staging._staging_dir = None
     with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
-        _ = get_staging_dir()
+        _ = staging.get_staging_dir()

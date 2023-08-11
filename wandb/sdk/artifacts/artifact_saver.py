@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
@@ -300,9 +301,13 @@ class ArtifactSaver:
         """
         staging_dir = get_staging_dir()
         for entry in self._manifest.entries.values():
-            if entry.local_path and entry.local_path.startswith(staging_dir):
-                try:
-                    os.chmod(entry.local_path, 0o600)
-                    os.remove(entry.local_path)
-                except OSError:
-                    pass
+            if not entry.local_path:
+                continue
+            local_path = Path(entry.local_path).expanduser().resolve()
+            if not local_path.relative_to(staging_dir):
+                continue
+            try:
+                os.chmod(entry.local_path, 0o600)
+                os.remove(entry.local_path)
+            except OSError:
+                pass
