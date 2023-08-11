@@ -5,7 +5,6 @@
 package clienttest
 
 import (
-	"fmt"
 	http "net/http"
 	reflect "reflect"
 
@@ -37,7 +36,6 @@ func (m *MockRoundTripper) EXPECT() *MockRoundTripperMockRecorder {
 
 // RoundTrip mocks base method.
 func (m *MockRoundTripper) RoundTrip(arg0 *http.Request) (*http.Response, error) {
-	fmt.Printf("gottt %+v\n", m)
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RoundTrip", arg0)
 	ret0, _ := ret[0].(*http.Response)
