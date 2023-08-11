@@ -2,10 +2,11 @@ package server
 
 import (
 	"errors"
+	"path/filepath"
+
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
-	"path/filepath"
 )
 
 type MetricHandler struct {
@@ -114,21 +115,21 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 
 	// metric can have a glob name or a name
 	// TODO: replace glob-name/name with one-of field
-	if metric.GetGlobName() != "" {
+	switch {
+	case metric.GetGlobName() != "":
 		if _, err := addMetric(metric, metric.GetGlobName(), &h.mh.globMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
 			return
 		}
 		h.sendRecord(record)
-	} else if metric.GetName() != "" {
+	case metric.GetName() != "":
 		if _, err := addMetric(metric, metric.GetName(), &h.mh.definedMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
 			return
 		}
-
 		h.handleStepMetric(metric.GetStepMetric())
 		h.sendRecord(record)
-	} else {
+	default:
 		h.logger.CaptureError("invalid metric", errors.New("invalid metric"))
 	}
 }

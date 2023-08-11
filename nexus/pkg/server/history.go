@@ -2,10 +2,11 @@ package server
 
 import (
 	"fmt"
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
-	"github.com/wandb/wandb/nexus/pkg/service"
 	"strconv"
 	"strings"
+
+	"github.com/wandb/wandb/nexus/internal/nexuslib"
+	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 // handleHistory handles a history record. This is the main entry point for history records.
