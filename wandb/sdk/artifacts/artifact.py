@@ -46,7 +46,7 @@ from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
 )
 from wandb.sdk.artifacts.artifact_saver import get_staging_dir
 from wandb.sdk.artifacts.artifact_state import ArtifactState
-from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL, ArtifactTTLChange
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -171,7 +171,7 @@ class Artifact:
         self._metadata: dict = self._normalize_metadata(metadata)
         self._ttl_duration_seconds: Optional[int] = None
         self._ttl_is_inherited: Optional[bool] = None
-        self._ttl_change: Optional[ArtifactTTLChange] = None
+        self._ttl_changed: Optional[bool] = None
         self._aliases: List[str] = []
         self._saved_aliases: List[str] = []
         self._distributed_id: Optional[str] = None
@@ -305,7 +305,7 @@ class Artifact:
             if attrs_ttl_duration and attrs_ttl_duration > 0
             else None
         )
-        artifact._ttl_is_inherited = attrs.get("ttlIsInherited") or True
+        artifact._ttl_is_inherited = attrs.get("ttlIsInherited")
         artifact._aliases = [
             alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
@@ -945,7 +945,7 @@ class Artifact:
                 "ttlDurationSeconds: $ttlDurationSeconds,",
             )
         else:
-            if self._ttl_duration_seconds or self._ttl_change:
+            if self._ttl_duration_seconds or self._ttl_changed:
                 termwarn(
                     "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
                 )
@@ -2209,7 +2209,7 @@ class Artifact:
         # When ttl_change = None its a no op since nothing changed
         if not self._ttl_changed:
             return None
-        if self._ttl_inherited:
+        if self._ttl_is_inherited:
             return -1
         return self._ttl_duration_seconds or -2
 
