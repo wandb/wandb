@@ -2208,9 +2208,9 @@ class Artifact:
         # Set artifact ttl value to ttl_duration_seconds if the user set a value
         # otherwise use ttl_status to indicate the backend INHERIT(-1) or DISABLE(-2) when the TTL is None
         # When ttl_change = None its a no op since nothing changed
-        if self._ttl_change is None:
+        if not self._ttl_changed:
             return None
-        if self._ttl_change == ArtifactTTLChange.INHERITED:
+        if self._ttl_inherited:
             return -1
         return self._ttl_duration_seconds or -2
 
