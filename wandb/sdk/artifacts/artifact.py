@@ -72,6 +72,9 @@ reset_path()
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
 
+TTL_INHERIT = -1
+TTL_DISABLED = -2
+
 
 class Artifact:
     """Flexible and lightweight building block for dataset and model versioning.
@@ -1959,10 +1962,9 @@ class Artifact:
         """
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "link")
-        if self.ttl is not None:
+        if self._ttl_changed:
             termwarn(
-                "Artifacts linked to a portfolio cannot have a TTL. The artifact will no longer have a TTL."
-                f" Former TTL: {self.ttl}"
+                "Artifact TTL will be removed for source artifacts that are linked to portfolios."
             )
         self._link(target_path, aliases)
 
@@ -2223,8 +2225,8 @@ class Artifact:
         if not self._ttl_changed:
             return None
         if self._ttl_is_inherited:
-            return -1
-        return self._ttl_duration_seconds or -2
+            return TTL_INHERIT
+        return self._ttl_duration_seconds or TTL_DISABLED
 
     def _set_gql_to_ttl_duration_seconds(
         self, gql_ttl_duration_seconds: Optional[int]

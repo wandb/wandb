@@ -2632,10 +2632,9 @@ class Run:
                     entity,
                     project,
                 )
-                if artifact.ttl is not None:
+                if artifact._ttl_changed:
                     wandb.termwarn(
                         "Artifact TTL will be removed for source artifacts that are linked to portfolios."
-                        f" Former TTL: {artifact.ttl}"
                     )
             else:
                 # TODO: implement offline mode + sync
