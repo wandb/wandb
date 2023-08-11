@@ -3,33 +3,33 @@ package filestream
 //go:generate mockgen -destination gqltest_gen.go -package filestream_test github.com/hashicorp/go-retryablehttp Client
 
 import (
-	"testing"
-	"os"
-	"io"
-	"strings"
-	"net/http"
 	"encoding/json"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"testing"
 
-	"golang.org/x/exp/slog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slog"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/internal/clienttest"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 )
 
 func requestMatch(t *testing.T, fsd FsData) func(*http.Request) (*http.Response, error) {
 	resp := http.Response{
-				StatusCode:    200,
-				Body:          io.NopCloser(strings.NewReader("")),
-				ContentLength: 0,
-			}
+		StatusCode:    200,
+		Body:          io.NopCloser(strings.NewReader("")),
+		ContentLength: 0,
+	}
 	return func(req *http.Request) (*http.Response, error) {
-			p := FsData{}
-			err := json.NewDecoder(req.Body).Decode(&p)
-			assert.Nil(t, err)
-			assert.Equal(t, fsd.Files, p.Files)
-			return &resp, nil
+		p := FsData{}
+		err := json.NewDecoder(req.Body).Decode(&p)
+		assert.Nil(t, err)
+		assert.Equal(t, fsd.Files, p.Files)
+		return &resp, nil
 	}
 }
 
@@ -38,8 +38,8 @@ func testSendAndReceive(t *testing.T, chunk chunkData, fsd FsData) {
 
 	m := clienttest.NewMockRoundTripper(ctrl)
 	m.EXPECT().
-    	RoundTrip(gomock.Any()).
-    	DoAndReturn(requestMatch(t, fsd)).
+		RoundTrip(gomock.Any()).
+		DoAndReturn(requestMatch(t, fsd)).
 		AnyTimes()
 
 	slogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -59,13 +59,12 @@ func TestSendChunks(t *testing.T) {
 			line:      "blllah",
 		},
 	}
-	fsd := FsData{Files:map[string]FsChunkData{
-					"wandb-history.jsonl":
-						FsChunkData{
-							Offset:0,
-							Content:[]string{"blllah"},
-						},
-					},
-				}
+	fsd := FsData{Files: map[string]FsChunkData{
+		"wandb-history.jsonl": FsChunkData{
+			Offset:  0,
+			Content: []string{"blllah"},
+		},
+	},
+	}
 	testSendAndReceive(t, chunk, fsd)
 }
