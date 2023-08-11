@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import pytest
 import wandb
+from wandb.sdk.artifacts import staging
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
@@ -15,7 +16,6 @@ from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHan
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.artifacts import staging
 
 
 def test_opener_rejects_append_mode(cache):
