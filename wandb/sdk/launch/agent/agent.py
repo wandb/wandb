@@ -602,12 +602,10 @@ class LaunchAgent:
         start_time = time.time()
         while self._jobs_event.is_set():
             # If run has failed to start before timeout, kill it
-            if job_tracker.run.get_status().state == "starting":
-                if (
-                    RUN_START_TIMEOUT > 0
-                    and time.time() - start_time > RUN_START_TIMEOUT
-                ):
-                    job_tracker.run.cancel()
+            state = run.get_status().state
+            if state == "starting" and RUN_START_TIMEOUT > 0:
+                if time.time() - start_time > RUN_START_TIMEOUT:
+                    run.cancel()
                     raise LaunchError(
                         f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
                         "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
