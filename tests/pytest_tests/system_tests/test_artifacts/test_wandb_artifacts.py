@@ -1478,41 +1478,36 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
     assert cache.cleanup(0) == 2**20
 
 
-@pytest.mark.parametrize(
-    "ttl_set,ttl_get,ttl_changed,ttl_is_inherited,ttl_duration_seconds",
-    [
-        ("DO_NOTHING", None, False, True, None),
-        (None, None, True, False, -2),
-        (ArtifactTTL.INHERIT, "ERROR", True, True, -1),
-        (
-            timedelta(days=100),
-            timedelta(days=100),
-            True,
-            False,
-            int(timedelta(days=100).total_seconds),
-        ),
-        (timedelta(days=-1), "N/A", "N/A", "N/A", "N/A"),
-    ],
-)
-def test_artifact_ttl_setter_getter(
-    ttl_set, ttl_get, ttl_changed, ttl_is_inherited, ttl_duration_seconds
-):
-    artifact = wandb.Artifact("test", type="test")
+def test_artifact_ttl_setter_getter():
+    art = wandb.Artifact("test", type="test")
+    assert art.ttl is None
+    assert art._ttl_changed is False
+    assert art._ttl_is_inherited
+    assert art._ttl_duration_seconds is None
 
-    if ttl_get == "N/A":
-        with pytest.raises(ValueError):
-            artifact.ttl = ttl_set
-        return
+    art = wandb.Artifact("test", type="test")
+    art.ttl = None
+    assert art.ttl is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+    assert art._ttl_duration_seconds == -2
 
-    if ttl_set != "DO_NOTHING":
-        artifact.ttl = ttl_set
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ArtifactTTL.INHERIT
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_changed
+    assert art._ttl_is_inherited
+    assert art._ttl_duration_seconds == -1
 
-    if ttl_get == "ERROR":
-        with pytest.raises(ArtifactNotLoggedError):
-            print(artifact.ttl)
-    else:
-        assert artifact.ttl == ttl_get
+    ttl_timedelta = timedelta(days=100)
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ttl_timedelta
+    assert art.ttl == ttl_timedelta
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+    assert art._ttl_duration_seconds == int(ttl_timedelta.total_seconds())
 
-    assert artifact._ttl_changed == ttl_changed
-    assert artifact._ttl_is_inherited == ttl_is_inherited
-    assert artifact._ttl_duration_seconds == ttl_duration_seconds
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ValueError):
+        art.ttl = timedelta(days=-1)
