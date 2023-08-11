@@ -72,9 +72,6 @@ reset_path()
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
 
-TTL_INHERIT = -1
-TTL_DISABLED = -2
-
 
 class Artifact:
     """Flexible and lightweight building block for dataset and model versioning.
@@ -302,7 +299,9 @@ class Artifact:
         artifact.metadata = cls._normalize_metadata(
             json.loads(attrs["metadata"] or "{}")
         )
-        artifact._set_gql_to_ttl_duration_seconds(attrs.get("ttlDurationSeconds"))
+        artifact._ttl_duration_seconds = artifact._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
         artifact._ttl_is_inherited = (
             True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
         )
@@ -491,9 +490,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
         """
-        if self._ttl_is_inherited and (
-            self._state == ArtifactState.PENDING or self._ttl_changed
-        ):
+        if self._ttl_is_inherited and self._ttl_changed:
             raise ArtifactNotLoggedError(self, "ttl")
         if self._ttl_duration_seconds is None:
             return None
@@ -763,6 +760,8 @@ class Artifact:
                         name
                     }
                     versionIndex
+                    ttlDurationSeconds
+                    ttlIsInherited
                     aliases {
                         artifactCollection {
                             project {
@@ -783,8 +782,6 @@ class Artifact:
                     fileCount
                     createdAt
                     updatedAt
-                    ttlDurationSeconds
-                    ttlIsInherited
                 }
             }
         """
@@ -816,6 +813,13 @@ class Artifact:
         self._source_project = self._project
         self._source_name = self._name
         self._source_version = self._version
+        self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        self._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
+        )
+        self._ttl_changed = False  # Reset after saving artifact
         self._aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
@@ -830,11 +834,6 @@ class Artifact:
         self._file_count = attrs["fileCount"]
         self._created_at = attrs["createdAt"]
         self._updated_at = attrs["updatedAt"]
-        self._set_gql_to_ttl_duration_seconds(attrs.get("ttlDurationSeconds"))
-        self._ttl_is_inherited = (
-            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
-        )
-        self._ttl_changed = False  # Reset after saving artifact
 
     @normalize_exceptions
     def _update(self) -> None:
@@ -961,7 +960,7 @@ class Artifact:
                 "ttlDurationSeconds: $ttlDurationSeconds,",
             )
         else:
-            if self._ttl_duration_seconds or self._ttl_changed:
+            if not self._ttl_is_inherited:
                 termwarn(
                     "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
                 )
@@ -2222,21 +2221,23 @@ class Artifact:
         # Set artifact ttl value to ttl_duration_seconds if the user set a value
         # otherwise use ttl_status to indicate the backend INHERIT(-1) or DISABLED(-2) when the TTL is None
         # When ttl_change = None its a no op since nothing changed
+        INHERIT = -1  # noqa: N806
+        DISABLED = -2  # noqa: N806
+
         if not self._ttl_changed:
             return None
         if self._ttl_is_inherited:
-            return TTL_INHERIT
-        return self._ttl_duration_seconds or TTL_DISABLED
+            return INHERIT
+        return self._ttl_duration_seconds or DISABLED
 
-    def _set_gql_to_ttl_duration_seconds(
+    def _ttl_duration_seconds_from_gql(
         self, gql_ttl_duration_seconds: Optional[int]
-    ) -> None:
+    ) -> Optional[int]:
         # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
         # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
-            self._ttl_duration_seconds = gql_ttl_duration_seconds
-        else:
-            self._ttl_duration_seconds = None
+            return gql_ttl_duration_seconds
+        return None
 
 
 class _ArtifactVersionType(WBType):

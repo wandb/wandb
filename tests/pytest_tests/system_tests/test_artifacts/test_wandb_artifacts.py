@@ -1481,32 +1481,32 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
 def test_artifact_ttl_setter_getter():
     art = wandb.Artifact("test", type="test")
     assert art.ttl is None
+    assert art._ttl_duration_seconds is None
     assert art._ttl_changed is False
     assert art._ttl_is_inherited
-    assert art._ttl_duration_seconds is None
 
     art = wandb.Artifact("test", type="test")
     art.ttl = None
     assert art.ttl is None
+    assert art._ttl_duration_seconds is None
     assert art._ttl_changed
     assert art._ttl_is_inherited is False
-    assert art._ttl_duration_seconds == -2
 
     art = wandb.Artifact("test", type="test")
     art.ttl = ArtifactTTL.INHERIT
     with pytest.raises(ArtifactNotLoggedError):
         print(art.ttl)
+    assert art._ttl_duration_seconds is None
     assert art._ttl_changed
     assert art._ttl_is_inherited
-    assert art._ttl_duration_seconds == -1
 
     ttl_timedelta = timedelta(days=100)
     art = wandb.Artifact("test", type="test")
     art.ttl = ttl_timedelta
     assert art.ttl == ttl_timedelta
+    assert art._ttl_duration_seconds == int(ttl_timedelta.total_seconds())
     assert art._ttl_changed
     assert art._ttl_is_inherited is False
-    assert art._ttl_duration_seconds == int(ttl_timedelta.total_seconds())
 
     art = wandb.Artifact("test", type="test")
     with pytest.raises(ValueError):

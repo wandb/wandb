@@ -2632,7 +2632,7 @@ class Run:
                     entity,
                     project,
                 )
-                if artifact._ttl_changed:
+                if not artifact._ttl_is_inherited:
                     wandb.termwarn(
                         "Artifact TTL will be removed for source artifacts that are linked to portfolios."
                     )
