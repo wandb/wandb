@@ -490,7 +490,9 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
         """
-        if self._ttl_is_inherited and self._ttl_changed:
+        if self._ttl_is_inherited and (
+            self._state == ArtifactState.PENDING or self._ttl_changed
+        ):
             raise ArtifactNotLoggedError(self, "ttl")
         if self._ttl_duration_seconds is None:
             return None

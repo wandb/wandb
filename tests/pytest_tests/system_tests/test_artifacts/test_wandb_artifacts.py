@@ -1480,7 +1480,8 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
 
 def test_artifact_ttl_setter_getter():
     art = wandb.Artifact("test", type="test")
-    assert art.ttl is None
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
     assert art._ttl_duration_seconds is None
     assert art._ttl_changed is False
     assert art._ttl_is_inherited
