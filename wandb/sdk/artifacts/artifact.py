@@ -170,8 +170,8 @@ class Artifact:
         self._description: Optional[str] = description
         self._metadata: dict = self._normalize_metadata(metadata)
         self._ttl_duration_seconds: Optional[int] = None
-        self._ttl_is_inherited: Optional[bool] = None
-        self._ttl_changed: Optional[bool] = None
+        self._ttl_is_inherited: bool = True
+        self._ttl_changed: bool = False
         self._aliases: List[str] = []
         self._saved_aliases: List[str] = []
         self._distributed_id: Optional[str] = None
@@ -305,7 +305,9 @@ class Artifact:
             if attrs_ttl_duration and attrs_ttl_duration > 0
             else None
         )
-        artifact._ttl_is_inherited = attrs.get("ttlIsInherited")
+        artifact._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs.get("ttlIsInherited")
+        )
         artifact._aliases = [
             alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
