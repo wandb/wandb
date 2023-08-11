@@ -306,7 +306,7 @@ class Artifact:
             else None
         )
         artifact._ttl_is_inherited = (
-            True if attrs.get("ttlIsInherited") is None else attrs.get("ttlIsInherited")
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
         )
         artifact._aliases = [
             alias for alias in aliases if not util.alias_is_version_index(alias)
@@ -519,8 +519,9 @@ class Artifact:
             raise ValueError("Cannot set artifact TTL for type wandb-history")
 
         self._ttl_changed = True
-        if ttl == ArtifactTTL.INHERIT:
-            self._ttl_is_inherited = True
+        if isinstance(ttl, ArtifactTTL):
+            if ttl == ArtifactTTL.INHERIT:
+                self._ttl_is_inherited = True
         else:
             self._ttl_is_inherited = False
             if ttl is None:
