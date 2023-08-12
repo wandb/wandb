@@ -3,10 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
-
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
@@ -49,6 +47,9 @@ type Handler struct {
 	// historyRecord is the history record used to track
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
+
+	// mh is the metric handler for the stream
+	mh *MetricHandler
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
@@ -128,6 +129,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_History:
 	case *service.Record_LinkArtifact:
 	case *service.Record_Metric:
+		h.handleMetric(record, x.Metric)
 	case *service.Record_Output:
 	case *service.Record_OutputRaw:
 		h.handleOutputRaw(record)
@@ -194,7 +196,7 @@ func (h *Handler) handleDefer(record *service.Record) {
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.flushHistory(h.historyRecord)
+		h.handleHistory(h.historyRecord)
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 	case service.DeferRequest_FLUSH_DEBOUNCER:
@@ -307,7 +309,7 @@ func (h *Handler) handleAlert(record *service.Record) {
 }
 
 func (h *Handler) handleExit(record *service.Record) {
-	// stop the system monitor to ensure that we don't send any more system metrics
+	// stop the system monitor to ensure that we don't send any more system mh
 	// after the run has exited
 	h.systemMonitor.Stop()
 	h.sendRecord(record)
@@ -330,115 +332,11 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 	}
 }
 
-func (h *Handler) flushHistory(history *service.HistoryRecord) {
-
-	if history == nil || history.Item == nil {
-		return
-	}
-	// walk through items looking for _timestamp
-	// TODO: add a timestamp field to the history record
-	items := history.GetItem()
-	var runTime float64 = 0
-	for _, item := range items {
-		if item.Key == "_timestamp" {
-			val, err := strconv.ParseFloat(item.ValueJson, 64)
-			if err != nil {
-				h.logger.CaptureError("error parsing timestamp", err)
-			} else {
-				runTime = val - h.startTime
-			}
-		}
-	}
-
-	history.Item = append(history.Item,
-		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
-		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
-	)
-
-	record := &service.Record{
-		RecordType: &service.Record_History{History: history},
-	}
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
-	h.sendRecord(summaryRecord)
-	h.sendRecord(record)
-}
-
-func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
-
-	// This is the first partial history record we receive
-	// for this step, so we need to initialize the history record
-	// and step. If the user provided a step in the request,
-	// use that, otherwise use 0.
-	if h.historyRecord == nil {
-		h.historyRecord = &service.HistoryRecord{}
-		if request.Step != nil {
-			h.historyRecord.Step = request.Step
-		} else {
-			h.historyRecord.Step = &service.HistoryStep{Num: h.runRecord.StartingStep}
-		}
-	}
-
-	// The HistoryRecord struct is responsible for tracking data related to
-	//	a single step in the history. Users can send multiple partial history
-	//	records for a single step. Each partial history record contains a
-	//	step number, a flush flag, and a list of history items.
-	//
-	// The step number indicates the step number for the history record. The
-	// flush flag determines whether the history record should be flushed
-	// after processing the request. The history items are appended to the
-	// existing history record.
-	//
-	// The following logic is used to process the request:
-	//
-	// -  If the request includes a step number and the step number is greater
-	//		than the current step number, the current history record is flushed
-	//		and a new history record is created.
-	// - If the step number in the request is less than the current step number,
-	//		we ignore the request and log a warning.
-	// 		NOTE: the server requires the steps of the history records
-	// 		to be monotonically increasing.
-	// -  If the step number in the request matches the current step number, the
-	//		history items are appended to the current history record.
-	//
-	// - If the request has a flush flag, another flush might occur after for the
-	// current history record after processing the request.
-	//
-	// - If the request doesn't have a step, and doesn't have a flush flag, this is
-	//	equivalent to step being equal to the current step number and a flush flag
-	//	being set to true.
-	if request.Step != nil {
-		if request.Step.Num > h.historyRecord.Step.Num {
-			h.flushHistory(h.historyRecord)
-			h.historyRecord = &service.HistoryRecord{
-				Step: &service.HistoryStep{Num: request.Step.Num},
-			}
-		} else if request.Step.Num < h.historyRecord.Step.Num {
-			h.logger.CaptureWarn("received history record for a step that has already been received",
-				"received", request.Step, "current", h.historyRecord.Step)
-			return
-		}
-	}
-
-	// Append the history items from the request to the current history record.
-	h.historyRecord.Item = append(h.historyRecord.Item, request.Item...)
-
-	// Flush the history record and start to collect a new one with
-	// the next step number.
-	if (request.Step == nil && request.Action == nil) || (request.Action != nil && request.Action.Flush) {
-		h.flushHistory(h.historyRecord)
-		h.historyRecord = &service.HistoryRecord{
-			Step: &service.HistoryStep{
-				Num: h.historyRecord.Step.Num + 1,
-			},
-		}
-	}
-}
-
 func (h *Handler) handleTelemetry(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {
+func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
 	h.sendRecord(summaryRecord)
 }
