@@ -427,6 +427,7 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
+            PATH=/usr/local/go/bin:$PATH \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
