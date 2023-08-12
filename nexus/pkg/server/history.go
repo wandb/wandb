@@ -10,15 +10,15 @@ import (
 )
 
 // handleHistory handles a history record. This is the main entry point for history records.
-// It is responsible for handling the history record internally, processing it for metrics,
+// It is responsible for handling the history record internally, processing it,
 // and forwarding it to the Writer.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
 
-	// TODO replace history encoding with a map
 	if history.GetItem() == nil {
 		return
 	}
 
+	// TODO replace history encoding with a map, this will make it easier to handle history
 	historyMap := make(map[string]string)
 	for _, item := range history.GetItem() {
 		historyMap[item.GetKey()] = item.GetValueJson()
@@ -36,63 +36,6 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	// TODO add an option to disable summary (this could be quite expensive)
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
 	h.sendRecord(summaryRecord)
-}
-
-// handleSingleHistoryMetric handles a single history item. It is responsible for matching current history
-// item with defined metrics, and creating new metrics if needed. It also handles step metric in case
-// it needs to be synced with the metric, but not part of the history record.
-func (h *Handler) handleSingleHistoryMetric(item *service.HistoryItem, historyMap *map[string]string) *service.HistoryItem {
-
-	// ignore internal history items
-	if strings.HasPrefix(item.Key, "_") {
-		return nil
-	}
-
-	metric, created := h.mh.createMatchingGlobMetric(item.Key)
-	if created {
-		record := &service.Record{
-			RecordType: &service.Record_Metric{
-				Metric: metric,
-			},
-			Control: &service.Control{
-				Local: true,
-			},
-		}
-		h.handleMetric(record, metric)
-	}
-
-	// metric has a step metric, and we have not seen it before (and we are in step sync mode)
-	// so we need to add it to the history record
-	if metric.GetOptions().GetStepSync() && metric.GetStepMetric() != "" {
-		key := metric.GetStepMetric()
-		if _, ok := (*historyMap)[key]; ok {
-			return nil
-		}
-		if value, ok := h.consolidatedSummary[key]; ok {
-			(*historyMap)[key] = value
-			return &service.HistoryItem{
-				Key:       key,
-				ValueJson: value,
-			}
-		}
-	}
-	return nil
-}
-
-// handleAllHistoryMetric handles all history items. It is responsible for matching current history
-// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
-// it needs to be synced with the metric, but not part of the history record.
-func (h *Handler) handleAllHistoryMetric(history *service.HistoryRecord, historyMap *map[string]string) {
-	// This means that there are no definedMetrics to send hence we can return early
-	if h.mh == nil {
-		return
-	}
-
-	for _, item := range history.GetItem() {
-		if hi := h.handleSingleHistoryMetric(item, historyMap); hi != nil {
-			history.Item = append(history.Item, hi)
-		}
-	}
 }
 
 // handleHistoryInternal adds internal history items to the history record
@@ -113,6 +56,77 @@ func (h *Handler) handleHistoryInternal(history *service.HistoryRecord, historyM
 		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
 		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
 	)
+}
+
+// handleAllHistoryMetric handles all history items. It is responsible for matching current history
+// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
+// it needs to be synced, but not part of the history record.
+func (h *Handler) handleAllHistoryMetric(history *service.HistoryRecord, historyMap *map[string]string) {
+	// This means that there are no metrics defined, and we don't need to do anything
+	if h.mh == nil {
+		return
+	}
+
+	for _, item := range history.GetItem() {
+		h.imputeStepMetric(item, history, historyMap)
+	}
+}
+
+// imputeStepMetric imputes a step metric if it needs to be synced, but not part of the history record.
+func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.HistoryRecord, historyMap *map[string]string) {
+
+	// check if history item matches a defined metric or a glob metric
+	metric := h.matchHistoryItemMetric(item)
+
+	key := metric.GetStepMetric()
+	// check if step metric is defined and if it needs to be synced
+	if !(metric.GetOptions().GetStepSync() && key != "") {
+		return
+	}
+
+	// check if step metric is already in history
+	if _, ok := (*historyMap)[key]; ok {
+		return
+	}
+
+	// we use the summary value of the metric as the algorithm for imputing the step metric
+	if value, ok := h.consolidatedSummary[key]; ok {
+		(*historyMap)[key] = value
+		hi := &service.HistoryItem{
+			Key:       key,
+			ValueJson: value,
+		}
+		history.Item = append(history.Item, hi)
+	}
+}
+
+// matchHistoryItemMetric matches a history item with a defined metric or creates a new metric if needed.
+func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.MetricRecord {
+
+	// ignore internal history items
+	if strings.HasPrefix(item.Key, "_") {
+		return nil
+	}
+
+	// check if history item matches a defined metric exactly, if it does return the metric
+	if metric, ok := h.mh.definedMetrics[item.Key]; ok {
+		return metric
+	}
+
+	// if a new metric was created, we need to handle it
+	metric := h.mh.createMatchingGlobMetric(item.Key)
+	if metric != nil {
+		record := &service.Record{
+			RecordType: &service.Record_Metric{
+				Metric: metric,
+			},
+			Control: &service.Control{
+				Local: true,
+			},
+		}
+		h.handleMetric(record, metric)
+	}
+	return metric
 }
 
 // handlePartialHistory handles a partial history request. Collects the history items until a full

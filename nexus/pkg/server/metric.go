@@ -50,30 +50,22 @@ func addMetric(arg interface{}, key string, target *map[string]*service.MetricRe
 	return metric, nil
 }
 
-// createMatchingGlobMetric Add a metric to the defined metrics map if it does not already exist.
-// First check if the metric already exists in the defined metrics map. If it does, no need to create it.
-// Otherwise, match against the glob metrics map. If a match is found, create a new metric based on the glob metric.
-// If no match is found, there is no need to create a metric.
-func (mh *MetricHandler) createMatchingGlobMetric(key string) (*service.MetricRecord, bool) {
-	if metric, defined := mh.definedMetrics[key]; defined {
-		return metric, false /*created*/
-	}
-
-	var metric *service.MetricRecord
+// createMatchingGlobMetric check if a key matches a glob pattern, if it does create a new defined metric
+// based on the glob metric and return it.
+func (mh *MetricHandler) createMatchingGlobMetric(key string) *service.MetricRecord {
 	for pattern, globMetric := range mh.globMetrics {
 		if match, err := filepath.Match(pattern, key); err != nil {
 			// h.logger.CaptureError("error matching metric", err)
 			continue
 		} else if match {
-			metric = proto.Clone(globMetric).(*service.MetricRecord)
+			metric := proto.Clone(globMetric).(*service.MetricRecord)
 			metric.Name = key
 			metric.Options.Defined = false
 			metric.GlobName = ""
-			return metric, true /*created*/
+			return metric
 		}
 	}
-
-	return metric, false /*created*/
+	return nil
 }
 
 // handleStepMetric handles the step metric for a given metric key. If the step metric is not
@@ -107,8 +99,7 @@ func (h *Handler) handleStepMetric(key string) {
 }
 
 func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
-	// mh is nil when there are no defined metrics to send
-	// on the first metric, we initialize the mh
+	// on the first metric, initialize the metric handler
 	if h.mh == nil {
 		h.mh = NewMetricHandler()
 	}
