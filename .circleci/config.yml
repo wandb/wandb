@@ -434,6 +434,19 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
+  gotest:
+    docker:
+      - image: cimg/go:1.20
+    steps:
+      - checkout
+      - run:
+          name: Run Nexus' Go tests and collect coverage
+          command: |
+            cd nexus
+            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+# todo: add codecov
+#      - codecov/upload
+
   protobuf-compatability:
     parameters:
       python_version_major:
@@ -1362,6 +1375,23 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
+      #
+      # Nexus smoke tests with pytest on Linux, using real wandb server
+      #
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10, 11 ]
+          name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
+      # Nexus unit tests
+      #
+      - gotest
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
