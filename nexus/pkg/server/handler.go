@@ -179,6 +179,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
+	case *service.Request_Cancel:
+		h.handleCancel(record)
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -256,6 +258,10 @@ func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
 			Run: h.runRecord,
 		},
 	}
+}
+
+func (h *Handler) handleCancel(record *service.Record) {
+	h.sendRecord(record)
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {

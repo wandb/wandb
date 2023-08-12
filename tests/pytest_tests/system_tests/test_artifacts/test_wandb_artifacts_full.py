@@ -431,7 +431,7 @@ def test_log_reference_directly(example_files, wandb_init):
     assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
 
 
-def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
+def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
     art_dir = tmp_path / "an-unusual-path"
     monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
     name_path = logged_artifact.name
