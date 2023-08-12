@@ -3440,8 +3440,7 @@ class Api:
                 "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
             # ttlDurationSeconds is only usable if ttlIsInherited is also present
-            fields.remove("ttlDurationSeconds")
-
+            ttl_duration_seconds = None
         query_template = self._get_create_artifact_mutation(
             fields, history_step, distributed_id
         )
