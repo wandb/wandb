@@ -979,7 +979,7 @@ class Artifact:
                     "_TTL_DURATION_SECONDS_VALUE_",
                     "",
                 )
-                .replace("_TTL_DURATION_SECONDS_FIELD_", "")
+                .replace("_TTL_DURATION_SECONDS_FIELDS_", "")
             )
         mutation = gql(mutation_template)
         assert self._client is not None
