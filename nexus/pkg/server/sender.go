@@ -181,7 +181,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 			fs.WithSettings(s.settings),
 			fs.WithLogger(s.logger),
 			fs.WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)),
-			//fs.WithOffsets(s.resumeState.FileStreamOffset),
+			fs.WithOffsets(s.resumeState.FileStreamOffset),
 		)
 		s.fileStream.Start()
 		s.uploadManager = uploader.NewUploadManager(
