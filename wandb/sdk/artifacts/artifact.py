@@ -969,7 +969,7 @@ class Artifact:
                 )
             )
         else:
-            if not self._ttl_is_inherited:
+            if self._ttl_changed:
                 termwarn(
                     "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
                 )
