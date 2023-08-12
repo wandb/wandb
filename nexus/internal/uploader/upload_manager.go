@@ -1,8 +1,9 @@
 package uploader
 
 import (
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"sync"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
 )
 
 type Storage int
@@ -14,12 +15,12 @@ const (
 	Azure
 )
 
-type fileCounts struct {
-	wandbCount    int
-	mediaCount    int
-	artifactCount int
-	otherCount    int
-}
+// type fileCounts struct {
+//		wandbCount    int
+//		mediaCount    int
+//		artifactCount int
+//		otherCount    int
+// }
 
 type Uploader interface {
 	Upload(task *UploadTask) error
@@ -34,7 +35,7 @@ type UploadManager struct {
 	uploaders map[Storage]Uploader
 
 	// fileCounts is the file counts
-	fileCounts fileCounts
+	//fileCounts fileCounts
 
 	// logger is the logger for the uploader
 	logger *observability.NexusLogger
