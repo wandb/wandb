@@ -20,6 +20,7 @@ from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
     make_name_dns_safe,
@@ -516,7 +517,10 @@ class KubernetesRunner(AbstractRunner):
                 }
 
         secret = None
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
         if launch_project.docker_image:
             if len(containers) > 1:
                 raise LaunchError(
@@ -531,11 +535,9 @@ class KubernetesRunner(AbstractRunner):
                     "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             assert entry_point is not None
-            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             containers[0]["image"] = image_uri
-            launch_project.fill_macros(image_uri)
         secret = maybe_create_imagepull_secret(
             core_api, self.registry, launch_project.run_id, namespace
         )
@@ -551,7 +553,9 @@ class KubernetesRunner(AbstractRunner):
             launch_project.override_entrypoint is not None,
         )
 
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
         for cont in containers:
             # Add our env vars to user supplied env vars
             env = cont.get("env", [])
@@ -585,7 +589,7 @@ class KubernetesRunner(AbstractRunner):
             required="Kubernetes runner requires the kubernetes package. Please"
             " install it with `pip install wandb[launch]`.",
         )
-        resource_args = launch_project.resource_args.get("kubernetes", {})
+        resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a "
@@ -600,22 +604,21 @@ class KubernetesRunner(AbstractRunner):
         # run by creating a custom object.
         api_version = resource_args.get("apiVersion", "batch/v1")
         if api_version not in ["batch/v1", "batch/v1beta1"]:
-            launch_project.fill_macros(image_uri)
-            env_vars = get_env_vars_dict(launch_project, self._api)
+            env_vars = get_env_vars_dict(
+                launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+            )
             # Crawl the resource args and add our env vars to the containers.
-            add_wandb_env(launch_project.resource_args, env_vars)
+            add_wandb_env(resource_args, env_vars)
             # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
-            add_label_to_pods(
-                launch_project.resource_args, "wandb/run-id", launch_project.run_id
-            )
+            add_label_to_pods(resource_args, "wandb/run-id", launch_project.run_id)
             overrides = {}
             if launch_project.override_args:
                 overrides["args"] = launch_project.override_args
             if launch_project.override_entrypoint:
                 overrides["command"] = launch_project.override_entrypoint.command
             add_entrypoint_args_overrides(
-                launch_project.resource_args,
+                resource_args,
                 overrides,
             )
             api = client.CustomObjectsApi(api_client)
@@ -632,7 +635,7 @@ class KubernetesRunner(AbstractRunner):
                     version=version,
                     namespace=namespace,
                     plural=plural,
-                    body=launch_project.resource_args.get("kubernetes"),
+                    body=resource_args,
                 )
             except ApiException as e:
                 raise LaunchError(

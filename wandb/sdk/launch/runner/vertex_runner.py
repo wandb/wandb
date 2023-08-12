@@ -18,7 +18,7 @@ from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
+from ..utils import LOG_PREFIX, MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -102,9 +102,10 @@ class VertexRunner(AbstractRunner):
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
         )
-        resource_args = launch_project.resource_args.get("vertex")
+        full_resource_args = launch_project.fill_macros(image_uri)
+        resource_args = full_resource_args.get("vertex")
         if not resource_args:
-            resource_args = launch_project.resource_args.get("gcp-vertex")
+            resource_args = full_resource_args.get("gcp-vertex")
         if not resource_args:
             raise LaunchError(
                 "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
@@ -133,9 +134,11 @@ class VertexRunner(AbstractRunner):
         )
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
 
-        launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 
@@ -152,7 +155,11 @@ class VertexRunner(AbstractRunner):
                     "command": entry_cmd,
                     "env": [
                         {"name": k, "value": v}
-                        for k, v in get_env_vars_dict(launch_project, self._api).items()
+                        for k, v in get_env_vars_dict(
+                            launch_project,
+                            self._api,
+                            MAX_ENV_LENGTHS[self.__class__.__name__],
+                        ).items()
                     ],
                 },
             }

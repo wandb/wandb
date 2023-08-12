@@ -62,6 +62,7 @@ message Control {
   bool always_send = 5;  // message to sender
   bool flow_control = 6;  // message should be passed to flow control
   int64 end_offset = 7;  // end of message offset of this written message
+  string connection_id = 8;  // connection id
 }
 
 /*
@@ -391,6 +392,7 @@ message ArtifactRecord {
   string                        client_id=15;
   string                        sequence_client_id=16;
   string                        base_id=17;
+  int64                         ttl_duration_seconds=18;
   bool                          incremental_beta1=100;
   _RecordInfo                   _info = 200;
 }
@@ -497,6 +499,7 @@ message Request {
     KeepaliveRequest      keepalive = 17;
     RunStatusRequest      run_status = 20;
     CancelRequest         cancel = 21;
+    MetadataRequest       metadata = 22;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -991,4 +994,45 @@ message CancelRequest {
 }
 
 message CancelResponse {
+}
+
+/*
+ * MetadataRequest
+ */
+message MetaDiskInfo {
+  float total = 1;
+  float used = 2;
+}
+
+message MetaGpuAppleInfo {
+  string gpuType = 1;
+  string vendor = 2;
+}
+
+message MetaMemInfo {
+  float total = 1;
+}
+
+message MetadataRequest {
+  string os = 1;
+  string python = 2;
+  google.protobuf.Timestamp heartbeatAt = 3;
+  google.protobuf.Timestamp startedAt = 4;
+  string docker = 5;
+  string cuda = 6;
+  repeated string args = 7;
+  string state = 8;
+  string program = 9;
+  string codePath = 10;
+  GitRepoRecord git = 11;
+  string email = 12;
+  string root = 13;
+  string host = 14;
+  string username = 15;
+  string executable = 16;
+  int32 cpu_count = 17 [json_name="cpu_count"];
+  int32 cpu_count_logical = 18 [json_name="cpu_count_logical"];
+  MetaDiskInfo disk = 19;
+  MetaGpuAppleInfo gpuapple = 20;
+  MetaMemInfo memory = 21;
 }

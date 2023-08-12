@@ -1,7 +1,6 @@
 """Artifact class."""
 import concurrent.futures
 import contextlib
-import datetime
 import json
 import multiprocessing.dummy
 import os
@@ -11,6 +10,7 @@ import shutil
 import tempfile
 import time
 from copy import copy
+from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
 from typing import (
@@ -44,18 +44,20 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
     ArtifactManifestV1,
 )
-from wandb.sdk.artifacts.artifact_saver import get_staging_dir
 from wandb.sdk.artifacts.artifact_state import ArtifactState
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
     WaitTimeoutError,
 )
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
@@ -108,39 +110,6 @@ class Artifact:
     """
 
     _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
-    _GQL_FRAGMENT = """
-      fragment ArtifactFragment on Artifact {
-          id
-          artifactSequence {
-              project {
-                  entityName
-                  name
-              }
-              name
-          }
-          versionIndex
-          artifactType {
-              name
-          }
-          description
-          metadata
-          aliases {
-              artifactCollection {
-                  project {
-                      entityName
-                      name
-                  }
-                  name
-              }
-              alias
-          }
-          state
-          commitHash
-          fileCount
-          createdAt
-          updatedAt
-      }
-    """
 
     def __init__(
         self,
@@ -200,6 +169,9 @@ class Artifact:
         self._type: str = type
         self._description: Optional[str] = description
         self._metadata: dict = self._normalize_metadata(metadata)
+        self._ttl_duration_seconds: Optional[int] = None
+        self._ttl_is_inherited: bool = True
+        self._ttl_changed: bool = False
         self._aliases: List[str] = []
         self._saved_aliases: List[str] = []
         self._distributed_id: Optional[str] = None
@@ -239,7 +211,7 @@ class Artifact:
                 }
             }
             """
-            + cls._GQL_FRAGMENT
+            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -271,7 +243,7 @@ class Artifact:
                 }
             }
             """
-            + cls._GQL_FRAGMENT
+            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -326,6 +298,12 @@ class Artifact:
         artifact._description = attrs["description"]
         artifact.metadata = cls._normalize_metadata(
             json.loads(attrs["metadata"] or "{}")
+        )
+        artifact._ttl_duration_seconds = artifact._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        artifact._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
         )
         artifact._aliases = [
             alias for alias in aliases if not util.alias_is_version_index(alias)
@@ -500,6 +478,58 @@ class Artifact:
             metadata: Structured data associated with the artifact.
         """
         self._metadata = self._normalize_metadata(metadata)
+
+    @property
+    def ttl(self) -> Union[timedelta, None]:
+        """Time To Live (TTL).
+
+        The artifact will be deleted shortly after TTL since its creation.
+        None means the artifact will never expire.
+        If TTL is not set on an artifact, it will inherit the default for its collection.
+
+        Raises:
+            ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
+        """
+        if self._ttl_is_inherited and (
+            self._state == ArtifactState.PENDING or self._ttl_changed
+        ):
+            raise ArtifactNotLoggedError(self, "ttl")
+        if self._ttl_duration_seconds is None:
+            return None
+        return timedelta(seconds=self._ttl_duration_seconds)
+
+    @ttl.setter
+    def ttl(self, ttl: Union[timedelta, ArtifactTTL, None]) -> None:
+        """Time To Live (TTL).
+
+        The artifact will be deleted shortly after TTL since its creation. None means the artifact will never expire.
+        If TTL is not set on an artifact, it will inherit the default TTL rules for its collection.
+
+        Arguments:
+            ttl: How long the artifact will remain active from its creation.
+                - Timedelta must be positive.
+                - `None` means the artifact will never expire.
+                - wandb.ArtifactTTL.INHERIT will set the TTL to go back to the default and inherit from collection rules.
+        """
+        if self.type == "wandb-history":
+            raise ValueError("Cannot set artifact TTL for type wandb-history")
+
+        self._ttl_changed = True
+        if isinstance(ttl, ArtifactTTL):
+            if ttl == ArtifactTTL.INHERIT:
+                self._ttl_is_inherited = True
+            else:
+                raise ValueError(f"Unhandled ArtifactTTL enum {ttl}")
+        else:
+            self._ttl_is_inherited = False
+            if ttl is None:
+                self._ttl_duration_seconds = None
+            else:
+                if ttl.total_seconds() <= 0:
+                    raise ValueError(
+                        f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
+                    )
+                self._ttl_duration_seconds = int(ttl.total_seconds())
 
     @property
     def aliases(self) -> List[str]:
@@ -721,8 +751,7 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        query = gql(
-            """
+        query_template = """
             query ArtifactByIDShort($id: ID!) {
                 artifact(id: $id) {
                     artifactSequence {
@@ -733,6 +762,8 @@ class Artifact:
                         name
                     }
                     versionIndex
+                    ttlDurationSeconds
+                    ttlIsInherited
                     aliases {
                         artifactCollection {
                             project {
@@ -755,8 +786,16 @@ class Artifact:
                     updatedAt
                 }
             }
-            """
-        )
+        """
+
+        fields = InternalApi().server_artifact_introspection()
+        if "ttlIsInherited" not in fields:
+            query_template = query_template.replace("ttlDurationSeconds", "").replace(
+                "ttlIsInherited",
+                "",
+            )
+        query = gql(query_template)
+
         assert self._client is not None
         response = self._client.execute(
             query,
@@ -776,6 +815,13 @@ class Artifact:
         self._source_project = self._project
         self._source_name = self._name
         self._source_version = self._version
+        self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        self._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
+        )
+        self._ttl_changed = False  # Reset after saving artifact
         self._aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
@@ -884,12 +930,12 @@ class Artifact:
                 for alias in self._aliases
             ]
 
-        mutation = gql(
-            """
+        mutation_template = """
             mutation updateArtifact(
                 $artifactID: ID!,
                 $description: String,
                 $metadata: JSONString,
+                _TTL_DURATION_SECONDS_TYPE_
                 $aliases: [ArtifactAliasInput!]
             ) {
                 updateArtifact(
@@ -897,26 +943,68 @@ class Artifact:
                         artifactID: $artifactID,
                         description: $description,
                         metadata: $metadata,
+                        _TTL_DURATION_SECONDS_VALUE_
                         aliases: $aliases
                     }
                 ) {
                     artifact {
                         id
+                        _TTL_DURATION_SECONDS_FIELDS_
                     }
                 }
             }
-            """
-        )
+        """
+        fields = InternalApi().server_artifact_introspection()
+        if "ttlIsInherited" in fields:
+            mutation_template = (
+                mutation_template.replace(
+                    "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
+                )
+                .replace(
+                    "_TTL_DURATION_SECONDS_VALUE_",
+                    "ttlDurationSeconds: $ttlDurationSeconds,",
+                )
+                .replace(
+                    "_TTL_DURATION_SECONDS_FIELDS_", "ttlDurationSeconds ttlIsInherited"
+                )
+            )
+        else:
+            if self._ttl_changed:
+                termwarn(
+                    "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
+                )
+            mutation_template = (
+                mutation_template.replace("_TTL_DURATION_SECONDS_TYPE_", "")
+                .replace(
+                    "_TTL_DURATION_SECONDS_VALUE_",
+                    "",
+                )
+                .replace("_TTL_DURATION_SECONDS_FIELDS_", "")
+            )
+        mutation = gql(mutation_template)
         assert self._client is not None
-        self._client.execute(
+
+        ttl_duration_input = self._ttl_duration_seconds_to_gql()
+        response = self._client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
+                "ttlDurationSeconds": ttl_duration_input,
                 "aliases": aliases,
             },
         )
+        attrs = response["updateArtifact"]["artifact"]
+
+        # Update ttl_duration_seconds based on updateArtifact
+        self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        self._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
+        )
+        self._ttl_changed = False  # Reset after updating artifact
 
     # Adding, removing, getting entries.
 
@@ -1581,7 +1669,7 @@ class Artifact:
                     self.name, size / (1024 * 1024), nfiles
                 ),
             )
-            start_time = datetime.datetime.now()
+            start_time = datetime.now()
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
         def _download_entry(
@@ -1639,7 +1727,7 @@ class Artifact:
                 dependent_artifact.download()
 
         if log:
-            now = datetime.datetime.now()
+            now = datetime.now()
             delta = abs((now - start_time).total_seconds())
             hours = int(delta // 3600)
             minutes = int((delta - hours * 3600) // 60)
@@ -1651,7 +1739,7 @@ class Artifact:
         return FilePathStr(root)
 
     @retry.retriable(
-        retry_timedelta=datetime.timedelta(minutes=3),
+        retry_timedelta=timedelta(minutes=3),
         retryable_exceptions=(requests.RequestException),
     )
     def _fetch_file_urls(self, cursor: Optional[str]) -> Any:
@@ -1894,6 +1982,10 @@ class Artifact:
         """
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "link")
+        if not self._ttl_is_inherited:
+            termwarn(
+                "Artifact TTL will be removed for source artifacts that are linked to portfolios."
+            )
         self._link(target_path, aliases)
 
     @normalize_exceptions
@@ -2101,6 +2193,72 @@ class Artifact:
                 assert self._client is not None
                 dep_artifact = entry._get_referenced_artifact(self._client)
                 self._dependent_artifacts.add(dep_artifact)
+
+    @staticmethod
+    def _get_gql_artifact_fragment() -> str:
+        fields = InternalApi().server_artifact_introspection()
+        fragment = """
+            fragment ArtifactFragment on Artifact {
+                id
+                artifactSequence {
+                    project {
+                        entityName
+                        name
+                    }
+                    name
+                }
+                versionIndex
+                artifactType {
+                    name
+                }
+                description
+                metadata
+                ttlDurationSeconds
+                ttlIsInherited
+                aliases {
+                    artifactCollection {
+                        project {
+                            entityName
+                            name
+                        }
+                        name
+                    }
+                    alias
+                }
+                state
+                commitHash
+                fileCount
+                createdAt
+                updatedAt
+            }
+        """
+        if "ttlIsInherited" not in fields:
+            return fragment.replace("ttlDurationSeconds", "").replace(
+                "ttlIsInherited", ""
+            )
+        return fragment
+
+    def _ttl_duration_seconds_to_gql(self) -> Optional[int]:
+        # Set artifact ttl value to ttl_duration_seconds if the user set a value
+        # otherwise use ttl_status to indicate the backend INHERIT(-1) or DISABLED(-2) when the TTL is None
+        # When ttl_change = None its a no op since nothing changed
+        INHERIT = -1  # noqa: N806
+        DISABLED = -2  # noqa: N806
+
+        if not self._ttl_changed:
+            return None
+        if self._ttl_is_inherited:
+            return INHERIT
+        return self._ttl_duration_seconds or DISABLED
+
+    def _ttl_duration_seconds_from_gql(
+        self, gql_ttl_duration_seconds: Optional[int]
+    ) -> Optional[int]:
+        # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
+        # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
+        if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
+            return gql_ttl_duration_seconds
+        return None
 
 
 class _ArtifactVersionType(WBType):

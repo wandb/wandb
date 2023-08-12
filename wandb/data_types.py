@@ -1254,7 +1254,7 @@ class JoinedTable(Media):
     def _validate_table_input(table):
         """Helper method to validate that the table input is one of the 3 supported types."""
         return (
-            (type(table) == str and table.endswith(".table.json"))
+            (isinstance(table, str) and table.endswith(".table.json"))
             or isinstance(table, Table)
             or isinstance(table, PartitionedTable)
             or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
