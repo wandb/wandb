@@ -9,7 +9,7 @@ import pytest
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifact_saver import get_staging_dir
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler

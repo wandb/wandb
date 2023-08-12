@@ -409,16 +409,25 @@ jobs:
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
       - run:
-          name: Install python dependencies
+          name: Install Python dependencies
           command: |
             pip install tox==<< pipeline.parameters.tox_version >>
             pip install -U pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
+          name: Install Go
+          command: |
+            wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+            PATH=/usr/local/go/bin:$PATH
+            go version
+          no_output_timeout: 1m
+      - run:
           name: Run tests
           no_output_timeout: 10m
           command: |
+            PATH=/usr/local/go/bin:$PATH \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
@@ -433,6 +442,19 @@ jobs:
                 mentions: "@channel"
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
+  gotest:
+    docker:
+      - image: cimg/go:1.20
+    steps:
+      - checkout
+      - run:
+          name: Run Nexus' Go tests and collect coverage
+          command: |
+            cd nexus
+            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+# todo: add codecov
+#      - codecov/upload
 
   protobuf-compatability:
     parameters:
@@ -1362,6 +1384,25 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
+      #
+      # Nexus smoke tests with pytest on Linux, using real wandb server
+      #
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10, 11 ]
+          name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_nexus"
+      #
+      # Nexus unit tests
+      #
+      - gotest
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
