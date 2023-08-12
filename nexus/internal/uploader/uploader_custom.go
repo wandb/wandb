@@ -1,13 +1,14 @@
 package uploader
 
 import (
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"golang.org/x/exp/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/nexus/pkg/observability"
+	"golang.org/x/exp/slog"
 )
 
 type RetryClientOption func(rc *retryablehttp.Client)

@@ -35,7 +35,7 @@ type UploadManager struct {
 	uploaders map[Storage]Uploader
 
 	// fileCounts is the file counts
-	//fileCounts fileCounts
+	// fileCounts fileCounts
 
 	// logger is the logger for the uploader
 	logger *observability.NexusLogger
