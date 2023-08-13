@@ -141,6 +141,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendOutputRaw(record, x.OutputRaw)
 	case *service.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
+	case *service.Record_Preempting:
+		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
 	case nil:
@@ -281,6 +283,12 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
 	s.sendConfig(nil, nil)
+}
+
+func (s *Sender) sendPreempting(record *service.Record) {
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
+	}
 }
 
 func (s *Sender) checkAndUpdateResumeState(run *service.RunRecord) error {

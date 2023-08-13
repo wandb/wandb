@@ -132,6 +132,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_OutputRaw:
 		h.handleOutputRaw(record)
 	case *service.Record_Preempting:
+		h.handlePreempting(record)
 	case *service.Record_Request:
 		h.handleRequest(record)
 	case *service.Record_Run:
@@ -285,6 +286,10 @@ func (h *Handler) handleSystemMetrics(record *service.Record) {
 }
 
 func (h *Handler) handleOutputRaw(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handlePreempting(record *service.Record) {
 	h.sendRecord(record)
 }
 

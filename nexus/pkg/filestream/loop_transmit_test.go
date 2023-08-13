@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 
@@ -12,18 +11,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/slog"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/nexus/internal/clienttest"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 )
 
-func requestMatch(t *testing.T, fsd FsData) func(*http.Request) (*http.Response, error) {
+func requestMatch(t *testing.T, fsd FsTransmitData) func(*http.Request) (*http.Response, error) {
 	resp := http.Response{
 		StatusCode:    200,
-		Body:          io.NopCloser(strings.NewReader("")),
+		Body:          io.NopCloser(strings.NewReader("{}")),
 		ContentLength: 0,
 	}
 	return func(req *http.Request) (*http.Response, error) {
-		p := FsData{}
+		p := FsTransmitData{}
 		err := json.NewDecoder(req.Body).Decode(&p)
 		assert.Nil(t, err)
 		assert.Equal(t, fsd.Files, p.Files)
@@ -31,38 +31,58 @@ func requestMatch(t *testing.T, fsd FsData) func(*http.Request) (*http.Response,
 	}
 }
 
-func testSendAndReceive(t *testing.T, chunk chunkData, fsd FsData) {
+type testObj struct {
+	logger *observability.NexusLogger
+	client *retryablehttp.Client
+	m      *clienttest.MockRoundTripper
+}
+
+func newFsTest(t *testing.T) *testObj {
 	ctrl := gomock.NewController(t)
 
+	slogger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	logger := observability.NewNexusLogger(slogger, nil)
 	m := clienttest.NewMockRoundTripper(ctrl)
-	m.EXPECT().
+	client := clienttest.NewMockRetryClient(m)
+	client.Logger = logger
+
+	return &testObj{
+		logger: logger,
+		client: client,
+		m:      m,
+	}
+}
+
+func testSendAndReceive(t *testing.T, chunks []fileChunk, fsd FsTransmitData) {
+	fsTest := newFsTest(t)
+
+	fsTest.m.EXPECT().
 		RoundTrip(gomock.Any()).
 		DoAndReturn(requestMatch(t, fsd)).
 		AnyTimes()
 
-	slogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger := observability.NewNexusLogger(slogger, nil)
 	fs := NewFileStream(
-		WithLogger(logger),
-		WithHttpClient(clienttest.NewMockRetryClient(m)),
+		WithLogger(fsTest.logger),
+		WithHttpClient(fsTest.client),
 	)
-	fs.sendChunkList([]chunkData{chunk})
+	for _, d := range chunks {
+		fs.transmitChan <- d
+	}
+	fs.Close()
 }
 
 func TestSendChunks(t *testing.T) {
-	chunk := chunkData{
-		fileName: HistoryFileName,
-		fileData: &chunkLine{
-			chunkType: HistoryChunk,
-			line:      "blllah",
+	send := fileChunk{
+		chunkType: HistoryChunk,
+		line:      "this is a line",
+	}
+	expect := FsTransmitData{
+		Files: map[string]fsTransmitFileData{
+			"wandb-history.jsonl": fsTransmitFileData{
+				Offset:  0,
+				Content: []string{"this is a line"},
+			},
 		},
 	}
-	fsd := FsData{Files: map[string]FsChunkData{
-		"wandb-history.jsonl": FsChunkData{
-			Offset:  0,
-			Content: []string{"blllah"},
-		},
-	},
-	}
-	testSendAndReceive(t, chunk, fsd)
+	testSendAndReceive(t, []fileChunk{send}, expect)
 }
