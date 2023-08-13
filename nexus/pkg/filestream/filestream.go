@@ -29,11 +29,12 @@ const (
 	defaultHeartbeatTime   = 2 * time.Second
 )
 
-type ChunkFile int8
-type FileStreamOffsetMap map[ChunkFile]int
+type ChunkTypeEnum int8
+type FileStreamOffsetMap map[ChunkTypeEnum]int
 
 const (
-	HistoryChunk ChunkFile = iota
+	NoneChunk ChunkTypeEnum = iota
+	HistoryChunk
 	OutputChunk
 	EventsChunk
 	SummaryChunk
@@ -44,7 +45,7 @@ type FileStream struct {
 	path string
 
 	processChan  chan *service.Record
-	transmitChan chan chunkData
+	transmitChan chan processedChunk
 	feedbackChan chan map[string]interface{}
 
 	processWait  *sync.WaitGroup
@@ -62,9 +63,6 @@ type FileStream struct {
 
 	// httpClient is the http client
 	httpClient *retryablehttp.Client
-
-	// keep track of the exit chunk for when we shut down filestream
-	stageExitChunk *chunkData
 
 	maxItemsPerPush int
 	delayProcess    time.Duration
@@ -123,13 +121,20 @@ func WithOffsets(offsetMap FileStreamOffsetMap) FileStreamOption {
 	}
 }
 
+// func GetCheckRetryFunc() func(context.Context, *http.Response, error) (bool, error) {
+// 	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+//      // Implement a custom retry function here
+// 		return false, nil
+//	}
+// }
+
 func NewFileStream(opts ...FileStreamOption) *FileStream {
 	fs := &FileStream{
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
 		processChan:     make(chan *service.Record, BufferSize),
-		transmitChan:    make(chan chunkData, BufferSize),
+		transmitChan:    make(chan processedChunk, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
