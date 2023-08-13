@@ -53,7 +53,7 @@ func newFsTest(t *testing.T) *testObj {
 	}
 }
 
-func testSendAndReceive(t *testing.T, chunks []fileChunk, fsd FsTransmitData) {
+func testSendAndReceive(t *testing.T, chunks []processedChunk, fsd FsTransmitData) {
 	fsTest := newFsTest(t)
 
 	fsTest.m.EXPECT().
@@ -72,9 +72,9 @@ func testSendAndReceive(t *testing.T, chunks []fileChunk, fsd FsTransmitData) {
 }
 
 func TestSendChunks(t *testing.T) {
-	send := fileChunk{
-		chunkType: HistoryChunk,
-		line:      "this is a line",
+	send := processedChunk{
+		fileType: HistoryChunk,
+		fileLine: "this is a line",
 	}
 	expect := FsTransmitData{
 		Files: map[string]fsTransmitFileData{
@@ -84,5 +84,5 @@ func TestSendChunks(t *testing.T) {
 			},
 		},
 	}
-	testSendAndReceive(t, []fileChunk{send}, expect)
+	testSendAndReceive(t, []processedChunk{send}, expect)
 }

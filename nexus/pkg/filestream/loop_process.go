@@ -10,9 +10,9 @@ import (
 
 var boolTrue bool = true
 
-type fileChunk struct {
-	chunkType  ChunkTypeEnum
-	line       string
+type processedChunk struct {
+	fileType   ChunkTypeEnum
+	fileLine   string
 	Complete   *bool
 	Exitcode   *int32
 	Preempting bool
@@ -55,9 +55,9 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}
-	fs.addTransmit(fileChunk{
-		chunkType: HistoryChunk,
-		line:      line,
+	fs.addTransmit(processedChunk{
+		fileType: HistoryChunk,
+		fileLine: line,
 	})
 }
 
@@ -66,16 +66,16 @@ func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}
-	fs.addTransmit(fileChunk{
-		chunkType: SummaryChunk,
-		line:      line,
+	fs.addTransmit(processedChunk{
+		fileType: SummaryChunk,
+		fileLine: line,
 	})
 }
 
 func (fs *FileStream) streamOutputRaw(msg *service.OutputRawRecord) {
-	fs.addTransmit(fileChunk{
-		chunkType: OutputChunk,
-		line:      msg.Line,
+	fs.addTransmit(processedChunk{
+		fileType: OutputChunk,
+		fileLine: msg.Line,
 	})
 }
 
@@ -108,20 +108,20 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 		return
 	}
 
-	fs.addTransmit(fileChunk{
-		chunkType: EventsChunk,
-		line:      string(line),
+	fs.addTransmit(processedChunk{
+		fileType: EventsChunk,
+		fileLine: string(line),
 	})
 }
 
 func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) {
-	fs.addTransmit(fileChunk{
+	fs.addTransmit(processedChunk{
 		Preempting: true,
 	})
 }
 
 func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
-	fs.addTransmit(fileChunk{
+	fs.addTransmit(processedChunk{
 		Complete: &boolTrue,
 		Exitcode: &exitRecord.ExitCode,
 	})

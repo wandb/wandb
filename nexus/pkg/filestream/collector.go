@@ -14,7 +14,7 @@ var chunkFilename = map[ChunkTypeEnum]string{
 }
 
 type chunkCollector struct {
-	input             <-chan fileChunk
+	input             <-chan processedChunk
 	isDone            bool
 	heartbeatTime     time.Duration
 	delayProcess      time.Duration
@@ -79,7 +79,7 @@ func (cr *chunkCollector) readMore() {
 	}
 }
 
-func (cr *chunkCollector) update(chunk fileChunk) {
+func (cr *chunkCollector) update(chunk processedChunk) {
 	// Complete and Exitcode are saved to finalTransmitData because
 	// they need to be sent last
 	if chunk.Complete != nil || chunk.Exitcode != nil {
@@ -96,9 +96,9 @@ func (cr *chunkCollector) update(chunk fileChunk) {
 		cr.transmitData.Preempting = chunk.Preempting
 	}
 }
-func (cr *chunkCollector) addFileChunk(chunk fileChunk) {
-	if chunk.chunkType != NoneChunk {
-		cr.fileChunks[chunk.chunkType] = append(cr.fileChunks[chunk.chunkType], chunk.line)
+func (cr *chunkCollector) addFileChunk(chunk processedChunk) {
+	if chunk.fileType != NoneChunk {
+		cr.fileChunks[chunk.fileType] = append(cr.fileChunks[chunk.fileType], chunk.fileLine)
 	} else {
 		cr.update(chunk)
 	}
@@ -121,12 +121,12 @@ func (cr *chunkCollector) dumpFinalTransmit() {
 func (cr *chunkCollector) dump(offsets FileStreamOffsetMap) *FsTransmitData {
 	if len(cr.fileChunks) != 0 {
 		files := make(map[string]fsTransmitFileData)
-		for chunkType, lines := range cr.fileChunks {
-			fname := chunkFilename[chunkType]
+		for fileType, lines := range cr.fileChunks {
+			fname := chunkFilename[fileType]
 			files[fname] = fsTransmitFileData{
-				Offset:  offsets[chunkType],
+				Offset:  offsets[fileType],
 				Content: lines}
-			offsets[chunkType] += len(lines)
+			offsets[fileType] += len(lines)
 		}
 		cr.transmitData.Files = files
 		cr.isTransmitReady = true
