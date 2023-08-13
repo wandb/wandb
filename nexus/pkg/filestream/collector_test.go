@@ -2,6 +2,7 @@ package filestream
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -31,7 +32,7 @@ func TestCollectSomething(t *testing.T) {
 	}
 	collector := chunkCollector{
 		input:           input,
-		delayProcess:    30,
+		delayProcess:    2 * time.Second,
 		maxItemsPerPush: 100,
 	}
 	assert.True(t, collector.read())
@@ -73,12 +74,12 @@ func TestCollectFinal(t *testing.T) {
 		fileType: HistoryChunk,
 		fileLine: "line2",
 	}
-	close(input)
 	collector := chunkCollector{
 		input:           input,
-		delayProcess:    30,
+		delayProcess:    30 * time.Second,
 		maxItemsPerPush: 100,
 	}
+	close(input)
 	assert.True(t, collector.read())
 	collector.readMore()
 	offset := FileStreamOffsetMap{}
