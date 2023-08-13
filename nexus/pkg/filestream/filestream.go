@@ -12,7 +12,7 @@
 //	{caller}:
 //	 - filestream.go:    NewFileStream           - create service
 //	 - filestream.go:    FileStream.Start        - spin up worker goroutines
-//	 - filestream.go:    FileStream.StreamRecord - spin up worker goroutines
+//	 - filestream.go:    FileStream.StreamRecord - add a record to be processed and sent
 //	 - loop_process.go:  Filestream.addProcess   - add to process channel
 //	{goroutine process}:
 //	 - loop_process.go:  Filestream.loopProcess  - loop acting on process channel
