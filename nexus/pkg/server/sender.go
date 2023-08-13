@@ -185,6 +185,8 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 		//             = 7200 / 60 + ceil(log2(60/2))
 		//             = 120 + 5
 		retryClient.RetryMax = 125
+		// Set a 3 minute timeout for all filestream post requests
+		retryClient.HTTPClient.Timeout = time.Minute * 3
 		// TODO(nexus:beta): add jitter to DefaultBackoff scheme
 		// retryClient.BackOff = fs.GetBackoffFunc()
 		// TODO(nexus:beta): add custom retry function
