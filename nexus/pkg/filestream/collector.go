@@ -83,7 +83,7 @@ func (cr *chunkCollector) update(chunk processedChunk) {
 	// Complete and Exitcode are saved to finalTransmitData because
 	// they need to be sent last
 	if chunk.Complete != nil || chunk.Exitcode != nil {
-		if cr.finalTransmitData != nil {
+		if cr.finalTransmitData == nil {
 			cr.finalTransmitData = &FsTransmitData{}
 		}
 		if chunk.Complete != nil {
