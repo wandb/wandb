@@ -3,7 +3,7 @@
 //
 // Internally there are three goroutines spun up:
 //
-//	process:  process records into an appopriate format to transmit
+//	process:  process records into an appropriate format to transmit
 //	transmit: collect and transmit messages to the filestream service
 //	feedback: process feedback from the filestream service
 //
