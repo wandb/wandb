@@ -27,6 +27,7 @@ SYMBOLS_ROOT_DATATYPES = {
 }
 
 SYMBOLS_ROOT_SDK = {
+    "ArtifactTTL",
     "login",
     "init",
     "log",

@@ -293,6 +293,7 @@ def artifact2(
         },
         "description": None,
         "metadata": None,
+        "ttlDurationSeconds": None,
         "aliases": [
             {
                 "artifactCollection": {
@@ -1188,6 +1189,76 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+
+        if "query ProbeServerArtifact" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "ArtifactInfoType": {
+                            "fields": [
+                                {"name": "id"},
+                                {"name": "digest"},
+                                {"name": "description"},
+                                {"name": "commitHash"},
+                                {"name": "versionIndex"},
+                                {"name": "aliases"},
+                                {"name": "labels"},
+                                {"name": "metadata"},
+                                {"name": "state"},
+                                {"name": "size"},
+                                {"name": "storageBytes"},
+                                {"name": "fileCount"},
+                                {"name": "artifactType"},
+                                {"name": "artifactCollections"},
+                                {"name": "artifactMemberships"},
+                                {"name": "artifactSequence"},
+                                {"name": "createdAt"},
+                                {"name": "updatedAt"},
+                                {"name": "createdBy"},
+                                {"name": "usedCount"},
+                                {"name": "usedBy"},
+                                {"name": "currentManifest"},
+                                {"name": "files"},
+                                {"name": "historyStep"},
+                                {"name": "artifactLineageDag"},
+                                {"name": "ttlDurationSeconds"},
+                                {"name": "ttlIsInherited"},
+                            ]
+                        },
+                    }
+                }
+            )
+
+        if "query ProbeServerCreateArtifactInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "CreateArtifactInputInfoType": {
+                            "inputFields": [
+                                {"name": "entityName"},
+                                {"name": "projectName"},
+                                {"name": "artifactTypeName"},
+                                {"name": "artifactCollectionName"},
+                                {"name": "artifactCollectionNames"},
+                                {"name": "digest"},
+                                {"name": "digestAlgorithm"},
+                                {"name": "description"},
+                                {"name": "labels"},
+                                {"name": "aliases"},
+                                {"name": "metadata"},
+                                {"name": "ttlDurationSeconds"},
+                                {"name": "historyStep"},
+                                {"name": "enableDigestDeduplication"},
+                                {"name": "distributedID"},
+                                {"name": "clientID"},
+                                {"name": "sequenceClientID"},
+                                {"name": "clientMutationId"},
+                            ]
+                        },
+                    }
+                }
+            )
+
         if "mutation updateArtifact" in body["query"]:
             id = body["variables"]["artifactID"]
             ctx["latest_arti_id"] = id
