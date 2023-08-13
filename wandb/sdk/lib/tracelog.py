@@ -6,7 +6,7 @@ Functions:
     log_message_send    - message sent to socket
     log_message_recv    - message received from socket
     log_message_process - message processed by thread
-    log_message_link    - message linked to another mesage
+    log_message_link    - message linked to another message
     log_message_assert  - message encountered problem
 
 """
@@ -121,11 +121,11 @@ def _log_message(
         msg_type = str(server_request.WhichOneof("server_request_type"))
         if msg_type == "record_publish":
             record = server_request.record_publish
-            sub_msg_type = _record_msg_type(record)
+            sub_msg_type = _record_msg_type(record)  # type: ignore
             msg_type = f"pub-{sub_msg_type}"
         elif msg_type == "record_communicate":
             record = server_request.record_communicate
-            sub_msg_type = _record_msg_type(record)
+            sub_msg_type = _record_msg_type(record)  # type: ignore
             msg_type = f"comm-{sub_msg_type}"
         # print("SRV", server_request)
     elif message_type_str == "ServerResponse":
@@ -134,7 +134,7 @@ def _log_message(
         msg_type = str(server_response.WhichOneof("server_response_type"))
         if msg_type == "result_communicate":
             result = server_response.result_communicate
-            sub_msg_type = _result_msg_type(result)
+            sub_msg_type = _result_msg_type(result)  # type: ignore
             msg_type = f"comm-{sub_msg_type}"
     else:
         raise AssertionError(f"Unknown message type {message_type_str}")

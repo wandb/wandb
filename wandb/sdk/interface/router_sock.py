@@ -30,7 +30,7 @@ class MessageSockRouter(MessageRouter):
         if not resp:
             return None
         msg = resp.result_communicate
-        return msg
+        return msg  # type: ignore
 
     def _send_message(self, record: "pb.Record") -> None:
         self._sock_client.send_record_communicate(record)

@@ -216,7 +216,7 @@ class _Manager:
             response = svc_iface._svc_inform_attach(attach_id=attach_id)
         except Exception:
             return None
-        return response.settings
+        return response.settings  # type: ignore
 
     def _inform_finish(self, run_id: Optional[str] = None) -> None:
         svc_iface = self._get_service_interface()
