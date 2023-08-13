@@ -8,7 +8,7 @@ import logging
 import os
 import tempfile
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 import wandb
 import wandb.docker as docker
@@ -185,7 +185,7 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
-    def fill_macros(self, image: str) -> None:
+    def fill_macros(self, image: str) -> Dict[str, Any]:
         """Substitute values for macros in resource arguments.
 
         Certain macros can be used in resource args. These macros allow the
@@ -220,7 +220,10 @@ class LaunchProject:
             "image_uri": image,
         }
         update_dict.update(os.environ)
-        self.resource_args = recursive_macro_sub(self.resource_args, update_dict)
+        result = recursive_macro_sub(self.resource_args, update_dict)
+        # recursive_macro_sub given a dict returns a dict with the same keys
+        # but with other input types behaves differently. The cast is for mypy.
+        return cast(Dict[str, Any], result)
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""

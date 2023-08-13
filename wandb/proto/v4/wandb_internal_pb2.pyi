@@ -1195,6 +1195,7 @@ class ArtifactRecord(google.protobuf.message.Message):
     CLIENT_ID_FIELD_NUMBER: builtins.int
     SEQUENCE_CLIENT_ID_FIELD_NUMBER: builtins.int
     BASE_ID_FIELD_NUMBER: builtins.int
+    TTL_DURATION_SECONDS_FIELD_NUMBER: builtins.int
     INCREMENTAL_BETA1_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     run_id: builtins.str
@@ -1216,6 +1217,7 @@ class ArtifactRecord(google.protobuf.message.Message):
     client_id: builtins.str
     sequence_client_id: builtins.str
     base_id: builtins.str
+    ttl_duration_seconds: builtins.int
     incremental_beta1: builtins.bool
     @property
     def _info(self) -> wandb_base_pb2._RecordInfo: ...
@@ -1239,11 +1241,12 @@ class ArtifactRecord(google.protobuf.message.Message):
         client_id: builtins.str = ...,
         sequence_client_id: builtins.str = ...,
         base_id: builtins.str = ...,
+        ttl_duration_seconds: builtins.int = ...,
         incremental_beta1: builtins.bool = ...,
         _info: wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "manifest", b"manifest"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "aliases", b"aliases", "base_id", b"base_id", "client_id", b"client_id", "description", b"description", "digest", b"digest", "distributed_id", b"distributed_id", "entity", b"entity", "finalize", b"finalize", "incremental_beta1", b"incremental_beta1", "manifest", b"manifest", "metadata", b"metadata", "name", b"name", "project", b"project", "run_id", b"run_id", "sequence_client_id", b"sequence_client_id", "type", b"type", "use_after_commit", b"use_after_commit", "user_created", b"user_created"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "aliases", b"aliases", "base_id", b"base_id", "client_id", b"client_id", "description", b"description", "digest", b"digest", "distributed_id", b"distributed_id", "entity", b"entity", "finalize", b"finalize", "incremental_beta1", b"incremental_beta1", "manifest", b"manifest", "metadata", b"metadata", "name", b"name", "project", b"project", "run_id", b"run_id", "sequence_client_id", b"sequence_client_id", "ttl_duration_seconds", b"ttl_duration_seconds", "type", b"type", "use_after_commit", b"use_after_commit", "user_created", b"user_created"]) -> None: ...
 
 global___ArtifactRecord = ArtifactRecord
 
