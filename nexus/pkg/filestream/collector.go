@@ -60,6 +60,7 @@ func (cr *chunkCollector) delayTime() time.Duration {
 }
 
 func (cr *chunkCollector) readMore() {
+	// TODO(nexus:beta): add rate limiting
 	delayChan := time.After(cr.delayTime())
 	for {
 		select {

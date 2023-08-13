@@ -121,6 +121,13 @@ func WithOffsets(offsetMap FileStreamOffsetMap) FileStreamOption {
 	}
 }
 
+// func GetCheckRetryFunc() func(context.Context, *http.Response, error) (bool, error) {
+// 	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+//      // Implement a custom retry function here
+// 		return false, nil
+//	}
+// }
+
 func NewFileStream(opts ...FileStreamOption) *FileStream {
 	fs := &FileStream{
 		processWait:     &sync.WaitGroup{},
