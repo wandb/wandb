@@ -7,27 +7,28 @@
 //	transmit: collect and transmit messages to the filestream service
 //	feedback: process feedback from the filestream service
 //
-// Below demonstrates the common execution flow through this package.
-//  {caller}:
-//   - filestream.go:    NewFileStream           - create service
-//   - filestream.go:    FileStream.Start        - spin up worker goroutines
-//   - filestream.go:    FileStream.StreamRecord - spin up worker goroutines
-//   - loop_process.go:  Filestream.addProcess   - add to process channel
-//  {goroutine process}:
-//   - loop_process.go:  Filestream.loopProcess  - loop acting on process channel
-//   - loop_transmit.go: Filestream.addTransmit  - add to transmit channel
-//  {goroutine transmit}:
-//   - loop_transmit.go: Filestream.loopTransmit - loop acting on transmit channel
-//   - collector.go:     chunkCollector          - class to coordinate collecting work from transmit channel
-//   - collector.go:     chunkCollector.read     - read the first transmit work from transmit channel
-//   - collector.go:     chunkCollector.readMore - keep reading until we have enough or hit timeout
-//   - collector.go:     chunkCollector.dump     - create a blob to be used to serialize into json to send
-//   - loop_transmit.go: Filestream.send         - send json to backend filestream service
-//   - loop_feedback.go: Filestream.add_feedback - add to feedback channel
-//  {goroutine feedback}
-//   - loop_feedback.go: Filestream.loopFeedback - loop acting on feedback channel
-//  {caller}
-//   - filestream.go:    FileStream.Close        - graceful shutdown of worker goroutines
+// Below demonstrates a common execution flow through this package:
+//
+//	{caller}:
+//	 - filestream.go:    NewFileStream           - create service
+//	 - filestream.go:    FileStream.Start        - spin up worker goroutines
+//	 - filestream.go:    FileStream.StreamRecord - spin up worker goroutines
+//	 - loop_process.go:  Filestream.addProcess   - add to process channel
+//	{goroutine process}:
+//	 - loop_process.go:  Filestream.loopProcess  - loop acting on process channel
+//	 - loop_transmit.go: Filestream.addTransmit  - add to transmit channel
+//	{goroutine transmit}:
+//	 - loop_transmit.go: Filestream.loopTransmit - loop acting on transmit channel
+//	 - collector.go:     chunkCollector          - class to coordinate collecting work from transmit channel
+//	 - collector.go:     chunkCollector.read     - read the first transmit work from transmit channel
+//	 - collector.go:     chunkCollector.readMore - keep reading until we have enough or hit timeout
+//	 - collector.go:     chunkCollector.dump     - create a blob to be used to serialize into json to send
+//	 - loop_transmit.go: Filestream.send         - send json to backend filestream service
+//	 - loop_feedback.go: Filestream.add_feedback - add to feedback channel
+//	{goroutine feedback}
+//	 - loop_feedback.go: Filestream.loopFeedback - loop acting on feedback channel
+//	{caller}
+//	 - filestream.go:    FileStream.Close        - graceful shutdown of worker goroutines
 package filestream
 
 import (
