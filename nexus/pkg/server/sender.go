@@ -61,6 +61,8 @@ type Sender struct {
 
 	telemetry *service.TelemetryRecord
 
+	ms *MetricSender
+
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
 
@@ -122,6 +124,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendExit(record, x.Exit)
 	case *service.Record_Alert:
 		s.sendAlert(record, x.Alert)
+	case *service.Record_Metric:
+		s.sendMetric(record, x.Metric)
 	case *service.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
@@ -136,6 +140,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendOutputRaw(record, x.OutputRaw)
 	case *service.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
+	case *service.Record_Preempting:
+		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
 	case nil:
@@ -171,11 +177,25 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	if !s.settings.GetXOffline().GetValue() {
 		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+		retryClient := NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)
+		retryClient.RetryWaitMin = 2 * time.Second
+		retryClient.RetryWaitMax = 60 * time.Second
+		// Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
+		// retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
+		//             = 7200 / 60 + ceil(log2(60/2))
+		//             = 120 + 5
+		retryClient.RetryMax = 125
+		// Set a 3 minute timeout for all filestream post requests
+		retryClient.HTTPClient.Timeout = time.Minute * 3
+		// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+		// retryClient.BackOff = fs.GetBackoffFunc()
+		// TODO(nexus:beta): add custom retry function
+		// retryClient.CheckRetry = fs.GetCheckRetryFunc()
 		s.fileStream = fs.NewFileStream(
 			fs.WithPath(fsPath),
 			fs.WithSettings(s.settings),
 			fs.WithLogger(s.logger),
-			fs.WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)),
+			fs.WithHttpClient(retryClient),
 			fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
 		)
 		s.fileStream.Start()
@@ -277,7 +297,13 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
-	s.sendConfig(nil, nil)
+	s.sendConfig(nil, nil /*configRecord*/)
+}
+
+func (s *Sender) sendPreempting(record *service.Record) {
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
+	}
 }
 
 // updateConfig updates the config map with the config record
@@ -297,25 +323,24 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 }
 
 // updateConfigPrivate updates the private part of the config map
-func (s *Sender) updateConfigPrivate(configRecord *service.TelemetryRecord) {
-	if configRecord == nil {
-		return
-	}
-
+func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
 	if _, ok := s.configMap["_wandb"]; !ok {
 		s.configMap["_wandb"] = make(map[string]interface{})
 	}
 
 	switch v := s.configMap["_wandb"].(type) {
 	case map[string]interface{}:
-		if configRecord.CliVersion != "" {
-			v["cli_version"] = configRecord.CliVersion
+		if telemetry.GetCliVersion() != "" {
+			v["cli_version"] = telemetry.CliVersion
 		}
-		if configRecord.PythonVersion != "" {
-			v["python_version"] = configRecord.PythonVersion
+		if telemetry.GetPythonVersion() != "" {
+			v["python_version"] = telemetry.PythonVersion
 		}
 		v["t"] = nexuslib.ProtoEncodeToDict(s.telemetry)
-		// todo: add the rest of the telemetry from configRecord
+		if s.ms != nil {
+			v["m"] = s.ms.configMetrics
+		}
+		// todo: add the rest of the telemetry from telemetry
 	default:
 		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
 		s.logger.CaptureFatalAndPanic("sender received error", err)
@@ -613,6 +638,23 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Uuid:       record.Uuid,
 	}
 	s.recordChan <- rec
+}
+
+// sendMetric sends a metrics record to the file stream,
+// which will then send it to the server
+func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
+	if s.ms == nil {
+		s.ms = NewMetricSender()
+	}
+
+	if metric.GetGlobName() != "" {
+		s.logger.Warn("sender: sendMetric: glob name is not supported in the backend", "globName", metric.GetGlobName())
+		return
+	}
+
+	s.encodeMetricHints(record, metric)
+	s.updateConfigPrivate(nil /*telemetry*/)
+	s.sendConfig(nil, nil /*configRecord*/)
 }
 
 // sendFiles iterates over the files in the FilesRecord and sends them to
