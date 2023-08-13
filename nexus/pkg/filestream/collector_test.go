@@ -10,7 +10,7 @@ import (
 func TestCollectNothing(t *testing.T) {
 	input := make(chan processedChunk, 32)
 	collector := chunkCollector{
-		input: input,
+		input:           input,
 		heartbeatTime:   2 * time.Second,
 		delayProcess:    1 * time.Second,
 		maxItemsPerPush: 100,
