@@ -6,6 +6,7 @@ orbs:
   go: circleci/go@1.7.3
   gcloud: circleci/gcp-cli@3.1.0
   gke: circleci/gcp-gke@2.1.0
+  codecov: codecov/codecov@3
 
 parameters:
   manual:
@@ -453,8 +454,8 @@ jobs:
           command: |
             cd nexus
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-# todo: add codecov
-#      - codecov/upload
+            # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
+      - codecov/upload
 
   protobuf-compatability:
     parameters:
