@@ -9,7 +9,12 @@ import (
 
 func TestCollectNothing(t *testing.T) {
 	input := make(chan processedChunk, 32)
-	collector := chunkCollector{input: input}
+	collector := chunkCollector{
+		input: input,
+		heartbeatTime:   2 * time.Second,
+		delayProcess:    1 * time.Second,
+		maxItemsPerPush: 100,
+	}
 	assert.False(t, collector.read())
 }
 
@@ -32,6 +37,7 @@ func TestCollectSomething(t *testing.T) {
 	}
 	collector := chunkCollector{
 		input:           input,
+		heartbeatTime:   60 * time.Second,
 		delayProcess:    2 * time.Second,
 		maxItemsPerPush: 100,
 	}
@@ -76,6 +82,7 @@ func TestCollectFinal(t *testing.T) {
 	}
 	collector := chunkCollector{
 		input:           input,
+		heartbeatTime:   60 * time.Second,
 		delayProcess:    30 * time.Second,
 		maxItemsPerPush: 100,
 	}
