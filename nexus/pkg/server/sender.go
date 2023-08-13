@@ -140,6 +140,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendOutputRaw(record, x.OutputRaw)
 	case *service.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
+	case *service.Record_Preempting:
+		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
 	case nil:
@@ -175,11 +177,25 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	if !s.settings.GetXOffline().GetValue() {
 		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+		retryClient := NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)
+		retryClient.RetryWaitMin = 2 * time.Second
+		retryClient.RetryWaitMax = 60 * time.Second
+		// Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
+		// retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
+		//             = 7200 / 60 + ceil(log2(60/2))
+		//             = 120 + 5
+		retryClient.RetryMax = 125
+		// Set a 3 minute timeout for all filestream post requests
+		retryClient.HTTPClient.Timeout = time.Minute * 3
+		// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+		// retryClient.BackOff = fs.GetBackoffFunc()
+		// TODO(nexus:beta): add custom retry function
+		// retryClient.CheckRetry = fs.GetCheckRetryFunc()
 		s.fileStream = fs.NewFileStream(
 			fs.WithPath(fsPath),
 			fs.WithSettings(s.settings),
 			fs.WithLogger(s.logger),
-			fs.WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)),
+			fs.WithHttpClient(retryClient),
 			fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
 		)
 		s.fileStream.Start()
@@ -280,6 +296,12 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
 	s.sendConfig(nil, nil /*configRecord*/)
+}
+
+func (s *Sender) sendPreempting(record *service.Record) {
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
+	}
 }
 
 // updateConfig updates the config map with the config record
