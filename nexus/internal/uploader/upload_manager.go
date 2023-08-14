@@ -10,13 +10,6 @@ type Storage int
 
 const bufferSize = 32
 
-const (
-	Custom Storage = iota
-	GCS
-	S3
-	Azure
-)
-
 // type fileCounts struct {
 //		wandbCount    int
 //		mediaCount    int
@@ -33,8 +26,9 @@ type UploadManager struct {
 	// inChan is the channel for incoming messages
 	inChan chan *UploadTask
 
-	// uploaders is the map of known uploaders, keyed by destination storage type
-	uploaders map[Storage]Uploader
+	// uploader is the uploader
+	// todo: make this a map of uploaders for different destination storage types
+	uploader Uploader
 
 	// fileCounts is the file counts
 	// fileCounts fileCounts
@@ -56,17 +50,14 @@ func WithLogger(logger *observability.NexusLogger) UploadManagerOption {
 
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 	um := UploadManager{
-		inChan:    make(chan *UploadTask, bufferSize),
-		uploaders: make(map[Storage]Uploader),
-		wg:        &sync.WaitGroup{},
+		inChan: make(chan *UploadTask, bufferSize),
+		wg:     &sync.WaitGroup{},
 	}
 	for _, opt := range opts {
 		opt(&um)
 	}
 
-	// todo: start these lazily?
-	um.uploaders[Custom] = NewCustomUploader(um.logger)
-	um.uploaders[GCS] = NewGCSUploader(um.logger)
+	um.uploader = NewDefaultUploader(um.logger)
 
 	return &um
 }
@@ -102,8 +93,5 @@ func (um *UploadManager) Close() {
 
 // upload uploads a file to the server
 func (um *UploadManager) upload(task *UploadTask) error {
-	// todo: select an uploader based on the task
-	//uploader := um.uploaders[Custom]
-	uploader := um.uploaders[GCS]
-	return uploader.Upload(task)
+	return um.uploader.Upload(task)
 }
