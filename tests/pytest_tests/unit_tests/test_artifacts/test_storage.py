@@ -312,6 +312,26 @@ def test_cache_add_gives_useful_error_when_out_of_space(cache, monkeypatch):
     assert "set WANDB_CACHE_DIR" in termerror.call_args[0][0]
 
 
+def test_cache_add_cleans_up_tmp_when_write_fails(cache, monkeypatch):
+    def fail(*args, **kwargs):
+        raise OSError
+
+    _path, _hit, opener = cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with pytest.raises(OSError):
+        with opener() as f:
+            f.write("hello " * 100)
+            f.flush()
+            os.fsync(f.fileno())
+
+            path = f.name
+            assert os.path.exists(path)
+
+            monkeypatch.setattr(os, "fsync", fail)
+
+    assert not os.path.exists(path)
+
+
 class FakePublicApi:
     @property
     def client(self):
