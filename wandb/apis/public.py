@@ -4160,9 +4160,8 @@ class RunArtifacts(Paginator):
                     }
                 }
             }
-            %s
             """
-            % wandb.Artifact._GQL_FRAGMENT
+            + wandb.Artifact._get_gql_artifact_fragment()
         )
 
         input_query = gql(
@@ -4188,9 +4187,8 @@ class RunArtifacts(Paginator):
                     }
                 }
             }
-            %s
             """
-            % wandb.Artifact._GQL_FRAGMENT
+            + wandb.Artifact._get_gql_artifact_fragment()
         )
 
         self.run = run
@@ -4548,7 +4546,7 @@ class ArtifactVersions(Paginator):
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
-                wandb.Artifact._GQL_FRAGMENT,
+                wandb.Artifact._get_gql_artifact_fragment(),
             )
         )
         super().__init__(client, variables, per_page)

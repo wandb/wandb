@@ -223,7 +223,7 @@ def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
 def _get_example_shape(example: Union[Sequence, Any]):
     """Get the shape of an object if applicable."""
     shape = []
-    if type(example) is not str and hasattr(example, "__len__"):
+    if not isinstance(example, str) and hasattr(example, "__len__"):
         length = len(example)
         shape = [length]
         if length > 0:
