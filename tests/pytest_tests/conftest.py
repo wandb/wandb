@@ -256,3 +256,12 @@ def example_file(tmp_path: Path) -> Path:
     new_file = tmp_path / "test.txt"
     new_file.write_text("hello")
     return new_file
+
+
+@pytest.fixture
+def example_files(tmp_path: Path) -> Path:
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(3):
+        (artifact_dir / f"artifact_{i}.txt").write_text(f"file-{i}")
+    return artifact_dir
