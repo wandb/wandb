@@ -2,9 +2,8 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
-
-	"golang.org/x/exp/slog"
 )
 
 // StreamMux is a multiplexer for streams.

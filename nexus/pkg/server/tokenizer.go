@@ -3,8 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
-
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 type Header struct {

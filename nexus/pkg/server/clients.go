@@ -2,9 +2,8 @@ package server
 
 import (
 	"encoding/base64"
+	"log/slog"
 	"net/http"
-
-	"golang.org/x/exp/slog"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
