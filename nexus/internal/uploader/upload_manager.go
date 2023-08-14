@@ -66,6 +66,7 @@ func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 
 	// todo: start these lazily?
 	um.uploaders[Custom] = NewCustomUploader(um.logger)
+	um.uploaders[GCS] = NewGCSUploader(um.logger)
 
 	return &um
 }
@@ -102,6 +103,7 @@ func (um *UploadManager) Close() {
 // upload uploads a file to the server
 func (um *UploadManager) upload(task *UploadTask) error {
 	// todo: select an uploader based on the task
-	uploader := um.uploaders[Custom]
+	//uploader := um.uploaders[Custom]
+	uploader := um.uploaders[GCS]
 	return uploader.Upload(task)
 }

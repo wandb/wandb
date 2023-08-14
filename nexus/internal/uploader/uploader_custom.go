@@ -46,8 +46,6 @@ func NewRetryClient(opts ...RetryClientOption) *retryablehttp.Client {
 	return retryClient
 }
 
-const BufferSize = 32
-
 // CustomUploader uploads files to the server
 type CustomUploader struct {
 	// client is the HTTP client for the uploader
