@@ -254,10 +254,8 @@ class Api:
 
         # todo: remove this hacky hack after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
-        extra_http_headers = self.settings(
-            "_extra_http_headers"
-        ) or wandb.sdk.wandb_settings._str_as_json(
-            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        extra_http_headers = self.settings("_extra_http_headers") or json.loads(
+            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
 
         auth = None
@@ -320,6 +318,8 @@ class Api:
         self.mutation_types: Optional[List[str]] = None
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
+        self.server_create_artifact_input_info: Optional[List[str]] = None
+        self.server_artifact_fields_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -3284,6 +3284,135 @@ class Api:
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
+    def server_artifact_introspection(self) -> List:
+        query_string = """
+            query ProbeServerArtifact {
+                ArtifactInfoType: __type(name:"Artifact") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_artifact_fields_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("ArtifactInfoType", {}).get("fields", [{}])
+            self.server_artifact_fields_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_artifact_fields_info
+
+    def server_create_artifact_introspection(self) -> List:
+        query_string = """
+            query ProbeServerCreateArtifactInput {
+                CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_create_artifact_input_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("CreateArtifactInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+            self.server_create_artifact_input_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_create_artifact_input_info
+
+    def _get_create_artifact_mutation(
+        self,
+        fields: List,
+        history_step: Optional[int],
+        distributed_id: Optional[str],
+    ) -> str:
+        types = ""
+        values = ""
+
+        if "historyStep" in fields and history_step not in [0, None]:
+            types += "$historyStep: Int64!,"
+            values += "historyStep: $historyStep,"
+
+        if distributed_id:
+            types += "$distributedID: String,"
+            values += "distributedID: $distributedID,"
+
+        if "clientID" in fields:
+            types += "$clientID: ID!,"
+            values += "clientID: $clientID,"
+
+        if "sequenceClientID" in fields:
+            types += "$sequenceClientID: ID!,"
+            values += "sequenceClientID: $sequenceClientID,"
+
+        if "enableDigestDeduplication" in fields:
+            types += "$enableDigestDeduplication: Boolean,"
+            values += "enableDigestDeduplication: $enableDigestDeduplication,"
+
+        if "ttlDurationSeconds" in fields:
+            types += "$ttlDurationSeconds: Int64,"
+            values += "ttlDurationSeconds: $ttlDurationSeconds,"
+
+        query_template = """
+            mutation CreateArtifact(
+                $artifactTypeName: String!,
+                $artifactCollectionNames: [String!],
+                $entityName: String!,
+                $projectName: String!,
+                $runName: String,
+                $description: String,
+                $digest: String!,
+                $labels: JSONString,
+                $aliases: [ArtifactAliasInput!],
+                $metadata: JSONString,
+                _CREATE_ARTIFACT_ADDITIONAL_TYPE_
+            ) {
+                createArtifact(input: {
+                    artifactTypeName: $artifactTypeName,
+                    artifactCollectionNames: $artifactCollectionNames,
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    runName: $runName,
+                    description: $description,
+                    digest: $digest,
+                    digestAlgorithm: MANIFEST_MD5,
+                    labels: $labels,
+                    aliases: $aliases,
+                    metadata: $metadata,
+                    _CREATE_ARTIFACT_ADDITIONAL_VALUE_
+                }) {
+                    artifact {
+                        id
+                        digest
+                        state
+                        aliases {
+                            artifactCollectionName
+                            alias
+                        }
+                        artifactSequence {
+                            id
+                            latestArtifact {
+                                id
+                                versionIndex
+                            }
+                        }
+                    }
+                }
+            }
+        """
+
+        return query_template.replace(
+            "_CREATE_ARTIFACT_ADDITIONAL_TYPE_", types
+        ).replace("_CREATE_ARTIFACT_ADDITIONAL_VALUE_", values)
+
     def create_artifact(
         self,
         artifact_type_name: str,
@@ -3297,102 +3426,23 @@ class Api:
         description: Optional[str] = None,
         labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
+        ttl_duration_seconds: Optional[int] = None,
         aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
-        from pkg_resources import parse_version
-
-        _, server_info = self.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
-        can_handle_client_id = max_cli_version is None or parse_version(
-            "0.11.0"
-        ) <= parse_version(max_cli_version)
-        can_handle_dedupe = max_cli_version is None or parse_version(
-            "0.12.10"
-        ) <= parse_version(max_cli_version)
-        can_handle_history = max_cli_version is None or parse_version(
-            "0.12.12"
-        ) <= parse_version(max_cli_version)
-
-        mutation = gql(
-            """
-        mutation CreateArtifact(
-            $artifactTypeName: String!,
-            $artifactCollectionNames: [String!],
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String,
-            $description: String,
-            $digest: String!,
-            $labels: JSONString,
-            $aliases: [ArtifactAliasInput!],
-            $metadata: JSONString,
-            {}
-            {}
-            {}
-            {}
-            {}
-        ) {{
-            createArtifact(input: {{
-                artifactTypeName: $artifactTypeName,
-                artifactCollectionNames: $artifactCollectionNames,
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                description: $description,
-                digest: $digest,
-                digestAlgorithm: MANIFEST_MD5,
-                labels: $labels,
-                aliases: $aliases,
-                metadata: $metadata,
-                {}
-                {}
-                {}
-                {}
-                {}
-            }}) {{
-                artifact {{
-                    id
-                    digest
-                    state
-                    aliases {{
-                        artifactCollectionName
-                        alias
-                    }}
-                    artifactSequence {{
-                        id
-                        latestArtifact {{
-                            id
-                            versionIndex
-                        }}
-                    }}
-                }}
-            }}
-        }}
-        """.format(
-                "$historyStep: Int64!,"
-                if can_handle_history and history_step not in [0, None]
-                else "",
-                "$distributedID: String," if distributed_id else "",
-                "$clientID: ID!," if can_handle_client_id else "",
-                "$sequenceClientID: ID!," if can_handle_client_id else "",
-                "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
-                # line sep
-                "historyStep: $historyStep,"
-                if can_handle_history and history_step not in [0, None]
-                else "",
-                "distributedID: $distributedID," if distributed_id else "",
-                "clientID: $clientID," if can_handle_client_id else "",
-                "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
-                "enableDigestDeduplication: $enableDigestDeduplication,"
-                if can_handle_dedupe
-                else "",
+        fields = self.server_create_artifact_introspection()
+        artifact_fields = self.server_artifact_introspection()
+        if "ttlIsInherited" not in artifact_fields and ttl_duration_seconds:
+            wandb.termwarn(
+                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
+            # ttlDurationSeconds is only usable if ttlIsInherited is also present
+            ttl_duration_seconds = None
+        query_template = self._get_create_artifact_mutation(
+            fields, history_step, distributed_id
         )
 
         entity_name = entity_name or self.settings("entity")
@@ -3402,6 +3452,7 @@ class Api:
         if aliases is None:
             aliases = []
 
+        mutation = gql(query_template)
         response = self.gql(
             mutation,
             variable_values={
@@ -3421,6 +3472,7 @@ class Api:
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
+                "ttlDurationSeconds": ttl_duration_seconds,
                 "distributedID": distributed_id,
                 "enableDigestDeduplication": enable_digest_deduplication,
                 "historyStep": history_step,
