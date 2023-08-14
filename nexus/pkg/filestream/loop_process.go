@@ -8,6 +8,16 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+var boolTrue bool = true
+
+type processedChunk struct {
+	fileType   ChunkTypeEnum
+	fileLine   string
+	Complete   *bool
+	Exitcode   *int32
+	Preempting bool
+}
+
 func (fs *FileStream) addProcess(rec *service.Record) {
 	fs.processChan <- rec
 }
@@ -28,6 +38,8 @@ func (fs *FileStream) loopProcess(inChan <-chan *service.Record) {
 			fs.streamOutputRaw(x.OutputRaw)
 		case *service.Record_Exit:
 			fs.streamFinish(x.Exit)
+		case *service.Record_Preempting:
+			fs.streamPreempting(x.Preempting)
 		case nil:
 			err := fmt.Errorf("filestream: field not set")
 			fs.logger.CaptureFatalAndPanic("filestream error:", err)
@@ -43,14 +55,10 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}
-	chunk := chunkData{
-		fileName: HistoryFileName,
-		fileData: &chunkLine{
-			chunkType: HistoryChunk,
-			line:      line,
-		},
-	}
-	fs.addTransmit(chunk)
+	fs.addTransmit(processedChunk{
+		fileType: HistoryChunk,
+		fileLine: line,
+	})
 }
 
 func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
@@ -58,25 +66,17 @@ func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}
-	chunk := chunkData{
-		fileName: SummaryFileName,
-		fileData: &chunkLine{
-			chunkType: SummaryChunk,
-			line:      line,
-		},
-	}
-	fs.addTransmit(chunk)
+	fs.addTransmit(processedChunk{
+		fileType: SummaryChunk,
+		fileLine: line,
+	})
 }
 
 func (fs *FileStream) streamOutputRaw(msg *service.OutputRawRecord) {
-	chunk := chunkData{
-		fileName: OutputFileName,
-		fileData: &chunkLine{
-			chunkType: OutputChunk,
-			line:      msg.Line,
-		},
-	}
-	fs.addTransmit(chunk)
+	fs.addTransmit(processedChunk{
+		fileType: OutputChunk,
+		fileLine: msg.Line,
+	})
 }
 
 func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
@@ -108,15 +108,21 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 		return
 	}
 
-	chunk := chunkData{
-		fileName: EventsFileName,
-		fileData: &chunkLine{chunkType: EventsChunk, line: string(line)},
-	}
-	fs.addTransmit(chunk)
+	fs.addTransmit(processedChunk{
+		fileType: EventsChunk,
+		fileLine: string(line),
+	})
+}
+
+func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) {
+	fs.addTransmit(processedChunk{
+		Preempting: true,
+	})
 }
 
 func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
-	// exitChunk is sent last, so instead of pushing to the chunk channel we
-	// stage it to be sent after processing all other chunks
-	fs.stageExitChunk = &chunkData{Complete: &completeTrue, Exitcode: &exitRecord.ExitCode}
+	fs.addTransmit(processedChunk{
+		Complete: &boolTrue,
+		Exitcode: &exitRecord.ExitCode,
+	})
 }

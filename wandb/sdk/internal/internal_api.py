@@ -3443,12 +3443,11 @@ class Api:
         fields = self.server_create_artifact_introspection()
         artifact_fields = self.server_artifact_introspection()
         if "ttlIsInherited" not in artifact_fields and ttl_duration_seconds:
-            logger.warning(
+            wandb.termwarn(
                 "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
             # ttlDurationSeconds is only usable if ttlIsInherited is also present
-            fields.remove("ttlDurationSeconds")
-
+            ttl_duration_seconds = None
         query_template = self._get_create_artifact_mutation(
             fields, history_step, distributed_id
         )
