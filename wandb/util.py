@@ -1484,7 +1484,7 @@ def rand_alphanumeric(
 def fsync_open(
     path: StrPath, mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
-    """Open a path for I/O and guarante that the file is flushed and synced."""
+    """Open a path for I/O and guarantee that the file is flushed and synced."""
     with open(path, mode, encoding=encoding) as f:
         yield f
 
