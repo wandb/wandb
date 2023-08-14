@@ -64,6 +64,8 @@ func NewDefaultUploader(logger *observability.NexusLogger) *DefaultUploader {
 		WithRetryClientRetryWaitMax(60*time.Second), // todo: make this configurable
 	)
 
+	// todo: add ResponseHandlerFunc to retryClient to handle non-200 responses
+
 	uploader := &DefaultUploader{
 		client: retryClient,
 		logger: logger,
