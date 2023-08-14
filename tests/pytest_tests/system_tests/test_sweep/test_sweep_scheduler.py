@@ -26,7 +26,7 @@ def test_sweep_scheduler_load():
         load_scheduler("unknown")
 
 
-def _patch_wandb_run(monkeypatch, config):
+def _patch_wandb_run(monkeypatch, config=None):
     if not config:
         config = {"launch": {"overrides": {"run_config": {}}}}
     mocked_run = Mock(["finish", "id"])
