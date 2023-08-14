@@ -327,15 +327,9 @@ class Artifact:
         """Create a new draft artifact with the same content as this committed artifact.
 
         The artifact returned can be extended or modified and logged as a new version.
-
-        Raises:
-            ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "new_draft")
-
         artifact = Artifact(self.source_name.split(":")[0], self.type)
-        artifact._base_id = self.id
+        artifact._base_id = self._id or self._base_id
         artifact._description = self.description
         artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(
@@ -356,17 +350,15 @@ class Artifact:
     @property
     def entity(self) -> str:
         """The name of the entity of the secondary (portfolio) artifact collection."""
-        if self._state == ArtifactState.PENDING:
+        if self._entity is None:
             raise ArtifactNotLoggedError(self, "entity")
-        assert self._entity is not None
         return self._entity
 
     @property
     def project(self) -> str:
         """The name of the project of the secondary (portfolio) artifact collection."""
-        if self._state == ArtifactState.PENDING:
+        if self._project is None:
             raise ArtifactNotLoggedError(self, "project")
-        assert self._project is not None
         return self._project
 
     @property
@@ -394,17 +386,15 @@ class Artifact:
     @property
     def source_entity(self) -> str:
         """The name of the entity of the primary (sequence) artifact collection."""
-        if self._state == ArtifactState.PENDING:
+        if self._source_entity is None:
             raise ArtifactNotLoggedError(self, "source_entity")
-        assert self._source_entity is not None
         return self._source_entity
 
     @property
     def source_project(self) -> str:
         """The name of the project of the primary (sequence) artifact collection."""
-        if self._state == ArtifactState.PENDING:
+        if self._source_project is None:
             raise ArtifactNotLoggedError(self, "source_project")
-        assert self._source_project is not None
         return self._source_project
 
     @property
@@ -544,6 +534,7 @@ class Artifact:
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
         """Set the aliases associated with this artifact."""
+        # Why not let users set aliases ahead of time?
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "aliases")
 
@@ -647,6 +638,7 @@ class Artifact:
     @property
     def file_count(self) -> int:
         """The number of files (including references)."""
+        # Wait, why can't we just use len(self.manifest.entries)?
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "file_count")
         assert self._file_count is not None
@@ -1653,6 +1645,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
+        # Hmm. The only reason we can't download is that we don't know the version path.
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "download")
 
