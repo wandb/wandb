@@ -9,6 +9,7 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 import wandb
+from wandb import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -440,3 +441,60 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
 
     downloaded = Path(logged_artifact.download())
     assert downloaded == art_dir / name_path
+
+
+def test_new_draft(wandb_init):
+    art = wandb.Artifact("test-artifact", "test-type")
+    with art.new_file("boom.txt", "w") as f:
+        f.write("detonation")
+
+    # Set properties that won't be copied.
+    art.ttl = None
+
+    project = "test"
+    with wandb_init(project=project) as run:
+        run.log_artifact(art, aliases=["a"])
+        run.link_artifact(art, f"{project}/my-sample-portfolio")
+
+    parent = Api().artifact(f"{project}/my-sample-portfolio:latest")
+    draft = parent.new_draft()
+
+    # entity/project/name should all match the *source* artifact.
+    assert draft.type == art.type
+    assert draft.name == "test-artifact"  # No version suffix.
+    assert draft._base_id == parent.id  # Parent is the source artifact.
+
+    # We would use public properties, but they're only available on non-draft artifacts.
+    assert draft._entity == parent.entity
+    assert draft._project == parent.project
+    assert draft._source_name == art.name
+    assert draft._source_entity == parent.entity
+    assert draft._source_project == parent.project
+
+    # The draft won't have fields that only exist after being committed.
+    assert draft._version is None
+    assert draft._source_version is None
+    assert draft._ttl_duration_seconds is None
+    assert draft._ttl_is_inherited
+    assert not draft._ttl_changed
+    assert draft._aliases == []
+    assert draft._saved_aliases == []
+    assert draft.is_draft()
+    assert draft._created_at is None
+    assert draft._updated_at is None
+    assert not draft._final
+
+    # Add a file and log the new draft.
+    with draft.new_file("bang.txt", "w") as f:
+        f.write("expansion")
+
+    with wandb_init(project=project) as run:
+        run.log_artifact(draft)
+
+    child = Api().artifact(f"{project}/test-artifact:latest")
+    assert child.version == "v1"
+
+    assert len(child.manifest.entries) == 2
+    file_path = child.download()
+    assert os.path.exists(os.path.join(file_path, "boom.txt"))
+    assert os.path.exists(os.path.join(file_path, "bang.txt"))
