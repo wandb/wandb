@@ -1,6 +1,5 @@
 import datetime
 import logging
-import shlex
 import time
 from typing import Any, Dict, Optional
 
@@ -18,7 +17,7 @@ from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
-from ..utils import LOG_PREFIX, MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, run_shell
+from ..utils import LOG_PREFIX, MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -191,27 +190,3 @@ class VertexRunner(AbstractRunner):
             f"{LOG_PREFIX}View your job status and logs at {submitted_run.get_page_link()}."
         )
         return submitted_run
-
-
-def get_gcp_config(config: str = "default") -> Any:
-    return yaml.safe_load(
-        run_shell(
-            ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
-        )[0]
-    )
-
-
-def exists_on_gcp(image: str, tag: str) -> bool:
-    out, err = run_shell(
-        [
-            "gcloud",
-            "artifacts",
-            "docker",
-            "images",
-            "list",
-            shlex.quote(image),
-            "--include-tags",
-            f"--filter=tags:{shlex.quote(tag)}",
-        ]
-    )
-    return tag in out and "sha256:" in out

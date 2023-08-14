@@ -1,4 +1,3 @@
-import subprocess
 from unittest.mock import MagicMock
 
 import pytest
@@ -7,7 +6,6 @@ import wandb.sdk.launch.launch as launch
 from google.cloud import aiplatform
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.runner.vertex_runner import get_gcp_config, run_shell
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -274,33 +272,3 @@ def test_vertex_supplied_docker_image(
     assert run.gcp_region == job_dict["location"]
     assert run.gcp_project == job_dict["project"]
     assert run.get_status().state == "finished"
-
-
-def test_run_shell():
-    assert run_shell(["echo", "hello"])[0] == "hello"
-
-
-def test_get_gcp_config(monkeypatch):
-    def mock_gcp_config(args, stdout, stderr):
-        config_str = """
-is_active: true
-name: default
-properties:
-  compute:
-    zone: us-east1-b
-  core:
-    account: test-account
-    project: test-project
-"""
-        return MockDict(
-            {"stdout": bytes(config_str, "utf-8"), "stderr": bytes("", "utf-8")}
-        )
-
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda args, stdout, stderr: mock_gcp_config(args, stdout, stderr),
-    )
-    result = get_gcp_config()
-    assert result["properties"]["compute"]["zone"] == "us-east1-b"
-    assert result["properties"]["core"]["project"] == "test-project"
