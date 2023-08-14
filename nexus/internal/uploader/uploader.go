@@ -2,13 +2,12 @@ package uploader
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
@@ -100,7 +99,7 @@ func (u *Uploader) Start() {
 	u.wg.Add(1)
 	go func() {
 		for task := range u.inChan {
-			u.logger.Debug("uploader: got task", task)
+			u.logger.Debug("uploader: got task", "path", task.Path)
 			if err := u.upload(task); err != nil {
 				u.logger.CaptureError("uploader: error uploading", err, "path", task.Path, "url", task.Url)
 			}
