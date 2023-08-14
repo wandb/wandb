@@ -664,7 +664,7 @@ class Artifact:
     def updated_at(self) -> str:
         """The time at which the artifact was last updated."""
         if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "created_at")
+            raise ArtifactNotLoggedError(self, "updated_at")
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
