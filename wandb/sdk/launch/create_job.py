@@ -63,7 +63,7 @@ def create_job(
             runtime="3.9",
             entrypoint="train.py",
         )
-        # then, use you newly created job
+        # then run the newly created job
         artifact_job.call()
         ```
     """
