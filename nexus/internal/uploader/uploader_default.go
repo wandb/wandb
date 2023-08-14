@@ -11,13 +11,6 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/observability"
 )
 
-const (
-	//ChunkSize       = 1024 * 1024 // 1MB chunks
-	ChunkSize       = 200
-	FileParameter   = "file"
-	ContentRangeFmt = "bytes %d-%d/%d"
-)
-
 type RetryClientOption func(rc *retryablehttp.Client)
 
 func WithRetryClientLogger(logger *observability.NexusLogger) RetryClientOption {

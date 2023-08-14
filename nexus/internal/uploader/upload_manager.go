@@ -67,10 +67,19 @@ func (um *UploadManager) Start() {
 	um.wg.Add(1)
 	go func() {
 		for task := range um.inChan {
+			um.wg.Add(1)
 			um.logger.Debug("uploader: got task", task)
-			if err := um.upload(task); err != nil {
-				um.logger.CaptureError("uploader: error uploading", err, "path", task.Path, "url", task.Url)
-			}
+			// spin up a goroutine per task
+			go func(task *UploadTask) {
+				if err := um.upload(task); err != nil {
+					um.logger.CaptureError(
+						"uploader: error uploading",
+						err,
+						"path", task.Path, "url", task.Url,
+					)
+				}
+				um.wg.Done()
+			}(task)
 		}
 		um.wg.Done()
 	}()
@@ -93,5 +102,6 @@ func (um *UploadManager) Close() {
 
 // upload uploads a file to the server
 func (um *UploadManager) upload(task *UploadTask) error {
-	return um.uploader.Upload(task)
+	err := um.uploader.Upload(task)
+	return err
 }
