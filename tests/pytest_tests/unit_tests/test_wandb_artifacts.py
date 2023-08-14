@@ -480,11 +480,9 @@ def test_invalid_artifact_type(type):
         "entity",
         "project",
         "version",
-        "collection",
         "source_entity",
         "source_project",
         "source_version",
-        "source_collection",
         "ttl",
         "aliases",  # Perhaps shouldn't be restricted? It is today.
         "commit_hash",
@@ -498,6 +496,40 @@ def test_unlogged_artifact_property_errors(property):
     error_message = f"'Artifact.{property}' used prior to logging artifact"
     with pytest.raises(ArtifactNotLoggedError, match=error_message):
         getattr(art, property)
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "new_draft",
+        "download",
+        "checkout",
+        "verify",
+        "file",
+        "files",
+        "delete",
+        "used_by",
+        "logged_by",
+        "json_encode",
+    ],
+)
+def test_unlogged_artifact_basic_method_errors(method):
+    art = Artifact("foo", type="any")
+    error_message = f"'Artifact.{method}' used prior to logging artifact"
+    with pytest.raises(ArtifactNotLoggedError, match=error_message):
+        getattr(art, method)()
+
+
+def test_unlogged_artifact_other_method_errors():
+    art = Artifact("foo", type="any")
+    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get_path"):
+        art.get_path("pathname")
+
+    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get"):
+        art["obj_name"]
+
+    with pytest.raises(ArtifactNotLoggedError, match="Artifact.link"):
+        art.link("target_portfolio")
 
 
 def test_cache_write_failure_is_ignored(monkeypatch, capsys):
