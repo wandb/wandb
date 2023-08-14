@@ -179,3 +179,18 @@ def test_artifact_version(wandb_init):
 
     assert artifact.version == "v0"
     assert artifact.source_version == "v1"
+
+
+def test_log_to_wrong_project(wandb_init):
+    art = wandb.Artifact("test-artifact", "test-type")
+    with art.new_file("boom.txt", "w") as f:
+        f.write("swish")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(art)
+
+    new_artifact = Api().artifact("test/test-artifact:v0").new_draft()
+
+    with pytest.raises(ValueError, match="can't be moved to project mismatch"):
+        with wandb_init(project="mismatch") as run:
+            run.log_artifact(new_artifact)
