@@ -552,3 +552,16 @@ def test_cache_write_failure_is_ignored(monkeypatch, capsys):
 
     captured = capsys.readouterr()
     assert "Failed to cache" in captured.err
+
+
+def test_artifact_manifest_length():
+    artifact = Artifact("test-artifact", "test-type")
+    assert len(artifact.manifest) == 0
+    with artifact.new_file("test.txt") as f:
+        f.write("test")
+    assert len(artifact.manifest) == 1
+
+    testpath = Path("test.txt")
+    testpath.write_text("also a test")
+    artifact.add_reference(testpath.resolve().as_uri(), "test2.txt")
+    assert len(artifact.manifest) == 2
