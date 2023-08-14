@@ -102,9 +102,10 @@ class VertexRunner(AbstractRunner):
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
         )
-        resource_args = launch_project.resource_args.get("vertex")
+        full_resource_args = launch_project.fill_macros(image_uri)
+        resource_args = full_resource_args.get("vertex")
         if not resource_args:
-            resource_args = launch_project.resource_args.get("gcp-vertex")
+            resource_args = full_resource_args.get("gcp-vertex")
         if not resource_args:
             raise LaunchError(
                 "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
@@ -138,7 +139,6 @@ class VertexRunner(AbstractRunner):
             or launch_project.get_single_entry_point()
         )
 
-        launch_project.fill_macros(image_uri)
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 
