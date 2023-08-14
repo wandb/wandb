@@ -26,9 +26,11 @@ def test_sweep_scheduler_load():
         load_scheduler("unknown")
 
 
-def _patch_wandb_run(monkeypatch):
+def _patch_wandb_run(monkeypatch, config):
+    if not config:
+        config = {"launch": {"overrides": {"run_config": {}}}}
     mocked_run = Mock(["finish", "id"])
-    mocked_run.config = {"launch": {"overrides": {"run_config": {}}}}
+    mocked_run.config = config
     mocked_run.id = "sweep-scheduler"
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
@@ -95,7 +97,8 @@ def test_sweep_scheduler_start_failed(user, monkeypatch):
 
 
 def test_sweep_scheduler_runcap(user, monkeypatch):
-    _patch_wandb_run(monkeypatch)
+    launch_config = {"launch": {}}
+    _patch_wandb_run(monkeypatch, launch_config)
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]  # 3 total runs
     sweep_config["run_cap"] = 2
     _entity = user
@@ -739,6 +742,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         ["python", "train.py", "${args_no_equals}"],
         ["python", "train.py", "${args}", "--another", "param"],
         ["python", "train.py", "--float", 1.99999, "${args_json}"],
+        ["python", "${program}"],
     ],
 )
 def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
@@ -756,6 +760,7 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
 
     sweep_config = {
         "job": "job:latest",
+        "program": "program-override.py",
         "method": "grid",
         "parameters": {
             "foo-1": {"values": [1, 2]},
