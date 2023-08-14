@@ -119,7 +119,7 @@ func (nc *Connection) readConnection() {
 	buf := make([]byte, messageSize)
 	scanner.Buffer(buf, maxMessageSize)
 	tokenizer := &Tokenizer{}
-	scanner.Split(tokenizer.split)
+	scanner.Split(tokenizer.Split)
 	for scanner.Scan() {
 		msg := &service.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
