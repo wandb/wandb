@@ -393,7 +393,11 @@ class Artifact:
 
     @property
     def collection(self) -> ArtifactCollection:
-        """The collection this artifact came from, ."""
+        """The collection this artifact was retrieved from.
+
+        If this artifact was retrieved from a portfolio / linked collection, that
+        collection will be returned rather than the source sequence.
+        """
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "collection")
         base_name = self.name.split(":")[0]
