@@ -8,6 +8,8 @@ import (
 
 type Storage int
 
+const bufferSize = 32
+
 const (
 	Custom Storage = iota
 	GCS
@@ -53,7 +55,11 @@ func WithLogger(logger *observability.NexusLogger) UploadManagerOption {
 }
 
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
-	um := UploadManager{}
+	um := UploadManager{
+		inChan:    make(chan *UploadTask, bufferSize),
+		uploaders: make(map[Storage]Uploader),
+		wg:        &sync.WaitGroup{},
+	}
 	for _, opt := range opts {
 		opt(&um)
 	}
