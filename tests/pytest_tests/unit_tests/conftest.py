@@ -1,9 +1,7 @@
-from pathlib import Path
 from queue import Queue
 from typing import Callable, Dict, Generator, List
 
 import pytest
-from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache
 
 # --------------------------------
 # Fixtures for user test point
@@ -70,8 +68,3 @@ def parse_records() -> Generator[Callable, None, None]:
         return RecordsUtil(q)
 
     yield records_parser_fn
-
-
-@pytest.fixture
-def artifacts_cache(tmp_path: Path) -> ArtifactsCache:
-    return ArtifactsCache(tmp_path / "artifacts-cache")
