@@ -12,7 +12,10 @@ import (
 	"unsafe"
 )
 
+// generate nexus binary and embed into this package
+//go:generate go build -C ../.. -o lib/core/libwandbcore.bin cmd/nexus/main.go
 //go:embed libwandbcore.bin
+
 var filePayload []byte
 
 func MemfdCreate(path string) (r1 uintptr, err error) {
