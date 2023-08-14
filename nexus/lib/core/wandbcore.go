@@ -1,6 +1,3 @@
-// https://0xcf9.org/2021/06/22/embed-and-execute-from-memory-with-golang/
-// https://www.reddit.com/r/golang/comments/llv8da/go_116_embed_and_execute_binary_files/
-
 package main
 
 import "C"
