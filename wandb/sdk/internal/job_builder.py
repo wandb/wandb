@@ -87,6 +87,7 @@ class JobBuilder:
     _aliases: List[str]
     _job_seq_id: Optional[str]
     _job_version_alias: Optional[str]
+    _is_notebook_run: bool
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
