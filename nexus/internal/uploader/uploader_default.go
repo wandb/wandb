@@ -1,13 +1,9 @@
 package uploader
 
 import (
-	"fmt"
-	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -98,134 +94,26 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 		}
 	}(file)
 
-	fileStat, err := file.Stat()
-	fileSize := fileStat.Size()
+	req, err := retryablehttp.NewRequest(
+		http.MethodPut,
+		task.Url,
+		file,
+	)
 
-	chunk := make([]byte, ChunkSize)
-	var start, end int64
+	for _, header := range task.Headers {
+		parts := strings.Split(header, ":")
+		req.Header.Set(parts[0], parts[1])
+	}
 
-	// Initiate the resumable upload
-	req, err := retryablehttp.NewRequest(http.MethodPost, task.Url, nil)
 	if err != nil {
 		task.outstandingDone()
 		return err
 	}
-	req.Header.Set("Content-Length", "0")
-	//req.Header.Set("Content-Type", "")
-	// x-goog-resumable
-	req.Header.Set("x-goog-resumable", "start")
 
-	resp, err := u.client.Do(req)
-	if err != nil {
+	if _, err = u.client.Do(req); err != nil {
 		task.outstandingDone()
 		return err
 	}
-	fmt.Println(resp.StatusCode, resp.Header, resp)
-
-	for {
-		n, err := file.Read(chunk)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			u.logger.CaptureError("uploader: error reading file chunk", err, "path", task.Path)
-			task.outstandingDone()
-			return err
-		}
-
-		end = start + int64(n) - 1
-		contentRange := fmt.Sprintf(ContentRangeFmt, start, end, fileSize)
-
-		//body := &bytes.Buffer{}
-		//writer := multipart.NewWriter(body)
-		//part, err := writer.CreateFormFile(FileParameter, fileStat.Name())
-		//if err != nil {
-		//	u.logger.CaptureError("uploader: error creating form file", err, "path", task.Path)
-		//	task.outstandingDone()
-		//	return err
-		//}
-		//
-		//if _, err := part.Write(chunk[:n]); err != nil {
-		//	u.logger.CaptureError("uploader: error writing chunk data", err, "path", task.Path)
-		//	task.outstandingDone()
-		//	return err
-		//}
-		//
-		//if err := writer.Close(); err != nil {
-		//	u.logger.CaptureError("uploader: error closing multipart writer", err, "path", task.Path)
-		//	task.outstandingDone()
-		//	return err
-		//}
-
-		//fmt.Println(body.String())
-		fmt.Println(contentRange)
-
-		req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, chunk[:n])
-		if err != nil {
-			log.Fatalf("Could not create request: %v", err)
-		}
-
-		for _, header := range task.Headers {
-			parts := strings.Split(header, ":")
-			req.Header.Set(parts[0], parts[1])
-		}
-
-		//req.Header.Set("Content-Type", writer.FormDataContentType())
-		req.Header.Set("Content-Range", contentRange)
-		req.Header.Set("Content-Length", strconv.Itoa(n))
-		//req.Header.Set("Content-Type", "application/octet-stream")
-
-		resp, err := u.client.Do(req)
-		if err != nil {
-			u.logger.CaptureError("uploader: error sending request", err, "path", task.Path)
-			task.outstandingDone()
-			return err
-		}
-		// todo: handle non-200 status codes
-		fmt.Println(resp.StatusCode)
-		//if resp.StatusCode != 200 {
-		//	err = fmt.Errorf("uploader: received non-200 status code: %d", resp.StatusCode)
-		//	u.logger.CaptureError(
-		//		"uploader: received non-200 status code",
-		//		err,
-		//		"path", task.Path, "status", resp.StatusCode, "status_text", resp.Status)
-		//	task.outstandingDone()
-		//	return err
-		//}
-
-		start += int64(n)
-	}
-
-	req, err = retryablehttp.NewRequest(http.MethodPut, task.Url, nil)
-	if err != nil {
-		task.outstandingDone()
-		return err
-	}
-	req.Header.Set("Content-Length", "0")
-	req.Header.Set("Content-Type", "")
-	// x-goog-resumable
-	req.Header.Set("x-goog-resumable", "final")
-
-	//req, err := retryablehttp.NewRequest(
-	//	http.MethodPut,
-	//	task.Url,
-	//	file,
-	//)
-	//
-	//for _, header := range task.Headers {
-	//	parts := strings.Split(header, ":")
-	//	req.Header.Set(parts[0], parts[1])
-	//}
-	//
-	//if err != nil {
-	//	task.outstandingDone()
-	//	return err
-	//}
-	//
-	//if _, err = u.client.Do(req); err != nil {
-	//	task.outstandingDone()
-	//	return err
-	//}
 
 	task.outstandingDone()
 	return nil
