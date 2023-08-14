@@ -427,6 +427,8 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     job_builder = JobBuilder(
         settings=settings,
     )
+    # never allow notebook runs
+    job_builder._is_notebook_run = False
     # set run inputs and outputs to empty dicts
     job_builder.set_config({})
     job_builder.set_summary({})

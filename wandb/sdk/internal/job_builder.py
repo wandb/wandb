@@ -103,6 +103,7 @@ class JobBuilder:
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.job_source  # type: ignore[assignment]
+        self._is_notebook_run = self._get_is_notebook_run()
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -153,7 +154,7 @@ class JobBuilder:
         commit = git_info.get("commit")
         assert remote is not None
         assert commit is not None
-        if self._is_notebook_run():
+        if self._is_notebook_run:
             if not os.path.exists(
                 os.path.join(os.getcwd(), os.path.basename(program_relpath))
             ):
@@ -194,7 +195,7 @@ class JobBuilder:
                 os.path.basename(sys.executable),
                 full_program_path,
             ],
-            "notebook": self._is_notebook_run(),
+            "notebook": self._is_notebook_run,
         }
 
         if self._settings.job_name:
@@ -219,7 +220,7 @@ class JobBuilder:
     ) -> Tuple[Optional[ArtifactSourceDict], Optional[str]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
-        if self._is_notebook_run() and not self._is_colab_run():
+        if self._is_notebook_run and not self._is_colab_run():
             full_program_relpath = os.path.relpath(program_relpath, os.getcwd())
             # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
             if not os.path.exists(full_program_relpath):
@@ -238,7 +239,7 @@ class JobBuilder:
         # TODO: update executable to a method that supports pex
         source: ArtifactSourceDict = {
             "entrypoint": entrypoint,
-            "notebook": self._is_notebook_run(),
+            "notebook": self._is_notebook_run,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
 
@@ -269,7 +270,7 @@ class JobBuilder:
         }
         return source, name
 
-    def _is_notebook_run(self) -> bool:
+    def _get_is_notebook_run(self) -> bool:
         return hasattr(self._settings, "_jupyter") and bool(self._settings._jupyter)
 
     def _is_colab_run(self) -> bool:
@@ -405,7 +406,7 @@ class JobBuilder:
     def _get_program_relpath(
         self, source_type: str, metadata: Dict[str, Any]
     ) -> Optional[str]:
-        if self._is_notebook_run():
+        if self._is_notebook_run:
             _logger.info("run is notebook based run")
             return metadata.get("program")
 
@@ -429,7 +430,7 @@ class JobBuilder:
 
     def _has_git_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
         git_info: Dict[str, str] = metadata.get("git", {})
-        if self._is_notebook_run() and metadata.get("root") is None:
+        if self._is_notebook_run and metadata.get("root") is None:
             return False
         return git_info.get("remote") is not None and git_info.get("commit") is not None
 
