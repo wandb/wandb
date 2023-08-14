@@ -473,6 +473,32 @@ def test_invalid_artifact_type(type):
         Artifact("foo", type=type)
 
 
+
+
+# def test_cache_add_gives_useful_error_when_out_of_space(
+#     example_files, monkeypatch
+# ):
+#     termerror = MagicMock()
+#     monkeypatch.setattr(wandb, "termerror", termerror)
+
+#     def out_of_space(*args, **kwargs):
+#         raise OSError(errno.ENOSPC, "out of space")
+
+#     monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
+
+#     artifact = wandb.Artifact("test", type="dataset")
+#     with pytest.raises(OSError, match="out of space"):
+#         with wandb_init() as run:
+#             artifact.add_dir(example_files)
+#             run.log_artifact(artifact)
+#         artifact.wait()
+
+#     assert termerror.call_count >= 1
+#     assert "No disk space available" in termerror.call_args[0][0]
+#     assert "set WANDB_CACHE_DIR" in termerror.call_args[0][0]
+
+
+
 def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     def bad_write(*args, **kwargs):
         raise FileNotFoundError("unable to copy from source file")
