@@ -68,7 +68,7 @@ func (um *UploadManager) Start() {
 	go func() {
 		for task := range um.inChan {
 			um.wg.Add(1)
-			um.logger.Debug("uploader: got task", task)
+			um.logger.Debug("uploader: got task", "task", task)
 			// spin up a goroutine per task
 			go func(task *UploadTask) {
 				if err := um.upload(task); err != nil {
