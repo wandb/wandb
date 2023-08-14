@@ -358,6 +358,7 @@ class KubernetesSubmittedRun(AbstractRun):
     def cancel(self) -> None:
         """Cancel the run."""
         self.suspend()
+        self.monitor.stop()
         self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
 
 
