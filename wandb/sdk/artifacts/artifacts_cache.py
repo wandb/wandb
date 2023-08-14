@@ -8,7 +8,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional,
 
 import wandb
 from wandb import env, util
-from wandb.errors.term import termerror
+from wandb.errors import term
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.lib.capped_dict import CappedDict
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
@@ -143,7 +143,7 @@ class ArtifactsCache:
                     yield f
             except OSError as e:
                 if e.errno == errno.ENOSPC:
-                    termerror(
+                    term.termerror(
                         f"No disk space available in {dirname}. Run `wandb artifact "
                         "cache cleanup 0` to empty your cache, or set WANDB_CACHE_DIR "
                         "to a location with more available disk space."

@@ -1,12 +1,15 @@
 import asyncio
 import base64
+import errno
 import os
 import random
 from multiprocessing import Pool
+from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
+from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -16,6 +19,9 @@ from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHan
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.sdk.lib.hashutil import md5_string
+
+example_digest = md5_string("example")
 
 
 def test_opener_rejects_append_mode(cache):
@@ -284,6 +290,26 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
         local=True,
     )
     assert local_path == path
+
+
+def test_cache_add_gives_useful_error_when_out_of_space(cache, monkeypatch):
+    termerror = MagicMock()
+    monkeypatch.setattr(term, "termerror", termerror)
+
+    def out_of_space(*args, **kwargs):
+        raise OSError(errno.ENOSPC, "out of space")
+
+    monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
+
+    _path, _hit, opener = cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with pytest.raises(OSError, match="out of space"):
+        with opener() as f:
+            f.write("hello")
+
+    assert termerror.call_count >= 1
+    assert "No disk space available" in termerror.call_args[0][0]
+    assert "set WANDB_CACHE_DIR" in termerror.call_args[0][0]
 
 
 class FakePublicApi:
