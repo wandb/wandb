@@ -148,6 +148,10 @@ class ArtifactsCache:
                         "cache cleanup 0` to empty your cache, or set WANDB_CACHE_DIR "
                         "to a location with more available disk space."
                     )
+                try:
+                    os.remove(tmp_file)
+                except FileNotFoundError:
+                    pass
                 raise
 
             try:
