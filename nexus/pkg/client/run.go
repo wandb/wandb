@@ -2,10 +2,10 @@ package client
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"strconv"
 	"sync"
-	"log/slog"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
