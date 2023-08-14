@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/nexus
 
-go 1.20
+go 1.21
 
 require (
 	github.com/Khan/genqlient v0.6.0

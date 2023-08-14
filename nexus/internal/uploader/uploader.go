@@ -2,13 +2,12 @@ package uploader
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
