@@ -249,3 +249,10 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
 
     yield mock_run_fn
     unset_globals()
+
+
+@pytest.fixture
+def example_file(tmp_path: Path) -> Path:
+    new_file = tmp_path / "test.txt"
+    new_file.write_text("hello")
+    return new_file

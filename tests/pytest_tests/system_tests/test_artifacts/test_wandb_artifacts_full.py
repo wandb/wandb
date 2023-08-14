@@ -18,13 +18,6 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 @pytest.fixture
-def example_file(tmp_path: Path) -> Path:
-    new_file = tmp_path / "test.txt"
-    new_file.write_text("hello")
-    return new_file
-
-
-@pytest.fixture
 def example_files(tmp_path: Path) -> Path:
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir()
