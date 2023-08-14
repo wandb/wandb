@@ -334,8 +334,20 @@ class Artifact:
         if self._state == ArtifactState.PENDING:
             raise ArtifactNotLoggedError(self, "new_draft")
 
+        # Name, _entity and _project are set to the *source* name/entity/project:
+        # if this artifact is saved it must be saved to the source sequence.
         artifact = Artifact(self.source_name.split(":")[0], self.type)
+        artifact._entity = self._source_entity
+        artifact._project = self._source_project
+        artifact._source_entity = self._source_entity
+        artifact._source_project = self._source_project
+
+        # This artifact's parent is the one we are making a draft from.
         artifact._base_id = self.id
+
+        # We can reuse the client, and copy over all the attributes that aren't
+        # version-dependent and don't depend on having been logged.
+        artifact._client = self._client
         artifact._description = self.description
         artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(
