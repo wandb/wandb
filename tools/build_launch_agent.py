@@ -4,7 +4,7 @@ import os
 
 from wandb.docker import build, push
 
-DOCKERFILE = """
+DOCKERFILE_TEMPLATE = """
 FROM python:3.9-bullseye
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
@@ -30,7 +30,14 @@ USER launch_agent
 WORKDIR /home/launch_agent
 RUN chown -R launch_agent /home/launch_agent
 
+{version_section}
+
 ENTRYPOINT ["wandb", "launch-agent"]
+"""
+
+VERSION_SECTION = """
+# set agent version env var
+ENV WANDB_AGENT_VERSION={agent_version}
 """
 
 DOCKERIGNORE = """
@@ -59,8 +66,13 @@ def main():
     build_context = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     dockerfile_path = os.path.join(build_context, "Dockerfile")
     dockerignore_path = os.path.join(build_context, ".dockerignore")
+    # Set the version env var if a custom tag is set
+    version_section = ""
+    if args.tag != "wandb-launch-agent":
+        version_section = VERSION_SECTION.format(agent_version=args.tag)
+    dockerfile_contents = DOCKERFILE_TEMPLATE.format(version_section=version_section)
     with open(dockerfile_path, "w") as f:
-        f.write(DOCKERFILE)
+        f.write(dockerfile_contents)
     with open(dockerignore_path, "w") as f:
         f.write(DOCKERIGNORE)
     build(
