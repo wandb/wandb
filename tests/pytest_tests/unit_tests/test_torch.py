@@ -110,6 +110,6 @@ def test_log_uint8_image(mock_run, capsys):
     run = mock_run(use_magic_mock=True)
     uint8_tensor = torch.rand([100, 100]).to(torch.uint8)
     im = wandb.Image(uint8_tensor)
-    run.log({'uint8_image': im})
+    run.log({"uint8_image": im})
     assert True
 
