@@ -2059,8 +2059,15 @@ def artifact():
     help="An alias to apply to this artifact",
 )
 @click.option("--id", "run_id", help="The run you want to upload to.")
+@click.option(
+    "--resume",
+    "-r",
+    is_flag=True,
+    default=False,
+    help="Resume the last run from your current directory.",
+)
 @display_error
-def put(path, name, description, type, alias, run_id):
+def put(path, name, description, type, alias, run_id, resume):
     if name is None:
         name = os.path.basename(path)
     public_api = PublicApi()
@@ -2087,16 +2094,15 @@ def put(path, name, description, type, alias, run_id):
     else:
         raise ClickException("Path argument must be a file or directory")
 
-    resume_run = False
     if run_id is not None:
-        resume_run = True
+        resume = True
     run = wandb.init(
         entity=entity,
         project=project,
         config={"path": path},
         job_type="cli_put",
         id=run_id,
-        resume=resume_run,
+        resume=resume,
     )
     # We create the artifact manually to get the current version
     res, _ = api.create_artifact(
