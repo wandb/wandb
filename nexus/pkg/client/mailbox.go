@@ -3,10 +3,10 @@ package client
 import (
 	// "fmt"
 	"context"
-	"strings"
 	"crypto/rand"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )

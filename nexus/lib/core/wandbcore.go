@@ -3,15 +3,15 @@ package main
 import "C"
 
 import (
+	"bufio"
 	_ "embed"
-	"fmt"
 	"errors"
-	"strconv"
+	"fmt"
 	"log"
 	"os"
-	"bufio"
-	"sync"
+	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -72,7 +72,7 @@ func ExecveAt(fd uintptr) (err error) {
 	if err != nil {
 		return err
 	}
-	ret, _, errno := syscall.Syscall6(322, fd, uintptr(unsafe.Pointer(s)), 
+	ret, _, errno := syscall.Syscall6(322, fd, uintptr(unsafe.Pointer(s)),
 		uintptr(unsafe.Pointer(&argvp[0])),
 		uintptr(unsafe.Pointer(&envvp[0])),
 		0x1000 /* AT_EMPTY_PATH */, 0)
@@ -102,22 +102,21 @@ func run() {
 	}
 }
 
-
 // readLines reads a whole file into memory
 // and returns a slice of its lines.
 func readLines(path string) ([]string, error) {
-    file, err := os.Open(path)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
 
-    var lines []string
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        lines = append(lines, scanner.Text())
-    }
-    return lines, scanner.Err()
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
 }
 
 func tryport() (int, error) {
@@ -143,7 +142,7 @@ func tryport() (int, error) {
 }
 
 func getport() (int, error) {
-	for i := 0; i < 10; i ++ {
+	for i := 0; i < 10; i++ {
 		val, err := tryport()
 		if err == nil {
 			return val, err
