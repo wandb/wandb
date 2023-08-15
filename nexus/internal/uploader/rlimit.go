@@ -14,7 +14,6 @@ func getRlimit(defaultValue int32) int32 {
 	}
 	var rlim unix.Rlimit
 	err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim)
-	fmt.Println("rlim", rlim)
 	if err != nil {
 		return defaultConcurrencyLimit
 	}
