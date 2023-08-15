@@ -546,6 +546,7 @@ class _WandbInit:
             save=drun.save,
             use_artifact=drun.use_artifact,
             log_artifact=drun.log_artifact,
+            log_model=drun.log_model,
             define_metric=drun.define_metric,
             plot_table=drun.plot_table,
             alert=drun.alert,

@@ -8,7 +8,6 @@ import numbers
 import os
 import re
 import sys
-import tempfile
 import threading
 import time
 import traceback
@@ -2749,21 +2748,6 @@ class Run:
             self._backend.interface.publish_use_artifact(artifact)
         return artifact
 
-
-    # @_run_decorator._noop_on_finish()
-    # @_run_decorator._attach
-    # def use_model(
-    #     self,
-    #     artifact_or_name: Union[str, Artifact]
-    # ) -> Artifact:
-    #     """Load a previously saved model."""
-    #     artifact = self.use_artifact(artifact_or_name, type="model")
-    #     path = artifact.download()
-    #     name = artifact.source_name.split(":")[0]
-    #     model_file = os.path.join(path, f"{name}.keras")
-    #     tf.keras.models.load_model('my_model.keras')
-
-
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log_artifact(
@@ -2805,20 +2789,12 @@ class Run:
     @_run_decorator._attach
     def log_model(
         self,
-        model: Any,
+        model_path: StrPath,
         name: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
     ) -> Artifact:
         """Save a model to W&B."""
-        name = name or f"model-{self._run_id}-{wandb.util.generate_id()}"
-        with tempfile.TemporaryDirectory() as temp_dir:
-            model_file = os.path.join(temp_dir, f"{name}.keras")
-            try:
-                model.save(model_file)
-            except AttributeError:
-                raise ValueError(
-                    "Model must be a Keras model or support the .save() method."
-                )
-            return self._log_artifact(model_file, name=name, type="model")
+        return self._log_artifact(model_path, name=name, type="model", aliases=aliases)
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
