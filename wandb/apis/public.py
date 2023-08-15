@@ -727,11 +727,18 @@ class Api:
 
     def _parse_artifact_path(self, path):
         """Return project, entity and artifact name for project specified by path."""
+
+        # Adding this short circuit skips the potential access of
+        # self.default_entity which incurs a network call. However, if the path
+        # is fully qualified, then this `entity` is thrown away.
+        parts = [] if path is None else path.split("/")
+        if len(parts) == 3:
+            return parts
+
         project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
             return entity, project
-        parts = path.split("/")
         if len(parts) > 3:
             raise ValueError("Invalid artifact path: %s" % path)
         elif len(parts) == 1:
