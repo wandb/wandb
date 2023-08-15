@@ -69,14 +69,15 @@ func (r *Run) Init() {
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
 	serverRecord = service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordPublish{RecordPublish: &record},
+		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
 
+	handle := r.conn.Mbox.Deliver(&record)
 	err = r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
-
+	_ = handle.wait()
 }
 
 func (r *Run) Start() {
@@ -102,13 +103,15 @@ func (r *Run) Start() {
 	}
 
 	serverRecord = service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordPublish{RecordPublish: &record},
+		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
 
+	handle := r.conn.Mbox.Deliver(&record)
 	err = r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
+	handle.wait()
 }
 
 func (r *Run) Log(data map[string]float64) {
@@ -145,12 +148,14 @@ func (r *Run) Finish() {
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
 	serverRecord := service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordPublish{RecordPublish: &record},
+		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
+	handle := r.conn.Mbox.Deliver(&record)
 	err := r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
+	handle.wait()
 
 	serverRecord = service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_InformFinish{InformFinish: &service.ServerInformFinishRequest{
@@ -161,5 +166,5 @@ func (r *Run) Finish() {
 	if err != nil {
 		return
 	}
-	r.wg.Wait()
+	// r.wg.Wait()
 }

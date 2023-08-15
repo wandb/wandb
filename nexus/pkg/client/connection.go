@@ -21,6 +21,7 @@ type Connection struct {
 
 	// Conn is the connection to the server
 	net.Conn
+	Mbox *Mailbox
 }
 
 // NewConnection creates a new connection to the server.
@@ -30,9 +31,11 @@ func NewConnection(ctx context.Context, addr string) (*Connection, error) {
 		err = fmt.Errorf("error connecting to server: %w", err)
 		return nil, err
 	}
+	mbox := NewMailbox()
 	connection := &Connection{
 		ctx:  ctx,
 		Conn: conn,
+		Mbox: mbox,
 	}
 	return connection, nil
 }
@@ -71,11 +74,7 @@ func (c *Connection) Recv() {
 		}
 		switch x := msg.ServerResponseType.(type) {
 		case *service.ServerResponse_ResultCommunicate:
-			switch x.ResultCommunicate.ResultType.(type) {
-			case *service.Result_ExitResult:
-				c.Close()
-			default:
-			}
+			c.Mbox.Respond(x.ResultCommunicate)
 		default:
 		}
 	}
