@@ -1397,7 +1397,9 @@ workflows:
       #
       # Nexus unit tests
       #
-      - gotest
+      - gotest:
+          requires:
+            - "unit-tests"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
