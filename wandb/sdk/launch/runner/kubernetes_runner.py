@@ -3,6 +3,7 @@
 import base64
 import json
 import logging
+import os
 import time
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -19,6 +20,7 @@ from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
+    AGENT_POLLING_INTERVAL,
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
@@ -43,9 +45,9 @@ from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: 
 from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
-MAX_KUBERNETES_RETRIES = (
-    60  # default 10 second loop time on the agent, this is 10 minutes
-)
+
+PENDING_TIMEOUT = int(os.environ.get("WANDB_AGENT_TIMEOUT", 600))  # default 10 minutes
+MAX_KUBERNETES_RETRIES = PENDING_TIMEOUT // AGENT_POLLING_INTERVAL
 FAIL_MESSAGE_INTERVAL = 60
 
 _logger = logging.getLogger(__name__)
@@ -99,6 +101,7 @@ class KubernetesSubmittedRun(AbstractRun):
         self._fail_count = 0
         self.pod_names = pod_names
         self.secret = secret
+        self._last_msg_time = 0.0
 
     @property
     def id(self) -> str:
@@ -117,8 +120,8 @@ class KubernetesSubmittedRun(AbstractRun):
                     f"Retrieved no logs for kubernetes pod(s): {self.pod_names}"
                 )
             return None
-        except Exception as e:
-            wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
+        except Exception:
+            wandb.termwarn(f"{LOG_PREFIX}Failed to get logs for job: {self.name}")
             return None
 
     def get_job(self) -> "V1Job":
@@ -191,17 +194,25 @@ class KubernetesSubmittedRun(AbstractRun):
                     "TerminationByKubelet",
                 ]:
                     return Status("preempted")
+
+        now = time.time()
+        if self._is_container_creating(pod):
+            if now - self._last_msg_time > FAIL_MESSAGE_INTERVAL:
+                wandb.termlog(f"{LOG_PREFIX}Container is creating for job: {self.name}")
+                self._last_msg_time = now
+            return Status("starting")
         if pod.status.phase in ["Pending", "Unknown"]:
-            now = time.time()
             if self._fail_count == 0:
                 self._fail_first_msg_time = now
-                self._fail_last_msg_time = 0.0
             self._fail_count += 1
-            if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes."
+            if now - self._last_msg_time > FAIL_MESSAGE_INTERVAL:
+                minutes = int(
+                    (PENDING_TIMEOUT - (now - self._fail_first_msg_time)) / 60
                 )
-                self._fail_last_msg_time = now
+                wandb.termlog(
+                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {minutes} minutes."
+                )
+                self._last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 raise LaunchError(f"Failed to start job {self.name}")
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
@@ -219,6 +230,18 @@ class KubernetesSubmittedRun(AbstractRun):
 
         self._delete_secret_if_completed(return_status.state)
         return return_status
+
+    def _is_container_creating(self, pod: client.V1Pod) -> bool:
+        """Check if any of this pod's containers are creating."""
+        if hasattr(pod.status, "container_statuses") and pod.status.container_statuses:
+            for status in pod.status.container_statuses:
+                if (
+                    hasattr(status.state, "waiting")
+                    and hasattr(status.state.waiting, "reason")
+                    and status.state.waiting.reason == "ContainerCreating"
+                ):
+                    return True
+        return False
 
     def suspend(self) -> None:
         """Suspend the run."""

@@ -61,6 +61,8 @@ LAUNCH_DEFAULT_PROJECT = "model-registry"
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
+AGENT_POLLING_INTERVAL = int(os.environ.get("WANDB_AGENT_POLLING_INTERVAL", 10))
+
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
