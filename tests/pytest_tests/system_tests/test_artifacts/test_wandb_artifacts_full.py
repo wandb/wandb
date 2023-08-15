@@ -17,41 +17,6 @@ from wandb.sdk.wandb_run import Run
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
-@pytest.fixture
-def example_file(tmp_path: Path) -> Path:
-    new_file = tmp_path / "test.txt"
-    new_file.write_text("hello")
-    return new_file
-
-
-@pytest.fixture
-def example_files(tmp_path: Path) -> Path:
-    artifact_dir = tmp_path / "artifacts"
-    artifact_dir.mkdir()
-    for i in range(3):
-        (artifact_dir / f"artifact_{i}.txt").write_text(f"file-{i}")
-    return artifact_dir
-
-
-@pytest.fixture
-def logged_artifact(wandb_init, example_files) -> Artifact:
-    with wandb.init() as run:
-        artifact = wandb.Artifact("test-artifact", "dataset")
-        artifact.add_dir(example_files)
-        run.log_artifact(artifact)
-    artifact.wait()
-    return artifact
-
-
-@pytest.fixture
-def linked_artifact(wandb_init, logged_artifact) -> Artifact:
-    with wandb.init() as run:
-        run.link_artifact(logged_artifact, "linked-from-portfolio")
-
-    with wandb.init() as run:
-        return run.use_artifact("linked-from-portfolio:latest")
-
-
 def test_add_table_from_dataframe(wandb_init):
     import pandas as pd
 
