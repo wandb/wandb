@@ -1283,7 +1283,6 @@ def launch(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
     from wandb.sdk.launch import launch as wandb_launch
-    from wandb.sdk.launch.runner import Status
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_cli")
