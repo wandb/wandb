@@ -1,9 +1,9 @@
 package uploader
 
 import (
-	"fmt"
-	"github.com/wandb/wandb/nexus/pkg/service"
 	"sync"
+
+	"github.com/wandb/wandb/nexus/pkg/service"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 )
@@ -95,7 +95,6 @@ func (um *UploadManager) Start() {
 			go func(task *UploadTask) {
 				// Acquire the semaphore
 				um.semaphore <- struct{}{}
-				fmt.Println("semaphore acquired", task.Path)
 				if err := um.upload(task); err != nil {
 					um.logger.CaptureError(
 						"uploader: error uploading",
@@ -105,7 +104,6 @@ func (um *UploadManager) Start() {
 				}
 				// Release the semaphore
 				<-um.semaphore
-				fmt.Println("semaphore released", task.Path)
 				// mark the task as done
 				um.wg.Done()
 			}(task)
