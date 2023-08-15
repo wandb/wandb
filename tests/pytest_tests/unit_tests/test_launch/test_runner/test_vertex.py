@@ -67,21 +67,10 @@ def test_vertex_submitted_run():
     assert run.get_status().state == "failed"
 
 
-@pytest.fixture
-def vertex_runner(test_settings):
-    """Vertex runner initialized with no backend config"""
-    registry = MagicMock()
-    environment = MagicMock()
-    api = InternalApi(settings=test_settings, load_settings=False)
-    runner = VertexRunner(api, {"SYNCHRONOUS": False}, registry, environment)
-    return runner
-
-
-def test_vertex_missing_worker_spec(vertex_runner):
-    """Test that a launch error is raised when we are missing a worker spec."""
-    resource_args = {"vertex": {"worker_pool_specs": []}}
-    launch_project = LaunchProject(
-        api=vertex_runner._api,
+def launch_project_factory(resource_args: dict, api: InternalApi):
+    """Construct a dummy LaunchProject with the given resource args."""
+    return LaunchProject(
+        api=api,
         docker_config={
             "image": "test-image",
         },
@@ -97,5 +86,21 @@ def test_vertex_missing_worker_spec(vertex_runner):
         resource="vertex",
         run_id="",
     )
+
+
+@pytest.fixture
+def vertex_runner(test_settings):
+    """Vertex runner initialized with no backend config"""
+    registry = MagicMock()
+    environment = MagicMock()
+    api = InternalApi(settings=test_settings, load_settings=False)
+    runner = VertexRunner(api, {"SYNCHRONOUS": False}, registry, environment)
+    return runner
+
+
+def test_vertex_missing_worker_spec(vertex_runner):
+    """Test that a launch error is raised when we are missing a worker spec."""
+    resource_args = {"vertex": {"worker_pool_specs": []}}
+    launch_project = launch_project_factory(resource_args, vertex_runner._api)
     with pytest.raises(LaunchError):
         vertex_runner.run(launch_project, resource_args)
