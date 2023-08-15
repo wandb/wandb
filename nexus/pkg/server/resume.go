@@ -20,7 +20,7 @@ func (r *ResumeState) GetFileStreamOffset() fs.FileStreamOffsetMap {
 	return r.FileStreamOffset
 }
 
-func (r *ResumeState) AddOffset(key fs.ChunkFile, offset int) {
+func (r *ResumeState) AddOffset(key fs.ChunkTypeEnum, offset int) {
 	if r.FileStreamOffset == nil {
 		r.FileStreamOffset = make(fs.FileStreamOffsetMap)
 	}

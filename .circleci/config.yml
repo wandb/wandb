@@ -6,6 +6,7 @@ orbs:
   go: circleci/go@1.7.3
   gcloud: circleci/gcp-cli@3.1.0
   gke: circleci/gcp-gke@2.1.0
+  codecov: codecov/codecov@3
 
 parameters:
   manual:
@@ -418,8 +419,8 @@ jobs:
       - run:
           name: Install Go
           command: |
-            wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-            tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+            wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
             PATH=/usr/local/go/bin:$PATH
             go version
           no_output_timeout: 1m
@@ -445,7 +446,7 @@ jobs:
 
   gotest:
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.21
     steps:
       - checkout
       - run:
@@ -453,8 +454,8 @@ jobs:
           command: |
             cd nexus
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-# todo: add codecov
-#      - codecov/upload
+            # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
+      - codecov/upload
 
   protobuf-compatability:
     parameters:

@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/nexus
 
-go 1.20
+go 1.21
 
 require (
 	github.com/Khan/genqlient v0.6.0
@@ -9,7 +9,6 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.4
 	github.com/shirou/gopsutil/v3 v3.23.6
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
 	google.golang.org/protobuf v1.31.0
 )
 
