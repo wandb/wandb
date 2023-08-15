@@ -142,7 +142,8 @@ func tryport() (int, error) {
 }
 
 func getport() (int, error) {
-	for i := 0; i < 10; i++ {
+	// wait for 30 seconds for port
+	for i := 0; i < 3000; i++ {
 		val, err := tryport()
 		if err == nil {
 			return val, err
@@ -189,6 +190,7 @@ func junk() {
 func fork() {
 	foo := 4
 	bar := 10
+	os.Remove("junk-pid.txt")
 	id, _, _ := syscall.Syscall(syscall.SYS_FORK, 0, 0, 0)
 	if id == 0 {
 		foo++
