@@ -18,8 +18,6 @@ from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
 
-_logger = logging.getLogger(__name__)
-
 
 class VertexSubmittedRun(AbstractRun):
     def __init__(self, job: Any) -> None:
