@@ -1283,6 +1283,7 @@ def launch(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
     from wandb.sdk.launch import launch as wandb_launch
+    from wandb.sdk.launch.runner import Status
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_cli")
@@ -1324,7 +1325,7 @@ def launch(
     if queue is None:
         # direct launch
         try:
-            wandb_launch.run(
+            run = wandb_launch.run(
                 api,
                 uri,
                 job,
@@ -1341,6 +1342,13 @@ def launch(
                 run_id=run_id,
                 repository=repository,
             )
+            if not run_async:
+                success = run.status.state == "finished"
+                if success:
+                    sys.exit(0)
+                else:
+                    wandb.termerror("Launched run exited with non-zero status")
+                    sys.exit(1)
         except LaunchError as e:
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
