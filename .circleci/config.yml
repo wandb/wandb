@@ -530,11 +530,6 @@ jobs:
                 shell: bash.exe
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
-            - run:
-                name: Temporary conda hack
-                shell: bash.exe
-                command: |
-                  cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
