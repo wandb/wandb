@@ -35,7 +35,7 @@ import requests
 import wandb
 from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactFiles, RetryingClient, Run
+from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
@@ -388,6 +388,20 @@ class Artifact:
         return self._version
 
     @property
+    def collection(self) -> ArtifactCollection:
+        """The collection this artifact was retrieved from.
+
+        If this artifact was retrieved from a portfolio / linked collection, that
+        collection will be returned rather than the source sequence.
+        """
+        if self._state == ArtifactState.PENDING:
+            raise ArtifactNotLoggedError(self, "collection")
+        base_name = self.name.split(":")[0]
+        return ArtifactCollection(
+            self._client, self.entity, self.project, base_name, self.type
+        )
+
+    @property
     def source_entity(self) -> str:
         """The name of the entity of the primary (sequence) artifact collection."""
         self._ensure_logged("source_entity")
@@ -424,6 +438,16 @@ class Artifact:
         self._ensure_logged("source_version")
         assert self._source_version is not None
         return self._source_version
+
+    @property
+    def source_collection(self) -> ArtifactCollection:
+        """The artifact's primary (sequence) collection."""
+        if self._state == ArtifactState.PENDING:
+            raise ArtifactNotLoggedError(self, "collection")
+        base_name = self.source_name.split(":")[0]
+        return ArtifactCollection(
+            self._client, self.source_entity, self.source_project, base_name, self.type
+        )
 
     @property
     def type(self) -> str:

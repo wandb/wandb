@@ -414,3 +414,25 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
 
     downloaded = Path(logged_artifact.download())
     assert downloaded == art_dir / name_path
+
+
+def test_get_artifact_collection(logged_artifact):
+    collection = logged_artifact.collection
+    assert logged_artifact.entity == collection.entity
+    assert logged_artifact.project == collection.project
+    assert logged_artifact.name.startswith(collection.name)
+    assert logged_artifact.type == collection.type
+
+
+def test_get_artifact_collection_from_linked_artifact(linked_artifact):
+    collection = linked_artifact.collection
+    assert linked_artifact.entity == collection.entity
+    assert linked_artifact.project == collection.project
+    assert linked_artifact.name.startswith(collection.name)
+    assert linked_artifact.type == collection.type
+
+    collection = linked_artifact.source_collection
+    assert linked_artifact.source_entity == collection.entity
+    assert linked_artifact.source_project == collection.project
+    assert linked_artifact.source_name.startswith(collection.name)
+    assert linked_artifact.type == collection.type
