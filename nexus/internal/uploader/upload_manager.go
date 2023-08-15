@@ -1,6 +1,8 @@
 package uploader
 
 import (
+	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/service"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -9,8 +11,8 @@ import (
 type Storage int
 
 const (
-	bufferSize       = 32
-	concurrencyLimit = 128 // todo: get this from unix.Getrlimit(unix.RLIMIT_NOFILE, &limit)
+	bufferSize              = 32
+	defaultConcurrencyLimit = 64
 )
 
 // type fileCounts struct {
@@ -39,6 +41,9 @@ type UploadManager struct {
 	// fileCounts is the file counts
 	// fileCounts fileCounts
 
+	// settings is the settings for the uploader
+	settings *service.Settings
+
 	// logger is the logger for the uploader
 	logger *observability.NexusLogger
 
@@ -54,17 +59,26 @@ func WithLogger(logger *observability.NexusLogger) UploadManagerOption {
 	}
 }
 
+func WithSettings(settings *service.Settings) UploadManagerOption {
+	return func(um *UploadManager) {
+		um.settings = settings
+	}
+}
+
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
+
 	um := UploadManager{
-		inChan:    make(chan *UploadTask, bufferSize),
-		semaphore: make(chan struct{}, concurrencyLimit),
-		wg:        &sync.WaitGroup{},
+		inChan: make(chan *UploadTask, bufferSize),
+		wg:     &sync.WaitGroup{},
 	}
 	for _, opt := range opts {
 		opt(&um)
 	}
 
 	um.uploader = NewDefaultUploader(um.logger)
+
+	concurrencyLimit := getRlimit(um.settings.XAsyncUploadConcurrencyLimit.GetValue())
+	um.semaphore = make(chan struct{}, concurrencyLimit)
 
 	return &um
 }
@@ -81,6 +95,7 @@ func (um *UploadManager) Start() {
 			go func(task *UploadTask) {
 				// Acquire the semaphore
 				um.semaphore <- struct{}{}
+				fmt.Println("semaphore acquired", task.Path)
 				if err := um.upload(task); err != nil {
 					um.logger.CaptureError(
 						"uploader: error uploading",
@@ -90,6 +105,7 @@ func (um *UploadManager) Start() {
 				}
 				// Release the semaphore
 				<-um.semaphore
+				fmt.Println("semaphore released", task.Path)
 				// mark the task as done
 				um.wg.Done()
 			}(task)

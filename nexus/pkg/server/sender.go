@@ -201,6 +201,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 		s.fileStream.Start()
 		s.uploadManager = uploader.NewUploadManager(
 			uploader.WithLogger(s.logger),
+			uploader.WithSettings(s.settings),
 		)
 		s.uploadManager.Start()
 	}

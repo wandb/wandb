@@ -75,7 +75,7 @@ func NewDefaultUploader(logger *observability.NexusLogger) *DefaultUploader {
 
 // Upload uploads a file to the server
 func (u *DefaultUploader) Upload(task *UploadTask) error {
-	u.logger.Debug("custom uploader: uploading file", "path", task.Path, "url", task.Url)
+	u.logger.Debug("default uploader: uploading file", "path", task.Path, "url", task.Url)
 	// open the file for reading and defer closing it
 	file, err := os.Open(task.Path)
 	if err != nil {
