@@ -135,6 +135,9 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
+log_model = _preinit.PreInitCallable(
+    "wandb.log_model", wandb_sdk.wandb_run.Run.log_model
+)
 define_metric = _preinit.PreInitCallable(
     "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
 )
