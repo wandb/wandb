@@ -1,4 +1,3 @@
-import datetime
 import logging
 import time
 from typing import Any, Dict, Optional
@@ -6,9 +5,6 @@ from typing import Any, Dict, Optional
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 
-import yaml
-
-import wandb
 from wandb.apis.internal import Api
 from wandb.util import get_module
 
@@ -103,34 +99,25 @@ class VertexRunner(AbstractRunner):
         )
         full_resource_args = launch_project.fill_macros(image_uri)
         resource_args = full_resource_args.get("vertex")
+        # We support setting under gcp-vertex for historical reasons.
         if not resource_args:
             resource_args = full_resource_args.get("gcp-vertex")
         if not resource_args:
             raise LaunchError(
                 "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
             )
-        gcp_staging_bucket = resource_args.get("staging_bucket")
-        if not gcp_staging_bucket:
-            raise LaunchError(
-                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key staging_bucket."
-            )
-        gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
-        gcp_accelerator_type = (
-            resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
-        )
-        gcp_accelerator_count = int(resource_args.get("accelerator_count") or 0)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        gcp_training_job_name = (
-            resource_args.get("job_name")
-            or f"{launch_project.target_project}_{timestamp}"
-        )
-        service_account = resource_args.get("service_account")
-        tensorboard = resource_args.get("tensorboard")
+
+        # TODO: check for required fields
+        job_constructor_kwargs = resource_args.get("spec", {})
+        run_kwargs = resource_args.get("run", {})
+
+        # TODO: figure out what to do about regions
         aiplatform.init(
             project=self.environment.project,
             location=self.environment.region,
-            staging_bucket=gcp_staging_bucket,
+            staging_bucket=job_constructor_kwargs.get("staging_bucket"),
         )
+
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
         entry_point = (
@@ -138,55 +125,61 @@ class VertexRunner(AbstractRunner):
             or launch_project.get_single_entry_point()
         )
 
-        # TODO: how to handle this?
+        # TODO: Set entrypoint in each container
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-
-        worker_pool_specs = [
-            {
-                "machine_spec": {
-                    "machine_type": gcp_machine_type,
-                    "accelerator_type": gcp_accelerator_type,
-                    "accelerator_count": gcp_accelerator_count,
-                },
-                "replica_count": 1,
-                "container_spec": {
-                    "image_uri": image_uri,
-                    "command": entry_cmd,
-                    "env": [
-                        {"name": k, "value": v}
-                        for k, v in get_env_vars_dict(
-                            launch_project,
-                            self._api,
-                            MAX_ENV_LENGTHS[self.__class__.__name__],
-                        ).items()
-                    ],
-                },
-            }
-        ]
-
-        job = aiplatform.CustomJob(
-            display_name=gcp_training_job_name, worker_pool_specs=worker_pool_specs
+        env_vars = get_env_vars_dict(
+            launch_project=launch_project,
+            api=self._api,
+            max_env_length=MAX_ENV_LENGTHS[self.__class__.__name__],
         )
 
-        wandb.termlog(
-            f"{LOG_PREFIX}Running training job {gcp_training_job_name} on {gcp_machine_type}."
-        )
-
-        if synchronous:
-            job.run(service_account=service_account, tensorboard=tensorboard, sync=True)
-        else:
-            job.submit(
-                service_account=service_account,
-                tensorboard=tensorboard,
+        worker_specs = job_constructor_kwargs.get("worker_pool_specs", [])
+        if not worker_specs:
+            raise LaunchError(
+                "Vertex requires at least one worker pool spec. Please specify "
+                "a worker pool spec in resource arguments under the key "
+                "`vertex.spec.worker_pool_specs`."
             )
 
+        # TODO: Add entrypoint + args to each worker pool spec
+        for spec in worker_specs:
+            if not spec.get("container_spec"):
+                raise LaunchError(
+                    "Vertex requires a container spec for each worker pool spec. "
+                    "Please specify a container spec in resource arguments under "
+                    "the key `vertex.spec.worker_pool_specs[].container_spec`."
+                )
+            spec["container_spec"]["command"] = entry_cmd
+            spec["container_spec"]["env"] = [
+                {"name": k, "value": v} for k, v in env_vars.items()
+            ]
+        job = aiplatform.CustomJob(
+            display_name=launch_project.name,
+            worker_pool_specs=job_constructor_kwargs.get("worker_pool_specs"),
+            base_output_dir=job_constructor_kwargs.get("base_output_dir"),
+            encryption_spec_key_name=job_constructor_kwargs.get(
+                "encryption_spec_key_name"
+            ),
+            labels=job_constructor_kwargs.get("labels", {}),
+        )
+        execution_kwargs = dict(
+            timeout=run_kwargs.get("timeout"),
+            service_account=run_kwargs.get("service_account"),
+            network=run_kwargs.get("network"),
+            enable_web_access=run_kwargs.get("enable_web_access", False),
+            experiment=run_kwargs.get("experiment"),
+            experiment_run=run_kwargs.get("experiment_run"),
+            tensorboard=run_kwargs.get("tensorboard"),
+            restart_job_on_worker_restart=run_kwargs.get(
+                "restart_job_on_worker_restart", False
+            ),
+        )
+        if synchronous:
+            job.run(**execution_kwargs, sync=True)
+        else:
+            job.submit(**execution_kwargs)
         submitted_run = VertexSubmittedRun(job)
-
         while not getattr(job._gca_resource, "name", None):
             # give time for the gcp job object to be created and named, this should only loop a couple times max
             time.sleep(1)
-
-        wandb.termlog(
-            f"{LOG_PREFIX}View your job status and logs at {submitted_run.get_page_link()}."
-        )
         return submitted_run

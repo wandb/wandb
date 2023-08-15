@@ -109,7 +109,7 @@ def registry_from_config(
         if not isinstance(environment, GcpEnvironment):
             raise LaunchError(
                 "Could not create GCR registry. "
-                "Environment must be an instance of GCPEnvironment."
+                "Environment must be an instance of GcpEnvironment."
             )
         from .registry.google_artifact_registry import GoogleArtifactRegistry
 

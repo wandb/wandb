@@ -436,11 +436,12 @@ def join(split_command: List[str]) -> str:
     return " ".join(shlex.quote(arg.replace("'", "")) for arg in split_command)
 
 
-def construct_builder_args(
+def construct_agent_configs(
     launch_config: Optional[Dict] = None,
     build_config: Optional[Dict] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     registry_config = None
+    environment_config = None
     if launch_config is not None:
         build_config = launch_config.get("builder")
         registry_config = launch_config.get("registry")
@@ -449,12 +450,13 @@ def construct_builder_args(
     if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
         with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
             default_launch_config = yaml.safe_load(f)
+        environment_config = default_launch_config.get("environment")
 
     build_config, registry_config = resolve_build_and_registry_config(
         default_launch_config, build_config, registry_config
     )
 
-    return build_config, registry_config
+    return environment_config, build_config, registry_config
 
 
 def build_image_with_builder(
