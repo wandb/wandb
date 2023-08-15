@@ -727,7 +727,6 @@ class Api:
 
     def _parse_artifact_path(self, path):
         """Return project, entity and artifact name for project specified by path."""
-
         # Adding this short circuit skips the potential access of
         # self.default_entity which incurs a network call. However, if the path
         # is fully qualified, then this `entity` is thrown away.
