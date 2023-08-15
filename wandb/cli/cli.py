@@ -1341,13 +1341,9 @@ def launch(
                 run_id=run_id,
                 repository=repository,
             )
-            if not run_async:
-                success = run.status.state == "finished"
-                if success:
-                    sys.exit(0)
-                else:
-                    wandb.termerror("Launched run exited with non-zero status")
-                    sys.exit(1)
+            if run.get_status().state in ["failed", "stopped", "preempted"]:
+                wandb.termerror("Launched run exited with non-zero status")
+                sys.exit(1)
         except LaunchError as e:
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
