@@ -1,3 +1,4 @@
+#!/bin/bash
 set -e
 
 # NOTE: this is not final... just for testing
