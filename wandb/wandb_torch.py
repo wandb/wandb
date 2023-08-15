@@ -77,11 +77,11 @@ class TorchHistory:
         self.hook_torch = TorchGraph.hook_torch
 
     def add_log_parameters_hook(
-        self,
-        module: "torch.nn.Module",
-        name: str = "",
-        prefix: str = "",
-        log_freq: int = 0,
+            self,
+            module: "torch.nn.Module",
+            name: str = "",
+            prefix: str = "",
+            log_freq: int = 0,
     ) -> None:
         """This instruments hooks into the pytorch module
         log parameters after a forward pass
@@ -119,11 +119,11 @@ class TorchHistory:
             )
 
     def add_log_gradients_hook(
-        self,
-        module: "torch.nn.Module",
-        name: str = "",
-        prefix: str = "",
-        log_freq: int = 0,
+            self,
+            module: "torch.nn.Module",
+            name: str = "",
+            prefix: str = "",
+            log_freq: int = 0,
     ) -> None:
         """This instruments hooks into the pytorch module
         log gradients after a backward pass
@@ -148,68 +148,51 @@ class TorchHistory:
         """Add distribution statistics on a tensor's elements to the current History entry"""
         # TODO Handle the case of duplicate names.
 
-        if isinstance(tensor, tuple) or isinstance(tensor, list):
-            while (isinstance(tensor, tuple) or isinstance(tensor, list)) and (
-                isinstance(tensor[0], tuple) or isinstance(tensor[0], list)
+        if isinstance(tensor, (tuple, list)):
+            while (isinstance(tensor, tuple, list)) and (
+                    isinstance(tensor[0], (tuple, list))
             ):
                 tensor = [item for sublist in tensor for item in sublist]
-            tensor = torch.cat([t.reshape(-1) for t in tensor])
+            tensor = torch.cat([t.detach().clone().reshape(-1) for t in tensor])
 
+        tensor = tensor.detach().clone()
         # checking for inheritance from _TensorBase didn't work for some reason
         if not hasattr(tensor, "shape"):
             cls = type(tensor)
             raise TypeError(f"Expected Tensor, not {cls.__module__}.{cls.__name__}")
-
-        # HalfTensors on cpu do not support view(), upconvert to 32bit
-        if isinstance(tensor, torch.HalfTensor):
-            tensor = tensor.clone().type(torch.FloatTensor).detach()
 
         # Sparse tensors have a bunch of implicit zeros. In order to histo them correctly,
         # we have to count them up and add them to the histo ourselves.
         sparse_zeros = None
         if tensor.is_sparse:
             # Have to call this on a sparse tensor before most other ops.
-            tensor = tensor.cpu().coalesce().clone().detach()
+            tensor = tensor.cpu().detach().clone().coalesce()
 
             backing_values = tensor._values()
-            non_zero_values = backing_values.numel()
-            all_values = tensor.numel()
-            sparse_zeros = all_values - non_zero_values
+            sparse_zeros = tensor.numel() - backing_values.numel()
             tensor = backing_values
 
         flat = tensor.reshape(-1)
 
-        # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
-        if not hasattr(flat, "detach"):
-            tensor = flat.cpu().clone().numpy()
-            wandb.run._log({name: wandb.Histogram(tensor)}, commit=False)
-            return
-
         if flat.is_cuda:
-            # TODO(jhr): see if pytorch will accept something upstream to check cuda support for ops
-            # until then, we are going to have to catch a specific exception to check for histc support.
             if self._is_cuda_histc_supported is None:
-                self._is_cuda_histc_supported = True
-                check = torch.cuda.FloatTensor(1).fill_(0)
                 try:
-                    check = flat.histc(bins=self._num_bins)
-                except RuntimeError as e:
-                    # Only work around missing support with specific exception
-                    # if str(e).startswith("_th_histc is not implemented"):
-                    #    self._is_cuda_histc_supported = False
-                    # On second thought, 0.4.1 doesnt have support and maybe there are other issues
-                    # lets disable more broadly for now
+                    flat.histc(bins=self._num_bins)
+                except RuntimeError:
                     self._is_cuda_histc_supported = False
-
-            if not self._is_cuda_histc_supported:
-                flat = flat.cpu().clone().detach()
+                else:
+                    self._is_cuda_histc_supported = True
 
             # As of torch 1.0.1.post2+nightly, float16 cuda summary ops are not supported (convert to float32)
-            if isinstance(flat, torch.cuda.HalfTensor):
-                flat = flat.clone().type(torch.cuda.FloatTensor).detach()
+            if not self._is_cuda_histc_supported:
+                flat = flat.cpu().detach().clone()
+            elif not isinstance(flat, (torch.cuda.FloatTensor, torch.cuda.DoubleTensor)):
+                flat = flat.detach().clone().type(torch.cuda.FloatTensor)
 
-        if isinstance(flat, torch.HalfTensor):
-            flat = flat.clone().type(torch.FloatTensor).detach()
+        # Since we use histc, we need to make sure that torch supports the operation on CPU,
+        # otherwise we'll get a runtime error. Hence, we need to upcast to float32.
+        if not flat.is_cuda and not isinstance(flat, (torch.FloatTensor, torch.DoubleTensor)):
+            flat = flat.detach().clone().type(torch.FloatTensor)
 
         # Skip logging if all values are nan or inf or the tensor is empty.
         if self._no_finite_values(flat):
@@ -229,7 +212,7 @@ class TorchHistory:
         if tmin > tmax:
             tmin, tmax = tmax, tmin
         tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
-        tensor = tensor.cpu().clone().detach()
+        tensor = tensor.cpu().detach().clone()
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
         # Add back zeroes from a sparse tensor.
@@ -349,9 +332,9 @@ class TorchGraph(wandb.data_types.Graph):
                 if hasattr(output[0], "grad_fn"):
                     graph.criterion = output[0].grad_fn
                 elif (
-                    isinstance(output[0], list)
-                    and output[0]
-                    and hasattr(output[0][0], "grad_fn")
+                        isinstance(output[0], list)
+                        and output[0]
+                        and hasattr(output[0][0], "grad_fn")
                 ):
                     graph.criterion = output[0][0].grad_fn
 
@@ -365,7 +348,7 @@ class TorchGraph(wandb.data_types.Graph):
         return after_forward_hook
 
     def hook_torch_modules(
-        self, module, criterion=None, prefix=None, graph_idx=0, parent=None
+            self, module, criterion=None, prefix=None, graph_idx=0, parent=None
     ):
         torch = util.get_module("torch", "Could not import torch")
         layers = 0
@@ -416,7 +399,7 @@ class TorchGraph(wandb.data_types.Graph):
                     )
                     wandb.run._torch._hook_handles[
                         "topology/" + str(id(graph_hook))
-                    ] = graph_hook
+                        ] = graph_hook
                     if not hasattr(parent, "_wandb_hook_names"):
                         # should never happen but let's be extra safe
                         parent._wandb_hook_names = []
@@ -482,7 +465,7 @@ class TorchGraph(wandb.data_types.Graph):
         parameter_module_names = {}
         parameter_modules = {}
         for param_node in (
-            n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)
+                n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)
         ):
             pid = id(param_node.obj)
             best_node = None
@@ -496,8 +479,8 @@ class TorchGraph(wandb.data_types.Graph):
                 if pid in reachable_params:
                     depth = node_depths[id(node)]
                     if best_node is None or (len(reachable_params), depth) <= (
-                        len(best_reachable_params),
-                        best_depth,
+                            len(best_reachable_params),
+                            best_depth,
                     ):
                         best_node = node
                         best_depth = depth
