@@ -104,3 +104,25 @@ def test_vertex_missing_worker_spec(vertex_runner):
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
     with pytest.raises(LaunchError):
         vertex_runner.run(launch_project, resource_args)
+
+
+def test_vertex_missing_image(vertex_runner):
+    """Test that a launch error is raised when we are missing an image."""
+    resource_args = {
+        "vertex": {
+            "worker_pool_specs": [
+                {
+                    "machine_spec": {"machine_type": "n1-standard-4"},
+                    "replica_count": 1,
+                },
+                {
+                    "machine_spec": {"machine_type": "n1-standard-4"},
+                    "replica_count": 1,
+                    "image_uri": "test-image",
+                },
+            ]
+        }
+    }
+    launch_project = launch_project_factory(resource_args, vertex_runner._api)
+    with pytest.raises(LaunchError):
+        vertex_runner.run(launch_project, resource_args)
