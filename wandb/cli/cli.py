@@ -2088,7 +2088,7 @@ def put(path, name, description, type, alias, run_id):
         raise ClickException("Path argument must be a file or directory")
 
     resume_run = False
-    if run_id != None:
+    if run_id is not None:
         resume_run = True
     run = wandb.init(
         entity=entity,
