@@ -77,7 +77,7 @@ class TorchHistory:
         self.hook_torch = TorchGraph.hook_torch
 
     def add_log_parameters_hook(
-            self,
+        self,
             module: "torch.nn.Module",
             name: str = "",
             prefix: str = "",
