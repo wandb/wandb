@@ -109,13 +109,6 @@ class VertexRunner(AbstractRunner):
         job_constructor_kwargs = resource_args.get("spec", {})
         run_kwargs = resource_args.get("run", {})
 
-        # TODO: figure out what to do about regions
-        aiplatform.init(
-            project=self.environment.project,
-            location=self.environment.region,
-            staging_bucket=job_constructor_kwargs.get("staging_bucket"),
-        )
-
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
         entry_point = (
@@ -151,6 +144,14 @@ class VertexRunner(AbstractRunner):
             spec["container_spec"]["env"] = [
                 {"name": k, "value": v} for k, v in env_vars.items()
             ]
+
+        # TODO: figure out what to do about regions
+        aiplatform.init(
+            project=self.environment.project,
+            location=self.environment.region,
+            staging_bucket=job_constructor_kwargs.get("staging_bucket"),
+            credentials=self.environment.get_credentials(),
+        )
         job = aiplatform.CustomJob(
             display_name=launch_project.name,
             worker_pool_specs=job_constructor_kwargs.get("worker_pool_specs"),

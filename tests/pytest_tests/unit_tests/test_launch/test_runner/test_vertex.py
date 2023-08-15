@@ -1,6 +1,12 @@
 import pytest
 from typing import List
 
+from unittest.mock import MagicMock
+
+from wandb.apis import InternalApi
+
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.vertex_runner import (
     VertexRunner,
     VertexSubmittedRun,
@@ -59,3 +65,37 @@ def test_vertex_submitted_run():
     assert run.get_status().state == "running"
     assert run.get_status().state == "finished"
     assert run.get_status().state == "failed"
+
+
+@pytest.fixture
+def vertex_runner(test_settings):
+    """Vertex runner initialized with no backend config"""
+    registry = MagicMock()
+    environment = MagicMock()
+    api = InternalApi(settings=test_settings, load_settings=False)
+    runner = VertexRunner(api, {"SYNCHRONOUS": False}, registry, environment)
+    return runner
+
+
+def test_vertex_missing_worker_spec(vertex_runner):
+    """Test that a launch error is raised when we are missing a worker spec."""
+    resource_args = {"vertex": {"worker_pool_specs": []}}
+    launch_project = LaunchProject(
+        api=vertex_runner._api,
+        docker_config={
+            "image": "test-image",
+        },
+        resource_args=resource_args,
+        uri="",
+        job="",
+        launch_spec={},
+        target_entity="",
+        target_project="",
+        name="",
+        git_info={},
+        overrides={},
+        resource="vertex",
+        run_id="",
+    )
+    with pytest.raises(LaunchError):
+        vertex_runner.run(launch_project, resource_args)
