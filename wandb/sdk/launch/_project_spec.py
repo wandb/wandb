@@ -198,6 +198,7 @@ class LaunchProject:
         ${run_id} - the id of the run being launched.
         ${run_name} - the name of the run that is launching.
         ${image_uri} - the URI of the container image for this run.
+        ${command} - the command to run in the container for this run as a list of strings.
 
         Additionally, you may use ${<ENV-VAR-NAME>} to refer to the value of any
         environment variables that you plan to set in the environment of any
@@ -212,12 +213,14 @@ class LaunchProject:
         Returns:
             None
         """
+        entrypoint = self.get_single_entry_point()
         update_dict = {
             "project_name": self.target_project,
             "entity_name": self.target_entity,
             "run_id": self.run_id,
             "run_name": self.name,
             "image_uri": image,
+            "command": None if entrypoint is None else entrypoint.command,
         }
         update_dict.update(os.environ)
         result = recursive_macro_sub(self.resource_args, update_dict)
