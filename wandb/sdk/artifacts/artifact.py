@@ -394,8 +394,7 @@ class Artifact:
         If this artifact was retrieved from a portfolio / linked collection, that
         collection will be returned rather than the source sequence.
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "collection")
+        self._ensure_logged("collection")
         base_name = self.name.split(":")[0]
         return ArtifactCollection(
             self._client, self.entity, self.project, base_name, self.type
@@ -442,8 +441,7 @@ class Artifact:
     @property
     def source_collection(self) -> ArtifactCollection:
         """The artifact's primary (sequence) collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "collection")
+        self._ensure_logged("source_collection")
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
             self._client, self.source_entity, self.source_project, base_name, self.type
