@@ -2061,9 +2061,7 @@ def artifact():
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option(
     "--resume",
-    "-r",
-    is_flag=True,
-    default=False,
+    default=None,
     help="Resume the last run from your current directory.",
 )
 @display_error
@@ -2094,8 +2092,6 @@ def put(path, name, description, type, alias, run_id, resume):
     else:
         raise ClickException("Path argument must be a file or directory")
 
-    if run_id is not None:
-        resume = True
     run = wandb.init(
         entity=entity,
         project=project,
