@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -33,7 +32,7 @@ func (m *Manager) NewRun(ctx context.Context, settings *service.Settings) *Run {
 
 func (m *Manager) Connect(ctx context.Context) *Connection {
 	conn, err := NewConnection(ctx, m.addr)
-	slog.Info("Connecting to server", "conn", conn.Conn.RemoteAddr().String())
+	// slog.Info("Connecting to server", "conn", conn.Conn.RemoteAddr().String())
 	if err != nil {
 		panic(err)
 	}
