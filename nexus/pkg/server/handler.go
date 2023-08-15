@@ -181,6 +181,10 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
+	case *service.Request_Pause:
+		h.handlePause(record)
+	case *service.Request_Resume:
+		h.handleResume(record)
 	case *service.Request_Cancel:
 		h.handleCancel(record)
 	default:
@@ -220,6 +224,20 @@ func (h *Handler) handleLogArtifact(record *service.Record, msg *service.LogArti
 	h.sendRecord(record)
 }
 
+// startSystemMonitor starts the system monitor
+func (h *Handler) startSystemMonitor() {
+	go func() {
+		// this goroutine reads from the system monitor channel and writes
+		// to the handler's record channel. it will exit when the system
+		// monitor channel is closed
+		for msg := range h.systemMonitor.OutChan {
+			h.recordChan <- msg
+		}
+		h.logger.Debug("system monitor channel closed")
+	}()
+	h.systemMonitor.Do()
+}
+
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
 	var ok bool
 	run := request.Run
@@ -241,16 +259,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	go func() {
-		// this goroutine reads from the system monitor channel and writes
-		// to the handler's record channel. it will exit when the system
-		// monitor channel is closed
-		for msg := range h.systemMonitor.OutChan {
-			h.recordChan <- msg
-		}
-		h.logger.Debug("system monitor channel closed")
-	}()
-	h.systemMonitor.Do()
+	h.startSystemMonitor()
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -264,6 +273,14 @@ func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
 
 func (h *Handler) handleCancel(record *service.Record) {
 	h.sendRecord(record)
+}
+
+func (h *Handler) handlePause(record *service.Record) {
+	h.systemMonitor.Stop()
+}
+
+func (h *Handler) handleResume(record *service.Record) {
+	h.startSystemMonitor()
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {

@@ -85,13 +85,8 @@ func NewSystemMonitor(
 	settings *service.Settings,
 	logger *observability.NexusLogger,
 ) *SystemMonitor {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	systemMonitor := &SystemMonitor{
-		ctx:      ctx,
-		cancel:   cancel,
 		wg:       sync.WaitGroup{},
-		OutChan:  make(chan *service.Record, BufferSize),
 		settings: settings,
 		logger:   logger,
 	}
@@ -123,6 +118,13 @@ func (sm *SystemMonitor) Do() {
 	if sm.settings.XDisableStats.GetValue() {
 		return
 	}
+
+	if sm.OutChan == nil {
+		sm.OutChan = make(chan *service.Record, BufferSize)
+	}
+
+	// reset context:
+	sm.ctx, sm.cancel = context.WithCancel(context.Background())
 
 	sm.logger.Info("Starting system monitor")
 	// start monitoring the assets
@@ -208,5 +210,6 @@ func (sm *SystemMonitor) Stop() {
 	sm.cancel()
 	sm.wg.Wait()
 	close(sm.OutChan)
+	sm.OutChan = nil
 	sm.logger.Info("Stopped system monitor")
 }

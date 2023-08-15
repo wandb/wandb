@@ -691,6 +691,7 @@ func (s *Sender) sendFile(name string) {
 }
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
+	fmt.Println("sender: sendLogArtifact: msg", msg, "record", record)
 	saver := artifacts.ArtifactSaver{
 		Ctx:           s.ctx,
 		Logger:        s.logger,
