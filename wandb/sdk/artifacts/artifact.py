@@ -666,7 +666,7 @@ class Artifact:
         if self._final:
             raise ArtifactFinalizedError(artifact=self)
 
-    def _ensure_logged(self, attr: str = None) -> None:
+    def _ensure_logged(self, attr: Optional[str] = None) -> None:
         if self.is_draft():
             raise ArtifactNotLoggedError(self, attr)
 
