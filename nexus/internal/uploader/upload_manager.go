@@ -8,7 +8,10 @@ import (
 
 type Storage int
 
-const bufferSize = 32
+const (
+	bufferSize       = 32
+	concurrencyLimit = 128 // todo: get this from unix.Getrlimit(unix.RLIMIT_NOFILE, &limit)
+)
 
 // type fileCounts struct {
 //		wandbCount    int
@@ -30,6 +33,9 @@ type UploadManager struct {
 	// todo: make this a map of uploaders for different destination storage types
 	uploader Uploader
 
+	// semaphore is the semaphore for limiting concurrency
+	semaphore chan struct{}
+
 	// fileCounts is the file counts
 	// fileCounts fileCounts
 
@@ -50,8 +56,9 @@ func WithLogger(logger *observability.NexusLogger) UploadManagerOption {
 
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 	um := UploadManager{
-		inChan: make(chan *UploadTask, bufferSize),
-		wg:     &sync.WaitGroup{},
+		inChan:    make(chan *UploadTask, bufferSize),
+		semaphore: make(chan struct{}, concurrencyLimit),
+		wg:        &sync.WaitGroup{},
 	}
 	for _, opt := range opts {
 		opt(&um)
@@ -67,10 +74,13 @@ func (um *UploadManager) Start() {
 	um.wg.Add(1)
 	go func() {
 		for task := range um.inChan {
+			// add a task to the wait group
 			um.wg.Add(1)
 			um.logger.Debug("uploader: got task", "task", task)
 			// spin up a goroutine per task
 			go func(task *UploadTask) {
+				// Acquire the semaphore
+				um.semaphore <- struct{}{}
 				if err := um.upload(task); err != nil {
 					um.logger.CaptureError(
 						"uploader: error uploading",
@@ -78,6 +88,9 @@ func (um *UploadManager) Start() {
 						"path", task.Path, "url", task.Url,
 					)
 				}
+				// Release the semaphore
+				<-um.semaphore
+				// mark the task as done
 				um.wg.Done()
 			}(task)
 		}
