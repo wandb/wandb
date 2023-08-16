@@ -4,8 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-
-	"golang.org/x/exp/slog"
+	"log/slog"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
