@@ -35,7 +35,7 @@ import requests
 import wandb
 from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactFiles, RetryingClient, Run
+from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
@@ -331,8 +331,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "new_draft")
+        self._ensure_logged("new_draft")
 
         artifact = Artifact(self.source_name.split(":")[0], self.type)
         artifact._base_id = self.id
@@ -348,7 +347,7 @@ class Artifact:
     @property
     def id(self) -> Optional[str]:
         """The artifact's ID."""
-        if self._state == ArtifactState.PENDING:
+        if self.is_draft():
             return None
         assert self._id is not None
         return self._id
@@ -356,16 +355,14 @@ class Artifact:
     @property
     def entity(self) -> str:
         """The name of the entity of the secondary (portfolio) artifact collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "entity")
+        self._ensure_logged("entity")
         assert self._entity is not None
         return self._entity
 
     @property
     def project(self) -> str:
         """The name of the project of the secondary (portfolio) artifact collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "project")
+        self._ensure_logged("project")
         assert self._project is not None
         return self._project
 
@@ -386,24 +383,34 @@ class Artifact:
     @property
     def version(self) -> str:
         """The artifact's version in its secondary (portfolio) collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "version")
+        self._ensure_logged("version")
         assert self._version is not None
         return self._version
 
     @property
+    def collection(self) -> ArtifactCollection:
+        """The collection this artifact was retrieved from.
+
+        If this artifact was retrieved from a portfolio / linked collection, that
+        collection will be returned rather than the source sequence.
+        """
+        self._ensure_logged("collection")
+        base_name = self.name.split(":")[0]
+        return ArtifactCollection(
+            self._client, self.entity, self.project, base_name, self.type
+        )
+
+    @property
     def source_entity(self) -> str:
         """The name of the entity of the primary (sequence) artifact collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "source_entity")
+        self._ensure_logged("source_entity")
         assert self._source_entity is not None
         return self._source_entity
 
     @property
     def source_project(self) -> str:
         """The name of the project of the primary (sequence) artifact collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "source_project")
+        self._ensure_logged("source_project")
         assert self._source_project is not None
         return self._source_project
 
@@ -427,10 +434,18 @@ class Artifact:
 
         A string with the format "v{number}".
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "source_version")
+        self._ensure_logged("source_version")
         assert self._source_version is not None
         return self._source_version
+
+    @property
+    def source_collection(self) -> ArtifactCollection:
+        """The artifact's primary (sequence) collection."""
+        self._ensure_logged("source_collection")
+        base_name = self.source_name.split(":")[0]
+        return ArtifactCollection(
+            self._client, self.source_entity, self.source_project, base_name, self.type
+        )
 
     @property
     def type(self) -> str:
@@ -490,9 +505,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
         """
-        if self._ttl_is_inherited and (
-            self._state == ArtifactState.PENDING or self._ttl_changed
-        ):
+        if self._ttl_is_inherited and (self.is_draft() or self._ttl_changed):
             raise ArtifactNotLoggedError(self, "ttl")
         if self._ttl_duration_seconds is None:
             return None
@@ -537,15 +550,13 @@ class Artifact:
 
         The list is mutable and calling `save()` will persist all alias changes.
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "aliases")
+        self._ensure_logged("aliases")
         return self._aliases
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
         """Set the aliases associated with this artifact."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "aliases")
+        self._ensure_logged("aliases")
 
         if any(char in alias for alias in aliases for char in ["/", ":"]):
             raise ValueError(
@@ -639,32 +650,28 @@ class Artifact:
     @property
     def commit_hash(self) -> str:
         """The hash returned when this artifact was committed."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "commit_hash")
+        self._ensure_logged("commit_hash")
         assert self._commit_hash is not None
         return self._commit_hash
 
     @property
     def file_count(self) -> int:
         """The number of files (including references)."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "file_count")
+        self._ensure_logged("file_count")
         assert self._file_count is not None
         return self._file_count
 
     @property
     def created_at(self) -> str:
         """The time at which the artifact was created."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "created_at")
+        self._ensure_logged("created_at")
         assert self._created_at is not None
         return self._created_at
 
     @property
     def updated_at(self) -> str:
         """The time at which the artifact was last updated."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "updated_at")
+        self._ensure_logged("updated_at")
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
@@ -680,6 +687,10 @@ class Artifact:
     def _ensure_can_add(self) -> None:
         if self._final:
             raise ArtifactFinalizedError(artifact=self)
+
+    def _ensure_logged(self, attr: Optional[str] = None) -> None:
+        if self.is_draft():
+            raise ArtifactNotLoggedError(self, attr)
 
     def is_draft(self) -> bool:
         """Whether the artifact is a draft, i.e. it hasn't been saved yet."""
@@ -736,7 +747,7 @@ class Artifact:
         Arguments:
             timeout: Wait up to this long.
         """
-        if self._state == ArtifactState.PENDING:
+        if self.is_draft():
             if self._save_future is None:
                 raise ArtifactNotLoggedError(self, "wait")
             result = self._save_future.get(timeout)
@@ -1512,8 +1523,7 @@ class Artifact:
                 path.download()
             ```
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "get_path")
+        self._ensure_logged("get_path")
 
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
@@ -1549,8 +1559,7 @@ class Artifact:
                 table = artifact.get("my_table")
             ```
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "get")
+        self._ensure_logged("get")
 
         entry, wb_class = self._get_obj_entry(name)
         if entry is None or wb_class is None:
@@ -1653,8 +1662,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "download")
+        self._ensure_logged("download")
 
         root = root or self._default_root()
         self._add_download_root(root)
@@ -1786,8 +1794,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "checkout")
+        self._ensure_logged("checkout")
 
         root = root or self._default_root(include_version=False)
 
@@ -1819,8 +1826,7 @@ class Artifact:
             ArtifactNotLoggedError: if the artifact has not been logged
             ValueError: If the verification fails.
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "verify")
+        self._ensure_logged("verify")
 
         root = root or self._default_root()
 
@@ -1861,8 +1867,7 @@ class Artifact:
             ArtifactNotLoggedError: if the artifact has not been logged
             ValueError: if the artifact contains more than one file
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "file")
+        self._ensure_logged("file")
 
         if root is None:
             root = os.path.join(".", "artifacts", self.name)
@@ -1891,9 +1896,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "files")
-
+        self._ensure_logged("files")
         return ArtifactFiles(self._client, self, names, per_page)
 
     def _default_root(self, include_version: bool = True) -> str:
@@ -1939,8 +1942,7 @@ class Artifact:
                         artifact.delete(delete_aliases=True)
             ```
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "delete")
+        self._ensure_logged("delete")
         self._delete(delete_aliases)
 
     @normalize_exceptions
@@ -1980,8 +1982,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "link")
+        self._ensure_logged("link")
         if not self._ttl_is_inherited:
             termwarn(
                 "Artifact TTL will be removed for source artifacts that are linked to portfolios."
@@ -2048,8 +2049,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "used_by")
+        self._ensure_logged("used_by")
 
         query = gql(
             """
@@ -2093,8 +2093,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "logged_by")
+        self._ensure_logged("logged_by")
 
         query = gql(
             """
@@ -2131,8 +2130,7 @@ class Artifact:
         )
 
     def json_encode(self) -> Dict[str, Any]:
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "json_encode")
+        self._ensure_logged("json_encode")
         return util.artifact_to_json(self)
 
     @staticmethod
