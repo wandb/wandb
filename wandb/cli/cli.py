@@ -2061,6 +2061,7 @@ def artifact():
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option(
     "--resume",
+    is_flag=True,
     default=None,
     help="Resume the last run from your current directory.",
 )
