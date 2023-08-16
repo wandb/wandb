@@ -39,11 +39,6 @@ if TYPE_CHECKING:
             pass
 
 
-@pytest.fixture
-def artifacts_cache(tmp_path: Path) -> ArtifactsCache:
-    return ArtifactsCache(tmp_path / "artifacts-cache")
-
-
 def asyncify(f):
     """Convert a sync function to an async function. Useful for building mock async wrappers."""
 
@@ -52,12 +47,6 @@ def asyncify(f):
         return f(*args, **kwargs)
 
     return async_f
-
-
-def some_file(tmp_path: Path) -> Path:
-    f = tmp_path / "some-file"
-    f.write_text("some-content")
-    return f
 
 
 def is_cache_hit(cache: ArtifactsCache, digest: str, size: int) -> bool:
@@ -181,7 +170,7 @@ class TestStoreFile:
         Example usage:
 
             def test_smoke(store_file: "StoreFileFixture", api):
-                store_file(WandbStoragePolicy(api=api), entry_local_path=some_file(tmp_path))
+                store_file(WandbStoragePolicy(api=api), entry_local_path=example_file)
                 api.upload_method.assert_called_once()
         """
         if store_file_mode == "sync":
@@ -217,12 +206,12 @@ class TestStoreFile:
             complete_multipart_upload_artifact=complete_multipart_upload_artifact,
         )
 
-    def test_smoke(self, store_file: "StoreFileFixture", api, tmp_path: Path):
-        store_file(WandbStoragePolicy(api=api), entry_local_path=some_file(tmp_path))
+    def test_smoke(self, store_file: "StoreFileFixture", api, example_file: Path):
+        store_file(WandbStoragePolicy(api=api), entry_local_path=example_file)
         api.upload_method.assert_called_once()
 
     def test_uploads_to_prepared_url(
-        self, store_file: "StoreFileFixture", api, tmp_path: Path
+        self, store_file: "StoreFileFixture", api, example_file: Path
     ):
         preparer = mock_preparer(
             prepare_sync=lambda spec: singleton_queue(
@@ -233,13 +222,13 @@ class TestStoreFile:
         )
         store_file(
             WandbStoragePolicy(api=api),
-            entry_local_path=some_file(tmp_path),
+            entry_local_path=example_file,
             preparer=preparer,
         )
         assert api.upload_method.call_args[0][0] == "https://wandb-test/dst"
 
     def test_passes_prepared_headers_to_upload(
-        self, store_file: "StoreFileFixture", api, tmp_path: Path
+        self, store_file: "StoreFileFixture", api, example_file: Path
     ):
         preparer = mock_preparer(
             prepare_sync=lambda spec: singleton_queue(
@@ -250,7 +239,7 @@ class TestStoreFile:
         )
         store_file(
             WandbStoragePolicy(api=api),
-            entry_local_path=some_file(tmp_path),
+            entry_local_path=example_file,
             preparer=preparer,
         )
         assert api.upload_method.call_args[1]["extra_headers"] == {
@@ -268,7 +257,7 @@ class TestStoreFile:
         self,
         store_file: "StoreFileFixture",
         api,
-        tmp_path: Path,
+        example_file: Path,
         upload_url: Optional[str],
         expect_upload: bool,
         expect_deduped: bool,
@@ -280,9 +269,7 @@ class TestStoreFile:
         )
         policy = WandbStoragePolicy(api=api)
 
-        deduped = store_file(
-            policy, entry_local_path=some_file(tmp_path), preparer=preparer
-        )
+        deduped = store_file(policy, entry_local_path=example_file, preparer=preparer)
         assert deduped == expect_deduped
 
         if expect_upload:
@@ -301,7 +288,7 @@ class TestStoreFile:
         self,
         store_file: "StoreFileFixture",
         api,
-        tmp_path: Path,
+        example_file: Path,
         has_local_path: bool,
         expect_upload: bool,
     ):
@@ -309,7 +296,7 @@ class TestStoreFile:
 
         deduped = store_file(
             policy,
-            entry_local_path=some_file(tmp_path) if has_local_path else None,
+            entry_local_path=example_file if has_local_path else None,
         )
         assert not deduped
 
@@ -329,27 +316,27 @@ class TestStoreFile:
         self,
         store_file: "StoreFileFixture",
         api,
-        tmp_path: Path,
+        example_file: Path,
         artifacts_cache: ArtifactsCache,
         err: Optional[Exception],
     ):
-        f = some_file(tmp_path)
+        size = example_file.stat().st_size
 
         api.upload_file_retry = Mock(side_effect=err)
         api.upload_file_retry_async = asyncify(Mock(side_effect=err))
         policy = WandbStoragePolicy(api=api, cache=artifacts_cache)
 
-        assert not is_cache_hit(artifacts_cache, "my-digest", f.stat().st_size)
+        assert not is_cache_hit(artifacts_cache, "my-digest", size)
 
-        store = functools.partial(store_file, policy, entry_local_path=f)
+        store = functools.partial(store_file, policy, entry_local_path=example_file)
 
         if err is None:
             store()
-            assert is_cache_hit(artifacts_cache, "my-digest", f.stat().st_size)
+            assert is_cache_hit(artifacts_cache, "my-digest", size)
         else:
             with pytest.raises(Exception, match=err.args[0]):
                 store()
-            assert not is_cache_hit(artifacts_cache, "my-digest", f.stat().st_size)
+            assert not is_cache_hit(artifacts_cache, "my-digest", size)
 
     @pytest.mark.parametrize(
         [
@@ -394,7 +381,7 @@ class TestStoreFile:
         self,
         mock_s3_multipart_file_upload,
         api,
-        tmp_path: Path,
+        example_file: Path,
         upload_url: Optional[str],
         multipart_upload_urls: Optional[dict],
         expect_multipart_upload: bool,
@@ -402,7 +389,6 @@ class TestStoreFile:
         expect_deduped: bool,
     ):
         # Tests if we handle uploading correctly depending on what response we get from CreateArtifactFile.
-        test_file = some_file(tmp_path)
         preparer = mock_preparer(
             prepare_sync=lambda spec: singleton_queue(
                 dummy_response_prepare(spec)._replace(
@@ -415,11 +401,11 @@ class TestStoreFile:
         with mock.patch(
             "wandb.sdk.artifacts.storage_policies.wandb_storage_policy."
             "S3_MIN_MULTI_UPLOAD_SIZE",
-            test_file.stat().st_size,
+            example_file.stat().st_size,
         ):
             # We don't use the store_file fixture since multipart is not available in async
             deduped = self._store_file_sync(
-                policy, entry_local_path=some_file(tmp_path), preparer=preparer
+                policy, entry_local_path=example_file, preparer=preparer
             )
             assert deduped == expect_deduped
 
@@ -437,7 +423,7 @@ class TestStoreFile:
     def test_s3_multipart_file_upload(
         self,
         api,
-        tmp_path: Path,
+        example_file: Path,
     ):
         # Tests that s3 multipart calls upload on every part and retrieves the etag for every part
         multipart_parts = {
@@ -447,7 +433,6 @@ class TestStoreFile:
         }
         hex_digests = {1: "abc1", 2: "abc2", 3: "abc3"}
         chunk_size = 1
-        test_file = some_file(tmp_path)
         policy = WandbStoragePolicy(api=api)
         responses = []
         for idx in range(1, len(hex_digests) + 1):
@@ -458,7 +443,7 @@ class TestStoreFile:
 
         with mock.patch("builtins.open", mock.mock_open(read_data="abc")):
             etags = policy.s3_multipart_file_upload(
-                test_file, chunk_size, hex_digests, multipart_parts, extra_headers={}
+                example_file, chunk_size, hex_digests, multipart_parts, extra_headers={}
             )
             assert api.upload_multipart_file_chunk_retry.call_count == 3
             # Note Etags == hex_digest when there isn't an additional encryption method for uploading.
