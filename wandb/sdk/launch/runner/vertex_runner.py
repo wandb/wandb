@@ -104,9 +104,8 @@ class VertexRunner(AbstractRunner):
                 "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
             )
 
-        # TODO: check for required fields
-        job_constructor_kwargs = resource_args.get("spec", {})
-        run_kwargs = resource_args.get("run", {})
+        spec_args = resource_args.get("spec", {})
+        run_args = resource_args.get("run", {})
 
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
@@ -123,7 +122,7 @@ class VertexRunner(AbstractRunner):
             max_env_length=MAX_ENV_LENGTHS[self.__class__.__name__],
         )
 
-        worker_specs = job_constructor_kwargs.get("worker_pool_specs", [])
+        worker_specs = spec_args.get("worker_pool_specs", [])
         if not worker_specs:
             raise LaunchError(
                 "Vertex requires at least one worker pool spec. Please specify "
@@ -145,7 +144,7 @@ class VertexRunner(AbstractRunner):
             ]
 
         # TODO: Make sure we have a staging bucket
-        if not job_constructor_kwargs.get("staging_bucket"):
+        if not spec_args.get("staging_bucket"):
             raise LaunchError(
                 "Vertex requires a staging bucket. Please specify a staging bucket "
                 "in resource arguments under the key `vertex.spec.staging_bucket`."
@@ -155,27 +154,25 @@ class VertexRunner(AbstractRunner):
         aiplatform.init(
             project=self.environment.project,
             location=self.environment.region,
-            staging_bucket=job_constructor_kwargs.get("staging_bucket"),
+            staging_bucket=spec_args.get("staging_bucket"),
             credentials=self.environment.get_credentials(),
         )
         job = aiplatform.CustomJob(
             display_name=launch_project.name,
-            worker_pool_specs=job_constructor_kwargs.get("worker_pool_specs"),
-            base_output_dir=job_constructor_kwargs.get("base_output_dir"),
-            encryption_spec_key_name=job_constructor_kwargs.get(
-                "encryption_spec_key_name"
-            ),
-            labels=job_constructor_kwargs.get("labels", {}),
+            worker_pool_specs=spec_args.get("worker_pool_specs"),
+            base_output_dir=spec_args.get("base_output_dir"),
+            encryption_spec_key_name=spec_args.get("encryption_spec_key_name"),
+            labels=spec_args.get("labels", {}),
         )
         execution_kwargs = dict(
-            timeout=run_kwargs.get("timeout"),
-            service_account=run_kwargs.get("service_account"),
-            network=run_kwargs.get("network"),
-            enable_web_access=run_kwargs.get("enable_web_access", False),
-            experiment=run_kwargs.get("experiment"),
-            experiment_run=run_kwargs.get("experiment_run"),
-            tensorboard=run_kwargs.get("tensorboard"),
-            restart_job_on_worker_restart=run_kwargs.get(
+            timeout=run_args.get("timeout"),
+            service_account=run_args.get("service_account"),
+            network=run_args.get("network"),
+            enable_web_access=run_args.get("enable_web_access", False),
+            experiment=run_args.get("experiment"),
+            experiment_run=run_args.get("experiment_run"),
+            tensorboard=run_args.get("tensorboard"),
+            restart_job_on_worker_restart=run_args.get(
                 "restart_job_on_worker_restart", False
             ),
         )
