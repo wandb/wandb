@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import errno
+import logging
 import os
 import random
 from multiprocessing import Pool
@@ -302,31 +303,33 @@ def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
     assert local_path == path
 
 
-def test_cache_add_gives_useful_error_when_out_of_space(cache, monkeypatch):
-    termerror = MagicMock()
-    monkeypatch.setattr(term, "termerror", termerror)
+def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeypatch):
+    term_log = MagicMock()
+    monkeypatch.setattr(term, "_log", term_log)
 
     def out_of_space(*args, **kwargs):
         raise OSError(errno.ENOSPC, "out of space")
 
     monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
 
-    _path, _hit, opener = cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
 
     with pytest.raises(OSError, match="out of space"):
         with opener() as f:
             f.write("hello")
 
-    assert termerror.call_count >= 1
-    assert "No disk space available" in termerror.call_args[0][0]
-    assert "set WANDB_CACHE_DIR" in termerror.call_args[0][0]
+    assert term_log.call_count >= 1
+    log_call = term_log.call_args[1]
+    assert "No disk space available" in log_call["string"]
+    assert "set WANDB_CACHE_DIR" in log_call["string"]
+    assert log_call["level"] == logging.ERROR
 
 
-def test_cache_add_cleans_up_tmp_when_write_fails(cache, monkeypatch):
+def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
     def fail(*args, **kwargs):
         raise OSError
 
-    _path, _hit, opener = cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
 
     with pytest.raises(OSError):
         with opener() as f:
@@ -340,6 +343,26 @@ def test_cache_add_cleans_up_tmp_when_write_fails(cache, monkeypatch):
             monkeypatch.setattr(os, "fsync", fail)
 
     assert not os.path.exists(path)
+
+
+def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch):
+    def out_of_space(*args, **kwargs):
+        raise OSError(errno.ENOSPC, "out of space")
+
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with pytest.raises(OSError, match="out of space"):
+        with opener() as f:
+            f.write("hello " * 100)
+            f.flush()
+            os.fsync(f.fileno())
+            os.remove(f.name)
+
+            path = f.name
+            assert not os.path.exists(path)
+
+            monkeypatch.setattr(os, "fsync", out_of_space)
+        # Here we raise the out of space error, not FileNotFoundError.
 
 
 class FakePublicApi:
