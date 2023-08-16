@@ -109,7 +109,10 @@ func run_file() *exec.Cmd {
 		log.Fatal(err)
 	}
 	defer os.Remove(file.Name())
-	file.Write(filePayload)
+	_, err = file.Write(filePayload)
+	if err != nil {
+		log.Fatal(err)
+	}
 	file.Close()
 	err = os.Chmod(file.Name(), 0500)
 	if err != nil {
@@ -120,16 +123,16 @@ func run_file() *exec.Cmd {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Start()
-    	if err != nil {
-        	switch e := err.(type) {
-        	case *exec.Error:
-            		fmt.Println("failed executing:", err)
-        	case *exec.ExitError:
-            		fmt.Println("command exit rc =", e.ExitCode())
-        	default:
-            		panic(err)
-        	}
-    	}
+	if err != nil {
+		switch e := err.(type) {
+		case *exec.Error:
+			fmt.Println("failed executing:", err)
+		case *exec.ExitError:
+			fmt.Println("command exit rc =", e.ExitCode())
+		default:
+			panic(err)
+		}
+	}
 	fmt.Printf("write %+v\n", file.Name())
 	return cmd
 }
@@ -271,7 +274,10 @@ func wandbcore_init() int {
 	// cmd := run_file()
 	junk()
 	if cmd != nil {
-		waitcmd(cmd)
+		err := waitcmd(cmd)
+		if err != nil {
+			panic(err)
+		}
 	}
 	os.Exit(0)
 
