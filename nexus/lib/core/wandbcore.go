@@ -7,8 +7,8 @@ import (
 
 	"context"
 
-	"github.com/wandb/wandb/nexus/internal/launcher"
 	"github.com/wandb/wandb/nexus/internal/execbin"
+	"github.com/wandb/wandb/nexus/internal/launcher"
 	"github.com/wandb/wandb/nexus/pkg/client"
 )
 
@@ -72,7 +72,7 @@ func wandbcore_finish(num int) {
 func wandbcore_teardown() {
 	globManager.Close()
 	globManager = nil
-	forkCmd.Wait()
+	_ = forkCmd.Wait()
 }
 
 func main() {
