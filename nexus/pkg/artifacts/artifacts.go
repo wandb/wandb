@@ -21,7 +21,7 @@ type ArtifactSaver struct {
 	Logger        *observability.NexusLogger
 	Artifact      *service.ArtifactRecord
 	GraphqlClient graphql.Client
-	Uploader      *uploader.Uploader
+	UploadManager *uploader.UploadManager
 	WgOutstanding sync.WaitGroup
 }
 
@@ -35,7 +35,7 @@ type ManifestStoragePolicyConfig struct {
 
 type ManifestEntry struct {
 	Digest          string `json:"digest"`
-	BirthArtifactID string `json:"birthArifactID"`
+	BirthArtifactID string `json:"birthArtifactID"`
 	Size            int64  `json:"size"`
 }
 
@@ -142,13 +142,15 @@ func (as *ArtifactSaver) sendManifestFiles(artifactID string, manifestID string)
 	for _, entry := range man.Contents {
 		as.Logger.Info("sendfiles", "entry", entry)
 		md5Checksum := ""
-		artifactFiles = append(artifactFiles,
+		artifactFiles = append(
+			artifactFiles,
 			gql.CreateArtifactFileSpecInput{
 				ArtifactID:         artifactID,
 				Name:               entry.Path,
 				Md5:                md5Checksum,
 				ArtifactManifestID: &manifestID,
-			})
+			},
+		)
 	}
 	response, err := gql.CreateArtifactFiles(
 		as.Ctx,
@@ -161,12 +163,12 @@ func (as *ArtifactSaver) sendManifestFiles(artifactID string, manifestID string)
 		as.Logger.CaptureFatalAndPanic("sendManifestFiles", err)
 	}
 	for n, edge := range response.GetCreateArtifactFiles().GetFiles().Edges {
-		upload := uploader.UploadTask{
+		task := uploader.UploadTask{
 			Url:           *edge.Node.GetUploadUrl(),
 			Path:          man.Contents[n].LocalPath,
 			WgOutstanding: &as.WgOutstanding,
 		}
-		as.Uploader.AddTask(&upload)
+		as.UploadManager.AddTask(&task)
 	}
 }
 
@@ -206,13 +208,13 @@ func (as *ArtifactSaver) writeManifest() (string, error) {
 }
 
 func (as *ArtifactSaver) sendManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) {
-	upload := uploader.UploadTask{
+	task := uploader.UploadTask{
 		Url:           *uploadUrl,
 		Path:          manifestFile,
 		Headers:       uploadHeaders,
 		WgOutstanding: &as.WgOutstanding,
 	}
-	as.Uploader.AddTask(&upload)
+	as.UploadManager.AddTask(&task)
 }
 
 func (as *ArtifactSaver) commitArtifact(artifactId string) {

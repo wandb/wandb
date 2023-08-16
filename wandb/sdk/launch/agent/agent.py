@@ -36,6 +36,17 @@ HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_RESUME_COUNT = 5
 
+_env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
+if _env_timeout:
+    try:
+        RUN_START_TIMEOUT = float(_env_timeout)
+    except ValueError:
+        raise LaunchError(
+            f"Invalid value for WANDB_LAUNCH_START_TIMEOUT: {_env_timeout}"
+        )
+else:
+    RUN_START_TIMEOUT = 60 * 30  # default 30 minutes
+
 _logger = logging.getLogger(__name__)
 
 
@@ -130,6 +141,12 @@ class LaunchAgent:
         self._secure_mode = config.get("secure_mode", False)
         self.default_config: Dict[str, Any] = config
 
+        # Get agent version from env var if present, otherwise wandb version
+        self.version: str = "wandb@" + wandb.__version__
+        env_agent_version = os.environ.get("WANDB_AGENT_VERSION")
+        if env_agent_version and env_agent_version != "wandb-launch-agent":
+            self.version = env_agent_version
+
         # serverside creation
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
@@ -144,6 +161,7 @@ class LaunchAgent:
             self._project,
             self._queues,
             self.default_config,
+            self.version,
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
@@ -588,7 +606,18 @@ class LaunchAgent:
             return
         with self._jobs_lock:
             job_tracker.run = run
+        start_time = time.time()
         while self._jobs_event.is_set():
+            # If run has failed to start before timeout, kill it
+            state = run.get_status().state
+            if state == "starting" and RUN_START_TIMEOUT > 0:
+                if time.time() - start_time > RUN_START_TIMEOUT:
+                    run.cancel()
+                    raise LaunchError(
+                        f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
+                        "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
+                        "to a larger value."
+                    )
             if self._check_run_finished(job_tracker, launch_spec):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
