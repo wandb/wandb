@@ -16,8 +16,12 @@ from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
-else:
+elif sys.version_info >= (3, 7):
     from typing_extensions import get_type_hints
+else:
+
+    def get_type_hints(obj):
+        return obj.__annotations__
 
 
 Property = wandb_settings.Property

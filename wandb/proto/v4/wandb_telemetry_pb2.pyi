@@ -33,6 +33,7 @@ class TelemetryRecord(google.protobuf.message.Message):
     LABEL_FIELD_NUMBER: builtins.int
     DEPRECATED_FIELD_NUMBER: builtins.int
     ISSUES_FIELD_NUMBER: builtins.int
+    CORE_VERSION_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
     def imports_init(self) -> global___Imports: ...
@@ -52,6 +53,7 @@ class TelemetryRecord(google.protobuf.message.Message):
     def deprecated(self) -> global___Deprecated: ...
     @property
     def issues(self) -> global___Issues: ...
+    core_version: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -67,10 +69,11 @@ class TelemetryRecord(google.protobuf.message.Message):
         label: global___Labels | None = ...,
         deprecated: global___Deprecated | None = ...,
         issues: global___Issues | None = ...,
+        core_version: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "cli_version", b"cli_version", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "huggingface_version", b"huggingface_version", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label", "python_version", b"python_version"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "cli_version", b"cli_version", "core_version", b"core_version", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "huggingface_version", b"huggingface_version", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label", "python_version", b"python_version"]) -> None: ...
 
 global___TelemetryRecord = TelemetryRecord
 

@@ -17,7 +17,7 @@ jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: wandb/docugen@v0.3.0
+      - uses: wandb/docugen@v0.4.1
         with:
           docodile-branch: main
           wandb-branch: ${{ github.event.inputs.ref || github.ref }}
