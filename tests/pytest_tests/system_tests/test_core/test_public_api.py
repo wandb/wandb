@@ -182,15 +182,12 @@ def test_artifact_version(wandb_init):
 
 
 def test_delete_collection(wandb_init):
-    run = wandb_init(project="test")
-
-    art = wandb.Artifact("test-artifact", "test-type")
-    with art.new_file("test.txt", "w") as f:
-        f.write("testing")
-    run.log_artifact(art)
-    run.link_artifact(art, "test/test-portfolio")
-    art.wait()
-    run.finish()
+    with wandb_init(project="test") as run:
+        art = wandb.Artifact("test-artifact", "test-type")
+        with art.new_file("test.txt", "w") as f:
+            f.write("testing")
+        run.log_artifact(art)
+        run.link_artifact(art, "test/test-portfolio")
 
     project = Api().artifact_type("test-type", project="test")
     portfolio = project.collection("test-portfolio")
