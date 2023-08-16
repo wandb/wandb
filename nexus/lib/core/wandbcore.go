@@ -41,7 +41,6 @@ func wandbcore_setup() {
 func wandbcore_init() int {
 	wandbcore_setup()
 
-	// ctx := context.Background()
 	run := globManager.NewRun()
 	num := globRuns.Add(run)
 

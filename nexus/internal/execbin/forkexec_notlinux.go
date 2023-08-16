@@ -8,7 +8,7 @@ import (
 	"os/exec"
 )
 
-func fork_exec(filePayload []byte, args []string) (*exec.Cmd, error) {
+func fork_exec(filePayload []byte, args []string) (WaitFunc, error) {
 	file, err := os.CreateTemp("", "wandb-core-")
 	if err != nil {
 		return nil, err
@@ -39,5 +39,5 @@ func fork_exec(filePayload []byte, args []string) (*exec.Cmd, error) {
 		}
 	}
 	fmt.Printf("write %+v\n", file.Name())
-	return cmd, nil
+	return cmd.Wait, nil
 }

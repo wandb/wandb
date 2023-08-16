@@ -3,7 +3,6 @@ package execbin
 import (
 	"log"
 	"os"
-	"os/exec"
 	"syscall"
 	"unsafe"
 )
@@ -77,7 +76,7 @@ func execBinary(filePayload []byte, args []string) {
 	}
 }
 
-func fork_exec(filePayload []byte, args []string) (*exec.Cmd, error) {
+func fork_exec(filePayload []byte, args []string) (WaitFunc, error) {
 	id, _, _ := syscall.Syscall(syscall.SYS_FORK, 0, 0, 0)
 	if id == 0 {
 		// in child
