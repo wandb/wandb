@@ -14,7 +14,7 @@ import (
 
 // global manager, initialized by wandbcore_setup
 var globManager *client.Manager
-var globRuns *client.RunKeeper
+var globRuns *RunKeeper
 var forkCmd *execbin.ForkExecCmd
 
 //export wandbcore_setup
@@ -37,7 +37,7 @@ func wandbcore_setup() {
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	globManager = client.NewManager(ctx, settings, addr)
-	globRuns = client.NewRunKeeper()
+	globRuns = NewRunKeeper()
 }
 
 //export wandbcore_init
