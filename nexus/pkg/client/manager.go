@@ -21,9 +21,9 @@ type Manager struct {
 // NewManager creates a new manager with the given settings and responders.
 func NewManager(ctx context.Context, settings *SettingsWrap, addr string) *Manager {
 	manager := &Manager{
-		ctx:  ctx,
+		ctx:      ctx,
 		settings: settings,
-		addr: addr,
+		addr:     addr,
 	}
 	return manager
 }
