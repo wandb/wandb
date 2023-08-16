@@ -112,6 +112,27 @@ def test_vertex_missing_worker_spec(vertex_runner):
     assert "requires at least one worker pool spec" in str(e.value)
 
 
+def test_vertex_missing_staging_bucket(vertex_runner):
+    """Test that a launch error is raised when we are missing a staging bucket."""
+    resource_args = {
+        "vertex": {
+            "spec": {
+                "worker_pool_specs": [
+                    {
+                        "machine_spec": {"machine_type": "n1-standard-4"},
+                        "replica_count": 1,
+                        "container_spec": {"image_uri": "test-image"},
+                    }
+                ]
+            }
+        }
+    }
+    launch_project = launch_project_factory(resource_args, vertex_runner._api)
+    with pytest.raises(LaunchError) as e:
+        vertex_runner.run(launch_project, "test-image")
+    assert "requires a staging bucket" in str(e.value)
+
+
 def test_vertex_missing_image(vertex_runner):
     """Test that a launch error is raised when we are missing an image."""
     resource_args = {
@@ -127,7 +148,8 @@ def test_vertex_missing_image(vertex_runner):
                         "replica_count": 1,
                         "container_spec": {"image_uri": "test-image"},
                     },
-                ]
+                ],
+                "stage_bucket": "test-bucket",
             }
         }
     }
@@ -153,12 +175,14 @@ def test_vertex_runner_works(vertex_runner, mock_aiplatform):
                         "replica_count": 1,
                         "container_spec": {"image_uri": "${image_uri}"},
                     },
-                ]
+                ],
+                "staging_bucket": "test-bucket",
             }
         }
     }
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
-    vertex_runner.run(launch_project, "test-image")
+    submitted_run = vertex_runner.run(launch_project, "test-image")
+    mock_aiplatform.init()
     mock_aiplatform.CustomJob.assert_called_once()
     submitted_spec = mock_aiplatform.CustomJob.call_args[1]["worker_pool_specs"]
     assert len(submitted_spec) == 2
@@ -169,3 +193,8 @@ def test_vertex_runner_works(vertex_runner, mock_aiplatform):
     assert submitted_spec[1]["replica_count"] == 1
     # This assertion tests macro substituion of the image uri.
     assert submitted_spec[1]["container_spec"]["image_uri"] == "test-image"
+
+    submitted_run._job = MockCustomJob(["PENDING", "RUNNING", "SUCCEEDED"])
+    assert submitted_run.get_status().state == "starting"
+    assert submitted_run.get_status().state == "running"
+    assert submitted_run.get_status().state == "finished"

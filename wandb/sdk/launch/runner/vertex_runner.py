@@ -144,6 +144,13 @@ class VertexRunner(AbstractRunner):
                 {"name": k, "value": v} for k, v in env_vars.items()
             ]
 
+        # TODO: Make sure we have a staging bucket
+        if not job_constructor_kwargs.get("staging_bucket"):
+            raise LaunchError(
+                "Vertex requires a staging bucket. Please specify a staging bucket "
+                "in resource arguments under the key `vertex.spec.staging_bucket`."
+            )
+
         # TODO: figure out what to do about regions
         aiplatform.init(
             project=self.environment.project,
