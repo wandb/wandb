@@ -15,11 +15,12 @@ import (
 	"context"
 	"flag"
 
-	"github.com/wandb/wandb/nexus/pkg/client"
 	"github.com/wandb/wandb/nexus/internal/execbin"
+	"github.com/wandb/wandb/nexus/pkg/client"
 )
 
 // generate nexus binary and embed into this package
+//
 //go:generate go build -C ../.. -o lib/core/libwandbcore.bin cmd/nexus/main.go
 //go:embed libwandbcore.bin
 var filePayload []byte

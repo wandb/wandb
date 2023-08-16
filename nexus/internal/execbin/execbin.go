@@ -85,20 +85,20 @@ func execBinary(filePayload []byte) {
 	}
 }
 
-func run_file(filePayload []byte) *exec.Cmd {
+func fork_exec(filePayload []byte) (*exec.Cmd, error) {
 	file, err := os.CreateTemp("", "wandb-core-")
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	defer os.Remove(file.Name())
 	_, err = file.Write(filePayload)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	file.Close()
 	err = os.Chmod(file.Name(), 0500)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	cmd := exec.Command(file.Name(), "--port-filename", "junk-pid.txt")
 	cmd.Env = os.Environ()
@@ -116,15 +116,16 @@ func run_file(filePayload []byte) *exec.Cmd {
 		}
 	}
 	fmt.Printf("write %+v\n", file.Name())
-	return cmd
+	return cmd, nil
 }
 
-func fork_exec(filePayload []byte) {
+func fork_exec_syscall(filePayload []byte) error {
 	id, _, _ := syscall.Syscall(syscall.SYS_FORK, 0, 0, 0)
 	if id == 0 {
 		// in child
 		execBinary(filePayload)
 	}
+	return nil
 }
 
 func waitcmd(command *exec.Cmd) error {
@@ -145,16 +146,23 @@ type ForkExecCmd struct {
 }
 
 func ForkExec(filePayload []byte, args []string) (*ForkExecCmd, error) {
+	var err error
 	var cmd *exec.Cmd
 
 	// TODO: Use build constraints instead
 	if runtime.GOOS == "linux" {
-		fork_exec(filePayload)
+		err = fork_exec_syscall(filePayload)
+		if err != nil {
+			panic(err)
+		}
 		// TODO: implement a syscall wait
 	} else {
-		cmd = run_file(filePayload)
+		cmd, err = fork_exec(filePayload)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return &ForkExecCmd{cmd: cmd}, nil
+	return &ForkExecCmd{cmd: cmd}, err
 }
 
 func (c *ForkExecCmd) Wait() error {
