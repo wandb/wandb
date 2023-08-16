@@ -51,7 +51,7 @@ type Sender struct {
 	fileStream *fs.FileStream
 
 	// uploader is the file uploader
-	uploader *uploader.Uploader
+	uploadManager *uploader.UploadManager
 
 	// RunRecord is the run record
 	RunRecord *service.RunRecord
@@ -199,8 +199,11 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 			fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
 		)
 		s.fileStream.Start()
-		s.uploader = uploader.NewUploader(s.ctx, s.logger)
-		s.uploader.Start()
+		s.uploadManager = uploader.NewUploadManager(
+			uploader.WithLogger(s.logger),
+			uploader.WithSettings(s.settings),
+		)
+		s.uploadManager.Start()
 	}
 
 }
@@ -251,8 +254,8 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
-		if s.uploader != nil {
-			s.uploader.Close()
+		if s.uploadManager != nil {
+			s.uploadManager.Close()
 		}
 		request.State++
 		s.sendRequestDefer(request)
@@ -665,7 +668,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 
 // sendFile sends a file to the server
 func (s *Sender) sendFile(name string) {
-	if s.graphqlClient == nil || s.uploader == nil {
+	if s.graphqlClient == nil || s.uploadManager == nil {
 		return
 	}
 
@@ -683,7 +686,7 @@ func (s *Sender) sendFile(name string) {
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
 		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl}
-		s.uploader.AddTask(task)
+		s.uploadManager.AddTask(task)
 	}
 }
 
@@ -693,7 +696,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Logger:        s.logger,
 		Artifact:      msg.Artifact,
 		GraphqlClient: s.graphqlClient,
-		Uploader:      s.uploader,
+		UploadManager: s.uploadManager,
 	}
 	saverResult, err := saver.Save()
 	if err != nil {

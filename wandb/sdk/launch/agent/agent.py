@@ -36,6 +36,17 @@ HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_RESUME_COUNT = 5
 
+_env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
+if _env_timeout:
+    try:
+        RUN_START_TIMEOUT = float(_env_timeout)
+    except ValueError:
+        raise LaunchError(
+            f"Invalid value for WANDB_LAUNCH_START_TIMEOUT: {_env_timeout}"
+        )
+else:
+    RUN_START_TIMEOUT = 60 * 30  # default 30 minutes
+
 _logger = logging.getLogger(__name__)
 
 
@@ -595,7 +606,18 @@ class LaunchAgent:
             return
         with self._jobs_lock:
             job_tracker.run = run
+        start_time = time.time()
         while self._jobs_event.is_set():
+            # If run has failed to start before timeout, kill it
+            state = run.get_status().state
+            if state == "starting" and RUN_START_TIMEOUT > 0:
+                if time.time() - start_time > RUN_START_TIMEOUT:
+                    run.cancel()
+                    raise LaunchError(
+                        f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
+                        "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
+                        "to a larger value."
+                    )
             if self._check_run_finished(job_tracker, launch_spec):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
