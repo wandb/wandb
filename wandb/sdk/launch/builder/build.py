@@ -439,7 +439,7 @@ def join(split_command: List[str]) -> str:
 def construct_agent_configs(
     launch_config: Optional[Dict] = None,
     build_config: Optional[Dict] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
     registry_config = None
     environment_config = None
     if launch_config is not None:

@@ -1,4 +1,3 @@
-import logging
 import time
 from typing import Any, Dict, Optional
 
@@ -13,7 +12,7 @@ from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
-from ..utils import LOG_PREFIX, MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS
+from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"

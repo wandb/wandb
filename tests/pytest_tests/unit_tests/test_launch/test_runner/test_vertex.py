@@ -1,16 +1,11 @@
-import pytest
 from typing import List
-
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.apis.internal import Api
-
-from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.sdk.launch.runner.vertex_runner import (
-    VertexRunner,
-    VertexSubmittedRun,
-)
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.runner.vertex_runner import VertexRunner, VertexSubmittedRun
 
 
 class MockCustomJob:
@@ -45,10 +40,6 @@ class MockCustomJob:
     @property
     def name(self):
         return "test-name"
-
-    @property
-    def display_name(self):
-        return "test-display-name"
 
 
 def test_vertex_submitted_run():
@@ -89,7 +80,7 @@ def launch_project_factory(resource_args: dict, api: Api):
 
 @pytest.fixture
 def vertex_runner(test_settings):
-    """Vertex runner initialized with no backend config"""
+    """Vertex runner initialized with no backend config."""
     registry = MagicMock()
     environment = MagicMock()
     api = Api(default_settings=test_settings(), load_settings=False)
@@ -167,7 +158,7 @@ def test_vertex_runner_works(vertex_runner, mock_aiplatform):
         }
     }
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
-    submitted_run = vertex_runner.run(launch_project, "test-image")
+    vertex_runner.run(launch_project, "test-image")
     mock_aiplatform.CustomJob.assert_called_once()
     submitted_spec = mock_aiplatform.CustomJob.call_args[1]["worker_pool_specs"]
     assert len(submitted_spec) == 2
