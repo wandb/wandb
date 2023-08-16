@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime"
 	"os"
 	"os/exec"
 	"strconv"
@@ -269,9 +270,13 @@ func waitcmd(command *exec.Cmd) error {
 //export wandbcore_init
 func wandbcore_init() int {
 	os.Remove("junk-pid.txt")
-	fork_exec()
 	var cmd *exec.Cmd
-	// cmd := run_file()
+	// TODO: use build constraints (check for amd64 too prob)
+	if runtime.GOOS == "linux" {
+		fork_exec()
+	} else {
+		cmd = run_file()
+	}
 	junk()
 	if cmd != nil {
 		err := waitcmd(cmd)
