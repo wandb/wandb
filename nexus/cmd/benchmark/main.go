@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 
-	"github.com/wandb/wandb/nexus/pkg/client"
+	"github.com/wandb/wandb/nexus/pkg/gowandb"
 )
 
 func main() {
@@ -14,8 +14,8 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
-	settings := client.NewSettings()
-	manager := client.NewManager(ctx, settings, *addr)
+	settings := gowandb.NewSettings()
+	manager := gowandb.NewManager(ctx, settings, *addr)
 	run := manager.NewRun()
 
 	run.Setup()

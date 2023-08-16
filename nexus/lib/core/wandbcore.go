@@ -9,11 +9,11 @@ import (
 
 	"github.com/wandb/wandb/nexus/internal/execbin"
 	"github.com/wandb/wandb/nexus/internal/launcher"
-	"github.com/wandb/wandb/nexus/pkg/client"
+	"github.com/wandb/wandb/nexus/pkg/gowandb"
 )
 
 // global manager, initialized by wandbcore_setup
-var globManager *client.Manager
+var globManager *gowandb.Manager
 var globRuns *RunKeeper
 var forkCmd *execbin.ForkExecCmd
 
@@ -23,7 +23,7 @@ func wandbcore_setup() {
 		return
 	}
 	ctx := context.Background()
-	settings := client.NewSettings()
+	settings := gowandb.NewSettings()
 
 	var err error
 	forkCmd, err = launcher.Launch(nexusImage)
@@ -36,7 +36,7 @@ func wandbcore_setup() {
 		panic("error getting port")
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	globManager = client.NewManager(ctx, settings, addr)
+	globManager = gowandb.NewManager(ctx, settings, addr)
 	globRuns = NewRunKeeper()
 }
 
