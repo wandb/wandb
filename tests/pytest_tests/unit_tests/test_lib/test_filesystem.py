@@ -1,3 +1,4 @@
+import errno
 import os
 import platform
 import shutil
@@ -11,9 +12,11 @@ from unittest.mock import patch
 
 import pytest
 from pyfakefs.fake_filesystem import OSType
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.filesystem import (
     copy_or_overwrite_changed,
     mkdir_exists_ok,
+    reflink,
     safe_copy,
     safe_open,
 )
@@ -441,3 +444,62 @@ def test_safe_copy_with_links(tmp_path: Path, src_link, dest_link):
     safe_copy(source_path, target_path)
 
     assert target_path.read_text("utf-8") == source_content
+
+
+@pytest.mark.xfail(reason="Fails on file systems that don't support reflinks")
+def test_reflink_success(tmp_path):
+    target_path = tmp_path / "target.txt"
+    link_path = tmp_path / "link.txt"
+
+    target_content = b"test content"
+    new_content = b"new content"
+    target_path.write_bytes(target_content)
+
+    reflink(target_path, link_path)
+    # The linked file should have the same content.
+    assert link_path.read_bytes() == target_content
+
+    link_path.write_bytes(new_content)
+    # The target file should not change when the linked file is modified.
+    assert target_path.read_bytes() == target_content
+
+    with pytest.raises(FileExistsError):
+        reflink(target_path, link_path)
+
+    reflink(target_path, link_path, overwrite=True)
+    assert link_path.read_bytes() == target_content
+
+
+@pytest.mark.parametrize(
+    "errno_code, expected_exception",
+    [
+        (errno.EPERM, PermissionError),
+        (errno.EACCES, PermissionError),
+        (errno.ENOENT, FileNotFoundError),
+        (errno.EXDEV, ValueError),
+        (errno.EISDIR, IsADirectoryError),
+        (errno.EOPNOTSUPP, OSError),
+        (errno.ENOTSUP, OSError),
+        (errno.EINVAL, ValueError),
+        (errno.EFAULT, OSError),
+    ],
+)
+def test_reflink_errors(errno_code, expected_exception, monkeypatch):
+    def fail(*args, **kwargs):
+        raise OSError(errno_code, os.strerror(errno_code))
+
+    monkeypatch.setattr(filesystem, "_reflink_linux", fail)
+    monkeypatch.setattr(filesystem, "_reflink_macos", fail)
+
+    with pytest.raises(expected_exception):
+        reflink("target", "link")
+
+
+def test_reflink_file_exists_error(tmp_path):
+    target_path = tmp_path / "target.txt"
+    link_path = tmp_path / "link.txt"
+    target_path.write_bytes(b"content1")
+    link_path.write_bytes(b"content2")
+
+    with pytest.raises(FileExistsError):
+        reflink(target_path, link_path)

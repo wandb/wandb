@@ -1,4 +1,6 @@
 import contextlib
+import errno
+import fcntl
 import logging
 import os
 import platform
@@ -7,6 +9,7 @@ import shutil
 import stat
 import tempfile
 import threading
+from ctypes import CDLL, c_char_p, c_int, get_errno
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Generator
 
@@ -190,3 +193,91 @@ def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
         shutil.copy2(source_path, tmp_path)
         tmp_path.replace(output_path)
     return target_path
+
+
+def _reflink_linux(target: StrPath, new_link: StrPath) -> None:
+    """Create a reflink to `target` at `new_link` on Linux."""
+    FICLONE = 0x40049409  # magic number from <linux/fs.h>  # noqa: N806
+    with open(target, "rb") as t_f, open(new_link, "wb+") as l_f:
+        fcntl.ioctl(l_f.fileno(), FICLONE, t_f.fileno())
+
+
+def _reflink_macos(target: StrPath, new_link: StrPath) -> None:
+    try:
+        clib = CDLL("libc.dylib", use_errno=True)
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise
+        clib = CDLL("/usr/lib/libSystem.dylib", use_errno=True)
+
+    try:
+        clonefile = clib.clonefile
+    except AttributeError:
+        raise OSError(errno.ENOTSUP, "'clonefile' is not available on this system")
+
+    clonefile.argtypes = (c_char_p, c_char_p, c_int)
+    clonefile.restype = c_int
+
+    if not clonefile(os.fsencode(target), os.fsencode(new_link), c_int(0)):
+        # No return (0) indicates success; anything else is an error.
+        return
+
+    err = get_errno()
+    raise OSError(err, os.strerror(err), target)
+
+
+def reflink(target: StrPath, new_link: StrPath, overwrite: bool = False) -> None:
+    """Create a reflink to `target` at `new_link`.
+
+    A reflink (reflective link) is a copy-on-write reference to a file. Once linked, the
+    file and link are both "real" files (not symbolic or hard links) and each can be
+    modified independently without affecting the other; however, they share the same
+    underlying data blocks on disk so until one is modified they are "zero-cost" copies.
+
+    Reflinks have all the functionality of copies, so we should use them wherever they
+    are supported if we would otherwise copy a file. (This is not particularly radical--
+    GNU `cp` defaults to `reflink=auto`, using it whenever available) However, support
+    for them is limited to a small number of filesystems. They should work on:
+    - Linux with a Btrfs or XFS filesystem (NOT ext4)
+    - macOS 10.13 or later with an APFS filesystem (called clone files)
+
+    Reflinks are also supported on Solaris and Windows with ReFSv2, but we haven't
+    implemented support for them.
+
+    Like hard links, a reflink can only be created on the same filesystem as the target.
+    """
+    if Path(new_link).exists():
+        if not overwrite:
+            raise FileExistsError(f"{new_link} already exists")
+        logger.warning(f"Overwriting existing file {new_link}.")
+        os.unlink(new_link)
+
+    try:
+        if platform.system() == "Linux":
+            _reflink_linux(target, new_link)
+        elif platform.system() == "Darwin":
+            _reflink_macos(target, new_link)
+        else:
+            raise OSError(
+                errno.ENOTSUP,
+                f"reflinks are not supported on {platform.system()}",
+                target,
+            )
+    except OSError as e:
+        base_msg = f"failed to create reflink from {target} to {new_link}."
+        if e.errno in (errno.EPERM, errno.EACCES):
+            raise PermissionError(f"Insufficient permissions; {base_msg}") from e
+        if e.errno == errno.ENOENT:
+            raise FileNotFoundError(f"File not found; {base_msg}") from e
+        if e.errno == errno.EXDEV:
+            raise ValueError(f"Cannot link across filesystems; {base_msg}") from e
+        if e.errno == errno.EISDIR:
+            raise IsADirectoryError(f"Cannot reflink a directory; {base_msg}") from e
+        if e.errno in (errno.EOPNOTSUPP, errno.ENOTSUP):
+            raise OSError(
+                errno.ENOTSUP,
+                f"Filesystem does not support reflinks; {base_msg}",
+            ) from e
+        if e.errno == errno.EINVAL:
+            raise ValueError(f"Cannot link file ranges; {base_msg}") from e
+        raise
