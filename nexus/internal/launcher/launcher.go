@@ -1,3 +1,4 @@
+// package launcher manages the execution of a nexus server
 package launcher
 
 import (

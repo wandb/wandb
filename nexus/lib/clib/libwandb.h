@@ -18,3 +18,5 @@ int wandb_init(wandb_run *run);
 // void wandb_log(wandb_run *run, wandb_history *hist);
 void wandb_log_scaler(wandb_run *run, char *key, float value);
 void wandb_finish(wandb_run *run);
+void wandb_setup();
+void wandb_teardown();
