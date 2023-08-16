@@ -166,5 +166,6 @@ func (r *Run) Finish() {
 	if err != nil {
 		return
 	}
-	// r.wg.Wait()
+	r.conn.Close()
+	r.wg.Wait()
 }

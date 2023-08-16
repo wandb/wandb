@@ -48,4 +48,5 @@ func (m *Manager) Close() {
 	if err != nil {
 		return
 	}
+	conn.Close()
 }

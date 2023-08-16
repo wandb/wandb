@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,7 +86,7 @@ func ExecveAt(fd uintptr) (err error) {
 	return err
 }
 
-func run() {
+func run_syscall() {
 	fd, err := MemfdCreate("/file.bin")
 	if err != nil {
 		log.Fatal(err)
@@ -99,6 +100,47 @@ func run() {
 	err = ExecveAt(fd)
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func run_file() *exec.Cmd {
+	file, err := os.CreateTemp("", "wandb-core-")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.Remove(file.Name())
+	file.Write(filePayload)
+	file.Close()
+	err = os.Chmod(file.Name(), 0500)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cmd := exec.Command(file.Name(), "--port-filename", "junk-pid.txt")
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Start()
+    	if err != nil {
+        	switch e := err.(type) {
+        	case *exec.Error:
+            		fmt.Println("failed executing:", err)
+        	case *exec.ExitError:
+            		fmt.Println("command exit rc =", e.ExitCode())
+        	default:
+            		panic(err)
+        	}
+    	}
+	fmt.Printf("write %+v\n", file.Name())
+	return cmd
+}
+
+func handleReader(reader *bufio.Reader) {
+	for {
+		str, err := reader.ReadString('\n')
+		if err != nil {
+			break
+		}
+		fmt.Print(str)
 	}
 }
 
@@ -187,22 +229,20 @@ func junk() {
 	}
 }
 
-func fork() {
+func fork_exec() {
 	foo := 4
 	bar := 10
-	os.Remove("junk-pid.txt")
 	id, _, _ := syscall.Syscall(syscall.SYS_FORK, 0, 0, 0)
 	if id == 0 {
 		foo++
 		// fmt.Println("In child:", id, foo, bar)
-		run()
+		run_syscall()
 	} else {
 		bar++
 		junk()
 		// TODO wait for child to exit
 		os.Exit(0)
 	}
-	fmt.Println("In both?:")
 }
 
 //export wandbcore_setup
@@ -210,10 +250,31 @@ func wandbcore_setup() {
 	// run()
 }
 
+func waitcmd(command *exec.Cmd) error {
+	if err := command.Wait(); err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				fmt.Printf("Exit Status: %+v\n", status.ExitStatus())
+				return err
+			}
+		}
+		return err
+	}
+	return nil
+}
+
 //export wandbcore_init
 func wandbcore_init() int {
-	fork()
-	fmt.Println("In both2?:")
+	os.Remove("junk-pid.txt")
+	fork_exec()
+	var cmd *exec.Cmd
+	// cmd := run_file()
+	junk()
+	if cmd != nil {
+		waitcmd(cmd)
+	}
+	os.Exit(0)
+
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
