@@ -1,4 +1,4 @@
-package server_test
+package filestream_test
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
+	"github.com/wandb/wandb/nexus/pkg/filestream"
 	"github.com/wandb/wandb/nexus/pkg/server"
 
 	"encoding/json"
@@ -73,7 +74,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576)
 	dec := json.NewDecoder(r.Body)
-	var msg server.FsData
+	var msg filestream.FsTransmitData
 	err := dec.Decode(&msg)
 	if err != nil {
 		fmt.Println("ERROR", err)
@@ -90,7 +91,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.set("time", tm)
 	*/
 
-	f := msg.Files[server.HistoryFileName]
+	f := msg.Files[filestream.HistoryFileName]
 	total := f.Offset
 	total += len(f.Content)
 	h.set("total", total)
@@ -126,20 +127,26 @@ func (ts *testServer) close() {
 }
 
 type filestreamTest struct {
-	fs      *server.FileStream
+	fs      *filestream.FileStream
 	capture *captureState
 	path    string
 	mux     *http.ServeMux
 	tserver *testServer
 }
 
-func NewFilestreamTest(tName string, fn func(fs *server.FileStream)) *filestreamTest {
+func NewFilestreamTest(tName string, fn func(fs *filestream.FileStream)) *filestreamTest {
 	tserver := NewTestServer()
 	m := make(map[string]interface{})
 	capture := captureState{m: m}
 	fstreamPath := "/test/" + tName
 	tserver.mux.Handle(fstreamPath, apiHandler{&capture})
-	fs := server.NewFileStream(tserver.hserver.URL+fstreamPath, tserver.settings, tserver.logger)
+	fs := filestream.NewFileStream(
+		filestream.WithPath(tserver.hserver.URL+fstreamPath),
+		filestream.WithSettings(tserver.settings),
+		filestream.WithLogger(tserver.logger),
+		filestream.WithHttpClient(server.NewRetryClient(
+			tserver.settings.GetApiKey().GetValue(),
+			tserver.logger)))
 	fs.Start()
 	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tserver.mux, fs: fs, tserver: tserver}
 	defer fsTest.finish()
@@ -168,7 +175,7 @@ func TestSendHistory(t *testing.T) {
 	num := 10
 	delay := 5 * time.Millisecond
 	tst := NewFilestreamTest(t.Name(),
-		func(fs *server.FileStream) {
+		func(fs *filestream.FileStream) {
 			msg := NewHistoryRecord()
 			for i := 0; i < num; i++ {
 				time.Sleep(delay)
@@ -181,7 +188,7 @@ func TestSendHistory(t *testing.T) {
 func BenchmarkHistory(b *testing.B) {
 	num := 10_000
 	tst := NewFilestreamTest(b.Name(),
-		func(fs *server.FileStream) {
+		func(fs *filestream.FileStream) {
 			msg := NewHistoryRecord()
 			b.ResetTimer()
 			for i := 0; i < num; i++ {

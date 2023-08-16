@@ -84,6 +84,8 @@ from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
+# Artifact import types
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 
 # Used to make sure we don't use some code in the incorrect process context
 _IS_INTERNAL_PROCESS = False
@@ -223,4 +225,5 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
+    "ArtifactTTL",
 )
