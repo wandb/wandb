@@ -10,7 +10,6 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.vertex_runner import (
     VertexRunner,
     VertexSubmittedRun,
-    GCP_CONSOLE_URI,
 )
 
 
