@@ -150,7 +150,8 @@ class VertexRunner(AbstractRunner):
                 "in resource arguments under the key `vertex.spec.staging_bucket`."
             )
 
-        # TODO: figure out what to do about regions
+        # How should we be setting region in GCP?
+        # TODO: wrap for exceptions
         aiplatform.init(
             project=self.environment.project,
             location=self.environment.region,
