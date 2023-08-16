@@ -148,7 +148,8 @@ class TorchHistory:
         """Add distribution statistics on a tensor's elements to the current History entry"""
         # TODO Handle the case of duplicate names.
         if isinstance(tensor, (tuple, list)):
-            while (isinstance(tensor, (tuple, list)) and isinstance(tensor[0], (tuple, list))
+            while isinstance(tensor, (tuple, list)) and isinstance(
+                tensor[0], (tuple, list)
             ):
                 tensor = [item for sublist in tensor for item in sublist]
             tensor = torch.cat([t.detach().clone().reshape(-1) for t in tensor])
