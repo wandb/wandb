@@ -3,7 +3,7 @@ from typing import List
 
 from unittest.mock import MagicMock
 
-from wandb.apis import InternalApi
+from wandb.apis.internal import Api
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch._project_spec import LaunchProject
@@ -67,12 +67,12 @@ def test_vertex_submitted_run():
     assert run.get_status().state == "failed"
 
 
-def launch_project_factory(resource_args: dict, api: InternalApi):
+def launch_project_factory(resource_args: dict, api: Api):
     """Construct a dummy LaunchProject with the given resource args."""
     return LaunchProject(
         api=api,
         docker_config={
-            "image": "test-image",
+            "docker_image": "test-image",
         },
         resource_args=resource_args,
         uri="",
@@ -93,36 +93,89 @@ def vertex_runner(test_settings):
     """Vertex runner initialized with no backend config"""
     registry = MagicMock()
     environment = MagicMock()
-    api = InternalApi(settings=test_settings, load_settings=False)
+    api = Api(default_settings=test_settings(), load_settings=False)
     runner = VertexRunner(api, {"SYNCHRONOUS": False}, registry, environment)
     return runner
+
+
+@pytest.fixture
+def mock_aiplatform(mocker):
+    """Patch the aiplatform module with a mock object and return that object."""
+    mock = MagicMock()
+
+    def _fake_get_module(*args, **kwargs):
+        return mock
+
+    mocker.patch(
+        "wandb.sdk.launch.runner.vertex_runner.get_module",
+        side_effect=_fake_get_module,
+    )
+    return mock
 
 
 def test_vertex_missing_worker_spec(vertex_runner):
     """Test that a launch error is raised when we are missing a worker spec."""
     resource_args = {"vertex": {"worker_pool_specs": []}}
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
-    with pytest.raises(LaunchError):
-        vertex_runner.run(launch_project, resource_args)
+    with pytest.raises(LaunchError) as e:
+        vertex_runner.run(launch_project, "test-image")
+    assert "requires at least one worker pool spec" in str(e.value)
 
 
 def test_vertex_missing_image(vertex_runner):
     """Test that a launch error is raised when we are missing an image."""
     resource_args = {
         "vertex": {
-            "worker_pool_specs": [
-                {
-                    "machine_spec": {"machine_type": "n1-standard-4"},
-                    "replica_count": 1,
-                },
-                {
-                    "machine_spec": {"machine_type": "n1-standard-4"},
-                    "replica_count": 1,
-                    "image_uri": "test-image",
-                },
-            ]
+            "spec": {
+                "worker_pool_specs": [
+                    {
+                        "machine_spec": {"machine_type": "n1-standard-4"},
+                        "replica_count": 1,
+                    },
+                    {
+                        "machine_spec": {"machine_type": "n1-standard-4"},
+                        "replica_count": 1,
+                        "container_spec": {"image_uri": "test-image"},
+                    },
+                ]
+            }
         }
     }
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
-    with pytest.raises(LaunchError):
-        vertex_runner.run(launch_project, resource_args)
+    with pytest.raises(LaunchError) as e:
+        vertex_runner.run(launch_project, "test-image")
+    assert "requires a container spec" in str(e.value)
+
+
+def test_vertex_runner_works(vertex_runner, mock_aiplatform):
+    """Test that the vertex runner works as expected with good inputs."""
+    resource_args = {
+        "vertex": {
+            "spec": {
+                "worker_pool_specs": [
+                    {
+                        "machine_spec": {"machine_type": "n1-standard-4"},
+                        "replica_count": 2,
+                        "container_spec": {"image_uri": "test-image"},
+                    },
+                    {
+                        "machine_spec": {"machine_type": "n1-standard-8"},
+                        "replica_count": 1,
+                        "container_spec": {"image_uri": "${image_uri}"},
+                    },
+                ]
+            }
+        }
+    }
+    launch_project = launch_project_factory(resource_args, vertex_runner._api)
+    submitted_run = vertex_runner.run(launch_project, "test-image")
+    mock_aiplatform.CustomJob.assert_called_once()
+    submitted_spec = mock_aiplatform.CustomJob.call_args[1]["worker_pool_specs"]
+    assert len(submitted_spec) == 2
+    assert submitted_spec[0]["machine_spec"]["machine_type"] == "n1-standard-4"
+    assert submitted_spec[0]["replica_count"] == 2
+    assert submitted_spec[0]["container_spec"]["image_uri"] == "test-image"
+    assert submitted_spec[1]["machine_spec"]["machine_type"] == "n1-standard-8"
+    assert submitted_spec[1]["replica_count"] == 1
+    # This assertion tests macro substituion of the image uri.
+    assert submitted_spec[1]["container_spec"]["image_uri"] == "test-image"
