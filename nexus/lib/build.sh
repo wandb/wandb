@@ -15,14 +15,14 @@ rm -rf tmp
 mkdir tmp
 # build binary
 cd ..
-go build -o lib/tmp/libwandbcore.bin cmd/nexus/main.go
+go build -o lib/tmp/nexusimage.bin cmd/nexus/main.go
 cd -
 
 # build shared-library
 cp core/*.go tmp/
 cd tmp/
-go build -buildmode c-shared -o ../export/libwandbcore.so wandbcore.go
-go build -buildmode c-archive -o ../export/libwandbcore.a wandbcore.go
+go build -buildmode c-shared -o ../export/libwandbcore.so wandbcore.go nexusimage.go
+go build -buildmode c-archive -o ../export/libwandbcore.a wandbcore.go nexusimage.go
 mv ../export/libwandbcore.so ../export/libwandbcore.a ../export/lib/
 mv ../export/libwandbcore.h ../export/include/
 cd -
