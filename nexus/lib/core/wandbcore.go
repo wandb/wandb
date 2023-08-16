@@ -8,12 +8,14 @@ import (
 	"context"
 
 	"github.com/wandb/wandb/nexus/internal/launcher"
+	"github.com/wandb/wandb/nexus/internal/execbin"
 	"github.com/wandb/wandb/nexus/pkg/client"
 )
 
 // global manager, initialized by wandbcore_setup
 var globManager *client.Manager
 var globRuns *client.RunKeeper
+var forkCmd *execbin.ForkExecCmd
 
 //export wandbcore_setup
 func wandbcore_setup() {
@@ -23,7 +25,8 @@ func wandbcore_setup() {
 	ctx := context.Background()
 	settings := client.NewSettings()
 
-	_, err := launcher.Launch(nexusImage)
+	var err error
+	forkCmd, err = launcher.Launch(nexusImage)
 	if err != nil {
 		panic("error launching")
 	}
@@ -69,6 +72,7 @@ func wandbcore_finish(num int) {
 func wandbcore_teardown() {
 	globManager.Close()
 	globManager = nil
+	forkCmd.Wait()
 }
 
 func main() {

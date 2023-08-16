@@ -76,11 +76,26 @@ func execBinary(filePayload []byte, args []string) {
 	}
 }
 
+func wait_func(pid int) func() error {
+	return func() error {
+		proc, err := os.FindProcess(pid)
+		if err != nil {
+			panic(err.Error())
+		}
+		_, err = proc.Wait()
+		if err != nil {
+			panic(err.Error())
+		}
+		return err
+	}
+}
+
 func fork_exec(filePayload []byte, args []string) (WaitFunc, error) {
 	id, _, _ := syscall.Syscall(syscall.SYS_FORK, 0, 0, 0)
 	if id == 0 {
 		// in child
 		execBinary(filePayload, args)
+		os.Exit(1)
 	}
-	return nil, nil
+	return wait_func(int(id)), nil
 }
