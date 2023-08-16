@@ -14,9 +14,9 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
-	manager := client.NewManager(ctx, *addr)
 	settings := client.NewSettings()
-	run := manager.NewRun(ctx, settings.Settings)
+	manager := client.NewManager(ctx, settings, *addr)
+	run := manager.NewRun()
 
 	run.Setup()
 	run.Init()
