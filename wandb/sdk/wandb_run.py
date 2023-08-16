@@ -2978,18 +2978,18 @@ class Run:
             return
         if expected_type is not None and artifact.type != expected_type:
             raise ValueError(
-                f"Artifact {artifact.name} already exists with type {expected_type}; "
+                f"Artifact {artifact.name} already exists with type '{expected_type}'; "
                 f"cannot create another with type {artifact.type}"
             )
         if entity and artifact._source_entity and entity != artifact._source_entity:
             raise ValueError(
-                f"Artifact {artifact.name} is owned by entity {artifact._source_entity};"
-                f" it can't be moved to entity {entity}"
+                f"Artifact {artifact.name} is owned by entity '{entity}'; it can't be "
+                f"moved to '{artifact._source_entity}'"
             )
         if project and artifact._source_project and project != artifact._source_project:
             raise ValueError(
-                f"Artifact {artifact.name} exists in project {artifact._source_project};"
-                f" it can't be moved to project {project}"
+                f"Artifact {artifact.name} exists in project '{project}'; it can't be "
+                f"moved to '{artifact._source_project}'"
             )
 
     def _prepare_artifact(
