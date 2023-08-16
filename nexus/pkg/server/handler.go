@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
@@ -11,6 +12,48 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
+
+type Timer struct {
+	startTime   time.Time
+	resumeTime  time.Time
+	accumulated time.Duration
+	isPaused    bool
+}
+
+func (t *Timer) GetStartTimeMicro() float64 {
+	return float64(t.startTime.UnixMicro()) / 1e6
+}
+
+func (t *Timer) Start(startTime *time.Time) {
+	if startTime != nil {
+		t.startTime = *startTime
+	} else {
+		t.startTime = time.Now()
+	}
+	t.resumeTime = t.startTime
+}
+
+func (t *Timer) Pause() {
+	if !t.isPaused {
+		elapsed := time.Since(t.resumeTime)
+		t.accumulated += elapsed
+		t.isPaused = true
+	}
+}
+
+func (t *Timer) Resume() {
+	if t.isPaused {
+		t.resumeTime = time.Now()
+		t.isPaused = false
+	}
+}
+
+func (t *Timer) Elapsed() time.Duration {
+	if t.isPaused {
+		return t.accumulated
+	}
+	return t.accumulated + time.Since(t.resumeTime)
+}
 
 // Handler is the handler for a stream
 // it handles the incoming messages process them
@@ -33,8 +76,8 @@ type Handler struct {
 	// to the client
 	resultChan chan *service.Result
 
-	// startTime is the start time
-	startTime float64
+	// timer is used to track the run start and execution times
+	timer Timer
 
 	// runRecord is the runRecord record received
 	// from the server
@@ -120,7 +163,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Config:
 		h.handleConfig(record)
 	case *service.Record_Exit:
-		h.handleExit(record)
+		h.handleExit(record, x.Exit)
 	case *service.Record_Files:
 		h.handleFiles(record)
 	case *service.Record_Final:
@@ -242,7 +285,11 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	var ok bool
 	run := request.Run
 
-	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
+	// start the run timer
+	h.timer = Timer{}
+	startTime := run.StartTime.AsTime()
+	h.timer.Start(&startTime)
+
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
 		err := fmt.Errorf("handleRunStart: failed to clone run")
 		h.logger.CaptureFatalAndPanic("error handling run start", err)
@@ -330,10 +377,24 @@ func (h *Handler) handleAlert(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) handleExit(record *service.Record) {
-	// stop the system monitor to ensure that we don't send any more system mh
+func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
+	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
 	h.systemMonitor.Stop()
+
+	// stop the run timer and set the runtime
+	h.timer.Pause()
+	exit.Runtime = int32(h.timer.Elapsed().Seconds())
+	// update summary with runtime and send it
+	summary := &service.SummaryRecord{
+		Update: []*service.SummaryItem{
+			{Key: "_runtime", ValueJson: fmt.Sprintf("%d", exit.Runtime)},
+			// store it also in ["_wandb"]["runtime"]
+			{Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, exit.Runtime)},
+		},
+	}
+	h.handleSummary(nil, summary)
+	// send the exit record
 	h.sendRecord(record)
 }
 
