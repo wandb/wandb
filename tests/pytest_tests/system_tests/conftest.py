@@ -19,6 +19,7 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
@@ -851,3 +852,13 @@ def inject_file_stream_response(base_url, user):
         )
 
     yield helper
+
+
+@pytest.fixture
+def logged_artifact(wandb_init, example_files) -> Artifact:
+    with wandb.init() as run:
+        artifact = wandb.Artifact("test-artifact", "dataset")
+        artifact.add_dir(example_files)
+        run.log_artifact(artifact)
+    artifact.wait()
+    return artifact
