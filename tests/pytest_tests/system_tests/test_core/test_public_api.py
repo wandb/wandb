@@ -181,16 +181,23 @@ def test_artifact_version(wandb_init):
     assert artifact.source_version == "v1"
 
 
-def test_log_to_wrong_project(wandb_init):
-    art = wandb.Artifact("test-artifact", "test-type")
-    with art.new_file("boom.txt", "w") as f:
-        f.write("swish")
+def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
+    entity, project = logged_artifact.entity, logged_artifact.project
 
-    with wandb_init(project="test") as run:
-        run.log_artifact(art)
+    draft = logged_artifact.new_draft()
+    draft._type = "futz"
+    with pytest.raises(ValueError, match="already exists with type 'dataset'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
 
-    new_artifact = Api().artifact("test/test-artifact:v0").new_draft()
+    draft = logged_artifact.new_draft()
+    draft._source_entity = "mistaken"
+    with pytest.raises(ValueError, match="can't be moved to 'mistaken'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
 
-    with pytest.raises(ValueError, match="can't be moved to project mismatch"):
-        with wandb_init(project="mismatch") as run:
-            run.log_artifact(new_artifact)
+    draft = logged_artifact.new_draft()
+    draft._source_project = "wrong"
+    with pytest.raises(ValueError, match="can't be moved to 'wrong'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
