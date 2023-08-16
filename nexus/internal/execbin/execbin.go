@@ -3,8 +3,8 @@ package execbin
 
 import (
 	"fmt"
-	"syscall"
 	"os/exec"
+	"syscall"
 )
 
 type ForkExecCmd struct {

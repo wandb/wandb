@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
 )
 
 func fork_exec(filePayload []byte, args []string) (*exec.Cmd, error) {
