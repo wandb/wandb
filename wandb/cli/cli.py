@@ -950,8 +950,16 @@ def launch_sweep(
     if project is None:
         wandb.termerror("A project must be configured when using launch")
         return
-    
-    sweep_id = _launch_sweep(entity=entity, project=project, queue=queue, resume_id=resume_id, parsed_user_config=parsed_user_config)
+
+    sweep_id = _launch_sweep(
+        entity=entity,
+        project=project,
+        queue=queue,
+        resume_id=resume_id,
+        parsed_user_config=parsed_user_config,
+    )
+    if not sweep_id:
+        wandb.termerror("Failed to create launch-sweep")
     sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
