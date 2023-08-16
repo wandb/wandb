@@ -8,17 +8,19 @@ import time
 from typing import Any, Dict, List, Optional
 
 import wandb
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
+    docker_image_exists,
     pull_docker_image,
     sanitize_wandb_api_key,
 )
@@ -96,15 +98,18 @@ class LocalContainerRunner(AbstractRunner):
         api: wandb.apis.internal.Api,
         backend_config: Dict[str, Any],
         environment: AbstractEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         super().__init__(api, backend_config)
         self.environment = environment
+        self.registry = registry
 
-    def _populate_docker_args(self, launch_project: LaunchProject) -> Dict[str, Any]:
-        docker_args: Dict[str, Any] = launch_project.resource_args.get(
+    def _populate_docker_args(
+        self, launch_project: LaunchProject, image_uri: str
+    ) -> Dict[str, Any]:
+        docker_args: Dict[str, Any] = launch_project.fill_macros(image_uri).get(
             "local-container", {}
         )
-
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":
                 docker_args["net"] = "host"
@@ -118,13 +123,14 @@ class LocalContainerRunner(AbstractRunner):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        image_uri: str,
     ) -> Optional[AbstractRun]:
-        docker_args = self._populate_docker_args(launch_project)
+        docker_args = self._populate_docker_args(launch_project, image_uri)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        entry_point = launch_project.get_single_entry_point()
-        env_vars = get_env_vars_dict(launch_project, self._api)
+
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
 
         # When running against local port, need to swap to local docker host
         if (
@@ -137,38 +143,37 @@ class LocalContainerRunner(AbstractRunner):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9001"
 
         if launch_project.docker_image:
-            # user has provided their own docker image
-            image_uri = launch_project.image_name
-            pull_docker_image(image_uri)
-            entry_cmd = []
-            if entry_point is not None:
-                entry_cmd = entry_point.command
-            command_str = " ".join(
-                get_docker_command(
-                    image_uri,
-                    env_vars,
-                    entry_cmd=entry_cmd,
-                    docker_args=docker_args,
-                    additional_args=launch_project.override_args,
-                )
-            ).strip()
-        else:
-            assert entry_point is not None
-            _logger.info("Building docker image...")
-            assert builder is not None
-            image_uri = builder.build_image(launch_project, entry_point, job_tracker)
-            _logger.info(f"Docker image built with uri {image_uri}")
-            # entry_cmd and additional_args are empty here because
-            # if launch built the container they've been accounted
-            # in the dockerfile and env vars respectively
-            command_str = " ".join(
-                get_docker_command(
-                    image_uri,
-                    env_vars,
-                    docker_args=docker_args,
-                )
-            ).strip()
-        launch_project.fill_macros(image_uri)
+            if image_uri.endswith(":latest") or not docker_image_exists(image_uri):
+                try:
+                    pull_docker_image(image_uri)
+                except Exception as e:
+                    wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
+                    if not docker_image_exists(image_uri):
+                        raise LaunchError(
+                            f"Failed to pull docker image {image_uri} with error: {e}"
+                        )
+
+            assert launch_project.docker_image == image_uri
+
+        additional_args = (
+            launch_project.override_args if launch_project.docker_image else None
+        )
+
+        entry_cmd = (
+            launch_project.override_entrypoint.command
+            if launch_project.override_entrypoint is not None
+            else None
+        )
+
+        command_str = " ".join(
+            get_docker_command(
+                image_uri,
+                env_vars,
+                docker_args=docker_args,
+                entry_cmd=entry_cmd,
+                additional_args=additional_args,
+            )
+        ).strip()
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)

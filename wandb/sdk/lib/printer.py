@@ -191,7 +191,14 @@ class PrinterTerm(_Printer):
     def emoji(self, name: str) -> str:
         emojis = dict()
         if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
-            emojis = dict(star="⭐️", broom="🧹", rocket="🚀", gorilla="🦍", turtle="🐢")
+            emojis = dict(
+                star="⭐️",
+                broom="🧹",
+                rocket="🚀",
+                gorilla="🦍",
+                turtle="🐢",
+                lightning="️⚡",
+            )
 
         return emojis.get(name, "")
 

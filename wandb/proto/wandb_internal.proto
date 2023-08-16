@@ -62,6 +62,7 @@ message Control {
   bool always_send = 5;  // message to sender
   bool flow_control = 6;  // message should be passed to flow control
   int64 end_offset = 7;  // end of message offset of this written message
+  string connection_id = 8;  // connection id
 }
 
 /*
@@ -390,6 +391,8 @@ message ArtifactRecord {
   bool                          finalize=14;
   string                        client_id=15;
   string                        sequence_client_id=16;
+  string                        base_id=17;
+  int64                         ttl_duration_seconds=18;
   bool                          incremental_beta1=100;
   _RecordInfo                   _info = 200;
 }
@@ -496,6 +499,7 @@ message Request {
     KeepaliveRequest      keepalive = 17;
     RunStatusRequest      run_status = 20;
     CancelRequest         cancel = 21;
+    MetadataRequest       metadata = 22;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -505,6 +509,7 @@ message Request {
     StatusReportRequest   status_report = 70;
     SummaryRecordRequest  summary_record = 71;
     TelemetryRecordRequest telemetry_record = 72;
+    JobInfoRequest      job_info = 73;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -532,6 +537,7 @@ message Response {
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
     ServerInfoResponse     server_info_response = 67;
+    JobInfoResponse        job_info_response = 68;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -844,6 +850,19 @@ message CheckVersionResponse {
   string delete_message = 3;
 }
 
+
+/*
+* JobInfo:
+*/
+message JobInfoRequest {
+    _RequestInfo _info = 200;
+}
+
+message JobInfoResponse {
+  string sequenceId = 1;
+  string version = 2;
+}
+
 /*
  * LogArtifact:
  */
@@ -906,12 +925,59 @@ message KeepaliveResponse {
 }
 
 /*
+ * Job info specific for Partial -> Job upgrade
+ */
+message ArtifactInfo {
+  string artifact = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
+}
+
+message GitInfo {
+  string remote = 1;
+  string commit = 2;
+}
+
+message GitSource {
+  GitInfo git_info = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
+}
+
+message ImageSource {
+  string image = 1;
+}
+
+message Source {
+  GitSource git = 1;
+  ArtifactInfo artifact = 2;
+  ImageSource image = 3;
+}
+
+/*
+ * Mirrors JobSourceDict:
+ */
+message JobSource {
+  string _version = 1;
+  string source_type = 2;
+  Source source = 3;
+  string runtime = 4;
+}
+
+message PartialJobArtifact {
+  string job_name = 1;
+  JobSource source_info = 2;
+}
+
+/*
  * UseArtifact:
  */
 message UseArtifactRecord {
   string id = 1;
   string type = 2;
   string name = 3;
+
+  PartialJobArtifact partial = 4;
 
   _RecordInfo     _info = 200;
 }
@@ -928,4 +994,45 @@ message CancelRequest {
 }
 
 message CancelResponse {
+}
+
+/*
+ * MetadataRequest
+ */
+message MetaDiskInfo {
+  float total = 1;
+  float used = 2;
+}
+
+message MetaGpuAppleInfo {
+  string gpuType = 1;
+  string vendor = 2;
+}
+
+message MetaMemInfo {
+  float total = 1;
+}
+
+message MetadataRequest {
+  string os = 1;
+  string python = 2;
+  google.protobuf.Timestamp heartbeatAt = 3;
+  google.protobuf.Timestamp startedAt = 4;
+  string docker = 5;
+  string cuda = 6;
+  repeated string args = 7;
+  string state = 8;
+  string program = 9;
+  string codePath = 10;
+  GitRepoRecord git = 11;
+  string email = 12;
+  string root = 13;
+  string host = 14;
+  string username = 15;
+  string executable = 16;
+  int32 cpu_count = 17 [json_name="cpu_count"];
+  int32 cpu_count_logical = 18 [json_name="cpu_count_logical"];
+  MetaDiskInfo disk = 19;
+  MetaGpuAppleInfo gpuapple = 20;
+  MetaMemInfo memory = 21;
 }

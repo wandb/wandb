@@ -33,6 +33,7 @@ class TelemetryRecord(google.protobuf.message.Message):
     LABEL_FIELD_NUMBER: builtins.int
     DEPRECATED_FIELD_NUMBER: builtins.int
     ISSUES_FIELD_NUMBER: builtins.int
+    CORE_VERSION_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
     def imports_init(self) -> global___Imports: ...
@@ -52,6 +53,7 @@ class TelemetryRecord(google.protobuf.message.Message):
     def deprecated(self) -> global___Deprecated: ...
     @property
     def issues(self) -> global___Issues: ...
+    core_version: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -67,10 +69,11 @@ class TelemetryRecord(google.protobuf.message.Message):
         label: global___Labels | None = ...,
         deprecated: global___Deprecated | None = ...,
         issues: global___Issues | None = ...,
+        core_version: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "cli_version", b"cli_version", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "huggingface_version", b"huggingface_version", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label", "python_version", b"python_version"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "cli_version", b"cli_version", "core_version", b"core_version", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "huggingface_version", b"huggingface_version", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label", "python_version", b"python_version"]) -> None: ...
 
 global___TelemetryRecord = TelemetryRecord
 
@@ -181,6 +184,10 @@ class Imports(google.protobuf.message.Message):
     OPTIMUM_FIELD_NUMBER: builtins.int
     EVALUATE_FIELD_NUMBER: builtins.int
     LANGFLOW_FIELD_NUMBER: builtins.int
+    KERAS_CORE_FIELD_NUMBER: builtins.int
+    LIGHTNING_FABRIC_FIELD_NUMBER: builtins.int
+    CURATED_TRANSFORMERS_FIELD_NUMBER: builtins.int
+    ORJSON_FIELD_NUMBER: builtins.int
     torch: builtins.bool
     keras: builtins.bool
     tensorflow: builtins.bool
@@ -286,6 +293,13 @@ class Imports(google.protobuf.message.Message):
     optimum: builtins.bool
     evaluate: builtins.bool
     langflow: builtins.bool
+    keras_core: builtins.bool
+    """keras-core"""
+    lightning_fabric: builtins.bool
+    """lightning-fabric"""
+    curated_transformers: builtins.bool
+    """curated-transformers"""
+    orjson: builtins.bool
     def __init__(
         self,
         *,
@@ -382,8 +396,12 @@ class Imports(google.protobuf.message.Message):
         optimum: builtins.bool = ...,
         evaluate: builtins.bool = ...,
         langflow: builtins.bool = ...,
+        keras_core: builtins.bool = ...,
+        lightning_fabric: builtins.bool = ...,
+        curated_transformers: builtins.bool = ...,
+        orjson: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "anthropic", b"anthropic", "asyncio", b"asyncio", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "chromadb", b"chromadb", "cohere", b"cohere", "colossalai", b"colossalai", "composer", b"composer", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "diffusers", b"diffusers", "elegy", b"elegy", "evaluate", b"evaluate", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_cv", b"keras_cv", "kornia", b"kornia", "langchain", b"langchain", "langflow", b"langflow", "lightgbm", b"lightgbm", "llama_index", b"llama_index", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "openai", b"openai", "optimum", b"optimum", "optuna", b"optuna", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "peft", b"peft", "pinecone", b"pinecone", "ppdet", b"ppdet", "prefect", b"prefect", "prefect_ray", b"prefect_ray", "promptlayer", b"promptlayer", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "stability_sdk", b"stability_sdk", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "trl", b"trl", "trlx", b"trlx", "weaviate", b"weaviate", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "anthropic", b"anthropic", "asyncio", b"asyncio", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "chromadb", b"chromadb", "cohere", b"cohere", "colossalai", b"colossalai", "composer", b"composer", "curated_transformers", b"curated_transformers", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "diffusers", b"diffusers", "elegy", b"elegy", "evaluate", b"evaluate", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_core", b"keras_core", "keras_cv", b"keras_cv", "kornia", b"kornia", "langchain", b"langchain", "langflow", b"langflow", "lightgbm", b"lightgbm", "lightning_fabric", b"lightning_fabric", "llama_index", b"llama_index", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "openai", b"openai", "optimum", b"optimum", "optuna", b"optuna", "orjson", b"orjson", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "peft", b"peft", "pinecone", b"pinecone", "ppdet", b"ppdet", "prefect", b"prefect", "prefect_ray", b"prefect_ray", "promptlayer", b"promptlayer", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "stability_sdk", b"stability_sdk", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "trl", b"trl", "trlx", b"trlx", "weaviate", b"weaviate", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
 
 global___Imports = Imports
 
