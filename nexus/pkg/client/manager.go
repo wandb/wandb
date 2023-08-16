@@ -13,20 +13,24 @@ type Manager struct {
 
 	// addr is the address of the server
 	addr string
+
+	// settings for all runs
+	settings *SettingsWrap
 }
 
 // NewManager creates a new manager with the given settings and responders.
-func NewManager(ctx context.Context, addr string) *Manager {
+func NewManager(ctx context.Context, settings *SettingsWrap, addr string) *Manager {
 	manager := &Manager{
 		ctx:  ctx,
+		settings: settings,
 		addr: addr,
 	}
 	return manager
 }
 
-func (m *Manager) NewRun(ctx context.Context, settings *service.Settings) *Run {
-	conn := m.Connect(ctx)
-	run := NewRun(ctx, settings, conn)
+func (m *Manager) NewRun() *Run {
+	conn := m.Connect(m.ctx)
+	run := NewRun(m.ctx, m.settings.Settings, conn)
 	return run
 }
 

@@ -19,6 +19,10 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/client"
 )
 
+// global manager, initialized by wandbcore_setup
+var globManager *client.Manager
+var globRuns *client.RunKeeper
+
 // generate nexus binary and embed into this package
 //
 //go:generate go build -C ../.. -o lib/core/libwandbcore.bin cmd/nexus/main.go
@@ -89,9 +93,9 @@ func junk() {
 	*addr = fmt.Sprintf("127.0.0.1:%d", port)
 
 	ctx := context.Background()
-	manager := client.NewManager(ctx, *addr)
 	settings := client.NewSettings()
-	run := manager.NewRun(ctx, settings.Settings)
+	manager := client.NewManager(ctx, settings, *addr)
+	run := manager.NewRun()
 
 	run.Setup()
 	run.Init()
@@ -110,13 +114,7 @@ func junk() {
 	}
 }
 
-//export wandbcore_setup
-func wandbcore_setup() {
-	// run()
-}
-
-//export wandbcore_init
-func wandbcore_init() int {
+func launch() (*execbin.ForkExecCmd, error) {
 	os.Remove("junk-pid.txt")
 
 	args := []string{"--port-filename", "junk-pid.txt"}
@@ -124,26 +122,64 @@ func wandbcore_init() int {
 	if err != nil {
 		panic(err)
 	}
+	return cmd, err
+}
 
-	// TODO: dont do this
-	junk()
-
-	err = cmd.Wait()
-	if err != nil {
-		panic(err)
+//export wandbcore_setup
+func wandbcore_setup() {
+	if globManager != nil {
+		return
 	}
-	return 22
+	ctx := context.Background()
+	settings := client.NewSettings()
+
+	_, err := launch()
+	if err != nil {
+		panic("error launching")
+	}
+
+	port, err := getport()
+	if err != nil {
+		panic("error getting port")
+	}
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	globManager = client.NewManager(ctx, settings, addr)
+	globRuns = client.NewRunKeeper()
+}
+
+//export wandbcore_init
+func wandbcore_init() int {
+	wandbcore_setup()
+
+	// ctx := context.Background()
+	run := globManager.NewRun()
+	num := globRuns.Add(run)
+
+	run.Setup()
+	run.Init()
+	run.Start()
+
+	return num
 }
 
 //export wandbcore_log_scaler
-func wandbcore_log_scaler(n int, log_key *C.char, log_value C.float) {
-	/*
-	   server.LibLogScaler(n, C.GoString(log_key), float64(log_value))
-	*/
+func wandbcore_log_scaler(num int, log_key *C.char, log_value C.float) {
+	run := globRuns.Get(num)
+	key := C.GoString(log_key)
+	val := float64(log_value)
+	run.Log(map[string]float64{
+		key: val,
+	})
 }
 
 //export wandbcore_finish
-func wandbcore_finish(run int) {
+func wandbcore_finish(num int) {
+	run := globRuns.Get(num)
+	run.Finish()
+}
+
+//export wandbcore_teardown
+func wandbcore_teardown() {
 }
 
 func main() {
