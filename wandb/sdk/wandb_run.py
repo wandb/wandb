@@ -1114,7 +1114,7 @@ class Run:
                 files_added = True
                 save_name = os.path.relpath(file_path, root)
                 art.add_file(file_path, name=save_name)
-        # Add any manually staged files such is ipynb notebooks
+        # Add any manually staged files such as ipynb notebooks
         for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
             for fname in files:
                 file_path = os.path.join(dirpath, fname)
@@ -1479,7 +1479,8 @@ class Run:
             summary_dict = {}
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
-            self.summary.update(summary_dict)
+            if summary_dict:
+                self.summary.update(summary_dict)
         self._step = self._get_starting_step()
 
         # update settings from run_obj
