@@ -246,23 +246,28 @@ def reflink(target: StrPath, new_link: StrPath, overwrite: bool = False) -> None
 
     Like hard links, a reflink can only be created on the same filesystem as the target.
     """
-    if Path(new_link).exists():
+    if platform.system() == "Linux":
+        link_fn = _reflink_linux
+    elif platform.system() == "Darwin":
+        link_fn = _reflink_macos
+    else:
+        raise OSError(
+            errno.ENOTSUP,
+            f"reflinks are not supported on {platform.system()}",
+            target,
+        )
+
+    if os.path.exists(new_link):
         if not overwrite:
             raise FileExistsError(f"{new_link} already exists")
         logger.warning(f"Overwriting existing file {new_link}.")
         os.unlink(new_link)
 
+    # Create any missing parent directories.
+    os.makedirs(os.path.dirname(os.path.abspath(new_link)), exist_ok=True)
+
     try:
-        if platform.system() == "Linux":
-            _reflink_linux(target, new_link)
-        elif platform.system() == "Darwin":
-            _reflink_macos(target, new_link)
-        else:
-            raise OSError(
-                errno.ENOTSUP,
-                f"reflinks are not supported on {platform.system()}",
-                target,
-            )
+        link_fn(target, new_link)
     except OSError as e:
         base_msg = f"failed to create reflink from {target} to {new_link}."
         if e.errno in (errno.EPERM, errno.EACCES):
