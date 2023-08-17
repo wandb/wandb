@@ -38,7 +38,7 @@ func main() {
 
 	data := map[string]float64{}
 	for i := 0; i < *numHistoryElements; i++ {
-		data[fmt.Sprintf("loss_%d", i)] = float64(100+i)
+		data[fmt.Sprintf("loss_%d", i)] = float64(100 + i)
 	}
 
 	for i := 0; i < *numHistory; i++ {
