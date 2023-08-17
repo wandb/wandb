@@ -8,14 +8,14 @@ import (
 
 type RunKeeper struct {
 	index int
-	runs map[int]*gowandb.Run
+	runs  map[int]*gowandb.Run
 	mutex sync.Mutex
 }
 
 func NewRunKeeper() *RunKeeper {
 	return &RunKeeper{
 		index: 42,
-		runs: make(map[int]*gowandb.Run),
+		runs:  make(map[int]*gowandb.Run),
 	}
 }
 
