@@ -14,6 +14,7 @@ type RunKeeper struct {
 
 func NewRunKeeper() *RunKeeper {
 	return &RunKeeper{
+		// arbitrary number to start counting from
 		index: 42,
 		runs:  make(map[int]*gowandb.Run),
 	}

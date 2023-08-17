@@ -107,7 +107,6 @@ func (nc *Connection) HandleConnection() {
 		select {
 		case <-nc.teardownChan:
 			nc.Close()
-			nc.Close()
 			break
 		case <-teardownWatcherChan:
 			break
