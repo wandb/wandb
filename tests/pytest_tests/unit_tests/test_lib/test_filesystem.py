@@ -469,13 +469,13 @@ def test_system_preferred_path():
     path = "C:/path:with:colon.txt"
     windows = "C:/path-with-colon.txt"
     if platform.system() == "Windows":
-        assert system_preferred_path(path) == Path(windows)
+        assert system_preferred_path(path) == windows
     else:
-        assert system_preferred_path(path) == Path(path)
+        assert system_preferred_path(path) == path
 
 
 def test_system_preferred_path_warning(caplog):
-    path = "path:with/colon.txt"
+    path = Path("path:with/colon.txt")
     with mock.patch("platform.system", return_value="Windows"):
         system_preferred_path(path, warn=True)
         assert f"Replacing ':' in {path} with '-'" in caplog.text

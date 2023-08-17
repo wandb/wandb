@@ -36,7 +36,7 @@ def mkdir_exists_ok(dir_name: StrPath) -> None:
         raise PermissionError(f"{dir_name!s} is not writable") from e
 
 
-def mkdir_allow_fallback(dir_name: StrPath) -> Path:
+def mkdir_allow_fallback(dir_name: StrPath) -> StrPath:
     """Create `dir_name`, removing invalid path characters if necessary.
 
     Returns:
@@ -44,7 +44,7 @@ def mkdir_allow_fallback(dir_name: StrPath) -> Path:
     """
     try:
         os.makedirs(dir_name, exist_ok=True)
-        return Path(dir_name)
+        return dir_name
     except (ValueError, OSError) as e:
         if isinstance(e, OSError) and e.errno != 22:
             raise
@@ -57,7 +57,7 @@ def mkdir_allow_fallback(dir_name: StrPath) -> Path:
         try:
             os.makedirs(new_name, exist_ok=True)
             logger.warning(f"Using '{new_name}' instead of '{dir_name}'")
-            return Path(new_name)
+            return Path(new_name) if isinstance(dir_name, Path) else new_name
         except (ValueError, OSError) as e:
             if isinstance(e, OSError) and e.errno != 22:
                 raise
@@ -222,7 +222,7 @@ def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
     return target_path
 
 
-def check_exists(path: StrPath) -> Optional[Path]:
+def check_exists(path: StrPath) -> Optional[StrPath]:
     """Look for variations of `path` and return the first found.
 
     This exists to support former behavior around system-dependent paths; we used to use
@@ -230,17 +230,16 @@ def check_exists(path: StrPath) -> Optional[Path]:
     Linux machine is accessing an NTFS filesystem; we might need to look for the
     alternate path.
     """
-    dest = Path(path)
-    if dest.exists():
-        return dest
-    if ":" in str(dest):
-        dest = Path(str(dest).replace(":", "-"))
-        if dest.exists():
-            return dest
+    if os.path.exists(path):
+        return path
+    if ":" in str(path):
+        dest = str(path).replace(":", "-")
+        if os.path.exists(dest):
+            return Path(dest) if isinstance(path, Path) else dest
     return None
 
 
-def system_preferred_path(path: StrPath, warn: bool = False) -> Path:
+def system_preferred_path(path: StrPath, warn: bool = False) -> StrPath:
     """Replace ':' with '-' in paths on Windows.
 
     Args:
@@ -248,8 +247,9 @@ def system_preferred_path(path: StrPath, warn: bool = False) -> Path:
         warn: Whether to warn if ':' is replaced.
     """
     if platform.system() != "Windows":
-        return Path(path)
+        return path
     head, tail = os.path.splitdrive(path)
     if warn and ":" in tail:
         logger.warning(f"Replacing ':' in {tail} with '-'")
-    return Path(head + tail.replace(":", "-"))
+    new_path = head + tail.replace(":", "-")
+    return Path(new_path) if isinstance(path, Path) else new_path

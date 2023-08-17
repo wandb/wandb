@@ -1921,8 +1921,8 @@ class Artifact:
         # In case we're on a system where the artifact dir has a name corresponding to
         # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
         # use that, otherwise we'll fall back to the system-preferred path.
-        path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
-        return FilePathStr(str(path))
+        root = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
+        return FilePathStr(root)
 
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
