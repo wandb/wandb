@@ -37,14 +37,14 @@ def filtered_dir(
     import inspect
 
     # compatibility with old API, which didn't pass root
-    def _include_fn(path: str, root: str):
+    def _include_fn(path: str, root: str) -> bool:
         return (
             include_fn(path, root)  # type: ignore
             if len(inspect.signature(include_fn).parameters) == 2
             else include_fn(path)  # type: ignore
         )
 
-    def _exclude_fn(path: str, root: str):
+    def _exclude_fn(path: str, root: str) -> bool:
         return (
             exclude_fn(path, root)  # type: ignore
             if len(inspect.signature(exclude_fn).parameters) == 2
