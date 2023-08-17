@@ -45,8 +45,31 @@ mv libwandb.h ../export/include/
 cd -
 rm -rf tmpbuild/
 
+# build cpp library
+mkdir tmpbuild/
+cp cpplib/* tmpbuild/
+cd tmpbuild/
+g++ -c -Wall -Werror -fpic -I../export/include/ -I. libwandbpp.cpp
+if [ "x$(uname -o)" = "xDarwin" ]; then
+    g++ -shared -undefined dynamic_lookup -o libwandbpp.so libwandbpp.o
+else
+    g++ -shared -o libwandbpp.so libwandbpp.o
+fi
+chmod -x libwandbpp.so
+ar rcs libwandbpp.a libwandbpp.o
+mv libwandbpp.so libwandbpp.a ../export/lib/
+mv libwandbpp.h ../export/include/
+cd -
+rm -rf tmpbuild/
+
 # build client prog
 cd examples/
 LD_RUN_PATH="$PWD/../export/lib/" gcc train.c -o ../export/examples/train -I../export/include/ -L../export/lib/ -lwandb -lwandbcore
 # gcc train.c -o ../export/examples/train-staticlibs -I../export/include/ -L../export/lib/ -l:libwandb.a -l:libwandbcore.a
 # gcc train.c -static -o ../export/examples/train-static -I../export/include/ -L../export/lib/ -l:libwandb.a -l:libwandbcore.a
+cd -
+
+# build client prog (cpp)
+cd examples/
+LD_RUN_PATH="$PWD/../export/lib/" g++ train.cpp -o ../export/examples/traincpp -I../export/include/ -L../export/lib/ -lwandbpp -lwandbcore
+cd -
