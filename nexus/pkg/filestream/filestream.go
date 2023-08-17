@@ -1,4 +1,4 @@
-// package filesteam implements routines necessary for communicating with
+// Package filestream implements routines necessary for communicating with
 // the W&B backend filestream service.
 //
 // Internally there are three goroutines spun up:
