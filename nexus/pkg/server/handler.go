@@ -133,7 +133,6 @@ func (h *Handler) do(inChan publisher.Channel) {
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 	for record := range inChan.Read() {
-		fmt.Println(">>>>handler: got record", record)
 		record := record.(*service.Record)
 		h.handleRecord(record)
 	}

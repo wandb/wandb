@@ -126,20 +126,12 @@ func (s *Stream) handleRespond(result *service.Result) {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-	// defer s.wg.Done()
-	// s.logger.Info("created new stream", "id", s.settings.RunId)
+	s.logger.Info("created new stream", "id", s.settings.RunId)
 
-	// TODO: fix input channel, either remove the defer state machine or make
-	//  a pattern to handle multiple writers
-
-	// handlerInChan := make(chan *service.Record, BufferSize)
-	// handle the client requests
-	ch := make(chan any, BufferSize)
-	wg := sync.WaitGroup{}
-
-	wg.Add(2)
-	s.inChan = &channel{ch, &wg}
-	senderChan := &channel{ch, &wg}
+	recCh := &channel{ch: make(chan any, BufferSize), wg: &sync.WaitGroup{}}
+	recCh.wg.Add(2)
+	s.inChan = recCh
+	senderChan := recCh
 
 	s.handler = NewHandler(s.ctx, s.settings, s.logger)
 	s.wg.Add(1)
@@ -193,10 +185,8 @@ func (s *Stream) Start() {
 
 	s.wg.Add(1)
 	go func() {
-		fmt.Println(">>> start stream")
-		wg.Wait()
-		close(ch)
-		fmt.Println(">>> closed stream")
+		recCh.wg.Wait()
+		close(recCh.ch)
 		s.wg.Done()
 	}()
 }
@@ -236,9 +226,7 @@ func (s *Stream) GetRun() *service.RunRecord {
 // garbage collected.
 func (s *Stream) Close() {
 	// Close and wait for input channel to shut down
-	// close(s.inChan)
 	s.inChan.Close()
-
 	s.wg.Wait()
 }
 
