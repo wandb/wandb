@@ -10,3 +10,9 @@ func WithCoreBinary(coreBinary []byte) gowandb.SessionOption {
 		s.CoreBinary = coreBinary
 	}
 }
+
+func WithCoreAddress(address string) gowandb.SessionOption {
+	return func(s *gowandb.Session) {
+		s.Address = address
+	}
+}

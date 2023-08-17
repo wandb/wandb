@@ -1,10 +1,10 @@
 package main
 
 import (
-	"context"
 	"flag"
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
 )
 
 func main() {
@@ -13,14 +13,17 @@ func main() {
 	teardown := flag.Bool("td", false, "flag to close the server")
 	flag.Parse()
 
-	ctx := context.Background()
-	settings := gowandb.NewSettings()
-	manager := gowandb.NewManager(ctx, settings, *addr)
-	run := manager.NewRun()
+	wandb, err := gowandb.NewSession(
+		session.WithCoreAddress(*addr),
+	)
+	if err != nil {
+		panic(err)
+	}
 
-	run.Setup()
-	run.Init()
-	run.Start()
+	run, err := wandb.NewRun()
+	if err != nil {
+		panic(err)
+	}
 
 	data := map[string]float64{
 		"loss": float64(100),
@@ -31,6 +34,6 @@ func main() {
 	run.Finish()
 
 	if *teardown {
-		manager.Close()
+		wandb.Close()
 	}
 }
