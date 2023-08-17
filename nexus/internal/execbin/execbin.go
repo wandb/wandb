@@ -15,7 +15,7 @@ type ForkExecCmd struct {
 
 func ForkExec(filePayload []byte, args []string) (*ForkExecCmd, error) {
 	var err error
-	waitFunc, err := fork_exec(filePayload, args)
+	waitFunc, err := doForkExec(filePayload, args)
 	if err != nil {
 		panic(err)
 	}
@@ -27,7 +27,7 @@ func ForkExecCommand(command string, args []string) (*ForkExecCmd, error) {
 	if err != nil {
 		panic(err)
 	}
-	waitFunc, err := run_command(path, args)
+	waitFunc, err := runCommand(path, args)
 	if err != nil {
 		panic(err)
 	}
@@ -58,7 +58,7 @@ func (c *ForkExecCmd) Wait() error {
 	return nil
 }
 
-func run_command(command string, args []string) (WaitFunc, error) {
+func runCommand(command string, args []string) (WaitFunc, error) {
 	cmd := exec.Command(command, args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
