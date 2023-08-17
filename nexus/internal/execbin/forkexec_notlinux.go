@@ -3,9 +3,7 @@
 package execbin
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
 )
 
 func fork_exec(filePayload []byte, args []string) (WaitFunc, error) {

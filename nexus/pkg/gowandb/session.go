@@ -35,7 +35,7 @@ func (s *Session) start() {
 			panic("error launching")
 		}
 		s.execCmd = execCmd
-	
+
 		port, err := launch.Getport()
 		if err != nil {
 			panic("error getting port")
