@@ -321,7 +321,15 @@ def generate_dockerfile(
     entry_point: EntryPoint,
     runner_type: str,
     builder_type: str,
+    dockerfile: Optional[str] = None,
 ) -> str:
+    if dockerfile:
+        path = os.path.join(launch_project.project_dir, dockerfile)
+        if not os.path.exists(path):
+            raise LaunchError(f"Dockerfile does not exist at {path}")
+        wandb.termlog(f"Using dockerfile: {dockerfile}")
+        return open(path).read()
+
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
         spl = launch_project.python_version.split(".")[:2]
