@@ -11,27 +11,27 @@ mkdir export/include
 mkdir export/examples
 
 # build nexus binary
-rm -rf tmp
-mkdir tmp
+rm -rf tmpbuild
+mkdir tmpbuild
 # build binary
 cd ..
-go build -o lib/tmp/embed-nexus.bin cmd/nexus/main.go
+go build -o lib/tmpbuild/embed-nexus.bin cmd/nexus/main.go
 cd -
 
 # build shared-library
-cp core/*.go tmp/
-cd tmp/
+cp wandbcore/*.go tmpbuild/
+cd tmpbuild/
 go build -buildmode c-shared -o ../export/libwandbcore.so *.go
 go build -buildmode c-archive -o ../export/libwandbcore.a *.go
 mv ../export/libwandbcore.so ../export/libwandbcore.a ../export/lib/
 mv ../export/libwandbcore.h ../export/include/
 cd -
-rm -rf tmp/
+rm -rf tmpbuild/
 
 # build c library
-mkdir tmp/
-cp clib/* tmp/
-cd tmp/
+mkdir tmpbuild/
+cp clib/* tmpbuild/
+cd tmpbuild/
 gcc -c -Wall -Werror -fpic -I../export/include/ -I. libwandb.c
 gcc -shared -o libwandb.so libwandb.o
 chmod -x libwandb.so
@@ -39,7 +39,7 @@ ar rcs libwandb.a libwandb.o
 mv libwandb.so libwandb.a ../export/lib/
 mv libwandb.h ../export/include/
 cd -
-rm -rf tmp/
+rm -rf tmpbuild/
 
 # build client prog
 cd examples/
