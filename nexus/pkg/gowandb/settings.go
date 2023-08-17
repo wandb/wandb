@@ -1,12 +1,11 @@
 package gowandb
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -15,17 +14,8 @@ type SettingsWrap struct {
 	*service.Settings
 }
 
-func randomString(length int) string {
-	randomBytes := make([]byte, length)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return "test"
-	}
-	return base64.URLEncoding.EncodeToString(randomBytes)[:length]
-}
-
 func NewSettings(args ...any) *SettingsWrap {
-
-	runID := randomString(8)
+	runID := shared.ShortID(8)
 
 	rootDir, err := os.Getwd()
 	if err != nil {
