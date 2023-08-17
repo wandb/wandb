@@ -9,8 +9,8 @@ import (
 
 // Generate the core SDK library.  This is useful if you want to create self-contained binaries.
 //
-//go:generate go build -C ../../.. -o cmd/examples/embed/core.bin cmd/nexus/main.go
-//go:embed core.bin
+//go:generate go build -C ../../.. -o cmd/examples/embed/embed-nexus.bin cmd/nexus/main.go
+//go:embed embed-nexus.bin
 var coreBinary []byte
 
 func main() {
