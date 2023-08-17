@@ -15,6 +15,7 @@ import (
 type SystemMonitorService struct {
 	SystemMonitor *SystemMonitor
 	LatestSample  *service.Record
+	// todo: consolidate the samples into a map and update it on each sample
 }
 
 func NewSystemMonitorService() *SystemMonitorService {
