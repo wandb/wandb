@@ -79,7 +79,17 @@ func (l *Launcher) prepTempfile() {
 	l.portFilename = file.Name()
 }
 
-func (l *Launcher) Launch(filePayload []byte) (*execbin.ForkExecCmd, error) {
+func (l *Launcher) LaunchCommand(command string) (*execbin.ForkExecCmd, error) {
+	l.prepTempfile()
+	args := []string{"--port-filename", l.portFilename}
+	cmd, err := execbin.ForkExecCommand(command, args)
+	if err != nil {
+		panic(err)
+	}
+	return cmd, err
+}
+
+func (l *Launcher) LaunchBinary(filePayload []byte) (*execbin.ForkExecCmd, error) {
 	l.prepTempfile()
 
 	args := []string{"--port-filename", l.portFilename}

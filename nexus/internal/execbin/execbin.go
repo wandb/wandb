@@ -3,6 +3,7 @@ package execbin
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -15,6 +16,18 @@ type ForkExecCmd struct {
 func ForkExec(filePayload []byte, args []string) (*ForkExecCmd, error) {
 	var err error
 	waitFunc, err := fork_exec(filePayload, args)
+	if err != nil {
+		panic(err)
+	}
+	return &ForkExecCmd{waitFunc: waitFunc}, err
+}
+
+func ForkExecCommand(command string, args []string) (*ForkExecCmd, error) {
+	path, err := exec.LookPath(command)
+	if err != nil {
+		panic(err)
+	}
+	waitFunc, err := run_command(path, args)
 	if err != nil {
 		panic(err)
 	}
@@ -43,4 +56,23 @@ func (c *ForkExecCmd) Wait() error {
 		}
 	}
 	return nil
+}
+
+func run_command(command string, args []string) (WaitFunc, error) {
+	cmd := exec.Command(command, args...)
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Start()
+	if err != nil {
+		switch e := err.(type) {
+		case *exec.Error:
+			fmt.Println("failed executing:", err)
+		case *exec.ExitError:
+			fmt.Println("command exit rc =", e.ExitCode())
+		default:
+			panic(err)
+		}
+	}
+	return cmd.Wait, nil
 }

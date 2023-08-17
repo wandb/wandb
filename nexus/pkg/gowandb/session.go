@@ -18,17 +18,24 @@ type Session struct {
 type SessionOption func(*Session)
 
 func (s *Session) start() {
+	var execCmd *execbin.ForkExecCmd
+	var err error
+
 	ctx := context.Background()
 	settings := NewSettings()
 
-	if len(s.CoreBinary) != 0 {
+	if s.Address == "" {
 		launch := launcher.NewLauncher()
-		execCmd, err := launch.Launch(s.CoreBinary)
+		if len(s.CoreBinary) != 0 {
+			execCmd, err = launch.LaunchBinary(s.CoreBinary)
+		} else {
+			execCmd, err = launch.LaunchCommand("nexus")
+		}
 		if err != nil {
 			panic("error launching")
 		}
 		s.execCmd = execCmd
-
+	
 		port, err := launch.Getport()
 		if err != nil {
 			panic("error getting port")

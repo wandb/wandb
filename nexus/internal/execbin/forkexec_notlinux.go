@@ -23,21 +23,7 @@ func fork_exec(filePayload []byte, args []string) (WaitFunc, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(file.Name(), args...)
-	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Start()
-	if err != nil {
-		switch e := err.(type) {
-		case *exec.Error:
-			fmt.Println("failed executing:", err)
-		case *exec.ExitError:
-			fmt.Println("command exit rc =", e.ExitCode())
-		default:
-			panic(err)
-		}
-	}
-	fmt.Printf("write %+v\n", file.Name())
+
+	cmd := run_command(file.Name(), args)
 	return cmd.Wait, nil
 }
