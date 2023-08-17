@@ -3,8 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
-
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 type Header struct {
@@ -18,7 +17,7 @@ type Tokenizer struct {
 	headerValid  bool
 }
 
-func (x *Tokenizer) split(data []byte, _ bool) (advance int, token []byte, err error) {
+func (x *Tokenizer) Split(data []byte, _ bool) (advance int, token []byte, err error) {
 	if x.headerLength == 0 {
 		x.headerLength = binary.Size(x.header)
 	}
