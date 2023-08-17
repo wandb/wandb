@@ -3,7 +3,6 @@ package launcher
 
 import (
 	"bufio"
-	_ "embed"
 	"errors"
 	"os"
 	"strconv"
