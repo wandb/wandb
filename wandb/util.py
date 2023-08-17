@@ -1315,9 +1315,7 @@ def download_file_from_url(
             file.write(data)
 
 
-def download_file_into_memory(
-    source_url: str, api_key: Optional[str] = None
-) -> bytes:
+def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
     auth = None
     if not _thread_local_api_settings.cookies:
         auth = ("api", api_key or "")

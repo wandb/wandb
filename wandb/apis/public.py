@@ -55,7 +55,7 @@ from wandb.sdk.launch.utils import (
     apply_patch,
     convert_jupyter_notebook_to_script,
 )
-from wandb.sdk.lib import ipython, retry, runid, json_util
+from wandb.sdk.lib import ipython, json_util, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.paths import LogicalPath
 
