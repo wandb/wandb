@@ -8,7 +8,7 @@ import (
 )
 
 type Session struct {
-	manager *Manager
+	manager    *Manager
 	CoreBinary []byte
 }
 

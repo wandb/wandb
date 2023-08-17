@@ -2,11 +2,13 @@ package main
 
 import (
 	_ "embed"
+
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
 )
 
 // Generate the core SDK library.  This is useful if you want to create self-contained binaries.
+//
 //go:generate go build -C ../../.. -o cmd/example/embed/core.bin cmd/nexus/main.go
 //go:embed core.bin
 var coreBinary []byte
