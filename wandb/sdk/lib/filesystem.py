@@ -8,13 +8,17 @@ import stat
 import tempfile
 import threading
 from pathlib import Path
-from typing import IO, Any, BinaryIO, Generator
+from typing import IO, Any, BinaryIO, Generator, Optional
 
 from wandb.sdk.lib.paths import StrPath
 
 logger = logging.getLogger(__name__)
 
 WRITE_PERMISSIONS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH | stat.S_IWRITE
+
+
+# https://en.wikipedia.org/wiki/Filename#Comparison_of_filename_limitations
+PROBLEMATIC_PATH_CHARS = "".join(chr(i) for i in range(0, 32)) + ':"*<>?|'
 
 
 def mkdir_exists_ok(dir_name: StrPath) -> None:
@@ -30,6 +34,35 @@ def mkdir_exists_ok(dir_name: StrPath) -> None:
         raise FileExistsError(f"{dir_name!s} exists and is not a directory") from e
     except PermissionError as e:
         raise PermissionError(f"{dir_name!s} is not writable") from e
+
+
+def mkdir_allow_fallback(dir_name: StrPath) -> Path:
+    """Create `dir_name`, removing invalid path characters if necessary.
+
+    Returns:
+        The path to the created directory, which may not be the original path.
+    """
+    try:
+        os.makedirs(dir_name, exist_ok=True)
+        return Path(dir_name)
+    except OSError as e:
+        if e.errno != 22:
+            raise
+
+    new_name = dir_name
+    for char in PROBLEMATIC_PATH_CHARS:
+        if char not in str(new_name):
+            continue
+        new_name = str(new_name).replace(char, "-")
+        try:
+            os.makedirs(new_name, exist_ok=True)
+            logger.warning(f"Using '{new_name}' instead of '{dir_name}'")
+            return Path(new_name)
+        except OSError as e:
+            if e.errno != 22:
+                raise
+
+    raise OSError(f"Unable to create directory '{dir_name}'")
 
 
 class WriteSerializingFile:
@@ -99,11 +132,7 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
     """
     return_type = type(target_path)
 
-    if platform.system() == "Windows":
-        head, tail = os.path.splitdrive(str(target_path))
-        if ":" in tail:
-            logger.warning("Replacing ':' in %s with '-'", tail)
-            target_path = os.path.join(head, tail.replace(":", "-"))
+    target_path = system_preferred_path(target_path, warn=True)
 
     need_copy = (
         not os.path.isfile(target_path)
@@ -112,7 +141,8 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
 
     permissions_plus_write = os.stat(source_path).st_mode | WRITE_PERMISSIONS
     if need_copy:
-        mkdir_exists_ok(os.path.dirname(target_path))
+        dir_name, file_name = os.path.split(target_path)
+        target_path = os.path.join(mkdir_allow_fallback(dir_name), file_name)
         try:
             # Use copy2 to preserve file metadata (including modified time).
             shutil.copy2(source_path, target_path)
@@ -190,3 +220,36 @@ def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
         shutil.copy2(source_path, tmp_path)
         tmp_path.replace(output_path)
     return target_path
+
+
+def check_exists(path: StrPath) -> Optional[Path]:
+    """Look for variations of `path` and return the first found.
+
+    This exists to support former behavior around system-dependent paths; we used to use
+    ':' in Artifact paths unless we were on Windows, but this has issues when e.g. a
+    Linux machine is accessing an NTFS filesystem; we might need to look for the
+    alternate path.
+    """
+    dest = Path(path)
+    if dest.exists():
+        return dest
+    if ":" in str(dest):
+        dest = Path(str(dest).replace(":", "-"))
+        if dest.exists():
+            return dest
+    return None
+
+
+def system_preferred_path(path: StrPath, warn: bool = False) -> Path:
+    """Replace ':' with '-' in paths on Windows.
+
+    Args:
+        path: The path to convert.
+        warn: Whether to warn if ':' is replaced.
+    """
+    if platform.system() != "Windows":
+        return Path(path)
+    head, tail = os.path.splitdrive(path)
+    if warn and ":" in tail:
+        logger.warning(f"Replacing ':' in {tail} with '-'")
+    return Path(head + tail.replace(":", "-"))
