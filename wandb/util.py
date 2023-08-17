@@ -1526,8 +1526,9 @@ def _is_databricks() -> bool:
     return False
 
 
-def _is_py_path(path: str) -> bool:
-    return path.endswith(".py")
+def _is_py_or_dockerfile(path: str) -> bool:
+    file = os.path.basename(path)
+    return file.endswith(".py") or file.startswith("Dockerfile")
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
