@@ -1,15 +1,20 @@
 package main
 
 import (
+	"sync"
+
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
 )
 
 type RunKeeper struct {
+	index int
 	runs map[int]*gowandb.Run
+	mutex sync.Mutex
 }
 
 func NewRunKeeper() *RunKeeper {
 	return &RunKeeper{
+		index: 42,
 		runs: make(map[int]*gowandb.Run),
 	}
 }
@@ -19,7 +24,10 @@ func (k *RunKeeper) Get(num int) *gowandb.Run {
 }
 
 func (k *RunKeeper) Add(run *gowandb.Run) int {
-	num := 42
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+	num := k.index
+	k.index += 1
 	k.runs[num] = run
 	return num
 }
