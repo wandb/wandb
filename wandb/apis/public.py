@@ -55,7 +55,7 @@ from wandb.sdk.launch.utils import (
     apply_patch,
     convert_jupyter_notebook_to_script,
 )
-from wandb.sdk.lib import ipython, retry, runid
+from wandb.sdk.lib import ipython, json_util, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.paths import LogicalPath
 
@@ -1837,6 +1837,7 @@ class Run(Attrs):
         read_only (boolean): Whether the run is editable
         history_keys (str): Keys of the history metrics that have been logged
             with `wandb.log({key: value})`
+        metadata (str): Metadata about the run from wandb-metadata.json
     """
 
     def __init__(
@@ -1869,6 +1870,7 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
+        self._metadata: Optional[Dict[str, Any]] = None
         self._state = _attrs.get("state", "not found")
 
         self.load(force=not _attrs)
@@ -2386,6 +2388,18 @@ class Run(Attrs):
         path = self.path
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            try:
+                f = self.file("wandb-metadata.json")
+                contents = util.download_file_into_memory(f.url, Api().api_key)
+                self._metadata = json_util.loads(contents)
+            except:  # noqa: E722
+                # file doesn't exist, or can't be downloaded, or can't be parsed
+                pass
+        return self._metadata
 
     @property
     def lastHistoryStep(self):  # noqa: N802
