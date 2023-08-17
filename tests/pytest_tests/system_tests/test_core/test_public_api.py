@@ -201,3 +201,12 @@ def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
     with pytest.raises(ValueError, match="can't be moved to 'wrong'"):
         with wandb_init(entity=entity, project=project) as run:
             run.log_artifact(draft)
+
+
+def test_run_metadata(wandb_init):
+    project = "test_metadata"
+    run = wandb_init(project=project)
+    run.finish()
+
+    metadata = Api().run(f"{run.entity}/{project}/{run.id}").metadata
+    assert len(metadata)
