@@ -1,12 +1,9 @@
 package gowandb
 
 import (
-	"context"
-	"crypto/rand"
-	"fmt"
-	"log/slog"
 	"strings"
 
+	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -35,7 +32,7 @@ func (mbh *MailboxHandle) wait() *service.Result {
 }
 
 func (mb *Mailbox) Deliver(rec *service.Record) *MailboxHandle {
-	uuid := "nexus:" + ShortID(12)
+	uuid := "nexus:" + shared.ShortID(12)
 	rec.Control = &service.Control{MailboxSlot: uuid}
 	handle := NewMailboxHandle()
 	mb.handles[uuid] = handle
@@ -52,26 +49,4 @@ func (mb *Mailbox) Respond(result *service.Result) bool {
 		handle.responseChan <- result
 	}
 	return ok
-}
-
-var chars = "abcdefghijklmnopqrstuvwxyz1234567890"
-
-func ShortID(length int) string {
-
-	charsLen := len(chars)
-	b := make([]byte, length)
-	_, err := rand.Read(b) // generates len(b) random bytes
-	if err != nil {
-		err = fmt.Errorf("rand error: %s", err.Error())
-		slog.LogAttrs(context.Background(),
-			slog.LevelError,
-			"ShortID: error",
-			slog.String("error", err.Error()))
-		panic(err)
-	}
-
-	for i := 0; i < length; i++ {
-		b[i] = chars[int(b[i])%charsLen]
-	}
-	return string(b)
 }

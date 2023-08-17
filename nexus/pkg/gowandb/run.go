@@ -172,7 +172,5 @@ func (r *Run) Finish() {
 	}
 	r.conn.Close()
 	r.wg.Wait()
-	if r.run != nil {
-		shared.PrintHeadFoot(r.run, r.settings)
-	}
+	shared.PrintHeadFoot(r.run, r.settings)
 }
