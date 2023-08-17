@@ -93,7 +93,32 @@ func (nc *Connection) HandleConnection() {
 		wg.Done()
 	}()
 
+	// Force shutdown of connections on teardown.
+	// TODO(beta): refactor the connection code so this is not needed
+	// Why this is needed right now:
+	//   - client might have multiple open connections to nexus
+	//   - teardown usually is sent on a new connection
+	//   - teardown closes teardownChan but we have nothing to
+	//     force shutdown of other connections
+	wgTeardown := sync.WaitGroup{}
+	wgTeardown.Add(1)
+	teardownWatcherChan := make(chan interface{})
+	go func() {
+		select {
+		case <- nc.teardownChan:
+			nc.Close()
+			nc.Close()
+			break
+		case <- teardownWatcherChan:
+			break
+		}
+		wgTeardown.Done()
+	}()
+
 	wg.Wait()
+	close(teardownWatcherChan)
+	wgTeardown.Wait()
+
 	slog.Info("connection closed", "id", nc.id)
 }
 

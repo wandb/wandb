@@ -9,7 +9,7 @@ import (
 
 // Generate the core SDK library.  This is useful if you want to create self-contained binaries.
 //
-//go:generate go build -C ../../.. -o cmd/example/embed/core.bin cmd/nexus/main.go
+//go:generate go build -C ../../.. -o cmd/examples/embed/core.bin cmd/nexus/main.go
 //go:embed core.bin
 var coreBinary []byte
 
