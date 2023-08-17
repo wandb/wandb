@@ -1,7 +1,6 @@
 package gowandb
 
 import (
-	// "fmt"
 	"context"
 	"crypto/rand"
 	"fmt"
@@ -31,24 +30,19 @@ func NewMailboxHandle() *MailboxHandle {
 }
 
 func (mbh *MailboxHandle) wait() *service.Result {
-	// fmt.Println("read from chan")
 	got := <-mbh.responseChan
-	// fmt.Println("XXXX  read from chan, got", got)
 	return got
 }
 
 func (mb *Mailbox) Deliver(rec *service.Record) *MailboxHandle {
 	uuid := "nexus:" + ShortID(12)
 	rec.Control = &service.Control{MailboxSlot: uuid}
-	// rec.GetControl().MailboxSlot = uuid
-	// fmt.Println("mailbox record", rec)
 	handle := NewMailboxHandle()
 	mb.handles[uuid] = handle
 	return handle
 }
 
 func (mb *Mailbox) Respond(result *service.Result) bool {
-	// fmt.Println("mailbox result", result)
 	slot := result.GetControl().MailboxSlot
 	if !strings.HasPrefix(slot, "nexus:") {
 		return false
