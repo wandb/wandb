@@ -45,10 +45,9 @@ def path_fallbacks(path: StrPath) -> Generator[str, None, None]:
     path = str(path)
     yield path
     for char in PROBLEMATIC_PATH_CHARS:
-        if char not in path:
-            continue
-        path = path.replace(char, "-")
-        yield path
+        if char in path:
+            path = path.replace(char, "-")
+            yield path
 
 
 def mkdir_allow_fallback(dir_name: StrPath) -> StrPath:
@@ -63,8 +62,10 @@ def mkdir_allow_fallback(dir_name: StrPath) -> StrPath:
             if Path(new_name) != Path(dir_name):
                 logger.warning(f"Creating '{new_name}' instead of '{dir_name}'")
             return Path(new_name) if isinstance(dir_name, Path) else new_name
-        except (ValueError, OSError) as e:
-            if isinstance(e, OSError) and e.errno != 22:
+        except ValueError:
+            pass
+        except OSError as e:
+            if e.errno != 22:
                 raise
 
     raise OSError(f"Unable to create directory '{dir_name}'")
