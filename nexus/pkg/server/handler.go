@@ -17,6 +17,7 @@ type Timer struct {
 	startTime   time.Time
 	resumeTime  time.Time
 	accumulated time.Duration
+	isStarted   bool
 	isPaused    bool
 }
 
@@ -31,6 +32,7 @@ func (t *Timer) Start(startTime *time.Time) {
 		t.startTime = time.Now()
 	}
 	t.resumeTime = t.startTime
+	t.isStarted = true
 }
 
 func (t *Timer) Pause() {
@@ -49,6 +51,9 @@ func (t *Timer) Resume() {
 }
 
 func (t *Timer) Elapsed() time.Duration {
+	if !t.isStarted {
+		return 0
+	}
 	if t.isPaused {
 		return t.accumulated
 	}
@@ -104,16 +109,17 @@ func NewHandler(
 	settings *service.Settings,
 	logger *observability.NexusLogger,
 ) *Handler {
-	// init the system monitor
-	systemMonitor := monitor.NewSystemMonitor(settings, logger)
+	// init the system monitor if stats are enabled
 	h := &Handler{
 		ctx:                 ctx,
 		settings:            settings,
 		logger:              logger,
-		systemMonitor:       systemMonitor,
 		consolidatedSummary: make(map[string]string),
 		recordChan:          make(chan *service.Record, BufferSize),
 		resultChan:          make(chan *service.Result, BufferSize),
+	}
+	if !settings.XDisableStats.GetValue() {
+		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
 	}
 	return h
 }
@@ -247,6 +253,7 @@ func (h *Handler) handleDefer(record *service.Record) {
 		h.handleHistory(h.historyRecord)
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
+		h.handleSummary(nil, &service.SummaryRecord{})
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -306,7 +313,9 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	h.startSystemMonitor()
+	if h.systemMonitor != nil {
+		h.startSystemMonitor()
+	}
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -323,11 +332,15 @@ func (h *Handler) handleCancel(record *service.Record) {
 }
 
 func (h *Handler) handlePause(record *service.Record) {
-	h.systemMonitor.Stop()
+	if h.systemMonitor != nil {
+		h.systemMonitor.Stop()
+	}
 }
 
 func (h *Handler) handleResume(record *service.Record) {
-	h.startSystemMonitor()
+	if h.systemMonitor != nil {
+		h.startSystemMonitor()
+	}
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
@@ -380,20 +393,15 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
-	h.systemMonitor.Stop()
+	if h.systemMonitor != nil {
+		h.systemMonitor.Stop()
+	}
 
 	// stop the run timer and set the runtime
 	h.timer.Pause()
-	exit.Runtime = int32(h.timer.Elapsed().Seconds())
-	// update summary with runtime and send it
-	summary := &service.SummaryRecord{
-		Update: []*service.SummaryItem{
-			{Key: "_runtime", ValueJson: fmt.Sprintf("%d", exit.Runtime)},
-			// store it also in ["_wandb"]["runtime"]
-			{Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, exit.Runtime)},
-		},
-	}
-	h.handleSummary(nil, summary)
+	runtime := int32(h.timer.Elapsed().Seconds())
+	exit.Runtime = runtime
+
 	// send the exit record
 	h.sendRecord(record)
 }
@@ -420,6 +428,14 @@ func (h *Handler) handleTelemetry(record *service.Record) {
 }
 
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
+
+	runtime := int32(h.timer.Elapsed().Seconds())
+
+	// update summary with runtime
+	summary.Update = append(summary.Update, &service.SummaryItem{
+		Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+	})
+
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
 	h.sendRecord(summaryRecord)
 }

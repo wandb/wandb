@@ -114,11 +114,6 @@ func NewSystemMonitor(
 }
 
 func (sm *SystemMonitor) Do() {
-	// if stats are disabled, do nothing
-	if sm.settings.XDisableStats.GetValue() {
-		return
-	}
-
 	if sm.OutChan == nil {
 		sm.OutChan = make(chan *service.Record, BufferSize)
 	}
