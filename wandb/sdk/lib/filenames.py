@@ -1,6 +1,6 @@
 #
 import os
-from typing import Callable, Union, Generator
+from typing import Callable, Generator, Union
 
 WANDB_DIRS = ("wandb", ".wandb")
 
@@ -37,12 +37,12 @@ def filtered_dir(
     import inspect
 
     # compatibility with old API, which didn't pass root
-    _include_fn, _exclude_fn = [
+    _include_fn, _exclude_fn = (
         lambda path, root: fn(path, root)
         if len(inspect.signature(fn).parameters) == 2
         else fn(path)
         for fn in [include_fn, exclude_fn]
-    ]
+    )
 
     for dirpath, _, files in os.walk(root):
         for fname in files:
