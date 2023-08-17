@@ -4,27 +4,27 @@
 #include <libwandbcore.h>
 
 void wandb_setup() {
-    wandbcore_setup();
+    wandbcoreSetup();
     atexit(wandb_teardown);
 }
 
 int wandb_init(wandb_run *run) {
     wandb_setup();
-    int n = wandbcore_init();
+    int n = wandbcoreInit();
     run->num = n;
     return 0;
 }
 
 void wandb_log_scaler(wandb_run *run, char *key, float value) {
     int num = run->num;
-    wandbcore_log_scaler(num, key, value);
+    wandbcoreLogScaler(num, key, value);
 }
 
 void wandb_finish(wandb_run *run) {
     int num = run->num;
-    wandbcore_finish(num);
+    wandbcoreFinish(num);
 }
 
 void wandb_teardown() {
-    wandbcore_teardown();
+    wandbcoreTeardown();
 }

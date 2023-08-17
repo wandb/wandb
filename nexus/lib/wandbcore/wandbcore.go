@@ -11,8 +11,8 @@ import (
 var wandbSession *gowandb.Session
 var wandbRuns *RunKeeper
 
-//export wandbcore_setup
-func wandbcore_setup() {
+//export wandbcoreSetup
+func wandbcoreSetup() {
 	if wandbSession != nil {
 		return
 	}
@@ -26,9 +26,9 @@ func wandbcore_setup() {
 	wandbRuns = NewRunKeeper()
 }
 
-//export wandbcore_init
-func wandbcore_init() int {
-	wandbcore_setup()
+//export wandbcoreInit
+func wandbcoreInit() int {
+	wandbcoreSetup()
 
 	run, err := wandbSession.NewRun()
 	if err != nil {
@@ -38,22 +38,22 @@ func wandbcore_init() int {
 	return num
 }
 
-//export wandbcore_log_scaler
-func wandbcore_log_scaler(num int, log_key *C.char, log_value C.float) {
+//export wandbcoreLogScaler
+func wandbcoreLogScaler(num int, log_key *C.char, log_value C.float) {
 	run := wandbRuns.Get(num)
 	run.Log(map[string]float64{
 		C.GoString(log_key): float64(log_value),
 	})
 }
 
-//export wandbcore_finish
-func wandbcore_finish(num int) {
+//export wandbcoreFinish
+func wandbcoreFinish(num int) {
 	run := wandbRuns.Get(num)
 	run.Finish()
 }
 
-//export wandbcore_teardown
-func wandbcore_teardown() {
+//export wandbcoreTeardown
+func wandbcoreTeardown() {
 	wandbSession.Close()
 	wandbSession = nil
 }
