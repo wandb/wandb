@@ -510,4 +510,4 @@ def test_mkdir_allow_fallback_with_warning(caplog, tmp_path):
     dir_name = tmp_path / "direct\0ry"
     new_name = tmp_path / "direct-ry"
     assert mkdir_allow_fallback(dir_name) == new_name
-    assert f"Using '{new_name}' instead of '{dir_name}'" in caplog.text
+    assert f"Creating '{new_name}' instead of '{dir_name}'" in caplog.text

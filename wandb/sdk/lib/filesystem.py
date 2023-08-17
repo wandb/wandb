@@ -36,27 +36,32 @@ def mkdir_exists_ok(dir_name: StrPath) -> None:
         raise PermissionError(f"{dir_name!s} is not writable") from e
 
 
+def path_fallbacks(path: StrPath) -> Generator[str, None, None]:
+    """Yield variations of `path` that may exist on the filesystem.
+
+    Return a sequence of paths that should be checked in order for existence or
+    create-ability. Essentially, keep replacing "suspect" characters until we run out.
+    """
+    path = str(path)
+    yield path
+    for char in PROBLEMATIC_PATH_CHARS:
+        if char not in path:
+            continue
+        path = path.replace(char, "-")
+        yield path
+
+
 def mkdir_allow_fallback(dir_name: StrPath) -> StrPath:
     """Create `dir_name`, removing invalid path characters if necessary.
 
     Returns:
         The path to the created directory, which may not be the original path.
     """
-    try:
-        os.makedirs(dir_name, exist_ok=True)
-        return dir_name
-    except (ValueError, OSError) as e:
-        if isinstance(e, OSError) and e.errno != 22:
-            raise
-
-    new_name = dir_name
-    for char in PROBLEMATIC_PATH_CHARS:
-        if char not in str(new_name):
-            continue
-        new_name = str(new_name).replace(char, "-")
+    for new_name in path_fallbacks(dir_name):
         try:
             os.makedirs(new_name, exist_ok=True)
-            logger.warning(f"Using '{new_name}' instead of '{dir_name}'")
+            if Path(new_name) != Path(dir_name):
+                logger.warning(f"Creating '{new_name}' instead of '{dir_name}'")
             return Path(new_name) if isinstance(dir_name, Path) else new_name
         except (ValueError, OSError) as e:
             if isinstance(e, OSError) and e.errno != 22:
@@ -228,12 +233,9 @@ def check_exists(path: StrPath) -> Optional[StrPath]:
     This exists to support former behavior around system-dependent paths; we used to use
     ':' in Artifact paths unless we were on Windows, but this has issues when e.g. a
     Linux machine is accessing an NTFS filesystem; we might need to look for the
-    alternate path.
+    alternate path. This checks all the possible directories we would consider creating.
     """
-    if os.path.exists(path):
-        return path
-    if ":" in str(path):
-        dest = str(path).replace(":", "-")
+    for dest in path_fallbacks(path):
         if os.path.exists(dest):
             return Path(dest) if isinstance(path, Path) else dest
     return None
