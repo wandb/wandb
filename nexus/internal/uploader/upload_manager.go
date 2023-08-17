@@ -121,6 +121,9 @@ func (um *UploadManager) AddTask(task *UploadTask) {
 
 // Close closes the uploader
 func (um *UploadManager) Close() {
+	if um == nil {
+		return
+	}
 	um.logger.Debug("uploader: Close")
 	// todo: review this, we don't want to cause a panic
 	close(um.inChan)

@@ -205,7 +205,6 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 		)
 		s.uploadManager.Start()
 	}
-
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -254,18 +253,14 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
-		if s.uploadManager != nil {
-			s.uploadManager.Close()
-		}
+		s.uploadManager.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
-		if s.fileStream != nil {
-			s.fileStream.Close()
-		}
+		s.fileStream.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FINAL:
@@ -294,7 +289,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 	s.recordChan <- rec
 }
 
-func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
+func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
@@ -302,9 +297,7 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 // updateConfig updates the config map with the config record
@@ -451,23 +444,17 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if runResult == nil {
 			runResult = run
 		}
-		result := &service.Result{
-			ResultType: &service.Result_RunResult{
-				RunResult: &service.RunUpdateResult{Run: runResult},
-			},
-			Control: record.Control,
-			Uuid:    record.Uuid,
+		result := &service.Result_RunResult{
+			RunResult: &service.RunUpdateResult{Run: runResult},
 		}
-		s.resultChan <- result
+		s.respondResult(record, result)
 	}
 }
 
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
@@ -496,9 +483,7 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 		},
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 // sendConfig sends a config record to the server via an upsertBucket mutation
@@ -544,9 +529,7 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecord) {
@@ -569,9 +552,7 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(recordCopy)
-	}
+	s.fileStream.StreamRecord(recordCopy)
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
@@ -624,9 +605,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	// response is done by respondExit() and called when defer state machine is complete
 	s.exitRecord = record
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
