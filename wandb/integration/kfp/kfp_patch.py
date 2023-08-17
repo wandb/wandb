@@ -169,8 +169,8 @@ def _get_function_source_definition(func: Callable) -> str:
 
     if not func_code_lines:
         raise ValueError(
-            'Failed to dedent and clean up the source of function "{}". '
-            "It is probably not properly indented.".format(func.__name__)
+            f'Failed to dedent and clean up the source of function "{func.__name__}". '
+            "It is probably not properly indented."
         )
 
     return "\n".join(func_code_lines)

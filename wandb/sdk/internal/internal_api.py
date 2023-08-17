@@ -2,6 +2,8 @@ import ast
 import asyncio
 import base64
 import datetime
+import functools
+import http.client
 import json
 import logging
 import os
@@ -130,6 +132,33 @@ else:
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
 
+httpclient_logger = logging.getLogger("http.client")
+if os.environ.get("WANDB_DEBUG"):
+    httpclient_logger.setLevel(logging.DEBUG)
+
+
+def check_httpclient_logger_handler() -> None:
+    # Only enable http.client logging if WANDB_DEBUG is set
+    if not os.environ.get("WANDB_DEBUG"):
+        return
+    if httpclient_logger.handlers:
+        return
+
+    # Enable HTTPConnection debug logging to the logging framework
+    level = logging.DEBUG
+
+    def httpclient_log(*args: Any) -> None:
+        httpclient_logger.log(level, " ".join(args))
+
+    # mask the print() built-in in the http.client module to use logging instead
+    http.client.print = httpclient_log  # type: ignore[attr-defined]
+    # enable debugging
+    http.client.HTTPConnection.debuglevel = 1
+
+    root_logger = logging.getLogger("wandb")
+    if root_logger.handlers:
+        httpclient_logger.addHandler(root_logger.handlers[0])
+
 
 def check_httpx_exc_retriable(exc: Exception) -> bool:
     retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
@@ -170,7 +199,8 @@ class Api:
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = env.get_http_timeout(10)
+    HTTP_TIMEOUT = env.get_http_timeout(30)
+    FILE_PUSHER_TIMEOUT = env.get_file_pusher_timeout()
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
@@ -224,10 +254,8 @@ class Api:
 
         # todo: remove this hacky hack after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
-        extra_http_headers = self.settings(
-            "_extra_http_headers"
-        ) or wandb.sdk.wandb_settings._str_as_json(
-            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        extra_http_headers = self.settings("_extra_http_headers") or json.loads(
+            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
 
         auth = None
@@ -267,6 +295,11 @@ class Api:
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
         self._upload_file_session = requests.Session()
+        if self.FILE_PUSHER_TIMEOUT:
+            self._upload_file_session.put = functools.partial(  # type: ignore
+                self._upload_file_session.put,
+                timeout=self.FILE_PUSHER_TIMEOUT,
+            )
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -285,6 +318,8 @@ class Api:
         self.mutation_types: Optional[List[str]] = None
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
+        self.server_create_artifact_input_info: Optional[List[str]] = None
+        self.server_artifact_fields_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -1023,6 +1058,8 @@ class Api:
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
         """
+        check_httpclient_logger_handler()
+
         query = gql(
             """
         query RunConfigs(
@@ -1650,6 +1687,7 @@ class Api:
         project: str,
         queues: List[str],
         agent_config: Dict[str, Any],
+        version: str,
         gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
@@ -1690,22 +1728,28 @@ class Api:
             "hostname": hostname,
         }
 
-        mutation_params = """$entity: String!,
-                $project: String!,
-                $queues: [ID!]!,
-                $hostname: String!"""
+        mutation_params = """
+            $entity: String!,
+            $project: String!,
+            $queues: [ID!]!,
+            $hostname: String!
+        """
 
-        mutation_input = """entityName: $entity,
-                        projectName: $project,
-                        runQueues: $queues,
-                        hostname: $hostname"""
+        mutation_input = """
+            entityName: $entity,
+            projectName: $project,
+            runQueues: $queues,
+            hostname: $hostname
+        """
 
         if "agentConfig" in self.create_launch_agent_fields_introspection():
             variable_values["agentConfig"] = json.dumps(agent_config)
-            mutation_params += """,
-                $agentConfig: JSONString"""
-            mutation_input += """,
-                        agentConfig: $agentConfig"""
+            mutation_params += ", $agentConfig: JSONString"
+            mutation_input += ", agentConfig: $agentConfig"
+        if "version" in self.create_launch_agent_fields_introspection():
+            variable_values["version"] = version
+            mutation_params += ", $version: String"
+            mutation_input += ", version: $version"
 
         mutation = gql(
             f"""
@@ -2333,6 +2377,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
+        check_httpclient_logger_handler()
         auth = None
         if _thread_local_api_settings.cookies is None:
             auth = ("user", self.api_key or "")
@@ -2426,10 +2471,15 @@ class Api:
         Returns:
             The `requests` library response object
         """
+        check_httpclient_logger_handler()
         try:
+            if env.is_debug(env=self._environ):
+                logger.debug("upload_file: %s", url)
             response = self._upload_file_session.put(
                 url, data=upload_chunk, headers=extra_headers
             )
+            if env.is_debug(env=self._environ):
+                logger.debug("upload_file: %s complete", url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -2476,6 +2526,7 @@ class Api:
         Returns:
             The `requests` library response object
         """
+        check_httpclient_logger_handler()
         extra_headers = extra_headers.copy() if extra_headers else {}
         response: Optional[requests.Response] = None
         progress = Progress(file, callback=callback)
@@ -2488,9 +2539,13 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
+                if env.is_debug(env=self._environ):
+                    logger.debug("upload_file: %s", url)
                 response = self._upload_file_session.put(
                     url, data=progress, headers=extra_headers
                 )
+                if env.is_debug(env=self._environ):
+                    logger.debug("upload_file: %s complete", url)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -2505,7 +2560,7 @@ class Api:
                 and status_code == 400
                 and "RequestTimeout" in str(response_content)
             )
-            # We need to rewind the file for the next retry (the file passed in is seeked to 0)
+            # We need to rewind the file for the next retry (the file passed in is `seek`'ed to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
             if (
@@ -2542,6 +2597,7 @@ class Api:
             - This method doesn't wrap retryable errors in `TransientError`.
               It leaves that determination to the caller.
         """
+        check_httpclient_logger_handler()
         must_delegate = False
 
         if httpx is None:
@@ -3235,6 +3291,135 @@ class Api:
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
+    def server_artifact_introspection(self) -> List:
+        query_string = """
+            query ProbeServerArtifact {
+                ArtifactInfoType: __type(name:"Artifact") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_artifact_fields_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("ArtifactInfoType", {}).get("fields", [{}])
+            self.server_artifact_fields_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_artifact_fields_info
+
+    def server_create_artifact_introspection(self) -> List:
+        query_string = """
+            query ProbeServerCreateArtifactInput {
+                CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_create_artifact_input_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("CreateArtifactInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+            self.server_create_artifact_input_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_create_artifact_input_info
+
+    def _get_create_artifact_mutation(
+        self,
+        fields: List,
+        history_step: Optional[int],
+        distributed_id: Optional[str],
+    ) -> str:
+        types = ""
+        values = ""
+
+        if "historyStep" in fields and history_step not in [0, None]:
+            types += "$historyStep: Int64!,"
+            values += "historyStep: $historyStep,"
+
+        if distributed_id:
+            types += "$distributedID: String,"
+            values += "distributedID: $distributedID,"
+
+        if "clientID" in fields:
+            types += "$clientID: ID!,"
+            values += "clientID: $clientID,"
+
+        if "sequenceClientID" in fields:
+            types += "$sequenceClientID: ID!,"
+            values += "sequenceClientID: $sequenceClientID,"
+
+        if "enableDigestDeduplication" in fields:
+            types += "$enableDigestDeduplication: Boolean,"
+            values += "enableDigestDeduplication: $enableDigestDeduplication,"
+
+        if "ttlDurationSeconds" in fields:
+            types += "$ttlDurationSeconds: Int64,"
+            values += "ttlDurationSeconds: $ttlDurationSeconds,"
+
+        query_template = """
+            mutation CreateArtifact(
+                $artifactTypeName: String!,
+                $artifactCollectionNames: [String!],
+                $entityName: String!,
+                $projectName: String!,
+                $runName: String,
+                $description: String,
+                $digest: String!,
+                $labels: JSONString,
+                $aliases: [ArtifactAliasInput!],
+                $metadata: JSONString,
+                _CREATE_ARTIFACT_ADDITIONAL_TYPE_
+            ) {
+                createArtifact(input: {
+                    artifactTypeName: $artifactTypeName,
+                    artifactCollectionNames: $artifactCollectionNames,
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    runName: $runName,
+                    description: $description,
+                    digest: $digest,
+                    digestAlgorithm: MANIFEST_MD5,
+                    labels: $labels,
+                    aliases: $aliases,
+                    metadata: $metadata,
+                    _CREATE_ARTIFACT_ADDITIONAL_VALUE_
+                }) {
+                    artifact {
+                        id
+                        digest
+                        state
+                        aliases {
+                            artifactCollectionName
+                            alias
+                        }
+                        artifactSequence {
+                            id
+                            latestArtifact {
+                                id
+                                versionIndex
+                            }
+                        }
+                    }
+                }
+            }
+        """
+
+        return query_template.replace(
+            "_CREATE_ARTIFACT_ADDITIONAL_TYPE_", types
+        ).replace("_CREATE_ARTIFACT_ADDITIONAL_VALUE_", values)
+
     def create_artifact(
         self,
         artifact_type_name: str,
@@ -3248,102 +3433,23 @@ class Api:
         description: Optional[str] = None,
         labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
+        ttl_duration_seconds: Optional[int] = None,
         aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
-        from pkg_resources import parse_version
-
-        _, server_info = self.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
-        can_handle_client_id = max_cli_version is None or parse_version(
-            "0.11.0"
-        ) <= parse_version(max_cli_version)
-        can_handle_dedupe = max_cli_version is None or parse_version(
-            "0.12.10"
-        ) <= parse_version(max_cli_version)
-        can_handle_history = max_cli_version is None or parse_version(
-            "0.12.12"
-        ) <= parse_version(max_cli_version)
-
-        mutation = gql(
-            """
-        mutation CreateArtifact(
-            $artifactTypeName: String!,
-            $artifactCollectionNames: [String!],
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String,
-            $description: String,
-            $digest: String!,
-            $labels: JSONString,
-            $aliases: [ArtifactAliasInput!],
-            $metadata: JSONString,
-            {}
-            {}
-            {}
-            {}
-            {}
-        ) {{
-            createArtifact(input: {{
-                artifactTypeName: $artifactTypeName,
-                artifactCollectionNames: $artifactCollectionNames,
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                description: $description,
-                digest: $digest,
-                digestAlgorithm: MANIFEST_MD5,
-                labels: $labels,
-                aliases: $aliases,
-                metadata: $metadata,
-                {}
-                {}
-                {}
-                {}
-                {}
-            }}) {{
-                artifact {{
-                    id
-                    digest
-                    state
-                    aliases {{
-                        artifactCollectionName
-                        alias
-                    }}
-                    artifactSequence {{
-                        id
-                        latestArtifact {{
-                            id
-                            versionIndex
-                        }}
-                    }}
-                }}
-            }}
-        }}
-        """.format(
-                "$historyStep: Int64!,"
-                if can_handle_history and history_step not in [0, None]
-                else "",
-                "$distributedID: String," if distributed_id else "",
-                "$clientID: ID!," if can_handle_client_id else "",
-                "$sequenceClientID: ID!," if can_handle_client_id else "",
-                "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
-                # line sep
-                "historyStep: $historyStep,"
-                if can_handle_history and history_step not in [0, None]
-                else "",
-                "distributedID: $distributedID," if distributed_id else "",
-                "clientID: $clientID," if can_handle_client_id else "",
-                "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
-                "enableDigestDeduplication: $enableDigestDeduplication,"
-                if can_handle_dedupe
-                else "",
+        fields = self.server_create_artifact_introspection()
+        artifact_fields = self.server_artifact_introspection()
+        if "ttlIsInherited" not in artifact_fields and ttl_duration_seconds:
+            wandb.termwarn(
+                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
+            # ttlDurationSeconds is only usable if ttlIsInherited is also present
+            ttl_duration_seconds = None
+        query_template = self._get_create_artifact_mutation(
+            fields, history_step, distributed_id
         )
 
         entity_name = entity_name or self.settings("entity")
@@ -3353,6 +3459,7 @@ class Api:
         if aliases is None:
             aliases = []
 
+        mutation = gql(query_template)
         response = self.gql(
             mutation,
             variable_values={
@@ -3372,6 +3479,7 @@ class Api:
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
+                "ttlDurationSeconds": ttl_duration_seconds,
                 "distributedID": distributed_id,
                 "enableDigestDeduplication": enable_digest_deduplication,
                 "historyStep": history_step,
@@ -3778,11 +3886,9 @@ class Api:
         assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
-        if state == "RUNNING" and curr_state in ("CANCELED", "FINISHED"):
-            raise Exception("Cannot resume %s sweep." % curr_state.lower())
-        elif state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
+        if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
             raise Exception("Cannot pause %s sweep." % curr_state.lower())
-        elif curr_state not in ("RUNNING", "PAUSED", "PENDING"):
+        elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
             raise Exception("Sweep already %s." % curr_state.lower())
         sweep_id = s["id"]
         mutation = gql(
@@ -3862,6 +3968,7 @@ class Api:
 
     def _status_request(self, url: str, length: int) -> requests.Response:
         """Ask google how much we've uploaded."""
+        check_httpclient_logger_handler()
         return requests.put(
             url=url,
             headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
