@@ -14,9 +14,10 @@ from pyfakefs.fake_filesystem import OSType
 from wandb.sdk.lib.filesystem import (
     copy_or_overwrite_changed,
     mkdir_exists_ok,
+    on_same_partition,
+    resolve_to_existing_parent,
     safe_copy,
     safe_open,
-    resolve_to_existing_parent,
 )
 
 
@@ -95,6 +96,14 @@ def test_resolve_to_existing_parent(tmp_path):
     symlinked = tmp_path / "new_link.txt"
     symlinked.symlink_to(real_file)
     assert resolve_to_existing_parent(symlinked) == real_file
+
+
+def test_same_partition(tmp_path):
+    real_path = tmp_path / "foo" / "example.txt"
+    real_path.parent.mkdir()
+    real_path.touch()
+    other_path = tmp_path / "bar" / "missing.txt"
+    assert on_same_partition(real_path, other_path)
 
 
 def test_copy_or_overwrite_changed_windows_colon(tmp_path):
