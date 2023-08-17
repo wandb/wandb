@@ -9,38 +9,13 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 import wandb
+from wandb import Api
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_saver import get_staging_dir
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
-
-
-@pytest.fixture
-def example_file(tmp_path: Path) -> Path:
-    new_file = tmp_path / "test.txt"
-    new_file.write_text("hello")
-    return new_file
-
-
-@pytest.fixture
-def example_files(tmp_path: Path) -> Path:
-    artifact_dir = tmp_path / "artifacts"
-    artifact_dir.mkdir()
-    for i in range(3):
-        (artifact_dir / f"artifact_{i}.txt").write_text(f"file-{i}")
-    return artifact_dir
-
-
-@pytest.fixture
-def logged_artifact(wandb_init, example_files) -> Artifact:
-    with wandb.init() as run:
-        artifact = wandb.Artifact("test-artifact", "dataset")
-        artifact.add_dir(example_files)
-        run.log_artifact(artifact)
-    artifact.wait()
-    return artifact
 
 
 def test_add_table_from_dataframe(wandb_init):
@@ -431,7 +406,7 @@ def test_log_reference_directly(example_files, wandb_init):
     assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
 
 
-def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
+def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
     art_dir = tmp_path / "an-unusual-path"
     monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
     name_path = logged_artifact.name
@@ -440,3 +415,82 @@ def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
 
     downloaded = Path(logged_artifact.download())
     assert downloaded == art_dir / name_path
+
+
+def test_new_draft(wandb_init):
+    art = wandb.Artifact("test-artifact", "test-type")
+    with art.new_file("boom.txt", "w") as f:
+        f.write("detonation")
+
+    # Set properties that won't be copied.
+    art.ttl = None
+
+    project = "test"
+    with wandb_init(project=project) as run:
+        run.log_artifact(art, aliases=["a"])
+        run.link_artifact(art, f"{project}/my-sample-portfolio")
+
+    parent = Api().artifact(f"{project}/my-sample-portfolio:latest")
+    draft = parent.new_draft()
+
+    # entity/project/name should all match the *source* artifact.
+    assert draft.type == art.type
+    assert draft.name == "test-artifact"  # No version suffix.
+    assert draft._base_id == parent.id  # Parent is the source artifact.
+
+    # We would use public properties, but they're only available on non-draft artifacts.
+    assert draft._entity == parent.entity
+    assert draft._project == parent.project
+    assert draft._source_name == art.name
+    assert draft._source_entity == parent.entity
+    assert draft._source_project == parent.project
+
+    # The draft won't have fields that only exist after being committed.
+    assert draft._version is None
+    assert draft._source_version is None
+    assert draft._ttl_duration_seconds is None
+    assert draft._ttl_is_inherited
+    assert not draft._ttl_changed
+    assert draft._aliases == []
+    assert draft._saved_aliases == []
+    assert draft.is_draft()
+    assert draft._created_at is None
+    assert draft._updated_at is None
+    assert not draft._final
+
+    # Add a file and log the new draft.
+    with draft.new_file("bang.txt", "w") as f:
+        f.write("expansion")
+
+    with wandb_init(project=project) as run:
+        run.log_artifact(draft)
+
+    child = Api().artifact(f"{project}/test-artifact:latest")
+    assert child.version == "v1"
+
+    assert len(child.manifest.entries) == 2
+    file_path = child.download()
+    assert os.path.exists(os.path.join(file_path, "boom.txt"))
+    assert os.path.exists(os.path.join(file_path, "bang.txt"))
+
+
+def test_get_artifact_collection(logged_artifact):
+    collection = logged_artifact.collection
+    assert logged_artifact.entity == collection.entity
+    assert logged_artifact.project == collection.project
+    assert logged_artifact.name.startswith(collection.name)
+    assert logged_artifact.type == collection.type
+
+
+def test_get_artifact_collection_from_linked_artifact(linked_artifact):
+    collection = linked_artifact.collection
+    assert linked_artifact.entity == collection.entity
+    assert linked_artifact.project == collection.project
+    assert linked_artifact.name.startswith(collection.name)
+    assert linked_artifact.type == collection.type
+
+    collection = linked_artifact.source_collection
+    assert linked_artifact.source_entity == collection.entity
+    assert linked_artifact.source_project == collection.project
+    assert linked_artifact.source_name.startswith(collection.name)
+    assert linked_artifact.type == collection.type
