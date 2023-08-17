@@ -143,40 +143,42 @@ class VertexRunner(AbstractRunner):
                 {"name": k, "value": v} for k, v in env_vars.items()
             ]
 
-        # TODO: Make sure we have a staging bucket
         if not spec_args.get("staging_bucket"):
             raise LaunchError(
                 "Vertex requires a staging bucket. Please specify a staging bucket "
                 "in resource arguments under the key `vertex.spec.staging_bucket`."
             )
-
-        # How should we be setting region in GCP?
-        # TODO: wrap for exceptions
-        aiplatform.init(
-            project=self.environment.project,
-            location=self.environment.region,
-            staging_bucket=spec_args.get("staging_bucket"),
-            credentials=self.environment.get_credentials(),
-        )
-        job = aiplatform.CustomJob(
-            display_name=launch_project.name,
-            worker_pool_specs=spec_args.get("worker_pool_specs"),
-            base_output_dir=spec_args.get("base_output_dir"),
-            encryption_spec_key_name=spec_args.get("encryption_spec_key_name"),
-            labels=spec_args.get("labels", {}),
-        )
-        execution_kwargs = dict(
-            timeout=run_args.get("timeout"),
-            service_account=run_args.get("service_account"),
-            network=run_args.get("network"),
-            enable_web_access=run_args.get("enable_web_access", False),
-            experiment=run_args.get("experiment"),
-            experiment_run=run_args.get("experiment_run"),
-            tensorboard=run_args.get("tensorboard"),
-            restart_job_on_worker_restart=run_args.get(
-                "restart_job_on_worker_restart", False
-            ),
-        )
+        try:
+            aiplatform.init(
+                project=self.environment.project,
+                location=self.environment.region,
+                staging_bucket=spec_args.get("staging_bucket"),
+                credentials=self.environment.get_credentials(),
+            )
+            job = aiplatform.CustomJob(
+                display_name=launch_project.name,
+                worker_pool_specs=spec_args.get("worker_pool_specs"),
+                base_output_dir=spec_args.get("base_output_dir"),
+                encryption_spec_key_name=spec_args.get("encryption_spec_key_name"),
+                labels=spec_args.get("labels", {}),
+            )
+            execution_kwargs = dict(
+                timeout=run_args.get("timeout"),
+                service_account=run_args.get("service_account"),
+                network=run_args.get("network"),
+                enable_web_access=run_args.get("enable_web_access", False),
+                experiment=run_args.get("experiment"),
+                experiment_run=run_args.get("experiment_run"),
+                tensorboard=run_args.get("tensorboard"),
+                restart_job_on_worker_restart=run_args.get(
+                    "restart_job_on_worker_restart", False
+                ),
+            )
+        # Unclear if there are exceptions that can be thrown where we should
+        # retry instead of erroring. For now, just catch all exceptions and they
+        # go to the UI for the user to interpret.
+        except Exception as e:
+            raise LaunchError("Failed to create Vertex job.") from e
         if synchronous:
             job.run(**execution_kwargs, sync=True)
         else:
