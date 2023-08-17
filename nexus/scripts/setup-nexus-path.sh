@@ -8,8 +8,9 @@
 #   source scripts/setup-nexus-path.sh
 #   source scripts/setup-nexus-path.sh --unset
 
+PROG="${BASH_SOURCE[0]:-$0}"
 ARG=$1
-BASE=$(dirname $(dirname $(readlink -f $0)))
+BASE=$(dirname $(dirname $(readlink -f $PROG)))
 
 if [ "x$ARG" = "x--unset" ]; then
     echo "[INFO]: Clearing nexus dev dir."
