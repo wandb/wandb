@@ -3,8 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"sync"
+
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
@@ -43,7 +44,7 @@ type Stream struct {
 	logger *observability.NexusLogger
 
 	// inChan is the channel for incoming messages
-	//inChan chan *service.Record
+	// inChan chan *service.Record
 	publisher *publisher.Publisher
 }
 
@@ -103,7 +104,7 @@ func (s *Stream) Start() {
 	// TODO: fix input channel, either remove the defer state machine or make
 	//  a pattern to handle multiple writers
 
-	//handlerInChan := make(chan *service.Record, BufferSize)
+	// handlerInChan := make(chan *service.Record, BufferSize)
 	// handle the client requests
 	s.handler = NewHandler(s.ctx, s.settings, s.logger)
 	s.wg.Add(1)
@@ -156,13 +157,13 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
-	//s.wg.Add(1)
+	// s.wg.Add(1)
 	//// TODO: revisit both of these as we probably just want to use the defer state machine
 	////  to resolve the order of closing. We can also use a single channel to handle
 	////  all of the components, hence reducing the extra channels. We will need to recover from panics for writes on a closed
 	////  on the close channel for writes coming from the connections.
-	//streamInChan := s.inChan
-	//go func() {
+	// streamInChan := s.inChan
+	// go func() {
 	//	for s.sender.recordChan != nil || streamInChan != nil {
 	//		select {
 	//		case record, ok := <-s.sender.recordChan:
@@ -182,7 +183,7 @@ func (s *Stream) Start() {
 	//	s.logger.Debug("dispatch: finished")
 	//	close(handlerInChan)
 	//	s.wg.Done()
-	//}()
+	// }()
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
@@ -209,7 +210,7 @@ func (s *Stream) GetRun() *service.RunRecord {
 // garbage collected.
 func (s *Stream) Close() {
 	// Close and wait for input channel to shut down
-	//close(s.inChan)
+	// close(s.inChan)
 	s.publisher.Close()
 
 	s.wg.Wait()

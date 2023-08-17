@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
@@ -40,7 +41,7 @@ type Sender struct {
 	settings *service.Settings
 
 	////	recordChan is the channel for outgoing messages
-	//recordChan chan *service.Record
+	// recordChan chan *service.Record
 	publisher *publisher.Publisher
 
 	// resultChan is the channel for dispatcher messages
@@ -274,7 +275,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		if s.exitRecord != nil {
 			s.respondExit(s.exitRecord)
 		}
-		//close(s.recordChan)
+		// close(s.recordChan)
 		close(s.resultChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -289,7 +290,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	//s.recordChan <- rec
+	// s.recordChan <- rec
 	s.publisher.Write(record)
 }
 
