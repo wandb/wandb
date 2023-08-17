@@ -105,11 +105,11 @@ func (nc *Connection) HandleConnection() {
 	teardownWatcherChan := make(chan interface{})
 	go func() {
 		select {
-		case <- nc.teardownChan:
+		case <-nc.teardownChan:
 			nc.Close()
 			nc.Close()
 			break
-		case <- teardownWatcherChan:
+		case <-teardownWatcherChan:
 			break
 		}
 		wgTeardown.Done()

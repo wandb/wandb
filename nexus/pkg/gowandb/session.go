@@ -38,6 +38,7 @@ func (s *Session) start() {
 func (s *Session) Close() {
 	s.manager.Close()
 	if s.execCmd != nil {
-		s.execCmd.Wait()
+		_ = s.execCmd.Wait()
+		// TODO(beta): check exit code
 	}
 }
