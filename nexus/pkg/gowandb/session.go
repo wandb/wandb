@@ -22,13 +22,14 @@ func (s *Session) start() {
 	settings := NewSettings()
 
 	if len(s.CoreBinary) != 0 {
-		execCmd, err := launcher.Launch(s.CoreBinary)
+		launch := launcher.NewLauncher()
+		execCmd, err := launch.Launch(s.CoreBinary)
 		if err != nil {
 			panic("error launching")
 		}
 		s.execCmd = execCmd
 
-		port, err := launcher.Getport()
+		port, err := launch.Getport()
 		if err != nil {
 			panic("error getting port")
 		}
