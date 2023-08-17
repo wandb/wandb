@@ -2392,9 +2392,13 @@ class Run(Attrs):
     @property
     def metadata(self):
         if self._metadata is None:
-            f = self.file("wandb-metadata.json")
-            contents = util.download_file_into_memory(f.url, Api().api_key)
-            self._metadata = json_util.loads(contents)
+            try:
+                f = self.file("wandb-metadata.json")
+                contents = util.download_file_into_memory(f.url, Api().api_key)
+                self._metadata = json_util.loads(contents)
+            except:
+                # file doesn't exist, or can't be downloaded, or can't be parsed
+                pass
         return self._metadata
 
     @property
