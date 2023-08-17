@@ -1922,7 +1922,7 @@ class Artifact:
         # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
         # use that, otherwise we'll fall back to the system-preferred path.
         path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
-        return FilePathStr(path)
+        return FilePathStr(str(path))
 
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
