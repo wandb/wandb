@@ -16,6 +16,6 @@ int main(int argc, char **argv) {
         printf("log %d\n", i);
         wandb_log_scaler(&run, "key", i);
     }
-    // wandb_finish(&run);
+    wandb_finish(&run);
     return 0;
 }

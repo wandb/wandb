@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -18,6 +19,7 @@ type Run struct {
 	settings *service.Settings
 	conn     *Connection
 	wg       sync.WaitGroup
+	run      *service.RunRecord
 }
 
 // NewRun creates a new run with the given settings and responders.
@@ -31,7 +33,7 @@ func NewRun(ctx context.Context, settings *service.Settings, conn *Connection) *
 	return run
 }
 
-func (r *Run) Setup() {
+func (r *Run) setup() {
 	err := os.MkdirAll(r.settings.GetLogDir().GetValue(), os.ModePerm)
 	if err != nil {
 		slog.Error("error creating log dir", "err", err)
@@ -47,7 +49,7 @@ func (r *Run) Setup() {
 	}()
 }
 
-func (r *Run) Init() {
+func (r *Run) init() {
 	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_InformInit{InformInit: &service.ServerInformInitRequest{
 			Settings: r.settings,
@@ -77,10 +79,12 @@ func (r *Run) Init() {
 	if err != nil {
 		return
 	}
-	_ = handle.wait()
+	result := handle.wait()
+	r.run = result.GetRunResult().GetRun()
+	shared.PrintHeadFoot(r.run, r.settings)
 }
 
-func (r *Run) Start() {
+func (r *Run) start() {
 	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_InformStart{InformStart: &service.ServerInformStartRequest{
 			Settings: r.settings,
@@ -168,4 +172,7 @@ func (r *Run) Finish() {
 	}
 	r.conn.Close()
 	r.wg.Wait()
+	if r.run != nil {
+		shared.PrintHeadFoot(r.run, r.settings)
+	}
 }
