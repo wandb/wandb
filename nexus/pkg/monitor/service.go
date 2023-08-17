@@ -2,13 +2,14 @@ package monitor
 
 import (
 	"fmt"
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/service"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/nexus/pkg/service"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type SystemMonitorService struct {
