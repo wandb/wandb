@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+// Timer is used to track the run start and execution times
 type Timer struct {
 	startTime   time.Time
 	resumeTime  time.Time
@@ -231,9 +232,9 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
 	case *service.Request_Pause:
-		h.handlePause(record)
+		h.handlePause()
 	case *service.Request_Resume:
-		h.handleResume(record)
+		h.handleResume()
 	case *service.Request_Cancel:
 		h.handleCancel(record)
 	default:
@@ -331,13 +332,15 @@ func (h *Handler) handleCancel(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) handlePause(record *service.Record) {
+func (h *Handler) handlePause() {
+	h.timer.Pause()
 	if h.systemMonitor != nil {
 		h.systemMonitor.Stop()
 	}
 }
 
-func (h *Handler) handleResume(record *service.Record) {
+func (h *Handler) handleResume() {
+	h.timer.Resume()
 	if h.systemMonitor != nil {
 		h.startSystemMonitor()
 	}
