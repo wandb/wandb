@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"os"
 	"path/filepath"
 	"time"
@@ -38,8 +39,9 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *service.Settings
 
-	//	recordChan is the channel for outgoing messages
-	recordChan chan *service.Record
+	////	recordChan is the channel for outgoing messages
+	//recordChan chan *service.Record
+	publisher *publisher.Publisher
 
 	// resultChan is the channel for dispatcher messages
 	resultChan chan *service.Result
@@ -84,7 +86,7 @@ func emptyAsNil(s *string) *string {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, publisher *publisher.Publisher) *Sender {
 
 	sender := &Sender{
 		ctx:        ctx,
@@ -92,7 +94,8 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		logger:     logger,
 		summaryMap: make(map[string]*service.SummaryItem),
 		configMap:  make(map[string]interface{}),
-		recordChan: make(chan *service.Record, BufferSize),
+		//recordChan: make(chan *service.Record, BufferSize),
+		publisher:  publisher,
 		resultChan: make(chan *service.Result, BufferSize),
 		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
@@ -271,7 +274,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		if s.exitRecord != nil {
 			s.respondExit(s.exitRecord)
 		}
-		close(s.recordChan)
+		//close(s.recordChan)
 		close(s.resultChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -280,13 +283,14 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 }
 
 func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
-	rec := &service.Record{
+	record := &service.Record{
 		RecordType: &service.Record_Request{Request: &service.Request{
 			RequestType: &service.Request_Defer{Defer: request},
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.recordChan <- rec
+	//s.recordChan <- rec
+	s.publisher.Write(record)
 }
 
 func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
@@ -444,10 +448,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if runResult == nil {
 			runResult = run
 		}
-		result := &service.Result_RunResult{
-			RunResult: &service.RunUpdateResult{Run: runResult},
+		result := &service.Result{
+			ResultType: &service.Result_RunResult{
+				RunResult: &service.RunUpdateResult{Run: runResult},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
 		}
-		s.respondResult(record, result)
+		s.resultChan <- result
 	}
 }
 
@@ -617,7 +625,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.recordChan <- rec
+	s.publisher.Write(rec)
 }
 
 // sendMetric sends a metrics record to the file stream,

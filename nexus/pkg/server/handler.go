@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
@@ -76,11 +77,13 @@ func NewHandler(
 }
 
 // do this starts the handler
-func (h *Handler) do(inChan <-chan *service.Record) {
+func (h *Handler) do(handlerPublisher *publisher.Publisher) {
 	defer observability.Reraise()
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	for record := range inChan {
+	for record := range handlerPublisher.Read() {
+		fmt.Println(">>>>handler: got record", record)
+		record := record.(*service.Record)
 		h.handleRecord(record)
 	}
 	h.close()
