@@ -33,7 +33,7 @@ mkdir tmpbuild/
 cp clib/* tmpbuild/
 cd tmpbuild/
 gcc -c -Wall -Werror -fpic -I../export/include/ -I. libwandb.c
-gcc -shared -o libwandb.so libwandb.o
+gcc -shared -o libwandb.so libwandb.o -L../export/lib -lwandbcore
 chmod -x libwandb.so
 ar rcs libwandb.a libwandb.o
 mv libwandb.so libwandb.a ../export/lib/
@@ -44,5 +44,5 @@ rm -rf tmpbuild/
 # build client prog
 cd examples/
 LD_RUN_PATH="$PWD/../export/lib/" gcc train.c -o ../export/examples/train -I../export/include/ -L../export/lib/ -lwandb -lwandbcore
-gcc train.c -o ../export/examples/train-staticlibs -I../export/include/ -L../export/lib/ -l:libwandb.a -l:libwandbcore.a
+# gcc train.c -o ../export/examples/train-staticlibs -I../export/include/ -L../export/lib/ -l:libwandb.a -l:libwandbcore.a
 # gcc train.c -static -o ../export/examples/train-static -I../export/include/ -L../export/lib/ -l:libwandb.a -l:libwandbcore.a

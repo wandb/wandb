@@ -22,6 +22,5 @@ func fork_exec(filePayload []byte, args []string) (WaitFunc, error) {
 		return nil, err
 	}
 
-	cmd := run_command(file.Name(), args)
-	return cmd.Wait, nil
+	return run_command(file.Name(), args)
 }
