@@ -33,7 +33,11 @@ mkdir tmpbuild/
 cp clib/* tmpbuild/
 cd tmpbuild/
 gcc -c -Wall -Werror -fpic -I../export/include/ -I. libwandb.c
-gcc -shared -o libwandb.so libwandb.o -L../export/lib -lwandbcore
+if [ "x$(uname -o)" = "xDarwin" ]; then
+    gcc -shared -undefined dynamic_lookup -o libwandb.so libwandb.o
+else
+    gcc -shared -o libwandb.so libwandb.o
+fi
 chmod -x libwandb.so
 ar rcs libwandb.a libwandb.o
 mv libwandb.so libwandb.a ../export/lib/
