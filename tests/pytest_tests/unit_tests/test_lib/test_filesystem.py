@@ -1,6 +1,7 @@
 import errno
 import os
 import platform
+import re
 import shutil
 import stat
 import sys
@@ -503,3 +504,26 @@ def test_reflink_file_exists_error(tmp_path):
 
     with pytest.raises(FileExistsError):
         reflink(target_path, link_path)
+
+
+@pytest.mark.parametrize(
+    "system, exception",
+    [
+        ("Linux", ValueError("Called _reflink_linux")),
+        ("Darwin", ValueError("Called _reflink_macos")),
+        ("Other", OSError(errno.ENOTSUP, "reflinks are not supported on Other")),
+    ],
+)
+def test_reflink_platform_dispatch(monkeypatch, system, exception):
+    def _reflink_linux(*args, **kwargs):
+        raise ValueError("Called _reflink_linux")
+
+    def _reflink_macos(*args, **kwargs):
+        raise ValueError("Called _reflink_macos")
+
+    monkeypatch.setattr(filesystem, "_reflink_linux", _reflink_linux)
+    monkeypatch.setattr(filesystem, "_reflink_macos", _reflink_macos)
+    monkeypatch.setattr(platform, "system", lambda: system)
+
+    with pytest.raises(type(exception), match=re.escape(str(exception))):
+        reflink("target", "link")

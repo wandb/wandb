@@ -252,9 +252,7 @@ def reflink(target: StrPath, new_link: StrPath, overwrite: bool = False) -> None
         link_fn = _reflink_macos
     else:
         raise OSError(
-            errno.ENOTSUP,
-            f"reflinks are not supported on {platform.system()}",
-            target,
+            errno.ENOTSUP, f"reflinks are not supported on {platform.system()}"
         )
 
     if os.path.exists(new_link):
