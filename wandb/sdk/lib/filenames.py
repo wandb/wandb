@@ -37,18 +37,18 @@ def filtered_dir(
     import inspect
 
     # compatibility with old API, which didn't pass root
-    def _include_fn(path, root):
+    def _include_fn(path: str, root: str):
         return (
-            include_fn(path, root)
+            include_fn(path, root)  # type: ignore
             if len(inspect.signature(include_fn).parameters) == 2
-            else include_fn(path)
+            else include_fn(path)  # type: ignore
         )
 
-    def _exclude_fn(path, root):
+    def _exclude_fn(path: str, root: str):
         return (
-            exclude_fn(path, root)
+            exclude_fn(path, root)  # type: ignore
             if len(inspect.signature(exclude_fn).parameters) == 2
-            else exclude_fn(path)
+            else exclude_fn(path)  # type: ignore
         )
 
     for dirpath, _, files in os.walk(root):
