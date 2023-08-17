@@ -1,6 +1,7 @@
 import tempfile
+
 import pytest
-from wandb.sdk.lib.filenames import filtered_dir, exclude_wandb_fn
+from wandb.sdk.lib.filenames import exclude_wandb_fn, filtered_dir
 
 
 def test_filtered_dir_one_parameter():
