@@ -62,7 +62,7 @@ func (t *Timer) Elapsed() time.Duration {
 }
 
 // Handler is the handler for a stream
-// it handles the incoming messages process them
+// it handles the incoming messages, processes them
 // and passes them to the writer
 type Handler struct {
 	// ctx is the context for the handler
