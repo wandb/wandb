@@ -1,6 +1,6 @@
 #
 import os
-from typing import Callable, Generator
+from typing import Callable, Union, Generator
 
 WANDB_DIRS = ("wandb", ".wandb")
 
@@ -29,15 +29,30 @@ def is_wandb_file(name: str) -> bool:
 
 
 def filtered_dir(
-    root: str, include_fn: Callable[[str], bool], exclude_fn: Callable[[str], bool]
+    root: str,
+    include_fn: Union[Callable[[str, str], bool], Callable[[str], bool]],
+    exclude_fn: Union[Callable[[str, str], bool], Callable[[str], bool]],
 ) -> Generator[str, None, None]:
     """Simple generator to walk a directory."""
+    import inspect
+
+    # compatibility with old API, which didn't pass root
+    _include_fn, _exclude_fn = [
+        lambda path, root: fn(path, root)
+        if len(inspect.signature(fn).parameters) == 2
+        else fn(path)
+        for fn in [include_fn, exclude_fn]
+    ]
+
     for dirpath, _, files in os.walk(root):
         for fname in files:
             file_path = os.path.join(dirpath, fname)
-            if include_fn(file_path) and not exclude_fn(file_path):
+            if _include_fn(file_path, root) and not _exclude_fn(file_path, root):
                 yield file_path
 
 
-def exclude_wandb_fn(path: str) -> bool:
-    return any(os.sep + wandb_dir + os.sep in path for wandb_dir in WANDB_DIRS)
+def exclude_wandb_fn(path: str, root: str) -> bool:
+    return any(
+        os.path.relpath(path, root).startswith(wandb_dir + os.sep)
+        for wandb_dir in WANDB_DIRS
+    )
