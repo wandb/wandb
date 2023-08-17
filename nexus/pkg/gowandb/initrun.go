@@ -11,6 +11,9 @@ func (s *Session) NewRun(opts ...RunOption) (*Run, error) {
 		opt(runParams)
 	}
 	run := s.manager.NewRun()
+	run.Setup()
+	run.Init()
+	run.Start()
 	return run, nil
 }
 
