@@ -12,6 +12,35 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+type channel struct {
+	ch chan any
+	wg *sync.WaitGroup
+}
+
+func (c *channel) Add() {
+	c.wg.Add(1)
+}
+
+func (c *channel) Read() <-chan any {
+	return c.ch
+}
+
+func (c *channel) Send(ctx context.Context, msg any) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case c.ch <- msg:
+		return nil
+	default:
+	}
+	return nil
+}
+
+func (c *channel) Close() {
+	fmt.Println(">>> close channel")
+	c.wg.Done()
+}
+
 // Stream is a collection of components that work together to handle incoming
 // data for a W&B run, store it locally, and send it to a W&B server.
 // Stream.handler receives incoming data from the client and dispatches it to
@@ -45,7 +74,7 @@ type Stream struct {
 
 	// inChan is the channel for incoming messages
 	// inChan chan *service.Record
-	publisher *publisher.Publisher
+	inChan publisher.Channel
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -54,11 +83,10 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 	logger := SetupStreamLogger(logFile, settings)
 
 	stream := &Stream{
-		ctx:       ctx,
-		wg:        sync.WaitGroup{},
-		settings:  settings,
-		logger:    logger,
-		publisher: publisher.NewPublisher(),
+		ctx:      ctx,
+		wg:       sync.WaitGroup{},
+		settings: settings,
+		logger:   logger,
 	}
 	stream.Start()
 	return stream
@@ -106,10 +134,17 @@ func (s *Stream) Start() {
 
 	// handlerInChan := make(chan *service.Record, BufferSize)
 	// handle the client requests
+	ch := make(chan any, BufferSize)
+	wg := sync.WaitGroup{}
+
+	wg.Add(2)
+	s.inChan = &channel{ch, &wg}
+	senderChan := &channel{ch, &wg}
+
 	s.handler = NewHandler(s.ctx, s.settings, s.logger)
 	s.wg.Add(1)
 	go func() {
-		s.handler.do(s.publisher)
+		s.handler.do(s.inChan)
 		s.wg.Done()
 	}()
 
@@ -121,8 +156,7 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
-	// send the data to the server
-	s.sender = NewSender(s.ctx, s.settings, s.logger, s.publisher)
+	s.sender = NewSender(s.ctx, s.settings, s.logger, senderChan)
 	s.wg.Add(1)
 	go func() {
 		s.sender.do(s.writer.recordChan)
@@ -157,40 +191,32 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
-	// s.wg.Add(1)
-	//// TODO: revisit both of these as we probably just want to use the defer state machine
-	////  to resolve the order of closing. We can also use a single channel to handle
-	////  all of the components, hence reducing the extra channels. We will need to recover from panics for writes on a closed
-	////  on the close channel for writes coming from the connections.
-	// streamInChan := s.inChan
-	// go func() {
-	//	for s.sender.recordChan != nil || streamInChan != nil {
-	//		select {
-	//		case record, ok := <-s.sender.recordChan:
-	//			if !ok {
-	//				s.sender.recordChan = nil
-	//				continue
-	//			}
-	//			handlerInChan <- record
-	//		case record, ok := <-streamInChan:
-	//			if !ok {
-	//				streamInChan = nil
-	//				continue
-	//			}
-	//			handlerInChan <- record
-	//		}
-	//	}
-	//	s.logger.Debug("dispatch: finished")
-	//	close(handlerInChan)
-	//	s.wg.Done()
-	// }()
+	s.wg.Add(1)
+	go func() {
+		fmt.Println(">>> start stream")
+		wg.Wait()
+		close(ch)
+		fmt.Println(">>> closed stream")
+		s.wg.Done()
+	}()
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(record *service.Record) {
 	s.logger.Debug("handling record", "record", record)
-	fmt.Println("handling record", "record", record)
-	s.publisher.Write(record)
+	s.inChan.Send(s.ctx, record)
+}
+
+func (s *Stream) HandleExit(exitCode int32) {
+	// send exit record to handler
+	record := &service.Record{
+		RecordType: &service.Record_Exit{
+			Exit: &service.RunExitRecord{
+				ExitCode: exitCode,
+			}},
+		Control: &service.Control{AlwaysSend: true},
+	}
+	s.inChan.Send(s.ctx, record)
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
@@ -211,22 +237,13 @@ func (s *Stream) GetRun() *service.RunRecord {
 func (s *Stream) Close() {
 	// Close and wait for input channel to shut down
 	// close(s.inChan)
-	s.publisher.Close()
+	s.inChan.Close()
 
 	s.wg.Wait()
 }
 
 func (s *Stream) FinishAndClose(exitCode int32) {
-	// send exit record to handler
-	record := &service.Record{
-		RecordType: &service.Record_Exit{
-			Exit: &service.RunExitRecord{
-				ExitCode: exitCode,
-			}},
-		Control: &service.Control{AlwaysSend: true},
-	}
-	s.HandleRecord(record)
-
+	s.HandleExit(exitCode)
 	s.Close()
 
 	s.PrintFooter()

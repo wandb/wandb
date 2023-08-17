@@ -41,8 +41,7 @@ type Sender struct {
 	settings *service.Settings
 
 	////	recordChan is the channel for outgoing messages
-	// recordChan chan *service.Record
-	publisher *publisher.Publisher
+	recordChan publisher.Channel
 
 	// resultChan is the channel for dispatcher messages
 	resultChan chan *service.Result
@@ -87,7 +86,7 @@ func emptyAsNil(s *string) *string {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, publisher *publisher.Publisher) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, publisher publisher.Channel) *Sender {
 
 	sender := &Sender{
 		ctx:        ctx,
@@ -95,8 +94,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		logger:     logger,
 		summaryMap: make(map[string]*service.SummaryItem),
 		configMap:  make(map[string]interface{}),
-		//recordChan: make(chan *service.Record, BufferSize),
-		publisher:  publisher,
+		recordChan: publisher,
 		resultChan: make(chan *service.Result, BufferSize),
 		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
@@ -276,6 +274,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 			s.respondExit(s.exitRecord)
 		}
 		// close(s.recordChan)
+		s.recordChan.Close()
 		close(s.resultChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -291,7 +290,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		Control: &service.Control{AlwaysSend: true},
 	}
 	// s.recordChan <- rec
-	s.publisher.Write(record)
+	s.recordChan.Send(s.ctx, record)
 }
 
 func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
@@ -626,7 +625,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.publisher.Write(rec)
+	s.recordChan.Send(s.ctx, rec)
 }
 
 // sendMetric sends a metrics record to the file stream,

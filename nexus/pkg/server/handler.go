@@ -78,11 +78,11 @@ func NewHandler(
 }
 
 // do this starts the handler
-func (h *Handler) do(handlerPublisher *publisher.Publisher) {
+func (h *Handler) do(inChan publisher.Channel) {
 	defer observability.Reraise()
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	for record := range handlerPublisher.Read() {
+	for record := range inChan.Read() {
 		fmt.Println(">>>>handler: got record", record)
 		record := record.(*service.Record)
 		h.handleRecord(record)
