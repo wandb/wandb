@@ -37,12 +37,19 @@ def filtered_dir(
     import inspect
 
     # compatibility with old API, which didn't pass root
-    _include_fn, _exclude_fn = (
-        (lambda path, root: fn(path, root))
-        if len(inspect.signature(fn).parameters) == 2
-        else (lambda path, _: fn(path))
-        for fn in [include_fn, exclude_fn]
-    )
+    def _include_fn(path, root):
+        return (
+            include_fn(path, root)
+            if len(inspect.signature(include_fn).parameters) == 2
+            else include_fn(path)
+        )
+
+    def _exclude_fn(path, root):
+        return (
+            exclude_fn(path, root)
+            if len(inspect.signature(exclude_fn).parameters) == 2
+            else exclude_fn(path)
+        )
 
     for dirpath, _, files in os.walk(root):
         for fname in files:
