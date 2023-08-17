@@ -2396,7 +2396,7 @@ class Run(Attrs):
                 f = self.file("wandb-metadata.json")
                 contents = util.download_file_into_memory(f.url, Api().api_key)
                 self._metadata = json_util.loads(contents)
-            except:
+            except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed
                 pass
         return self._metadata
