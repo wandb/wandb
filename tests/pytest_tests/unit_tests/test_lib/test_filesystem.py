@@ -16,6 +16,7 @@ from wandb.sdk.lib.filesystem import (
     mkdir_exists_ok,
     safe_copy,
     safe_open,
+    resolve_to_existing_parent,
 )
 
 
@@ -73,6 +74,27 @@ def test_mkdir_exists_ok_not_writable(tmp_path):
 
     with pytest.raises(PermissionError):
         mkdir_exists_ok(new_dir)
+
+
+def test_resolve_to_existing_parent(tmp_path):
+    real_path = tmp_path / "foo" / "bar"
+    real_path.mkdir(parents=True, exist_ok=True)
+
+    assert resolve_to_existing_parent(real_path) == real_path
+    assert resolve_to_existing_parent(real_path / "new.txt") == real_path
+    assert resolve_to_existing_parent(real_path / "also" / "new.txt") == real_path
+
+    assert Path(resolve_to_existing_parent("local/path")) == Path().cwd()
+    assert resolve_to_existing_parent(real_path).absolute() == real_path
+    assert resolve_to_existing_parent("/fictitious/path") == "/"
+
+    assert resolve_to_existing_parent(str(real_path / ".." / "bar")) == str(real_path)
+
+    real_file = real_path / "real.txt"
+    real_file.touch()
+    symlinked = tmp_path / "new_link.txt"
+    symlinked.symlink_to(real_file)
+    assert resolve_to_existing_parent(symlinked) == real_file
 
 
 def test_copy_or_overwrite_changed_windows_colon(tmp_path):

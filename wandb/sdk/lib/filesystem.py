@@ -84,6 +84,20 @@ class CRDedupedFile(WriteSerializingFile):
         super().close()
 
 
+def resolve_to_existing_parent(path: StrPath) -> StrPath:
+    """Return the nearest ancestor path that actually exists.
+
+    The path will be resolved, eliminating `..` components and following symlinks. If
+    the path exists, that absolute path will be returned. Otherwise, path components
+    will be removed one by one until the resulting path points to a real directory.
+    """
+    real = Path(path).resolve(strict=False)
+    while not real.exists():
+        real = real.parent
+    # Return the same type as the input.
+    return type(path)(real)  # type: ignore
+
+
 def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> StrPath:
     """Copy source_path to target_path, unless it already exists with the same mtime.
 
