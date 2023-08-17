@@ -11,7 +11,6 @@ func fork_exec(filePayload []byte, args []string) (WaitFunc, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(file.Name())
 	_, err = file.Write(filePayload)
 	if err != nil {
 		return nil, err
@@ -22,5 +21,9 @@ func fork_exec(filePayload []byte, args []string) (WaitFunc, error) {
 		return nil, err
 	}
 
-	return run_command(file.Name(), args)
+	wait, err := run_command(file.Name(), args)
+	// TODO(beta): We are not able to remove this file here, look into this
+	// we could remove it when wait finishes
+	// defer os.Remove(file.Name())
+	return wait, err
 }
