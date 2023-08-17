@@ -13,6 +13,7 @@ type Session struct {
 	CoreBinary []byte
 	execCmd    *execbin.ForkExecCmd
 	Address    string
+	Settings   *SettingsWrap
 }
 
 type SessionOption func(*Session)
@@ -22,7 +23,10 @@ func (s *Session) start() {
 	var err error
 
 	ctx := context.Background()
-	settings := NewSettings()
+	settings := s.Settings
+	if settings == nil {
+		settings = NewSettings()
+	}
 
 	if s.Address == "" {
 		launch := launcher.NewLauncher()

@@ -13,12 +13,17 @@ func main() {
 	port := flag.Int("port", 0, "port to connect to")
 	numHistory := flag.Int("numHistory", 1000, "number of history records to log")
 	teardown := flag.Bool("close", false, "flag to close the server")
-	// offline := flag.Bool("offline", false, "use offline mode")
+	offline := flag.Bool("offline", false, "use offline mode")
 	flag.Parse()
 
 	opts := []gowandb.SessionOption{}
 	if *port != 0 {
 		opts = append(opts, session.WithCoreAddress(fmt.Sprintf("%s:%d", *host, *port)))
+	}
+	if *offline {
+		settings := gowandb.NewSettings()
+		settings.XOffline.Value = true
+		opts = append(opts, session.WithSettings(settings))
 	}
 	wandb, err := gowandb.NewSession(opts...)
 	if err != nil {

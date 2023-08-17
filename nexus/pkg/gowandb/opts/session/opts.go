@@ -16,3 +16,9 @@ func WithCoreAddress(address string) gowandb.SessionOption {
 		s.Address = address
 	}
 }
+
+func WithSettings(settings *gowandb.SettingsWrap) gowandb.SessionOption {
+	return func(s *gowandb.Session) {
+		s.Settings = settings
+	}
+}
