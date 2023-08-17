@@ -6,6 +6,6 @@ import (
 
 // generate nexus binary and embed into this package
 //
-//go:generate go build -C ../.. -o lib/core/nexusimage.bin cmd/nexus/main.go
-//go:embed nexusimage.bin
+//go:generate go build -C ../.. -o lib/core/embed-nexus.bin cmd/nexus/main.go
+//go:embed embed-nexus.bin
 var nexusImage []byte

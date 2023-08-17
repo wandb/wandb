@@ -15,7 +15,7 @@ rm -rf tmp
 mkdir tmp
 # build binary
 cd ..
-go build -o lib/tmp/nexusimage.bin cmd/nexus/main.go
+go build -o lib/tmp/embed-nexus.bin cmd/nexus/main.go
 cd -
 
 # build shared-library
