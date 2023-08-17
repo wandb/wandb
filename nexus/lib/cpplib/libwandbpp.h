@@ -20,7 +20,7 @@ public:
   void finish();
 };
 
-Run initRun(); 
-Run initRun(Settings settings); 
+Run initRun();
+Run initRun(Settings settings);
 
 }
