@@ -38,9 +38,9 @@ def filtered_dir(
 
     # compatibility with old API, which didn't pass root
     _include_fn, _exclude_fn = (
-        lambda path, root: fn(path, root)
+        (lambda path, root: fn(path, root))
         if len(inspect.signature(fn).parameters) == 2
-        else fn(path)
+        else (lambda path, _: fn(path))
         for fn in [include_fn, exclude_fn]
     )
 
