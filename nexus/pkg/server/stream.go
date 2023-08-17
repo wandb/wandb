@@ -78,7 +78,7 @@ type Stream struct {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
+func NewStream(ctx context.Context, settings *service.Settings, _ string) *Stream {
 	logFile := settings.GetLogInternal().GetValue()
 	logger := SetupStreamLogger(logFile, settings)
 
@@ -194,7 +194,10 @@ func (s *Stream) Start() {
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(record *service.Record) {
 	s.logger.Debug("handling record", "record", record)
-	s.inChan.Send(s.ctx, record)
+	err := s.inChan.Send(s.ctx, record)
+	if err != nil {
+		return
+	}
 }
 
 func (s *Stream) HandleExit(exitCode int32) {
@@ -206,7 +209,10 @@ func (s *Stream) HandleExit(exitCode int32) {
 			}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.inChan.Send(s.ctx, record)
+	err := s.inChan.Send(s.ctx, record)
+	if err != nil {
+		return
+	}
 }
 
 func (s *Stream) GetRun() *service.RunRecord {

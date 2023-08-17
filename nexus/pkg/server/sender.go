@@ -289,8 +289,10 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	// s.recordChan <- rec
-	s.recordChan.Send(s.ctx, record)
+	err := s.recordChan.Send(s.ctx, record)
+	if err != nil {
+		return
+	}
 }
 
 func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
@@ -625,7 +627,10 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.recordChan.Send(s.ctx, rec)
+	err := s.recordChan.Send(s.ctx, rec)
+	if err != nil {
+		return
+	}
 }
 
 // sendMetric sends a metrics record to the file stream,
