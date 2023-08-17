@@ -45,8 +45,8 @@ def mkdir_allow_fallback(dir_name: StrPath) -> Path:
     try:
         os.makedirs(dir_name, exist_ok=True)
         return Path(dir_name)
-    except OSError as e:
-        if e.errno != 22:
+    except (ValueError, OSError) as e:
+        if isinstance(e, OSError) and e.errno != 22:
             raise
 
     new_name = dir_name
@@ -58,8 +58,8 @@ def mkdir_allow_fallback(dir_name: StrPath) -> Path:
             os.makedirs(new_name, exist_ok=True)
             logger.warning(f"Using '{new_name}' instead of '{dir_name}'")
             return Path(new_name)
-        except OSError as e:
-            if e.errno != 22:
+        except (ValueError, OSError) as e:
+            if isinstance(e, OSError) and e.errno != 22:
                 raise
 
     raise OSError(f"Unable to create directory '{dir_name}'")
