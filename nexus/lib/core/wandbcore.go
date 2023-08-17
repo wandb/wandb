@@ -3,60 +3,44 @@ package main
 import "C"
 
 import (
-	"fmt"
-
-	"context"
-
-	"github.com/wandb/wandb/nexus/internal/execbin"
-	"github.com/wandb/wandb/nexus/internal/launcher"
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
 )
 
-// global manager, initialized by wandbcore_setup
-var globManager *gowandb.Manager
-var globRuns *RunKeeper
-var forkCmd *execbin.ForkExecCmd
+// globals to keep track of the wandb session and any runs
+var wandbSession *gowandb.Session
+var wandbRuns *RunKeeper
 
 //export wandbcore_setup
 func wandbcore_setup() {
-	if globManager != nil {
+	if wandbSession != nil {
 		return
 	}
-	ctx := context.Background()
-	settings := gowandb.NewSettings()
-
 	var err error
-	forkCmd, err = launcher.Launch(nexusImage)
+	wandbSession, err = gowandb.NewSession(
+		session.WithCoreBinary(coreBinary),
+	)
 	if err != nil {
-		panic("error launching")
+		panic(err)
 	}
-
-	port, err := launcher.Getport()
-	if err != nil {
-		panic("error getting port")
-	}
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	globManager = gowandb.NewManager(ctx, settings, addr)
-	globRuns = NewRunKeeper()
+	wandbRuns = NewRunKeeper()
 }
 
 //export wandbcore_init
 func wandbcore_init() int {
 	wandbcore_setup()
 
-	run := globManager.NewRun()
-	num := globRuns.Add(run)
-
-	run.Setup()
-	run.Init()
-	run.Start()
-
+	run, err := wandbSession.NewRun()
+	if err != nil {
+		panic(err)
+	}
+	num := wandbRuns.Add(run)
 	return num
 }
 
 //export wandbcore_log_scaler
 func wandbcore_log_scaler(num int, log_key *C.char, log_value C.float) {
-	run := globRuns.Get(num)
+	run := wandbRuns.Get(num)
 	run.Log(map[string]float64{
 		C.GoString(log_key): float64(log_value),
 	})
@@ -64,15 +48,14 @@ func wandbcore_log_scaler(num int, log_key *C.char, log_value C.float) {
 
 //export wandbcore_finish
 func wandbcore_finish(num int) {
-	run := globRuns.Get(num)
+	run := wandbRuns.Get(num)
 	run.Finish()
 }
 
 //export wandbcore_teardown
 func wandbcore_teardown() {
-	globManager.Close()
-	globManager = nil
-	_ = forkCmd.Wait()
+	wandbSession.Close()
+	wandbSession = nil
 }
 
 func main() {

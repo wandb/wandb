@@ -8,4 +8,4 @@ import (
 //
 //go:generate go build -C ../.. -o lib/core/embed-nexus.bin cmd/nexus/main.go
 //go:embed embed-nexus.bin
-var nexusImage []byte
+var coreBinary []byte
