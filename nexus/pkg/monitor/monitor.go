@@ -115,12 +115,13 @@ func NewSystemMonitor(
 	return systemMonitor
 }
 
-func (sm *SystemMonitor) Do() {
-	//if sm.OutChan == nil {
-	//	sm.OutChan = make(chan *service.Record, BufferSize)
-	//}
+func (sm *SystemMonitor) Do(outChan publisher.Channel) {
 	if sm == nil {
 		return
+	}
+
+	if sm.OutChan == nil {
+		sm.OutChan = outChan
 	}
 
 	// reset context:

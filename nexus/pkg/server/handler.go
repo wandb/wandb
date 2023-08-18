@@ -83,6 +83,9 @@ type Handler struct {
 	// resultChan is the channel for returning results to the client
 	resultChan publisher.Channel
 
+	// inChan is the channel for incoming messages
+	inChan publisher.Channel
+
 	// timer is used to track the run start and execution times
 	timer Timer
 
@@ -118,7 +121,6 @@ func NewHandler(
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
 		recordChan:          make(chan *service.Record, BufferSize),
-		//resultChan:          make(chan *service.Result, BufferSize),
 	}
 	if !settings.XDisableStats.GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
@@ -137,6 +139,20 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 	if err != nil {
 		return
 	}
+}
+
+func (h *Handler) do(inChan publisher.Channel) {
+	h.inChan = inChan
+	for record := range h.inChan.Read() {
+		switch x := record.(type) {
+		case *service.Record:
+			h.handleRecord(x)
+		default:
+			err := fmt.Errorf("unknown record type: %T", x)
+			h.logger.CaptureError("stream got unknown record type", err)
+		}
+	}
+	h.close()
 }
 
 func (h *Handler) close() {
@@ -285,20 +301,6 @@ func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifa
 	h.sendRecord(record)
 }
 
-// startSystemMonitor starts the system monitor
-// func (h *Handler) startSystemMonitor() {
-//	//go func() {
-//	//	// this goroutine reads from the system monitor channel and writes
-//	//	// to the handler's record channel. it will exit when the system
-//	//	// monitor channel is closed
-//	//	for msg := range h.systemMonitor.OutChan {
-//	//		h.recordChan <- msg
-//	//	}
-//	//	h.logger.Debug("system monitor channel closed")
-//	//}()
-//
-// }
-
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
 	var ok bool
 	run := request.Run
@@ -324,10 +326,11 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	//if h.systemMonitor != nil {
-	//	h.startSystemMonitor()
-	//}
-	h.systemMonitor.Do()
+	if h.systemMonitor != nil {
+		ch := h.inChan.(*publisher.MultiChannel).Add()
+		h.systemMonitor.Do(ch)
+	}
+
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -345,19 +348,15 @@ func (h *Handler) handleCancel(record *service.Record) {
 
 func (h *Handler) handlePause() {
 	h.timer.Pause()
-	//if h.systemMonitor != nil {
-	//	h.systemMonitor.Stop()
-	//}
 	h.systemMonitor.Stop()
 }
 
 func (h *Handler) handleResume() {
 	h.timer.Resume()
-	//if h.systemMonitor != nil {
-	//	h.startSystemMonitor()
-	//}
-	// TODO: fix resume
-	h.systemMonitor.Do()
+	if h.systemMonitor != nil {
+		ch := h.inChan.(*publisher.MultiChannel).Add()
+		h.systemMonitor.Do(ch)
+	}
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {

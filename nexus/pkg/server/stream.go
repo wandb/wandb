@@ -108,20 +108,10 @@ func (s *Stream) Start() {
 	recCh := publisher.NewMultiWrite(&ch)
 	s.inChan = recCh.Add()
 	s.sender.recordChan = recCh.Add()
-	s.handler.systemMonitor.OutChan = recCh.Add()
 
 	s.wg.Add(1)
 	go func() {
-		for record := range recCh.Read() {
-			switch x := record.(type) {
-			case *service.Record:
-				s.handler.handleRecord(x)
-			default:
-				err := fmt.Errorf("unknown record type: %T", x)
-				s.logger.CaptureError("stream got unknown record type", err)
-			}
-		}
-		s.handler.close()
+		s.handler.do(s.inChan)
 		s.wg.Done()
 	}()
 
