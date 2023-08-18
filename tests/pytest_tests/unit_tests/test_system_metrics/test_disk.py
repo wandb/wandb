@@ -2,6 +2,8 @@ import threading
 
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Disk
+from wandb.sdk.internal.system.assets.disk import DiskIn, DiskOut
+from unittest.mock import Mock, patch, call
 from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 
@@ -24,14 +26,12 @@ def test_disk_metrics(test_settings):
         "disk": {
             "total": disk.probe()["disk"]["total"],
             "used": disk.probe()["disk"]["used"],
-            "disk i": disk.probe()["disk"]["disk i"],
-            "disk o": disk.probe()["disk"]["disk o"],
         }
     }
 
     assert disk.is_available()
 
-    assert disk.probe() != expected_metrics
+    assert disk.probe() == expected_metrics
 
     # # Test that the metrics_monitor was started & finished
     disk.start()
@@ -43,19 +43,17 @@ def test_disk_metrics(test_settings):
     assert not interface.metrics_queue.empty()
 
 
-# test individual metrics and make sure they behave - disk i and disk o
-# mockpsutil - saving a certain rate
+def test_disk_in():
+    with patch("psutil.disk_io_counters") as mock_disk_io_counters:
+        mock_disk_io_counters.return_value.read_bytes = 1024
+        disk_in = DiskIn()
+        disk_in.sample()
+        assert len(disk_in.samples) == 1
 
-# class MockPsutil:
-#     class MockDiskUsage:
-#         def __init__(self):
-#             self.total = 1000 * 1024 * 1024 * 1024  # 1000 GB in bytes
-#             self.used = 20 * 1024 * 1024 * 1024  # 20 GB in bytes
 
-#     class MockDiskIoCounters:
-#         def __init__(self):
-#             self.read_count = 100
-#             self.write_count = 200
-
-#     disk_usage = MockDiskUsage()
-#     disk_io_counters = MockDiskIoCounters()
+def test_disk_out():
+    with patch("psutil.disk_io_counters") as mock_disk_io_counters:
+        mock_disk_io_counters.return_value.write_bytes = 1024
+        disk_out = DiskOut()
+        disk_out.sample()
+        assert len(disk_out.samples) == 1
