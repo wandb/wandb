@@ -432,7 +432,10 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 					Control: record.Control,
 					Uuid:    record.Uuid,
 				}
-				s.resultChan.Send(s.ctx, result)
+				err := s.resultChan.Send(s.ctx, result)
+				if err != nil {
+					return
+				}
 			}
 			return
 		}
@@ -454,7 +457,10 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			Control: record.Control,
 			Uuid:    record.Uuid,
 		}
-		s.resultChan.Send(s.ctx, result)
+		err := s.resultChan.Send(s.ctx, result)
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -603,7 +609,10 @@ func (s *Sender) respondExit(record *service.Record) {
 			Control:    record.Control,
 			Uuid:       record.Uuid,
 		}
-		s.resultChan.Send(s.ctx, result)
+		err := s.resultChan.Send(s.ctx, result)
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -705,5 +714,8 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.resultChan.Send(s.ctx, result)
+	err = s.resultChan.Send(s.ctx, result)
+	if err != nil {
+		return
+	}
 }

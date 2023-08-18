@@ -133,7 +133,10 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	h.resultChan.Send(h.ctx, result)
+	err := h.resultChan.Send(h.ctx, result)
+	if err != nil {
+		return
+	}
 }
 
 func (h *Handler) close() {
@@ -278,7 +281,7 @@ func (h *Handler) handleDefer(record *service.Record) {
 	}
 }
 
-func (h *Handler) handleLogArtifact(record *service.Record, msg *service.LogArtifactRequest, resp *service.Response) {
+func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
 	h.sendRecord(record)
 }
 
