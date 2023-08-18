@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"sync"
 	"time"
+
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -191,7 +192,10 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 					case <-sm.ctx.Done():
 						return
 					default:
-						sm.OutChan.Send(sm.ctx, record)
+						err := sm.OutChan.Send(sm.ctx, record)
+						if err != nil {
+							return
+						}
 					}
 					asset.ClearMetrics()
 				}

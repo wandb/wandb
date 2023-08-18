@@ -36,9 +36,10 @@ func TestSendRun(t *testing.T) {
 	to := nexustest.MakeTestObject(t)
 	defer to.TeardownTest()
 
-	ch := channel{make(chan any, 1), nil}
+	ch := make(chan any, 1)
+	sendCh := publisher.NewMultiWrite(&ch)
 
-	sender := makeSender(to.MockClient, &ch)
+	sender := makeSender(to.MockClient, sendCh)
 
 	run := &service.Record{
 		RecordType: &service.Record_Run{
