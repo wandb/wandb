@@ -3,7 +3,7 @@ package observability
 import (
 	"context"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 type Tags map[string]string

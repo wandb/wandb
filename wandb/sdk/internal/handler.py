@@ -716,7 +716,7 @@ class HandleManager:
 
     def handle_request_resume(self, record: Record) -> None:
         if self._system_monitor is not None:
-            logger.info("starting system metrics thread or process")
+            logger.info("starting system metrics thread")
             self._system_monitor.start()
 
         if self._track_time is not None:
@@ -725,7 +725,7 @@ class HandleManager:
 
     def handle_request_pause(self, record: Record) -> None:
         if self._system_monitor is not None:
-            logger.info("stopping system metrics thread or process")
+            logger.info("stopping system metrics thread")
             self._system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time

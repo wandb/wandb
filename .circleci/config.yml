@@ -6,6 +6,7 @@ orbs:
   go: circleci/go@1.7.3
   gcloud: circleci/gcp-cli@3.1.0
   gke: circleci/gcp-gke@2.1.0
+  codecov: codecov/codecov@3
 
 parameters:
   manual:
@@ -453,7 +454,7 @@ jobs:
 
   gotest:
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.21
     steps:
       - checkout
       - run:
@@ -461,8 +462,8 @@ jobs:
           command: |
             cd nexus
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-# todo: add codecov
-#      - codecov/upload
+            # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
+      - codecov/upload
 
   protobuf-compatability:
     parameters:
@@ -543,11 +544,6 @@ jobs:
                 shell: bash.exe
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
-            - run:
-                name: Temporary conda hack
-                shell: bash.exe
-                command: |
-                  cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
@@ -1421,7 +1417,9 @@ workflows:
       #
       # Nexus unit tests
       #
-      - gotest
+      - gotest:
+          requires:
+            - "unit-tests"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
