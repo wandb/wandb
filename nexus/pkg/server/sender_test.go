@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
@@ -13,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func makeSender(client graphql.Client, resultChan chan *service.Result) Sender {
+func makeSender(client graphql.Client, resultChan publisher.Channel) Sender {
 	logger := observability.NewNexusLogger(SetupDefaultLogger(), nil)
 	sender := Sender{
 		logger: logger,
@@ -73,5 +74,5 @@ func TestSendRun(t *testing.T) {
 	))
 
 	sender.sendRecord(run)
-	<-sender.resultChan
+	<-sender.resultChan.Read()
 }

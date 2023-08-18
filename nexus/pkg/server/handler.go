@@ -3,8 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"time"
+
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
