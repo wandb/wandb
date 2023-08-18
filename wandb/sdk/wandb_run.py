@@ -1050,8 +1050,12 @@ class Run:
         self,
         root: Optional[str] = ".",
         name: Optional[str] = None,
-        include_fn: Callable[[str], bool] = _is_py_path,
-        exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
+        include_fn: Union[
+            Callable[[str, str], bool], Callable[[str], bool]
+        ] = _is_py_path,
+        exclude_fn: Union[
+            Callable[[str, str], bool], Callable[[str], bool]
+        ] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
         """Save the current state of your code to a W&B Artifact.
 
@@ -1062,11 +1066,13 @@ class Run:
             name: (str, optional) The name of our code artifact. By default, we'll name
                 the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
-            include_fn: A callable that accepts a file path and
+            include_fn: A callable that accepts a file path and (optionally) root path and
                 returns True when it should be included and False otherwise. This
-                defaults to: `lambda path: path.endswith(".py")`
-            exclude_fn: A callable that accepts a file path and returns `True` when it should be
-                excluded and `False` otherwise. This defaults to: `lambda path: False`
+                defaults to: `lambda path, root: path.endswith(".py")`
+            exclude_fn: A callable that accepts a file path and (optionally) root path and
+                returns `True` when it should be excluded and `False` otherwise. This
+                defaults to a function that excludes all files within `<root>/.wandb/`
+                and `<root>/wandb/` directories.
 
         Examples:
             Basic usage
@@ -1077,7 +1083,9 @@ class Run:
             Advanced usage
             ```python
             run.log_code(
-                "../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb")
+                "../",
+                include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"),
+                exclude_fn=lambda path, root: os.path.relpath(path, root).startswith("cache/"),
             )
             ```
 
@@ -1106,7 +1114,7 @@ class Run:
                 files_added = True
                 save_name = os.path.relpath(file_path, root)
                 art.add_file(file_path, name=save_name)
-        # Add any manually staged files such is ipynb notebooks
+        # Add any manually staged files such as ipynb notebooks
         for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
             for fname in files:
                 file_path = os.path.join(dirpath, fname)
@@ -1471,7 +1479,8 @@ class Run:
             summary_dict = {}
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
-            self.summary.update(summary_dict)
+            if summary_dict:
+                self.summary.update(summary_dict)
         self._step = self._get_starting_step()
 
         # update settings from run_obj
