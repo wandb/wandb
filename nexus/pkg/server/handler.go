@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
@@ -12,8 +13,56 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+// Timer is used to track the run start and execution times
+type Timer struct {
+	startTime   time.Time
+	resumeTime  time.Time
+	accumulated time.Duration
+	isStarted   bool
+	isPaused    bool
+}
+
+func (t *Timer) GetStartTimeMicro() float64 {
+	return float64(t.startTime.UnixMicro()) / 1e6
+}
+
+func (t *Timer) Start(startTime *time.Time) {
+	if startTime != nil {
+		t.startTime = *startTime
+	} else {
+		t.startTime = time.Now()
+	}
+	t.resumeTime = t.startTime
+	t.isStarted = true
+}
+
+func (t *Timer) Pause() {
+	if !t.isPaused {
+		elapsed := time.Since(t.resumeTime)
+		t.accumulated += elapsed
+		t.isPaused = true
+	}
+}
+
+func (t *Timer) Resume() {
+	if t.isPaused {
+		t.resumeTime = time.Now()
+		t.isPaused = false
+	}
+}
+
+func (t *Timer) Elapsed() time.Duration {
+	if !t.isStarted {
+		return 0
+	}
+	if t.isPaused {
+		return t.accumulated
+	}
+	return t.accumulated + time.Since(t.resumeTime)
+}
+
 // Handler is the handler for a stream
-// it handles the incoming messages process them
+// it handles the incoming messages, processes them
 // and passes them to the writer
 type Handler struct {
 	// ctx is the context for the handler
@@ -33,8 +82,8 @@ type Handler struct {
 	// to the client
 	resultChan chan *service.Result
 
-	// startTime is the start time
-	startTime float64
+	// timer is used to track the run start and execution times
+	timer Timer
 
 	// runRecord is the runRecord record received
 	// from the server
@@ -61,16 +110,17 @@ func NewHandler(
 	settings *service.Settings,
 	logger *observability.NexusLogger,
 ) *Handler {
-	// init the system monitor
-	systemMonitor := monitor.NewSystemMonitor(settings, logger)
+	// init the system monitor if stats are enabled
 	h := &Handler{
 		ctx:                 ctx,
 		settings:            settings,
 		logger:              logger,
-		systemMonitor:       systemMonitor,
 		consolidatedSummary: make(map[string]string),
 		recordChan:          make(chan *service.Record, BufferSize),
 		resultChan:          make(chan *service.Result, BufferSize),
+	}
+	if !settings.XDisableStats.GetValue() {
+		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
 	}
 	return h
 }
@@ -120,7 +170,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Config:
 		h.handleConfig(record)
 	case *service.Record_Exit:
-		h.handleExit(record)
+		h.handleExit(record, x.Exit)
 	case *service.Record_Files:
 		h.handleFiles(record)
 	case *service.Record_Final:
@@ -162,6 +212,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
 		h.handleDefer(record)
+		return
 	case *service.Request_GetSummary:
 		h.handleGetSummary(record, response)
 	case *service.Request_Keepalive:
@@ -181,6 +232,10 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
+	case *service.Request_Pause:
+		h.handlePause()
+	case *service.Request_Resume:
+		h.handleResume()
 	case *service.Request_Cancel:
 		h.handleCancel(record)
 	default:
@@ -200,6 +255,7 @@ func (h *Handler) handleDefer(record *service.Record) {
 		h.handleHistory(h.historyRecord)
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
+		h.handleSummary(nil, &service.SummaryRecord{})
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -220,11 +276,29 @@ func (h *Handler) handleLogArtifact(record *service.Record, msg *service.LogArti
 	h.sendRecord(record)
 }
 
+// startSystemMonitor starts the system monitor
+func (h *Handler) startSystemMonitor() {
+	go func() {
+		// this goroutine reads from the system monitor channel and writes
+		// to the handler's record channel. it will exit when the system
+		// monitor channel is closed
+		for msg := range h.systemMonitor.OutChan {
+			h.recordChan <- msg
+		}
+		h.logger.Debug("system monitor channel closed")
+	}()
+	h.systemMonitor.Do()
+}
+
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
 	var ok bool
 	run := request.Run
 
-	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
+	// start the run timer
+	h.timer = Timer{}
+	startTime := run.StartTime.AsTime()
+	h.timer.Start(&startTime)
+
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
 		err := fmt.Errorf("handleRunStart: failed to clone run")
 		h.logger.CaptureFatalAndPanic("error handling run start", err)
@@ -241,16 +315,9 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	go func() {
-		// this goroutine reads from the system monitor channel and writes
-		// to the handler's record channel. it will exit when the system
-		// monitor channel is closed
-		for msg := range h.systemMonitor.OutChan {
-			h.recordChan <- msg
-		}
-		h.logger.Debug("system monitor channel closed")
-	}()
-	h.systemMonitor.Do()
+	if h.systemMonitor != nil {
+		h.startSystemMonitor()
+	}
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -264,6 +331,20 @@ func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
 
 func (h *Handler) handleCancel(record *service.Record) {
 	h.sendRecord(record)
+}
+
+func (h *Handler) handlePause() {
+	h.timer.Pause()
+	if h.systemMonitor != nil {
+		h.systemMonitor.Stop()
+	}
+}
+
+func (h *Handler) handleResume() {
+	h.timer.Resume()
+	if h.systemMonitor != nil {
+		h.startSystemMonitor()
+	}
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
@@ -313,10 +394,19 @@ func (h *Handler) handleAlert(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) handleExit(record *service.Record) {
-	// stop the system monitor to ensure that we don't send any more system mh
+func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
+	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
-	h.systemMonitor.Stop()
+	if h.systemMonitor != nil {
+		h.systemMonitor.Stop()
+	}
+
+	// stop the run timer and set the runtime
+	h.timer.Pause()
+	runtime := int32(h.timer.Elapsed().Seconds())
+	exit.Runtime = runtime
+
+	// send the exit record
 	h.sendRecord(record)
 }
 
@@ -342,6 +432,14 @@ func (h *Handler) handleTelemetry(record *service.Record) {
 }
 
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
+
+	runtime := int32(h.timer.Elapsed().Seconds())
+
+	// update summary with runtime
+	summary.Update = append(summary.Update, &service.SummaryItem{
+		Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+	})
+
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
 	h.sendRecord(summaryRecord)
 }
