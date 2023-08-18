@@ -1516,8 +1516,9 @@ class Api:
         queue_name: str,
         launch_spec: Dict[str, str],
         project_queue: str,
+        queue_entity: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        entity = launch_spec["entity"]
+        entity = queue_entity or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
