@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/publisher"
-
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
 
@@ -124,20 +122,8 @@ func NewHandler(
 	if !settings.XDisableStats.GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
 	}
-	return h
-}
-
-// do this starts the handler
-func (h *Handler) do(inChan publisher.Channel) {
-	defer observability.Reraise()
-
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	for record := range inChan.Read() {
-		record := record.(*service.Record)
-		h.handleRecord(record)
-	}
-	h.close()
-	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
+	return h
 }
 
 func (h *Handler) sendResponse(record *service.Record, response *service.Response) {
@@ -152,6 +138,7 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 func (h *Handler) close() {
 	close(h.resultChan)
 	close(h.recordChan)
+	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
@@ -252,27 +239,42 @@ func (h *Handler) handleDefer(record *service.Record) {
 	request := record.GetRequest().GetDefer()
 	switch request.State {
 	case service.DeferRequest_BEGIN:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_RUN:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_STATS:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.handleHistory(h.historyRecord)
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_TB:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_OUTPUT:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_JOB:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_DIR:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_FP:
+		h.sendRecord(record)
 	case service.DeferRequest_JOIN_FP:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_FS:
+		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_FINAL:
+		h.sendRecord(record)
 	case service.DeferRequest_END:
+		h.sendRecord(record)
+		h.close()
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
 	}
-	h.sendRecord(record)
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record, msg *service.LogArtifactRequest, resp *service.Response) {

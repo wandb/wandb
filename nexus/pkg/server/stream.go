@@ -136,7 +136,11 @@ func (s *Stream) Start() {
 	s.handler = NewHandler(s.ctx, s.settings, s.logger)
 	s.wg.Add(1)
 	go func() {
-		s.handler.do(s.inChan)
+		// do this starts the handler
+		for record := range s.inChan.Read() {
+			record := record.(*service.Record)
+			s.handler.handleRecord(record)
+		}
 		s.wg.Done()
 	}()
 

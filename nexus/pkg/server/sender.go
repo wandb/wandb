@@ -273,7 +273,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		if s.exitRecord != nil {
 			s.respondExit(s.exitRecord)
 		}
-		// close(s.recordChan)
 		s.recordChan.Close()
 		close(s.resultChan)
 	default:
