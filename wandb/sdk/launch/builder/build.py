@@ -324,8 +324,10 @@ def generate_dockerfile(
     dockerfile: Optional[str] = None,
 ) -> str:
     if dockerfile:
-        # For non-image-based jobs, project_dir is always set. Image-based jobs don't require build
-        assert launch_project.project_dir is not None
+        # For non-image-based jobs, project_dir is always set
+        assert (
+            launch_project.project_dir is not None
+        ), "Attempted to find Dockerfile with no project dir set. Is this an image-based job?"
         path = os.path.join(launch_project.project_dir, dockerfile)
         if not os.path.exists(path):
             raise LaunchError(f"Dockerfile does not exist at {path}")
