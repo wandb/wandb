@@ -324,10 +324,8 @@ def generate_dockerfile(
     dockerfile: Optional[str] = None,
 ) -> str:
     if dockerfile:
-        if launch_project.project_dir is None:
-            raise LaunchError(
-                "Dockerfile override set but project_dir is None. Is this an image-based job?"
-            )
+        # For non-image-based jobs, project_dir is always set. Image-based jobs don't require build
+        assert launch_project.project_dir is not None
         path = os.path.join(launch_project.project_dir, dockerfile)
         if not os.path.exists(path):
             raise LaunchError(f"Dockerfile does not exist at {path}")
