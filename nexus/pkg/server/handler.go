@@ -286,18 +286,18 @@ func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifa
 }
 
 // startSystemMonitor starts the system monitor
-func (h *Handler) startSystemMonitor() {
-	//go func() {
-	//	// this goroutine reads from the system monitor channel and writes
-	//	// to the handler's record channel. it will exit when the system
-	//	// monitor channel is closed
-	//	for msg := range h.systemMonitor.OutChan {
-	//		h.recordChan <- msg
-	//	}
-	//	h.logger.Debug("system monitor channel closed")
-	//}()
-
-}
+// func (h *Handler) startSystemMonitor() {
+//	//go func() {
+//	//	// this goroutine reads from the system monitor channel and writes
+//	//	// to the handler's record channel. it will exit when the system
+//	//	// monitor channel is closed
+//	//	for msg := range h.systemMonitor.OutChan {
+//	//		h.recordChan <- msg
+//	//	}
+//	//	h.logger.Debug("system monitor channel closed")
+//	//}()
+//
+// }
 
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
 	var ok bool
