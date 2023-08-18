@@ -1,8 +1,10 @@
 package server
 
 import (
-	"github.com/wandb/wandb/nexus/pkg/publisher"
+	"context"
 	"testing"
+
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
@@ -17,6 +19,7 @@ import (
 func makeSender(client graphql.Client, resultChan publisher.Channel) Sender {
 	logger := observability.NewNexusLogger(SetupDefaultLogger(), nil)
 	sender := Sender{
+		ctx:    context.Background(),
 		logger: logger,
 		settings: &service.Settings{
 			RunId: &wrapperspb.StringValue{Value: "run1"},
@@ -33,7 +36,9 @@ func TestSendRun(t *testing.T) {
 	to := nexustest.MakeTestObject(t)
 	defer to.TeardownTest()
 
-	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
+	ch := channel{make(chan any, 1), nil}
+
+	sender := makeSender(to.MockClient, &ch)
 
 	run := &service.Record{
 		RecordType: &service.Record_Run{

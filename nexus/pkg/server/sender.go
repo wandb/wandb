@@ -273,7 +273,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		}
 		s.recordChan.Close()
 		s.resultChan.Close()
-		//close(s.resultChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)

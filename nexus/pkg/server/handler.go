@@ -80,9 +80,7 @@ type Handler struct {
 	// of the incoming messages, by the writer
 	recordChan chan *service.Record
 
-	// resultChan is the channel for returning results
-	// to the client
-	//resultChan chan *service.Result
+	// resultChan is the channel for returning results to the client
 	resultChan publisher.Channel
 
 	// timer is used to track the run start and execution times
@@ -139,7 +137,6 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 }
 
 func (h *Handler) close() {
-	//close(h.resultChan)
 	h.resultChan.Close()
 	close(h.recordChan)
 	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
