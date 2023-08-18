@@ -12,34 +12,6 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
-type channel struct {
-	ch chan any
-	wg *sync.WaitGroup
-}
-
-func (c *channel) Add() {
-	c.wg.Add(1)
-}
-
-func (c *channel) Read() <-chan any {
-	return c.ch
-}
-
-func (c *channel) Send(ctx context.Context, msg any) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case c.ch <- msg:
-		return nil
-	default:
-	}
-	return nil
-}
-
-func (c *channel) Close() {
-	c.wg.Done()
-}
-
 // Stream is a collection of components that work together to handle incoming
 // data for a W&B run, store it locally, and send it to a W&B server.
 // Stream.handler receives incoming data from the client and dispatches it to
@@ -132,10 +104,11 @@ func (s *Stream) Start() {
 	s.sender = NewSender(s.ctx, s.settings, s.logger)
 
 	// read the data from the client and dispatch it to the writer
-	recCh := &channel{ch: make(chan any, BufferSize), wg: &sync.WaitGroup{}}
-	recCh.wg.Add(2)
-	s.inChan = recCh
-	s.sender.recordChan = recCh
+	ch := make(chan any, BufferSize)
+	recCh := publisher.NewMultiWrite(&ch)
+	s.inChan = recCh.Add()
+	s.sender.recordChan = recCh.Add()
+	s.handler.systemMonitor.OutChan = recCh.Add()
 
 	s.wg.Add(1)
 	go func() {
@@ -148,13 +121,13 @@ func (s *Stream) Start() {
 				s.logger.CaptureError("stream got unknown record type", err)
 			}
 		}
+		s.handler.close()
 		s.wg.Done()
 	}()
 
 	s.wg.Add(1)
 	go func() {
-		recCh.wg.Wait()
-		close(recCh.ch)
+		recCh.Close()
 		s.wg.Done()
 	}()
 
@@ -173,10 +146,10 @@ func (s *Stream) Start() {
 	}()
 
 	// handle dispatching between components
-	resCh := &channel{ch: make(chan any, BufferSize), wg: &sync.WaitGroup{}}
-	resCh.wg.Add(2)
-	s.handler.resultChan = resCh
-	s.sender.resultChan = resCh
+	ch = make(chan any, BufferSize)
+	resCh := publisher.NewMultiWrite(&ch)
+	s.handler.resultChan = resCh.Add()
+	s.sender.resultChan = resCh.Add()
 
 	s.wg.Add(1)
 	go func() {
@@ -196,8 +169,7 @@ func (s *Stream) Start() {
 
 	s.wg.Add(1)
 	go func() {
-		resCh.wg.Wait()
-		close(resCh.ch)
+		resCh.Close()
 		s.wg.Done()
 	}()
 }
@@ -242,8 +214,8 @@ func (s *Stream) GetRun() *service.RunRecord {
 // This will finish the Stream's wait group, which will allow the stream to be
 // garbage collected.
 func (s *Stream) Close() {
-	// Close and wait for input channel to shut down
-	s.inChan.Close()
+	// Done and wait for input channel to shut down
+	s.inChan.Done()
 	s.wg.Wait()
 }
 

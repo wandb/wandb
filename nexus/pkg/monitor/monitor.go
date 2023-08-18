@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"sync"
 	"time"
 
@@ -71,7 +72,7 @@ type SystemMonitor struct {
 	assets []Asset
 
 	//	outChan is the channel for outgoing messages
-	OutChan chan *service.Record
+	OutChan publisher.Channel
 
 	// settings is the settings for the system monitor
 	settings *service.Settings
@@ -114,8 +115,11 @@ func NewSystemMonitor(
 }
 
 func (sm *SystemMonitor) Do() {
-	if sm.OutChan == nil {
-		sm.OutChan = make(chan *service.Record, BufferSize)
+	//if sm.OutChan == nil {
+	//	sm.OutChan = make(chan *service.Record, BufferSize)
+	//}
+	if sm == nil {
+		return
 	}
 
 	// reset context:
@@ -187,7 +191,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 					case <-sm.ctx.Done():
 						return
 					default:
-						sm.OutChan <- record
+						sm.OutChan.Send(sm.ctx, record)
 					}
 					asset.ClearMetrics()
 				}
@@ -201,10 +205,13 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 }
 
 func (sm *SystemMonitor) Stop() {
+	if sm == nil {
+		return
+	}
 	sm.logger.Info("Stopping system monitor")
 	sm.cancel()
 	sm.wg.Wait()
-	close(sm.OutChan)
+	sm.OutChan.Done()
 	sm.OutChan = nil
 	sm.logger.Info("Stopped system monitor")
 }

@@ -271,8 +271,8 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		if s.exitRecord != nil {
 			s.respondExit(s.exitRecord)
 		}
-		s.recordChan.Close()
-		s.resultChan.Close()
+		s.recordChan.Done()
+		s.resultChan.Done()
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)

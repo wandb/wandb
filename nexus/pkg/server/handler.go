@@ -140,7 +140,7 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 }
 
 func (h *Handler) close() {
-	h.resultChan.Close()
+	h.resultChan.Done()
 	close(h.recordChan)
 	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
@@ -206,7 +206,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
 		h.handleDefer(record)
-		// return
+		return
 	case *service.Request_GetSummary:
 		h.handleGetSummary(record, response)
 	case *service.Request_Keepalive:
@@ -240,6 +240,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 }
 
 func (h *Handler) handleDefer(record *service.Record) {
+	record = proto.Clone(record).(*service.Record)
 	request := record.GetRequest().GetDefer()
 	switch request.State {
 	case service.DeferRequest_BEGIN:
@@ -274,7 +275,6 @@ func (h *Handler) handleDefer(record *service.Record) {
 		h.sendRecord(record)
 	case service.DeferRequest_END:
 		h.sendRecord(record)
-		h.close()
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
@@ -287,16 +287,16 @@ func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifa
 
 // startSystemMonitor starts the system monitor
 func (h *Handler) startSystemMonitor() {
-	go func() {
-		// this goroutine reads from the system monitor channel and writes
-		// to the handler's record channel. it will exit when the system
-		// monitor channel is closed
-		for msg := range h.systemMonitor.OutChan {
-			h.recordChan <- msg
-		}
-		h.logger.Debug("system monitor channel closed")
-	}()
-	h.systemMonitor.Do()
+	//go func() {
+	//	// this goroutine reads from the system monitor channel and writes
+	//	// to the handler's record channel. it will exit when the system
+	//	// monitor channel is closed
+	//	for msg := range h.systemMonitor.OutChan {
+	//		h.recordChan <- msg
+	//	}
+	//	h.logger.Debug("system monitor channel closed")
+	//}()
+
 }
 
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
@@ -324,9 +324,10 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	if h.systemMonitor != nil {
-		h.startSystemMonitor()
-	}
+	//if h.systemMonitor != nil {
+	//	h.startSystemMonitor()
+	//}
+	h.systemMonitor.Do()
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -344,16 +345,19 @@ func (h *Handler) handleCancel(record *service.Record) {
 
 func (h *Handler) handlePause() {
 	h.timer.Pause()
-	if h.systemMonitor != nil {
-		h.systemMonitor.Stop()
-	}
+	//if h.systemMonitor != nil {
+	//	h.systemMonitor.Stop()
+	//}
+	h.systemMonitor.Stop()
 }
 
 func (h *Handler) handleResume() {
 	h.timer.Resume()
-	if h.systemMonitor != nil {
-		h.startSystemMonitor()
-	}
+	//if h.systemMonitor != nil {
+	//	h.startSystemMonitor()
+	//}
+	// TODO: fix resume
+	h.systemMonitor.Do()
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
