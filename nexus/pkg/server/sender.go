@@ -44,7 +44,7 @@ type Sender struct {
 	recordChan publisher.Channel
 
 	// resultChan is the channel for dispatcher messages
-	resultChan chan *service.Result
+	resultChan publisher.Channel
 
 	// graphqlClient is the graphql client
 	graphqlClient graphql.Client
@@ -86,7 +86,7 @@ func emptyAsNil(s *string) *string {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, publisher publisher.Channel) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
 
 	sender := &Sender{
 		ctx:        ctx,
@@ -94,8 +94,6 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		logger:     logger,
 		summaryMap: make(map[string]*service.SummaryItem),
 		configMap:  make(map[string]interface{}),
-		recordChan: publisher,
-		resultChan: make(chan *service.Result, BufferSize),
 		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
@@ -274,7 +272,8 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 			s.respondExit(s.exitRecord)
 		}
 		s.recordChan.Close()
-		close(s.resultChan)
+		s.resultChan.Close()
+		//close(s.resultChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -434,7 +433,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 					Control: record.Control,
 					Uuid:    record.Uuid,
 				}
-				s.resultChan <- result
+				s.resultChan.Send(s.ctx, result)
 			}
 			return
 		}
@@ -456,7 +455,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			Control: record.Control,
 			Uuid:    record.Uuid,
 		}
-		s.resultChan <- result
+		s.resultChan.Send(s.ctx, result)
 	}
 }
 
@@ -605,7 +604,7 @@ func (s *Sender) respondExit(record *service.Record) {
 			Control:    record.Control,
 			Uuid:       record.Uuid,
 		}
-		s.resultChan <- result
+		s.resultChan.Send(s.ctx, result)
 	}
 }
 
@@ -707,5 +706,5 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.resultChan <- result
+	s.resultChan.Send(s.ctx, result)
 }

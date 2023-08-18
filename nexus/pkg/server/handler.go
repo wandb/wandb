@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
@@ -80,7 +81,8 @@ type Handler struct {
 
 	// resultChan is the channel for returning results
 	// to the client
-	resultChan chan *service.Result
+	//resultChan chan *service.Result
+	resultChan publisher.Channel
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -117,7 +119,7 @@ func NewHandler(
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
 		recordChan:          make(chan *service.Record, BufferSize),
-		resultChan:          make(chan *service.Result, BufferSize),
+		//resultChan:          make(chan *service.Result, BufferSize),
 	}
 	if !settings.XDisableStats.GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
@@ -132,11 +134,12 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	h.resultChan <- result
+	h.resultChan.Send(h.ctx, result)
 }
 
 func (h *Handler) close() {
-	close(h.resultChan)
+	//close(h.resultChan)
+	h.resultChan.Close()
 	close(h.recordChan)
 	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }

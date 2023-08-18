@@ -37,7 +37,6 @@ func (c *channel) Send(ctx context.Context, msg any) error {
 }
 
 func (c *channel) Close() {
-	fmt.Println(">>> close channel")
 	c.wg.Done()
 }
 
@@ -128,59 +127,67 @@ func (s *Stream) handleRespond(result *service.Result) {
 func (s *Stream) Start() {
 	s.logger.Info("created new stream", "id", s.settings.RunId)
 
+	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	s.writer = NewWriter(s.ctx, s.settings, s.logger)
+	s.sender = NewSender(s.ctx, s.settings, s.logger)
+
+	// read the data from the client and dispatch it to the writer
 	recCh := &channel{ch: make(chan any, BufferSize), wg: &sync.WaitGroup{}}
 	recCh.wg.Add(2)
 	s.inChan = recCh
-	senderChan := recCh
+	s.sender.recordChan = recCh
 
-	s.handler = NewHandler(s.ctx, s.settings, s.logger)
 	s.wg.Add(1)
 	go func() {
-		// do this starts the handler
-		for record := range s.inChan.Read() {
-			record := record.(*service.Record)
-			s.handler.handleRecord(record)
+		for record := range recCh.Read() {
+			switch x := record.(type) {
+			case *service.Record:
+				s.handler.handleRecord(x)
+			default:
+				err := fmt.Errorf("unknown record type: %T", x)
+				s.logger.CaptureError("stream got unknown record type", err)
+			}
 		}
 		s.wg.Done()
 	}()
 
+	s.wg.Add(1)
+	go func() {
+		recCh.wg.Wait()
+		close(recCh.ch)
+		s.wg.Done()
+	}()
+
 	// write the data to a transaction log
-	s.writer = NewWriter(s.ctx, s.settings, s.logger)
 	s.wg.Add(1)
 	go func() {
 		s.writer.do(s.handler.recordChan)
 		s.wg.Done()
 	}()
 
-	s.sender = NewSender(s.ctx, s.settings, s.logger, senderChan)
+	// send the data to the server
 	s.wg.Add(1)
 	go func() {
 		s.sender.do(s.writer.recordChan)
 		s.wg.Done()
 	}()
 
-	s.logger.Debug("starting stream", "id", s.settings.RunId)
-
 	// handle dispatching between components
-	// TODO: revisit both of these as we probably just want to use the defer state machine
-	//  to resolve the order of closing. We can also use a single channel to handle
-	//  all the components, hence reducing the extra channels.
+	resCh := &channel{ch: make(chan any, BufferSize), wg: &sync.WaitGroup{}}
+	resCh.wg.Add(2)
+	s.handler.resultChan = resCh
+	s.sender.resultChan = resCh
+
 	s.wg.Add(1)
 	go func() {
-		for s.sender.resultChan != nil || s.handler.resultChan != nil {
-			select {
-			case result, ok := <-s.sender.resultChan:
-				if !ok {
-					s.sender.resultChan = nil
-					continue
-				}
-				s.handleRespond(result)
-			case result, ok := <-s.handler.resultChan:
-				if !ok {
-					s.handler.resultChan = nil
-					continue
-				}
-				s.handleRespond(result)
+		for result := range resCh.Read() {
+			switch x := result.(type) {
+			case *service.Result:
+				s.logger.Debug("dispatch: got result", "result", x)
+				s.handleRespond(x)
+			default:
+				err := fmt.Errorf("dispatch: got unknown type: %T", x)
+				s.logger.CaptureError("dispatch: got unknown type", err)
 			}
 		}
 		s.logger.Debug("dispatch: finished")
@@ -189,8 +196,8 @@ func (s *Stream) Start() {
 
 	s.wg.Add(1)
 	go func() {
-		recCh.wg.Wait()
-		close(recCh.ch)
+		resCh.wg.Wait()
+		close(resCh.ch)
 		s.wg.Done()
 	}()
 }
