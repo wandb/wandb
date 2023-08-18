@@ -252,8 +252,8 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
                   # install go
-                  wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-                  tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+                  wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
                   export PATH=$PATH:/usr/local/go/bin
                   go version
             - run:
@@ -338,8 +338,8 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
                   # install go
-                  wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-                  tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+                  wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
                   export PATH=$PATH:/usr/local/go/bin
                   go version
             - run:
@@ -420,8 +420,8 @@ jobs:
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
             # install go
-            wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-            tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+            wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
             export PATH=$PATH:/usr/local/go/bin
             go version
       - run:
@@ -431,14 +431,6 @@ jobs:
             pip install -U pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
-      - run:
-          name: Install Go
-          command: |
-            wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-            tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
-            PATH=/usr/local/go/bin:$PATH
-            go version
-          no_output_timeout: 1m
       - run:
           name: Run tests
           no_output_timeout: 10m
@@ -491,8 +483,8 @@ jobs:
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
             # install go
-            wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-            tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+            wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
             export PATH=$PATH:/usr/local/go/bin
             go version
       - run:
@@ -693,8 +685,8 @@ jobs:
                 command: |
                   sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
                   # install go
-                  wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-                  tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
+                  wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
                   export PATH=$PATH:/usr/local/go/bin
                   go version
             - run:
