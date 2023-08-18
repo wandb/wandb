@@ -414,9 +414,9 @@ class SendManager:
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
-        if type(dictionary) == dict:
+        if isinstance(dictionary, dict):
             for k, v in list(dictionary.items()):
-                if type(v) == dict:
+                if isinstance(v, dict):
                     self._flatten(v)
                     dictionary.pop(k)
                     for k2, v2 in v.items():
