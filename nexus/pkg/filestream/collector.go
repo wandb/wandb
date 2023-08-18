@@ -97,6 +97,7 @@ func (cr *chunkCollector) update(chunk processedChunk) {
 		cr.transmitData.Preempting = chunk.Preempting
 	}
 }
+
 func (cr *chunkCollector) addFileChunk(chunk processedChunk) {
 	if chunk.fileType != NoneChunk {
 		cr.fileChunks[chunk.fileType] = append(cr.fileChunks[chunk.fileType], chunk.fileLine)
