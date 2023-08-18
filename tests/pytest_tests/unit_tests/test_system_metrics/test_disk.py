@@ -44,16 +44,12 @@ def test_disk_metrics(test_settings):
 
 
 def test_disk_in():
-    with patch("psutil.disk_io_counters") as mock_disk_io_counters:
-        mock_disk_io_counters.return_value.read_bytes = 1024
-        disk_in = DiskIn()
-        disk_in.sample()
-        assert len(disk_in.samples) == 1
+    disk_in = DiskIn()
+    disk_in.sample()
+    assert len(disk_in.samples) == 1
 
 
 def test_disk_out():
-    with patch("psutil.disk_io_counters") as mock_disk_io_counters:
-        mock_disk_io_counters.return_value.write_bytes = 1024
-        disk_out = DiskOut()
-        disk_out.sample()
-        assert len(disk_out.samples) == 1
+    disk_out = DiskOut()
+    disk_out.sample()
+    assert len(disk_out.samples) == 1
