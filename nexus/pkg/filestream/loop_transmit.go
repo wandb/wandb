@@ -9,6 +9,14 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
+const (
+	phaseWait        = 1
+	phaseDelay       = 2
+	phaseProcess     = 3
+	phaseSend        = 4
+	phaseRecv        = 5
+)
+
 // FsTransmitData is serialized and sent to a W&B server
 type FsTransmitData struct {
 	Files      map[string]fsTransmitFileData `json:"files,omitempty"`
@@ -36,15 +44,21 @@ func (fs *FileStream) loopTransmit(inChan <-chan processedChunk) {
 		delayProcess:    fs.delayProcess,
 		maxItemsPerPush: fs.maxItemsPerPush,
 	}
+	track := fs.track
+	track.Start()
 	for !collector.isDone {
+		track.SetPhase(phaseWait)
 		if readMore := collector.read(); readMore {
+			track.SetPhase(phaseDelay)
 			collector.readMore()
 		}
+		track.SetPhase(phaseProcess)
 		data := collector.dump(fs.offsetMap)
 		if data != nil {
 			fs.send(data)
 		}
 	}
+	fs.track.Stop()
 }
 
 func (fs *FileStream) send(data interface{}) {
@@ -60,6 +74,7 @@ func (fs *FileStream) send(data interface{}) {
 		fs.logger.CaptureFatalAndPanic("filestream: error creating HTTP request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	fs.track.SetPhase(phaseSend)
 	resp, err := fs.httpClient.Do(req)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("filestream: error making HTTP request", err)
@@ -70,6 +85,8 @@ func (fs *FileStream) send(data interface{}) {
 		}
 	}(resp.Body)
 
+	fs.track.UpdateSize(len(jsonData))
+	fs.track.SetPhase(phaseRecv)
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
