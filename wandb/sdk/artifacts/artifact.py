@@ -4,7 +4,6 @@ import contextlib
 import json
 import multiprocessing.dummy
 import os
-import platform
 import re
 import shutil
 import tempfile
@@ -1916,13 +1915,14 @@ class Artifact:
         self._ensure_logged("files")
         return ArtifactFiles(self._client, self, names, per_page)
 
-    def _default_root(self, include_version: bool = True) -> str:
+    def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]
         root = os.path.join(env.get_artifact_dir(), name)
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(root)
-            root = head + tail.replace(":", "-")
-        return root
+        # In case we're on a system where the artifact dir has a name corresponding to
+        # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
+        # use that, otherwise we'll fall back to the system-preferred path.
+        path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
+        return FilePathStr(str(path))
 
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
