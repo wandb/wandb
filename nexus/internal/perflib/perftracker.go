@@ -5,8 +5,8 @@ package perflib
 // This tracker is purpose built for no allocation tracking of a process / goroutine.
 //
 // Why not opentelemetry?
-//   Why not both.  This is a subset of the functionality of otel.
 //
+//	Why not both.  This is a subset of the functionality of otel.
 type PerfTracker struct {
 }
 

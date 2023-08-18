@@ -37,8 +37,8 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/internal/perflib"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -93,7 +93,7 @@ type FileStream struct {
 	heartbeatTime   time.Duration
 
 	// keep track of performance characteristics
-	track           *perflib.PerfTracker
+	track *perflib.PerfTracker
 }
 
 type FileStreamOption func(fs *FileStream)

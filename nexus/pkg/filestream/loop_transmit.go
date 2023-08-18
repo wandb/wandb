@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	phaseWait        = 1
-	phaseDelay       = 2
-	phaseProcess     = 3
-	phaseSend        = 4
-	phaseRecv        = 5
+	phaseWait    = 1
+	phaseDelay   = 2
+	phaseProcess = 3
+	phaseSend    = 4
+	phaseRecv    = 5
 )
 
 // FsTransmitData is serialized and sent to a W&B server
