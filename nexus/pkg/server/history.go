@@ -49,7 +49,7 @@ func (h *Handler) handleHistoryInternal(history *service.HistoryRecord, historyM
 		if err != nil {
 			h.logger.CaptureError("error parsing timestamp", err)
 		} else {
-			runTime = val - h.startTime
+			runTime = val - h.timer.GetStartTimeMicro()
 		}
 	}
 	history.Item = append(history.Item,
