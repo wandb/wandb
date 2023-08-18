@@ -206,7 +206,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
 		h.handleDefer(record)
-		return
+		// return
 	case *service.Request_GetSummary:
 		h.handleGetSummary(record, response)
 	case *service.Request_Keepalive:
