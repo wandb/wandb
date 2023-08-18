@@ -41,7 +41,10 @@ func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpd
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.resultChan.Send(s.ctx, result)
+	err := s.resultChan.Send(s.ctx, result)
+	if err != nil {
+		return
+	}
 
 }
 
