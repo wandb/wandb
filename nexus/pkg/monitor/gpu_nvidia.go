@@ -43,25 +43,8 @@ func (g *GPUNvidia) SampleMetrics() {
 	}
 
 	start := time.Now()
-	ret := nvml.Init()
-	elapsed := time.Since(start)
-	fmt.Println("nvml.Init() took", elapsed)
-	if ret != nvml.SUCCESS {
-		log.Fatalf("Unable to initialize NVML: %v", nvml.ErrorString(ret))
-	}
-	//defer func() {
-	//	start = time.Now()
-	//	ret := nvml.Shutdown()
-	//	elapsed = time.Since(start)
-	//	fmt.Println("nvml.Shutdown() took", elapsed)
-	//	if ret != nvml.SUCCESS {
-	//		log.Fatalf("Unable to shut down NVML: %v", nvml.ErrorString(ret))
-	//	}
-	//}()
-
-	start = time.Now()
 	count, ret := nvml.DeviceGetCount()
-	elapsed = time.Since(start)
+	elapsed := time.Since(start)
 	fmt.Println("nvml.DeviceGetCount() took", elapsed)
 	if ret != nvml.SUCCESS {
 		log.Fatalf("Unable to get device count: %v", nvml.ErrorString(ret))
@@ -117,10 +100,14 @@ func (g *GPUNvidia) IsAvailable() bool {
 }
 
 func (g *GPUNvidia) Close() {
+	start := time.Now()
 	ret := nvml.Shutdown()
+	elapsed := time.Since(start)
+	fmt.Println("nvml.Shutdown() took", elapsed)
 	if ret != nvml.SUCCESS {
-		// log.Debug("Unable to shut down NVML: %v", nvml.ErrorString(ret))
+		return
 	}
+	fmt.Println("nvml.Shutdown() successful")
 }
 
 func (g *GPUNvidia) Probe() map[string]map[string]interface{} {
