@@ -20,19 +20,19 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	return gpu
 }
 
-func (c *GPUNvidia) Name() string { return c.name }
+func (g *GPUNvidia) Name() string { return g.name }
 
-func (c *GPUNvidia) SampleMetrics() {}
+func (g *GPUNvidia) SampleMetrics() {}
 
-func (c *GPUNvidia) AggregateMetrics() map[string]float64 {
+func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 	return map[string]float64{}
 }
 
-func (c *GPUNvidia) ClearMetrics() {}
+func (g *GPUNvidia) ClearMetrics() {}
 
-func (c *GPUNvidia) IsAvailable() bool { return false }
+func (g *GPUNvidia) IsAvailable() bool { return false }
 
-func (c *GPUNvidia) Probe() map[string]map[string]interface{} {
+func (g *GPUNvidia) Probe() map[string]map[string]interface{} {
 	info := make(map[string]map[string]interface{})
 	return info
 }

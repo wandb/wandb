@@ -203,8 +203,17 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 
 func (sm *SystemMonitor) Stop() {
 	sm.logger.Info("Stopping system monitor")
+	// signal to stop monitoring the assets
 	sm.cancel()
+	// wait for all assets to stop monitoring
 	sm.wg.Wait()
+	// close the assets, if they require any cleanup
+	for _, asset := range sm.assets {
+		if closer, ok := asset.(interface{ Close() }); ok {
+			closer.Close()
+		}
+	}
+	// close the outgoing channel
 	close(sm.OutChan)
 	sm.OutChan = nil
 	sm.logger.Info("Stopped system monitor")

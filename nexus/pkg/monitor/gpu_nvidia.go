@@ -18,6 +18,7 @@ type GPUNvidia struct {
 	metrics  map[string][]float64
 	settings *service.Settings
 	mutex    sync.RWMutex
+	nvmlInit nvml.Return
 }
 
 func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
@@ -30,11 +31,16 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	return gpu
 }
 
-func (c *GPUNvidia) Name() string { return c.name }
+func (g *GPUNvidia) Name() string { return g.name }
 
-func (c *GPUNvidia) SampleMetrics() {
+func (g *GPUNvidia) SampleMetrics() {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
+	// we would only call this method if nvml is available
+	if g.nvmlInit == nil {
+		return
+	}
 
 	start := time.Now()
 	ret := nvml.Init()
@@ -43,15 +49,15 @@ func (c *GPUNvidia) SampleMetrics() {
 	if ret != nvml.SUCCESS {
 		log.Fatalf("Unable to initialize NVML: %v", nvml.ErrorString(ret))
 	}
-	defer func() {
-		start = time.Now()
-		ret := nvml.Shutdown()
-		elapsed = time.Since(start)
-		fmt.Println("nvml.Shutdown() took", elapsed)
-		if ret != nvml.SUCCESS {
-			log.Fatalf("Unable to shutdown NVML: %v", nvml.ErrorString(ret))
-		}
-	}()
+	//defer func() {
+	//	start = time.Now()
+	//	ret := nvml.Shutdown()
+	//	elapsed = time.Since(start)
+	//	fmt.Println("nvml.Shutdown() took", elapsed)
+	//	if ret != nvml.SUCCESS {
+	//		log.Fatalf("Unable to shut down NVML: %v", nvml.ErrorString(ret))
+	//	}
+	//}()
 
 	start = time.Now()
 	count, ret := nvml.DeviceGetCount()
@@ -81,7 +87,7 @@ func (c *GPUNvidia) SampleMetrics() {
 	fmt.Println("nvml.DeviceGetHandleByIndex() took", elapsed)
 }
 
-func (c *GPUNvidia) AggregateMetrics() map[string]float64 {
+func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -94,29 +100,30 @@ func (c *GPUNvidia) AggregateMetrics() map[string]float64 {
 	return aggregates
 }
 
-func (c *GPUNvidia) ClearMetrics() {
+func (g *GPUNvidia) ClearMetrics() {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
 	c.metrics = map[string][]float64{}
 }
 
-func (c *GPUNvidia) IsAvailable() bool {
-	ret := nvml.Init()
-	defer func() {
-		ret := nvml.Shutdown()
-		if ret != nvml.SUCCESS {
-			// log.Debug("Unable to shut down NVML: %v", nvml.ErrorString(ret))
-		}
-	}()
+func (g *GPUNvidia) IsAvailable() bool {
+	g.nvmlInit = nvml.Init()
 
-	if ret == nvml.SUCCESS {
+	if g.nvmlInit == nvml.SUCCESS {
 		return true
 	}
 	return false
 }
 
-func (c *GPUNvidia) Probe() map[string]map[string]interface{} {
+func (g *GPUNvidia) Close() {
+	ret := nvml.Shutdown()
+	if ret != nvml.SUCCESS {
+		// log.Debug("Unable to shut down NVML: %v", nvml.ErrorString(ret))
+	}
+}
+
+func (g *GPUNvidia) Probe() map[string]map[string]interface{} {
 	info := make(map[string]map[string]interface{})
 	// todo: add GPU info
 	return info
