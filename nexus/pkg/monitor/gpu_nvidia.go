@@ -34,8 +34,8 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 func (g *GPUNvidia) Name() string { return g.name }
 
 func (g *GPUNvidia) SampleMetrics() {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
 
 	// we would only call this method if nvml is available
 	if g.nvmlInit != nvml.SUCCESS {
@@ -88,11 +88,11 @@ func (g *GPUNvidia) SampleMetrics() {
 }
 
 func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
 
 	aggregates := make(map[string]float64)
-	for metric, samples := range c.metrics {
+	for metric, samples := range g.metrics {
 		if len(samples) > 0 {
 			aggregates[metric] = Average(samples)
 		}
@@ -101,10 +101,10 @@ func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 }
 
 func (g *GPUNvidia) ClearMetrics() {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
 
-	c.metrics = map[string][]float64{}
+	g.metrics = map[string][]float64{}
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
