@@ -65,6 +65,27 @@ func (g *GPUNvidia) SampleMetrics() {
 		for pi, processInfo := range processInfos {
 			fmt.Printf("\t[%2d] ProcessInfo: %+v\n", pi, processInfo)
 		}
+
+		// device utilization
+		utilization, ret := device.GetUtilizationRates()
+		if ret != nvml.SUCCESS {
+			log.Fatalf("Unable to get utilization for device at index %d: %v", di, nvml.ErrorString(ret))
+		}
+		key := fmt.Sprintf("gpu.%d.gpu", di)
+		g.metrics[key] = append(
+			g.metrics[key],
+			float64(utilization.Gpu),
+		)
+
+		// memory used
+		if ret != nvml.SUCCESS {
+			log.Fatalf("Unable to get memory info for device at index %d: %v", di, nvml.ErrorString(ret))
+		}
+		key = fmt.Sprintf("gpu.%d.memory", di)
+		g.metrics[key] = append(
+			g.metrics[key],
+			float64(utilization.Memory),
+		)
 	}
 	elapsed = time.Since(start)
 	fmt.Println("nvml.DeviceGetHandleByIndex() took", elapsed)
