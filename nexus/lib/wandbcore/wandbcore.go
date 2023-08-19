@@ -50,6 +50,7 @@ func wandbcoreLogScaler(num int, log_key *C.char, log_value C.float) {
 func wandbcoreFinish(num int) {
 	run := wandbRuns.Get(num)
 	run.Finish()
+	wandbRuns.Remove(num)
 }
 
 //export wandbcoreTeardown
