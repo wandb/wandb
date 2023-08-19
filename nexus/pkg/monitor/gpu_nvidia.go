@@ -246,10 +246,7 @@ func (g *GPUNvidia) IsAvailable() bool {
 	elapsed := time.Since(start)
 	fmt.Println("nvml.Init() took", elapsed)
 
-	if g.nvmlInit == nvml.SUCCESS {
-		return true
-	}
-	return false
+	return g.nvmlInit == nvml.SUCCESS
 }
 
 func (g *GPUNvidia) Close() {
