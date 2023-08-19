@@ -134,6 +134,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	// recover from panic and log the error
 	defer func() {
 		sm.wg.Done()
+		// paranoia: recover from a panic that should never happen :)
 		if err := recover(); err != nil {
 			e := fmt.Errorf("%v", err)
 			sm.logger.CaptureError("monitor: panic", e)
