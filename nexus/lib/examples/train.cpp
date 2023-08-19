@@ -7,8 +7,10 @@ int main() {
         // Add more settings as needed
     });
 
+    auto session = wandb::Session(settings);
+
     // Initialize run with settings
-    wandb::Run run = wandb::initRun(settings);
+    wandb::Run run = session.initRun(settings);
 
     // Example data to log
     std::unordered_map<std::string, double> data = {

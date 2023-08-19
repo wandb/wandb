@@ -13,6 +13,14 @@ Settings::Settings(std::unordered_map<std::string, std::string>)
 {
 }
 
+Session::Session()
+{
+}
+
+Session::Session(Settings settings)
+{
+}
+
 Run::Run()
 {
     this->_num = 0;
@@ -38,7 +46,7 @@ void _session_setup() {
     atexit(_session_teardown);
 }
 
-Run _initRun(Settings *settings = NULL) {
+Run Session::_initRun(Settings *settings = NULL) {
     _session_setup();
     int n = wandbcoreInit();
     auto r = Run();
@@ -46,11 +54,11 @@ Run _initRun(Settings *settings = NULL) {
     return r;
 }
 
-Run initRun() {
+Run Session::initRun() {
     return _initRun(NULL);
 }
 
-Run initRun(Settings settings) {
+Run Session::initRun(Settings settings) {
     return _initRun(&settings);
 }
 
