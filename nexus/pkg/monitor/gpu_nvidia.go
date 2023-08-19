@@ -38,7 +38,7 @@ func (g *GPUNvidia) SampleMetrics() {
 	defer c.mutex.RUnlock()
 
 	// we would only call this method if nvml is available
-	if g.nvmlInit == nil {
+	if g.nvmlInit != nvml.SUCCESS {
 		return
 	}
 
