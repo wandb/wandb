@@ -91,7 +91,10 @@ func (g *GPUNvidia) ClearMetrics() {
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
+	start := time.Now()
 	g.nvmlInit = nvml.Init()
+	elapsed := time.Since(start)
+	fmt.Println("nvml.Init() took", elapsed)
 
 	if g.nvmlInit == nvml.SUCCESS {
 		return true
