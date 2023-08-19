@@ -50,8 +50,10 @@ class NexusBase:
             env["GOOS"] = goos
         if goarch:
             env["GOARCH"] = goarch
-        # if not an arm mac, disable cgo. cgo is needed on arm macs to build the
-        # gopsutil dependency, otherwise several system metrics will be unavailable.
+        # cgo is needed on:
+        #  - arm macs to build the gopsutil dependency,
+        #    otherwise several system metrics will be unavailable.
+        #  - linux to build the dependencies needed to get GPU metrics.
         if not cgo_enabled:
             env["CGO_ENABLED"] = "0"
         os.makedirs(nexus_path.parent, exist_ok=True)
