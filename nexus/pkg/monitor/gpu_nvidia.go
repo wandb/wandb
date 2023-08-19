@@ -253,14 +253,7 @@ func (g *GPUNvidia) IsAvailable() bool {
 }
 
 func (g *GPUNvidia) Close() {
-	start := time.Now()
-	ret := nvml.Shutdown()
-	elapsed := time.Since(start)
-	fmt.Println("nvml.Shutdown() took", elapsed)
-	if ret != nvml.SUCCESS {
-		return
-	}
-	fmt.Println("nvml.Shutdown() successful")
+	nvml.Shutdown()
 }
 
 func (g *GPUNvidia) Probe() map[string]map[string]interface{} {
