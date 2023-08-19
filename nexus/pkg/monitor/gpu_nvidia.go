@@ -57,7 +57,10 @@ func (g *GPUNvidia) SampleMetrics() {
 			log.Fatalf("Unable to get device at index %d: %v", di, nvml.ErrorString(ret))
 		}
 
+		start = time.Now()
 		processInfos, ret := device.GetComputeRunningProcesses()
+		elapsed = time.Since(start)
+		fmt.Println("nvml.DeviceGetComputeRunningProcesses() took", elapsed)
 		if ret != nvml.SUCCESS {
 			log.Fatalf("Unable to get process info for device at index %d: %v", di, nvml.ErrorString(ret))
 		}
@@ -67,17 +70,20 @@ func (g *GPUNvidia) SampleMetrics() {
 		}
 
 		// device utilization
+		start = time.Now()
 		utilization, ret := device.GetUtilizationRates()
+		elapsed = time.Since(start)
+		fmt.Println("nvml.DeviceGetUtilizationRates() took", elapsed)
 		if ret != nvml.SUCCESS {
 			log.Fatalf("Unable to get utilization for device at index %d: %v", di, nvml.ErrorString(ret))
 		}
+		// gpu utilization rate
 		key := fmt.Sprintf("gpu.%d.gpu", di)
 		g.metrics[key] = append(
 			g.metrics[key],
 			float64(utilization.Gpu),
 		)
-
-		// memory used
+		// memory utilization rate
 		if ret != nvml.SUCCESS {
 			log.Fatalf("Unable to get memory info for device at index %d: %v", di, nvml.ErrorString(ret))
 		}
@@ -85,6 +91,63 @@ func (g *GPUNvidia) SampleMetrics() {
 		g.metrics[key] = append(
 			g.metrics[key],
 			float64(utilization.Memory),
+		)
+
+		// memory allocated
+		memoryInfo, ret := device.GetMemoryInfo()
+		if ret != nvml.SUCCESS {
+			log.Fatalf("Unable to get memory info for device at index %d: %v", di, nvml.ErrorString(ret))
+		}
+		key = fmt.Sprintf("gpu.%d.memoryAllocated", di)
+		g.metrics[key] = append(
+			g.metrics[key],
+			float64(memoryInfo.Used)/float64(memoryInfo.Total)*100,
+		)
+		// memory allocated (bytes)
+		key = fmt.Sprintf("gpu.%d.memoryAllocatedBytes", di)
+		g.metrics[key] = append(
+			g.metrics[key],
+			float64(memoryInfo.Used),
+		)
+
+		// gpu temperature
+		temperature, ret := device.GetTemperature(nvml.TEMPERATURE_GPU)
+		if ret != nvml.SUCCESS {
+			log.Fatalf("Unable to get temperature for device at index %d: %v", di, nvml.ErrorString(ret))
+		}
+		key = fmt.Sprintf("gpu.%d.temp", di)
+		g.metrics[key] = append(
+			g.metrics[key],
+			float64(temperature),
+		)
+
+		// gpu power usage (W)
+		powerUsage, ret := device.GetPowerUsage()
+		if ret != nvml.SUCCESS {
+			log.Fatalf("Unable to get power usage for device at index %d: %v", di, nvml.ErrorString(ret))
+		}
+		key = fmt.Sprintf("gpu.%d.powerWatts", di)
+		g.metrics[key] = append(
+			g.metrics[key],
+			float64(powerUsage)/1000,
+		)
+
+		// gpu power limit (W)
+		powerLimit, ret := device.GetEnforcedPowerLimit()
+		if ret != nvml.SUCCESS {
+			log.Fatalf("Unable to get power limit for device at index %d: %v", di, nvml.ErrorString(ret))
+		}
+		key = fmt.Sprintf("gpu.%d.powerLimitWatts", di)
+		g.metrics[key] = append(
+			g.metrics[key],
+			float64(powerLimit)/1000,
+		)
+
+		// gpu power usage (%)
+		key = fmt.Sprintf("gpu.%d.powerPercent", di)
+		g.metrics[key] = append(
+			g.metrics[key],
+			float64(powerUsage)/float64(powerLimit)*100,
 		)
 	}
 	elapsed = time.Since(start)
