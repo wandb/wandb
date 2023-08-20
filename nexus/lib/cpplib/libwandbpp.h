@@ -11,6 +11,8 @@ typedef std::variant<
   double
   > Value;
 
+typedef std::unordered_map<std::string, wandb::Value> History;
+
 namespace settings {
 typedef struct settings_options_s {
     bool offline;
