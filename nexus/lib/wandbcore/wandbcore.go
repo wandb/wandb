@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"unsafe"
+
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
 )
@@ -53,10 +54,10 @@ func wandbcoreLogScaler(num int, log_key *C.char, log_value C.float) {
 //export wandbcoreLogDoubles
 func wandbcoreLogDoubles(num int, flags C.uchar, cLength C.int, cKeys **C.cchar_t, cDoubles *C.double) {
 	run := wandbRuns.Get(num)
-        keys := unsafe.Slice(cKeys, cLength)
-        doubles := unsafe.Slice(cDoubles, cLength)
+	keys := unsafe.Slice(cKeys, cLength)
+	doubles := unsafe.Slice(cDoubles, cLength)
 	logs := make(map[string]float64)
-	for i := range(keys) {
+	for i := range keys {
 		logs[C.GoString(keys[i])] = float64(doubles[i])
 	}
 	commit := (flags != 0)
