@@ -13,7 +13,7 @@ int main() {
     wandb::History data = {
         {"val", 3.14 + i},
         {"val2", 1.23 + i},
-        {"val23", int(1)},
+        {"val23", 1},
     };
     run.log(data);
   }
