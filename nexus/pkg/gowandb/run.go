@@ -118,7 +118,7 @@ func (r *Run) start() {
 	handle.wait()
 }
 
-func (r *Run) Log(data map[string]float64) {
+func (r *Run) logCommit(data map[string]float64) {
 	history := service.PartialHistoryRequest{}
 	for key, value := range data {
 		strValue := strconv.FormatFloat(value, 'f', -1, 64)
@@ -144,6 +144,14 @@ func (r *Run) Log(data map[string]float64) {
 	if err != nil {
 		return
 	}
+}
+
+func (r *Run) LogPartial(data map[string]float64, commit bool) {
+	r.logCommit(data)
+}
+
+func (r *Run) Log(data map[string]float64) {
+	r.LogPartial(data, true)
 }
 
 func (r *Run) Finish() {

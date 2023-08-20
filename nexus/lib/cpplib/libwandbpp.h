@@ -1,4 +1,5 @@
 #include <string>
+#include <vector>
 #include <unordered_map>
 
 namespace wandb {
@@ -18,6 +19,8 @@ public:
   Run();
   Run(Settings settings);
   void log(std::unordered_map<std::string, double>&);
+  // void log(std::vector<std::pair<std::string, double>>&);
+  void log(std::vector<const char *>&, std::vector<double>&);
   void finish();
   friend class Session;
 };

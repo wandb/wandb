@@ -1,8 +1,12 @@
 package main
 
+/*
+typedef const char cchar_t;
+*/
 import "C"
 
 import (
+	"unsafe"
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
 )
@@ -44,6 +48,19 @@ func wandbcoreLogScaler(num int, log_key *C.char, log_value C.float) {
 	run.Log(map[string]float64{
 		C.GoString(log_key): float64(log_value),
 	})
+}
+
+//export wandbcoreLogDoubles
+func wandbcoreLogDoubles(num int, flags C.uchar, cLength C.int, cKeys **C.cchar_t, cDoubles *C.double) {
+	run := wandbRuns.Get(num)
+        keys := unsafe.Slice(cKeys, cLength)
+        doubles := unsafe.Slice(cDoubles, cLength)
+	logs := make(map[string]float64)
+	for i := range(keys) {
+		logs[C.GoString(keys[i])] = float64(doubles[i])
+	}
+	commit := (flags != 0)
+	run.LogPartial(logs, commit)
 }
 
 //export wandbcoreFinish

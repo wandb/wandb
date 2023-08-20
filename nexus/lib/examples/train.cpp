@@ -15,6 +15,7 @@ int main() {
     // Example data to log
     std::unordered_map<std::string, double> data = {
         {"val", 3.14},
+        {"val2", 1.23},
         // Add other data entries as needed
     };
     run.log(data);
