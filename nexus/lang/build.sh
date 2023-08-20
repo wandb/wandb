@@ -15,22 +15,22 @@ rm -rf tmpbuild
 mkdir tmpbuild
 # build binary
 cd ..
-go build -o lib/tmpbuild/embed-nexus.bin cmd/nexus/main.go
+go build -o lang/tmpbuild/embed-nexus.bin cmd/nexus/main.go
 cd -
 
 # build shared-library
-cp wandbcore/*.go tmpbuild/
+cp core/*.go tmpbuild/
 cd tmpbuild/
-go build -buildmode c-shared -o ../export/libwandbcore.so *.go
-go build -buildmode c-archive -o ../export/libwandbcore.a *.go
-mv ../export/libwandbcore.so ../export/libwandbcore.a ../export/lib/
-mv ../export/libwandbcore.h ../export/include/
+go build -buildmode c-shared -o ../export/libwandb_core.so *.go
+go build -buildmode c-archive -o ../export/libwandb_core.a *.go
+mv ../export/libwandb_core.so ../export/libwandb_core.a ../export/lib/
+mv ../export/libwandb_core.h ../export/include/
 cd -
 rm -rf tmpbuild/
 
 # build c library
 mkdir tmpbuild/
-cp clib/* tmpbuild/
+cp c/lib/* tmpbuild/
 cd tmpbuild/
 gcc -c -Wall -Werror -fpic -I../export/include/ -I. libwandb.c
 if [ "x$(uname -o)" = "xDarwin" ]; then
@@ -47,29 +47,29 @@ rm -rf tmpbuild/
 
 # build cpp library
 mkdir tmpbuild/
-cp cpplib/* tmpbuild/
+cp cpp/lib/* tmpbuild/
 cd tmpbuild/
-g++ -c -Wall -Werror -fpic -I../export/include/ -I. libwandbpp.cpp
+g++ -c -Wall -Werror -fpic -I../export/include/ -I. libwandb_cpp.cpp
 if [ "x$(uname -o)" = "xDarwin" ]; then
-    g++ -shared -undefined dynamic_lookup -o libwandbpp.so libwandbpp.o
+    g++ -shared -undefined dynamic_lookup -o libwandb_cpp.so libwand_cpp.o
 else
-    g++ -shared -o libwandbpp.so libwandbpp.o
+    g++ -shared -o libwandb_cpp.so libwandb_cpp.o
 fi
-chmod -x libwandbpp.so
-ar rcs libwandbpp.a libwandbpp.o
-mv libwandbpp.so libwandbpp.a ../export/lib/
-mv libwandbpp.h ../export/include/
+chmod -x libwandb_cpp.so
+ar rcs libwandb_cpp.a libwandb_cpp.o
+mv libwandb_cpp.so libwandb_cpp.a ../export/lib/
+mv libwandb_cpp.h ../export/include/
 cd -
 rm -rf tmpbuild/
 
 # build client prog
 cd examples/
-LD_RUN_PATH="$PWD/../export/lib/" gcc train.c -o ../export/examples/train -I../export/include/ -L../export/lib/ -lwandb -lwandbcore
+LD_RUN_PATH="$PWD/../export/lib/" gcc train.c -o ../export/examples/train -I../export/include/ -L../export/lib/ -lwandb -lwandb_core
 # gcc train.c -o ../export/examples/train-staticlibs -I../export/include/ -L../export/lib/ -l:libwandb.a -l:libwandbcore.a
 # gcc train.c -static -o ../export/examples/train-static -I../export/include/ -L../export/lib/ -l:libwandb.a -l:libwandbcore.a
 cd -
 
 # build client prog (cpp)
 cd examples/
-LD_RUN_PATH="$PWD/../export/lib/" g++ train.cpp -o ../export/examples/traincpp -I../export/include/ -L../export/lib/ -lwandbpp -lwandbcore
+LD_RUN_PATH="$PWD/../export/lib/" g++ train.cpp -o ../export/examples/traincpp -I../export/include/ -L../export/lib/ -lwandb_cpp -lwandb_core
 cd -

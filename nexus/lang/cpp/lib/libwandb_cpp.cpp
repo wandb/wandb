@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <libwandbpp.h>
-#include <libwandbcore.h>
+#include <libwandb_cpp.h>
+#include <libwandb_core.h>
 
 namespace wandb {
 
@@ -110,7 +110,10 @@ Run Session::initRun(Settings settings) {
 
 Run _initRun(Settings *settings = NULL) {
     auto s = Session::GetInstance();
-    return s->initRun(*settings);
+    if (settings != nullptr) {
+    	return s->initRun(*settings);
+    }
+    return s->initRun();
 }
 
 Run initRun(Settings settings) {

@@ -1,4 +1,4 @@
-#include <libwandbpp.h>
+#include <libwandb_cpp.h>
 
 int main() {
     wandb::Settings settings(
