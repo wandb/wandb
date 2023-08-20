@@ -12,15 +12,17 @@ int main() {
     // Initialize run with settings
     wandb::Run run = session.initRun(settings);
 
-    // Example data to log
-    std::unordered_map<std::string, double> data = {
-        {"val", 3.14},
-        {"val2", 1.23},
-        // Add other data entries as needed
-    };
-    run.log(data);
+    for (int i = 0; i < 5; i++) {
+        // Example data to log
+        std::unordered_map<std::string, double> data = {
+            {"val", 3.14 + i},
+            {"val2", 1.23 + i},
+        };
+        run.log(data);
+    }
 
-    // run.finish();
+    // Complete the run
+    run.finish();
 
     return 0;
 }
