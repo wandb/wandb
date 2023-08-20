@@ -36,7 +36,7 @@ func main() {
 		panic(err)
 	}
 
-	data := map[string]interface{}
+	data := make(gowandb.History)
 	for i := 0; i < *numHistoryElements; i++ {
 		data[fmt.Sprintf("loss_%d", i)] = float64(100 + i)
 	}
