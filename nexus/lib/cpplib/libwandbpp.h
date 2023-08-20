@@ -59,7 +59,19 @@ public:
   static Session *GetInstance();
 };
 
-Run initRun(Settings settings);
-Run initRun();
+namespace run {
+class InitRunOption {
+public:
+  InitRunOption();
+};
+
+class WithSettings : public InitRunOption {
+public:
+  WithSettings(Settings s);
+};
+}
+
+// Run initRun(Settings settings);
+Run initRun(std::initializer_list<run::InitRunOption>);
 
 }

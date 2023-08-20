@@ -121,4 +121,16 @@ Run initRun() {
     return _initRun(NULL);
 }
 
+Run initRun(std::initializer_list<run::InitRunOption> options) {
+    return _initRun(NULL);
+}
+
+namespace run {
+InitRunOption::InitRunOption() {
+}
+
+WithSettings::WithSettings(Settings s) {
+}
+}
+
 }
