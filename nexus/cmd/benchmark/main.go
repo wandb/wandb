@@ -36,7 +36,7 @@ func main() {
 		panic(err)
 	}
 
-	data := map[string]float64{}
+	data := map[string]interface{}
 	for i := 0; i < *numHistoryElements; i++ {
 		data[fmt.Sprintf("loss_%d", i)] = float64(100 + i)
 	}
