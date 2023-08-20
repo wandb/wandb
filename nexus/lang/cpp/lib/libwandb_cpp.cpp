@@ -69,7 +69,7 @@ void _session_setup() {
 
 Session *Session::GetInstance() {
   if (defaultSession_ == nullptr) {
-    new Session(NULL);
+    new Session(nullptr);
   }
   return defaultSession_;
 }
@@ -82,11 +82,11 @@ Run Session::_initRun(Settings *settings) {
   return r;
 }
 
-Run Session::initRun() { return _initRun(NULL); }
+Run Session::initRun() { return _initRun(nullptr); }
 
 Run Session::initRun(Settings settings) { return _initRun(&settings); }
 
-Run _initRun(Settings *settings = NULL) {
+Run _initRun(Settings *settings = nullptr) {
   auto s = Session::GetInstance();
   if (settings != nullptr) {
     return s->initRun(*settings);
@@ -96,10 +96,10 @@ Run _initRun(Settings *settings = NULL) {
 
 Run initRun(Settings settings) { return _initRun(&settings); }
 
-Run initRun() { return _initRun(NULL); }
+Run initRun() { return _initRun(nullptr); }
 
 Run initRun(std::initializer_list<run::InitRunOption> options) {
-  return _initRun(NULL);
+  return _initRun(nullptr);
 }
 
 namespace run {
