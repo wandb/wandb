@@ -2,8 +2,8 @@ package gowandb
 
 import (
 	"context"
-	"log/slog"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -15,11 +15,11 @@ type Settings map[string]interface{}
 
 type Run struct {
 	// ctx is the context for the run
-	ctx      context.Context
-	settings *service.Settings
-	conn     *Connection
-	wg       sync.WaitGroup
-	run      *service.RunRecord
+	ctx            context.Context
+	settings       *service.Settings
+	conn           *Connection
+	wg             sync.WaitGroup
+	run            *service.RunRecord
 	partialHistory map[string]interface{}
 }
 
