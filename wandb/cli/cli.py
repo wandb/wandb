@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+from wandb.sdk.service import _startup_debug
+if _startup_debug.is_enabled():
+    _startup_debug.print_message("cli")
+
 import configparser
 import datetime
 import getpass
