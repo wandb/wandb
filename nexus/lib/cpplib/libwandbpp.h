@@ -46,12 +46,18 @@ public:
 
 class Session {
 private:
-  Run _initRun(Settings *settings);
+  Run _initRun(Settings *settings = NULL);
+  static Session *defaultSession_;
+  Session(Settings *settings = NULL);
 public:
-  Session();
-  Session(Settings settings);
+  Session() : Session(NULL) {}
+  Session(Settings settings) : Session(&settings) {}
   Run initRun();
   Run initRun(Settings settings);
+  static Session *GetInstance();
 };
+
+Run initRun(Settings settings);
+Run initRun();
 
 }

@@ -8,10 +8,11 @@ int main() {
 	}
     );
 
-    auto session = wandb::Session(settings);
+    // auto session = wandb::Session(settings);
 
     // Initialize run with settings
-    wandb::Run run = session.initRun(settings);
+    // wandb::Run run = session.initRun(settings);
+    auto run = initRun(settings);
 
     for (int i = 0; i < 5; i++) {
         // Example data to log

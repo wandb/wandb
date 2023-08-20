@@ -6,6 +6,9 @@
 
 namespace wandb {
 
+// Setup global session
+Session *Session::defaultSession_ = nullptr;
+
 Settings::Settings()
 {
 }
@@ -17,12 +20,10 @@ Settings::Settings(std::unordered_map<std::string, std::string>)
 Settings::Settings(settings::Options options) {
 }
 
-Session::Session()
+Session::Session(Settings *settings)
 {
-}
-
-Session::Session(Settings settings)
-{
+    // set static so future calls to functions initRun() have a default session
+    defaultSession_ = this;
 }
 
 Run::Run()
@@ -84,7 +85,14 @@ void _session_setup() {
     atexit(_session_teardown);
 }
 
-Run Session::_initRun(Settings *settings = NULL) {
+Session *Session::GetInstance() {
+    if (defaultSession_ == nullptr) {
+	    new Session(NULL);
+    }
+    return defaultSession_;
+}
+
+Run Session::_initRun(Settings *settings) {
     _session_setup();
     int n = wandbcoreInit();
     auto r = Run();
@@ -98,6 +106,19 @@ Run Session::initRun() {
 
 Run Session::initRun(Settings settings) {
     return _initRun(&settings);
+}
+
+Run _initRun(Settings *settings = NULL) {
+    auto s = Session::GetInstance();
+    return s->initRun(*settings);
+}
+
+Run initRun(Settings settings) {
+    return _initRun(&settings);
+}
+
+Run initRun() {
+    return _initRun(NULL);
 }
 
 }
