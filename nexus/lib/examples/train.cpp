@@ -1,11 +1,12 @@
 #include <libwandbpp.h>
+#include <iostream>
 
 int main() {
-    wandb::Settings settings({
-        {"setting1", "this"},
-        {"setting2", "that"},
-        // Add more settings as needed
-    });
+    wandb::Settings settings(
+        (wandb::settings::Options){
+	    .offline = false,
+	}
+    );
 
     auto session = wandb::Session(settings);
 
@@ -14,9 +15,10 @@ int main() {
 
     for (int i = 0; i < 5; i++) {
         // Example data to log
-        std::unordered_map<std::string, double> data = {
+        std::unordered_map<std::string, wandb::Value> data = {
             {"val", 3.14 + i},
             {"val2", 1.23 + i},
+            {"val23", int(1)},
         };
         run.log(data);
     }

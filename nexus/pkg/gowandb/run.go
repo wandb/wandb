@@ -3,8 +3,8 @@ package gowandb
 import (
 	"context"
 	"log/slog"
+	"encoding/json"
 	"os"
-	"strconv"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
@@ -20,6 +20,7 @@ type Run struct {
 	conn     *Connection
 	wg       sync.WaitGroup
 	run      *service.RunRecord
+	partialHistory map[string]interface{}
 }
 
 // NewRun creates a new run with the given settings and responders.
@@ -30,6 +31,7 @@ func NewRun(ctx context.Context, settings *service.Settings, conn *Connection) *
 		conn:     conn,
 		wg:       sync.WaitGroup{},
 	}
+	run.resetPartialHistory()
 	return run
 }
 
@@ -118,13 +120,17 @@ func (r *Run) start() {
 	handle.wait()
 }
 
-func (r *Run) logCommit(data map[string]float64) {
+func (r *Run) logCommit(data map[string]interface{}) {
 	history := service.PartialHistoryRequest{}
 	for key, value := range data {
-		strValue := strconv.FormatFloat(value, 'f', -1, 64)
+		// strValue := strconv.FormatFloat(value, 'f', -1, 64)
+		data, err := json.Marshal(value)
+		if err != nil {
+			panic(err)
+		}
 		history.Item = append(history.Item, &service.HistoryItem{
 			Key:       key,
-			ValueJson: strValue,
+			ValueJson: string(data),
 		})
 	}
 	request := service.Request{
@@ -146,11 +152,25 @@ func (r *Run) logCommit(data map[string]float64) {
 	}
 }
 
-func (r *Run) LogPartial(data map[string]float64, commit bool) {
-	r.logCommit(data)
+func (r *Run) resetPartialHistory() {
+	r.partialHistory = make(map[string]interface{})
 }
 
-func (r *Run) Log(data map[string]float64) {
+func (r *Run) LogPartial(data map[string]interface{}, commit bool) {
+	for k, v := range data {
+		r.partialHistory[k] = v
+	}
+	if commit {
+		r.LogPartialCommit()
+	}
+}
+
+func (r *Run) LogPartialCommit() {
+	r.logCommit(r.partialHistory)
+	r.resetPartialHistory()
+}
+
+func (r *Run) Log(data map[string]interface{}) {
 	r.LogPartial(data, true)
 }
 

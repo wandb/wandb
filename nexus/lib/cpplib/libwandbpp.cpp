@@ -14,6 +14,9 @@ Settings::Settings(std::unordered_map<std::string, std::string>)
 {
 }
 
+Settings::Settings(settings::Options options) {
+}
+
 Session::Session()
 {
 }
@@ -27,39 +30,44 @@ Run::Run()
     this->_num = 0;
 }
 
-void Run::log(std::vector<const char *>& keys, std::vector<double>& values)
+void Run::logPartialCommit()
 {
-    wandbcoreLogDoubles(this->_num, 1, keys.size(), &keys[0], &values[0]);
+    wandbcoreLogCommit(this->_num);
 }
 
-void Run::log(std::unordered_map<std::string, double>& myMap)
+void Run::log(std::vector<const char *>& keys, std::vector<double>& values, bool commit)
 {
-    std::vector<const char *> keys;
-    std::vector<double> values;
-    keys.reserve(myMap.size());
-    values.reserve(myMap.size());
+    wandbcoreLogDoubles(this->_num, commit, keys.size(), &keys[0], &values[0]);
+}
 
-    for ( const auto &[key, value] : myMap ) {
-	keys.push_back(key.c_str());
-	values.push_back(value);
-    }
-    this->log(keys, values);
+void Run::log(std::vector<const char *>& keys, std::vector<int>& values, bool commit)
+{
+    wandbcoreLogInts(this->_num, commit, keys.size(), &keys[0], &values[0]);
+}
 
-    /*
-    std::string key = "junk";
-    wandbcoreLogScaler(this->_num, (char *)key.c_str(), 2.3);
-    int count = 3;
-    char *keys[3];
-    double vals[3];
-    int i;
-    char buf[80];
-    for (i=0; i < count; i++) {
-	sprintf(buf, "junk%d", i);
-        keys[i] = strdup(buf);
-	vals[i] = i*2.5;
+void Run::log(std::unordered_map<std::string, Value>& myMap)
+{
+    std::vector<const char *> keyDoubles;
+    std::vector<const char *> keyInts;
+    std::vector<double> valDoubles;
+    std::vector<int> valInts;
+
+    for ( const auto &[key, val] : myMap ) {
+        if (std::holds_alternative<int>(val)) {
+            keyInts.push_back(key.c_str());
+            valInts.push_back(std::get<int>(val));
+	} else if (std::holds_alternative<double>(val)) {
+            keyDoubles.push_back(key.c_str());
+            valDoubles.push_back(std::get<double>(val));
+        }
     }
-    wandbcoreLogDoubles(this->_num, 0, count, keys, vals);
-    */
+    if (keyDoubles.size()) {
+        this->log(keyDoubles, valDoubles, false);
+    }
+    if (keyInts.size()) {
+        this->log(keyInts, valInts, false);
+    }
+    this->logPartialCommit();
 }
 
 void Run::finish()
