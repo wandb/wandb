@@ -74,7 +74,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576)
 	dec := json.NewDecoder(r.Body)
-	var msg filestream.FsData
+	var msg filestream.FsTransmitData
 	err := dec.Decode(&msg)
 	if err != nil {
 		fmt.Println("ERROR", err)

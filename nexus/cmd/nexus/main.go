@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"log/slog"
 	_ "net/http/pprof"
 	"os"
 	"runtime"
@@ -11,7 +12,6 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/server"
-	"golang.org/x/exp/slog"
 )
 
 // this is set by the build script and used by the observability package
@@ -30,7 +30,7 @@ func main() {
 	pid := flag.Int("pid", 0, "pid")
 	debug := flag.Bool("debug", false, "debug mode")
 	noAnalytics := flag.Bool("no-observability", false, "turn off observability")
-	// todo: remove these flags, they are here for backwards compatibility
+	// todo: remove these flags, they are here for backward compatibility
 	serveSock := flag.Bool("serve-sock", false, "use sockets")
 	serveGrpc := flag.Bool("serve-grpc", false, "use grpc")
 

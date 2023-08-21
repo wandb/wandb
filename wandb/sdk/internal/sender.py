@@ -414,9 +414,9 @@ class SendManager:
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
-        if type(dictionary) == dict:
+        if isinstance(dictionary, dict):
             for k, v in list(dictionary.items()):
-                if type(v) == dict:
+                if isinstance(v, dict):
                     self._flatten(v)
                     dictionary.pop(k)
                     for k2, v2 in v.items():
@@ -1512,6 +1512,7 @@ class SendManager:
             client_id=artifact.client_id,
             sequence_client_id=artifact.sequence_client_id,
             metadata=metadata,
+            ttl_duration_seconds=artifact.ttl_duration_seconds or None,
             description=artifact.description or None,
             aliases=artifact.aliases,
             use_after_commit=artifact.use_after_commit,
