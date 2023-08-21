@@ -3,11 +3,11 @@ package server
 import (
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"golang.org/x/exp/slog"
 )
 
 func setupLogger(opts *slog.HandlerOptions, writers ...io.Writer) *slog.Logger {

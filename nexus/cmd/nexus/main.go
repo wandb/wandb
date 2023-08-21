@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"log/slog"
 	_ "net/http/pprof"
 	"os"
 	"runtime"
@@ -12,6 +11,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/server"
+	"golang.org/x/exp/slog"
 )
 
 // this is set by the build script and used by the observability package
