@@ -85,13 +85,8 @@ func NewSystemMonitor(
 	settings *service.Settings,
 	logger *observability.NexusLogger,
 ) *SystemMonitor {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	systemMonitor := &SystemMonitor{
-		ctx:      ctx,
-		cancel:   cancel,
 		wg:       sync.WaitGroup{},
-		OutChan:  make(chan *service.Record, BufferSize),
 		settings: settings,
 		logger:   logger,
 	}
@@ -106,6 +101,7 @@ func NewSystemMonitor(
 		NewCPU(settings),
 		NewDisk(settings),
 		NewNetwork(settings),
+		NewGPUNvidia(settings),
 	}
 
 	// if asset is available, add it to the list of assets to monitor
@@ -119,10 +115,12 @@ func NewSystemMonitor(
 }
 
 func (sm *SystemMonitor) Do() {
-	// if stats are disabled, do nothing
-	if sm.settings.XDisableStats.GetValue() {
-		return
+	if sm.OutChan == nil {
+		sm.OutChan = make(chan *service.Record, BufferSize)
 	}
+
+	// reset context:
+	sm.ctx, sm.cancel = context.WithCancel(context.Background())
 
 	sm.logger.Info("Starting system monitor")
 	// start monitoring the assets
@@ -205,8 +203,18 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 
 func (sm *SystemMonitor) Stop() {
 	sm.logger.Info("Stopping system monitor")
+	// signal to stop monitoring the assets
 	sm.cancel()
+	// wait for all assets to stop monitoring
 	sm.wg.Wait()
+	// close the assets, if they require any cleanup
+	for _, asset := range sm.assets {
+		if closer, ok := asset.(interface{ Close() }); ok {
+			closer.Close()
+		}
+	}
+	// close the outgoing channel
 	close(sm.OutChan)
+	sm.OutChan = nil
 	sm.logger.Info("Stopped system monitor")
 }

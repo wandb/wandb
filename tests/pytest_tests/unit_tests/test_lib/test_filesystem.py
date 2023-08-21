@@ -7,15 +7,19 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest import mock
 from unittest.mock import patch
 
 import pytest
 from pyfakefs.fake_filesystem import OSType
 from wandb.sdk.lib.filesystem import (
+    check_exists,
     copy_or_overwrite_changed,
+    mkdir_allow_fallback,
     mkdir_exists_ok,
     safe_copy,
     safe_open,
+    system_preferred_path,
 )
 
 
@@ -441,3 +445,69 @@ def test_safe_copy_with_links(tmp_path: Path, src_link, dest_link):
     safe_copy(source_path, target_path)
 
     assert target_path.read_text("utf-8") == source_content
+
+
+@pytest.mark.skipif(platform.system() == "Windows", reason="':' not allowed in paths.")
+def test_check_exists(tmp_path):
+    path_with_colon = tmp_path / "file:name.txt"
+    path_with_dash = tmp_path / "file-name.txt"
+
+    assert check_exists(path_with_colon) is None
+
+    path_with_colon.touch()
+    assert check_exists(path_with_colon) == path_with_colon
+
+    path_with_colon.unlink()
+    path_with_dash.touch()
+    assert check_exists(path_with_colon) == path_with_dash
+
+    path_with_colon.touch()
+    assert check_exists(path_with_colon) == path_with_colon
+
+
+def test_system_preferred_path():
+    path = "C:/path:with:colon.txt"
+    windows = "C:/path-with-colon.txt"
+    if platform.system() == "Windows":
+        assert system_preferred_path(path) == windows
+    else:
+        assert system_preferred_path(path) == path
+
+
+def test_system_preferred_path_warning(caplog):
+    path = Path("path:with/colon.txt")
+    with mock.patch("platform.system", return_value="Windows"):
+        system_preferred_path(path, warn=True)
+        assert f"Replacing ':' in {path} with '-'" in caplog.text
+
+
+def test_mkdir_allow_fallback_success(tmp_path):
+    dir_name = tmp_path / "valid" / "directory"
+    assert mkdir_allow_fallback(dir_name) == dir_name
+    assert dir_name.exists()
+
+
+def test_mkdir_allow_fallback_with_problematic_chars(tmp_path):
+    dir_name = tmp_path / "pr\0blematic:directory*with<chars"
+    result_dir = mkdir_allow_fallback(dir_name)
+    assert result_dir.is_dir()
+
+
+def test_mkdir_allow_fallback_with_unexpected_error(tmp_path):
+    with mock.patch("os.makedirs", side_effect=OSError(1, "Unexpected error")):
+        with pytest.raises(OSError, match="Unexpected error"):
+            mkdir_allow_fallback("some_directory")
+
+
+def test_mkdir_allow_fallback_with_uncreatable_directory(tmp_path):
+    dir_name = tmp_path / "uncreatable" / "directory"
+    with mock.patch("os.makedirs", side_effect=OSError(22, "Invalid argument")):
+        with pytest.raises(OSError, match="Unable to create directory"):
+            mkdir_allow_fallback(dir_name)
+
+
+def test_mkdir_allow_fallback_with_warning(caplog, tmp_path):
+    dir_name = tmp_path / "direct\0ry"
+    new_name = tmp_path / "direct-ry"
+    assert mkdir_allow_fallback(dir_name) == new_name
+    assert f"Creating '{new_name}' instead of '{dir_name}'" in caplog.text

@@ -179,3 +179,34 @@ def test_artifact_version(wandb_init):
 
     assert artifact.version == "v0"
     assert artifact.source_version == "v1"
+
+
+def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
+    entity, project = logged_artifact.entity, logged_artifact.project
+
+    draft = logged_artifact.new_draft()
+    draft._type = "futz"
+    with pytest.raises(ValueError, match="already exists with type 'dataset'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
+
+    draft = logged_artifact.new_draft()
+    draft._source_entity = "mistaken"
+    with pytest.raises(ValueError, match="can't be moved to 'mistaken'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
+
+    draft = logged_artifact.new_draft()
+    draft._source_project = "wrong"
+    with pytest.raises(ValueError, match="can't be moved to 'wrong'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
+
+
+def test_run_metadata(wandb_init):
+    project = "test_metadata"
+    run = wandb_init(project=project)
+    run.finish()
+
+    metadata = Api().run(f"{run.entity}/{project}/{run.id}").metadata
+    assert len(metadata)

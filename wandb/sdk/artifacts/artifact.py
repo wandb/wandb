@@ -4,7 +4,6 @@ import contextlib
 import json
 import multiprocessing.dummy
 import os
-import platform
 import re
 import shutil
 import tempfile
@@ -333,8 +332,20 @@ class Artifact:
         """
         self._ensure_logged("new_draft")
 
+        # Name, _entity and _project are set to the *source* name/entity/project:
+        # if this artifact is saved it must be saved to the source sequence.
         artifact = Artifact(self.source_name.split(":")[0], self.type)
+        artifact._entity = self._source_entity
+        artifact._project = self._source_project
+        artifact._source_entity = self._source_entity
+        artifact._source_project = self._source_project
+
+        # This artifact's parent is the one we are making a draft from.
         artifact._base_id = self.id
+
+        # We can reuse the client, and copy over all the attributes that aren't
+        # version-dependent and don't depend on having been logged.
+        artifact._client = self._client
         artifact._description = self.description
         artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(
@@ -725,7 +736,12 @@ class Artifact:
         if wandb.run is None:
             if settings is None:
                 settings = wandb.Settings(silent="true")
-            with wandb.init(project=project, job_type="auto", settings=settings) as run:
+            with wandb.init(
+                entity=self._source_entity,
+                project=project or self._source_project,
+                job_type="auto",
+                settings=settings,
+            ) as run:
                 # redoing this here because in this branch we know we didn't
                 # have the run at the beginning of the method
                 if self._incremental:
@@ -1899,13 +1915,14 @@ class Artifact:
         self._ensure_logged("files")
         return ArtifactFiles(self._client, self, names, per_page)
 
-    def _default_root(self, include_version: bool = True) -> str:
+    def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]
         root = os.path.join(env.get_artifact_dir(), name)
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(root)
-            root = head + tail.replace(":", "-")
-        return root
+        # In case we're on a system where the artifact dir has a name corresponding to
+        # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
+        # use that, otherwise we'll fall back to the system-preferred path.
+        path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
+        return FilePathStr(str(path))
 
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
