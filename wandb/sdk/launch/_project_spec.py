@@ -118,7 +118,7 @@ class LaunchProject:
         if override_entrypoint:
             _logger.info("Adding override entry point")
             self.override_entrypoint = EntryPoint(
-                " ".join(override_entrypoint[0]), override_entrypoint
+                override_entrypoint[1], override_entrypoint
             )
 
         if overrides.get("sweep_id") is not None:
