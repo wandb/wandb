@@ -1583,9 +1583,10 @@ class Artifact:
 
         # If the entry is a reference from another artifact, then get it directly from
         # that artifact.
-        if entry._is_artifact_reference():
+        referenced_id = entry._get_referenced_artifact_id()
+        if referenced_id:
             assert self._client is not None
-            artifact = entry._get_referenced_artifact(self._client)
+            artifact = self._from_id(referenced_id, client=self._client)
             return artifact.get(util.uri_from_path(entry.ref))
 
         # Special case for wandb.Table. This is intended to be a short term
@@ -2204,9 +2205,10 @@ class Artifact:
                 json.loads(util.ensure_text(request.content))
             )
         for entry in self.manifest.entries.values():
-            if entry._is_artifact_reference():
+            referenced_id = entry._get_referenced_artifact_id()
+            if referenced_id:
                 assert self._client is not None
-                dep_artifact = entry._get_referenced_artifact(self._client)
+                dep_artifact = self._from_id(referenced_id, client=self._client)
                 self._dependent_artifacts.add(dep_artifact)
 
     @staticmethod
