@@ -532,7 +532,7 @@ def test_reflink_platform_dispatch(monkeypatch, system, exception):
     with pytest.raises(type(exception), match=re.escape(str(exception))):
         reflink("target", "link")
 
-        
+
 @pytest.mark.skipif(platform.system() == "Windows", reason="':' not allowed in paths.")
 def test_check_exists(tmp_path):
     path_with_colon = tmp_path / "file:name.txt"
