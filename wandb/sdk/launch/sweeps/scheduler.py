@@ -104,7 +104,8 @@ class Scheduler(ABC):
         sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
-        project_queue: Optional[str] = None,
+        project_queue: Optional[str] = None,  # deprecated
+        queue_project: Optional[str] = None,
         num_workers: Optional[Union[int, str]] = None,
         **kwargs: Optional[Any],
     ):
@@ -148,7 +149,8 @@ class Scheduler(ABC):
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
         self._polling_sleep = polling_sleep or DEFAULT_POLLING_SLEEP
-        self._project_queue = project_queue
+        self._project_queue = project_queue  # deprecated
+        self._queue_project = queue_project or project_queue
         # Optionally run multiple workers in (pseudo-)parallel. Workers do not
         # actually run training workloads, they simply send heartbeat messages
         # (emulating a real agent) and add new runs to the launch queue. The
@@ -698,7 +700,7 @@ class Scheduler(ABC):
             project=self._project,
             entity=self._entity,
             queue_name=self._kwargs.get("queue"),
-            project_queue=self._project_queue,
+            queue_project=self._queue_project,
             resource=_job_launch_config.get("resource"),
             resource_args=_job_launch_config.get("resource_args"),
             author=self._kwargs.get("author"),

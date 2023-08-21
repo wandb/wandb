@@ -668,7 +668,7 @@ class LaunchAgent:
 
                 launch_add(
                     config=config,
-                    project_queue=self._project,
+                    queue_project=self._project,
                     queue_name=job_tracker.queue,
                 )
                 return True

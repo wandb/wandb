@@ -19,12 +19,18 @@ def push_to_queue(
     api: Api,
     queue_name: str,
     launch_spec: Dict[str, Any],
-    project_queue: str,
+    project_queue: Optional[str] = None,
     queue_entity: Optional[str] = None,
+    queue_project: Optional[str] = None,
 ) -> Any:
+    if project_queue:
+        wandb.termwarn("project_queue is deprecated, use queue_project instead")
+    elif not project_queue and not queue_project:
+        wandb.termwarn("no project provided for queue. use queue_project")
+    queue_project = queue_project or project_queue
     try:
         res = api.push_to_run_queue(
-            queue_name, launch_spec, project_queue, queue_entity
+            queue_name, launch_spec, queue_project, queue_entity
         )
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
@@ -44,7 +50,8 @@ def launch_add(
     name: Optional[str] = None,
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
-    project_queue: Optional[str] = None,
+    project_queue: Optional[str] = None,  # deprecated
+    queue_project: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
@@ -114,6 +121,7 @@ def launch_add(
         version,
         docker_image,
         project_queue,
+        queue_project,
         resource_args,
         run_id=run_id,
         build=build,
@@ -136,7 +144,8 @@ def _launch_add(
     name: Optional[str],
     version: Optional[str],
     docker_image: Optional[str],
-    project_queue: Optional[str],
+    project_queue: Optional[str],  # deprecated
+    queue_project: Optional[str],
     resource_args: Optional[Dict[str, Any]] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
@@ -192,13 +201,18 @@ def _launch_add(
 
     if queue_name is None:
         queue_name = "default"
-    if project_queue is None:
-        project_queue = LAUNCH_DEFAULT_PROJECT
+    
+    # deprecated
+    if project_queue:
+        queue_project = project_queue
+
+    if queue_project is None:
+        queue_project = LAUNCH_DEFAULT_PROJECT
 
     queue_entity = launch_spec.get("queue_entity")
 
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue_name, launch_spec, project_queue, queue_entity)
+    res = push_to_queue(api, queue_name, launch_spec, queue_project, queue_entity)
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
@@ -210,10 +224,10 @@ def _launch_add(
         if updated_spec.get("resource"):
             launch_spec["resource"] = updated_spec.get("resource")
 
-    if project_queue == LAUNCH_DEFAULT_PROJECT:
+    if queue_project == LAUNCH_DEFAULT_PROJECT:
         wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
     else:
-        wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_project}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     container_job = False
@@ -228,6 +242,6 @@ def _launch_add(
         queue_name,
         res["runQueueItemId"],
         container_job,
-        project_queue,
+        queue_project,
     )
     return queued_run  # type: ignore
