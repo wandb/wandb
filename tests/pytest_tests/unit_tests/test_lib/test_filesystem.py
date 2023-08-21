@@ -490,6 +490,9 @@ def test_reflink_success(tmp_path):
         (errno.EFAULT, OSError),
     ],
 )
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="We don't support reflinks on Windows"
+)
 def test_reflink_errors(errno_code, expected_exception, monkeypatch):
     def fail(*args, **kwargs):
         raise OSError(errno_code, os.strerror(errno_code))
@@ -501,6 +504,9 @@ def test_reflink_errors(errno_code, expected_exception, monkeypatch):
         reflink("target", "link")
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="We don't support reflinks on Windows"
+)
 def test_reflink_file_exists_error(tmp_path):
     target_path = tmp_path / "target.txt"
     link_path = tmp_path / "link.txt"
