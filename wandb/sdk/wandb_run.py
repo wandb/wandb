@@ -59,7 +59,7 @@ from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
-    _is_py_path,
+    _is_py_or_dockerfile,
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
@@ -1052,7 +1052,7 @@ class Run:
         name: Optional[str] = None,
         include_fn: Union[
             Callable[[str, str], bool], Callable[[str], bool]
-        ] = _is_py_path,
+        ] = _is_py_or_dockerfile,
         exclude_fn: Union[
             Callable[[str, str], bool], Callable[[str], bool]
         ] = filenames.exclude_wandb_fn,

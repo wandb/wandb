@@ -685,7 +685,7 @@ class LaunchAgent:
                                 project=job_tracker.project,
                                 state="CANCELED",
                             )
-                        except CommError as e:
+                        except Exception as e:
                             raise LaunchError(f"Failed to update sweep state: {e}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
