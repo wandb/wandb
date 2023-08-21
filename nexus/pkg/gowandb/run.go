@@ -20,7 +20,7 @@ type Run struct {
 	conn           *Connection
 	wg             sync.WaitGroup
 	run            *service.RunRecord
-	partialHistory map[string]interface{}
+	partialHistory History
 }
 
 // NewRun creates a new run with the given settings and responders.
