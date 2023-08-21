@@ -43,11 +43,12 @@ def path_fallbacks(path: StrPath) -> Generator[str, None, None]:
     create-ability. Essentially, keep replacing "suspect" characters until we run out.
     """
     path = str(path)
-    yield path
+    root, tail = os.path.splitdrive(path)
+    yield os.path.join(root, tail)
     for char in PROBLEMATIC_PATH_CHARS:
-        if char in path:
-            path = path.replace(char, "-")
-            yield path
+        if char in tail:
+            tail = tail.replace(char, "-")
+            yield os.path.join(root, tail)
 
 
 def mkdir_allow_fallback(dir_name: StrPath) -> StrPath:
@@ -62,7 +63,7 @@ def mkdir_allow_fallback(dir_name: StrPath) -> StrPath:
             if Path(new_name) != Path(dir_name):
                 logger.warning(f"Creating '{new_name}' instead of '{dir_name}'")
             return Path(new_name) if isinstance(dir_name, Path) else new_name
-        except ValueError:
+        except (ValueError, NotADirectoryError):
             pass
         except OSError as e:
             if e.errno != 22:
