@@ -6,8 +6,6 @@ import (
 	"os"
 
 	"golang.org/x/exp/slog"
-
-	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 func LogError(log *slog.Logger, msg string, err error) {
