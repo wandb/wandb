@@ -506,9 +506,11 @@ def test_display_updated_runspec(
     settings = test_settings({"project": proj})
     api = InternalApi()
 
-    def push_with_drc(api, queue_name, launch_spec, project_queue):
+    def push_with_drc(api, queue_name, launch_spec, queue_project, queue_entity):
         # mock having a DRC
-        res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
+        res = api.push_to_run_queue(
+            queue_name, launch_spec, queue_project, queue_entity
+        )
         res["runSpec"] = launch_spec
         res["runSpec"]["resource_args"] = {"kubernetes": {"volume": "x/awda/xxx"}}
         return res
