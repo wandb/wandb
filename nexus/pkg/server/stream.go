@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/pkg/observability"
-
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -228,5 +228,5 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 func (s *Stream) PrintFooter() {
 	run := s.GetRun()
-	PrintHeadFoot(run, s.settings)
+	shared.PrintHeadFoot(run, s.settings)
 }

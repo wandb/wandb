@@ -106,6 +106,7 @@ class LaunchProject:
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.override_entrypoint: Optional[EntryPoint] = None
+        self.override_dockerfile: Optional[str] = overrides.get("dockerfile")
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
