@@ -73,7 +73,7 @@ public:
 };
 } // namespace run
 
-// Run initRun(Settings settings);
+Run initRun();
 Run initRun(std::initializer_list<run::InitRunOption>);
 
 } // namespace wandb
