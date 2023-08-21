@@ -1,7 +1,6 @@
 import contextlib
 import ctypes
 import errno
-import fcntl
 import logging
 import os
 import platform
@@ -234,6 +233,8 @@ def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
 
 def _reflink_linux(target: StrPath, new_link: StrPath) -> None:
     """Create a reflink to `target` at `new_link` on Linux."""
+    import fcntl
+
     FICLONE = 0x40049409  # magic number from <linux/fs.h>  # noqa: N806
     with open(target, "rb") as t_f, open(new_link, "wb+") as l_f:
         fcntl.ioctl(l_f.fileno(), FICLONE, t_f.fileno())
