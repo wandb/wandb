@@ -4444,10 +4444,13 @@ class ArtifactCollection:
         """Return True if this is a sequence."""
         query = gql(
             """
-            query CollectionType($entity: String!, $project: String!, $collection: String!) {
+            query FindSequence($entity: String!, $project: String!, $collection: String!, $type: String!) {
                 project(name: $project, entityName: $entity) {
-                    artifactCollection(name: $collection) {
+                    artifactType(name: $type) {
                         __typename
+                        artifactSequence(name: $collection) {
+                            __typename
+                        }
                     }
                 }
             }
@@ -4457,10 +4460,11 @@ class ArtifactCollection:
             "entity": self.entity,
             "project": self.project,
             "collection": self.name,
+            "type": self.type,
         }
         res = self.client.execute(query, variable_values=variables)
-        typename = res["project"]["artifactCollection"]["__typename"]
-        return typename == "ArtifactSequence"
+        sequence = res["project"]["artifactType"]["artifactSequence"]
+        return sequence is not None and sequence["__typename"] == "ArtifactSequence"
 
     @normalize_exceptions
     def delete(self):
