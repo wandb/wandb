@@ -1,3 +1,4 @@
+import ctypes
 import errno
 import os
 import platform
@@ -10,7 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from pyfakefs.fake_filesystem import OSType
@@ -531,6 +532,44 @@ def test_reflink_platform_dispatch(monkeypatch, system, exception):
 
     with pytest.raises(type(exception), match=re.escape(str(exception))):
         reflink("target", "link")
+
+
+@pytest.mark.skipif(platform.system() != "Darwin", reason="macOS specific code")
+def test_reflink_macos_cross_device(monkeypatch, example_file):
+    def clonefile_cross_device(*args, **kwargs):
+        return errno.EXDEV
+
+    def cdll_cross_device(*args, **kwargs):
+        clib = Mock()
+        clib.clonefile = clonefile_cross_device
+        return clib
+
+    monkeypatch.setattr(ctypes, "CDLL", cdll_cross_device)
+    monkeypatch.setattr(ctypes, "get_errno", clonefile_cross_device)
+
+    with pytest.raises(ValueError, match="Cannot link across filesystems"):
+        reflink(example_file, "link_file")
+
+
+@pytest.mark.skipif(platform.system() != "Darwin", reason="macOS specific code")
+def test_reflink_macos_corner_cases(monkeypatch, example_file):
+    def cdll_bad_fallback(module, *args, **kwargs):
+        if module == "libc.dylib":
+            raise OSError(errno.ENOENT, "Library not found")
+        return None
+
+    monkeypatch.setattr(ctypes, "CDLL", cdll_bad_fallback)
+
+    with pytest.raises(OSError, match="does not support reflinks"):
+        reflink(example_file, "link_file")
+
+    def cdll_weird_fallback(*args, **kwargs):
+        raise RuntimeError("Something went wrong")
+
+    monkeypatch.setattr(ctypes, "CDLL", cdll_weird_fallback)
+
+    with pytest.raises(RuntimeError, match="Something went wrong"):
+        reflink(example_file, "link_file")
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="':' not allowed in paths.")

@@ -1,4 +1,5 @@
 import contextlib
+import ctypes
 import errno
 import fcntl
 import logging
@@ -9,7 +10,6 @@ import shutil
 import stat
 import tempfile
 import threading
-from ctypes import CDLL, c_char_p, c_int, get_errno
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Generator, Optional
 
@@ -241,26 +241,24 @@ def _reflink_linux(target: StrPath, new_link: StrPath) -> None:
 
 def _reflink_macos(target: StrPath, new_link: StrPath) -> None:
     try:
-        clib = CDLL("libc.dylib", use_errno=True)
+        clib = ctypes.CDLL("libc.dylib", use_errno=True)
     except OSError as e:
         if e.errno != errno.ENOENT:
             raise
-        clib = CDLL("/usr/lib/libSystem.dylib", use_errno=True)
+        clib = ctypes.CDLL("/usr/lib/libSystem.dylib", use_errno=True)
 
     try:
         clonefile = clib.clonefile
     except AttributeError:
         raise OSError(errno.ENOTSUP, "'clonefile' is not available on this system")
 
-    clonefile.argtypes = (c_char_p, c_char_p, c_int)
-    clonefile.restype = c_int
+    clonefile.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int)
+    clonefile.restype = ctypes.c_int
 
-    if not clonefile(os.fsencode(target), os.fsencode(new_link), c_int(0)):
-        # No return (0) indicates success; anything else is an error.
-        return
-
-    err = get_errno()
-    raise OSError(err, os.strerror(err), target)
+    if clonefile(os.fsencode(target), os.fsencode(new_link), ctypes.c_int(0)):
+        # Anything other than 0 is an error.
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err), target)
 
 
 def reflink(target: StrPath, new_link: StrPath, overwrite: bool = False) -> None:
