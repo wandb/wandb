@@ -325,7 +325,7 @@ def generate_dockerfile(
     dockerfile: Optional[str] = None,
 ) -> str:
     override_entrypoint = launch_project.override_entrypoint or entry_point
-    if not dockerfile:
+    if not dockerfile and override_entrypoint.name is not None:
         # For non-image-based jobs, project_dir is always set
         assert (
             launch_project.project_dir is not None

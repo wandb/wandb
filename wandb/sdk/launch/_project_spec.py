@@ -118,7 +118,8 @@ class LaunchProject:
         if override_entrypoint:
             _logger.info("Adding override entry point")
             self.override_entrypoint = EntryPoint(
-                override_entrypoint[1], override_entrypoint
+                name=self._get_entrypoint_file(override_entrypoint),
+                command=override_entrypoint,
             )
 
         if overrides.get("sweep_id") is not None:
@@ -185,6 +186,15 @@ class LaunchProject:
             # this will always pass since one of these 3 is required
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
+
+    def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:
+        if not entrypoint:
+            return None
+        if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
+            return entrypoint[0]
+        if len(entrypoint) < 2:
+            return None
+        return entrypoint[1]
 
     def fill_macros(self, image: str) -> Dict[str, Any]:
         """Substitute values for macros in resource arguments.
@@ -416,7 +426,7 @@ class LaunchProject:
 class EntryPoint:
     """An entry point into a wandb launch specification."""
 
-    def __init__(self, name: str, command: List[str]):
+    def __init__(self, name: Optional[str], command: List[str]):
         self.name = name
         self.command = command
 
