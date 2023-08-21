@@ -24,9 +24,9 @@ _is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
 PACKAGE: str = "wandb_core"
 ALL_PLATFORMS = (
     ("darwin", "arm64", True),
-    ("darwin", "amd64", False),
-    ("linux", "amd64", True),
-    ("windows", "amd64", False),
+    # ("darwin", "amd64", False),
+    # ("linux", "amd64", True),
+    # ("windows", "amd64", False),
 )
 
 
