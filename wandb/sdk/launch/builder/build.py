@@ -326,6 +326,10 @@ def generate_dockerfile(
 ) -> str:
     override_entrypoint = launch_project.override_entrypoint or entry_point
     if not dockerfile:
+        # For non-image-based jobs, project_dir is always set
+        assert (
+            launch_project.project_dir is not None
+        ), "Attempted to find Dockerfile with no project dir set. Is this an image-based job?"
         entrypoint_dir = os.path.dirname(override_entrypoint.name)
         path = os.path.join(
             launch_project.project_dir, entrypoint_dir, _DEFAULT_DOCKERFILE_NAME
@@ -333,7 +337,6 @@ def generate_dockerfile(
         if os.path.exists(path):
             dockerfile = os.path.join(entrypoint_dir, _DEFAULT_DOCKERFILE_NAME)
     if dockerfile:
-        # For non-image-based jobs, project_dir is always set
         assert (
             launch_project.project_dir is not None
         ), "Attempted to find Dockerfile with no project dir set. Is this an image-based job?"
