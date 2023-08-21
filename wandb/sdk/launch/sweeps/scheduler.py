@@ -303,7 +303,7 @@ class Scheduler(ABC):
 
                 self._update_run_states()
                 self._poll()
-                if self.state == SchedulerState.FLUSH_RUNS:
+                if self.state == SchedulerState.FLUSH_RUNS or self.at_runcap:
                     if self.num_active_runs == 0:
                         wandb.termlog(f"{LOG_PREFIX}Done polling on runs, exiting")
                         break
