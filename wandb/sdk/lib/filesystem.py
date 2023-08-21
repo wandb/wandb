@@ -62,7 +62,7 @@ def mkdir_allow_fallback(dir_name: StrPath) -> StrPath:
             if Path(new_name) != Path(dir_name):
                 logger.warning(f"Creating '{new_name}' instead of '{dir_name}'")
             return Path(new_name) if isinstance(dir_name, Path) else new_name
-        except ValueError:
+        except (ValueError, NotADirectoryError):
             pass
         except OSError as e:
             if e.errno != 22:
