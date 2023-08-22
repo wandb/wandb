@@ -70,6 +70,7 @@ reset_path()
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
+    from wandb.sdk.wandb_run import Run as WandbRun
 
 
 class Artifact:
@@ -726,30 +727,19 @@ class Artifact:
             settings: A settings object to use when initializing an automatic run. Most
                 commonly used in testing harness.
         """
-        if self._state != ArtifactState.PENDING:
+        if not self.is_draft():
             return self._update()
 
-        if self._incremental:
-            with telemetry.context() as tel:
-                tel.feature.artifact_incremental = True
-
-        if wandb.run is None:
-            if settings is None:
-                settings = wandb.Settings(silent="true")
-            with wandb.init(
-                entity=self._source_entity,
-                project=project or self._source_project,
-                job_type="auto",
-                settings=settings,
-            ) as run:
-                # redoing this here because in this branch we know we didn't
-                # have the run at the beginning of the method
-                if self._incremental:
-                    with telemetry.context(run=run) as tel:
-                        tel.feature.artifact_incremental = True
-                run.log_artifact(self)
-        else:
-            wandb.run.log_artifact(self)
+        with _get_or_create_run(
+            entity=self._source_entity,
+            project=project or self._source_project,
+            job_type="auto",
+            settings=settings or wandb.Settings(silent="true"),
+        ) as run:
+            if self._incremental:
+                with telemetry.context() as tel:
+                    tel.feature.artifact_incremental = True
+            run.log_artifact(self)
 
     def _set_save_future(
         self, save_future: "MessageFuture", client: RetryingClient
@@ -2278,6 +2268,24 @@ class Artifact:
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
             return gql_ttl_duration_seconds
         return None
+
+
+@contextlib.contextmanager
+def _get_or_create_run(*args: Any, **kwargs: Any) -> Generator["WandbRun", None, None]:
+    """Get the active one, or create a new one if none exists.
+
+    If there is not an active run we create one with the given arguments, and it will be
+    `finish`ed when the context exits.
+
+    This function shouldn't really exist (we shouldn't be creating runs implicitly), but
+    it's how Artifacts works today and it will be a breaking change to remove it.
+    """
+    if wandb.run:
+        yield wandb.run
+    else:
+        with wandb.init(*args, **kwargs):
+            assert wandb.run is not None
+            yield wandb.run
 
 
 class _ArtifactVersionType(WBType):
