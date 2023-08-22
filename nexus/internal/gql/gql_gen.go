@@ -4,7 +4,6 @@ package gql
 
 import (
 	"context"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -843,7 +842,7 @@ type __NotifyScriptableRunAlertInput struct {
 	Title        string         `json:"title"`
 	Text         string         `json:"text"`
 	Severity     *AlertSeverity `json:"severity"`
-	WaitDuration *time.Duration `json:"waitDuration"`
+	WaitDuration *int64         `json:"waitDuration"`
 }
 
 // GetEntityName returns __NotifyScriptableRunAlertInput.EntityName, and is useful for accessing the field via an interface.
@@ -865,7 +864,7 @@ func (v *__NotifyScriptableRunAlertInput) GetText() string { return v.Text }
 func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return v.Severity }
 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
-func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *time.Duration { return v.WaitDuration }
+func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
 // __RunResumeStatusInput is used internally by genqlient
 type __RunResumeStatusInput struct {
@@ -1249,7 +1248,7 @@ func NotifyScriptableRunAlert(
 	title string,
 	text string,
 	severity *AlertSeverity,
-	waitDuration *time.Duration,
+	waitDuration *int64,
 ) (*NotifyScriptableRunAlertResponse, error) {
 	req := &graphql.Request{
 		OpName: "NotifyScriptableRunAlert",

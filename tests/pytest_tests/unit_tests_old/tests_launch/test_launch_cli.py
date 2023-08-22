@@ -1,5 +1,6 @@
 import json
 import os
+from unittest.mock import Mock
 
 import pytest
 import wandb
@@ -14,7 +15,11 @@ def raise_(ex):
 
 def patched_run_run_entry(cmd, dir):
     print(f"running command: {cmd}")
-    return cmd  # noop
+    mock_run = Mock()
+    rv = Mock()
+    rv.state = "finished"
+    mock_run.get_status.return_value = rv
+    return mock_run
 
 
 @pytest.fixture
@@ -266,9 +271,9 @@ def test_launch_github_url(
             ],
         )
     print(result)
-    assert result.exit_code == 0
-
     assert "Launching run in docker with command: docker run" in result.output
+    assert "Unable to find image 'testimage:12345' locally" in result.output
+    assert result.exit_code == 1
 
 
 def test_launch_local_dir(runner, live_mock_server, monkeypatch):
@@ -288,8 +293,10 @@ def test_launch_local_dir(runner, live_mock_server, monkeypatch):
             ["-u", "repo"],
         )
 
-    assert result.exit_code == 0
+    print(result)
     assert "Launching run in docker with command: docker run" in result.output
+    assert "Unable to find image 'testimage:12345' locally" in result.output
+    assert result.exit_code == 1
 
 
 def test_launch_queue_error(runner):
