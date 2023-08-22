@@ -573,7 +573,6 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
-	waitDuration := time.Duration(alert.WaitDuration) * time.Second
 
 	data, err := gql.NotifyScriptableRunAlert(
 		s.ctx,
@@ -584,7 +583,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		alert.Title,
 		alert.Text,
 		&severity,
-		&waitDuration,
+		&alert.WaitDuration,
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
