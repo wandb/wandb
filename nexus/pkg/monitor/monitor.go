@@ -201,6 +201,9 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 }
 
 func (sm *SystemMonitor) Stop() {
+	if sm == nil {
+		return
+	}
 	sm.logger.Info("Stopping system monitor")
 	sm.cancel()
 	sm.wg.Wait()
