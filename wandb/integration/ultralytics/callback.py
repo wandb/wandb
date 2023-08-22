@@ -237,8 +237,11 @@ class WandBUltralyticsCallback:
             class_label_map = validator.names
             with torch.no_grad():
                 self.device = next(trainer.model.parameters()).device
-                trainer.model.to("cpu")
-                self.model = copy.deepcopy(trainer.model).eval().to(self.device)
+                if isinstance(trainer.model, torch.nn.parallel.DistributedDataParallel):
+                    model = trainer.model.module
+                else:
+                    model = trainer.model
+                self.model = copy.deepcopy(model).eval().to(self.device)
                 self.predictor.setup_model(model=self.model, verbose=False)
                 if self.task == "pose":
                     self.train_validation_table = plot_pose_validation_results(
