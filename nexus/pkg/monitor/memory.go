@@ -17,11 +17,15 @@ type Memory struct {
 }
 
 func NewMemory(settings *service.Settings) *Memory {
-	return &Memory{
+	metrics := map[string][]float64{}
+
+	memory := &Memory{
 		name:     "memory",
-		metrics:  map[string][]float64{},
+		metrics:  metrics,
 		settings: settings,
 	}
+
+	return memory
 }
 
 func (m *Memory) Name() string { return m.name }
