@@ -325,26 +325,20 @@ def generate_dockerfile(
     dockerfile: Optional[str] = None,
 ) -> str:
     override_entrypoint = launch_project.override_entrypoint or entry_point
-    if not dockerfile and override_entrypoint.name is not None:
-        # For non-image-based jobs, project_dir is always set
-        assert (
-            launch_project.project_dir is not None
-        ), "Attempted to find Dockerfile with no project dir set. Is this an image-based job?"
-        entrypoint_dir = os.path.dirname(override_entrypoint.name)
-        path = os.path.join(
-            launch_project.project_dir, entrypoint_dir, _DEFAULT_DOCKERFILE_NAME
-        )
-        if os.path.exists(path):
-            dockerfile = os.path.join(entrypoint_dir, _DEFAULT_DOCKERFILE_NAME)
-    if dockerfile:
-        assert (
-            launch_project.project_dir is not None
-        ), "Attempted to find Dockerfile with no project dir set. Is this an image-based job?"
-        path = os.path.join(launch_project.project_dir, dockerfile)
-        if not os.path.exists(path):
-            raise LaunchError(f"Dockerfile does not exist at {path}")
-        wandb.termlog(f"Using dockerfile: {dockerfile}")
-        return open(path).read()
+    if launch_project.project_dir is not None:
+        if not dockerfile and override_entrypoint.name is not None:
+            entrypoint_dir = os.path.dirname(override_entrypoint.name)
+            path = os.path.join(
+                launch_project.project_dir, entrypoint_dir, _DEFAULT_DOCKERFILE_NAME
+            )
+            if os.path.exists(path):
+                dockerfile = os.path.join(entrypoint_dir, _DEFAULT_DOCKERFILE_NAME)
+        if dockerfile:
+            path = os.path.join(launch_project.project_dir, dockerfile)
+            if not os.path.exists(path):
+                raise LaunchError(f"Dockerfile does not exist at {path}")
+            wandb.termlog(f"Using dockerfile: {dockerfile}")
+            return open(path).read()
 
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
