@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/publisher"
@@ -28,8 +27,8 @@ type Stream struct {
 	// handler is the handler for the stream
 	handler *Handler
 
-	// responders is the map of responders for the stream
-	responders map[string]Responder
+	//dispatcher is the dispatcher for the stream
+	dispatcher *Dispatcher
 
 	// writer is the writer for the stream
 	writer *Writer
@@ -63,36 +62,6 @@ func NewStream(ctx context.Context, settings *service.Settings, _ string) *Strea
 	return stream
 }
 
-// AddResponders adds the given responders to the stream's dispatcher.
-func (s *Stream) AddResponders(entries ...ResponderEntry) {
-	if s.responders == nil {
-		s.responders = make(map[string]Responder)
-	}
-	for _, entry := range entries {
-		responderId := entry.ID
-		if _, ok := s.responders[responderId]; !ok {
-			s.responders[responderId] = entry.Responder
-		} else {
-			s.logger.CaptureWarn("Responder already exists", "responder", responderId)
-		}
-	}
-}
-
-func (s *Stream) handleRespond(result *service.Result) {
-	responderId := result.GetControl().GetConnectionId()
-	s.logger.Debug("dispatch: got result", "result", result)
-	if responderId == "" {
-		s.logger.Debug("dispatch: got result with no connection id", "result", result)
-		return
-	}
-	response := &service.ServerResponse{
-		ServerResponseType: &service.ServerResponse_ResultCommunicate{
-			ResultCommunicate: result,
-		},
-	}
-	s.responders[responderId].Respond(response)
-}
-
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
@@ -102,12 +71,19 @@ func (s *Stream) Start() {
 	s.handler = NewHandler(s.ctx, s.settings, s.logger)
 	s.writer = NewWriter(s.ctx, s.settings, s.logger)
 	s.sender = NewSender(s.ctx, s.settings, s.logger)
+	s.dispatcher = NewDispatcher(s.logger)
 
 	// read the data from the client and dispatch it to the writer
 	ch := make(chan any, BufferSize)
 	recCh := publisher.NewMultiWrite(&ch)
 	s.inChan = recCh.Add()
 	s.sender.recordChan = recCh.Add()
+
+	// handle dispatching between components
+	ch = make(chan any, BufferSize)
+	resCh := publisher.NewMultiWrite(&ch)
+	s.handler.resultChan = resCh.Add()
+	s.sender.resultChan = resCh.Add()
 
 	s.wg.Add(1)
 	go func() {
@@ -135,25 +111,9 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
-	// handle dispatching between components
-	ch = make(chan any, BufferSize)
-	resCh := publisher.NewMultiWrite(&ch)
-	s.handler.resultChan = resCh.Add()
-	s.sender.resultChan = resCh.Add()
-
 	s.wg.Add(1)
 	go func() {
-		for result := range resCh.Read() {
-			switch x := result.(type) {
-			case *service.Result:
-				s.logger.Debug("dispatch: got result", "result", x)
-				s.handleRespond(x)
-			default:
-				err := fmt.Errorf("dispatch: got unknown type: %T", x)
-				s.logger.CaptureError("dispatch: got unknown type", err)
-			}
-		}
-		s.logger.Debug("dispatch: finished")
+		s.dispatcher.Do(resCh)
 		s.wg.Done()
 	}()
 
@@ -171,6 +131,10 @@ func (s *Stream) HandleRecord(record *service.Record) {
 	if err != nil {
 		return
 	}
+}
+
+func (s *Stream) AddResponders(entries ...ResponderEntry) {
+	s.dispatcher.AddResponders(entries...)
 }
 
 func (s *Stream) HandleExit(exitCode int32) {

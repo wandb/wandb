@@ -308,11 +308,10 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 		// add connection id to control message
 		// so that the stream can send back a response
 		// to the correct connection
-		if msg.Control != nil {
-			msg.Control.ConnectionId = nc.id
-		} else {
-			msg.Control = &service.Control{ConnectionId: nc.id}
+		if msg.GetControl() == nil {
+			msg.Control = &service.Control{}
 		}
+		msg.Control.ConnectionId = nc.id
 		nc.stream.HandleRecord(msg)
 	}
 }
