@@ -627,7 +627,9 @@ def create_app(user_ctx=None):
 
         if "mutation CreateRunFiles" in body["query"]:
             requested_file = body["variables"]["files"][0]
-            upload_url = base_url + "/storage?file={}&run={}".format(requested_file, ctx["current_run"])
+            upload_url = base_url + "/storage?file={}&run={}".format(
+                requested_file, ctx["current_run"]
+            )
             data = {
                 "data": {
                     "createRunFiles": {
