@@ -161,11 +161,19 @@ func (h *Handler) close() {
 	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
-func (h *Handler) sendRecord(record *service.Record) {
-	control := record.GetControl()
-	if control != nil {
-		control.AlwaysSend = true
+func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
+	if record.GetControl() == nil {
+		record.Control = &service.Control{}
 	}
+
+	control := record.GetControl()
+	for _, opt := range controlOptions {
+		opt(control)
+	}
+	h.sendRecord(record)
+}
+
+func (h *Handler) sendRecord(record *service.Record) {
 	h.recordChan <- record
 }
 
@@ -184,6 +192,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Files:
 		h.handleFiles(record)
 	case *service.Record_Final:
+		h.handleFinal(record)
 	case *service.Record_Footer:
 	case *service.Record_Header:
 	case *service.Record_History:
@@ -221,7 +230,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	switch x := request.RequestType.(type) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
-		h.handleDefer(record)
+		h.handleDefer(record, x.Defer)
 		return
 	case *service.Request_GetSummary:
 		h.handleGetSummary(record, response)
@@ -231,10 +240,12 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handlePartialHistory(record, x.PartialHistory)
 		return
 	case *service.Request_PollExit:
+		h.handlePollExit(record)
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
 	case *service.Request_ServerInfo:
+		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
@@ -255,50 +266,68 @@ func (h *Handler) handleRequest(record *service.Record) {
 	h.sendResponse(record, response)
 }
 
-func (h *Handler) handleDefer(record *service.Record) {
-	record = proto.Clone(record).(*service.Record)
-	request := record.GetRequest().GetDefer()
+func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_RUN:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_STATS:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.handleHistory(h.historyRecord)
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_TB:
 		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_OUTPUT:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_JOB:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_DIR:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_FP:
-		h.sendRecord(record)
 	case service.DeferRequest_JOIN_FP:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_FS:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_FINAL:
-		h.sendRecord(record)
 	case service.DeferRequest_END:
-		h.sendRecord(record)
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
 	}
+	// Need to clone the record to avoid race condition with the writer
+	record = proto.Clone(record).(*service.Record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+		func(control *service.Control) {
+			control.Local = true
+		},
+	)
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
 	h.sendRecord(record)
+}
+
+func (h *Handler) handlePollExit(record *service.Record) {
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
+}
+
+func (h *Handler) handleFinal(record *service.Record) {
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
+}
+
+func (h *Handler) handleServerInfo(record *service.Record) {
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
@@ -334,7 +363,6 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
-
 	response.ResponseType = &service.Response_AttachResponse{
 		AttachResponse: &service.AttachResponse{
 			Run: h.runRecord,
@@ -419,7 +447,11 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	exit.Runtime = runtime
 
 	// send the exit record
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleFiles(record *service.Record) {

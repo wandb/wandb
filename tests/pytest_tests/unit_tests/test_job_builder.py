@@ -98,7 +98,7 @@ def test_build_repo_notebook_job(runner, tmp_path, mocker):
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
-        assert job_builder._is_notebook_run() is True
+        assert job_builder._is_notebook_run is True
 
 
 def test_build_artifact_job(runner):
@@ -174,7 +174,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker):
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
-        assert job_builder._is_notebook_run() is True
+        assert job_builder._is_notebook_run is True
 
 
 def test_build_image_job(runner):
