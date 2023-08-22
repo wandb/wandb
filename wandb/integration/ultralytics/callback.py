@@ -111,10 +111,12 @@ class WandBUltralyticsCallback:
         max_validation_batches: int = 1,
         enable_model_checkpointing: bool = False,
         visualize_skeleton: bool = False,
+        max_batch_samples: Optional[int] = None
     ) -> None:
         self.max_validation_batches = max_validation_batches
         self.enable_model_checkpointing = enable_model_checkpointing
         self.visualize_skeleton = visualize_skeleton
+        self.max_batch_samples = max_batch_samples
         self.task = model.task
         self.task_map = model.task_map
         self.model_name = model.overrides["model"].split(".")[0]
@@ -249,6 +251,7 @@ class WandBUltralyticsCallback:
                         visualize_skeleton=self.visualize_skeleton,
                         table=self.train_validation_table,
                         max_validation_batches=self.max_validation_batches,
+                        max_batch_samples=self.max_batch_samples,
                         epoch=trainer.epoch,
                     )
                 elif self.task == "segment":
@@ -308,6 +311,7 @@ class WandBUltralyticsCallback:
                         visualize_skeleton=self.visualize_skeleton,
                         table=self.validation_table,
                         max_validation_batches=self.max_validation_batches,
+                        max_batch_samples=self.max_batch_samples
                     )
                 elif self.task == "segment":
                     self.validation_table = plot_mask_validation_results(
@@ -382,6 +386,7 @@ def add_wandb_callback(
     enable_validation_logging: bool = True,
     enable_prediction_logging: bool = True,
     max_validation_batches: Optional[int] = 1,
+    max_batch_samples: Optional[int] = None,
     visualize_skeleton: Optional[bool] = True,
 ):
     """Function to add the `WandBUltralyticsCallback` callback to the `YOLO` model.
@@ -439,6 +444,7 @@ def add_wandb_callback(
             max_validation_batches,
             enable_model_checkpointing,
             visualize_skeleton,
+            max_batch_samples,
         )
         if not enable_train_validation_logging:
             _ = wandb_callback.callbacks.pop("on_fit_epoch_end")

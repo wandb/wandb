@@ -58,11 +58,15 @@ def plot_pose_validation_results(
     visualize_skeleton: bool,
     table: wandb.Table,
     max_validation_batches: int,
+    max_batch_samples: Optional[int] = None,
     epoch: Optional[int] = None,
 ) -> wandb.Table:
     data_idx = 0
     for batch_idx, batch in enumerate(dataloader):
-        for img_idx, image_path in enumerate(batch["im_file"]):
+        samples = batch["im_file"]
+        if max_batch_samples is not None and max_batch_samples > 0:
+            samples = samples[:min(len(samples), max_batch_samples)]
+        for img_idx, image_path in enumerate(samples):
             prediction_result = predictor(image_path)[0].to("cpu")
             table_row = plot_pose_predictions(
                 prediction_result, model_name, visualize_skeleton
@@ -85,6 +89,6 @@ def plot_pose_validation_results(
             table_row = [model_name] + table_row
             table.add_data(*table_row)
             data_idx += 1
-        if batch_idx + 1 == max_validation_batches:
+        if batch_idx + 1 >= max_validation_batches:
             break
     return table
