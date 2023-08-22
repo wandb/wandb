@@ -3,6 +3,7 @@
 import os
 import platform
 import subprocess
+from distutils import log
 from distutils.command.install import install
 from pathlib import Path
 
@@ -29,6 +30,8 @@ ALL_PLATFORMS = (
     ("windows", "amd64", False),
 )
 
+log.set_verbosity(log.INFO)
+
 
 class NexusBase:
     def _get_package_path(self):
@@ -44,6 +47,7 @@ class NexusBase:
 
     def _build_nexus(self, path=None, goos=None, goarch=None, cgo_enabled=False):
         nexus_path = self._get_wheel_nexus_path(path=path, goos=goos, goarch=goarch)
+
         src_dir = Path(__file__).parent
         env = {}
         if goos:
@@ -65,16 +69,55 @@ class NexusBase:
             .strip()
         )
 
-        ldflags = f"-s -w -X main.commit={commit}"
-        cmd = (
-            "go",
-            "build",
-            f"-ldflags={ldflags}",
-            "-o",
-            str(nexus_path),
-            "cmd/nexus/main.go",
-        )
-        subprocess.check_call(cmd, cwd=src_dir, env=dict(os.environ, **env))
+        # build linux binary with docker
+        if goos == "linux":
+            # build docker image
+            cmd = (
+                "docker",
+                "build",
+                "-t",
+                "wheel_builder",
+                ".",
+            )
+            subprocess.check_call(
+                cmd,
+                cwd=src_dir/"scripts"/"build",
+                env=dict(os.environ, **env),
+            )
+
+            # build wheels
+            cmd = (
+                "docker",
+                "run",
+                "-v",
+                f"{src_dir.parent}:/project",
+                "-v",
+                f"{src_dir.parent}/.cache/go-build:/root/.cache/go-build",
+                "-e",
+                f"COMMIT={commit}",
+                "-e",
+                f"NEXUS_PATH={str(nexus_path.relative_to(src_dir))}",
+                "wheel_builder",
+            )
+            log.info(f"Building wheel for {goos}-{goarch}")
+            log.info(f"Running command: {' '.join(cmd)}")
+
+            subprocess.check_call(
+                cmd,
+                cwd=src_dir.parent,
+                env=dict(os.environ, **env),
+            )
+        else:
+            ldflags = f"-s -w -X main.commit={commit}"
+            cmd = (
+                "go",
+                "build",
+                f"-ldflags={ldflags}",
+                "-o",
+                str(nexus_path),
+                "cmd/nexus/main.go",
+            )
+            subprocess.check_call(cmd, cwd=src_dir, env=dict(os.environ, **env))
 
 
 class WrapInstall(install, NexusBase):

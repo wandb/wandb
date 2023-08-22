@@ -1,10 +1,8 @@
 ARG PYTHON_VERSION=3.9
-FROM --platform=linux/amd64 python:${PYTHON_VERSION}
+ARG PLATFORM=amd64
+FROM --platform=linux/${PLATFORM} python:${PYTHON_VERSION}
 
-# Set environment variables for pip to ensure only wheels are built
-ENV PIP_NO_BINARY :all:
-ENV PIP_NO_CACHE_DIR off
-ENV PIP_WHEEL_DIR /wheels
+VOLUME /root/.cache/go-build
 
 ENV PATH $PATH:/usr/local/go/bin
 
@@ -24,6 +22,4 @@ RUN wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
     rm go${GO_VERSION}.linux-amd64.tar.gz
 
-RUN pip install wheel
-
-CMD ["pip", "wheel", "."]
+CMD go build -ldflags="-s -w -X main.commit=${COMMIT}" -o ${NEXUS_PATH} cmd/nexus/main.go
