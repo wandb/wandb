@@ -682,7 +682,7 @@ class Artifact:
     @property
     def updated_at(self) -> str:
         """The time at which the artifact was last updated."""
-        self._ensure_logged("created_at")
+        self._ensure_logged("updated_at")
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
