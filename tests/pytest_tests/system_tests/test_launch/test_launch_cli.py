@@ -184,11 +184,11 @@ def test_launch_repository_arg(
     ):
         assert repository or "--repository=" in args or "--repository" in args
 
-        mockRun = Mock()
+        mock_run = Mock()
         rv = Mock()
         rv.state = "finished"
-        mockRun.get_status.return_value = rv
-        return mockRun
+        mock_run.get_status.return_value = rv
+        return mock_run
 
     monkeypatch.setattr(
         "wandb.sdk.launch.launch._run",
@@ -448,11 +448,11 @@ def test_create_job_bad_type(path, job_type, runner, user):
 
 def patched_run_run_entry(cmd, dir):
     print(f"running command: {cmd}")
-    mockRun = Mock()
+    mock_run = Mock()
     rv = Mock()
     rv.state = "finished"
-    mockRun.get_status.return_value = rv
-    return mockRun
+    mock_run.get_status.return_value = rv
+    return mock_run
 
 
 def test_launch_supplied_docker_image(
