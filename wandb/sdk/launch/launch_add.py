@@ -16,10 +16,7 @@ from wandb.sdk.launch.utils import (
 
 
 def push_to_queue(
-    api: Api,
-    queue_name: str,
-    launch_spec: Dict[str, Any],
-    project_queue: str,
+    api: Api, queue_name: str, launch_spec: Dict[str, Any], project_queue: str
 ) -> Any:
     try:
         res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
