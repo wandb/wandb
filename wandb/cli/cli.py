@@ -1337,7 +1337,7 @@ def launch(
     if queue is None:
         # direct launch
         try:
-            wandb_launch.run(
+            run = wandb_launch.run(
                 api,
                 uri,
                 job,
@@ -1354,6 +1354,9 @@ def launch(
                 run_id=run_id,
                 repository=repository,
             )
+            if run.get_status().state in ["failed", "stopped", "preempted"]:
+                wandb.termerror("Launched run exited with non-zero status")
+                sys.exit(1)
         except LaunchError as e:
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
