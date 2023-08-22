@@ -1587,6 +1587,7 @@ class Artifact:
         if referenced_id:
             assert self._client is not None
             artifact = self._from_id(referenced_id, client=self._client)
+            assert artifact is not None
             return artifact.get(util.uri_from_path(entry.ref))
 
         # Special case for wandb.Table. This is intended to be a short term
