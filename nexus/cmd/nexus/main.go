@@ -30,7 +30,7 @@ func main() {
 	pid := flag.Int("pid", 0, "pid")
 	debug := flag.Bool("debug", false, "debug mode")
 	noAnalytics := flag.Bool("no-observability", false, "turn off observability")
-	// todo: remove these flags, they are here for backward compatibility
+	// todo: remove these flags, they are here for backwards compatibility
 	serveSock := flag.Bool("serve-sock", false, "use sockets")
 	serveGrpc := flag.Bool("serve-grpc", false, "use grpc")
 
