@@ -3,6 +3,7 @@ import platform
 
 import pytest
 import wandb
+from wandb.apis.public import RetryingClient
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.data_types import saved_model
@@ -77,6 +78,9 @@ class ArtifactManifestEntryPatch(ArtifactManifestEntry):
         root = root or self._parent_artifact._default_root()
         dest = os.path.join(root, self.path)
         return copy_or_overwrite_changed(self.local_path, dest)
+
+    def _get_referenced_artifact_id(self):
+        return None
 
 
 class ArtifactPatch(Artifact):
