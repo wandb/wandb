@@ -461,7 +461,9 @@ def construct_agent_configs(
     default_launch_config = None
     if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
         with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
-            default_launch_config = yaml.safe_load(f)
+            default_launch_config = (
+                yaml.safe_load(f) or {}
+            )  # In case the config is empty, we want it to be {} instead of None.
         environment_config = default_launch_config.get("environment")
 
     build_config, registry_config = resolve_build_and_registry_config(

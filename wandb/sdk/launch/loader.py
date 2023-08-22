@@ -1,4 +1,5 @@
 """Utilities for the agent."""
+import wandb
 from typing import Any, Dict, Optional
 
 from wandb.apis.internal import Api
@@ -234,10 +235,14 @@ def runner_from_config(
         from .environment.gcp_environment import GcpEnvironment
 
         if not isinstance(environment, GcpEnvironment):
-            raise LaunchError(
-                "Could not create Vertex runner. "
-                "Environment must be an instance of GcpEnvironment."
-            )
+            wandb.termwarn("Attempting to load GCP configuration from user settings.")
+            try:
+                environment = GcpEnvironment.from_default()
+            except LaunchError as e:
+                raise LaunchError(
+                    "Could not create Vertex runner. "
+                    "Environment must be an instance of GcpEnvironment."
+                ) from e
         from .runner.vertex_runner import VertexRunner
 
         return VertexRunner(api, runner_config, environment, registry)

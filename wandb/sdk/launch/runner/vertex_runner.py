@@ -178,7 +178,7 @@ class VertexRunner(AbstractRunner):
         # retry instead of erroring. For now, just catch all exceptions and they
         # go to the UI for the user to interpret.
         except Exception as e:
-            raise LaunchError("Failed to create Vertex job.") from e
+            raise LaunchError(f"Failed to create Vertex job: {e}")
         if synchronous:
             job.run(**execution_kwargs, sync=True)
         else:
