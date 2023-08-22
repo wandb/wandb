@@ -1583,7 +1583,7 @@ class Artifact:
 
         # If the entry is a reference from another artifact, then get it directly from
         # that artifact.
-        referenced_id = entry._get_referenced_artifact_id()
+        referenced_id = entry._referenced_artifact_id()
         if referenced_id:
             assert self._client is not None
             artifact = self._from_id(referenced_id, client=self._client)
@@ -2205,7 +2205,7 @@ class Artifact:
                 json.loads(util.ensure_text(request.content))
             )
         for entry in self.manifest.entries.values():
-            referenced_id = entry._get_referenced_artifact_id()
+            referenced_id = entry._referenced_artifact_id()
             if referenced_id:
                 assert self._client is not None
                 dep_artifact = self._from_id(referenced_id, client=self._client)
