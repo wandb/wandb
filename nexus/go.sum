@@ -1,7 +1,5 @@
 github.com/Khan/genqlient v0.6.0 h1:Bwb1170ekuNIVIwTJEqvO8y7RxBxXu639VJOkKSrwAk=
 github.com/Khan/genqlient v0.6.0/go.mod h1:rvChwWVTqXhiapdhLDV4bp9tz/Xvtewwkon4DpWWCRM=
-github.com/NVIDIA/go-nvml v0.12.0-1 h1:6mdjtlFo+17dWL7VFPfuRMtf0061TF4DKls9pkSw6uM=
-github.com/NVIDIA/go-nvml v0.12.0-1/go.mod h1:hy7HYeQy335x6nEss0Ne3PYqleRa6Ct+VKD9RQ4nyFs=
 github.com/agnivade/levenshtein v1.0.1/go.mod h1:CURSv5d9Uaml+FovSIICkLbAUZ9S4RqaHDIsdSBg7lM=
 github.com/agnivade/levenshtein v1.1.1 h1:QY8M92nrzkmr798gCo3kmMyqXFzdQVpxLlGPRBij0P8=
 github.com/agnivade/levenshtein v1.1.1/go.mod h1:veldBMzWxcCG2ZvUTKD2kJNRdCk5hVbJomOvKkmgYbo=
