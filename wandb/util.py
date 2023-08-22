@@ -1315,6 +1315,22 @@ def download_file_from_url(
             file.write(data)
 
 
+def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
+    auth = None
+    if not _thread_local_api_settings.cookies:
+        auth = ("api", api_key or "")
+    response = requests.get(
+        source_url,
+        auth=auth,
+        headers=_thread_local_api_settings.headers,
+        cookies=_thread_local_api_settings.cookies,
+        stream=True,
+        timeout=5,
+    )
+    response.raise_for_status()
+    return response.content
+
+
 def isatty(ob: IO) -> bool:
     return hasattr(ob, "isatty") and ob.isatty()
 
@@ -1526,8 +1542,9 @@ def _is_databricks() -> bool:
     return False
 
 
-def _is_py_path(path: str) -> bool:
-    return path.endswith(".py")
+def _is_py_or_dockerfile(path: str) -> bool:
+    file = os.path.basename(path)
+    return file.endswith(".py") or file.startswith("Dockerfile")
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:

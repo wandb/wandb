@@ -6,7 +6,6 @@ import threading
 import time
 import traceback
 from multiprocessing import Event
-from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
@@ -35,8 +34,18 @@ AGENT_KILLED = "KILLED"
 
 HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
-MAX_THREADS = 64
 MAX_RESUME_COUNT = 5
+
+_env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
+if _env_timeout:
+    try:
+        RUN_START_TIMEOUT = float(_env_timeout)
+    except ValueError:
+        raise LaunchError(
+            f"Invalid value for WANDB_LAUNCH_START_TIMEOUT: {_env_timeout}"
+        )
+else:
+    RUN_START_TIMEOUT = 60 * 30  # default 30 minutes
 
 _logger = logging.getLogger(__name__)
 
@@ -129,12 +138,14 @@ class LaunchAgent:
         self._access = _convert_access("project")
         self._max_jobs = _max_from_config(config, "max_jobs")
         self._max_schedulers = _max_from_config(config, "max_schedulers")
-        self._pool = ThreadPool(
-            processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
-            initargs=(self._jobs, self._jobs_lock),
-        )
         self._secure_mode = config.get("secure_mode", False)
         self.default_config: Dict[str, Any] = config
+
+        # Get agent version from env var if present, otherwise wandb version
+        self.version: str = "wandb@" + wandb.__version__
+        env_agent_version = os.environ.get("WANDB_AGENT_VERSION")
+        if env_agent_version and env_agent_version != "wandb-launch-agent":
+            self.version = env_agent_version
 
         # serverside creation
         self.gorilla_supports_agents = (
@@ -150,6 +161,7 @@ class LaunchAgent:
             self._project,
             self._queues,
             self.default_config,
+            self.version,
             self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
@@ -359,18 +371,20 @@ class LaunchAgent:
 
         # Abort if this job attempts to override secure mode
         self._assert_secure(launch_spec)
-
-        self._pool.apply_async(
-            self.thread_run_job,
-            (
+        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
+        t = threading.Thread(
+            target=self.thread_run_job,
+            args=(
                 launch_spec,
                 job,
                 self.default_config,
                 self._api,
-                queue,
-                file_saver,
+                job_tracker,
             ),
+            daemon=True,
         )
+
+        t.start()
 
     def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
         """If secure mode is set, make sure no vulnerable keys are overridden."""
@@ -482,8 +496,6 @@ class LaunchAgent:
             self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()
-            self._pool.close()
-            self._pool.join()
 
     # Threaded functions
     def thread_run_job(
@@ -492,15 +504,13 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
-        queue: str,
-        file_saver: RunQueueItemFileSaver,
+        job_tracker: JobAndRunStatusTracker,
     ) -> None:
         thread_id = threading.current_thread().ident
-        assert thread_id is not None
-        job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
-        with self._jobs_lock:
-            self._jobs[thread_id] = job_tracker
+        assert thread_id
         try:
+            with self._jobs_lock:
+                self._jobs[thread_id] = job_tracker
             self._thread_run_job(
                 launch_spec, job, default_config, api, thread_id, job_tracker
             )
@@ -596,7 +606,18 @@ class LaunchAgent:
             return
         with self._jobs_lock:
             job_tracker.run = run
+        start_time = time.time()
         while self._jobs_event.is_set():
+            # If run has failed to start before timeout, kill it
+            state = run.get_status().state
+            if state == "starting" and RUN_START_TIMEOUT > 0:
+                if time.time() - start_time > RUN_START_TIMEOUT:
+                    run.cancel()
+                    raise LaunchError(
+                        f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
+                        "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
+                        "to a larger value."
+                    )
             if self._check_run_finished(job_tracker, launch_spec):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
@@ -664,7 +685,7 @@ class LaunchAgent:
                                 project=job_tracker.project,
                                 state="CANCELED",
                             )
-                        except CommError as e:
+                        except Exception as e:
                             raise LaunchError(f"Failed to update sweep state: {e}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")

@@ -63,7 +63,7 @@ def create_job(
             runtime="3.9",
             entrypoint="train.py",
         )
-        # then, use you newly created job
+        # then run the newly created job
         artifact_job.call()
         ```
     """
@@ -335,12 +335,25 @@ def _create_repo_metadata(
         entrypoint = rel_entrypoint
 
     # check if requirements.txt exists
-    if not os.path.exists(os.path.join(local_dir, "requirements.txt")):
-        repo_formd = path.replace(entrypoint, "")
+    # start at the location of the python file and recurse up to the git root
+    req_dir = local_dir
+    while (
+        not os.path.exists(os.path.join(req_dir, "requirements.txt"))
+        and req_dir != tempdir
+    ):
+        req_dir = os.path.dirname(req_dir)
+
+    if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
         wandb.termerror(
-            f"Could not find requirements.txt file in git repo at: {repo_formd}/requirements.txt"
+            "Could not find requirements.txt file in git repo at "
+            f"{os.path.join(os.path.dirname(path), 'requirements.txt')} "
+            "or parent directories."
         )
         return None
+
+    wandb.termlog(
+        f"Using requirements.txt in {req_dir.replace(tempdir, '') or 'repository root'}"
+    )
 
     metadata = {
         "git": {
@@ -427,6 +440,8 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     job_builder = JobBuilder(
         settings=settings,
     )
+    # never allow notebook runs
+    job_builder._is_notebook_run = False
     # set run inputs and outputs to empty dicts
     job_builder.set_config({})
     job_builder.set_summary({})

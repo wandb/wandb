@@ -256,12 +256,10 @@ class Config:
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
-                    (
-                        'Attempted to change value of key "{}" '
-                        "from {} to {}\n"
-                        "If you really want to do this, pass"
-                        " allow_val_change=True to config.update()"
-                    ).format(key, self._items[key], val)
+                    f'Attempted to change value of key "{key}" '
+                    f"from {self._items[key]} to {val}\n"
+                    "If you really want to do this, pass"
+                    " allow_val_change=True to config.update()"
                 )
         return key, val
 

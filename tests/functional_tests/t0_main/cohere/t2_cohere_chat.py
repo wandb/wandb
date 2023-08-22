@@ -8,7 +8,7 @@ def main():
     co = cohere.Client()
 
     response = co.chat(
-        query="Hey! How are you doing today?",
+        message="Hey! How are you doing today?",
         model="command-light",
         return_prompt=True,
         return_preamble=True,
@@ -16,7 +16,7 @@ def main():
     )
     conv_session_id = response.conversation_id
     _ = co.chat(
-        query="What's your plan for the day?",
+        message="What's your plan for the day?",
         conversation_id=conv_session_id,
         model="command-light",
     )
