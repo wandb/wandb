@@ -20,12 +20,9 @@ def push_to_queue(
     queue_name: str,
     launch_spec: Dict[str, Any],
     project_queue: str,
-    queue_entity: Optional[str] = None,
 ) -> Any:
     try:
-        res = api.push_to_run_queue(
-            queue_name, launch_spec, project_queue, queue_entity
-        )
+        res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
@@ -195,10 +192,8 @@ def _launch_add(
     if project_queue is None:
         project_queue = LAUNCH_DEFAULT_PROJECT
 
-    queue_entity = launch_spec.get("queue_entity")
-
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue_name, launch_spec, project_queue, queue_entity)
+    res = push_to_queue(api, queue_name, launch_spec, project_queue)
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
