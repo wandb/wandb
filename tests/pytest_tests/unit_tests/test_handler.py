@@ -1,10 +1,8 @@
-import wandb
-
-from collections import defaultdict
 import queue
+from collections import defaultdict
 from unittest.mock import MagicMock
 
-import pytest
+import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal import handler, sample, settings_static
 
@@ -19,7 +17,8 @@ def test_handle_bigint(test_settings):
         stopped=MagicMock(),
         writer_q=MagicMock(),
         interface=MagicMock(),
-        context_keeper=MagicMock())
+        context_keeper=MagicMock(),
+    )
 
     sampled_history = pb.SampledHistoryRequest()
     request = pb.Request()
@@ -38,10 +37,8 @@ def test_handle_bigint(test_settings):
 
     history = result.response.sampled_history_response
     sampled_history = {
-        item.key: wandb.util.downsample(
-                    item.values_float or item.values_int, 40
-                )
-                for item in history.item
+        item.key: wandb.util.downsample(item.values_float or item.values_int, 40)
+        for item in history.item
     }
     assert sampled_history["ints"] == [1]
     assert len(sampled_history["floats"]) == 2
