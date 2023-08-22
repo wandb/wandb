@@ -274,7 +274,6 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.handleHistory(h.historyRecord)
 	case service.DeferRequest_FLUSH_TB:
-		h.sendRecord(record)
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
 	case service.DeferRequest_FLUSH_DEBOUNCER:
