@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 import pytest
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
 from wandb.sdk.launch.environment.gcp_environment import (
+    GCP_REGION_ENV_VAR,
     GcpEnvironment,
     get_gcloud_config_value,
-    GCP_REGION_ENV_VAR,
 )
 from wandb.sdk.launch.errors import LaunchError
 
