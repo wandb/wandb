@@ -1,7 +1,7 @@
 """Utilities for the agent."""
-import wandb
 from typing import Any, Dict, Optional
 
+import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.errors import LaunchError
 

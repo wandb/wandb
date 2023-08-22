@@ -3,7 +3,7 @@ import logging
 import os
 import re
 import subprocess
-from typing import Tuple, Optional
+from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
