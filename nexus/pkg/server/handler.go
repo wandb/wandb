@@ -119,7 +119,7 @@ func NewHandler(
 		recordChan:          make(chan *service.Record, BufferSize),
 		resultChan:          make(chan *service.Result, BufferSize),
 	}
-	if !settings.XDisableStats.GetValue() {
+	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
 	}
 	return h
@@ -297,6 +297,9 @@ func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifa
 
 // startSystemMonitor starts the system monitor
 func (h *Handler) startSystemMonitor() {
+	if h.systemMonitor == nil {
+		return
+	}
 	go func() {
 		// this goroutine reads from the system monitor channel and writes
 		// to the handler's record channel. it will exit when the system
@@ -358,9 +361,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	if h.systemMonitor != nil {
-		h.startSystemMonitor()
-	}
+	h.startSystemMonitor()
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -378,16 +379,12 @@ func (h *Handler) handleCancel(record *service.Record) {
 
 func (h *Handler) handlePause() {
 	h.timer.Pause()
-	if h.systemMonitor != nil {
-		h.systemMonitor.Stop()
-	}
+	h.systemMonitor.Stop()
 }
 
 func (h *Handler) handleResume() {
 	h.timer.Resume()
-	if h.systemMonitor != nil {
-		h.startSystemMonitor()
-	}
+	h.startSystemMonitor()
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
@@ -440,9 +437,7 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
-	if h.systemMonitor != nil {
-		h.systemMonitor.Stop()
-	}
+	h.systemMonitor.Stop()
 
 	// stop the run timer and set the runtime
 	h.timer.Pause()
