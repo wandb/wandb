@@ -91,7 +91,7 @@ def resolve_agent_config(  # noqa: C901
         resolved_config.update({"queues": list(queues)})
     # queue -> queues
     if resolved_config.get("queue"):
-        if type(resolved_config.get("queue")) == str:
+        if isinstance(resolved_config.get("queue"), str):
             resolved_config["queues"].append(resolved_config["queue"])
         else:
             raise LaunchError(
