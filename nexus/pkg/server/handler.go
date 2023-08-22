@@ -151,6 +151,18 @@ func (h *Handler) close() {
 	close(h.recordChan)
 }
 
+func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
+	if record.GetControl() == nil {
+		record.Control = &service.Control{}
+	}
+
+	control := record.GetControl()
+	for _, opt := range controlOptions {
+		opt(control)
+	}
+	h.sendRecord(record)
+}
+
 func (h *Handler) sendRecord(record *service.Record) {
 	h.recordChan <- record
 }
@@ -267,18 +279,16 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
 	}
+	// Need to clone the record to avoide race condition with the writer
 	record = proto.Clone(record).(*service.Record)
-	control := record.GetControl()
-	if control == nil {
-		record.Control = &service.Control{
-			Local:      true,
-			AlwaysSend: true,
-		}
-	} else {
-		control.Local = true
-		control.AlwaysSend = true
-	}
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+		func(control *service.Control) {
+			control.Local = true
+		},
+	)
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
@@ -300,30 +310,27 @@ func (h *Handler) startSystemMonitor() {
 }
 
 func (h *Handler) handlePollExit(record *service.Record) {
-	if control := record.GetControl(); control != nil {
-		control.AlwaysSend = true
-	} else {
-		record.Control = &service.Control{AlwaysSend: true}
-	}
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleFinal(record *service.Record) {
-	if control := record.GetControl(); control != nil {
-		control.AlwaysSend = true
-	} else {
-		record.Control = &service.Control{AlwaysSend: true}
-	}
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleServerInfo(record *service.Record) {
-	if control := record.GetControl(); control != nil {
-		control.AlwaysSend = true
-	} else {
-		record.Control = &service.Control{AlwaysSend: true}
-	}
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
@@ -443,12 +450,11 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	exit.Runtime = runtime
 
 	// send the exit record
-	if control := record.GetControl(); control != nil {
-		control.AlwaysSend = true
-	} else {
-		record.Control = &service.Control{AlwaysSend: true}
-	}
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleFiles(record *service.Record) {
