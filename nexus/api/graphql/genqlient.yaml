@@ -13,6 +13,6 @@ bindings:
   DateTime:
     type: time.Time
   Duration:
-    type: time.Duration
+    type: int64
   Int64:
     type: int
