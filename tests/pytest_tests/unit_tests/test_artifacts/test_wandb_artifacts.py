@@ -13,6 +13,7 @@ from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache
+from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
@@ -456,6 +457,64 @@ class TestStoreFile:
 def test_invalid_artifact_type(type):
     with pytest.raises(ValueError, match="reserved for internal use"):
         Artifact("foo", type=type)
+
+
+@pytest.mark.parametrize(
+    "property",
+    [
+        "entity",
+        "project",
+        "version",
+        "source_entity",
+        "source_project",
+        "source_version",
+        "ttl",
+        "aliases",  # Perhaps shouldn't be restricted? It is today.
+        "commit_hash",
+        "file_count",  # Probably doesn't need to be restricted, but is today.
+        "created_at",
+        "updated_at",
+    ],
+)
+def test_unlogged_artifact_property_errors(property):
+    art = Artifact("foo", type="any")
+    error_message = f"'Artifact.{property}' used prior to logging artifact"
+    with pytest.raises(ArtifactNotLoggedError, match=error_message):
+        getattr(art, property)
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "new_draft",
+        "download",
+        "checkout",
+        "verify",
+        "file",
+        "files",
+        "delete",
+        "used_by",
+        "logged_by",
+        "json_encode",
+    ],
+)
+def test_unlogged_artifact_basic_method_errors(method):
+    art = Artifact("foo", type="any")
+    error_message = f"'Artifact.{method}' used prior to logging artifact"
+    with pytest.raises(ArtifactNotLoggedError, match=error_message):
+        getattr(art, method)()
+
+
+def test_unlogged_artifact_other_method_errors():
+    art = Artifact("foo", type="any")
+    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get_path"):
+        art.get_path("pathname")
+
+    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get"):
+        art["obj_name"]
+
+    with pytest.raises(ArtifactNotLoggedError, match="Artifact.link"):
+        art.link("target_portfolio")
 
 
 def test_cache_write_failure_is_ignored(monkeypatch, capsys):
