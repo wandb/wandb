@@ -440,14 +440,15 @@ def add_wandb_callback(
             enable_model_checkpointing,
             visualize_skeleton,
         )
+        callbacks = wandb_callback.callbacks
         if not enable_train_validation_logging:
-            _ = wandb_callback.callbacks.pop("on_fit_epoch_end")
-            _ = wandb_callback.callbacks.pop("on_train_end")
+            _ = callbacks.pop("on_fit_epoch_end")
+            _ = callbacks.pop("on_train_end")
         if not enable_validation_logging:
-            _ = wandb_callback.callbacks.pop("on_val_end")
+            _ = callbacks.pop("on_val_end")
         if not enable_prediction_logging:
-            _ = wandb_callback.callbacks.pop("on_predict_end")
-        for event, callback_fn in wandb_callback.callbacks.items():
+            _ = callbacks.pop("on_predict_end")
+        for event, callback_fn in callbacks.items():
             model.add_callback(event, callback_fn)
     else:
         wandb.termerror(
