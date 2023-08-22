@@ -107,13 +107,15 @@ func (w *Writer) handleRecord(record *service.Record) {
 
 // storeRecord stores the record in the append-only log
 func (w *Writer) storeRecord(record *service.Record) {
+	if record.GetControl().GetLocal() {
+		return
+	}
 	w.storeChan <- record
 }
 
 func (w *Writer) sendRecord(record *service.Record) {
-	control := record.GetControl()
 	// TODO: redo it so it only uses control
-	if w.settings.GetXOffline().GetValue() && control != nil && !control.AlwaysSend {
+	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return
 	}
 	w.recordChan <- record

@@ -509,7 +509,7 @@ class Api:
         # 2. create default resource config, receive config id
         config_json = json.dumps({"resource_args": {type: config}})
         create_config_result = api.create_default_resource_config(
-            entity, LAUNCH_DEFAULT_PROJECT, type, config_json
+            entity, type, config_json
         )
         if not create_config_result["success"]:
             raise wandb.Error("failed to create default resource config")
@@ -4438,6 +4438,66 @@ class ArtifactCollection:
             raise ValueError("Could not find artifact type %s" % self.type)
         self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
+
+    @normalize_exceptions
+    def is_sequence(self) -> bool:
+        """Return True if this is a sequence."""
+        query = gql(
+            """
+            query FindSequence($entity: String!, $project: String!, $collection: String!, $type: String!) {
+                project(name: $project, entityName: $entity) {
+                    artifactType(name: $type) {
+                        __typename
+                        artifactSequence(name: $collection) {
+                            __typename
+                        }
+                    }
+                }
+            }
+            """
+        )
+        variables = {
+            "entity": self.entity,
+            "project": self.project,
+            "collection": self.name,
+            "type": self.type,
+        }
+        res = self.client.execute(query, variable_values=variables)
+        sequence = res["project"]["artifactType"]["artifactSequence"]
+        return sequence is not None and sequence["__typename"] == "ArtifactSequence"
+
+    @normalize_exceptions
+    def delete(self):
+        """Delete the entire artifact collection."""
+        if self.is_sequence():
+            mutation = gql(
+                """
+                mutation deleteArtifactSequence($id: ID!) {
+                    deleteArtifactSequence(input: {
+                        artifactSequenceID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        else:
+            mutation = gql(
+                """
+                mutation deleteArtifactPortfolio($id: ID!) {
+                    deleteArtifactPortfolio(input: {
+                        artifactPortfolioID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        self.client.execute(mutation, variable_values={"id": self.id})
 
     def __repr__(self):
         return f"<ArtifactCollection {self.name} ({self.type})>"
