@@ -125,6 +125,9 @@ func (um *UploadManager) Close() {
 		return
 	}
 	um.logger.Debug("uploader: Close")
+	if um.inChan == nil {
+		return
+	}
 	// todo: review this, we don't want to cause a panic
 	close(um.inChan)
 	um.wg.Wait()

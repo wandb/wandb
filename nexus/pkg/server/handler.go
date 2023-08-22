@@ -122,7 +122,7 @@ func NewHandler(
 		consolidatedSummary: make(map[string]string),
 		recordChan:          make(chan *service.Record, BufferSize),
 	}
-	if !settings.XDisableStats.GetValue() {
+	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
 	}
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
@@ -358,7 +358,6 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		ch := h.inChan.(*publisher.MultiChannel).Add()
 		h.systemMonitor.Do(ch)
 	}
-
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -436,9 +435,7 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
-	if h.systemMonitor != nil {
-		h.systemMonitor.Stop()
-	}
+	h.systemMonitor.Stop()
 
 	// stop the run timer and set the runtime
 	h.timer.Pause()

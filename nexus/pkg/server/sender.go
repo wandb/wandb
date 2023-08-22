@@ -268,9 +268,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
-		if s.exitRecord != nil {
-			s.respondExit(s.exitRecord)
-		}
+		s.respondExit(s.exitRecord)
 		s.recordChan.Done()
 		s.resultChan.Done()
 	default:
@@ -603,6 +601,9 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 // respondExit called from the end of the defer state machine
 func (s *Sender) respondExit(record *service.Record) {
+	if record == nil {
+		return
+	}
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
 		result := &service.Result{
 			ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
