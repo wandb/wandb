@@ -2210,6 +2210,7 @@ class Artifact:
             if referenced_id:
                 assert self._client is not None
                 dep_artifact = self._from_id(referenced_id, client=self._client)
+                assert dep_artifact is not None
                 self._dependent_artifacts.add(dep_artifact)
 
     @staticmethod
