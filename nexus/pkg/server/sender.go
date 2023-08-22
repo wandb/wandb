@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"os"
 	"path/filepath"
 	"time"
@@ -24,6 +25,8 @@ import (
 const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
+	// Modified from time.RFC3339Nano
+	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -549,7 +552,8 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
-	t := time.Now().UTC().Format(time.RFC3339)
+	// generate compatible timestamp to python isoformat (microseconds without Z)
+	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
 		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
