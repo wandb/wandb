@@ -24,10 +24,10 @@ _is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
 
 PACKAGE: str = "wandb_core"
 ALL_PLATFORMS = (
-    ("darwin", "arm64", True),
-    ("darwin", "amd64", False),
-    ("linux", "amd64", True),
-    ("windows", "amd64", False),
+    ("darwin", "arm64"),
+    ("darwin", "amd64"),
+    ("linux", "amd64"),
+    ("windows", "amd64"),
 )
 
 log.set_verbosity(log.INFO)
@@ -45,7 +45,7 @@ class NexusBase:
         path = (path / f"bin-{goos}-{goarch}" / "wandb-nexus").resolve()
         return path
 
-    def _build_nexus(self, path=None, goos=None, goarch=None, cgo_enabled=False):
+    def _build_nexus(self, path=None, goos=None, goarch=None):
         nexus_path = self._get_wheel_nexus_path(path=path, goos=goos, goarch=goarch)
 
         src_dir = Path(__file__).parent
@@ -54,12 +54,7 @@ class NexusBase:
             env["GOOS"] = goos
         if goarch:
             env["GOARCH"] = goarch
-        # cgo is needed on:
-        #  - arm macs to build the gopsutil dependency,
-        #    otherwise several system metrics will be unavailable.
-        #  - linux to build the dependencies needed to get GPU metrics.
-        if not cgo_enabled:
-            env["CGO_ENABLED"] = "0"
+        env["CGO_ENABLED"] = "0"
         os.makedirs(nexus_path.parent, exist_ok=True)
 
         # Sentry only allows 12 characters for release names, the full commit hash won't fit
@@ -143,8 +138,8 @@ class WrapInstall(install, NexusBase):
         nexus_wheel_path = self._get_wheel_nexus_path()
         if self.nexus_build:
             if self.nexus_build == "all":
-                for goos, goarch, cgo_enabled in ALL_PLATFORMS:
-                    self._build_nexus(goos=goos, goarch=goarch, cgo_enabled=cgo_enabled)
+                for goos, goarch in ALL_PLATFORMS:
+                    self._build_nexus(goos=goos, goarch=goarch)
         elif not nexus_wheel_path.exists():
             self._build_nexus()
 
