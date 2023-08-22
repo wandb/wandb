@@ -2,6 +2,7 @@
 from typing import Any, Dict, Optional
 
 from wandb.apis.internal import Api
+from wandb.docker import is_docker_installed
 from wandb.sdk.launch.errors import LaunchError
 
 from .builder.abstract import AbstractBuilder
@@ -153,11 +154,16 @@ def builder_from_config(
         LaunchError: If the builder is not configured correctly.
     """
     if not config:
-        from .builder.docker_builder import DockerBuilder
+        if is_docker_installed():
+            from .builder.docker_builder import DockerBuilder
 
-        return DockerBuilder.from_config(
-            {}, environment, registry
-        )  # This is the default builder.
+            return DockerBuilder.from_config(
+                {}, environment, registry
+            )  # This is the default builder.
+
+        from .builder.noop import NoOpBuilder
+
+        return NoOpBuilder.from_config({}, environment, registry)
 
     builder_type = config.get("type")
     if builder_type is None:
