@@ -81,7 +81,7 @@ class NexusBase:
             )
             subprocess.check_call(
                 cmd,
-                cwd=src_dir/"scripts"/"build",
+                cwd=src_dir / "scripts" / "build",
                 env=dict(os.environ, **env),
             )
 
