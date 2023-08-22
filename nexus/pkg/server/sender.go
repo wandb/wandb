@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/publisher"
@@ -26,6 +27,8 @@ import (
 const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
+	// Modified from time.RFC3339Nano
+	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -557,7 +560,8 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
-	t := time.Now().UTC().Format(time.RFC3339)
+	// generate compatible timestamp to python isoformat (microseconds without Z)
+	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
 		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
@@ -577,7 +581,6 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
-	waitDuration := time.Duration(alert.WaitDuration) * time.Second
 
 	data, err := gql.NotifyScriptableRunAlert(
 		s.ctx,
@@ -588,7 +591,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		alert.Title,
 		alert.Text,
 		&severity,
-		&waitDuration,
+		&alert.WaitDuration,
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
