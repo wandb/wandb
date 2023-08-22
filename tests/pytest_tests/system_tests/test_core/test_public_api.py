@@ -181,6 +181,41 @@ def test_artifact_version(wandb_init):
     assert artifact.source_version == "v1"
 
 
+def test_delete_collection(wandb_init):
+    with wandb_init(project="test") as run:
+        art = wandb.Artifact("test-artifact", "test-type")
+        with art.new_file("test.txt", "w") as f:
+            f.write("testing")
+        run.log_artifact(art)
+        run.link_artifact(art, "test/test-portfolio")
+
+    project = Api().artifact_type("test-type", project="test")
+    portfolio = project.collection("test-portfolio")
+    portfolio.delete()
+
+    with pytest.raises(wandb.errors.CommError):
+        Api().artifact(
+            name=f"{project.entity}/test/test-portfolio:latest",
+            type="test-type",
+        )
+
+    # The base artifact should still exist.
+    Api().artifact(
+        name=f"{project.entity}/test/test-artifact:latest",
+        type="test-type",
+    )
+
+    sequence = project.collection("test-artifact")
+    sequence.delete()
+
+    # Until now.
+    with pytest.raises(wandb.errors.CommError):
+        Api().artifact(
+            name=f"{project.entity}/test/test-artifact:latest",
+            type="test-type",
+        )
+
+
 def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
     entity, project = logged_artifact.entity, logged_artifact.project
 
