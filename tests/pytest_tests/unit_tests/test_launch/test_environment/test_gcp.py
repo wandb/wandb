@@ -3,7 +3,10 @@ from unittest.mock import MagicMock
 
 import pytest
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
-from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
+from wandb.sdk.launch.environment.gcp_environment import (
+    GcpEnvironment,
+    get_gcloud_config_value,
+)
 from wandb.sdk.launch.errors import LaunchError
 
 
@@ -116,3 +119,21 @@ def test_upload_dir(mocker):
             ),
         ],
     )
+
+
+@pytest.mark.parametrize(
+    "region,value",
+    [
+        (b"us-central1", "us-central1"),
+        (b"unset", None),
+    ],
+)
+def test_get_gcloud_config_value(mocker, region, value):
+    """Test that we can construct gcp environment from default credentials."""
+    # Mock subprocess.check_output
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.subprocess.check_output",
+        return_value=region,
+    )
+    # environment = GcpEnvironment.from_default()
+    assert get_gcloud_config_value("region") == value
