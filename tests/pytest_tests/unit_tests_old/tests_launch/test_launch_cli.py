@@ -1,5 +1,6 @@
 import json
 import os
+from unittest.mock import Mock
 
 import pytest
 import wandb
@@ -14,7 +15,11 @@ def raise_(ex):
 
 def patched_run_run_entry(cmd, dir):
     print(f"running command: {cmd}")
-    return cmd  # noop
+    mock_run = Mock()
+    rv = Mock()
+    rv.state = "finished"
+    mock_run.get_status.return_value = rv
+    return mock_run
 
 
 @pytest.fixture
