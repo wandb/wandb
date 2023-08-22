@@ -27,7 +27,7 @@ type Stream struct {
 	// handler is the handler for the stream
 	handler *Handler
 
-	//dispatcher is the dispatcher for the stream
+	// dispatcher is the dispatcher for the stream
 	dispatcher *Dispatcher
 
 	// writer is the writer for the stream

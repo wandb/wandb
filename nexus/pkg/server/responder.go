@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"github.com/wandb/wandb/nexus/pkg/service"
