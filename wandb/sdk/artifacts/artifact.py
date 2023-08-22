@@ -4,7 +4,6 @@ import contextlib
 import json
 import multiprocessing.dummy
 import os
-import platform
 import re
 import shutil
 import tempfile
@@ -683,7 +682,7 @@ class Artifact:
     @property
     def updated_at(self) -> str:
         """The time at which the artifact was last updated."""
-        self._ensure_logged("created_at")
+        self._ensure_logged("updated_at")
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
@@ -1584,9 +1583,11 @@ class Artifact:
 
         # If the entry is a reference from another artifact, then get it directly from
         # that artifact.
-        if entry._is_artifact_reference():
+        referenced_id = entry._referenced_artifact_id()
+        if referenced_id:
             assert self._client is not None
-            artifact = entry._get_referenced_artifact(self._client)
+            artifact = self._from_id(referenced_id, client=self._client)
+            assert artifact is not None
             return artifact.get(util.uri_from_path(entry.ref))
 
         # Special case for wandb.Table. This is intended to be a short term
@@ -1916,13 +1917,14 @@ class Artifact:
         self._ensure_logged("files")
         return ArtifactFiles(self._client, self, names, per_page)
 
-    def _default_root(self, include_version: bool = True) -> str:
+    def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]
         root = os.path.join(env.get_artifact_dir(), name)
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(root)
-            root = head + tail.replace(":", "-")
-        return root
+        # In case we're on a system where the artifact dir has a name corresponding to
+        # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
+        # use that, otherwise we'll fall back to the system-preferred path.
+        path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
+        return FilePathStr(str(path))
 
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
@@ -2204,9 +2206,11 @@ class Artifact:
                 json.loads(util.ensure_text(request.content))
             )
         for entry in self.manifest.entries.values():
-            if entry._is_artifact_reference():
+            referenced_id = entry._referenced_artifact_id()
+            if referenced_id:
                 assert self._client is not None
-                dep_artifact = entry._get_referenced_artifact(self._client)
+                dep_artifact = self._from_id(referenced_id, client=self._client)
+                assert dep_artifact is not None
                 self._dependent_artifacts.add(dep_artifact)
 
     @staticmethod

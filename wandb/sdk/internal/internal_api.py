@@ -1343,7 +1343,7 @@ class Api:
 
     @normalize_exceptions
     def create_default_resource_config(
-        self, entity: str, project: str, resource: str, config: str
+        self, entity: str, resource: str, config: str
     ) -> Optional[Dict[str, Any]]:
         if not self.create_default_resource_config_introspection():
             raise Exception()
@@ -1351,14 +1351,12 @@ class Api:
             """
         mutation createDefaultResourceConfig(
             $entityName: String!
-            $projectName: String
             $resource: String!
             $config: JSONString!
         ) {
             createDefaultResourceConfig(
             input: {
                 entityName: $entityName
-                projectName: $projectName
                 resource: $resource
                 config: $config
             }
@@ -1371,7 +1369,6 @@ class Api:
         )
         variable_values = {
             "entityName": entity,
-            "projectName": project,
             "resource": resource,
             "config": config,
         }
@@ -1520,7 +1517,7 @@ class Api:
         launch_spec: Dict[str, str],
         project_queue: str,
     ) -> Optional[Dict[str, Any]]:
-        entity = launch_spec["entity"]
+        entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
