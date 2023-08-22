@@ -627,7 +627,7 @@ def create_app(user_ctx=None):
 
         if "mutation CreateRunFiles" in body["query"]:
             requested_file = body["variables"]["files"][0]
-            upload_url = base_url + "/storage?file=%s" % requested_file
+            upload_url = base_url + "/storage?file={}&run={}".format(requested_file, ctx["current_run"])
             data = {
                 "data": {
                     "createRunFiles": {
@@ -2097,7 +2097,12 @@ def create_app(user_ctx=None):
         if request.method == "PUT":
             for c in ctx, run_ctx:
                 c["file_bytes"].setdefault(file, 0)
-                c["file_bytes"][file] += request.content_length
+                # NOTE: if content length is not set we will check the actual data for len
+                content_length = request.content_length
+                if request.content_length is None:
+                    data = request.get_data()
+                    content_length = len(data)
+                c["file_bytes"][file] += content_length
         if ART_EMU:
             res = ART_EMU.storage(request=request, arti_id=ctx["latest_arti_id"])
             return res
