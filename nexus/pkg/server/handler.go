@@ -119,7 +119,7 @@ func NewHandler(
 		recordChan:          make(chan *service.Record, BufferSize),
 		resultChan:          make(chan *service.Result, BufferSize),
 	}
-	if !settings.XDisableStats.GetValue() {
+	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
 	}
 	return h
@@ -151,11 +151,19 @@ func (h *Handler) close() {
 	close(h.recordChan)
 }
 
-func (h *Handler) sendRecord(record *service.Record) {
-	control := record.GetControl()
-	if control != nil {
-		control.AlwaysSend = true
+func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
+	if record.GetControl() == nil {
+		record.Control = &service.Control{}
 	}
+
+	control := record.GetControl()
+	for _, opt := range controlOptions {
+		opt(control)
+	}
+	h.sendRecord(record)
+}
+
+func (h *Handler) sendRecord(record *service.Record) {
 	h.recordChan <- record
 }
 
@@ -174,6 +182,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Files:
 		h.handleFiles(record)
 	case *service.Record_Final:
+		h.handleFinal(record)
 	case *service.Record_Footer:
 	case *service.Record_Header:
 	case *service.Record_History:
@@ -211,7 +220,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	switch x := request.RequestType.(type) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
-		h.handleDefer(record)
+		h.handleDefer(record, x.Defer)
 		return
 	case *service.Request_GetSummary:
 		h.handleGetSummary(record, response)
@@ -221,10 +230,12 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handlePartialHistory(record, x.PartialHistory)
 		return
 	case *service.Request_PollExit:
+		h.handlePollExit(record)
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
 	case *service.Request_ServerInfo:
+		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
@@ -245,8 +256,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	h.sendResponse(record, response)
 }
 
-func (h *Handler) handleDefer(record *service.Record) {
-	request := record.GetRequest().GetDefer()
+func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 	case service.DeferRequest_FLUSH_RUN:
@@ -269,15 +279,27 @@ func (h *Handler) handleDefer(record *service.Record) {
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
 	}
-	h.sendRecord(record)
+	// Need to clone the record to avoide race condition with the writer
+	record = proto.Clone(record).(*service.Record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+		func(control *service.Control) {
+			control.Local = true
+		},
+	)
 }
 
-func (h *Handler) handleLogArtifact(record *service.Record, msg *service.LogArtifactRequest, resp *service.Response) {
+func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
 	h.sendRecord(record)
 }
 
 // startSystemMonitor starts the system monitor
 func (h *Handler) startSystemMonitor() {
+	if h.systemMonitor == nil {
+		return
+	}
 	go func() {
 		// this goroutine reads from the system monitor channel and writes
 		// to the handler's record channel. it will exit when the system
@@ -288,6 +310,30 @@ func (h *Handler) startSystemMonitor() {
 		h.logger.Debug("system monitor channel closed")
 	}()
 	h.systemMonitor.Do()
+}
+
+func (h *Handler) handlePollExit(record *service.Record) {
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
+}
+
+func (h *Handler) handleFinal(record *service.Record) {
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
+}
+
+func (h *Handler) handleServerInfo(record *service.Record) {
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
@@ -315,9 +361,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	if h.systemMonitor != nil {
-		h.startSystemMonitor()
-	}
+	h.startSystemMonitor()
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -335,16 +379,12 @@ func (h *Handler) handleCancel(record *service.Record) {
 
 func (h *Handler) handlePause() {
 	h.timer.Pause()
-	if h.systemMonitor != nil {
-		h.systemMonitor.Stop()
-	}
+	h.systemMonitor.Stop()
 }
 
 func (h *Handler) handleResume() {
 	h.timer.Resume()
-	if h.systemMonitor != nil {
-		h.startSystemMonitor()
-	}
+	h.startSystemMonitor()
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
@@ -397,9 +437,7 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
-	if h.systemMonitor != nil {
-		h.systemMonitor.Stop()
-	}
+	h.systemMonitor.Stop()
 
 	// stop the run timer and set the runtime
 	h.timer.Pause()
@@ -407,7 +445,11 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	exit.Runtime = runtime
 
 	// send the exit record
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleFiles(record *service.Record) {
