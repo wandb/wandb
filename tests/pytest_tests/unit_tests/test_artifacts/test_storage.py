@@ -348,7 +348,7 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
 
 
 def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch):
-    def out_of_space(path, *args, **kwargs):
+    def out_of_space(*args, **kwargs):
         raise OSError(errno.ENOSPC, "out of space")
 
     # Will raise an error without creating any file to delete.
