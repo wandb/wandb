@@ -238,6 +238,7 @@ def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
             run.log_artifact(draft)
 
 
+@pytest.mark.xfail(reason="there is no guarantee that gorilla has processed the event")
 def test_run_metadata(wandb_init):
     project = "test_metadata"
     run = wandb_init(project=project)
