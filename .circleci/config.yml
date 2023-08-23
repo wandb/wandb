@@ -1627,12 +1627,26 @@ workflows:
               python_version_major: [3]
               python_version_minor: [8]
               shard:
-                - "launch"
                 - "sweep"
                 - "artifacts"
           name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
+
+      # Launch system tests require a different tox env
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+              shard:
+                - "launch"
+          name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "launch-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "launch-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
 
       #
