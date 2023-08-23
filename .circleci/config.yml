@@ -1604,7 +1604,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "launch-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "launch-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old/tests_launch/"
 
       - launch:
@@ -1616,7 +1616,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "launch-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "launch-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests/test_launch/"
 
       - pytest:
