@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Dict, List, Mapping, Optional
 from wandb.sdk.lib.hashutil import HexMD5
 
 if TYPE_CHECKING:
-    from wandb.sdk.artifacts.storage_policy import StoragePolicy
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+    from wandb.sdk.artifacts.storage_policy import StoragePolicy
 
 
 class ArtifactManifest:
