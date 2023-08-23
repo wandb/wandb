@@ -274,6 +274,12 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
 	h.sendResponse(record, response)
+
+	// shutdown request indicates that we have gone through the exit path and
+	// have sent all the requests needed to extract the final bits of information
+	// from the stream.  At this point we close the loopback channel as a trigger
+	// to stop processing new incoming messages.
+	// TODO(beta): assess whether this would be better shutdown with a context
 	if shutdown {
 		close(h.loopbackChan)
 	}

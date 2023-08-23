@@ -145,12 +145,15 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 			Exit: &service.RunExitRecord{
 				ExitCode: exitCode,
 			}},
-		Control: &service.Control{AlwaysSend: true, ConnectionId: "internal", ReqResp: true},
+		// Control: &service.Control{AlwaysSend: true, ConnectionId: "internal", ReqResp: true},
+		Control: &service.Control{AlwaysSend: true, ReqResp: true},
 	}
 
 	s.HandleRecord(record)
+	// TODO(beta): process the response so we can formulate a more correct footer
 	<-s.respChan
 
+	// send a shutdown which triggers the handler to stop processing new records
 	shutdownRecord := &service.Record{
 		RecordType: &service.Record_Request{
 			Request: &service.Request{
