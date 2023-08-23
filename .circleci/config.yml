@@ -1394,7 +1394,7 @@ workflows:
 #          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_nexus"
+          tox_args: "tests/pytest_tests/system_tests/test_core"
       #
       # Nexus unit tests
       #
