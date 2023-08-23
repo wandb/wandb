@@ -1,4 +1,4 @@
-from ultralytics.yolo.engine.model import YOLO
+from ultralytics.models import YOLO
 from wandb.yolov8 import add_wandb_callback
 
 
