@@ -25,7 +25,7 @@ message Record {
   int64            num = 1;
   oneof record_type {
     // Low numbers for more frequent data
-    HistoryRecord   historyzz = 2;
+    HistoryRecord   history = 2;
     SummaryRecord   summary = 3;
     OutputRecord    output = 4;
     ConfigRecord    config = 5;
