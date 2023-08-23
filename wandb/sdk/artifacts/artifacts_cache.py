@@ -165,7 +165,7 @@ class ArtifactsCache:
             total_size -= stat.st_size
             bytes_reclaimed += stat.st_size
 
-        if total_size >= target_size:
+        if total_size > target_size:
             wandb.termerror(
                 f"Failed to reclaim enough space in {self._cache_dir}. Try running"
                 " `wandb artifact cleanup --remove-temp` to remove temporary files."
