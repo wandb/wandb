@@ -22,6 +22,7 @@ from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactH
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.lib.hashutil import md5_string
 
+
 example_digest = md5_string("example")
 
 
@@ -326,6 +327,33 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
             clear_fail = True
     assert check_warning
     assert clear_fail
+
+
+def test_cache_drops_lru_when_adding_not_enough_space(fs, artifacts_cache):
+    # Simulate a 1KB drive.
+    fs.set_disk_usage(1000)
+
+    # Create a few files to fill up the cache (exactly).
+    cache_paths = []
+    for i in range(10):
+        content = f"{i}" * 100
+        path, _, opener = artifacts_cache.check_md5_obj_path(md5_string(content), 100)
+        with opener() as f:
+            f.write(content)
+        cache_paths.append(path)
+
+    # This next file won't fit; we should drop 1/2 the files in LRU order.
+    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("x"), 100)
+    with opener() as f:
+        f.write("x")
+
+    for path in cache_paths[:5]:
+        assert not os.path.exists(path)
+    for path in cache_paths[5:]:
+        assert os.path.exists(path)
+
+    assert fs.get_disk_usage()[1] == 501
+
 
 
 def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
