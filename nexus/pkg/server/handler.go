@@ -123,7 +123,7 @@ func NewHandler(
 		loopbackChan:        loopbackChan,
 	}
 	if !settings.GetXDisableStats().GetValue() {
-		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
+		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
 	return h
 }
@@ -329,15 +329,6 @@ func (h *Handler) startSystemMonitor() {
 	if h.systemMonitor == nil {
 		return
 	}
-	go func() {
-		// this goroutine reads from the system monitor channel and writes
-		// to the handler's record channel. it will exit when the system
-		// monitor channel is closed
-		for msg := range h.systemMonitor.OutChan {
-			h.fwdChan <- msg
-		}
-		h.logger.Debug("system monitor channel closed")
-	}()
 	h.systemMonitor.Do()
 }
 
