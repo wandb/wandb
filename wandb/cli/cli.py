@@ -1250,6 +1250,12 @@ def launch_sweep(
     hidden=True,
     help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
 )
+@click.option(
+    "--dockerfile",
+    "-D",
+    default=None,
+    help="Path to the Dockerfile used to build the job, relative to the job's root",
+)
 @display_error
 def launch(
     uri,
@@ -1268,6 +1274,7 @@ def launch(
     build,
     repository,
     project_queue,
+    dockerfile,
 ):
     """Start a W&B run from the given URI.
 
@@ -1321,10 +1328,16 @@ def launch(
 
     run_id = config.get("run_id")
 
+    if dockerfile:
+        if "overrides" in config:
+            config["overrides"]["dockerfile"] = dockerfile
+        else:
+            config["overrides"] = {"dockerfile": dockerfile}
+
     if queue is None:
         # direct launch
         try:
-            wandb_launch.run(
+            run = wandb_launch.run(
                 api,
                 uri,
                 job,
@@ -1341,6 +1354,9 @@ def launch(
                 run_id=run_id,
                 repository=repository,
             )
+            if run.get_status().state in ["failed", "stopped", "preempted"]:
+                wandb.termerror("Launched run exited with non-zero status")
+                sys.exit(1)
         except LaunchError as e:
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
