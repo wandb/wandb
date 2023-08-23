@@ -117,20 +117,9 @@ func (s *Stream) GetRun() *service.RunRecord {
 	return s.handler.GetRun()
 }
 
-// Close closes the stream's handler, writer, sender, and dispatcher.
-// This can be triggered by the client (force=False) or by the server (force=True).
-// We need the ExitRecord to initiate the shutdown procedure (which we
-// either get from the client, or generate ourselves if the server is shutting us down).
-// This will trigger the defer state machines (SM) in the stream's components:
-//   - when the sender's SM gets to the final state, it will Close the handler
-//   - this will trigger the handler to Close the writer
-//   - this will trigger the writer to Close the sender
-//
-// This will finish the Stream's wait group, which will allow the stream to be
-// garbage collected.
+// Gracefully wait for handler, writer, sender, dispatcher to shutdown cleanly
+// assumes an exit record has already been sent
 func (s *Stream) Close() {
-	// Close and wait for input channel to shutdown
-	close(s.inChan)
 	s.wg.Wait()
 }
 
