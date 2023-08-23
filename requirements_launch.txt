@@ -3,9 +3,9 @@ azure-identity
 azure-containerregistry
 azure-storage-blob
 boto3
-botocore
 chardet
 google-auth
+google-cloud-aiplatform>=1.21.0
 google-cloud-artifact-registry
 google-cloud-compute
 google-cloud-storage
