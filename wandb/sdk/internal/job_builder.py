@@ -324,6 +324,8 @@ class JobBuilder:
                 Optional[ImageSourceDict],
             ] = None
 
+            wandb.termlog(f"{metadata=} {self._partial_source=}")
+
             # make source dict
             if source_type == "repo":
                 assert program_relpath

@@ -1082,6 +1082,16 @@ class Api:
                                             artifactSequence {
                                                 name
                                             }
+                                            createdAt
+                                            createdBy {
+                                                ... on Run {
+                                                    name
+                                                    project {
+                                                        name
+                                                        entityName
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -4723,6 +4733,7 @@ class Job:
         self._name = name
         self._api = api
         self._entity = api.default_entity
+        self._project = self._name.split("/")[1]
 
         with open(os.path.join(self._fpath, "wandb-job.json")) as f:
             self._job_info: Mapping[str, Any] = json.load(f)

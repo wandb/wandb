@@ -493,6 +493,8 @@ class InterfaceBase:
             job_info=job_info,
             metadata=metadata,
         )
+        import wandb
+        wandb.termlog(f"src_str: {src_str}")
         use_artifact.partial.source_info.source.ParseFromString(src_str)
 
         return use_artifact
@@ -518,7 +520,8 @@ class InterfaceBase:
                 with open(path) as f:
                     job_info = json.load(f)
             except Exception as e:
-                logger.warning(
+                import wandb
+                wandb.termwarn(
                     f"Failed to download partial job info from artifact {artifact}, : {e}"
                 )
             use_artifact = self._make_proto_use_artifact(
