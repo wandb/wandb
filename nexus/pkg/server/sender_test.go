@@ -21,7 +21,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) Sender {
 			RunId: &wrapperspb.StringValue{Value: "run1"},
 		},
 		graphqlClient: client,
-		resultChan:    resultChan,
+		outChan:       resultChan,
 		configMap:     make(map[string]interface{}),
 	}
 	return sender
@@ -73,5 +73,5 @@ func TestSendRun(t *testing.T) {
 	))
 
 	sender.sendRecord(run)
-	<-sender.resultChan
+	<-sender.outChan
 }

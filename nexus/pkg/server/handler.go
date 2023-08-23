@@ -74,13 +74,14 @@ type Handler struct {
 	// logger is the logger for the handler
 	logger *observability.NexusLogger
 
-	// recordChan is the channel for further processing
-	// of the incoming messages, by the writer
-	recordChan chan *service.Record
+	// fwdChan is the channel for forwarding messages to the writer
+	fwdChan chan *service.Record
 
-	// resultChan is the channel for returning results
-	// to the client
-	resultChan chan *service.Result
+	// outChan is the channel for results to the client
+	outChan chan *service.Result
+
+	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	loopbackChan chan *service.Record
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -109,6 +110,7 @@ func NewHandler(
 	ctx context.Context,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
+	loopbackChan chan *service.Record,
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{
@@ -116,8 +118,9 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
-		recordChan:          make(chan *service.Record, BufferSize),
-		resultChan:          make(chan *service.Result, BufferSize),
+		fwdChan:             make(chan *service.Record, BufferSize),
+		outChan:             make(chan *service.Result, BufferSize),
+		loopbackChan:        loopbackChan,
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
@@ -126,12 +129,27 @@ func NewHandler(
 }
 
 // do this starts the handler
-func (h *Handler) do(inChan <-chan *service.Record) {
+func (h *Handler) do(in, lb <-chan *service.Record) {
 	defer observability.Reraise()
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	for record := range inChan {
-		h.handleRecord(record)
+loop:
+	for in != nil || lb != nil {
+		select {
+		case record, ok := <-in:
+			if !ok {
+				in = nil
+				continue
+			}
+			h.handleRecord(record)
+		case record, ok := <-lb:
+			if !ok {
+				// exit the handler loop when loopback goes away
+				// (note: this could leave unread data on in chan)
+				break loop
+			}
+			h.handleRecord(record)
+		}
 	}
 	h.close()
 	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
@@ -143,12 +161,12 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	h.resultChan <- result
+	h.outChan <- result
 }
 
 func (h *Handler) close() {
-	close(h.resultChan)
-	close(h.recordChan)
+	close(h.outChan)
+	close(h.fwdChan)
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
@@ -164,7 +182,7 @@ func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions .
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
-	h.recordChan <- record
+	h.fwdChan <- record
 }
 
 //gocyclo:ignore
@@ -215,6 +233,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 }
 
 func (h *Handler) handleRequest(record *service.Record) {
+	shutdown := false
 	request := record.GetRequest()
 	response := &service.Response{}
 	switch x := request.RequestType.(type) {
@@ -237,6 +256,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
+		shutdown = true
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
 		h.handleLogArtifact(record, x.LogArtifact, response)
@@ -254,6 +274,15 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
 	h.sendResponse(record, response)
+
+	// shutdown request indicates that we have gone through the exit path and
+	// have sent all the requests needed to extract the final bits of information
+	// from the stream.  At this point we close the loopback channel as a trigger
+	// to stop processing new incoming messages.
+	// TODO(beta): assess whether this would be better shutdown with a context
+	if shutdown {
+		close(h.loopbackChan)
+	}
 }
 
 func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
@@ -305,7 +334,7 @@ func (h *Handler) startSystemMonitor() {
 		// to the handler's record channel. it will exit when the system
 		// monitor channel is closed
 		for msg := range h.systemMonitor.OutChan {
-			h.recordChan <- msg
+			h.fwdChan <- msg
 		}
 		h.logger.Debug("system monitor channel closed")
 	}()
