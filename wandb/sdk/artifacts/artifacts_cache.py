@@ -35,7 +35,6 @@ class ArtifactsCache:
 
     def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = cache_dir
-        mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id: Dict[str, Artifact] = CappedDict()
@@ -46,11 +45,7 @@ class ArtifactsCache:
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        return self._check_or_create(path, size)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -65,11 +60,14 @@ class ArtifactsCache:
             + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
+        return self._check_or_create(path, size)
+
+    def _check_or_create(
+        self, path: StrPath, size: int
+    ) -> Tuple[FilePathStr, bool, "Opener"]:
         opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        hit = os.path.isfile(path) and os.path.getsize(path) == size
+        return FilePathStr(str(path)), hit, opener
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
@@ -135,6 +133,7 @@ class ArtifactsCache:
                 raise ValueError("Appending to cache files is not supported")
 
             dirname = os.path.dirname(path)
+            mkdir_exists_ok(dirname)
             tmp_file = os.path.join(
                 dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
             )
