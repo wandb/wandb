@@ -116,6 +116,9 @@ func NewSystemMonitor(
 }
 
 func (sm *SystemMonitor) Do() {
+	if sm == nil {
+		return
+	}
 	// reset context:
 	sm.ctx, sm.cancel = context.WithCancel(context.Background())
 
