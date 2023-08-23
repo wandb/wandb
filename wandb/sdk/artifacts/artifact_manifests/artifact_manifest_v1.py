@@ -22,8 +22,6 @@ class ArtifactManifestV1(ArtifactManifest):
         storage_policy_name = manifest_json["storagePolicy"]
         storage_policy_config = manifest_json.get("storagePolicyConfig", {})
         storage_policy_cls = StoragePolicy.lookup_by_name(storage_policy_name)
-        if storage_policy_cls is None:
-            raise ValueError(f"Failed to find storage policy '{storage_policy_name}'")
 
         entries: Mapping[str, ArtifactManifestEntry]
         entries = {
