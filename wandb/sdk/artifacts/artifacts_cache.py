@@ -4,6 +4,7 @@ import errno
 import hashlib
 import os
 import secrets
+import shutil
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 import wandb
@@ -46,11 +47,7 @@ class ArtifactsCache:
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        return self._check_or_create(path, size)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -65,11 +62,43 @@ class ArtifactsCache:
             + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
+        return self._check_or_create(path, size)
+
+    def _check_or_create(
+        self, path: StrPath, size: int
+    ) -> Tuple[FilePathStr, bool, "Opener"]:
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return FilePathStr(path), True, opener
+        self._reserve_space(path, size)
         mkdir_exists_ok(os.path.dirname(path))
         return FilePathStr(path), False, opener
+
+    def _reserve_space(self, path: StrPath, size: int) -> None:
+        """If a `size` write would exceed disk space, remove cached items to make space.
+
+        Raises:
+            OSError: If there is not enough space to write `size` bytes, even after
+                removing cached items.
+        """
+        # Get the most recent parent that exists.
+        path = os.path.abspath(path)
+        while not os.path.exists(os.path.dirname(path)):
+            path = os.path.dirname(path)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free > size:
+            return
+
+        term.termwarn("Cache size exceeded. Attempting to reclaim space...")
+        self.cleanup(target_fraction=0.5)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free > size:
+            return
+
+        self.cleanup(target_size=0)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free < size:
+            raise OSError(errno.ENOSPC, "No space left on device")
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
@@ -165,7 +194,7 @@ class ArtifactsCache:
             bytes_reclaimed += stat.st_size
 
         if total_size >= target_size:
-            wandb.termwarn(
+            wandb.termerror(
                 f"Failed to reclaim enough space in {self._cache_dir}. Try running"
                 " `wandb artifact cleanup --remove-temp` to remove temporary files."
             )
