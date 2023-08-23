@@ -9,6 +9,10 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+const (
+	internalConnectionId = "internal"
+)
+
 // Stream is a collection of components that work together to handle incoming
 // data for a W&B run, store it locally, and send it to a W&B server.
 // Stream.handler receives incoming data from the client and dispatches it to
@@ -137,7 +141,7 @@ func (s *Stream) Respond(resp *service.ServerResponse) {
 }
 
 func (s *Stream) FinishAndClose(exitCode int32) {
-	s.AddResponders(ResponderEntry{s, "internal"})
+	s.AddResponders(ResponderEntry{s, internalConnectionId})
 
 	// send exit record to handler
 	record := &service.Record{
@@ -145,7 +149,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 			Exit: &service.RunExitRecord{
 				ExitCode: exitCode,
 			}},
-		Control: &service.Control{AlwaysSend: true, ConnectionId: "internal", ReqResp: true},
+		Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
 	}
 
 	s.HandleRecord(record)
@@ -160,7 +164,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 					Shutdown: &service.ShutdownRequest{},
 				},
 			}},
-		Control: &service.Control{AlwaysSend: true, ConnectionId: "internal", ReqResp: true},
+		Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
 	}
 	s.HandleRecord(shutdownRecord)
 	<-s.respChan
