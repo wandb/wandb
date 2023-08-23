@@ -1989,6 +1989,7 @@ class Artifact:
             },
         )
 
+    @normalize_exceptions
     def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
@@ -2006,10 +2007,7 @@ class Artifact:
             termwarn(
                 "Artifact TTL will be removed for source artifacts that are linked to portfolios."
             )
-        self._link(target_path, aliases)
 
-    @normalize_exceptions
-    def _link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
         if wandb.run is None:
             with wandb.init(
                 entity=self._source_entity,
