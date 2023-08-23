@@ -1,10 +1,7 @@
 package server
 
 import (
-	"context"
 	"testing"
-
-	"github.com/wandb/wandb/nexus/pkg/publisher"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
@@ -16,10 +13,9 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func makeSender(client graphql.Client, resultChan publisher.Channel) Sender {
+func makeSender(client graphql.Client, resultChan chan *service.Result) Sender {
 	logger := observability.NewNexusLogger(SetupDefaultLogger(), nil)
 	sender := Sender{
-		ctx:    context.Background(),
 		logger: logger,
 		settings: &service.Settings{
 			RunId: &wrapperspb.StringValue{Value: "run1"},
@@ -36,10 +32,7 @@ func TestSendRun(t *testing.T) {
 	to := nexustest.MakeTestObject(t)
 	defer to.TeardownTest()
 
-	ch := make(chan any, 1)
-	sendCh := publisher.NewMultiWrite(&ch)
-
-	sender := makeSender(to.MockClient, sendCh)
+	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
 
 	run := &service.Record{
 		RecordType: &service.Record_Run{
@@ -80,5 +73,5 @@ func TestSendRun(t *testing.T) {
 	))
 
 	sender.sendRecord(run)
-	<-sender.resultChan.Read()
+	<-sender.resultChan
 }

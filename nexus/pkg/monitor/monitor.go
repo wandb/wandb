@@ -113,13 +113,9 @@ func NewSystemMonitor(
 	return systemMonitor
 }
 
-func (sm *SystemMonitor) Do(outChan chan *service.Record) {
-	if sm == nil {
-		return
-	}
-
+func (sm *SystemMonitor) Do() {
 	if sm.OutChan == nil {
-		sm.OutChan = outChan
+		sm.OutChan = make(chan *service.Record, BufferSize)
 	}
 
 	// reset context:
@@ -211,5 +207,7 @@ func (sm *SystemMonitor) Stop() {
 	sm.logger.Info("Stopping system monitor")
 	sm.cancel()
 	sm.wg.Wait()
+	close(sm.OutChan)
+	sm.OutChan = nil
 	sm.logger.Info("Stopped system monitor")
 }

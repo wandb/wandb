@@ -74,9 +74,13 @@ type Handler struct {
 	// logger is the logger for the handler
 	logger *observability.NexusLogger
 
-	fwdChan chan *service.Record
+	// recordChan is the channel for further processing
+	// of the incoming messages, by the writer
+	recordChan chan *service.Record
 
-	outChan chan *service.Result
+	// resultChan is the channel for returning results
+	// to the client
+	resultChan chan *service.Result
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -112,14 +116,25 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
-		outChan:             make(chan *service.Result, BufferSize),
-		fwdChan:             make(chan *service.Record, BufferSize),
+		recordChan:          make(chan *service.Record, BufferSize),
+		resultChan:          make(chan *service.Result, BufferSize),
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
 	}
-	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 	return h
+}
+
+// do this starts the handler
+func (h *Handler) do(inChan <-chan *service.Record) {
+	defer observability.Reraise()
+
+	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
+	for record := range inChan {
+		h.handleRecord(record)
+	}
+	h.close()
+	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendResponse(record *service.Record, response *service.Response) {
@@ -128,32 +143,12 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	h.outChan <- result
-}
-
-func (h *Handler) Do(in, lb <-chan *service.Record) {
-	fmt.Printf("handler: do, %T\n", lb)
-	var record *service.Record
-	for ok2 := true; ok2; {
-		select {
-		case record, ok1 := <-in:
-			fmt.Println("handler: do, in", ok1)
-			if ok1 {
-				h.handleRecord(record)
-			}
-		case record, ok2 = <-lb:
-			fmt.Println("handler: do, lb", ok2)
-			if ok2 {
-				h.handleRecord(record)
-			}
-		}
-	}
+	h.resultChan <- result
 }
 
 func (h *Handler) close() {
-	fmt.Println("handler: close")
-
-	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
+	close(h.resultChan)
+	close(h.recordChan)
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
@@ -169,12 +164,11 @@ func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions .
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
-	h.fwdChan <- record
+	h.recordChan <- record
 }
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
-	fmt.Println("handler: handleRecord", record)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
 	switch x := record.RecordType.(type) {
@@ -263,7 +257,6 @@ func (h *Handler) handleRequest(record *service.Record) {
 }
 
 func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
-	// Need to clone the record to avoid race condition with the writer
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 	case service.DeferRequest_FLUSH_RUN:
@@ -282,23 +275,11 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
 	case service.DeferRequest_END:
-		record = proto.Clone(record).(*service.Record)
-		h.sendRecordWithControl(record,
-			func(control *service.Control) {
-				control.AlwaysSend = true
-			},
-			func(control *service.Control) {
-				control.Local = true
-			},
-		)
-		close(h.fwdChan)
-		close(h.outChan)
-		return
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
-		return
 	}
+	// Need to clone the record to avoide race condition with the writer
 	record = proto.Clone(record).(*service.Record)
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -312,6 +293,23 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 
 func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
 	h.sendRecord(record)
+}
+
+// startSystemMonitor starts the system monitor
+func (h *Handler) startSystemMonitor() {
+	if h.systemMonitor == nil {
+		return
+	}
+	go func() {
+		// this goroutine reads from the system monitor channel and writes
+		// to the handler's record channel. it will exit when the system
+		// monitor channel is closed
+		for msg := range h.systemMonitor.OutChan {
+			h.recordChan <- msg
+		}
+		h.logger.Debug("system monitor channel closed")
+	}()
+	h.systemMonitor.Do()
 }
 
 func (h *Handler) handlePollExit(record *service.Record) {
@@ -362,13 +360,12 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	//  will cause a segfault because the sender's uploader is not initialized yet.
 	h.handleMetadata(record, request)
 
-	//// start the system monitor
-	//if h.systemMonitor != nil {
-	//	h.systemMonitor.Do(h.loopBackChan)
-	//}
+	// start the system monitor
+	h.startSystemMonitor()
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
+
 	response.ResponseType = &service.Response_AttachResponse{
 		AttachResponse: &service.AttachResponse{
 			Run: h.runRecord,
@@ -382,14 +379,12 @@ func (h *Handler) handleCancel(record *service.Record) {
 
 func (h *Handler) handlePause() {
 	h.timer.Pause()
-	//h.systemMonitor.Stop()
+	h.systemMonitor.Stop()
 }
 
 func (h *Handler) handleResume() {
 	h.timer.Resume()
-	//if h.systemMonitor != nil {
-	//	h.systemMonitor.Do(h.loopBackChan)
-	//}
+	h.startSystemMonitor()
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
@@ -442,7 +437,7 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
-	//h.systemMonitor.Stop()
+	h.systemMonitor.Stop()
 
 	// stop the run timer and set the runtime
 	h.timer.Pause()

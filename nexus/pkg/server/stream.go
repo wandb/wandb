@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
@@ -26,8 +25,8 @@ type Stream struct {
 	// handler is the handler for the stream
 	handler *Handler
 
-	// dispatcher is the dispatcher for the stream
-	dispatcher *Dispatcher
+	// responders is the map of responders for the stream
+	responders map[string]Responder
 
 	// writer is the writer for the stream
 	writer *Writer
@@ -41,11 +40,12 @@ type Stream struct {
 	// logger is the logger for the stream
 	logger *observability.NexusLogger
 
+	// inChan is the channel for incoming messages
 	inChan chan *service.Record
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *service.Settings, _ string) *Stream {
+func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
 	logFile := settings.GetLogInternal().GetValue()
 	logger := SetupStreamLogger(logFile, settings)
 
@@ -60,68 +60,132 @@ func NewStream(ctx context.Context, settings *service.Settings, _ string) *Strea
 	return stream
 }
 
+// AddResponders adds the given responders to the stream's dispatcher.
+func (s *Stream) AddResponders(entries ...ResponderEntry) {
+	if s.responders == nil {
+		s.responders = make(map[string]Responder)
+	}
+	for _, entry := range entries {
+		responderId := entry.ID
+		if _, ok := s.responders[responderId]; !ok {
+			s.responders[responderId] = entry.Responder
+		} else {
+			s.logger.CaptureWarn("Responder already exists", "responder", responderId)
+		}
+	}
+}
+
+func (s *Stream) handleRespond(result *service.Result) {
+	responderId := result.GetControl().GetConnectionId()
+	s.logger.Debug("dispatch: got result", "result", result)
+	if responderId == "" {
+		s.logger.Debug("dispatch: got result with no connection id", "result", result)
+		return
+	}
+	response := &service.ServerResponse{
+		ServerResponseType: &service.ServerResponse_ResultCommunicate{
+			ResultCommunicate: result,
+		},
+	}
+	s.responders[responderId].Respond(response)
+}
+
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-	s.logger.Info("created new stream", "id", s.settings.RunId)
+	// defer s.wg.Done()
+	// s.logger.Info("created new stream", "id", s.settings.RunId)
 
+	// TODO: fix input channel, either remove the defer state machine or make
+	//  a pattern to handle multiple writers
+
+	handlerInChan := make(chan *service.Record, BufferSize)
+	// handle the client requests
 	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	s.wg.Add(1)
+	go func() {
+		s.handler.do(handlerInChan)
+		s.wg.Done()
+	}()
+
+	// write the data to a transaction log
 	s.writer = NewWriter(s.ctx, s.settings, s.logger)
+	s.wg.Add(1)
+	go func() {
+		s.writer.do(s.handler.recordChan)
+		s.wg.Done()
+	}()
+
+	// send the data to the server
 	s.sender = NewSender(s.ctx, s.settings, s.logger)
-	s.dispatcher = NewDispatcher(s.logger)
-
 	s.wg.Add(1)
 	go func() {
-		s.handler.Do(s.inChan, s.sender.loopBackChan)
-		fmt.Println("handler done")
+		s.sender.do(s.writer.recordChan)
+		s.wg.Done()
+	}()
+
+	s.logger.Debug("starting stream", "id", s.settings.RunId)
+
+	// handle dispatching between components
+	// TODO: revisit both of these as we probably just want to use the defer state machine
+	//  to resolve the order of closing. We can also use a single channel to handle
+	//  all the components, hence reducing the extra channels.
+	s.wg.Add(1)
+	go func() {
+		for s.sender.resultChan != nil || s.handler.resultChan != nil {
+			select {
+			case result, ok := <-s.sender.resultChan:
+				if !ok {
+					s.sender.resultChan = nil
+					continue
+				}
+				s.handleRespond(result)
+			case result, ok := <-s.handler.resultChan:
+				if !ok {
+					s.handler.resultChan = nil
+					continue
+				}
+				s.handleRespond(result)
+			}
+		}
+		s.logger.Debug("dispatch: finished")
 		s.wg.Done()
 	}()
 
 	s.wg.Add(1)
+	// TODO: revisit both of these as we probably just want to use the defer state machine
+	//  to resolve the order of closing. We can also use a single channel to handle
+	//  all of the components, hence reducing the extra channels. We will need to recover from panics for writes on a closed
+	//  on the close channel for writes coming from the connections.
+	streamInChan := s.inChan
 	go func() {
-		s.writer.Do(s.handler.fwdChan)
-		fmt.Println("writer done")
+		for s.sender.recordChan != nil || streamInChan != nil {
+			select {
+			case record, ok := <-s.sender.recordChan:
+				if !ok {
+					s.sender.recordChan = nil
+					continue
+				}
+				handlerInChan <- record
+			case record, ok := <-streamInChan:
+				if !ok {
+					streamInChan = nil
+					continue
+				}
+				handlerInChan <- record
+			}
+		}
+		s.logger.Debug("dispatch: finished")
+		close(handlerInChan)
 		s.wg.Done()
 	}()
-
-	s.wg.Add(1)
-	go func() {
-		s.sender.Do(s.writer.fwdChan)
-		fmt.Println("sender done")
-		s.wg.Done()
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		s.dispatcher.Do(s.handler.outChan, s.sender.outChan)
-		fmt.Println("dispatcher done")
-		s.wg.Done()
-	}()
-
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
-func (s *Stream) HandleRecord(record *service.Record) {
-	s.logger.Debug("handling record", "record", record)
-	// send record to handler
-	s.inChan <- record
-}
-
-func (s *Stream) AddResponders(entries ...ResponderEntry) {
-	s.dispatcher.AddResponders(entries...)
-}
-
-func (s *Stream) HandleExit(exitCode int32) {
-	// send exit record to handler
-	record := &service.Record{
-		RecordType: &service.Record_Exit{
-			Exit: &service.RunExitRecord{
-				ExitCode: exitCode,
-			}},
-		Control: &service.Control{AlwaysSend: true},
-	}
-	s.inChan <- record
+func (s *Stream) HandleRecord(rec *service.Record) {
+	s.logger.Debug("handling record", "record", rec)
+	s.inChan <- rec
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
@@ -140,15 +204,22 @@ func (s *Stream) GetRun() *service.RunRecord {
 // This will finish the Stream's wait group, which will allow the stream to be
 // garbage collected.
 func (s *Stream) Close() {
-	// Done and wait for input channel to shut down
-	fmt.Println("closing stream")
-	s.wg.Wait()
+	// Close and wait for input channel to shutdown
 	close(s.inChan)
+	s.wg.Wait()
 }
 
 func (s *Stream) FinishAndClose(exitCode int32) {
-	fmt.Println("finishing and closing stream")
-	s.HandleExit(exitCode)
+	// send exit record to handler
+	record := &service.Record{
+		RecordType: &service.Record_Exit{
+			Exit: &service.RunExitRecord{
+				ExitCode: exitCode,
+			}},
+		Control: &service.Control{AlwaysSend: true},
+	}
+	s.HandleRecord(record)
+
 	s.Close()
 
 	s.PrintFooter()

@@ -41,7 +41,7 @@ func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpd
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.outChan <- result
+	s.resultChan <- result
 
 }
 
