@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
@@ -24,6 +25,8 @@ import (
 const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
+	// Modified from time.RFC3339Nano
+	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -38,11 +41,11 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *service.Settings
 
-	//	recordChan is the channel for outgoing messages
-	recordChan chan *service.Record
+	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	loopbackChan chan *service.Record
 
-	// resultChan is the channel for dispatcher messages
-	resultChan chan *service.Result
+	// outChan is the channel for dispatcher messages
+	outChan chan *service.Result
 
 	// graphqlClient is the graphql client
 	graphqlClient graphql.Client
@@ -51,7 +54,7 @@ type Sender struct {
 	fileStream *fs.FileStream
 
 	// uploader is the file uploader
-	uploader *uploader.Uploader
+	uploadManager *uploader.UploadManager
 
 	// RunRecord is the run record
 	RunRecord *service.RunRecord
@@ -84,17 +87,17 @@ func emptyAsNil(s *string) *string {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
 
 	sender := &Sender{
-		ctx:        ctx,
-		settings:   settings,
-		logger:     logger,
-		summaryMap: make(map[string]*service.SummaryItem),
-		configMap:  make(map[string]interface{}),
-		recordChan: make(chan *service.Record, BufferSize),
-		resultChan: make(chan *service.Result, BufferSize),
-		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
+		ctx:          ctx,
+		settings:     settings,
+		logger:       logger,
+		summaryMap:   make(map[string]*service.SummaryItem),
+		configMap:    make(map[string]interface{}),
+		loopbackChan: loopbackChan,
+		outChan:      make(chan *service.Result, BufferSize),
+		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
@@ -199,8 +202,11 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 			fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
 		)
 		s.fileStream.Start()
-		s.uploader = uploader.NewUploader(s.ctx, s.logger)
-		s.uploader.Start()
+		s.uploadManager = uploader.NewUploadManager(
+			uploader.WithLogger(s.logger),
+			uploader.WithSettings(s.settings),
+		)
+		s.uploadManager.Start()
 	}
 
 }
@@ -251,18 +257,14 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
-		if s.uploader != nil {
-			s.uploader.Close()
-		}
+		s.uploadManager.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
-		if s.fileStream != nil {
-			s.fileStream.Close()
-		}
+		s.fileStream.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FINAL:
@@ -270,11 +272,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
-		if s.exitRecord != nil {
-			s.respondExit(s.exitRecord)
-		}
-		close(s.recordChan)
-		close(s.resultChan)
+		s.respondExit(s.exitRecord)
+		// sender is done processing data, close our dispatch channel
+		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -288,7 +288,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
 func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
@@ -299,9 +299,7 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 // updateConfig updates the config map with the config record
@@ -433,7 +431,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 					Control: record.Control,
 					Uuid:    record.Uuid,
 				}
-				s.resultChan <- result
+				s.outChan <- result
 			}
 			return
 		}
@@ -455,16 +453,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			Control: record.Control,
 			Uuid:    record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
@@ -493,9 +489,7 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 		},
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 // sendConfig sends a config record to the server via an upsertBucket mutation
@@ -541,9 +535,7 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecord) {
@@ -560,15 +552,14 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
-	t := time.Now().UTC().Format(time.RFC3339)
+	// generate compatible timestamp to python isoformat (microseconds without Z)
+	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
 		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(recordCopy)
-	}
+	s.fileStream.StreamRecord(recordCopy)
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
@@ -582,7 +573,6 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
-	waitDuration := time.Duration(alert.WaitDuration) * time.Second
 
 	data, err := gql.NotifyScriptableRunAlert(
 		s.ctx,
@@ -593,7 +583,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		alert.Title,
 		alert.Text,
 		&severity,
-		&waitDuration,
+		&alert.WaitDuration,
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
@@ -606,13 +596,16 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 // respondExit called from the end of the defer state machine
 func (s *Sender) respondExit(record *service.Record) {
+	if record == nil {
+		return
+	}
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
 		result := &service.Result{
 			ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
 			Control:    record.Control,
 			Uuid:       record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
@@ -621,9 +614,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	// response is done by respondExit() and called when defer state machine is complete
 	s.exitRecord = record
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
@@ -635,7 +626,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
 // sendMetric sends a metrics record to the file stream,
@@ -665,7 +656,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 
 // sendFile sends a file to the server
 func (s *Sender) sendFile(name string) {
-	if s.graphqlClient == nil || s.uploader == nil {
+	if s.graphqlClient == nil || s.uploadManager == nil {
 		return
 	}
 
@@ -683,7 +674,7 @@ func (s *Sender) sendFile(name string) {
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
 		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl}
-		s.uploader.AddTask(task)
+		s.uploadManager.AddTask(task)
 	}
 }
 
@@ -693,7 +684,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Logger:        s.logger,
 		Artifact:      msg.Artifact,
 		GraphqlClient: s.graphqlClient,
-		Uploader:      s.uploader,
+		UploadManager: s.uploadManager,
 	}
 	saverResult, err := saver.Save()
 	if err != nil {
@@ -713,5 +704,5 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.resultChan <- result
+	s.outChan <- result
 }

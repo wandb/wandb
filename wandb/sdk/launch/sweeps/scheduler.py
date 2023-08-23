@@ -650,7 +650,11 @@ class Scheduler(ABC):
             pidx = entry_point.index("${program}")
             entry_point[pidx] = self._sweep_config["program"]
 
-        launch_config = {"overrides": {"run_config": args["args_dict"]}}
+        launch_config = self._wandb_run.config.get("launch", {})
+        if "overrides" not in launch_config:
+            launch_config["overrides"] = {"run_config": {}}
+        launch_config["overrides"]["run_config"].update(args["args_dict"])
+
         if macro_args:  # pipe in hyperparam args as params to launch
             launch_config["overrides"]["args"] = macro_args
 

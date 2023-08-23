@@ -1343,7 +1343,7 @@ class Api:
 
     @normalize_exceptions
     def create_default_resource_config(
-        self, entity: str, project: str, resource: str, config: str
+        self, entity: str, resource: str, config: str
     ) -> Optional[Dict[str, Any]]:
         if not self.create_default_resource_config_introspection():
             raise Exception()
@@ -1351,14 +1351,12 @@ class Api:
             """
         mutation createDefaultResourceConfig(
             $entityName: String!
-            $projectName: String
             $resource: String!
             $config: JSONString!
         ) {
             createDefaultResourceConfig(
             input: {
                 entityName: $entityName
-                projectName: $projectName
                 resource: $resource
                 config: $config
             }
@@ -1371,7 +1369,6 @@ class Api:
         )
         variable_values = {
             "entityName": entity,
-            "projectName": project,
             "resource": resource,
             "config": config,
         }
@@ -1520,7 +1517,7 @@ class Api:
         launch_spec: Dict[str, str],
         project_queue: str,
     ) -> Optional[Dict[str, Any]]:
-        entity = launch_spec["entity"]
+        entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
@@ -1687,6 +1684,7 @@ class Api:
         project: str,
         queues: List[str],
         agent_config: Dict[str, Any],
+        version: str,
         gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
@@ -1727,22 +1725,28 @@ class Api:
             "hostname": hostname,
         }
 
-        mutation_params = """$entity: String!,
-                $project: String!,
-                $queues: [ID!]!,
-                $hostname: String!"""
+        mutation_params = """
+            $entity: String!,
+            $project: String!,
+            $queues: [ID!]!,
+            $hostname: String!
+        """
 
-        mutation_input = """entityName: $entity,
-                        projectName: $project,
-                        runQueues: $queues,
-                        hostname: $hostname"""
+        mutation_input = """
+            entityName: $entity,
+            projectName: $project,
+            runQueues: $queues,
+            hostname: $hostname
+        """
 
         if "agentConfig" in self.create_launch_agent_fields_introspection():
             variable_values["agentConfig"] = json.dumps(agent_config)
-            mutation_params += """,
-                $agentConfig: JSONString"""
-            mutation_input += """,
-                        agentConfig: $agentConfig"""
+            mutation_params += ", $agentConfig: JSONString"
+            mutation_input += ", agentConfig: $agentConfig"
+        if "version" in self.create_launch_agent_fields_introspection():
+            variable_values["version"] = version
+            mutation_params += ", $version: String"
+            mutation_input += ", version: $version"
 
         mutation = gql(
             f"""
