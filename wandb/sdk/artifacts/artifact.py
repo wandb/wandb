@@ -69,6 +69,7 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 if TYPE_CHECKING:
+    from wandb.sdk.artifacts.storage_policy import StoragePolicy
     from wandb.sdk.interface.message_future import MessageFuture
 
 
@@ -137,7 +138,7 @@ class Artifact:
         storage_layout = (
             StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
         )
-        self._storage_policy = WandbStoragePolicy(
+        self._storage_policy: StoragePolicy = WandbStoragePolicy(
             config={
                 "storageLayout": storage_layout,
                 #  TODO: storage region
