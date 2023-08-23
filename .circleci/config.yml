@@ -334,6 +334,14 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
             - run:
+                name: Install Go
+                command: |
+                  wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+                  PATH=/usr/local/go/bin:$PATH
+                  go version
+                no_output_timeout: 1m
+            - run:
                 name: Install python dependencies
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
