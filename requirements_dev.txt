@@ -44,7 +44,6 @@ docker
 responses
 respx
 prometheus_client
-google-cloud-aiplatform
 
 .[async]
 .[perf]
