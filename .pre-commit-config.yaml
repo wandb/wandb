@@ -58,8 +58,6 @@ repos:
         name: 'go-generate-proto'
         entry: nexus/scripts/pre-commit-hooks/run-go-generate.sh
         files: '\.proto$'
-        args:
-          - ./api/proto
         pass_filenames: false
         language: 'script'
         description: "Runs `go generate`, requires golang"
