@@ -77,9 +77,8 @@ type Handler struct {
 	// fwdChan is the channel for forwarding messages to the writer
 	fwdChan chan *service.Record
 
-	// resultChan is the channel for returning results
-	// to the client
-	resultChan chan *service.Result
+	// outChan is the channel for results to the client
+	outChan chan *service.Result
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -116,7 +115,7 @@ func NewHandler(
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
 		fwdChan:             make(chan *service.Record, BufferSize),
-		resultChan:          make(chan *service.Result, BufferSize),
+		outChan:             make(chan *service.Result, BufferSize),
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
@@ -155,11 +154,11 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	h.resultChan <- result
+	h.outChan <- result
 }
 
 func (h *Handler) close() {
-	close(h.resultChan)
+	close(h.outChan)
 	close(h.fwdChan)
 }
 

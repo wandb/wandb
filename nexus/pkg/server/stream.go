@@ -100,7 +100,7 @@ func (s *Stream) Start() {
 	// handle dispatching between components
 	s.wg.Add(1)
 	go func() {
-		s.dispatcher.do(s.sender.resultChan, s.handler.resultChan)
+		s.dispatcher.do(s.handler.outChan, s.sender.outChan)
 		s.wg.Done()
 	}()
 

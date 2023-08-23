@@ -44,8 +44,8 @@ type Sender struct {
 	//	loopbackChan is the channel for loopback messages (messages from the sender to the handler)
 	loopbackChan chan *service.Record
 
-	// resultChan is the channel for dispatcher messages
-	resultChan chan *service.Result
+	// outChan is the channel for dispatcher messages
+	outChan chan *service.Result
 
 	// graphqlClient is the graphql client
 	graphqlClient graphql.Client
@@ -96,7 +96,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		summaryMap:   make(map[string]*service.SummaryItem),
 		configMap:    make(map[string]interface{}),
 		loopbackChan: make(chan *service.Record, BufferSize),
-		resultChan:   make(chan *service.Result, BufferSize),
+		outChan:      make(chan *service.Result, BufferSize),
 		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
@@ -274,7 +274,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.respondExit(s.exitRecord)
 		close(s.loopbackChan)
-		close(s.resultChan)
+		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -431,7 +431,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 					Control: record.Control,
 					Uuid:    record.Uuid,
 				}
-				s.resultChan <- result
+				s.outChan <- result
 			}
 			return
 		}
@@ -453,7 +453,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			Control: record.Control,
 			Uuid:    record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
@@ -605,7 +605,7 @@ func (s *Sender) respondExit(record *service.Record) {
 			Control:    record.Control,
 			Uuid:       record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
@@ -704,5 +704,5 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.resultChan <- result
+	s.outChan <- result
 }
