@@ -41,8 +41,8 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *service.Settings
 
-	//	recordChan is the channel for outgoing messages
-	recordChan chan *service.Record
+	//	loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	loopbackChan chan *service.Record
 
 	// resultChan is the channel for dispatcher messages
 	resultChan chan *service.Result
@@ -90,14 +90,14 @@ func emptyAsNil(s *string) *string {
 func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
 
 	sender := &Sender{
-		ctx:        ctx,
-		settings:   settings,
-		logger:     logger,
-		summaryMap: make(map[string]*service.SummaryItem),
-		configMap:  make(map[string]interface{}),
-		recordChan: make(chan *service.Record, BufferSize),
-		resultChan: make(chan *service.Result, BufferSize),
-		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
+		ctx:          ctx,
+		settings:     settings,
+		logger:       logger,
+		summaryMap:   make(map[string]*service.SummaryItem),
+		configMap:    make(map[string]interface{}),
+		loopbackChan: make(chan *service.Record, BufferSize),
+		resultChan:   make(chan *service.Result, BufferSize),
+		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
@@ -273,7 +273,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_END:
 		request.State++
 		s.respondExit(s.exitRecord)
-		close(s.recordChan)
+		close(s.loopbackChan)
 		close(s.resultChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -288,7 +288,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
 func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
@@ -626,7 +626,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
 // sendMetric sends a metrics record to the file stream,

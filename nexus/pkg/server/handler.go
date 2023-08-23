@@ -74,9 +74,8 @@ type Handler struct {
 	// logger is the logger for the handler
 	logger *observability.NexusLogger
 
-	// recordChan is the channel for further processing
-	// of the incoming messages, by the writer
-	recordChan chan *service.Record
+	// fwdChan is the channel for forwarding messages to the writer
+	fwdChan chan *service.Record
 
 	// resultChan is the channel for returning results
 	// to the client
@@ -116,7 +115,7 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
-		recordChan:          make(chan *service.Record, BufferSize),
+		fwdChan:             make(chan *service.Record, BufferSize),
 		resultChan:          make(chan *service.Result, BufferSize),
 	}
 	if !settings.GetXDisableStats().GetValue() {
@@ -126,12 +125,25 @@ func NewHandler(
 }
 
 // do this starts the handler
-func (h *Handler) do(inChan <-chan *service.Record) {
+func (h *Handler) do(in, lb <-chan *service.Record) {
 	defer observability.Reraise()
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	for record := range inChan {
-		h.handleRecord(record)
+	for in != nil || lb != nil {
+		select {
+		case record, ok := <-in:
+			if !ok {
+				in = nil
+				continue
+			}
+			h.handleRecord(record)
+		case record, ok := <-lb:
+			if !ok {
+				lb = nil
+				continue
+			}
+			h.handleRecord(record)
+		}
 	}
 	h.close()
 	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
@@ -148,7 +160,7 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 
 func (h *Handler) close() {
 	close(h.resultChan)
-	close(h.recordChan)
+	close(h.fwdChan)
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
@@ -164,7 +176,7 @@ func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions .
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
-	h.recordChan <- record
+	h.fwdChan <- record
 }
 
 //gocyclo:ignore
@@ -305,7 +317,7 @@ func (h *Handler) startSystemMonitor() {
 		// to the handler's record channel. it will exit when the system
 		// monitor channel is closed
 		for msg := range h.systemMonitor.OutChan {
-			h.recordChan <- msg
+			h.fwdChan <- msg
 		}
 		h.logger.Debug("system monitor channel closed")
 	}()

@@ -25,8 +25,8 @@ type Stream struct {
 	// handler is the handler for the stream
 	handler *Handler
 
-	// responders is the map of responders for the stream
-	responders map[string]Responder
+	// dispatcher is the dispatcher for the stream
+	dispatcher *Dispatcher
 
 	// writer is the writer for the stream
 	writer *Writer
@@ -62,124 +62,49 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 
 // AddResponders adds the given responders to the stream's dispatcher.
 func (s *Stream) AddResponders(entries ...ResponderEntry) {
-	if s.responders == nil {
-		s.responders = make(map[string]Responder)
-	}
-	for _, entry := range entries {
-		responderId := entry.ID
-		if _, ok := s.responders[responderId]; !ok {
-			s.responders[responderId] = entry.Responder
-		} else {
-			s.logger.CaptureWarn("Responder already exists", "responder", responderId)
-		}
-	}
-}
-
-func (s *Stream) handleRespond(result *service.Result) {
-	responderId := result.GetControl().GetConnectionId()
-	s.logger.Debug("dispatch: got result", "result", result)
-	if responderId == "" {
-		s.logger.Debug("dispatch: got result with no connection id", "result", result)
-		return
-	}
-	response := &service.ServerResponse{
-		ServerResponseType: &service.ServerResponse_ResultCommunicate{
-			ResultCommunicate: result,
-		},
-	}
-	s.responders[responderId].Respond(response)
+	s.dispatcher.AddResponders(entries...)
 }
 
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-	// defer s.wg.Done()
-	// s.logger.Info("created new stream", "id", s.settings.RunId)
+	s.logger.Info("created new stream", "id", s.settings.RunId)
 
-	// TODO: fix input channel, either remove the defer state machine or make
-	//  a pattern to handle multiple writers
-
-	handlerInChan := make(chan *service.Record, BufferSize)
-	// handle the client requests
 	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	s.writer = NewWriter(s.ctx, s.settings, s.logger)
+	s.sender = NewSender(s.ctx, s.settings, s.logger)
+	s.dispatcher = NewDispatcher(s.logger)
+
+	// handle the client requests
 	s.wg.Add(1)
 	go func() {
-		s.handler.do(handlerInChan)
+		s.handler.do(s.inChan, s.sender.loopbackChan)
 		s.wg.Done()
 	}()
 
 	// write the data to a transaction log
-	s.writer = NewWriter(s.ctx, s.settings, s.logger)
 	s.wg.Add(1)
 	go func() {
-		s.writer.do(s.handler.recordChan)
+		s.writer.do(s.handler.fwdChan)
 		s.wg.Done()
 	}()
 
 	// send the data to the server
-	s.sender = NewSender(s.ctx, s.settings, s.logger)
 	s.wg.Add(1)
 	go func() {
-		s.sender.do(s.writer.recordChan)
+		s.sender.do(s.writer.fwdChan)
+		s.wg.Done()
+	}()
+
+	// handle dispatching between components
+	s.wg.Add(1)
+	go func() {
+		s.dispatcher.do(s.sender.resultChan, s.handler.resultChan)
 		s.wg.Done()
 	}()
 
 	s.logger.Debug("starting stream", "id", s.settings.RunId)
-
-	// handle dispatching between components
-	// TODO: revisit both of these as we probably just want to use the defer state machine
-	//  to resolve the order of closing. We can also use a single channel to handle
-	//  all the components, hence reducing the extra channels.
-	s.wg.Add(1)
-	go func() {
-		for s.sender.resultChan != nil || s.handler.resultChan != nil {
-			select {
-			case result, ok := <-s.sender.resultChan:
-				if !ok {
-					s.sender.resultChan = nil
-					continue
-				}
-				s.handleRespond(result)
-			case result, ok := <-s.handler.resultChan:
-				if !ok {
-					s.handler.resultChan = nil
-					continue
-				}
-				s.handleRespond(result)
-			}
-		}
-		s.logger.Debug("dispatch: finished")
-		s.wg.Done()
-	}()
-
-	s.wg.Add(1)
-	// TODO: revisit both of these as we probably just want to use the defer state machine
-	//  to resolve the order of closing. We can also use a single channel to handle
-	//  all of the components, hence reducing the extra channels. We will need to recover from panics for writes on a closed
-	//  on the close channel for writes coming from the connections.
-	streamInChan := s.inChan
-	go func() {
-		for s.sender.recordChan != nil || streamInChan != nil {
-			select {
-			case record, ok := <-s.sender.recordChan:
-				if !ok {
-					s.sender.recordChan = nil
-					continue
-				}
-				handlerInChan <- record
-			case record, ok := <-streamInChan:
-				if !ok {
-					streamInChan = nil
-					continue
-				}
-				handlerInChan <- record
-			}
-		}
-		s.logger.Debug("dispatch: finished")
-		close(handlerInChan)
-		s.wg.Done()
-	}()
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
