@@ -3,6 +3,7 @@ import base64
 import errno
 import logging
 import os
+import platform
 import random
 from multiprocessing import Pool
 from unittest.mock import MagicMock
@@ -345,6 +346,9 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
     assert not os.path.exists(path)
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="Windows prevents mid-test deletion"
+)
 def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch):
     def out_of_space(*args, **kwargs):
         raise OSError(errno.ENOSPC, "out of space")
@@ -354,11 +358,9 @@ def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch)
     with pytest.raises(OSError, match="out of space"):
         with opener() as f:
             f.write("hello " * 100)
-            f.close()
             os.remove(f.name)
 
-            path = f.name
-            assert not os.path.exists(path)
+            assert not os.path.exists(f.name)
 
             monkeypatch.setattr(os, "fsync", out_of_space)
         # Here we raise the out of space error, not FileNotFoundError.
