@@ -278,12 +278,14 @@ class JobBuilder:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
     def build(self) -> Optional[Artifact]:
+        wandb.termlog("building")
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
         ):
             return None
         metadata = self._handle_metadata_file()
+        wandb.termlog(f"[builder] {metadata=}")
         if metadata is None:
             return None
 
@@ -299,9 +301,11 @@ class JobBuilder:
         source_info: Optional[JobSourceDict] = None
 
         if self._partial_source is not None:
+            wandb.termlog("[builder] building from partial job source")
             # construct source from downloaded partial job metadata
             name = self._partial_source["job_name"]
             source_info = self._partial_source["job_source_info"]
+            wandb.termlog(f"[builder] {source_info=}")
             # add input/output types now that we are actually running a run
             source_info.update(
                 {"input_types": input_types, "output_types": output_types}

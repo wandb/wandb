@@ -483,6 +483,8 @@ class InterfaceBase:
         job_info: Dict[str, Any],
         metadata: Dict[str, Any],
     ) -> pb.UseArtifactRecord:
+        import wandb
+        wandb.termlog(f"{job_name=} {job_info=} {metadata=}")
         use_artifact.partial.job_name = job_name
         use_artifact.partial.source_info._version = job_info.get("_version", "")
         use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
@@ -493,7 +495,7 @@ class InterfaceBase:
             job_info=job_info,
             metadata=metadata,
         )
-        import wandb
+        
         wandb.termlog(f"src_str: {src_str}")
         use_artifact.partial.source_info.source.ParseFromString(src_str)
 
