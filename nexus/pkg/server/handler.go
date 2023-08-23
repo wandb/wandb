@@ -205,6 +205,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Header:
 	case *service.Record_History:
 	case *service.Record_LinkArtifact:
+		h.handleLinkArtifact(record)
 	case *service.Record_Metric:
 		h.handleMetric(record, x.Metric)
 	case *service.Record_Output:
@@ -321,6 +322,10 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleLinkArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 

@@ -147,6 +147,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
+	case *service.Record_LinkArtifact:
+		s.sendLinkArtifact(record)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -300,6 +302,10 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 
 func (s *Sender) sendPreempting(record *service.Record) {
 	s.fileStream.StreamRecord(record)
+}
+
+func (s *Sender) sendLinkArtifact(record *service.Record) {
+	s.logger.Info("sender: linkartifactalert", "data")
 }
 
 // updateConfig updates the config map with the config record
