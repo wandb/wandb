@@ -513,9 +513,6 @@ def test_unlogged_artifact_other_method_errors():
     with pytest.raises(ArtifactNotLoggedError, match="Artifact.get"):
         art["obj_name"]
 
-    with pytest.raises(ArtifactNotLoggedError, match="Artifact.link"):
-        art.link("target_portfolio")
-
 
 def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     def bad_write(*args, **kwargs):

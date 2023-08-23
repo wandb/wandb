@@ -2002,7 +2002,6 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        self._ensure_logged("link")
         if not self._ttl_is_inherited:
             termwarn(
                 "Artifact TTL will be removed for source artifacts that are linked to portfolios."
