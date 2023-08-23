@@ -26,6 +26,7 @@ mypy-results/
 cover-results/
 wandb/proto_check/
 *.log
+.wandb/
 wandb/latest-run
 wandb/run-202*
 .idea/

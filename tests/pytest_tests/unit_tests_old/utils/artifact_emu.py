@@ -91,7 +91,7 @@ class ArtifactEmulator:
                         "edges": [
                             {
                                 "node": {
-                                    "id": idx,
+                                    "id": str(idx),
                                     "name": af["name"],
                                     "displayName": af["name"],
                                     "uploadUrl": f"{base_url}/storage?file={af['name']}&id={af['artifactID']}",

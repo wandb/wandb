@@ -35,6 +35,9 @@ class ArtifactManifest:
         self.storage_policy = storage_policy
         self.entries = dict(entries) if entries else {}
 
+    def __len__(self) -> int:
+        return len(self.entries)
+
     def to_manifest_json(self) -> Dict:
         raise NotImplementedError
 

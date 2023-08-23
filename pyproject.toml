@@ -11,7 +11,7 @@ authors = [
 ]
 readme = "package_readme.md"
 license = { file = "LICENSE"}
-requires-python = ">=3.7"
+requires-python = ">=3.6"
 dependencies = [
     "Click>=7.1,!=8.0.0",  # click 8.0.0 is broken
     "GitPython>=1.0.0,!=3.1.29",  # CVE-2022-24439
@@ -37,6 +37,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -100,7 +101,7 @@ launch = [
     "typing_extensions",
 ]
 models = ["cloudpickle"]
-async = ["httpx>=0.23.0"]
+async = ["httpx>=0.22.0"] # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 perf = ["orjson"]
 
 [tool.setuptools]

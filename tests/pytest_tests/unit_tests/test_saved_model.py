@@ -78,6 +78,9 @@ class ArtifactManifestEntryPatch(ArtifactManifestEntry):
         dest = os.path.join(root, self.path)
         return copy_or_overwrite_changed(self.local_path, dest)
 
+    def _referenced_artifact_id(self):
+        return None
+
 
 class ArtifactPatch(Artifact):
     def _load_manifest(self, url: str) -> None:
