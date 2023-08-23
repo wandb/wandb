@@ -1,5 +1,4 @@
-"""
-Nexus setup.
+"""Nexus setup.
 
 To build the nexus wheel only for a specific platform, run:
 python -m build -w -n ./nexus --config-setting=--build-option=--nexus-build=darwin-arm64,linux-amd64
@@ -20,7 +19,6 @@ from pathlib import Path
 
 from setuptools import setup
 from setuptools.command.develop import develop
-
 from wheel.bdist_wheel import bdist_wheel
 
 # Package naming
