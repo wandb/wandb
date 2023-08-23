@@ -1,4 +1,15 @@
-"""nexus setup."""
+"""
+Nexus setup.
+
+To build the nexus wheel only for a specific platform, run:
+python -m build -w -n ./nexus --config-setting=--build-option=--nexus-build=darwin-arm64,linux-amd64
+
+To build the nexus wheel for all platforms, run:
+python -m build -w -n ./nexus
+
+To install the nexus wheel, run:
+pip install ./nexus/dist/wandb_core-*-py3-none-any.whl
+"""
 
 import os
 import platform
@@ -10,7 +21,6 @@ from pathlib import Path
 from setuptools import setup
 from setuptools.command.develop import develop
 
-# from distutils.command.bdist import bdist
 from wheel.bdist_wheel import bdist_wheel
 
 # Package naming
@@ -58,16 +68,10 @@ class NexusBase:
         #  - arm macs to build the gopsutil dependency,
         #    otherwise several system metrics will be unavailable.
         #  - linux to build the dependencies needed to get GPU metrics.
-        if not cgo_enabled:
-            env["CGO_ENABLED"] = "0"
-        else:
-            env["CGO_ENABLED"] = "1"
-            # env["CC"] = "x86_64-linux-musl-gcc"
-            # env["CGO_CPPFLAGS"] = "-I../../../go/pkg/mod/github.com/!n!v!i!d!i!a/go-nvml@v0.12.0-1/pkg/nvml"
+        env["CGO_ENABLED"] = "1" if cgo_enabled else "0"
         os.makedirs(nexus_path.parent, exist_ok=True)
 
         # Sentry only allows 12 characters for release names, the full commit hash won't fit
-        print(src_dir)
         commit = (
             subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
             .decode("utf-8")
@@ -184,12 +188,6 @@ class WrapBdistWheel(bdist_wheel, NexusBase):
         bdist_wheel.finalize_options(self)
 
     def run(self):
-        log.info(str(self.__dict__))
-        import sys
-
-        log.info(str(sys.argv))
-        log.info("\n\n+++nexus-build: %s\n\n", self.nexus_build)
-        # log.info("\n\n+++lol: %s\n\n", self.lol)
         bdist_wheel.run(self)
 
 

@@ -2,6 +2,7 @@ ARG PYTHON_VERSION=3.9
 ARG PLATFORM=amd64
 FROM --platform=linux/${PLATFORM} python:${PYTHON_VERSION}
 
+# Mount a volume for the Go build cache
 VOLUME /root/.cache/go-build
 
 ENV PATH $PATH:/usr/local/go/bin
