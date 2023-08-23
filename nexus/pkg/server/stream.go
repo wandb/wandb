@@ -145,8 +145,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 			Exit: &service.RunExitRecord{
 				ExitCode: exitCode,
 			}},
-		// Control: &service.Control{AlwaysSend: true, ConnectionId: "internal", ReqResp: true},
-		Control: &service.Control{AlwaysSend: true, ReqResp: true},
+		Control: &service.Control{AlwaysSend: true, ConnectionId: "internal", ReqResp: true},
 	}
 
 	s.HandleRecord(record)
