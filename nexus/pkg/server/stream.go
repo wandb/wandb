@@ -2,9 +2,8 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sync"
-
-	"github.com/wandb/wandb/nexus/pkg/publisher"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -42,9 +41,7 @@ type Stream struct {
 	// logger is the logger for the stream
 	logger *observability.NexusLogger
 
-	// inChan is the channel for incoming messages
-	// inChan chan *service.Record
-	inChan publisher.Channel
+	inChan chan *service.Record
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -57,6 +54,7 @@ func NewStream(ctx context.Context, settings *service.Settings, _ string) *Strea
 		wg:       sync.WaitGroup{},
 		settings: settings,
 		logger:   logger,
+		inChan:   make(chan *service.Record, BufferSize),
 	}
 	stream.Start()
 	return stream
@@ -73,64 +71,41 @@ func (s *Stream) Start() {
 	s.sender = NewSender(s.ctx, s.settings, s.logger)
 	s.dispatcher = NewDispatcher(s.logger)
 
-	// read the data from the client and dispatch it to the writer
-	ch := make(chan any, BufferSize)
-	recCh := publisher.NewMultiWrite(&ch)
-	s.inChan = recCh.Add()
-	s.sender.recordChan = recCh.Add()
-
-	// handle dispatching between components
-	ch = make(chan any, BufferSize)
-	resCh := publisher.NewMultiWrite(&ch)
-	s.handler.resultChan = resCh.Add()
-	s.sender.resultChan = resCh.Add()
-
 	s.wg.Add(1)
 	go func() {
-		s.handler.do(s.inChan)
+		s.handler.Do(s.inChan, s.sender.loopBackChan)
+		fmt.Println("handler done")
 		s.wg.Done()
 	}()
 
 	s.wg.Add(1)
 	go func() {
-		recCh.Close()
-		s.wg.Done()
-	}()
-
-	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.do(s.handler.recordChan)
-		s.wg.Done()
-	}()
-
-	// send the data to the server
-	s.wg.Add(1)
-	go func() {
-		s.sender.do(s.writer.recordChan)
+		s.writer.Do(s.handler.fwdChan)
+		fmt.Println("writer done")
 		s.wg.Done()
 	}()
 
 	s.wg.Add(1)
 	go func() {
-		s.dispatcher.Do(resCh)
+		s.sender.Do(s.writer.fwdChan)
+		fmt.Println("sender done")
 		s.wg.Done()
 	}()
 
 	s.wg.Add(1)
 	go func() {
-		resCh.Close()
+		s.dispatcher.Do(s.handler.outChan, s.sender.outChan)
+		fmt.Println("dispatcher done")
 		s.wg.Done()
 	}()
+
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(record *service.Record) {
 	s.logger.Debug("handling record", "record", record)
-	err := s.inChan.Send(s.ctx, record)
-	if err != nil {
-		return
-	}
+	// send record to handler
+	s.inChan <- record
 }
 
 func (s *Stream) AddResponders(entries ...ResponderEntry) {
@@ -146,10 +121,7 @@ func (s *Stream) HandleExit(exitCode int32) {
 			}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	err := s.inChan.Send(s.ctx, record)
-	if err != nil {
-		return
-	}
+	s.inChan <- record
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
@@ -169,11 +141,13 @@ func (s *Stream) GetRun() *service.RunRecord {
 // garbage collected.
 func (s *Stream) Close() {
 	// Done and wait for input channel to shut down
-	s.inChan.Done()
+	fmt.Println("closing stream")
 	s.wg.Wait()
+	close(s.inChan)
 }
 
 func (s *Stream) FinishAndClose(exitCode int32) {
+	fmt.Println("finishing and closing stream")
 	s.HandleExit(exitCode)
 	s.Close()
 

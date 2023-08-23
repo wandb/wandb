@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/publisher"
-
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
 
@@ -76,15 +74,9 @@ type Handler struct {
 	// logger is the logger for the handler
 	logger *observability.NexusLogger
 
-	// recordChan is the channel for further processing
-	// of the incoming messages, by the writer
-	recordChan chan *service.Record
+	fwdChan chan *service.Record
 
-	// resultChan is the channel for returning results to the client
-	resultChan publisher.Channel
-
-	// inChan is the channel for incoming messages
-	inChan publisher.Channel
+	outChan chan *service.Result
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -120,7 +112,8 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
-		recordChan:          make(chan *service.Record, BufferSize),
+		outChan:             make(chan *service.Result, BufferSize),
+		fwdChan:             make(chan *service.Record, BufferSize),
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
@@ -135,29 +128,31 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	err := h.resultChan.Send(h.ctx, result)
-	if err != nil {
-		return
-	}
+	h.outChan <- result
 }
 
-func (h *Handler) do(inChan publisher.Channel) {
-	h.inChan = inChan
-	for record := range h.inChan.Read() {
-		switch x := record.(type) {
-		case *service.Record:
-			h.handleRecord(x)
-		default:
-			err := fmt.Errorf("unknown record type: %T", x)
-			h.logger.CaptureError("stream got unknown record type", err)
+func (h *Handler) Do(in, lb <-chan *service.Record) {
+	fmt.Printf("handler: do, %T\n", lb)
+	var record *service.Record
+	for ok2 := true; ok2; {
+		select {
+		case record, ok1 := <-in:
+			fmt.Println("handler: do, in", ok1)
+			if ok1 {
+				h.handleRecord(record)
+			}
+		case record, ok2 = <-lb:
+			fmt.Println("handler: do, lb", ok2)
+			if ok2 {
+				h.handleRecord(record)
+			}
 		}
 	}
-	h.close()
 }
 
 func (h *Handler) close() {
-	h.resultChan.Done()
-	close(h.recordChan)
+	fmt.Println("handler: close")
+
 	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
@@ -174,11 +169,12 @@ func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions .
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
-	h.recordChan <- record
+	h.fwdChan <- record
 }
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
+	fmt.Println("handler: handleRecord", record)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
 	switch x := record.RecordType.(type) {
@@ -267,6 +263,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 }
 
 func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
+	// Need to clone the record to avoid race condition with the writer
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 	case service.DeferRequest_FLUSH_RUN:
@@ -285,11 +282,23 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
 	case service.DeferRequest_END:
+		record = proto.Clone(record).(*service.Record)
+		h.sendRecordWithControl(record,
+			func(control *service.Control) {
+				control.AlwaysSend = true
+			},
+			func(control *service.Control) {
+				control.Local = true
+			},
+		)
+		close(h.fwdChan)
+		close(h.outChan)
+		return
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
+		return
 	}
-	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*service.Record)
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -353,11 +362,10 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	//  will cause a segfault because the sender's uploader is not initialized yet.
 	h.handleMetadata(record, request)
 
-	// start the system monitor
-	if h.systemMonitor != nil {
-		ch := h.inChan.(*publisher.MultiChannel).Add()
-		h.systemMonitor.Do(ch)
-	}
+	//// start the system monitor
+	//if h.systemMonitor != nil {
+	//	h.systemMonitor.Do(h.loopBackChan)
+	//}
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -374,15 +382,14 @@ func (h *Handler) handleCancel(record *service.Record) {
 
 func (h *Handler) handlePause() {
 	h.timer.Pause()
-	h.systemMonitor.Stop()
+	//h.systemMonitor.Stop()
 }
 
 func (h *Handler) handleResume() {
 	h.timer.Resume()
-	if h.systemMonitor != nil {
-		ch := h.inChan.(*publisher.MultiChannel).Add()
-		h.systemMonitor.Do(ch)
-	}
+	//if h.systemMonitor != nil {
+	//	h.systemMonitor.Do(h.loopBackChan)
+	//}
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
@@ -435,7 +442,7 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
-	h.systemMonitor.Stop()
+	//h.systemMonitor.Stop()
 
 	// stop the run timer and set the runtime
 	h.timer.Pause()

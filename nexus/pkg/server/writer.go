@@ -22,8 +22,8 @@ type Writer struct {
 	// logger is the logger for the writer
 	logger *observability.NexusLogger
 
-	// recordChan is the channel for outgoing messages
-	recordChan chan *service.Record
+	// fwdChan is the channel for outgoing messages
+	fwdChan chan *service.Record
 
 	// storeChan is the channel for messages to be stored
 	storeChan chan *service.Record
@@ -38,16 +38,16 @@ type Writer struct {
 func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Writer {
 
 	w := &Writer{
-		ctx:        ctx,
-		settings:   settings,
-		logger:     logger,
-		recordChan: make(chan *service.Record, BufferSize),
+		ctx:      ctx,
+		settings: settings,
+		logger:   logger,
+		fwdChan:  make(chan *service.Record, BufferSize),
 	}
 	return w
 }
 
-// do is the main loop of the writer to process incoming messages
-func (w *Writer) do(inChan <-chan *service.Record) {
+// Do is the main loop of the writer to process incoming messages
+func (w *Writer) Do(ch <-chan *service.Record) {
 	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
 
 	w.storeChan = make(chan *service.Record, BufferSize*8)
@@ -73,7 +73,7 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 		w.wg.Done()
 	}()
 
-	for record := range inChan {
+	for record := range ch {
 		w.handleRecord(record)
 	}
 	w.close()
@@ -83,7 +83,7 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 // which includes the store
 func (w *Writer) close() {
 	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
-	close(w.recordChan)
+	close(w.fwdChan)
 	close(w.storeChan)
 	w.wg.Wait()
 }
@@ -118,5 +118,5 @@ func (w *Writer) sendRecord(record *service.Record) {
 	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return
 	}
-	w.recordChan <- record
+	w.fwdChan <- record
 }

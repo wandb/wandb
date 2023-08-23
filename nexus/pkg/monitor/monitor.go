@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/publisher"
-
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -73,7 +71,7 @@ type SystemMonitor struct {
 	assets []Asset
 
 	//	outChan is the channel for outgoing messages
-	OutChan publisher.Channel
+	OutChan chan *service.Record
 
 	// settings is the settings for the system monitor
 	settings *service.Settings
@@ -115,7 +113,7 @@ func NewSystemMonitor(
 	return systemMonitor
 }
 
-func (sm *SystemMonitor) Do(outChan publisher.Channel) {
+func (sm *SystemMonitor) Do(outChan chan *service.Record) {
 	if sm == nil {
 		return
 	}
@@ -193,10 +191,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 					case <-sm.ctx.Done():
 						return
 					default:
-						err := sm.OutChan.Send(sm.ctx, record)
-						if err != nil {
-							return
-						}
+						sm.OutChan <- record
 					}
 					asset.ClearMetrics()
 				}
@@ -216,8 +211,5 @@ func (sm *SystemMonitor) Stop() {
 	sm.logger.Info("Stopping system monitor")
 	sm.cancel()
 	sm.wg.Wait()
-	// close the outgoing channel
-	sm.OutChan.Done()
-	sm.OutChan = nil
 	sm.logger.Info("Stopped system monitor")
 }

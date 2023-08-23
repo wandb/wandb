@@ -2,9 +2,7 @@ package server
 
 import (
 	"fmt"
-
 	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/publisher"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -55,17 +53,25 @@ func (s *Dispatcher) handleRespond(result *service.Result) {
 	s.responders[responderId].Respond(response)
 }
 
-func (s *Dispatcher) Do(resCh publisher.Channel) {
-	for result := range resCh.Read() {
-		switch x := result.(type) {
-		case *service.Result:
-			s.logger.Debug("dispatch: got result", "result", x)
-			s.handleRespond(x)
-		default:
-			err := fmt.Errorf("dispatch: got unknown type: %T", x)
-			s.logger.CaptureError("dispatch: got unknown type", err)
+func (s *Dispatcher) Do(hChan, sChan <-chan *service.Result) {
+	ok1 := true
+	ok2 := true
+	var result *service.Result
+	for ok1 && ok2 {
+		select {
+		case result, ok1 = <-hChan:
+			fmt.Println("got result from handler", ok1)
+			if ok1 {
+				s.handleRespond(result)
+			}
+		case result, ok2 = <-sChan:
+			fmt.Println("got result from sender", ok2)
+			if ok2 {
+				s.handleRespond(result)
+			}
 		}
 	}
+	fmt.Println("dispatch: done!!!!")
 	s.logger.Debug("dispatch: finished")
 }
 
