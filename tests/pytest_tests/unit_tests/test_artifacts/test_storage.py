@@ -22,7 +22,6 @@ from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactH
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.lib.hashutil import md5_string
 
-
 example_digest = md5_string("example")
 
 
@@ -354,6 +353,15 @@ def test_cache_drops_lru_when_adding_not_enough_space(fs, artifacts_cache):
 
     assert fs.get_disk_usage()[1] == 501
 
+    # Add something big enough that removing half the items isn't enough.
+    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("y" * 800), 800)
+    with opener() as f:
+        f.write("y" * 800)
+
+    # All paths should have been removed, and the usage is just the new file size.
+    for path in cache_paths:
+        assert not os.path.exists(path)
+    assert fs.get_disk_usage()[1] == 800
 
 
 def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
