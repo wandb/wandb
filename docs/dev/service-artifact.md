@@ -14,79 +14,60 @@ art.wait()
 
 ## Sequence diagram
 
-```text
-                  |      |               |                                   |
- User Context     | GRPC | Shared Queues |          Internal Threads         |  Cloud
-                  |      |       .       |          .         .         .    |
-                          [rec_q] [res_q] [HandlerT] [WriterT] [SenderT] [FS]
-                  |      |       .       |          .         .         .    |
- `run.log_artifact()`
-                  |      |       .       |          .         .         .    |
- communicate_artifact()[1]
-                  |      |       .       |          .         .         .    |
- LogArtifactRequest
-                  |      |       .       |          .         .         .    |
- _communicate_artifact()[2]
-                  |      |       .       |          .         .         .    |
- ArtifactSendRequest
-                  |      |       .       |          .         .         .    |
-               --[3]->
-                  |      |       .       |          .         .         .    |
-                      --[4]-->
-                  |      |       .       |          .         .         .    |
-                             ---------------->
-                  |      |       .       |          .         .         .    |
-                                             handle_request_artifact_send()
-                  |      |       .       |          .         .         .    |
-                                             -------------------->
-                  |      |       .       |          .         .         .    |
-                                                                 send_request_artifact_send()
-                  |      |       .       |          .         .         .    |
-                                      <------
-                  |      |       .       |          .         .         .    |
-                      <---------------
-                  |      |       .       |          .         .         .    |
-               <-----
-                  |      |       .       |          .         .         .    |
- MessageFuturePoll()
-                  |      |       .       |          .         .         .    |
- art.wait()
-                  |      |       .       |          .         .         .    |
- ArtifactPollRequest
-                  |      |       .       |          .         .         .    |
-               --[5]->
-                  |      |       .       |          .         .         .    |
-                      --[6]-->
-                  |      |       .       |          .         .         .    |
-                             ---------------->
-                  |      |       .       |          .         .         .    |
-                                             handle_request_artifact_poll()
-                  |      |       .       |          .         .         .    |
-                                      <------
-                  |      |       .       |          .         .         .    |
-                      <---------------
-                  |      |       .       |          .         .         .    |
-               <-----
-                  |      |       .       |          .         .         .    |
-                             <----------[7]-----------------------
-                  |      |       .       |          .         .         .    |
-                             ---------------->
-                  |      |       .       |          .         .         .    |
-                                             handle_request_artifact_done()
-                  |      |       .       |          .         .         .    |
-               --[5]->
-                  |      |       .       |          .         .         .    |
-                      --[6]-->
-                  |      |       .       |          .         .         .    |
-                             ---------------->
-                  |      |       .       |          .         .         .    |
-                                             handle_request_artifact_poll()
-                  |      |       .       |          .         .         .    |
-                                      <------
-                  |      |       .       |          .         .         .    |
-                      <---------------
-                  |      |       .       |          .         .         .    |
-               <-----
+```mermaid
+sequenceDiagram
+  participant user_context
+  participant grpc
+  participant shared_queues
+  participant internal_threads
+  participant cloud
+
+  Note over user_context: run.log_artifact()
+  Note over user_context: communicate_artifact() [1]
+  Note over user_context: LogArtifactRequest
+  Note over user_context: _communicate_artifact()[2]
+  Note over user_context: ArtifactSendRequest
+  
+  user_context ->> grpc: [3]
+  grpc ->> shared_queues: [4]
+  shared_queues ->> internal_threads: 
+  
+  Note over internal_threads: handle_request_artifact_send()
+  Note over internal_threads: send_request_artifact_send()
+  
+  internal_threads ->> shared_queues: 
+  shared_queues ->> grpc: 
+  grpc ->> user_context: 
+  
+  Note over user_context: MessageFuturePoll()
+  Note over user_context: art.wait()
+  Note over user_context: ArtifactPollRequest
+  
+  user_context ->> grpc: [5]
+  grpc ->> shared_queues: [6]
+  shared_queues ->> internal_threads: 
+  
+  Note over internal_threads: handle_request_artifact_poll()
+  
+  internal_threads ->> shared_queues: 
+  shared_queues ->> grpc: 
+  grpc ->> user_context: 
+  internal_threads ->> shared_queues: [7]
+  
+  shared_queues ->> internal_threads: 
+  Note over internal_threads: handle_request_artifact_done()
+  
+
+  user_context ->> grpc: [5]
+  grpc ->> shared_queues: [6]
+  shared_queues ->> internal_threads: 
+  
+  Note over internal_threads: handle_request_artifact_poll()
+  
+  internal_threads ->> shared_queues: 
+  shared_queues ->> grpc: 
+  grpc ->> user_context: 
+
 ```
 
 Ref | Message/Function | File | Description
