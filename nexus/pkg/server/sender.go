@@ -41,11 +41,11 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *service.Settings
 
-	//	recordChan is the channel for outgoing messages
-	recordChan chan *service.Record
+	//	loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	loopbackChan chan *service.Record
 
-	// resultChan is the channel for dispatcher messages
-	resultChan chan *service.Result
+	// outChan is the channel for dispatcher messages
+	outChan chan *service.Result
 
 	// graphqlClient is the graphql client
 	graphqlClient graphql.Client
@@ -90,14 +90,14 @@ func emptyAsNil(s *string) *string {
 func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
 
 	sender := &Sender{
-		ctx:        ctx,
-		settings:   settings,
-		logger:     logger,
-		summaryMap: make(map[string]*service.SummaryItem),
-		configMap:  make(map[string]interface{}),
-		recordChan: make(chan *service.Record, BufferSize),
-		resultChan: make(chan *service.Result, BufferSize),
-		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
+		ctx:          ctx,
+		settings:     settings,
+		logger:       logger,
+		summaryMap:   make(map[string]*service.SummaryItem),
+		configMap:    make(map[string]interface{}),
+		loopbackChan: make(chan *service.Record, BufferSize),
+		outChan:      make(chan *service.Result, BufferSize),
+		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
@@ -273,8 +273,8 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_END:
 		request.State++
 		s.respondExit(s.exitRecord)
-		close(s.recordChan)
-		close(s.resultChan)
+		close(s.loopbackChan)
+		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -288,7 +288,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
 func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
@@ -431,7 +431,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 					Control: record.Control,
 					Uuid:    record.Uuid,
 				}
-				s.resultChan <- result
+				s.outChan <- result
 			}
 			return
 		}
@@ -453,7 +453,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			Control: record.Control,
 			Uuid:    record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
@@ -605,7 +605,7 @@ func (s *Sender) respondExit(record *service.Record) {
 			Control:    record.Control,
 			Uuid:       record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
@@ -626,7 +626,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
 // sendMetric sends a metrics record to the file stream,
@@ -704,5 +704,5 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.resultChan <- result
+	s.outChan <- result
 }
