@@ -3,7 +3,6 @@
 import os
 import platform
 import subprocess
-import sys
 from distutils import log
 from distutils.command.install import install
 from pathlib import Path
@@ -156,8 +155,11 @@ class WrapInstall(install, NexusBase):
             for build in self.nexus_build.split(","):
                 goos, goarch = build.split("-")
                 # get the cgo_enabled flag from the ALL_PLATFORMS list
-                cgo_enabled = [x[2] for x in ALL_PLATFORMS if x[0] == goos and x[1] == goarch][0]
+                cgo_enabled = [
+                    x[2] for x in ALL_PLATFORMS if x[0] == goos and x[1] == goarch
+                ][0]
                 self._build_nexus(goos=goos, goarch=goarch, cgo_enabled=cgo_enabled)
+
 
 class WrapDevelop(develop, NexusBase):
     def run(self):
@@ -184,6 +186,7 @@ class WrapBdistWheel(bdist_wheel, NexusBase):
     def run(self):
         log.info(str(self.__dict__))
         import sys
+
         log.info(str(sys.argv))
         log.info("\n\n+++nexus-build: %s\n\n", self.nexus_build)
         # log.info("\n\n+++lol: %s\n\n", self.lol)
