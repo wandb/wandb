@@ -128,7 +128,7 @@ func (h *Handler) do(in, lb <-chan *service.Record) {
 	defer observability.Reraise()
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	loop:
+loop:
 	for in != nil || lb != nil {
 		select {
 		case record, ok := <-in:
