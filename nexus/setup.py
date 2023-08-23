@@ -67,6 +67,9 @@ class NexusBase:
         #    otherwise several system metrics will be unavailable.
         #  - linux to build the dependencies needed to get GPU metrics.
         env["CGO_ENABLED"] = "1" if cgo_enabled else "0"
+        # todo: temporary hack to get the build working on linux for the darwin-arm64 wheel
+        if goos == "darwin" and goarch == "arm64" and platform.system() == "Linux":
+            env["CGO_ENABLED"] = "0"
         os.makedirs(nexus_path.parent, exist_ok=True)
 
         # Sentry only allows 12 characters for release names, the full commit hash won't fit
@@ -106,7 +109,7 @@ class NexusBase:
                 "-e",
                 f"NEXUS_PATH={str(nexus_path.relative_to(src_dir))}",
                 "-e",
-                "CGO_ENABLED=1",
+                f"CGO_ENABLED={env['CGO_ENABLED']}",
                 "wheel_builder",
             )
             log.info(f"Building wheel for {goos}-{goarch}")
