@@ -8,7 +8,7 @@ To build the nexus wheel for all platforms, run:
 python -m build -w -n ./nexus
 
 To install the nexus wheel, run:
-pip install ./nexus/dist/wandb_core-*-py3-none-any.whl
+pip install --force-reinstall ./nexus/dist/wandb_core-*-py3-none-any.whl
 """
 
 import os
