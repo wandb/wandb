@@ -150,7 +150,7 @@ class ArtifactsCache:
                     )
                 try:
                     os.remove(tmp_file)
-                except (FileNotFoundError, PermissionError):
+                except FileNotFoundError:
                     pass
                 raise
 

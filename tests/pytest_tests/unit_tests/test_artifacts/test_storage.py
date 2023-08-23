@@ -354,8 +354,7 @@ def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch)
     with pytest.raises(OSError, match="out of space"):
         with opener() as f:
             f.write("hello " * 100)
-            f.flush()
-            os.fsync(f.fileno())
+            f.close()
             os.remove(f.name)
 
             path = f.name
