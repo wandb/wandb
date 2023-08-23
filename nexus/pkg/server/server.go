@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"sync"
@@ -45,6 +46,7 @@ func NewServer(ctx context.Context, addr string, portFile string) *Server {
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
 	writePortFile(portFile, port)
+	fmt.Println("port:", port)
 	s.wg.Add(1)
 	go s.Serve()
 	return s
