@@ -71,7 +71,7 @@ type SystemMonitor struct {
 	assets []Asset
 
 	//	outChan is the channel for outgoing messages
-	OutChan chan *service.Record
+	outChan chan *service.Record
 
 	// settings is the settings for the system monitor
 	settings *service.Settings
@@ -84,11 +84,13 @@ type SystemMonitor struct {
 func NewSystemMonitor(
 	settings *service.Settings,
 	logger *observability.NexusLogger,
+	outChan chan *service.Record,
 ) *SystemMonitor {
 	systemMonitor := &SystemMonitor{
 		wg:       sync.WaitGroup{},
 		settings: settings,
 		logger:   logger,
+		outChan:  outChan,
 	}
 
 	// if stats are disabled, return early
@@ -114,10 +116,6 @@ func NewSystemMonitor(
 }
 
 func (sm *SystemMonitor) Do() {
-	if sm.OutChan == nil {
-		sm.OutChan = make(chan *service.Record, BufferSize)
-	}
-
 	// reset context:
 	sm.ctx, sm.cancel = context.WithCancel(context.Background())
 
@@ -187,7 +185,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 					case <-sm.ctx.Done():
 						return
 					default:
-						sm.OutChan <- record
+						sm.outChan <- record
 					}
 					asset.ClearMetrics()
 				}
@@ -207,7 +205,5 @@ func (sm *SystemMonitor) Stop() {
 	sm.logger.Info("Stopping system monitor")
 	sm.cancel()
 	sm.wg.Wait()
-	close(sm.OutChan)
-	sm.OutChan = nil
 	sm.logger.Info("Stopped system monitor")
 }

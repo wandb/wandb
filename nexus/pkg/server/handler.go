@@ -82,6 +82,9 @@ type Handler struct {
 	// to the client
 	resultChan chan *service.Result
 
+	// internal channel to send requests back to the handler
+	feedbackChan chan *service.Record
+
 	// timer is used to track the run start and execution times
 	timer Timer
 
@@ -109,6 +112,8 @@ func NewHandler(
 	ctx context.Context,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
+	resultChan chan *service.Result,
+	feedbackChan chan *service.Record,
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{
@@ -117,21 +122,37 @@ func NewHandler(
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
 		recordChan:          make(chan *service.Record, BufferSize),
-		resultChan:          make(chan *service.Result, BufferSize),
+		resultChan:          resultChan,
+		feedbackChan:        feedbackChan,
 	}
 	if !settings.GetXDisableStats().GetValue() {
-		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
+		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, feedbackChan)
 	}
 	return h
 }
 
 // do this starts the handler
-func (h *Handler) do(inChan <-chan *service.Record) {
+func (h *Handler) do(inChan <-chan *service.Record, feedbackChan <-chan *service.Record) {
 	defer observability.Reraise()
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	for record := range inChan {
-		h.handleRecord(record)
+loop:
+	for {
+		select {
+		case record, ok := <-feedbackChan:
+			if !ok {
+				break loop
+			}
+			h.handleRecord(record)
+		case record, ok := <-inChan:
+			if !ok {
+				for record := range feedbackChan {
+					h.handleRecord(record)
+				}
+				break loop
+			}
+			h.handleRecord(record)
+		}
 	}
 	h.close()
 	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
@@ -147,7 +168,7 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 }
 
 func (h *Handler) close() {
-	close(h.resultChan)
+	// close(h.resultChan)
 	close(h.recordChan)
 }
 
@@ -300,15 +321,6 @@ func (h *Handler) startSystemMonitor() {
 	if h.systemMonitor == nil {
 		return
 	}
-	go func() {
-		// this goroutine reads from the system monitor channel and writes
-		// to the handler's record channel. it will exit when the system
-		// monitor channel is closed
-		for msg := range h.systemMonitor.OutChan {
-			h.recordChan <- msg
-		}
-		h.logger.Debug("system monitor channel closed")
-	}()
 	h.systemMonitor.Do()
 }
 
