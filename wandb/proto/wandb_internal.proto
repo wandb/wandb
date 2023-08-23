@@ -26,7 +26,7 @@ message Record {
   oneof record_type {
     // Low numbers for more frequent data
     HistoryRecord   history = 2;
-    SummaryRecord   summaryy = 3;
+    SummaryRecord   summary = 3;
     OutputRecord    output = 4;
     ConfigRecord    config = 5;
     FilesRecord     files = 6;
