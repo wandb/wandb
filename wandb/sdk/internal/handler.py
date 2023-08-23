@@ -826,7 +826,11 @@ class HandleManager:
             item.key = key
             values: Iterable[Any] = sampled.get()
             if all(isinstance(i, numbers.Integral) for i in values):
-                item.values_int.extend(values)
+                try:
+                    item.values_int.extend(values)
+                except ValueError:
+                    # it is safe to ignore these as this is for display information
+                    pass
             elif all(isinstance(i, numbers.Real) for i in values):
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
