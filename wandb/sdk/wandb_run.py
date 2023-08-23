@@ -2174,6 +2174,9 @@ class Run:
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
 
+        self._console_start_redirect()
+
+    def _console_start_redirect(self) -> None:
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
@@ -2227,6 +2230,7 @@ class Run:
 
         self._set_globals()
         self._is_attached = True
+        self._console_start_redirect()
         self._on_ready()
 
     def _register_telemetry_import_hooks(
