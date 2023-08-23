@@ -65,7 +65,7 @@ class ArtifactsCache:
     def _check_or_create(
         self, path: StrPath, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        opener = self._cache_opener(path, size)
+        opener = self._cache_opener(path)
         hit = os.path.isfile(path) and os.path.getsize(path) == size
         return FilePathStr(str(path)), hit, opener
 
@@ -83,7 +83,40 @@ class ArtifactsCache:
     def store_client_artifact(self, artifact: "Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
-    def cleanup(self, target_size: int, remove_temp: bool = False) -> int:
+    def cleanup(
+        self,
+        target_size: Optional[int] = None,
+        target_fraction: Optional[float] = None,
+        remove_temp: bool = False,
+    ) -> int:
+        """Clean up the cache, removing the least recently used files first.
+
+        Args:
+            target_size: The target size of the cache in bytes. If the cache is larger
+                than this, we will remove the least recently used files until the cache
+                is smaller than this size.
+            target_fraction: The target fraction of the cache to reclaim. If the cache
+                is larger than this, we will remove the least recently used files until
+                the cache is smaller than this fraction of its current size. It is an
+                error to specify both target_size and target_fraction.
+            remove_temp: Whether to remove temporary files. Temporary files are files
+                that are currently being written to the cache. If remove_temp is True,
+                all temp files will be removed, regardless of the target_size or
+                target_fraction.
+
+        Returns:
+            The number of bytes reclaimed.
+        """
+        if target_size is None and target_fraction is None:
+            # Default to clearing the entire cache.
+            target_size = 0
+        if target_size is not None and target_fraction is not None:
+            raise ValueError("Cannot specify both target_size and target_fraction")
+        if target_size and target_size < 0:
+            raise ValueError("target_size must be non-negative")
+        if target_fraction and (target_fraction < 0 or target_fraction > 1):
+            raise ValueError("target_fraction must be between 0 and 1")
+
         bytes_reclaimed = 0
         paths = {}
         total_size = 0
@@ -100,11 +133,16 @@ class ArtifactsCache:
                             bytes_reclaimed += stat.st_size
                         else:
                             temp_size += stat.st_size
+                            total_size += stat.st_size
                         continue
                 except OSError:
                     continue
                 paths[path] = stat
                 total_size += stat.st_size
+
+        if target_fraction is not None:
+            target_size = int(total_size * target_fraction)
+        assert target_size is not None
 
         if temp_size:
             wandb.termwarn(
