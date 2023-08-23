@@ -3,6 +3,7 @@
 import os
 import platform
 import subprocess
+import sys
 from distutils import log
 from distutils.command.install import install
 from pathlib import Path
@@ -60,17 +61,22 @@ class NexusBase:
         #  - linux to build the dependencies needed to get GPU metrics.
         if not cgo_enabled:
             env["CGO_ENABLED"] = "0"
+        else:
+            env["CGO_ENABLED"] = "1"
+            # env["CC"] = "x86_64-linux-musl-gcc"
+            # env["CGO_CPPFLAGS"] = "-I../../../go/pkg/mod/github.com/!n!v!i!d!i!a/go-nvml@v0.12.0-1/pkg/nvml"
         os.makedirs(nexus_path.parent, exist_ok=True)
 
         # Sentry only allows 12 characters for release names, the full commit hash won't fit
+        print(src_dir)
         commit = (
             subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
             .decode("utf-8")
             .strip()
         )
 
-        # build linux binary with docker
-        if goos == "linux":
+        # build linux binary with docker on mac
+        if goos == "linux" and platform.system() != "Linux":
             # build docker image
             cmd = (
                 "docker",
@@ -89,6 +95,7 @@ class NexusBase:
             cmd = (
                 "docker",
                 "run",
+                "--rm",
                 "-v",
                 f"{src_dir.parent}:/project",
                 "-v",
@@ -97,6 +104,8 @@ class NexusBase:
                 f"COMMIT={commit}",
                 "-e",
                 f"NEXUS_PATH={str(nexus_path.relative_to(src_dir))}",
+                "-e",
+                "CGO_ENABLED=1",
                 "wheel_builder",
             )
             log.info(f"Building wheel for {goos}-{goarch}")
@@ -117,37 +126,38 @@ class NexusBase:
                 str(nexus_path),
                 "cmd/nexus/main.go",
             )
+            log.info(f"Building wheel for {goos}-{goarch}")
+            log.info(f"Running command: {' '.join(cmd)}")
             subprocess.check_call(cmd, cwd=src_dir, env=dict(os.environ, **env))
 
 
 class WrapInstall(install, NexusBase):
-    user_options = [
-        (
-            "nexus-build=",
-            None,
-            "nexus binaries to build comma separated (eg darwin-arm64,linux-amd64)",
-        ),
-    ] + install.user_options
-
     def initialize_options(self):
-        super().initialize_options()
+        install.initialize_options(self)
         self.nexus_build = None
 
     def finalize_options(self):
-        super().finalize_options()
+        install.finalize_options(self)
         self.set_undefined_options("bdist_wheel", ("nexus_build", "nexus_build"))
 
     def run(self):
         install.run(self)
 
         nexus_wheel_path = self._get_wheel_nexus_path()
-        if self.nexus_build:
-            if self.nexus_build == "all":
-                for goos, goarch, cgo_enabled in ALL_PLATFORMS:
-                    self._build_nexus(goos=goos, goarch=goarch, cgo_enabled=cgo_enabled)
-        elif not nexus_wheel_path.exists():
+        if self.nexus_build is None and not nexus_wheel_path.exists():
             self._build_nexus()
+            return
 
+        if self.nexus_build == "all":
+            for goos, goarch, cgo_enabled in ALL_PLATFORMS:
+                self._build_nexus(goos=goos, goarch=goarch, cgo_enabled=cgo_enabled)
+
+        else:
+            for build in self.nexus_build.split(","):
+                goos, goarch = build.split("-")
+                # get the cgo_enabled flag from the ALL_PLATFORMS list
+                cgo_enabled = [x[2] for x in ALL_PLATFORMS if x[0] == goos and x[1] == goarch][0]
+                self._build_nexus(goos=goos, goarch=goarch, cgo_enabled=cgo_enabled)
 
 class WrapDevelop(develop, NexusBase):
     def run(self):
@@ -160,18 +170,23 @@ class WrapBdistWheel(bdist_wheel, NexusBase):
         (
             "nexus-build=",
             None,
-            "nexus binaries to build comma separated (eg darwin-arm64,linux-amd64)",
+            "nexus binaries to build comma separated (e.g. darwin-arm64,linux-amd64)",
         ),
     ] + bdist_wheel.user_options
 
     def initialize_options(self):
-        super().initialize_options()
+        bdist_wheel.initialize_options(self)
         self.nexus_build = "all"
 
     def finalize_options(self):
-        super().finalize_options()
+        bdist_wheel.finalize_options(self)
 
     def run(self):
+        log.info(str(self.__dict__))
+        import sys
+        log.info(str(sys.argv))
+        log.info("\n\n+++nexus-build: %s\n\n", self.nexus_build)
+        # log.info("\n\n+++lol: %s\n\n", self.lol)
         bdist_wheel.run(self)
 
 
