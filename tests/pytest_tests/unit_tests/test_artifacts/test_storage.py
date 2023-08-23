@@ -5,11 +5,13 @@ import logging
 import os
 import random
 from multiprocessing import Pool
+from unittest import mock
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
+from wandb import util
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -21,8 +23,6 @@ from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.lib.hashutil import md5_string
-
-from wandb import util
 
 example_digest = md5_string("example")
 
@@ -348,18 +348,19 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
 
 
 def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch):
-    def some_error(*args, **kwargs):
-        raise RuntimeError
+    def out_of_space(path, *args, **kwargs):
+        raise OSError(errno.ENOSPC, "out of space")
 
     # Will raise an error without creating any file to delete.
-    monkeypatch.setattr(util, "fsync_open", some_error)
+    monkeypatch.setattr(util, "fsync_open", out_of_space)
 
     _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
 
-    with pytest.raises(RuntimeError):
-        with opener() as f:
-            path = f.name
-        assert not os.path.exists(path)
+    with mock.patch("os.remove", side_effect=FileNotFoundError) as mock_remove:
+        with pytest.raises(OSError, match="out of space"):
+            with opener():
+                pass
+        assert mock_remove.call_count == 1
 
 
 class FakePublicApi:
