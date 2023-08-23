@@ -1428,7 +1428,7 @@ workflows:
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
 
       #
       # Unit tests with pytest on Windows and MacOS
@@ -1595,7 +1595,6 @@ workflows:
       #
       # wandb launch tests
       #
-      # todo: fix base docker image for cuda and uncomment this
       - launch:
           requires:
             - "unit-tests-mock-server"
@@ -1607,6 +1606,18 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old/tests_launch/"
+
+      - launch:
+          requires:
+            - "unit-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests/test_launch/"
 
       - pytest:
           requires:
