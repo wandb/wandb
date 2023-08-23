@@ -45,6 +45,9 @@ type Stream struct {
 
 	// loopbackChan is the channel for internal loopback messages
 	loopbackChan chan *service.Record
+
+	// internal responses from teardown path typically
+	respChan chan *service.ServerResponse
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -58,6 +61,7 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 		settings: settings,
 		logger:   logger,
 		inChan:   make(chan *service.Record, BufferSize),
+		respChan: make(chan *service.ServerResponse, BufferSize),
 	}
 	stream.Start()
 	return stream
@@ -127,16 +131,37 @@ func (s *Stream) Close() {
 	s.wg.Wait()
 }
 
+// Handle internal responses like from the finish and close path
+func (s *Stream) Respond(resp *service.ServerResponse) {
+	s.respChan <- resp
+}
+
 func (s *Stream) FinishAndClose(exitCode int32) {
+	s.AddResponders(ResponderEntry{s, "internal"})
+
 	// send exit record to handler
 	record := &service.Record{
 		RecordType: &service.Record_Exit{
 			Exit: &service.RunExitRecord{
 				ExitCode: exitCode,
 			}},
-		Control: &service.Control{AlwaysSend: true},
+		Control: &service.Control{AlwaysSend: true, ConnectionId: "internal", ReqResp: true},
 	}
+
 	s.HandleRecord(record)
+	<-s.respChan
+
+	shutdownRecord := &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_Shutdown{
+					Shutdown: &service.ShutdownRequest{},
+				},
+			}},
+		Control: &service.Control{AlwaysSend: true, ConnectionId: "internal", ReqResp: true},
+	}
+	s.HandleRecord(shutdownRecord)
+	<-s.respChan
 
 	s.Close()
 
