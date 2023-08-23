@@ -1,0 +1,17 @@
+awscli
+azure-identity
+azure-containerregistry
+azure-storage-blob
+boto3
+botocore
+chardet
+google-auth
+google-cloud-artifact-registry
+google-cloud-compute
+google-cloud-storage
+iso8601
+kubernetes
+optuna
+nbconvert
+nbformat
+typing_extensions
