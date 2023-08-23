@@ -42,6 +42,9 @@ type Stream struct {
 
 	// inChan is the channel for incoming messages
 	inChan chan *service.Record
+
+	// loopbackChan is the channel for internal loopback messages
+	loopbackChan chan *service.Record
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -71,9 +74,10 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 func (s *Stream) Start() {
 	s.logger.Info("created new stream", "id", s.settings.RunId)
 
-	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	s.loopbackChan = make(chan *service.Record, BufferSize)
+	s.handler = NewHandler(s.ctx, s.settings, s.logger, s.loopbackChan)
 	s.writer = NewWriter(s.ctx, s.settings, s.logger)
-	s.sender = NewSender(s.ctx, s.settings, s.logger)
+	s.sender = NewSender(s.ctx, s.settings, s.logger, s.loopbackChan)
 	s.dispatcher = NewDispatcher(s.logger)
 
 	// handle the client requests

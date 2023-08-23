@@ -80,6 +80,9 @@ type Handler struct {
 	// outChan is the channel for results to the client
 	outChan chan *service.Result
 
+	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	loopbackChan chan *service.Record
+
 	// timer is used to track the run start and execution times
 	timer Timer
 
@@ -107,6 +110,7 @@ func NewHandler(
 	ctx context.Context,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
+	loopbackChan chan *service.Record,
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{
@@ -116,6 +120,7 @@ func NewHandler(
 		consolidatedSummary: make(map[string]string),
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
+		loopbackChan:        loopbackChan,
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
@@ -228,6 +233,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 }
 
 func (h *Handler) handleRequest(record *service.Record) {
+	shutdown := false
 	request := record.GetRequest()
 	response := &service.Response{}
 	switch x := request.RequestType.(type) {
@@ -250,6 +256,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
+		shutdown = true
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
 		h.handleLogArtifact(record, x.LogArtifact, response)
@@ -267,6 +274,9 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
 	h.sendResponse(record, response)
+	if shutdown {
+		close(h.loopbackChan)
+	}
 }
 
 func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
