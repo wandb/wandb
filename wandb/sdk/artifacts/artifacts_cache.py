@@ -69,7 +69,7 @@ class ArtifactsCache:
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         opener = self._cache_opener(path, size)
         hit = os.path.isfile(path) and os.path.getsize(path) == size
-        return FilePathStr(path), hit, opener
+        return FilePathStr(str(path)), hit, opener
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
@@ -142,8 +142,9 @@ class ArtifactsCache:
                 paths[path] = stat
                 total_size += stat.st_size
 
-        if target_fraction:
+        if target_fraction is not None:
             target_size = int(total_size * target_fraction)
+        assert target_size is not None
 
         if temp_size:
             wandb.termwarn(
@@ -196,7 +197,7 @@ class ArtifactsCache:
         self.cleanup(target_size=0)
         _, _, free = shutil.disk_usage(os.path.dirname(path))
         if free < size:
-            raise OSError(errno.ENOSPC, "No space left on device")
+            raise OSError(errno.ENOSPC, f"Insufficient free space in {path}")
 
     def _cache_opener(self, path: StrPath, size: int) -> "Opener":
         @contextlib.contextmanager

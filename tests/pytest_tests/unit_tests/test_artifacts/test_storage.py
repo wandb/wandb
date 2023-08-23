@@ -307,22 +307,25 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
     term_log = MagicMock()
     monkeypatch.setattr(term, "_log", term_log)
 
-    def out_of_space(*args, **kwargs):
-        raise OSError(errno.ENOSPC, "out of space")
+    # Ask to create a 1 quettabyte file to ensure the cache won't find room.
+    _, _, opener = artifacts_cache.check_md5_obj_path(example_digest, size=10**30)
 
-    monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
-
-    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
-
-    with pytest.raises(OSError, match="out of space"):
-        with opener() as f:
-            f.write("hello")
+    with pytest.raises(OSError, match="Insufficient free space"):
+        with opener():
+            pass
 
     assert term_log.call_count >= 1
-    log_call = term_log.call_args[1]
-    assert "No disk space available" in log_call["string"]
-    assert "set WANDB_CACHE_DIR" in log_call["string"]
-    assert log_call["level"] == logging.ERROR
+    check_warning = False
+    clear_fail = False
+    for call in term_log.call_args_list:
+        if "Cache size exceeded. Attempting to reclaim space..." in call[1]["string"]:
+            assert call[1]["level"] == logging.WARNING
+            check_warning = True
+        elif "Failed to reclaim enough space" in call[1]["string"]:
+            assert call[1]["level"] == logging.ERROR
+            clear_fail = True
+    assert check_warning
+    assert clear_fail
 
 
 def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
