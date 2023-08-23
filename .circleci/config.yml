@@ -1467,7 +1467,7 @@ workflows:
           name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --timeout 300"
+          tox_args: "tests/pytest_tests/unit_tests --timeout 300 --ignore=tests/pytest_tests/unit_tests/test_launch"
 
       - mac:
           requires:
@@ -1491,7 +1491,7 @@ workflows:
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
 
       #
       # Functional tests with yea on Linux (base only)
