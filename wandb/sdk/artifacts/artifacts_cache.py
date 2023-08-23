@@ -214,16 +214,11 @@ class ArtifactsCache:
             try:
                 with util.fsync_open(tmp_file, mode=mode) as f:
                     yield f
-            except OSError as e:
-                if e.errno == errno.ENOSPC:
-                    term.termerror(
-                        f"No disk space available in {dirname}. Run `wandb artifact "
-                        "cache cleanup 0` to empty your cache, or set WANDB_CACHE_DIR "
-                        "to a location with more available disk space."
-                    )
+            except Exception:
+                # The write failed for whatever reason. Delete the temp file.
                 try:
                     os.remove(tmp_file)
-                except (FileNotFoundError, PermissionError):
+                except OSError:
                     pass
                 raise
 
