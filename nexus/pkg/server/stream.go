@@ -9,6 +9,10 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+const (
+	internalConnectionId = "internal"
+)
+
 // Stream is a collection of components that work together to handle incoming
 // data for a W&B run, store it locally, and send it to a W&B server.
 // Stream.handler receives incoming data from the client and dispatches it to
@@ -42,6 +46,12 @@ type Stream struct {
 
 	// inChan is the channel for incoming messages
 	inChan chan *service.Record
+
+	// loopbackChan is the channel for internal loopback messages
+	loopbackChan chan *service.Record
+
+	// internal responses from teardown path typically
+	respChan chan *service.ServerResponse
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -55,6 +65,7 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 		settings: settings,
 		logger:   logger,
 		inChan:   make(chan *service.Record, BufferSize),
+		respChan: make(chan *service.ServerResponse, BufferSize),
 	}
 	stream.Start()
 	return stream
@@ -71,9 +82,10 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 func (s *Stream) Start() {
 	s.logger.Info("created new stream", "id", s.settings.RunId)
 
-	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	s.loopbackChan = make(chan *service.Record, BufferSize)
+	s.handler = NewHandler(s.ctx, s.settings, s.logger, s.loopbackChan)
 	s.writer = NewWriter(s.ctx, s.settings, s.logger)
-	s.sender = NewSender(s.ctx, s.settings, s.logger)
+	s.sender = NewSender(s.ctx, s.settings, s.logger, s.loopbackChan)
 	s.dispatcher = NewDispatcher(s.logger)
 
 	// handle the client requests
@@ -117,33 +129,45 @@ func (s *Stream) GetRun() *service.RunRecord {
 	return s.handler.GetRun()
 }
 
-// Close closes the stream's handler, writer, sender, and dispatcher.
-// This can be triggered by the client (force=False) or by the server (force=True).
-// We need the ExitRecord to initiate the shutdown procedure (which we
-// either get from the client, or generate ourselves if the server is shutting us down).
-// This will trigger the defer state machines (SM) in the stream's components:
-//   - when the sender's SM gets to the final state, it will Close the handler
-//   - this will trigger the handler to Close the writer
-//   - this will trigger the writer to Close the sender
-//
-// This will finish the Stream's wait group, which will allow the stream to be
-// garbage collected.
+// Gracefully wait for handler, writer, sender, dispatcher to shutdown cleanly
+// assumes an exit record has already been sent
 func (s *Stream) Close() {
-	// Close and wait for input channel to shutdown
-	close(s.inChan)
 	s.wg.Wait()
 }
 
+// Handle internal responses like from the finish and close path
+func (s *Stream) Respond(resp *service.ServerResponse) {
+	s.respChan <- resp
+}
+
 func (s *Stream) FinishAndClose(exitCode int32) {
+	s.AddResponders(ResponderEntry{s, internalConnectionId})
+
 	// send exit record to handler
 	record := &service.Record{
 		RecordType: &service.Record_Exit{
 			Exit: &service.RunExitRecord{
 				ExitCode: exitCode,
 			}},
-		Control: &service.Control{AlwaysSend: true},
+		Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
 	}
+
 	s.HandleRecord(record)
+	// TODO(beta): process the response so we can formulate a more correct footer
+	<-s.respChan
+
+	// send a shutdown which triggers the handler to stop processing new records
+	shutdownRecord := &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_Shutdown{
+					Shutdown: &service.ShutdownRequest{},
+				},
+			}},
+		Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
+	}
+	s.HandleRecord(shutdownRecord)
+	<-s.respChan
 
 	s.Close()
 

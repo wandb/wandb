@@ -1,7 +1,6 @@
 """Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
-InterfaceGrpc: Use gRPC to send and receive messages
 InterfaceShared: Common routines for socket and queue based implementations
 InterfaceQueue: Use multiprocessing queues to send and receive messages
 InterfaceSock: Use socket to send and receive messages
@@ -469,7 +468,7 @@ class InterfaceBase:
             source.git.entrypoint.extend(metadata.get("entrypoint", []))
             source.git.notebook = metadata.get("notebook", False)
         elif source_type == "image":
-            source.image.image = metadata.get("image", "")
+            source.image.image = metadata.get("docker", "")
         else:
             raise ValueError("Invalid source type")
 
