@@ -148,7 +148,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
 	case *service.Record_LinkArtifact:
-		s.sendLinkArtifact(record)
+		s.sendLinkArtifact(record.GetLinkArtifact())
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -304,8 +304,32 @@ func (s *Sender) sendPreempting(record *service.Record) {
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendLinkArtifact(record *service.Record) {
-	s.logger.Info("sender: linkartifactalert", "data")
+func (s *Sender) sendLinkArtifact(record *service.LinkArtifactRecord) {
+	linker := artifacts.ArtifactLinker{
+		Ctx:           s.ctx,
+		Logger:        s.logger,
+		Artifact:      record,
+		GraphqlClient: s.graphqlClient,
+	}
+	err := linker.Link()
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
+	}
+
+	// result := &service.Result{
+	// 	ResultType: &service.Result_Response{
+	// 		Response: &service.Response{
+	// 			ResponseType: &service.Response_LogArtifactResponse{
+	// 				LogArtifactResponse: &service.LogArtifactResponse{
+	// 					ArtifactId: saverResult.ArtifactId,
+	// 				},
+	// 			},
+	// 		},
+	// 	},
+	// 	Control: record.Control,
+	// 	Uuid:    record.Uuid,
+	// }
+	// s.outChan <- result
 }
 
 // updateConfig updates the config map with the config record
