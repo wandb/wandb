@@ -1,7 +1,6 @@
 """Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
-InterfaceGrpc: Use gRPC to send and receive messages
 InterfaceShared: Common routines for socket and queue based implementations
 InterfaceQueue: Use multiprocessing queues to send and receive messages
 InterfaceSock: Use socket to send and receive messages
@@ -9,17 +8,18 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
-import json
 import logging
 import os
 import sys
 import time
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -38,8 +38,6 @@ from .message_future import MessageFuture
 GlobStr = NewType("GlobStr", str)
 
 if TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact
-
     from ..wandb_run import Run
 
     if sys.version_info >= (3, 8):
@@ -386,6 +384,12 @@ class InterfaceBase:
             proto_artifact.description = artifact.description
         if artifact.metadata:
             proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+        if artifact._base_id:
+            proto_artifact.base_id = artifact._base_id
+
+        ttl_duration_input = artifact._ttl_duration_seconds_to_gql()
+        if ttl_duration_input:
+            proto_artifact.ttl_duration_seconds = ttl_duration_input
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -447,14 +451,81 @@ class InterfaceBase:
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         raise NotImplementedError
 
+    @staticmethod
+    def _make_partial_source_str(
+        source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
+    ) -> str:
+        """Construct use_artifact.partial.source_info.sourc as str."""
+        source_type = job_info.get("source_type", "").strip()
+        if source_type == "artifact":
+            info_source = job_info.get("source", {})
+            source.artifact.artifact = info_source.get("artifact", "")
+            source.artifact.entrypoint.extend(info_source.get("entrypoint", []))
+            source.artifact.notebook = info_source.get("notebook", False)
+        elif source_type == "repo":
+            source.git.git_info.remote = metadata.get("git", {}).get("remote", "")
+            source.git.git_info.commit = metadata.get("git", {}).get("commit", "")
+            source.git.entrypoint.extend(metadata.get("entrypoint", []))
+            source.git.notebook = metadata.get("notebook", False)
+        elif source_type == "image":
+            source.image.image = metadata.get("docker", "")
+        else:
+            raise ValueError("Invalid source type")
+
+        source_str: str = source.SerializeToString()
+        return source_str
+
+    def _make_proto_use_artifact(
+        self,
+        use_artifact: pb.UseArtifactRecord,
+        job_name: str,
+        job_info: Dict[str, Any],
+        metadata: Dict[str, Any],
+    ) -> pb.UseArtifactRecord:
+        use_artifact.partial.job_name = job_name
+        use_artifact.partial.source_info._version = job_info.get("_version", "")
+        use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
+        use_artifact.partial.source_info.runtime = job_info.get("runtime", "")
+
+        src_str = self._make_partial_source_str(
+            source=use_artifact.partial.source_info.source,
+            job_info=job_info,
+            metadata=metadata,
+        )
+        use_artifact.partial.source_info.source.ParseFromString(src_str)
+
+        return use_artifact
+
     def publish_use_artifact(
         self,
         artifact: "Artifact",
     ) -> None:
         assert artifact.id is not None, "Artifact must have an id"
+
         use_artifact = pb.UseArtifactRecord(
-            id=artifact.id, type=artifact.type, name=artifact.name
+            id=artifact.id,
+            type=artifact.type,
+            name=artifact.name,
         )
+
+        # TODO(gst): move to internal process
+        if "_partial" in artifact.metadata:
+            # Download source info from logged partial job artifact
+            job_info = {}
+            try:
+                path = artifact.get_path("wandb-job.json").download()
+                with open(path) as f:
+                    job_info = json.load(f)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to download partial job info from artifact {artifact}, : {e}"
+                )
+            use_artifact = self._make_proto_use_artifact(
+                use_artifact=use_artifact,
+                job_name=artifact.name,
+                job_info=job_info,
+                metadata=artifact.metadata,
+            )
 
         self._publish_use_artifact(use_artifact)
 
@@ -860,4 +931,12 @@ class InterfaceBase:
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_job_info(self) -> MailboxHandle:
+        job_info = pb.JobInfoRequest()
+        return self._deliver_request_job_info(job_info)
+
+    @abstractmethod
+    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
         raise NotImplementedError

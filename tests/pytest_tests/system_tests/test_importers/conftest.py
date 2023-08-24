@@ -1,3 +1,4 @@
+import os
 import signal
 import subprocess
 import tempfile
@@ -5,8 +6,8 @@ import time
 import urllib.parse
 import uuid
 import warnings
-from itertools import islice
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from dataclasses import dataclass
+from typing import Iterable, List, Optional
 
 import hypothesis.strategies as st
 import mlflow
@@ -16,61 +17,76 @@ import requests
 from hypothesis.errors import NonInteractiveExampleWarning
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
-
-MLFLOW_BASE_URL = "http://localhost:4040"
-MLFLOW_HEALTH_ENDPOINT = "health"
-EXPERIMENTS = 2
-RUNS_PER_EXPERIMENT = 3
-N_ARTIFACTS_PER_RUN = 10
-STEPS = 1000
+from packaging.version import Version
+from wandb.util import batched
 
 SECONDS_FROM_2023_01_01 = 1672549200
 
+mlflow_version = Version(mlflow.__version__)
 
-Path = str
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 
-def _make_run(
-    name: Optional[str] = None,
-    tags: Optional[Dict[str, Any]] = None,
-    params: Optional[Dict[str, float]] = None,
-    metrics: Optional[Iterable[Dict[str, float]]] = None,
-    make_artifact_fns: Optional[Iterable[Callable[[], Path]]] = None,
-    batch_size: Optional[int] = None,
-):
-    client = MlflowClient()
-    with mlflow.start_run() as run:
-        if name:
-            mlflow.set_tag("mlflow.runName", name)
-        if tags:
-            mlflow.set_tags(tags)
-        if params:
-            mlflow.log_params(params)
-        if metrics:
-            if batch_size:
-                for batch in batch_metrics(metrics, batch_size):
-                    client.log_batch(run.info.run_id, metrics=batch)
-            else:
-                for m in metrics:
-                    mlflow.log_metrics(m)
-        if make_artifact_fns:
-            for f in make_artifact_fns:
-                path = f()
-                mlflow.log_artifact(path)
+@dataclass
+class MlflowServerSettings:
+    metrics_backend: Literal[
+        "mssql_backend",
+        "mysql_backend",
+        "postgres_backend",
+        "file_backend",
+        "sqlite_backend",
+    ]
+    artifacts_backend: Literal["file_artifacts", "s3_artifacts"]
+
+    base_url: str = "http://localhost:4040"
+    health_endpoint: str = "health"
+
+    # helper if port is blocked
+    new_port: Optional[str] = None
+
+    def __post_init__(self):
+        self.new_port = self._get_free_port()
+        self.base_url = self.base_url.replace("4040", self.new_port)
+
+    def _get_free_port():
+        import socket
+
+        sock = socket.socket()
+        sock.bind(("", 0))
+        return str(sock.getsockname()[1])
+
+
+@dataclass
+class MlflowLoggingConfig:
+    # experiments and metrics
+    n_experiments: int
+    n_runs_per_experiment: int
+    n_steps_per_run: int
+
+    # artifacts
+    n_root_files: int
+    n_subdirs: int
+    n_subdir_files: int
+
+    # batching
+    logging_batch_size: int = 50
+
+    @property
+    def total_runs(self):
+        return self.n_experiments * self.n_runs_per_experiment
+
+    @property
+    def total_files(self):
+        return self.n_root_files + self.n_subdirs * self.n_subdir_files
 
 
 # def make_nested_run():
 #     with mlflow.start_run():
 #         for _ in range(NUM_RUNS_PER_NESTED_EXPERIMENT):
 #             make_run(batch_size=50)
-
-
-def batched(n, iterable):
-    i = iter(iterable)
-    batch = list(islice(i, n))
-    while batch:
-        yield batch
-        batch = list(islice(i, n))
 
 
 def batch_metrics(metrics, bs: int) -> Iterable[List[Metric]]:
@@ -98,15 +114,31 @@ def make_tags():
 
 
 def make_params():
+    # Older versions have trouble handling certain kinds of strings and larger dicts
+    if mlflow_version < Version("2.0.0"):
+        param_str = st.text(
+            max_size=20, alphabet="abcdefghijklmnopqrstuvwxyz1234567890_- "
+        ).example()
+        param_dict = st.dictionaries(
+            st.text(max_size=4, alphabet="abcdefghijklmnopqrstuvwxyz1234567890_- "),
+            st.integers(),
+            max_size=2,
+        ).example()
+    else:
+        param_str = st.text(max_size=20).example()
+        param_dict = st.dictionaries(
+            st.text(max_size=20),
+            st.integers(),
+            max_size=10,
+        ).example()
+
     return {
         "param_int": st.integers().example(),
         "param_float": st.floats().example(),
-        "param_str": st.text(max_size=20).example(),
+        "param_str": param_str,
         "param_bool": st.booleans().example(),
         "param_list": st.lists(st.integers()).example(),
-        "param_dict": st.dictionaries(
-            st.text(max_size=20), st.integers(), max_size=10
-        ).example(),
+        "param_dict": param_dict,
         "param_tuple": st.tuples(st.integers(), st.integers()).example(),
         "param_set": st.sets(st.integers()).example(),
         "param_none": None,
@@ -121,60 +153,30 @@ def make_metrics(n_steps):
         }
 
 
-def make_artifact_fns(
-    temp_path: Path, n_artifacts: int
-) -> Iterable[Callable[[], Path]]:
-    def artifact_fn():
-        fname = str(uuid.uuid4())
-        file_path = f"{temp_path}/{fname}.txt"
+def make_artifacts_dir(
+    root_dir: str, n_root_files: int, n_subdirs: int, n_subdir_files: int
+) -> str:
+    # Ensure root_dir exists
+    os.makedirs(root_dir, exist_ok=True)
+
+    for i in range(n_root_files):
+        file_path = os.path.join(root_dir, f"file{i}.txt")
         with open(file_path, "w") as f:
             f.write(f"text from {file_path}")
-        return file_path
 
-    for _ in range(n_artifacts):
-        yield artifact_fn
+    for i in range(n_subdirs):
+        subdir_path = os.path.join(root_dir, f"subdir{i}")
+        os.makedirs(subdir_path, exist_ok=True)
 
+        for j in range(n_subdir_files):
+            file_path = os.path.join(subdir_path, f"file{j}.txt")
+            with open(file_path, "w") as f:
+                f.write(f"text from {file_path}")
 
-def make_run(name, n_steps, mlflow_batch_size, n_artifacts):
-    with tempfile.TemporaryDirectory() as temp_path:
-        _make_run(
-            name=name,
-            tags=make_tags(),
-            params=make_params(),
-            metrics=make_metrics(n_steps),
-            make_artifact_fns=make_artifact_fns(temp_path, n_artifacts),
-            batch_size=mlflow_batch_size,
-        )
+    return root_dir
 
 
-def make_exp(n_runs, n_steps, mlflow_batch_size, n_artifacts_per_run):
-    exp_name = "Experiment " + str(uuid.uuid4())
-    mlflow.set_experiment(exp_name)
-
-    # Can't use ProcessPoolExecutor -- it seems to always fail in tests!
-    for _ in range(n_runs):
-        run_name = "Run :/" + str(uuid.uuid4())
-        make_run(run_name, n_steps, mlflow_batch_size, n_artifacts_per_run)
-
-
-def log_to_mlflow(
-    mlflow_tracking_uri: str,
-    n_exps: int = 2,
-    n_runs_per_exp: int = 3,
-    n_steps: int = 1000,
-    mlflow_batch_size: int = 50,
-    n_artifacts_per_run: int = 10,
-):
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
-        mlflow.set_tracking_uri(mlflow_tracking_uri)
-
-        # Can't use ProcessPoolExecutor -- it seems to always fail in tests!
-        for _ in range(n_exps):
-            make_exp(n_runs_per_exp, n_steps, mlflow_batch_size, n_artifacts_per_run)
-
-
-def check_mlflow_server_health(
+def _check_mlflow_server_health(
     base_url: str, endpoint: str, num_retries: int = 1, sleep_time: int = 1
 ):
     for _ in range(num_retries):
@@ -188,7 +190,7 @@ def check_mlflow_server_health(
     return False
 
 
-def kill_child_processes(parent_pid, sig=signal.SIGTERM):
+def _kill_child_processes(parent_pid, sig=signal.SIGTERM):
     try:
         parent = psutil.Process(parent_pid)
     except psutil.NoSuchProcess:
@@ -257,45 +259,97 @@ def mlflow_artifacts_destination(request):
     yield request.getfixturevalue(request.param)
 
 
-def get_free_port():
-    import socket
-
-    sock = socket.socket()
-    sock.bind(("", 0))
-    return str(sock.getsockname()[1])
-
-
-@pytest.fixture()
-def mlflow_server(mlflow_backend, mlflow_artifacts_destination):
-    new_port = get_free_port()
-    modified_base_url = MLFLOW_BASE_URL.replace("4040", new_port)
-
-    start_cmd = [
-        "mlflow",
-        "server",
-        "-p",
-        new_port,
-        "--backend-store-uri",
-        mlflow_backend,
-        "--artifacts-destination",
-        mlflow_artifacts_destination,
-    ]
-    process = subprocess.Popen(start_cmd)  # process
-    healthy = check_mlflow_server_health(
-        modified_base_url, MLFLOW_HEALTH_ENDPOINT, num_retries=30
+@pytest.fixture
+def mlflow_server_settings(mlflow_artifacts_destination, mlflow_backend):
+    return MlflowServerSettings(
+        metrics_backend=mlflow_backend,
+        artifacts_backend=mlflow_artifacts_destination,
     )
-
-    if healthy:
-        yield modified_base_url
-    else:
-        raise Exception("MLflow server is not healthy")
-
-    kill_child_processes(process.pid)
 
 
 @pytest.fixture
-def prelogged_mlflow_server(mlflow_server):
-    log_to_mlflow(
-        mlflow_server, EXPERIMENTS, RUNS_PER_EXPERIMENT, STEPS, N_ARTIFACTS_PER_RUN
+def mlflow_logging_config():
+    return MlflowLoggingConfig(
+        n_experiments=2,
+        n_runs_per_experiment=3,
+        n_steps_per_run=1000,
+        n_root_files=5,
+        n_subdirs=3,
+        n_subdir_files=2,
     )
-    yield mlflow_server, EXPERIMENTS, RUNS_PER_EXPERIMENT, STEPS, N_ARTIFACTS_PER_RUN
+
+
+@pytest.fixture
+def mlflow_server(mlflow_server_settings):
+    if mlflow_version < Version("2.0.0"):
+        start_cmd = [
+            "mlflow",
+            "server",
+            "-p",
+            mlflow_server_settings.new_port,
+            # no sqlite
+            # no --artifacts-destination flag
+        ]
+    else:
+        start_cmd = [
+            "mlflow",
+            "server",
+            "-p",
+            mlflow_server_settings.new_port,
+            "--backend-store-uri",
+            mlflow_server_settings.metrics_backend,
+            "--artifacts-destination",
+            mlflow_server_settings.artifacts_backend,
+        ]
+
+    process = subprocess.Popen(start_cmd)  # process
+    healthy = _check_mlflow_server_health(
+        mlflow_server_settings.base_url,
+        mlflow_server_settings.health_endpoint,
+        num_retries=30,
+    )
+
+    if healthy:
+        yield mlflow_server_settings
+    else:
+        raise Exception("MLflow server is not healthy")
+
+    _kill_child_processes(process.pid)
+
+
+@pytest.fixture
+def prelogged_mlflow_server(mlflow_server, mlflow_logging_config):
+    config = mlflow_logging_config
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
+        mlflow.set_tracking_uri(mlflow_server.base_url)
+
+        # Experiments
+        for _ in range(config.n_experiments):
+            exp_name = "Experiment " + str(uuid.uuid4())
+            mlflow.set_experiment(exp_name)
+
+            # Runs
+            for _ in range(config.n_runs_per_experiment):
+                run_name = "Run :/" + str(uuid.uuid4())
+                client = MlflowClient()
+                with mlflow.start_run() as run:
+                    mlflow.set_tag("mlflow.runName", run_name)
+                    mlflow.set_tags(make_tags())
+                    mlflow.log_params(make_params())
+
+                    metrics = make_metrics(config.n_steps_per_run)
+                    for batch in batch_metrics(metrics, config.logging_batch_size):
+                        client.log_batch(run.info.run_id, metrics=batch)
+
+                    with tempfile.TemporaryDirectory() as temp_path:
+                        artifacts_dir = make_artifacts_dir(
+                            temp_path,
+                            config.n_root_files,
+                            config.n_subdirs,
+                            config.n_subdir_files,
+                        )
+                        mlflow.log_artifact(artifacts_dir)
+
+    return mlflow_server

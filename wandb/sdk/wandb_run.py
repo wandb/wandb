@@ -41,6 +41,7 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
+    JobInfoResponse,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -58,7 +59,7 @@ from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
-    _is_py_path,
+    _is_py_or_dockerfile,
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
@@ -87,7 +88,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_settings import Settings, SettingsConsole
+from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -98,7 +99,6 @@ if TYPE_CHECKING:
 
     import wandb.apis.public
     import wandb.sdk.backend.backend
-    import wandb.sdk.interface.interface_grpc
     import wandb.sdk.interface.interface_queue
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
@@ -509,10 +509,7 @@ class Run:
     # Use string literal annotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
     _internal_run_interface: Optional[
-        Union[
-            "wandb.sdk.interface.interface_queue.InterfaceQueue",
-            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
-        ]
+        "wandb.sdk.interface.interface_queue.InterfaceQueue"
     ]
     _wl: Optional[_WandbSetup]
 
@@ -532,6 +529,7 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
+    _job_info: Optional["JobInfoResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
@@ -589,7 +587,7 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
         self._step = 0
-        self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
+        self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None
 
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
@@ -640,6 +638,7 @@ class Run:
         self._server_info_response = None
         self._internal_messages_response = None
         self._poll_exit_handle = None
+        self._job_info = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -655,7 +654,7 @@ class Run:
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
         wandb._sentry.configure_scope(
-            settings=self._settings,
+            tags=dict(self._settings),
             process_context="user",
         )
 
@@ -1079,8 +1078,12 @@ class Run:
         self,
         root: Optional[str] = ".",
         name: Optional[str] = None,
-        include_fn: Callable[[str], bool] = _is_py_path,
-        exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
+        include_fn: Union[
+            Callable[[str, str], bool], Callable[[str], bool]
+        ] = _is_py_or_dockerfile,
+        exclude_fn: Union[
+            Callable[[str, str], bool], Callable[[str], bool]
+        ] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
         """Save the current state of your code to a W&B Artifact.
 
@@ -1091,11 +1094,13 @@ class Run:
             name: (str, optional) The name of our code artifact. By default, we'll name
                 the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
-            include_fn: A callable that accepts a file path and
+            include_fn: A callable that accepts a file path and (optionally) root path and
                 returns True when it should be included and False otherwise. This
-                defaults to: `lambda path: path.endswith(".py")`
-            exclude_fn: A callable that accepts a file path and returns `True` when it should be
-                excluded and `False` otherwise. This defaults to: `lambda path: False`
+                defaults to: `lambda path, root: path.endswith(".py")`
+            exclude_fn: A callable that accepts a file path and (optionally) root path and
+                returns `True` when it should be excluded and `False` otherwise. This
+                defaults to a function that excludes all files within `<root>/.wandb/`
+                and `<root>/wandb/` directories.
 
         Examples:
             Basic usage
@@ -1106,7 +1111,9 @@ class Run:
             Advanced usage
             ```python
             run.log_code(
-                "../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb")
+                "../",
+                include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"),
+                exclude_fn=lambda path, root: os.path.relpath(path, root).startswith("cache/"),
             )
             ```
 
@@ -1135,7 +1142,7 @@ class Run:
                 files_added = True
                 save_name = os.path.relpath(file_path, root)
                 art.add_file(file_path, name=save_name)
-        # Add any manually staged files such is ipynb notebooks
+        # Add any manually staged files such as ipynb notebooks
         for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
             for fname in files:
                 file_path = os.path.join(dirpath, fname)
@@ -1215,9 +1222,7 @@ class Run:
         for k, v in (("code", code), ("repo", repo), ("code_version", code_version)):
             if v and not RE_LABEL.match(v):
                 wandb.termwarn(
-                    "Label added for '{}' with invalid identifier '{}' (ignored).".format(
-                        k, v
-                    ),
+                    f"Label added for '{k}' with invalid identifier '{v}' (ignored).",
                     repeat=False,
                 )
         for v in kwargs:
@@ -1384,7 +1389,7 @@ class Run:
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files: "FilesDict" = dict(files=[(GlobStr(glob.escape(fname)), "now")])
+        files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1468,10 +1473,7 @@ class Run:
 
     def _set_internal_run_interface(
         self,
-        interface: Union[
-            "wandb.sdk.interface.interface_queue.InterfaceQueue",
-            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
-        ],
+        interface: "wandb.sdk.interface.interface_queue.InterfaceQueue",
     ) -> None:
         self._internal_run_interface = interface
 
@@ -1502,7 +1504,8 @@ class Run:
             summary_dict = {}
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
-            self.summary.update(summary_dict)
+            if summary_dict:
+                self.summary.update(summary_dict)
         self._step = self._get_starting_step()
 
         # update settings from run_obj
@@ -1511,7 +1514,7 @@ class Run:
 
         wandb._sentry.configure_scope(
             process_context="user",
-            settings=self._settings,
+            tags=dict(self._settings),
         )
 
     def _add_singleton(
@@ -1589,7 +1592,7 @@ class Run:
         commit: Optional[bool] = None,
         sync: Optional[bool] = None,
     ) -> None:
-        """Log a dictonary of data to the current run's history.
+        """Log a dictionary of data to the current run's history.
 
         Use `wandb.log` to log data from runs, such as scalars, images, video,
         histograms, plots, and tables.
@@ -1658,8 +1661,8 @@ class Run:
             ```python
             import wandb
 
-            wandb.init()
-            wandb.log({"accuracy": 0.9, "epoch": 5})
+            run = wandb.init()
+            run.log({"accuracy": 0.9, "epoch": 5})
             ```
 
             ### Incremental logging
@@ -1667,10 +1670,10 @@ class Run:
             ```python
             import wandb
 
-            wandb.init()
-            wandb.log({"loss": 0.2}, commit=False)
+            run = wandb.init()
+            run.log({"loss": 0.2}, commit=False)
             # Somewhere else when I'm ready to report this step:
-            wandb.log({"accuracy": 0.8})
+            run.log({"accuracy": 0.8})
             ```
 
             ### Histogram
@@ -1681,8 +1684,8 @@ class Run:
 
             # sample gradients at random from normal distribution
             gradients = np.random.randn(100, 100)
-            wandb.init()
-            wandb.log({"gradients": wandb.Histogram(gradients)})
+            run = wandb.init()
+            run.log({"gradients": wandb.Histogram(gradients)})
             ```
 
             ### Image from numpy
@@ -1691,13 +1694,13 @@ class Run:
             import numpy as np
             import wandb
 
-            wandb.init()
+            run = wandb.init()
             examples = []
             for i in range(3):
                 pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
                 image = wandb.Image(pixels, caption=f"random field {i}")
                 examples.append(image)
-            wandb.log({"examples": examples})
+            run.log({"examples": examples})
             ```
 
             ### Image from PIL
@@ -1707,14 +1710,14 @@ class Run:
             from PIL import Image as PILImage
             import wandb
 
-            wandb.init()
+            run = wandb.init()
             examples = []
             for i in range(3):
                 pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
                 pil_image = PILImage.fromarray(pixels, mode="RGB")
                 image = wandb.Image(pil_image, caption=f"random field {i}")
                 examples.append(image)
-            wandb.log({"examples": examples})
+            run.log({"examples": examples})
             ```
 
             ### Video from numpy
@@ -1723,10 +1726,10 @@ class Run:
             import numpy as np
             import wandb
 
-            wandb.init()
+            run = wandb.init()
             # axes are (time, channel, height, width)
             frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
-            wandb.log({"video": wandb.Video(frames, fps=4)})
+            run.log({"video": wandb.Video(frames, fps=4)})
             ```
 
             ### Matplotlib Plot
@@ -1736,22 +1739,28 @@ class Run:
             import numpy as np
             import wandb
 
-            wandb.init()
+            run = wandb.init()
             fig, ax = plt.subplots()
             x = np.linspace(0, 10)
             y = x * x
             ax.plot(x, y)  # plot y = x^2
-            wandb.log({"chart": fig})
+            run.log({"chart": fig})
             ```
 
             ### PR Curve
             ```python
-            wandb.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
+            import wandb
+
+            run = wandb.init()
+            run.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
             ```
 
             ### 3D Object
             ```python
-            wandb.log(
+            import wandb
+
+            run = wandb.init()
+            run.log(
                 {
                     "generated_samples": [
                         wandb.Object3D(open("sample.obj")),
@@ -1873,7 +1882,7 @@ class Run:
                 )
                 % file_str
             )
-        files_dict: "FilesDict" = dict(files=[(wandb_glob_str, policy)])
+        files_dict: FilesDict = dict(files=[(wandb_glob_str, policy)])
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files
@@ -2026,23 +2035,23 @@ class Run:
         self,
         stdout_slave_fd: Optional[int],
         stderr_slave_fd: Optional[int],
-        console: Optional[SettingsConsole] = None,
+        console: Optional[str] = None,
     ) -> None:
         if console is None:
-            console = self._settings._console
+            console = self._settings.console
         # only use raw for service to minimize potential changes
-        if console == SettingsConsole.WRAP:
+        if console == "wrap":
             if not self._settings._disable_service:
-                console = SettingsConsole.WRAP_RAW
+                console = "wrap_raw"
             else:
-                console = SettingsConsole.WRAP_EMU
+                console = "wrap_emu"
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
 
         # raw output handles the output_log writing in the internal process
-        if console in {SettingsConsole.REDIRECT, SettingsConsole.WRAP_EMU}:
+        if console in {"redirect", "wrap_emu"}:
             output_log_path = os.path.join(
                 self._settings.files_dir, filenames.OUTPUT_FNAME
             )
@@ -2052,7 +2061,7 @@ class Run:
                     open(output_log_path, "wb")
                 )
 
-        if console == SettingsConsole.REDIRECT:
+        if console == "redirect":
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
@@ -2081,10 +2090,10 @@ class Run:
                         "wrapping stdout/err."
                     )
                     wandb.termlog(msg)
-                    self._redirect(None, None, console=SettingsConsole.WRAP)
+                    self._redirect(None, None, console="wrap")
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == SettingsConsole.WRAP_EMU:
+        elif console == "wrap_emu":
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
@@ -2100,7 +2109,7 @@ class Run:
                     self._output_writer.write,  # type: ignore
                 ],
             )
-        elif console == SettingsConsole.WRAP_RAW:
+        elif console == "wrap_raw":
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamRawWrapper(
                 src="stdout",
@@ -2114,7 +2123,7 @@ class Run:
                     lambda data: self._console_raw_callback("stderr", data),
                 ],
             )
-        elif console == SettingsConsole.OFF:
+        elif console == "off":
             return
         else:
             raise ValueError("unhandled console")
@@ -2412,6 +2421,7 @@ class Run:
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
+        job_info_handle = self._backend.interface.deliver_request_job_info()
 
         # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
@@ -2429,6 +2439,10 @@ class Run:
         result = final_summary_handle.wait(timeout=-1)
         assert result
         self._final_summary = result.response.get_summary_response
+
+        result = job_info_handle.wait(timeout=-1)
+        assert result
+        self._job_info = result.response.job_info_response
 
         if self._backend:
             self._backend.cleanup()
@@ -2452,6 +2466,7 @@ class Run:
             self._server_info_response,
             self._check_version,
             self._internal_messages_response,
+            self._job_info,
             self._reporter,
             self._quiet,
             settings=self._settings,
@@ -2524,16 +2539,12 @@ class Run:
             if arg_val is not None and not isinstance(arg_val, exp_type):
                 arg_type = type(arg_val).__name__
                 raise wandb.Error(
-                    "Unhandled define_metric() arg: {} type: {}".format(
-                        arg_name, arg_type
-                    )
+                    f"Unhandled define_metric() arg: {arg_name} type: {arg_type}"
                 )
         stripped = name[:-1] if name.endswith("*") else name
         if "*" in stripped:
             raise wandb.Error(
-                "Unhandled define_metric() arg: name (glob suffixes only): {}".format(
-                    name
-                )
+                f"Unhandled define_metric() arg: name (glob suffixes only): {name}"
             )
         summary_ops: Optional[Sequence[str]] = None
         if summary:
@@ -2661,6 +2672,10 @@ class Run:
                     entity,
                     project,
                 )
+                if not artifact._ttl_is_inherited:
+                    wandb.termwarn(
+                        "Artifact TTL will be removed for source artifacts that are linked to portfolios."
+                    )
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
@@ -2987,25 +3002,35 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
-        if not self._settings._offline:
-            try:
-                public_api = self._public_api()
-                expected_type = Artifact._expected_type(
-                    public_api.settings["entity"],
-                    public_api.settings["project"],
-                    artifact.name,
-                    public_api.client,
-                )
-            except requests.exceptions.RequestException:
-                # Just return early if there is a network error. This is
-                # ok, as this function is intended to help catch an invalid
-                # type early, but not a hard requirement for valid operation.
-                return
-            if expected_type is not None and artifact.type != expected_type:
-                raise ValueError(
-                    f"Artifact {artifact.name} already exists with type {expected_type}; "
-                    f"cannot create another with type {artifact.type}"
-                )
+        if self._settings._offline:
+            return
+        try:
+            public_api = self._public_api()
+            entity = public_api.settings["entity"]
+            project = public_api.settings["project"]
+            expected_type = Artifact._expected_type(
+                entity, project, artifact.name, public_api.client
+            )
+        except requests.exceptions.RequestException:
+            # Just return early if there is a network error. This is
+            # ok, as this function is intended to help catch an invalid
+            # type early, but not a hard requirement for valid operation.
+            return
+        if expected_type is not None and artifact.type != expected_type:
+            raise ValueError(
+                f"Artifact {artifact.name} already exists with type '{expected_type}'; "
+                f"cannot create another with type {artifact.type}"
+            )
+        if entity and artifact._source_entity and entity != artifact._source_entity:
+            raise ValueError(
+                f"Artifact {artifact.name} is owned by entity '{entity}'; it can't be "
+                f"moved to '{artifact._source_entity}'"
+            )
+        if project and artifact._source_project and project != artifact._source_project:
+            raise ValueError(
+                f"Artifact {artifact.name} exists in project '{project}'; it can't be "
+                f"moved to '{artifact._source_project}'"
+            )
 
     def _prepare_artifact(
         self,
@@ -3246,6 +3271,7 @@ class Run:
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version_response: Optional["CheckVersionResponse"] = None,
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
+        job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3262,6 +3288,7 @@ class Run:
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
+            job_info=job_info,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3445,6 +3472,7 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
+        job_info: Optional["JobInfoResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3467,6 +3495,11 @@ class Run:
                 info = [
                     f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
                 ]
+            if job_info and job_info.version and job_info.sequenceId:
+                link = f"{settings.project_url}/jobs/{job_info.sequenceId}/version_details/{job_info.version}"
+                info.append(
+                    f"{printer.emoji('lightning')} View job at {printer.link(link)}",
+                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts

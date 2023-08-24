@@ -8,6 +8,9 @@ depend:
   requirements:
     - tensorflow
     - keras
+tag:
+  skips:
+    - platform: win
 assert:
   - :runs_len: 1
   - :op:contains:

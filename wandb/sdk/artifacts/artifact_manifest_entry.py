@@ -4,8 +4,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
 
-import wandb
-from wandb import util
 from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import (
@@ -18,7 +16,6 @@ from wandb.sdk.lib.hashutil import (
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
-    from wandb.apis.public import RetryingClient
     from wandb.sdk.artifacts.artifact import Artifact
 
 
@@ -151,9 +148,7 @@ class ArtifactManifestEntry:
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
 
-    def _get_referenced_artifact(self, client: "RetryingClient") -> "Artifact":
-        artifact: "Artifact" = wandb.Artifact._from_id(
-            hex_to_b64_id(util.host_from_path(self.ref)), client
-        )
-        assert artifact is not None
-        return artifact
+    def _referenced_artifact_id(self) -> Optional[str]:
+        if not self._is_artifact_reference():
+            return None
+        return hex_to_b64_id(urlparse(self.ref).netloc)

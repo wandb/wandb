@@ -1,6 +1,7 @@
 """Utilities for the agent."""
 from typing import Any, Dict, Optional
 
+import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.errors import LaunchError
 
@@ -109,7 +110,7 @@ def registry_from_config(
         if not isinstance(environment, GcpEnvironment):
             raise LaunchError(
                 "Could not create GCR registry. "
-                "Environment must be an instance of GCPEnvironment."
+                "Environment must be an instance of GcpEnvironment."
             )
         from .registry.google_artifact_registry import GoogleArtifactRegistry
 
@@ -191,6 +192,7 @@ def runner_from_config(
     api: Api,
     runner_config: Dict[str, Any],
     environment: AbstractEnvironment,
+    registry: AbstractRegistry,
 ) -> AbstractRunner:
     """Create a runner from a config.
 
@@ -213,7 +215,7 @@ def runner_from_config(
     if not runner_name or runner_name in ["local-container", "local"]:
         from .runner.local_container import LocalContainerRunner
 
-        return LocalContainerRunner(api, runner_config, environment)
+        return LocalContainerRunner(api, runner_config, environment, registry)
     if runner_name == "local-process":
         from .runner.local_process import LocalProcessRunner
 
@@ -228,22 +230,26 @@ def runner_from_config(
             )
         from .runner.sagemaker_runner import SageMakerRunner
 
-        return SageMakerRunner(api, runner_config, environment)
+        return SageMakerRunner(api, runner_config, environment, registry)
     if runner_name in ["vertex", "gcp-vertex"]:
         from .environment.gcp_environment import GcpEnvironment
 
         if not isinstance(environment, GcpEnvironment):
-            raise LaunchError(
-                "Could not create Vertex runner. "
-                "Environment must be an instance of GcpEnvironment."
-            )
+            wandb.termwarn("Attempting to load GCP configuration from user settings.")
+            try:
+                environment = GcpEnvironment.from_default()
+            except LaunchError as e:
+                raise LaunchError(
+                    "Could not create Vertex runner. "
+                    "Environment must be an instance of GcpEnvironment."
+                ) from e
         from .runner.vertex_runner import VertexRunner
 
-        return VertexRunner(api, runner_config, environment)
+        return VertexRunner(api, runner_config, environment, registry)
     if runner_name == "kubernetes":
         from .runner.kubernetes_runner import KubernetesRunner
 
-        return KubernetesRunner(api, runner_config, environment)
+        return KubernetesRunner(api, runner_config, environment, registry)
     raise LaunchError(
         f"Could not create runner from config. Invalid runner name: {runner_name}"
     )

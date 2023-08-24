@@ -10,7 +10,7 @@ from wandb.apis.internal import Api
 from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
-from .builder.build import construct_builder_args
+from .builder.build import construct_agent_configs
 from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
 from .utils import (
@@ -91,7 +91,7 @@ def resolve_agent_config(  # noqa: C901
         resolved_config.update({"queues": list(queues)})
     # queue -> queues
     if resolved_config.get("queue"):
-        if type(resolved_config.get("queue")) == str:
+        if isinstance(resolved_config.get("queue"), str):
             resolved_config["queues"].append(resolved_config["queue"])
         else:
             raise LaunchError(
@@ -162,20 +162,27 @@ def _run(
     validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)
     launch_project = fetch_and_validate_project(launch_project, api)
+    entrypoint = launch_project.get_single_entry_point()
+    image_uri = launch_project.docker_image  # Either set by user or None.
 
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
     config = launch_config or {}
-    build_config, registry_config = construct_builder_args(config)
-
-    environment = loader.environment_from_config(config.get("environment", {}))
+    environment_config, build_config, registry_config = construct_agent_configs(config)
+    environment = loader.environment_from_config(environment_config)
     registry = loader.registry_from_config(registry_config, environment)
     builder = loader.builder_from_config(build_config, environment, registry)
-    backend = loader.runner_from_config(resource, api, runner_config, environment)
+    if not launch_project.docker_image:
+        assert entrypoint
+        image_uri = builder.build_image(launch_project, entrypoint, None)
+    backend = loader.runner_from_config(
+        resource, api, runner_config, environment, registry
+    )
     if backend:
-        submitted_run = backend.run(launch_project, builder, None)
+        assert image_uri
+        submitted_run = backend.run(launch_project, image_uri)
         # this check will always pass, run is only optional in the agent case where
         # a run queue id is present on the backend config
         assert submitted_run

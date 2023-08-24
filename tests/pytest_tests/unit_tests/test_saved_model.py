@@ -78,6 +78,9 @@ class ArtifactManifestEntryPatch(ArtifactManifestEntry):
         dest = os.path.join(root, self.path)
         return copy_or_overwrite_changed(self.local_path, dest)
 
+    def _referenced_artifact_id(self):
+        return None
+
 
 class ArtifactPatch(Artifact):
     def _load_manifest(self, url: str) -> None:
@@ -94,7 +97,18 @@ def make_local_artifact_public(art):
             "artifactType": {
                 "name": "FAKE_TYPE_NAME",
             },
-            "aliases": [{"artifactCollectionName": "FAKE_NAME", "alias": "v0"}],
+            "aliases": [
+                {
+                    "artifactCollection": {
+                        "project": {
+                            "entityName": "FAKE_ENTITY",
+                            "name": "FAKE_PROJECT",
+                        },
+                        "name": "FAKE_NAME",
+                    },
+                    "alias": "v0",
+                }
+            ],
             "artifactSequence": {
                 "name": "FAKE_SEQUENCE_NAME",
                 "project": {

@@ -5,6 +5,7 @@ import platform
 import re
 import subprocess
 import sys
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import click
@@ -59,6 +60,9 @@ LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
+
+MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
+MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -657,9 +661,6 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
 
 def pull_docker_image(docker_image: str) -> None:
     """Pull the requested docker image."""
-    if docker_image_exists(docker_image):
-        # don't pull images if they exist already, eg if they are local images
-        return
     try:
         docker.run(["docker", "pull", docker_image])
     except docker.DockerError as e:

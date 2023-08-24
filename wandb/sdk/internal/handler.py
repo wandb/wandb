@@ -717,7 +717,7 @@ class HandleManager:
 
     def handle_request_resume(self, record: Record) -> None:
         if self._system_monitor is not None:
-            logger.info("starting system metrics thread or process")
+            logger.info("starting system metrics thread")
             self._system_monitor.start()
 
         if self._track_time is not None:
@@ -726,7 +726,7 @@ class HandleManager:
 
     def handle_request_pause(self, record: Record) -> None:
         if self._system_monitor is not None:
-            logger.info("stopping system metrics thread or process")
+            logger.info("stopping system metrics thread")
             self._system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
@@ -835,7 +835,11 @@ class HandleManager:
             item.key = key
             values: Iterable[Any] = sampled.get()
             if all(isinstance(i, numbers.Integral) for i in values):
-                item.values_int.extend(values)
+                try:
+                    item.values_int.extend(values)
+                except ValueError:
+                    # it is safe to ignore these as this is for display information
+                    pass
             elif all(isinstance(i, numbers.Real) for i in values):
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
@@ -858,6 +862,9 @@ class HandleManager:
         result = proto_util._result_from_record(record)
         self._respond_result(result)
         self._stopped.set()
+
+    def handle_request_job_info(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
 
     def finish(self) -> None:
         logger.info("shutting down handler")

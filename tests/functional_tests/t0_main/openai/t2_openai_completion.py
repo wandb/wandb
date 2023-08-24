@@ -15,7 +15,6 @@ def main():
     )
 
     _ = openai.Completion.create(**request_kwargs)
-    openai_autolog.disable()
 
 
 if __name__ == "__main__":
