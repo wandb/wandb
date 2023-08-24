@@ -269,6 +269,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleResume()
 	case *service.Request_Cancel:
 		h.handleCancel(record)
+	case *service.Request_InternalMessages:
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
