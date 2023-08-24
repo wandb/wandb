@@ -70,7 +70,7 @@ def test_save_live_multi_write(relay_server, user, mock_run, backend_interface):
 
 @pytest.mark.xfail(reason="TODO: fix this test")
 def test_save_live_glob_multi_write(
-        relay_server, user, mock_run, backend_interface, mocker
+    relay_server, user, mock_run, backend_interface, mocker
 ):
     run = mock_run(use_magic_mock=True)
 
@@ -263,16 +263,16 @@ def test_save_now_twice(relay_server, user, mock_run, backend_interface):
 
 
 def test_upgrade_upgraded(
-        mock_run,
-        backend_interface,
-        user,
+    mock_run,
+    backend_interface,
+    user,
 ):
     run = mock_run(use_magic_mock=True)
     with backend_interface(run, initial_run=False) as interface:
         with unittest.mock.patch.object(
-                wandb,
-                "__version__",
-                "0.0.6",
+            wandb,
+            "__version__",
+            "0.0.6",
         ), unittest.mock.patch.object(
             wandb.sdk.internal.sender.update,
             "_find_available",
@@ -283,8 +283,8 @@ def test_upgrade_upgraded(
             assert result
             version = result.response.check_version_response
             assert (
-                    version.upgrade_message
-                    == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+                version.upgrade_message
+                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
             )
             assert not version.delete_message
             assert not version.yank_message
@@ -297,16 +297,16 @@ def test_upgrade_upgraded(
 
 
 def test_upgrade_yanked(
-        mock_run,
-        backend_interface,
-        user,
+    mock_run,
+    backend_interface,
+    user,
 ):
     run = mock_run(use_magic_mock=True)
     with backend_interface(run, initial_run=False) as interface:
         with unittest.mock.patch.object(
-                wandb,
-                "__version__",
-                "0.0.2",
+            wandb,
+            "__version__",
+            "0.0.2",
         ), unittest.mock.patch.object(
             wandb.sdk.internal.sender.update,
             "_find_available",
@@ -317,13 +317,13 @@ def test_upgrade_yanked(
             assert result
             version = result.response.check_version_response
             assert (
-                    version.upgrade_message
-                    == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+                version.upgrade_message
+                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
             )
             assert not version.delete_message
             assert (
-                    version.yank_message
-                    == "wandb version 0.0.2 has been recalled!  Please upgrade."
+                version.yank_message
+                == "wandb version 0.0.2 has been recalled!  Please upgrade."
             )
 
         # We need a run to cleanly shutdown backend
@@ -334,16 +334,16 @@ def test_upgrade_yanked(
 
 
 def test_upgrade_yanked_message(
-        mock_run,
-        backend_interface,
-        user,
+    mock_run,
+    backend_interface,
+    user,
 ):
     run = mock_run(use_magic_mock=True)
     with backend_interface(run, initial_run=False) as interface:
         with unittest.mock.patch.object(
-                wandb,
-                "__version__",
-                "0.0.3",
+            wandb,
+            "__version__",
+            "0.0.3",
         ), unittest.mock.patch.object(
             wandb.sdk.internal.sender.update,
             "_find_available",
@@ -354,13 +354,13 @@ def test_upgrade_yanked_message(
             assert result
             version = result.response.check_version_response
             assert (
-                    version.upgrade_message
-                    == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+                version.upgrade_message
+                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
             )
             assert not version.delete_message
             assert (
-                    version.yank_message
-                    == "wandb version 0.0.3 has been recalled!  (just cuz)  Please upgrade."
+                version.yank_message
+                == "wandb version 0.0.3 has been recalled!  (just cuz)  Please upgrade."
             )
 
         # We need a run to cleanly shutdown backend
@@ -371,16 +371,16 @@ def test_upgrade_yanked_message(
 
 
 def test_upgrade_removed(
-        mock_run,
-        backend_interface,
-        user,
+    mock_run,
+    backend_interface,
+    user,
 ):
     run = mock_run(use_magic_mock=True)
     with backend_interface(run, initial_run=False) as interface:
         with unittest.mock.patch.object(
-                wandb,
-                "__version__",
-                "0.0.4",
+            wandb,
+            "__version__",
+            "0.0.4",
         ), unittest.mock.patch.object(
             wandb.sdk.internal.sender.update,
             "_find_available",
@@ -391,12 +391,12 @@ def test_upgrade_removed(
             assert result
             version = result.response.check_version_response
             assert (
-                    version.upgrade_message
-                    == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+                version.upgrade_message
+                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
             )
             assert (
-                    version.delete_message
-                    == "wandb version 0.0.4 has been retired!  Please upgrade."
+                version.delete_message
+                == "wandb version 0.0.4 has been retired!  Please upgrade."
             )
             assert not version.yank_message
 
@@ -417,7 +417,7 @@ def test_sender_upsert_run(internal_sm, test_settings, mock_run):
     results = []
     with patch.object(send_manager._api, "upsert_run", side_effect=CommError("test")):
         with patch.object(
-                send_manager, "_respond_result", wraps=lambda x: results.append(x)
+            send_manager, "_respond_result", wraps=lambda x: results.append(x)
         ):
             send_manager.send_run(record)
 
