@@ -1527,11 +1527,12 @@ def test_numpy_arrays_to_list():
     assert conv([np.array((1, 2))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2))]}, 3))) == [{"a": [[1, 2]]}, 3]
 
+
 def test_log_uint8_image():
     # Create and save image
-    imarray = np.random.rand(100,100,3) * 255
-    im = Image.fromarray(imarray.astype('uint8')).convert('RGBA')
-    im.save('test_image.png')
+    imarray = np.random.rand(100, 100, 3) * 255
+    im = Image.fromarray(imarray.astype("uint8")).convert("RGBA")
+    im.save("test_image.png")
 
     # Reading with torch vision
     image = read_image("test_image.png")
