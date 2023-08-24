@@ -567,22 +567,6 @@ class InterfaceBase:
     ) -> MessageFuture:
         raise NotImplementedError
 
-    @abstractmethod
-    def _communicate_artifact_send(
-        self, artifact_send: pb.ArtifactSendRequest
-    ) -> Optional[pb.ArtifactSendResponse]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _communicate_artifact_poll(
-        self, art_poll: pb.ArtifactPollRequest
-    ) -> Optional[pb.ArtifactPollResponse]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
-        raise NotImplementedError
-
     def publish_artifact(
         self,
         run: "Run",
