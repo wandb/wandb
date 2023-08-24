@@ -4,6 +4,7 @@ import functools
 import gzip
 import importlib
 import importlib.util
+import itertools
 import json
 import logging
 import math
@@ -13,8 +14,10 @@ import platform
 import queue
 import random
 import re
+import secrets
 import shlex
 import socket
+import string
 import sys
 import tarfile
 import tempfile
@@ -42,6 +45,7 @@ from typing import (
     Set,
     TextIO,
     Tuple,
+    TypeVar,
     Union,
 )
 
@@ -62,6 +66,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+T = TypeVar("T")
 
 
 logger = logging.getLogger(__name__)
@@ -1500,7 +1505,7 @@ def rand_alphanumeric(
 def fsync_open(
     path: StrPath, mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
-    """Open a path for I/O and guarante that the file is flushed and synced."""
+    """Open a path for I/O and guarantee that the file is flushed and synced."""
     with open(path, mode, encoding=encoding) as f:
         yield f
 
@@ -1770,3 +1775,38 @@ def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
             d[k] = dict(v)
             cast_dictlike_to_dict(d[k])
     return d
+
+
+def remove_keys_with_none_values(
+    d: Union[Dict[str, Any], Any]
+) -> Union[Dict[str, Any], Any]:
+    # otherwise iterrows will create a bunch of ugly charts
+    if not isinstance(d, dict):
+        return d
+
+    if isinstance(d, dict):
+        new_dict = {}
+        for k, v in d.items():
+            new_v = remove_keys_with_none_values(v)
+            if new_v is not None and not (isinstance(new_v, dict) and len(new_v) == 0):
+                new_dict[k] = new_v
+        return new_dict if new_dict else None
+
+
+def batched(n: int, iterable: Iterable[T]) -> Generator[List[T], None, None]:
+    i = iter(iterable)
+    batch = list(itertools.islice(i, n))
+    while batch:
+        yield batch
+        batch = list(itertools.islice(i, n))
+
+
+def random_string(length: int = 12) -> str:
+    """Generate a random string of a given length.
+
+    :param length: Length of the string to generate.
+    :return: Random string.
+    """
+    return "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+    )

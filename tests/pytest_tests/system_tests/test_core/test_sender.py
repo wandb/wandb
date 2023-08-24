@@ -278,17 +278,21 @@ def test_upgrade_upgraded(
             "_find_available",
             lambda current_version: ("0.0.8", False, False, False, ""),
         ):
-            ret = interface.communicate_check_version()
-            assert ret
+            handle = interface.deliver_check_version()
+            result = handle.wait(timeout=10)
+            assert result
+            version = result.response.check_version_response
             assert (
-                ret.upgrade_message
+                version.upgrade_message
                 == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
             )
-            assert not ret.delete_message
-            assert not ret.yank_message
+            assert not version.delete_message
+            assert not version.yank_message
 
         # We need a run to cleanly shutdown backend
-        run_result = interface.communicate_run(run)
+        handle = interface.deliver_run(run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
         assert run_result.HasField("error") is False
 
 
@@ -308,20 +312,24 @@ def test_upgrade_yanked(
             "_find_available",
             lambda current_version: ("0.0.8", False, False, True, ""),
         ):
-            ret = interface.communicate_check_version()
-            assert ret
+            handle = interface.deliver_check_version()
+            result = handle.wait(timeout=10)
+            assert result
+            version = result.response.check_version_response
             assert (
-                ret.upgrade_message
+                version.upgrade_message
                 == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
             )
-            assert not ret.delete_message
+            assert not version.delete_message
             assert (
-                ret.yank_message
+                version.yank_message
                 == "wandb version 0.0.2 has been recalled!  Please upgrade."
             )
 
         # We need a run to cleanly shutdown backend
-        run_result = interface.communicate_run(run)
+        handle = interface.deliver_run(run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
         assert run_result.HasField("error") is False
 
 
@@ -341,20 +349,24 @@ def test_upgrade_yanked_message(
             "_find_available",
             lambda current_version: ("0.0.8", False, False, True, "just cuz"),
         ):
-            ret = interface.communicate_check_version()
-            assert ret
+            handle = interface.deliver_check_version()
+            result = handle.wait(timeout=10)
+            assert result
+            version = result.response.check_version_response
             assert (
-                ret.upgrade_message
+                version.upgrade_message
                 == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
             )
-            assert not ret.delete_message
+            assert not version.delete_message
             assert (
-                ret.yank_message
+                version.yank_message
                 == "wandb version 0.0.3 has been recalled!  (just cuz)  Please upgrade."
             )
 
         # We need a run to cleanly shutdown backend
-        run_result = interface.communicate_run(run)
+        handle = interface.deliver_run(run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
         assert run_result.HasField("error") is False
 
 
@@ -374,20 +386,24 @@ def test_upgrade_removed(
             "_find_available",
             lambda current_version: ("0.0.8", False, True, False, ""),
         ):
-            ret = interface.communicate_check_version()
-            assert ret
+            handle = interface.deliver_check_version()
+            result = handle.wait(timeout=10)
+            assert result
+            version = result.response.check_version_response
             assert (
-                ret.upgrade_message
+                version.upgrade_message
                 == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
             )
             assert (
-                ret.delete_message
+                version.delete_message
                 == "wandb version 0.0.4 has been retired!  Please upgrade."
             )
-            assert not ret.yank_message
+            assert not version.yank_message
 
         # We need a run to cleanly shutdown backend
-        run_result = interface.communicate_run(run)
+        handle = interface.deliver_run(run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
         assert run_result.HasField("error") is False
 
 
