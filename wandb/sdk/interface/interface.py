@@ -1,7 +1,6 @@
 """Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
-InterfaceGrpc: Use gRPC to send and receive messages
 InterfaceShared: Common routines for socket and queue based implementations
 InterfaceQueue: Use multiprocessing queues to send and receive messages
 InterfaceSock: Use socket to send and receive messages
@@ -96,21 +95,6 @@ class InterfaceBase:
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         raise NotImplementedError
 
-    def communicate_check_version(
-        self, current_version: Optional[str] = None
-    ) -> Optional[pb.CheckVersionResponse]:
-        check_version = pb.CheckVersionRequest()
-        if current_version:
-            check_version.current_version = current_version
-        ret = self._communicate_check_version(check_version)
-        return ret
-
-    @abstractmethod
-    def _communicate_check_version(
-        self, current_version: pb.CheckVersionRequest
-    ) -> Optional[pb.CheckVersionResponse]:
-        raise NotImplementedError
-
     def communicate_status(self) -> Optional[pb.StatusResponse]:
         status = pb.StatusRequest()
         resp = self._communicate_status(status)
@@ -120,28 +104,6 @@ class InterfaceBase:
     def _communicate_status(
         self, status: pb.StatusRequest
     ) -> Optional[pb.StatusResponse]:
-        raise NotImplementedError
-
-    def communicate_stop_status(self) -> Optional[pb.StopStatusResponse]:
-        status = pb.StopStatusRequest()
-        resp = self._communicate_stop_status(status)
-        return resp
-
-    @abstractmethod
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
-        raise NotImplementedError
-
-    def communicate_network_status(self) -> Optional[pb.NetworkStatusResponse]:
-        status = pb.NetworkStatusRequest()
-        resp = self._communicate_network_status(status)
-        return resp
-
-    @abstractmethod
-    def _communicate_network_status(
-        self, status: pb.NetworkStatusRequest
-    ) -> Optional[pb.NetworkStatusResponse]:
         raise NotImplementedError
 
     def _make_config(
@@ -211,41 +173,6 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
-        raise NotImplementedError
-
-    def communicate_attach(self, attach_id: str) -> Optional[pb.AttachResponse]:
-        attach = pb.AttachRequest(attach_id=attach_id)
-        resp = self._communicate_attach(attach)
-        return resp
-
-    @abstractmethod
-    def _communicate_attach(
-        self, attach: pb.AttachRequest
-    ) -> Optional[pb.AttachResponse]:
-        raise NotImplementedError
-
-    def communicate_run(
-        self, run_obj: "Run", timeout: Optional[int] = None
-    ) -> Optional[pb.RunUpdateResult]:
-        run = self._make_run(run_obj)
-        return self._communicate_run(run, timeout=timeout)
-
-    @abstractmethod
-    def _communicate_run(
-        self, run: pb.RunRecord, timeout: Optional[int] = None
-    ) -> Optional[pb.RunUpdateResult]:
-        raise NotImplementedError
-
-    def communicate_run_start(self, run_pb: pb.RunRecord) -> bool:
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(run_pb)
-        result = self._communicate_run_start(run_start)
-        return result is not None
-
-    @abstractmethod
-    def _communicate_run_start(
-        self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.RunStartResponse]:
         raise NotImplementedError
 
     def _make_summary_from_dict(self, summary_dict: dict) -> pb.SummaryRecord:
@@ -333,27 +260,6 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
-        raise NotImplementedError
-
-    def communicate_get_summary(self) -> Optional[pb.GetSummaryResponse]:
-        get_summary = pb.GetSummaryRequest()
-        return self._communicate_get_summary(get_summary)
-
-    @abstractmethod
-    def _communicate_get_summary(
-        self, get_summary: pb.GetSummaryRequest
-    ) -> Optional[pb.GetSummaryResponse]:
-        raise NotImplementedError
-
-    def communicate_sampled_history(self) -> Optional[pb.SampledHistoryResponse]:
-        sampled_history = pb.SampledHistoryRequest()
-        resp = self._communicate_sampled_history(sampled_history)
-        return resp
-
-    @abstractmethod
-    def _communicate_sampled_history(
-        self, sampled_history: pb.SampledHistoryRequest
-    ) -> Optional[pb.SampledHistoryResponse]:
         raise NotImplementedError
 
     def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
@@ -568,22 +474,6 @@ class InterfaceBase:
     ) -> MessageFuture:
         raise NotImplementedError
 
-    @abstractmethod
-    def _communicate_artifact_send(
-        self, artifact_send: pb.ArtifactSendRequest
-    ) -> Optional[pb.ArtifactSendResponse]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _communicate_artifact_poll(
-        self, art_poll: pb.ArtifactPollRequest
-    ) -> Optional[pb.ArtifactPollResponse]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
-        raise NotImplementedError
-
     def publish_artifact(
         self,
         run: "Run",
@@ -775,34 +665,12 @@ class InterfaceBase:
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         raise NotImplementedError
 
-    def communicate_poll_exit(self) -> Optional[pb.PollExitResponse]:
-        poll_exit = pb.PollExitRequest()
-        resp = self._communicate_poll_exit(poll_exit)
-        return resp
-
-    @abstractmethod
-    def _communicate_poll_exit(
-        self, poll_exit: pb.PollExitRequest
-    ) -> Optional[pb.PollExitResponse]:
-        raise NotImplementedError
-
     def publish_keepalive(self) -> None:
         keepalive = pb.KeepaliveRequest()
         self._publish_keepalive(keepalive)
 
     @abstractmethod
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
-        raise NotImplementedError
-
-    def communicate_server_info(self) -> Optional[pb.ServerInfoResponse]:
-        server_info = pb.ServerInfoRequest()
-        resp = self._communicate_server_info(server_info)
-        return resp
-
-    @abstractmethod
-    def _communicate_server_info(
-        self, server_info: pb.ServerInfoRequest
-    ) -> Optional[pb.ServerInfoResponse]:
         raise NotImplementedError
 
     def join(self) -> None:

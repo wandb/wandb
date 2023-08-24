@@ -5,11 +5,13 @@ import logging
 import os
 import random
 from multiprocessing import Pool
+from unittest import mock
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
+from wandb import util
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -349,20 +351,16 @@ def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch)
     def out_of_space(*args, **kwargs):
         raise OSError(errno.ENOSPC, "out of space")
 
+    # Will raise an error without creating any file to delete.
+    monkeypatch.setattr(util, "fsync_open", out_of_space)
+
     _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
 
-    with pytest.raises(OSError, match="out of space"):
-        with opener() as f:
-            f.write("hello " * 100)
-            f.flush()
-            os.fsync(f.fileno())
-            os.remove(f.name)
-
-            path = f.name
-            assert not os.path.exists(path)
-
-            monkeypatch.setattr(os, "fsync", out_of_space)
-        # Here we raise the out of space error, not FileNotFoundError.
+    with mock.patch("os.remove", side_effect=FileNotFoundError) as mock_remove:
+        with pytest.raises(OSError, match="out of space"):
+            with opener():
+                pass
+        assert mock_remove.call_count == 1
 
 
 class FakePublicApi:
@@ -448,8 +446,8 @@ def test_storage_policy_incomplete():
     policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
-    not_policy = StoragePolicy.lookup_by_name("NotAStoragePolicy")
-    assert not_policy is None
+    with pytest.raises(NotImplementedError, match="Failed to find storage policy"):
+        StoragePolicy.lookup_by_name("NotAStoragePolicy")
 
 
 def test_storage_handler_incomplete():
