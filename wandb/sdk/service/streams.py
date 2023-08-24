@@ -350,10 +350,10 @@ class StreamMux:
             job_info = result.response.job_info_response
 
             Run._footer(
-                sampled_history,
-                final_summary,
-                poll_exit_response,
-                server_info_response,
+                sampled_history=sampled_history,
+                final_summary=final_summary,
+                poll_exit_response=poll_exit_response,
+                server_info_response=server_info_response,
                 internal_messages_response=internal_messages_response,
                 job_info=job_info,
                 settings=stream._settings,  # type: ignore

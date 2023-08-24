@@ -2460,15 +2460,15 @@ class Run:
 
     def _on_final(self) -> None:
         self._footer(
-            self._sampled_history,
-            self._final_summary,
-            self._poll_exit_response,
-            self._server_info_response,
-            self._check_version,
-            self._internal_messages_response,
-            self._job_info,
-            self._reporter,
-            self._quiet,
+            sampled_history=self._sampled_history,
+            final_summary=self._final_summary,
+            poll_exit_response=self._poll_exit_response,
+            server_info_response=self._server_info_response,
+            check_version_response=self._check_version,
+            internal_messages_response=self._internal_messages_response,
+            job_info=self._job_info,
+            reporter=self._reporter,
+            quiet=self._quiet,
             settings=self._settings,
             printer=self._printer,
         )
