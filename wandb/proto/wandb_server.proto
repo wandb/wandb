@@ -4,7 +4,6 @@ package wandb_internal;
 
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
-import "wandb/proto/wandb_telemetry.proto";
 import "wandb/proto/wandb_settings.proto";
 
 message ServerShutdownRequest {
