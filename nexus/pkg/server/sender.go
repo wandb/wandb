@@ -311,21 +311,12 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 		Artifact:      record.GetLinkArtifact(),
 		GraphqlClient: s.graphqlClient,
 	}
-	_, err := linker.Link()
+	err := linker.Link()
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
 	}
 
 	result := &service.Result{
-		// ResultType: &service.Result_Response{
-		// 	Response: &service.Response{
-		// 		ResponseType: &service.Response_LinkArtifactResponse{
-		// 			LinkArtifactResponse: &service.LinkArtifactResponse{
-		// 				versionIndex: linkerResult,
-		// 			},
-		// 		},
-		// 	},
-		// },
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
