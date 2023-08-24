@@ -306,6 +306,7 @@ func (al *ArtifactLinker) Link() error {
 		al.Logger.CaptureFatalAndPanic("sendLinkArtifact", err)
 	}
 
+	// Todo: can both server id and client id be nil?
 	// Todo: Return?
 	return nil
 }
