@@ -174,9 +174,11 @@ func (r *Run) Log(data map[string]interface{}) {
 	r.LogPartial(data, true)
 }
 
-func (r *Run) Finish() {
+func (r *Run) sendExit() {
 	record := service.Record{
-		RecordType: &service.Record_Exit{Exit: &service.RunExitRecord{ExitCode: 0, XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()}}},
+		RecordType: &service.Record_Exit{
+			Exit: &service.RunExitRecord{
+				ExitCode: 0, XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()}}},
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
 	serverRecord := service.ServerRequest{
@@ -188,16 +190,46 @@ func (r *Run) Finish() {
 		return
 	}
 	handle.wait()
+}
 
-	serverRecord = service.ServerRequest{
+func (r *Run) sendShutdown() {
+	record := &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_Shutdown{
+					Shutdown: &service.ShutdownRequest{},
+				},
+			}},
+		Control: &service.Control{AlwaysSend: true, ReqResp: true},
+	}
+	serverRecord := service.ServerRequest{
+		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: record},
+	}
+	handle := r.conn.Mbox.Deliver(record)
+	err := r.conn.Send(&serverRecord)
+	if err != nil {
+		return
+	}
+	handle.wait()
+}
+
+func (r *Run) sendInformFinish() {
+	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_InformFinish{InformFinish: &service.ServerInformFinishRequest{
 			XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 		}},
 	}
-	err = r.conn.Send(&serverRecord)
+	err := r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
+}
+
+func (r *Run) Finish() {
+	r.sendExit()
+	r.sendShutdown()
+	r.sendInformFinish()
+
 	r.conn.Close()
 	r.wg.Wait()
 	shared.PrintHeadFoot(r.run, r.settings)
