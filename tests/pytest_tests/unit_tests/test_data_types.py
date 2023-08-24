@@ -13,9 +13,10 @@ import responses
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
+from torchvision.io import read_image
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
-from torchvision.io import read_image
+
 
 def subdict(d, expected_dict):
     """Return a new dict with only the items from `d` whose keys occur in `expected_dict`."""
@@ -1532,12 +1533,12 @@ def test_log_uint8_image():
     im = Image.fromarray(imarray.astype('uint8')).convert('RGBA')
     im.save('test_image.png')
 
-    # Reading with torch vision 
+    # Reading with torch vision
     image = read_image("test_image.png")
 
-    torch_vision = wandb.Image(image) 
+    torch_vision = wandb.Image(image)
     path_im = wandb.Image("test_image.png")
-    
+
     path_im, torch_vision = np.array(path_im.image), np.array(torch_vision.image)
 
     # Clean up image file
