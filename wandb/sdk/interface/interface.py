@@ -469,7 +469,7 @@ class InterfaceBase:
             source.git.entrypoint.extend(metadata.get("entrypoint", []))
             source.git.notebook = metadata.get("notebook", False)
         elif source_type == "image":
-            source.image.image = metadata.get("image", "")
+            source.image.image = metadata.get("docker", "")
         else:
             raise ValueError("Invalid source type")
 
