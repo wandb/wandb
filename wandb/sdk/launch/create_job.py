@@ -180,7 +180,6 @@ def _create_job(
         run_name=run.id,  # run will be deleted after creation
         description=description,
         metadata=metadata,
-        labels=["manually-created"],
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
