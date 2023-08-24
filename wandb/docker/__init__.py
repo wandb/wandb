@@ -82,7 +82,8 @@ def is_buildx_installed() -> bool:
     return _buildx_installed
 
 
-def is_docker_installed():
+def is_docker_installed() -> bool:
+    """Return `True` if docker is installed and working, else `False`."""
     try:
         # Run the docker --version command
         result = subprocess.run(
