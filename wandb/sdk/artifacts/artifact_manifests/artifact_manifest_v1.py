@@ -3,7 +3,6 @@ from typing import Any, Dict, Mapping, Optional
 
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.lib.hashutil import HexMD5, _md5
 
@@ -23,13 +22,6 @@ class ArtifactManifestV1(ArtifactManifest):
         storage_policy_name = manifest_json["storagePolicy"]
         storage_policy_config = manifest_json.get("storagePolicyConfig", {})
         storage_policy_cls = StoragePolicy.lookup_by_name(storage_policy_name)
-        if storage_policy_cls is None:
-            raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
-        if not issubclass(storage_policy_cls, WandbStoragePolicy):
-            raise ValueError(
-                "No handler found for storage handler of type '%s'"
-                % storage_policy_name
-            )
 
         entries: Mapping[str, ArtifactManifestEntry]
         entries = {
@@ -49,7 +41,7 @@ class ArtifactManifestV1(ArtifactManifest):
 
     def __init__(
         self,
-        storage_policy: "WandbStoragePolicy",
+        storage_policy: "StoragePolicy",
         entries: Optional[Mapping[str, ArtifactManifestEntry]] = None,
     ) -> None:
         super().__init__(storage_policy, entries=entries)

@@ -446,8 +446,8 @@ def test_storage_policy_incomplete():
     policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
-    not_policy = StoragePolicy.lookup_by_name("NotAStoragePolicy")
-    assert not_policy is None
+    with pytest.raises(NotImplementedError, match="Failed to find storage policy"):
+        StoragePolicy.lookup_by_name("NotAStoragePolicy")
 
 
 def test_storage_handler_incomplete():
