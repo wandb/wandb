@@ -1534,7 +1534,6 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
               shard:
-                - "grpc"
                 - "docs"
                 - "llm"
                 - "noml"
