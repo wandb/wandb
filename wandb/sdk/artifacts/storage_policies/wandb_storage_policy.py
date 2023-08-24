@@ -23,6 +23,7 @@ from wandb.sdk.artifacts.storage_handlers.wb_local_artifact_handler import (
     WBLocalArtifactHandler,
 )
 from wandb.sdk.artifacts.storage_layout import StorageLayout
+from wandb.sdk.artifacts.storage_policies.register import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
@@ -53,7 +54,7 @@ S3_MAX_MULTI_UPLOAD_SIZE = 5 * 1024**4
 class WandbStoragePolicy(StoragePolicy):
     @classmethod
     def name(cls) -> str:
-        return "wandb-storage-policy-v1"
+        return WANDB_STORAGE_POLICY
 
     @classmethod
     def from_config(cls, config: Dict) -> "WandbStoragePolicy":
