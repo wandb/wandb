@@ -142,7 +142,10 @@ def builder_from_config(
     This helper function is used to create a builder from a config. The
     config should have a "type" key that specifies the type of builder to import
     and create. The remaining keys are passed to the builder's from_config
-    method. If the config is None or empty, a DockerBuilder is returned.
+    method. If the config is None or empty, a default builder is returned.
+
+    The default builder will be a DockerBuilder if we find a working docker cli
+    on the system, otherwise it will be a NoOpBuilder.
 
     Arguments:
         config (Dict[str, Any]): The builder config.
