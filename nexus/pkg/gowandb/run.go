@@ -179,7 +179,7 @@ func (r *Run) sendExit() {
 		RecordType: &service.Record_Exit{
 			Exit: &service.RunExitRecord{
 				ExitCode: 0, XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()}}},
-		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+		XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
 	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
