@@ -258,7 +258,7 @@ func (as *ArtifactSaver) Save() (ArtifactSaverResult, error) {
 	return ArtifactSaverResult{ArtifactId: artifactId}, nil
 }
 
-func (al *ArtifactLinker) Link() error {
+func (al *ArtifactLinker) Link() (*int, error) {
 	client_id := al.Artifact.ClientId
 	server_id := al.Artifact.ServerId
 	portfolio_name := al.Artifact.PortfolioName
@@ -277,7 +277,7 @@ func (al *ArtifactLinker) Link() error {
 	// Todo: Remove log
 	al.Logger.Info("sendLinker", "link record info", client_id, server_id, portfolio_name, portfolio_entity, portfolio_project, portfolio_aliases)
 	var err error
-	var response interface{}
+	var response *gql.LinkArtifactResponse
 	if server_id != "" {
 		response, err = gql.LinkArtifact(
 			al.Ctx,
@@ -303,10 +303,11 @@ func (al *ArtifactLinker) Link() error {
 	}
 	if err != nil {
 		err = fmt.Errorf("LinkArtifact: %s, error: %+v response: %+v", portfolio_name, err, response)
-		al.Logger.CaptureFatalAndPanic("sendLinkArtifact", err)
+		// al.Logger.CaptureFatalAndPanic("sendLinkArtifact", err)
+		return nil, err
 	}
-
 	// Todo: can both server id and client id be nil?
-	// Todo: Return?
-	return nil
+
+	linkedArtifactVersionIndex := response.GetLinkArtifact().GetVersionIndex()
+	return linkedArtifactVersionIndex, nil
 }
