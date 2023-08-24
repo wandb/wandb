@@ -70,7 +70,6 @@ kubeflow = [
 gcp = ["google-cloud-storage"]
 aws = ["boto3"]
 azure = ["azure-identity", "azure-storage-blob"]
-grpc = ["grpcio>=1.27.2"]
 media = [
     "numpy",
     "moviepy",
