@@ -53,7 +53,8 @@ from wandb.sdk.artifacts.exceptions import (
 )
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_layout import StorageLayout
-from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.artifacts.storage_policies import WANDB_STORAGE_POLICY
+from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -134,15 +135,12 @@ class Artifact:
 
         # Internal.
         self._client: Optional[RetryingClient] = None
-        storage_layout = (
-            StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
-        )
-        self._storage_policy = WandbStoragePolicy(
-            config={
-                "storageLayout": storage_layout,
-                #  TODO: storage region
-            }
-        )
+
+        storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
+        layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
+        policy_config = {"storageLayout": layout}
+        self._storage_policy = storage_policy_cls.from_config(config=policy_config)
+
         self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
         self._added_objs: Dict[
             int, Tuple[data_types.WBValue, ArtifactManifestEntry]
