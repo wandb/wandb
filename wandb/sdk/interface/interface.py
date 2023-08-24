@@ -1,7 +1,6 @@
 """Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
-InterfaceGrpc: Use gRPC to send and receive messages
 InterfaceShared: Common routines for socket and queue based implementations
 InterfaceQueue: Use multiprocessing queues to send and receive messages
 InterfaceSock: Use socket to send and receive messages
@@ -16,10 +15,11 @@ import time
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
 
-import wandb.sdk.lib.json_util as json
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -38,8 +38,6 @@ from .message_future import MessageFuture
 GlobStr = NewType("GlobStr", str)
 
 if TYPE_CHECKING:
-    from wandb.sdk.artifacts.artifact import Artifact
-
     from ..wandb_run import Run
 
     if sys.version_info >= (3, 8):
@@ -388,6 +386,10 @@ class InterfaceBase:
             proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
         if artifact._base_id:
             proto_artifact.base_id = artifact._base_id
+
+        ttl_duration_input = artifact._ttl_duration_seconds_to_gql()
+        if ttl_duration_input:
+            proto_artifact.ttl_duration_seconds = ttl_duration_input
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -466,7 +468,7 @@ class InterfaceBase:
             source.git.entrypoint.extend(metadata.get("entrypoint", []))
             source.git.notebook = metadata.get("notebook", False)
         elif source_type == "image":
-            source.image.image = metadata.get("image", "")
+            source.image.image = metadata.get("docker", "")
         else:
             raise ValueError("Invalid source type")
 
@@ -563,22 +565,6 @@ class InterfaceBase:
     def _communicate_artifact(
         self, log_artifact: pb.LogArtifactRequest
     ) -> MessageFuture:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _communicate_artifact_send(
-        self, artifact_send: pb.ArtifactSendRequest
-    ) -> Optional[pb.ArtifactSendResponse]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _communicate_artifact_poll(
-        self, art_poll: pb.ArtifactPollRequest
-    ) -> Optional[pb.ArtifactPollResponse]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
         raise NotImplementedError
 
     def publish_artifact(

@@ -10,7 +10,7 @@ from wandb.apis.internal import Api
 from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
-from .builder.build import construct_builder_args
+from .builder.build import construct_agent_configs
 from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
 from .utils import (
@@ -91,7 +91,7 @@ def resolve_agent_config(  # noqa: C901
         resolved_config.update({"queues": list(queues)})
     # queue -> queues
     if resolved_config.get("queue"):
-        if type(resolved_config.get("queue")) == str:
+        if isinstance(resolved_config.get("queue"), str):
             resolved_config["queues"].append(resolved_config["queue"])
         else:
             raise LaunchError(
@@ -170,9 +170,8 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
     config = launch_config or {}
-    build_config, registry_config = construct_builder_args(config)
-
-    environment = loader.environment_from_config(config.get("environment", {}))
+    environment_config, build_config, registry_config = construct_agent_configs(config)
+    environment = loader.environment_from_config(environment_config)
     registry = loader.registry_from_config(registry_config, environment)
     builder = loader.builder_from_config(build_config, environment, registry)
     if not launch_project.docker_image:
