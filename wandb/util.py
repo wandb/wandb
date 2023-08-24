@@ -1803,7 +1803,7 @@ def batched(n: int, iterable: Iterable[T]) -> Generator[List[T], None, None]:
 
 def random_string(length: int = 12) -> str:
     """Generate a random string of a given length.
-    
+
     :param length: Length of the string to generate.
     :return: Random string.
     """
