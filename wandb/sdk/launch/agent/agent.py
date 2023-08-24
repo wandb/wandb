@@ -19,7 +19,7 @@ from wandb.sdk.lib import runid
 
 from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
-from ..builder.build import construct_builder_args
+from ..builder.build import construct_agent_configs
 from ..errors import LaunchDockerError, LaunchError
 from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
 from .job_status_tracker import JobAndRunStatusTracker
@@ -35,6 +35,17 @@ AGENT_KILLED = "KILLED"
 HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_RESUME_COUNT = 5
+
+_env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
+if _env_timeout:
+    try:
+        RUN_START_TIMEOUT = float(_env_timeout)
+    except ValueError:
+        raise LaunchError(
+            f"Invalid value for WANDB_LAUNCH_START_TIMEOUT: {_env_timeout}"
+        )
+else:
+    RUN_START_TIMEOUT = 60 * 30  # default 30 minutes
 
 _logger = logging.getLogger(__name__)
 
@@ -557,7 +568,7 @@ class LaunchAgent:
         _logger.info("Loading backend")
         override_build_config = launch_spec.get("builder")
 
-        build_config, registry_config = construct_builder_args(
+        _, build_config, registry_config = construct_agent_configs(
             default_config, override_build_config
         )
         image_uri = project.docker_image
@@ -595,7 +606,18 @@ class LaunchAgent:
             return
         with self._jobs_lock:
             job_tracker.run = run
+        start_time = time.time()
         while self._jobs_event.is_set():
+            # If run has failed to start before timeout, kill it
+            state = run.get_status().state
+            if state == "starting" and RUN_START_TIMEOUT > 0:
+                if time.time() - start_time > RUN_START_TIMEOUT:
+                    run.cancel()
+                    raise LaunchError(
+                        f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
+                        "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
+                        "to a larger value."
+                    )
             if self._check_run_finished(job_tracker, launch_spec):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
@@ -663,7 +685,7 @@ class LaunchAgent:
                                 project=job_tracker.project,
                                 state="CANCELED",
                             )
-                        except CommError as e:
+                        except Exception as e:
                             raise LaunchError(f"Failed to update sweep state: {e}")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")

@@ -1,12 +1,18 @@
 import asyncio
 import base64
+import errno
+import logging
 import os
 import random
 from multiprocessing import Pool
+from unittest import mock
+from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
+from wandb import util
+from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -16,6 +22,9 @@ from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHan
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.sdk.lib.hashutil import md5_string
+
+example_digest = md5_string("example")
 
 
 def test_opener_rejects_append_mode(artifacts_cache):
@@ -296,6 +305,64 @@ def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
     assert local_path == path
 
 
+def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeypatch):
+    term_log = MagicMock()
+    monkeypatch.setattr(term, "_log", term_log)
+
+    def out_of_space(*args, **kwargs):
+        raise OSError(errno.ENOSPC, "out of space")
+
+    monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
+
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with pytest.raises(OSError, match="out of space"):
+        with opener() as f:
+            f.write("hello")
+
+    assert term_log.call_count >= 1
+    log_call = term_log.call_args[1]
+    assert "No disk space available" in log_call["string"]
+    assert "set WANDB_CACHE_DIR" in log_call["string"]
+    assert log_call["level"] == logging.ERROR
+
+
+def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
+    def fail(*args, **kwargs):
+        raise OSError
+
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with pytest.raises(OSError):
+        with opener() as f:
+            f.write("hello " * 100)
+            f.flush()
+            os.fsync(f.fileno())
+
+            path = f.name
+            assert os.path.exists(path)
+
+            monkeypatch.setattr(os, "fsync", fail)
+
+    assert not os.path.exists(path)
+
+
+def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch):
+    def out_of_space(*args, **kwargs):
+        raise OSError(errno.ENOSPC, "out of space")
+
+    # Will raise an error without creating any file to delete.
+    monkeypatch.setattr(util, "fsync_open", out_of_space)
+
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with mock.patch("os.remove", side_effect=FileNotFoundError) as mock_remove:
+        with pytest.raises(OSError, match="out of space"):
+            with opener():
+                pass
+        assert mock_remove.call_count == 1
+
+
 class FakePublicApi:
     @property
     def client(self):
@@ -379,8 +446,8 @@ def test_storage_policy_incomplete():
     policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
-    not_policy = StoragePolicy.lookup_by_name("NotAStoragePolicy")
-    assert not_policy is None
+    with pytest.raises(NotImplementedError, match="Failed to find storage policy"):
+        StoragePolicy.lookup_by_name("NotAStoragePolicy")
 
 
 def test_storage_handler_incomplete():

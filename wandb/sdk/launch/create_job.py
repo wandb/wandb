@@ -63,7 +63,7 @@ def create_job(
             runtime="3.9",
             entrypoint="train.py",
         )
-        # then, use you newly created job
+        # then run the newly created job
         artifact_job.call()
         ```
     """
@@ -180,7 +180,6 @@ def _create_job(
         run_name=run.id,  # run will be deleted after creation
         description=description,
         metadata=metadata,
-        labels=["manually-created"],
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
@@ -440,6 +439,8 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     job_builder = JobBuilder(
         settings=settings,
     )
+    # never allow notebook runs
+    job_builder._is_notebook_run = False
     # set run inputs and outputs to empty dicts
     job_builder.set_config({})
     job_builder.set_summary({})

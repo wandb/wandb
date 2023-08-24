@@ -1,4 +1,4 @@
-// package filesteam implements routines necessary for communicating with
+// Package filestream implements routines necessary for communicating with
 // the W&B backend filestream service.
 //
 // Internally there are three goroutines spun up:
@@ -195,12 +195,18 @@ func (fs *FileStream) Start() {
 
 // StreamRecord is the main entry point for callers to add data to be sent
 func (fs *FileStream) StreamRecord(rec *service.Record) {
+	if fs == nil {
+		return
+	}
 	fs.logger.Debug("filestream: stream record", "record", rec)
 	fs.addProcess(rec)
 }
 
 // Close gracefully shuts down the goroutines created by Start
 func (fs *FileStream) Close() {
+	if fs == nil {
+		return
+	}
 	close(fs.processChan)
 	fs.processWait.Wait()
 	close(fs.transmitChan)
