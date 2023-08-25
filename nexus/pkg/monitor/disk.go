@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/shirou/gopsutil/v3/disk"
@@ -27,7 +26,6 @@ func NewDisk(settings *service.Settings) *Disk {
 
 	// todo: collect metrics for each disk
 	ioCounters, err := disk.IOCounters()
-	fmt.Println(ioCounters)
 	if err == nil {
 		d.readInit = int(ioCounters["disk0"].ReadBytes)
 		d.writeInit = int(ioCounters["disk0"].WriteBytes)
