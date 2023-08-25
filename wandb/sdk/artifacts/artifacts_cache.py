@@ -36,7 +36,6 @@ class ArtifactsCache:
 
     def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = cache_dir
-        mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id: Dict[str, Artifact] = CappedDict()
