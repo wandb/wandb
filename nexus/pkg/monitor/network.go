@@ -18,11 +18,9 @@ type Network struct {
 }
 
 func NewNetwork(settings *service.Settings) *Network {
-	metrics := map[string][]float64{}
-
 	nw := &Network{
 		name:     "network",
-		metrics:  metrics,
+		metrics:  map[string][]float64{},
 		settings: settings,
 	}
 
