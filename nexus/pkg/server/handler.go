@@ -123,7 +123,7 @@ func NewHandler(
 		loopbackChan:        loopbackChan,
 	}
 	if !settings.GetXDisableStats().GetValue() {
-		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
+		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
 	return h
 }
@@ -329,23 +329,6 @@ func (h *Handler) handleLinkArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
-// startSystemMonitor starts the system monitor
-func (h *Handler) startSystemMonitor() {
-	if h.systemMonitor == nil {
-		return
-	}
-	go func() {
-		// this goroutine reads from the system monitor channel and writes
-		// to the handler's record channel. it will exit when the system
-		// monitor channel is closed
-		for msg := range h.systemMonitor.OutChan {
-			h.fwdChan <- msg
-		}
-		h.logger.Debug("system monitor channel closed")
-	}()
-	h.systemMonitor.Do()
-}
-
 func (h *Handler) handlePollExit(record *service.Record) {
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -395,7 +378,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	h.startSystemMonitor()
+	h.systemMonitor.Do()
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -418,7 +401,7 @@ func (h *Handler) handlePause() {
 
 func (h *Handler) handleResume() {
 	h.timer.Resume()
-	h.startSystemMonitor()
+	h.systemMonitor.Do()
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
@@ -457,7 +440,11 @@ func (h *Handler) handlePreempting(record *service.Record) {
 }
 
 func (h *Handler) handleRun(record *service.Record) {
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleConfig(record *service.Record) {
