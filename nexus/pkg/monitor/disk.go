@@ -56,11 +56,11 @@ func (d *Disk) SampleMetrics() {
 	if err == nil {
 		// MB read/written
 		d.metrics["disk.in"] = append(
-			d.metrics["disk.read"],
+			d.metrics["disk.in"],
 			float64(int(ioCounters["disk0"].ReadBytes)-d.readInit)/1024/1024,
 		)
 		d.metrics["disk.out"] = append(
-			d.metrics["disk.write"],
+			d.metrics["disk.out"],
 			float64(int(ioCounters["disk0"].WriteBytes)-d.writeInit)/1024/1024,
 		)
 	}
