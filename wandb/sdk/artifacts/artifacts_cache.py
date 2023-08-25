@@ -4,6 +4,7 @@ import errno
 import hashlib
 import os
 import secrets
+import shutil
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 import wandb
@@ -35,7 +36,6 @@ class ArtifactsCache:
 
     def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = cache_dir
-        mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id: Dict[str, Artifact] = CappedDict()
@@ -46,11 +46,7 @@ class ArtifactsCache:
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        return self._check_or_create(path, size)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -65,11 +61,14 @@ class ArtifactsCache:
             + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
-        opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        return self._check_or_create(path, size)
+
+    def _check_or_create(
+        self, path: StrPath, size: int
+    ) -> Tuple[FilePathStr, bool, "Opener"]:
+        opener = self._cache_opener(path, size)
+        hit = os.path.isfile(path) and os.path.getsize(path) == size
+        return FilePathStr(str(path)), hit, opener
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
@@ -85,7 +84,40 @@ class ArtifactsCache:
     def store_client_artifact(self, artifact: "Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
-    def cleanup(self, target_size: int, remove_temp: bool = False) -> int:
+    def cleanup(
+        self,
+        target_size: Optional[int] = None,
+        target_fraction: Optional[float] = None,
+        remove_temp: bool = False,
+    ) -> int:
+        """Clean up the cache, removing the least recently used files first.
+
+        Args:
+            target_size: The target size of the cache in bytes. If the cache is larger
+                than this, we will remove the least recently used files until the cache
+                is smaller than this size.
+            target_fraction: The target fraction of the cache to reclaim. If the cache
+                is larger than this, we will remove the least recently used files until
+                the cache is smaller than this fraction of its current size. It is an
+                error to specify both target_size and target_fraction.
+            remove_temp: Whether to remove temporary files. Temporary files are files
+                that are currently being written to the cache. If remove_temp is True,
+                all temp files will be removed, regardless of the target_size or
+                target_fraction.
+
+        Returns:
+            The number of bytes reclaimed.
+        """
+        if target_size is None and target_fraction is None:
+            # Default to clearing the entire cache.
+            target_size = 0
+        if target_size is not None and target_fraction is not None:
+            raise ValueError("Cannot specify both target_size and target_fraction")
+        if target_size and target_size < 0:
+            raise ValueError("target_size must be non-negative")
+        if target_fraction and (target_fraction < 0 or target_fraction > 1):
+            raise ValueError("target_fraction must be between 0 and 1")
+
         bytes_reclaimed = 0
         paths = {}
         total_size = 0
@@ -102,11 +134,16 @@ class ArtifactsCache:
                             bytes_reclaimed += stat.st_size
                         else:
                             temp_size += stat.st_size
+                            total_size += stat.st_size
                         continue
                 except OSError:
                     continue
                 paths[path] = stat
                 total_size += stat.st_size
+
+        if target_fraction is not None:
+            target_size = int(total_size * target_fraction)
+        assert target_size is not None
 
         if temp_size:
             wandb.termwarn(
@@ -126,31 +163,61 @@ class ArtifactsCache:
 
             total_size -= stat.st_size
             bytes_reclaimed += stat.st_size
+
+        if total_size > target_size:
+            wandb.termerror(
+                f"Failed to reclaim enough space in {self._cache_dir}. Try running"
+                " `wandb artifact cleanup --remove-temp` to remove temporary files."
+            )
+
         return bytes_reclaimed
 
-    def _cache_opener(self, path: StrPath) -> "Opener":
+    def _reserve_space(self, path: StrPath, size: int) -> None:
+        """If a `size` write would exceed disk space, remove cached items to make space.
+
+        Raises:
+            OSError: If there is not enough space to write `size` bytes, even after
+                removing cached items.
+        """
+        # Get the most recent parent that exists.
+        path = os.path.abspath(path)
+        while not os.path.exists(os.path.dirname(path)):
+            path = os.path.dirname(path)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free > size:
+            return
+
+        term.termwarn("Cache size exceeded. Attempting to reclaim space...")
+        self.cleanup(target_fraction=0.5)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free > size:
+            return
+
+        self.cleanup(target_size=0)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free < size:
+            raise OSError(errno.ENOSPC, f"Insufficient free space in {path}")
+
+    def _cache_opener(self, path: StrPath, size: int) -> "Opener":
         @contextlib.contextmanager
         def helper(mode: str = "w") -> Generator[IO, None, None]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
+            self._reserve_space(path, size)
             dirname = os.path.dirname(path)
+            mkdir_exists_ok(dirname)
             tmp_file = os.path.join(
                 dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
             )
             try:
                 with util.fsync_open(tmp_file, mode=mode) as f:
                     yield f
-            except OSError as e:
-                if e.errno == errno.ENOSPC:
-                    term.termerror(
-                        f"No disk space available in {dirname}. Run `wandb artifact "
-                        "cache cleanup 0` to empty your cache, or set WANDB_CACHE_DIR "
-                        "to a location with more available disk space."
-                    )
+            except Exception:
+                # The write failed for whatever reason. Delete the temp file.
                 try:
                     os.remove(tmp_file)
-                except (FileNotFoundError, PermissionError):
+                except OSError:
                     pass
                 raise
 
