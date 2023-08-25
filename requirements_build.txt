@@ -4,3 +4,5 @@ grpcio-tools>=1.46.3
 bump2version
 twine
 wheel>=0.38.0
+build
+nox
