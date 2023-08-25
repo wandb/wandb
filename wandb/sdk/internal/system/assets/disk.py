@@ -1,6 +1,6 @@
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 try:
     import psutil
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 class DiskUsage:
     """Total system disk usage in percent."""
 
-    # name = "disk_usage"
     name = "disk"
     samples: "Deque[float]"
 
@@ -29,6 +28,62 @@ class DiskUsage:
 
     def sample(self) -> None:
         self.samples.append(psutil.disk_usage("/").percent)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        if not self.samples:
+            return {}
+        aggregate = aggregate_mean(self.samples)
+        return {self.name: aggregate}
+
+
+class DiskIn:
+    """Total system disk read in MB."""
+
+    name = "disk.in"
+    samples: "Deque[float]"
+
+    def __init__(self) -> None:
+        self.samples = deque([])
+        self.read_init: Optional[int] = None
+
+    def sample(self) -> None:
+        if self.read_init is None:
+            # initialize the read_init value on first sample
+            self.read_init = psutil.disk_io_counters().read_bytes
+        self.samples.append(
+            (psutil.disk_io_counters().read_bytes - self.read_init) / 1024 / 1024
+        )
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        if not self.samples:
+            return {}
+        aggregate = aggregate_mean(self.samples)
+        return {self.name: aggregate}
+
+
+class DiskOut:
+    """Total system disk write in MB."""
+
+    name = "disk.out"
+    samples: "Deque[float]"
+
+    def __init__(self) -> None:
+        self.samples = deque([])
+        self.write_init: Optional[int] = None
+
+    def sample(self) -> None:
+        if self.write_init is None:
+            # init on first sample
+            self.write_init = psutil.disk_io_counters().write_bytes
+        self.samples.append(
+            (psutil.disk_io_counters().write_bytes - self.write_init) / 1024 / 1024
+        )
 
     def clear(self) -> None:
         self.samples.clear()
@@ -49,7 +104,7 @@ class Disk:
         shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        self.metrics: List[Metric] = [DiskUsage()]
+        self.metrics: List[Metric] = [DiskUsage(), DiskIn(), DiskOut()]
         self.metrics_monitor = MetricsMonitor(
             self.name,
             self.metrics,
@@ -64,10 +119,11 @@ class Disk:
         return psutil is not None
 
     def probe(self) -> dict:
-        # total disk space:
+        # total disk space in GB:
         total = psutil.disk_usage("/").total / 1024 / 1024 / 1024
-        # total disk space used:
+        # total disk space used in GB:
         used = psutil.disk_usage("/").used / 1024 / 1024 / 1024
+
         return {self.name: {"total": total, "used": used}}
 
     def start(self) -> None:
