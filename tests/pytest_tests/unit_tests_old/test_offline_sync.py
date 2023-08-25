@@ -63,9 +63,7 @@ def test_sync_in_progress(live_mock_server, test_dir):
         assert False, "train.py failed to launch :("
     else:
         print(
-            "Starting live syncing after {} seconds from: {}".format(
-                attempts * 0.1, latest_run
-            )
+            f"Starting live syncing after {attempts * 0.1} seconds from: {latest_run}"
         )
     for i in range(3):
         # Generally, the first sync will fail because the .wandb file is empty

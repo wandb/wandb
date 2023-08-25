@@ -10,6 +10,7 @@ from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import (
     CPU,
     GPU,
+    GPUAMD,
     IPU,
     TPU,
     Disk,
@@ -118,8 +119,19 @@ def test_asset_registry():
     # test that the asset registry is populated with the correct assets
     # should be updated if new assets are added
     registry = asset_registry._registry
-    assert len(registry) == 9
-    for asset in (CPU, Disk, Memory, GPU, GPUApple, IPU, Network, TPU, Trainium):
+    assert len(registry) == 10
+    for asset in (
+        CPU,
+        Disk,
+        Memory,
+        GPU,
+        GPUAMD,
+        GPUApple,
+        IPU,
+        Network,
+        TPU,
+        Trainium,
+    ):
         assert asset in registry
 
 
@@ -135,7 +147,7 @@ def test_metrics_monitor(capsys, test_settings):
                 _stats_sample_rate_seconds=0.1,
                 _stats_samples_to_average=2,
             )
-        ).make_static()
+        ).to_proto()
     )
     shutdown_event = threading.Event()
 
@@ -174,7 +186,7 @@ def test_system_monitor(test_settings, join_assets, num_keys):
                 _stats_samples_to_average=2,
                 _stats_join_assets=join_assets,
             )
-        ).make_static()
+        ).to_proto()
     )
 
     # todo: refactor this ugliness into a factory

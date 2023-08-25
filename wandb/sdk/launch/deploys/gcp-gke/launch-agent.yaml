@@ -35,6 +35,11 @@ spec:
                 secretKeyRef:
                   name: wandb-api-key
                   key: password
+            - name: WANDB_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: wandb-launch-configmap
+                  key: wandb-base-url
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /home/launch_agent/.config/gcp/gcp-creds.json # TODO: change the last part of this path to match the key for the service account json in your secret
           volumeMounts:

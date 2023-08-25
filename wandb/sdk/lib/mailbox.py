@@ -81,7 +81,7 @@ class _MailboxWaitAll:
         return self._event.wait(timeout=timeout)
 
     def _get_and_clear(self, timeout: float) -> List["MailboxHandle"]:
-        found: List["MailboxHandle"] = []
+        found: List[MailboxHandle] = []
         if self._wait(timeout=timeout):
             with self._lock:
                 remove_handles = []

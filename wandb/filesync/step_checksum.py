@@ -16,8 +16,9 @@ if TYPE_CHECKING:
     import tempfile
 
     from wandb.filesync import stats
-    from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import artifact_saver, internal_api
+    from wandb.sdk.artifacts import artifact_saver
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+    from wandb.sdk.internal import internal_api
 
 
 class RequestUpload(NamedTuple):
@@ -27,7 +28,7 @@ class RequestUpload(NamedTuple):
 
 
 class RequestStoreManifestFiles(NamedTuple):
-    manifest: "artifacts.ArtifactManifest"
+    manifest: "ArtifactManifest"
     artifact_id: str
     save_fn: "artifact_saver.SaveFn"
     save_fn_async: "artifact_saver.SaveFnAsync"

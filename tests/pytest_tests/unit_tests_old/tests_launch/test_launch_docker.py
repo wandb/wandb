@@ -1,10 +1,5 @@
-import json
-import os
-import sys
-from unittest import mock
-from unittest.mock import MagicMock
+from unittest.mock import mock_open, patch
 
-import pytest
 import wandb
 from wandb.docker import DockerError
 from wandb.sdk.launch._project_spec import (
@@ -22,7 +17,9 @@ from .test_launch import (
 )
 
 
-def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_repo):
+def test_accelerator_base_setup(
+    test_settings, live_mock_server, mocked_fetchable_git_repo
+):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -30,18 +27,16 @@ def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_r
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
-        "cuda": True,
         "resource": "local-container",
         "resource_args": {
             "local-container": {
                 "builder": {
-                    "cuda": {
+                    "accelerator": {
                         "base_image": "nvidia/cuda:11.0-runtime",
                     }
                 }
             }
         },
-        "cuda_version": "11.0",
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
@@ -50,13 +45,12 @@ def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_r
     assert "python3-pip" in base_setup and "python3-setuptools" in base_setup
 
 
-def test_run_cuda_version(
+def test_run_accelerator_version(
     runner, live_mock_server, mocked_fetchable_git_repo, test_settings
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    # cuda unspecified, on by default
     test_spec = {
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
@@ -65,7 +59,7 @@ def test_run_cuda_version(
         "resource_args": {
             "local-container": {
                 "builder": {
-                    "cuda": {
+                    "accelerator": {
                         "base_image": "nvidia/cuda:11.0-runtime",
                     }
                 }
@@ -79,7 +73,6 @@ def test_run_cuda_version(
     )
     assert "FROM nvidia/cuda:11.0-runtime as base" in dockerfile
 
-    # cuda specified False, turned off
     test_spec = {
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
@@ -107,7 +100,6 @@ def test_dockerfile_conda(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
-        "cuda": False,
         "resource": "local",
     }
     test_project = create_project_from_spec(test_spec, api)
@@ -135,7 +127,6 @@ def test_dockerfile_nodeps(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
-        "cuda": False,
         "resource": "local",
     }
 
@@ -151,6 +142,69 @@ def test_dockerfile_nodeps(
     assert "requirements.txt" not in dockerfile
 
 
+def test_dockerfile_default(
+    test_settings, live_mock_server, mocked_fetchable_git_repo_nodeps, monkeypatch
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    test_spec = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource": "local",
+    }
+
+    test_project = create_project_from_spec(test_spec, api)
+    test_project = fetch_and_validate_project(test_project, api)
+
+    assert test_project.deps_type is None
+
+    dockerfile_contents = "test Dockerfile contents"
+    with patch("builtins.open", mock_open(read_data=dockerfile_contents)) as mock_file:
+        monkeypatch.setattr("os.path.exists", lambda _: True)
+        dockerfile = generate_dockerfile(
+            test_project,
+            EntryPoint("main.py", ["python", "train.py"]),
+            "local",
+            "docker",
+        )
+    assert "test Dockerfile contents" in dockerfile
+    assert "Dockerfile.wandb" in mock_file.call_args_list[0][0][0]
+
+
+def test_dockerfile_override(
+    test_settings, live_mock_server, mocked_fetchable_git_repo_nodeps, monkeypatch
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    test_spec = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource": "local",
+    }
+
+    test_project = create_project_from_spec(test_spec, api)
+    test_project = fetch_and_validate_project(test_project, api)
+
+    assert test_project.deps_type is None
+
+    dockerfile_contents = "test Dockerfile contents"
+    with patch("builtins.open", mock_open(read_data=dockerfile_contents)) as mock_file:
+        monkeypatch.setattr("os.path.exists", lambda _: True)
+        dockerfile = generate_dockerfile(
+            test_project,
+            EntryPoint("main.py", ["python", "train.py"]),
+            "local",
+            "docker",
+            "test/path/to/my/Dockerfile",
+        )
+    assert "test Dockerfile contents" in dockerfile
+    assert "test/path/to/my/Dockerfile" in mock_file.call_args_list[0][0][0]
+
+
 def test_buildx_not_installed(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
@@ -163,7 +217,6 @@ def test_buildx_not_installed(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
-        "cuda": None,
         "resource": "local",
         "resource_args": {},
     }

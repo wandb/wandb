@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, Optional
 
 import wandb
 from wandb.sdk.lib.paths import LogicalPath
@@ -9,11 +9,6 @@ from wandb.sdk.lib.paths import LogicalPath
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
-
-
-class EventJobDone(NamedTuple):
-    job: "step_upload.RequestUpload"
-    exc: Optional[BaseException]
 
 
 logger = logging.getLogger(__name__)
@@ -83,9 +78,7 @@ class UploadJob:
                 if hasattr(e, "response"):
                     message = e.response.content
                 wandb.termerror(
-                    'Error uploading "{}": {}, {}'.format(
-                        self.save_path, type(e).__name__, message
-                    )
+                    f'Error uploading "{self.save_path}": {type(e).__name__}, {message}'
                 )
                 raise
 
@@ -112,7 +105,7 @@ class UploadJob:
             project = self._api.get_project()
             _, upload_headers, result = self._api.upload_urls(project, [self.save_name])
             file_info = result[self.save_name]
-            upload_url = file_info["url"]
+            upload_url = file_info["uploadUrl"]
 
         if upload_url is None:
             logger.info("Skipped uploading %s", self.save_path)
@@ -142,9 +135,7 @@ class UploadJob:
                 wandb._sentry.exception(e)
                 if not self.silent:
                     wandb.termerror(
-                        'Error uploading "{}": {}, {}'.format(
-                            self.save_name, type(e).__name__, e
-                        )
+                        f'Error uploading "{self.save_name}": {type(e).__name__}, {e}'
                     )
                 raise
 

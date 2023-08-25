@@ -1,10 +1,11 @@
 """Implementation of the docker builder."""
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import wandb
 import wandb.docker as docker
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -15,11 +16,10 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
+from ..errors import LaunchDockerError, LaunchError
 from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
-    LaunchDockerError,
-    LaunchError,
     sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
@@ -112,6 +112,7 @@ class DockerBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         """Build the image for the given project.
 
@@ -120,7 +121,11 @@ class DockerBuilder(AbstractBuilder):
             entrypoint (EntryPoint): The entrypoint to use.
         """
         dockerfile_str = generate_dockerfile(
-            launch_project, entrypoint, launch_project.resource, "docker"
+            launch_project=launch_project,
+            entry_point=entrypoint,
+            runner_type=launch_project.resource,
+            builder_type="docker",
+            dockerfile=launch_project.override_dockerfile,
         )
 
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
@@ -160,9 +165,14 @@ class DockerBuilder(AbstractBuilder):
                 context_path=build_ctx_path,
                 platform=self.config.get("platform"),
             )
-            warn_failed_packages_from_build_logs(output, image_uri)
+
+            warn_failed_packages_from_build_logs(
+                output, image_uri, launch_project.api, job_tracker
+            )
 
         except docker.DockerError as e:
+            if job_tracker:
+                job_tracker.set_err_stage("build")
             raise LaunchDockerError(f"Error communicating with docker client: {e}")
 
         try:

@@ -1,18 +1,34 @@
 import asyncio
 import base64
+import errno
+import logging
 import os
 import random
 from multiprocessing import Pool
+from unittest import mock
+from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
-from wandb.sdk import wandb_artifacts
-from wandb.sdk.internal.artifact_saver import get_staging_dir
+from wandb import util
+from wandb.errors import term
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
+from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
+from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
+from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
+from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.sdk.lib.hashutil import md5_string
+
+example_digest = md5_string("example")
 
 
-def test_opener_rejects_append_mode(cache):
-    _, _, opener = cache.check_md5_obj_path(base64.b64encode(b"abcdef"), 10)
+def test_opener_rejects_append_mode(artifacts_cache):
+    _, _, opener = artifacts_cache.check_md5_obj_path(base64.b64encode(b"abcdef"), 10)
 
     with pytest.raises(ValueError):
         with opener("a"):
@@ -23,10 +39,12 @@ def test_opener_rejects_append_mode(cache):
         pass
 
 
-def test_check_md5_obj_path(cache):
+def test_check_md5_obj_path(artifacts_cache):
     md5 = base64.b64encode(b"abcdef")
-    path, exists, opener = cache.check_md5_obj_path(md5, 10)
-    expected_path = os.path.join(cache._cache_dir, "obj", "md5", "61", "6263646566")
+    path, exists, opener = artifacts_cache.check_md5_obj_path(md5, 10)
+    expected_path = os.path.join(
+        artifacts_cache._cache_dir, "obj", "md5", "61", "6263646566"
+    )
     with opener() as f:
         f.write("hi")
     with open(path) as f:
@@ -37,8 +55,8 @@ def test_check_md5_obj_path(cache):
     assert contents == "hi"
 
 
-def test_check_etag_obj_path_points_to_opener_dst(cache):
-    path, _, opener = cache.check_etag_obj_path("http://my/url", "abc", 10)
+def test_check_etag_obj_path_points_to_opener_dst(artifacts_cache):
+    path, _, opener = artifacts_cache.check_etag_obj_path("http://my/url", "abc", 10)
 
     with opener() as f:
         f.write("hi")
@@ -48,38 +66,42 @@ def test_check_etag_obj_path_points_to_opener_dst(cache):
     assert contents == "hi"
 
 
-def test_check_etag_obj_path_returns_exists_if_exists(cache):
+def test_check_etag_obj_path_returns_exists_if_exists(artifacts_cache):
     size = 123
-    _, exists, opener = cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, opener = artifacts_cache.check_etag_obj_path(
+        "http://my/url", "abc", size
+    )
     assert not exists
 
     with opener() as f:
         f.write(size * "a")
 
-    _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, _ = artifacts_cache.check_etag_obj_path("http://my/url", "abc", size)
     assert exists
 
 
-def test_check_etag_obj_path_returns_not_exists_if_incomplete(cache):
+def test_check_etag_obj_path_returns_not_exists_if_incomplete(artifacts_cache):
     size = 123
-    _, exists, opener = cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, opener = artifacts_cache.check_etag_obj_path(
+        "http://my/url", "abc", size
+    )
     assert not exists
 
     with opener() as f:
         f.write((size - 1) * "a")
 
-    _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, _ = artifacts_cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
 
     with opener() as f:
         f.write(size * "a")
 
-    _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, _ = artifacts_cache.check_etag_obj_path("http://my/url", "abc", size)
     assert exists
 
 
-def test_check_etag_obj_path_does_not_include_etag(cache):
-    path, _, _ = cache.check_etag_obj_path("http://url/1", "abcdef", 10)
+def test_check_etag_obj_path_does_not_include_etag(artifacts_cache):
+    path, _, _ = artifacts_cache.check_etag_obj_path("http://url/1", "abcdef", 10)
     assert "abcdef" not in path
 
 
@@ -92,10 +114,10 @@ def test_check_etag_obj_path_does_not_include_etag(cache):
     ],
 )
 def test_check_etag_obj_path_hashes_url_and_etag(
-    url1, url2, etag1, etag2, path_equal, cache
+    url1, url2, etag1, etag2, path_equal, artifacts_cache
 ):
-    path_1, _, _ = cache.check_etag_obj_path(url1, etag1, 10)
-    path_2, _, _ = cache.check_etag_obj_path(url2, etag2, 10)
+    path_1, _, _ = artifacts_cache.check_etag_obj_path(url1, etag1, 10)
+    path_2, _, _ = artifacts_cache.check_etag_obj_path(url2, etag2, 10)
 
     if path_equal:
         assert path_1 == path_2
@@ -105,36 +127,40 @@ def test_check_etag_obj_path_hashes_url_and_etag(
 
 # This function should only be used in `test_check_write_parallel`,
 # but it needs to be a global function for multiprocessing.
-def _cache_writer(artifact_cache):
+def _cache_writer(artifacts_cache):
     etag = "abcdef"
-    _, _, opener = artifact_cache.check_etag_obj_path("http://wandb.ex/foo", etag, 10)
+    _, _, opener = artifacts_cache.check_etag_obj_path("http://wandb.ex/foo", etag, 10)
     with opener() as f:
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
 
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
-def test_check_write_parallel(cache):
+def test_check_write_parallel(artifacts_cache):
     num_parallel = 5
 
     p = Pool(num_parallel)
-    p.map(_cache_writer, [cache for _ in range(num_parallel)])
-    _cache_writer(cache)  # run in this process too for code coverage
+    p.map(_cache_writer, [artifacts_cache for _ in range(num_parallel)])
+    _cache_writer(artifacts_cache)  # run in this process too for code coverage
     p.close()
     p.join()
 
     # Regardless of the ordering, we should be left with one file at the end.
-    files = [f for f in (cache._cache_dir / "obj" / "etag").rglob("*") if f.is_file()]
+    files = [
+        f
+        for f in (artifacts_cache._cache_dir / "obj" / "etag").rglob("*")
+        if f.is_file()
+    ]
     assert len(files) == 1
 
 
-def test_artifacts_cache_cleanup_empty(cache):
-    reclaimed_bytes = cache.cleanup(100000)
+def test_artifacts_cache_cleanup_empty(artifacts_cache):
+    reclaimed_bytes = artifacts_cache.cleanup(100000)
     assert reclaimed_bytes == 0
 
 
-def test_artifacts_cache_cleanup(cache):
-    cache_root = os.path.join(cache._cache_dir, "obj", "md5")
+def test_artifacts_cache_cleanup(artifacts_cache):
+    cache_root = os.path.join(artifacts_cache._cache_dir, "obj", "md5")
 
     path_1 = os.path.join(cache_root, "aa")
     os.makedirs(path_1)
@@ -157,40 +183,55 @@ def test_artifacts_cache_cleanup(cache):
         f.flush()
         os.fsync(f)
 
-    reclaimed_bytes = cache.cleanup(5000)
+    reclaimed_bytes = artifacts_cache.cleanup(5000)
 
     # We should get rid of "aardvark" in this case
     assert reclaimed_bytes == 5000
 
 
-def test_artifacts_cache_cleanup_tmp_files(cache):
-    path = os.path.join(cache._cache_dir, "obj", "md5", "aa")
+def test_artifacts_cache_cleanup_tmp_files_when_asked(artifacts_cache):
+    path = os.path.join(artifacts_cache._cache_dir, "obj", "md5", "aa")
     os.makedirs(path)
     with open(os.path.join(path, "tmp_abc"), "w") as f:
         f.truncate(1000)
 
     # Even if we are above our target size, the cleanup
     # should reclaim tmp files.
-    reclaimed_bytes = cache.cleanup(10000)
+    reclaimed_bytes = artifacts_cache.cleanup(10000, remove_temp=True)
 
     assert reclaimed_bytes == 1000
 
 
-def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
+def test_artifacts_cache_cleanup_leaves_tmp_files_by_default(artifacts_cache, capsys):
+    path = os.path.join(artifacts_cache._cache_dir, "obj", "md5", "aa")
+    os.makedirs(path)
+    with open(os.path.join(path, "tmp_abc"), "w") as f:
+        f.truncate(1000)
+
+    # The cleanup should leave temp files alone, even if we haven't reached our target.
+    reclaimed_bytes = artifacts_cache.cleanup(0)
+    assert reclaimed_bytes == 0
+
+    # However, it should issue a warning.
+    _, stderr = capsys.readouterr()
+    assert "Cache contains 1000.0B of temporary files" in stderr
+
+
+def test_local_file_handler_load_path_uses_cache(artifacts_cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, opener = cache.check_md5_obj_path(b64_md5=digest, size=123)
+    path, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=digest, size=123)
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_artifacts.LocalFileHandler()
-    handler._cache = cache
+    handler = LocalFileHandler()
+    handler._cache = artifacts_cache
 
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=digest,
@@ -201,19 +242,19 @@ def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     assert local_path == path
 
 
-def test_s3_storage_handler_load_path_uses_cache(cache):
+def test_s3_storage_handler_load_path_uses_cache(artifacts_cache):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
+    path, _, opener = artifacts_cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_artifacts.S3Handler()
-    handler._cache = cache
+    handler = S3Handler()
+    handler._cache = artifacts_cache
 
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -228,9 +269,9 @@ def test_gcs_storage_handler_load_path_nonlocal():
     uri = "gs://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    handler = wandb_artifacts.GCSHandler()
+    handler = GCSHandler()
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -241,19 +282,19 @@ def test_gcs_storage_handler_load_path_nonlocal():
     assert local_path == uri
 
 
-def test_gcs_storage_handler_load_path_uses_cache(cache):
+def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
     uri = "gs://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    path, _, opener = cache.check_md5_obj_path(etag, 123)
+    path, _, opener = artifacts_cache.check_md5_obj_path(etag, 123)
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_artifacts.GCSHandler()
-    handler._cache = cache
+    handler = GCSHandler()
+    handler._cache = artifacts_cache
 
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -264,20 +305,84 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     assert local_path == path
 
 
+def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeypatch):
+    term_log = MagicMock()
+    monkeypatch.setattr(term, "_log", term_log)
+
+    def out_of_space(*args, **kwargs):
+        raise OSError(errno.ENOSPC, "out of space")
+
+    monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
+
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with pytest.raises(OSError, match="out of space"):
+        with opener() as f:
+            f.write("hello")
+
+    assert term_log.call_count >= 1
+    log_call = term_log.call_args[1]
+    assert "No disk space available" in log_call["string"]
+    assert "set WANDB_CACHE_DIR" in log_call["string"]
+    assert log_call["level"] == logging.ERROR
+
+
+def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
+    def fail(*args, **kwargs):
+        raise OSError
+
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with pytest.raises(OSError):
+        with opener() as f:
+            f.write("hello " * 100)
+            f.flush()
+            os.fsync(f.fileno())
+
+            path = f.name
+            assert os.path.exists(path)
+
+            monkeypatch.setattr(os, "fsync", fail)
+
+    assert not os.path.exists(path)
+
+
+def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch):
+    def out_of_space(*args, **kwargs):
+        raise OSError(errno.ENOSPC, "out of space")
+
+    # Will raise an error without creating any file to delete.
+    monkeypatch.setattr(util, "fsync_open", out_of_space)
+
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+
+    with mock.patch("os.remove", side_effect=FileNotFoundError) as mock_remove:
+        with pytest.raises(OSError, match="out of space"):
+            with opener():
+                pass
+        assert mock_remove.call_count == 1
+
+
+class FakePublicApi:
+    @property
+    def client(self):
+        return None
+
+
 def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
     artifact = wandb.Artifact("test", type="dataset")
-    manifest_entry = wandb_artifacts.ArtifactManifestEntry(
+    manifest_entry = ArtifactManifestEntry(
         path=path,
         ref=uri,
         digest="XUFAKrxLKna5cZ2REBfFkg==",
         size=123,
     )
 
-    handler = wandb_artifacts.WBArtifactHandler()
-    handler._client = lambda: None
-    monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
+    handler = WBArtifactHandler()
+    handler._client = FakePublicApi()
+    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.ref_target = lambda: uri
 
@@ -289,16 +394,16 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
     artifact = wandb.Artifact("test", type="dataset")
-    manifest_entry = wandb_artifacts.ArtifactManifestEntry(
+    manifest_entry = ArtifactManifestEntry(
         path=path,
         ref=uri,
         digest="XUFAKrxLKna5cZ2REBfFkg==",
         size=123,
     )
 
-    handler = wandb_artifacts.WBArtifactHandler()
-    handler._client = lambda: None
-    monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
+    handler = WBArtifactHandler()
+    handler._client = FakePublicApi()
+    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.download = lambda: path
 
@@ -307,7 +412,7 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
 
 
 def test_storage_policy_incomplete():
-    class UnfinishedStoragePolicy(wandb_artifacts.StoragePolicy):
+    class UnfinishedStoragePolicy(StoragePolicy):
         pass
 
     # Invalid argument values since we're only testing abstract code coverage.
@@ -338,15 +443,15 @@ def test_storage_policy_incomplete():
 
     UnfinishedStoragePolicy.name = lambda: "UnfinishedStoragePolicy"
 
-    policy = wandb_artifacts.StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
+    policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
-    not_policy = wandb_artifacts.StoragePolicy.lookup_by_name("NotAStoragePolicy")
-    assert not_policy is None
+    with pytest.raises(NotImplementedError, match="Failed to find storage policy"):
+        StoragePolicy.lookup_by_name("NotAStoragePolicy")
 
 
 def test_storage_handler_incomplete():
-    class UnfinishedStorageHandler(wandb_artifacts.StorageHandler):
+    class UnfinishedStorageHandler(StorageHandler):
         pass
 
     ush = UnfinishedStorageHandler()

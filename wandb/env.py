@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""All of W&B's environment variables
+"""All of W&B's environment variables.
 
 Getters and putters for all of them should go here. That
 way it'll be easier to avoid typos with names and be
@@ -50,6 +50,7 @@ RUN_GROUP = "WANDB_RUN_GROUP"
 RUN_DIR = "WANDB_RUN_DIR"
 SWEEP_ID = "WANDB_SWEEP_ID"
 HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
+FILE_PUSHER_TIMEOUT = "WANDB_FILE_PUSHER_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
@@ -87,8 +88,10 @@ USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
 
 def immutable_keys() -> List[str]:
-    """These are env keys that shouldn't change within a single process.  We use this to maintain
-    certain values between multiple calls to wandb.init within a single process."""
+    """These are env keys that shouldn't change within a single process.
+
+    We use this to maintain certain values between multiple calls to wandb.init within a single process.
+    """
     return [
         DIR,
         ENTITY,
@@ -189,11 +192,22 @@ def get_docker(
     return env.get(DOCKER, default)
 
 
-def get_http_timeout(default: int = 10, env: Optional[Env] = None) -> int:
+def get_http_timeout(default: int = 30, env: Optional[Env] = None) -> int:
     if env is None:
         env = os.environ
 
     return int(env.get(HTTP_TIMEOUT, default))
+
+
+def get_file_pusher_timeout(
+    default: Optional[int] = None,
+    env: Optional[Env] = None,
+) -> Optional[int]:
+    if env is None:
+        env = os.environ
+
+    timeout = env.get(FILE_PUSHER_TIMEOUT, default)
+    return int(timeout) if timeout else None
 
 
 def get_ignore(
