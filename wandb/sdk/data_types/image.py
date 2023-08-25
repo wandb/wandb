@@ -287,6 +287,8 @@ class Image(BatchableMedia):
             )
             if hasattr(data, "requires_grad") and data.requires_grad:
                 data = data.detach()  # type: ignore
+            if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
+                data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
             self._image = pil_image.fromarray(
                 data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
