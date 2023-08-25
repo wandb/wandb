@@ -4,6 +4,7 @@ import errno
 import hashlib
 import os
 import secrets
+import shutil
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 import wandb
@@ -65,7 +66,7 @@ class ArtifactsCache:
     def _check_or_create(
         self, path: StrPath, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        opener = self._cache_opener(path)
+        opener = self._cache_opener(path, size)
         hit = os.path.isfile(path) and os.path.getsize(path) == size
         return FilePathStr(str(path)), hit, opener
 
@@ -171,12 +172,39 @@ class ArtifactsCache:
 
         return bytes_reclaimed
 
-    def _cache_opener(self, path: StrPath) -> "Opener":
+    def _reserve_space(self, path: StrPath, size: int) -> None:
+        """If a `size` write would exceed disk space, remove cached items to make space.
+
+        Raises:
+            OSError: If there is not enough space to write `size` bytes, even after
+                removing cached items.
+        """
+        # Get the most recent parent that exists.
+        path = os.path.abspath(path)
+        while not os.path.exists(os.path.dirname(path)):
+            path = os.path.dirname(path)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free > size:
+            return
+
+        term.termwarn("Cache size exceeded. Attempting to reclaim space...")
+        self.cleanup(target_fraction=0.5)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free > size:
+            return
+
+        self.cleanup(target_size=0)
+        _, _, free = shutil.disk_usage(os.path.dirname(path))
+        if free < size:
+            raise OSError(errno.ENOSPC, f"Insufficient free space in {path}")
+
+    def _cache_opener(self, path: StrPath, size: int) -> "Opener":
         @contextlib.contextmanager
         def helper(mode: str = "w") -> Generator[IO, None, None]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
+            self._reserve_space(path, size)
             dirname = os.path.dirname(path)
             mkdir_exists_ok(dirname)
             tmp_file = os.path.join(
@@ -185,16 +213,11 @@ class ArtifactsCache:
             try:
                 with util.fsync_open(tmp_file, mode=mode) as f:
                     yield f
-            except OSError as e:
-                if e.errno == errno.ENOSPC:
-                    term.termerror(
-                        f"No disk space available in {dirname}. Run `wandb artifact "
-                        "cache cleanup 0` to empty your cache, or set WANDB_CACHE_DIR "
-                        "to a location with more available disk space."
-                    )
+            except Exception:
+                # The write failed for whatever reason. Delete the temp file.
                 try:
                     os.remove(tmp_file)
-                except FileNotFoundError:
+                except OSError:
                     pass
                 raise
 
