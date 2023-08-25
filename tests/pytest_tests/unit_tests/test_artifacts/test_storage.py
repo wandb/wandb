@@ -309,22 +309,57 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
     term_log = MagicMock()
     monkeypatch.setattr(term, "_log", term_log)
 
-    def out_of_space(*args, **kwargs):
-        raise OSError(errno.ENOSPC, "out of space")
+    # Ask to create a 1 quettabyte file to ensure the cache won't find room.
+    _, _, opener = artifacts_cache.check_md5_obj_path(example_digest, size=10**30)
 
-    monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
-
-    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
-
-    with pytest.raises(OSError, match="out of space"):
-        with opener() as f:
-            f.write("hello")
+    with pytest.raises(OSError, match="Insufficient free space"):
+        with opener():
+            pass
 
     assert term_log.call_count >= 1
-    log_call = term_log.call_args[1]
-    assert "No disk space available" in log_call["string"]
-    assert "set WANDB_CACHE_DIR" in log_call["string"]
-    assert log_call["level"] == logging.ERROR
+    check_warning = False
+    for call in term_log.call_args_list:
+        print(call)
+        if "Cache size exceeded. Attempting to reclaim space..." in call[1]["string"]:
+            assert call[1]["level"] == logging.WARNING
+            check_warning = True
+    assert check_warning
+
+
+def test_cache_drops_lru_when_adding_not_enough_space(fs, artifacts_cache):
+    # Simulate a 1KB drive.
+    fs.set_disk_usage(1000)
+
+    # Create a few files to fill up the cache (exactly).
+    cache_paths = []
+    for i in range(10):
+        content = f"{i}" * 100
+        path, _, opener = artifacts_cache.check_md5_obj_path(md5_string(content), 100)
+        with opener() as f:
+            f.write(content)
+        cache_paths.append(path)
+
+    # This next file won't fit; we should drop 1/2 the files in LRU order.
+    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("x"), 100)
+    with opener() as f:
+        f.write("x")
+
+    for path in cache_paths[:5]:
+        assert not os.path.exists(path)
+    for path in cache_paths[5:]:
+        assert os.path.exists(path)
+
+    assert fs.get_disk_usage()[1] == 501
+
+    # Add something big enough that removing half the items isn't enough.
+    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("y" * 800), 800)
+    with opener() as f:
+        f.write("y" * 800)
+
+    # All paths should have been removed, and the usage is just the new file size.
+    for path in cache_paths:
+        assert not os.path.exists(path)
+    assert fs.get_disk_usage()[1] == 800
 
 
 def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
