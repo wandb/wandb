@@ -29,6 +29,10 @@ from wheel.bdist_wheel import bdist_wheel
 _WANDB_CORE_ALPHA_ENV = "WANDB_CORE_ALPHA"
 _is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
 
+# Nexus version
+# -------------
+NEXUS_VERSION = "0.0.1a3"
+
 
 PACKAGE: str = "wandb_core"
 ALL_PLATFORMS = (
@@ -37,8 +41,6 @@ ALL_PLATFORMS = (
     ("linux", "amd64", True),
     ("windows", "amd64", False),
 )
-
-log.set_verbosity(log.INFO)
 
 
 class NexusBase:
@@ -192,18 +194,21 @@ class WrapBdistWheel(bdist_wheel, NexusBase):
         bdist_wheel.run(self)
 
 
-setup(
-    name="wandb-core" if not _is_wandb_core_alpha else "wandb-core-alpha",
-    version="0.0.1a3",
-    description="Wandb core",
-    packages=[PACKAGE],
-    zip_safe=False,
-    include_package_data=True,
-    license="MIT license",
-    python_requires=">=3.6",
-    cmdclass={
-        "install": WrapInstall,
-        "develop": WrapDevelop,
-        "bdist_wheel": WrapBdistWheel,
-    },
-)
+if __name__ == "__main__":
+    log.set_verbosity(log.INFO)
+
+    setup(
+        name="wandb-core" if not _is_wandb_core_alpha else "wandb-core-alpha",
+        version=NEXUS_VERSION,
+        description="Wandb core",
+        packages=[PACKAGE],
+        zip_safe=False,
+        include_package_data=True,
+        license="MIT license",
+        python_requires=">=3.6",
+        cmdclass={
+            "install": WrapInstall,
+            "develop": WrapDevelop,
+            "bdist_wheel": WrapBdistWheel,
+        },
+    )
