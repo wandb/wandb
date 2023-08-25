@@ -1,6 +1,6 @@
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 try:
     import psutil
@@ -40,16 +40,22 @@ class DiskUsage:
 
 
 class DiskIn:
-    """Total system disk In."""
+    """Total system disk read in MB."""
 
     name = "disk.in"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
         self.samples = deque([])
+        self.read_init: Optional[int] = None
 
     def sample(self) -> None:
-        self.samples.append(psutil.disk_io_counters().read_bytes / 1024 / 1024 / 1024)
+        if self.read_init is None:
+            # initialize the read_init value on first sample
+            self.read_init = psutil.disk_io_counters().read_bytes
+        self.samples.append(
+            (psutil.disk_io_counters().read_bytes - self.read_init) / 1024 / 1024
+        )
 
     def clear(self) -> None:
         self.samples.clear()
@@ -62,16 +68,22 @@ class DiskIn:
 
 
 class DiskOut:
-    """Total system disk Out."""
+    """Total system disk write in MB."""
 
     name = "disk.out"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
         self.samples = deque([])
+        self.write_init: Optional[int] = None
 
     def sample(self) -> None:
-        self.samples.append(psutil.disk_io_counters().write_bytes / 1024 / 1024 / 1024)
+        if self.write_init is None:
+            # init on first sample
+            self.write_init = psutil.disk_io_counters().write_bytes
+        self.samples.append(
+            (psutil.disk_io_counters().write_bytes - self.write_init) / 1024 / 1024
+        )
 
     def clear(self) -> None:
         self.samples.clear()
@@ -107,9 +119,9 @@ class Disk:
         return psutil is not None
 
     def probe(self) -> dict:
-        # total disk space:
+        # total disk space in GB:
         total = psutil.disk_usage("/").total / 1024 / 1024 / 1024
-        # total disk space used:
+        # total disk space used in GB:
         used = psutil.disk_usage("/").used / 1024 / 1024 / 1024
 
         return {self.name: {"total": total, "used": used}}
