@@ -2,6 +2,7 @@ import glob
 import io
 import os
 import platform
+import tempfile
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -13,6 +14,7 @@ import responses
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
+from torchvision.io import read_image
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
@@ -1525,3 +1527,21 @@ def test_numpy_arrays_to_list():
     assert conv(np.array((1, 2))) == [1, 2]
     assert conv([np.array((1, 2))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2))]}, 3))) == [{"a": [[1, 2]]}, 3]
+
+
+def test_log_uint8_image():
+    with tempfile.NamedTemporaryFile(suffix=".png") as temp:
+        # Create and save image
+        imarray = np.random.rand(100, 100, 3) * 255
+        im = Image.fromarray(imarray.astype("uint8")).convert("RGBA")
+        im.save(temp.name)
+
+        # Reading with torch vision
+        image = read_image(temp.name)
+
+        torch_vision = wandb.Image(image)
+        path_im = wandb.Image(temp.name)
+
+        path_im, torch_vision = np.array(path_im.image), np.array(torch_vision.image)
+
+        assert np.array_equal(path_im, torch_vision)
