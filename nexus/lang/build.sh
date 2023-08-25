@@ -49,11 +49,11 @@ rm -rf tmpbuild/
 mkdir tmpbuild/
 cp cpp/lib/* tmpbuild/
 cd tmpbuild/
-g++ -c -Wall -Werror -fpic -I../export/include/ -I. libwandb_cpp.cpp
+g++ -std=c++17 -c -Wall -Werror -Wno-unused-private-field -fpic -I../export/include/ -I. libwandb_cpp.cpp
 if [ "x$(uname -o)" = "xDarwin" ]; then
-    g++ -shared -undefined dynamic_lookup -o libwandb_cpp.so libwand_cpp.o
+    g++ -std=c++17 -shared -undefined dynamic_lookup -o libwandb_cpp.so libwandb_cpp.o
 else
-    g++ -shared -o libwandb_cpp.so libwandb_cpp.o
+    g++ -std=c++17 -shared -o libwandb_cpp.so libwandb_cpp.o
 fi
 chmod -x libwandb_cpp.so
 ar rcs libwandb_cpp.a libwandb_cpp.o
@@ -71,5 +71,5 @@ cd -
 
 # build client prog (cpp)
 cd cpp/examples/
-LD_RUN_PATH="$PWD/../../export/lib/" g++ train.cpp -o ../../export/examples/traincpp -I../../export/include/ -L../../export/lib/ -lwandb_cpp -lwandb_core
+LD_RUN_PATH="$PWD/../../export/lib/" g++ -std=c++17 train.cpp -o ../../export/examples/traincpp -I../../export/include/ -L../../export/lib/ -lwandb_cpp -lwandb_core
 cd -
