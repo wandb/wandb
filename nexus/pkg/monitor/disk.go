@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/shirou/gopsutil/v3/disk"
@@ -9,18 +10,30 @@ import (
 )
 
 type Disk struct {
-	name     string
-	metrics  map[string][]float64
-	settings *service.Settings
-	mutex    sync.RWMutex
+	name      string
+	metrics   map[string][]float64
+	settings  *service.Settings
+	mutex     sync.RWMutex
+	readInit  int
+	writeInit int
 }
 
 func NewDisk(settings *service.Settings) *Disk {
-	return &Disk{
+	d := &Disk{
 		name:     "disk",
 		metrics:  map[string][]float64{},
 		settings: settings,
 	}
+
+	// todo: collect metrics for each disk
+	ioCounters, err := disk.IOCounters()
+	fmt.Println(ioCounters)
+	if err == nil {
+		d.readInit = int(ioCounters["disk0"].ReadBytes)
+		d.writeInit = int(ioCounters["disk0"].WriteBytes)
+	}
+
+	return d
 }
 
 func (d *Disk) Name() string { return d.name }
@@ -38,8 +51,19 @@ func (d *Disk) SampleMetrics() {
 		)
 	}
 
-	// todo: IO counters
-	// ioCounters, err := disk.IOCounters("/")
+	// IO counters
+	ioCounters, err := disk.IOCounters()
+	if err == nil {
+		// MB read/written
+		d.metrics["disk.in"] = append(
+			d.metrics["disk.read"],
+			float64(int(ioCounters["disk0"].ReadBytes)-d.readInit)/1024/1024,
+		)
+		d.metrics["disk.out"] = append(
+			d.metrics["disk.write"],
+			float64(int(ioCounters["disk0"].WriteBytes)-d.writeInit)/1024/1024,
+		)
+	}
 }
 
 func (d *Disk) AggregateMetrics() map[string]float64 {
