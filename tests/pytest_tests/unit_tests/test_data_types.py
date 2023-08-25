@@ -2,6 +2,7 @@ import glob
 import io
 import os
 import platform
+import tempfile
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -1529,19 +1530,18 @@ def test_numpy_arrays_to_list():
 
 
 def test_log_uint8_image():
-    # Create and save image
-    imarray = np.random.rand(100, 100, 3) * 255
-    im = Image.fromarray(imarray.astype("uint8")).convert("RGBA")
-    im.save("test_image.png")
+    with tempfile.NamedTemporaryFile(suffix=".png") as temp:
+        # Create and save image
+        imarray = np.random.rand(100, 100, 3) * 255
+        im = Image.fromarray(imarray.astype("uint8")).convert("RGBA")
+        im.save(temp.name)
 
-    # Reading with torch vision
-    image = read_image("test_image.png")
+        # Reading with torch vision
+        image = read_image(temp.name)
 
-    torch_vision = wandb.Image(image)
-    path_im = wandb.Image("test_image.png")
+        torch_vision = wandb.Image(image)
+        path_im = wandb.Image(temp.name)
 
-    path_im, torch_vision = np.array(path_im.image), np.array(torch_vision.image)
+        path_im, torch_vision = np.array(path_im.image), np.array(torch_vision.image)
 
-    # Clean up image file
-    os.unlink("test_image.png")
-    assert path_im.all() == torch_vision.all()
+        assert np.array_equal(path_im, torch_vision)
