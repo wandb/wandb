@@ -1,6 +1,6 @@
 """Base service abstract class.
 
-Derived classes for grpc and socket service interfaces classes should implement
+Derived classes for socket service interfaces classes should implement
 abstract methods.
 """
 
