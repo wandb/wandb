@@ -3,7 +3,6 @@ import threading
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Disk
 from wandb.sdk.internal.system.assets.disk import DiskIn, DiskOut
-from unittest.mock import Mock, patch, call
 from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 
@@ -33,7 +32,7 @@ def test_disk_metrics(test_settings):
 
     assert disk.probe() == expected_metrics
 
-    # # Test that the metrics_monitor was started & finished
+    # Test that the metrics_monitor was started & finished
     disk.start()
 
     shutdown_event.set()
