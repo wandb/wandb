@@ -435,7 +435,11 @@ func (h *Handler) handlePreempting(record *service.Record) {
 }
 
 func (h *Handler) handleRun(record *service.Record) {
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleConfig(record *service.Record) {
