@@ -2,72 +2,42 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"log/slog"
-
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"os"
 )
 
-type NexusStream struct {
-	Send     chan *service.Record
-	Recv     chan *service.Result
-	Run      *service.RunRecord
-	Settings *service.Settings
-	Callback func(run *service.RunRecord, settings *service.Settings, result *service.Result)
+func LogError(log *slog.Logger, msg string, err error) {
+	log.LogAttrs(context.Background(),
+		slog.LevelError,
+		msg,
+		slog.String("error", err.Error()))
 }
 
-func (ns *NexusStream) SendRecord(r *service.Record) {
-	ns.Send <- r
-}
-
-func (ns *NexusStream) SetResultCallback(cb func(run *service.RunRecord, settings *service.Settings, result *service.Result)) {
-	ns.Callback = cb
-}
-
-func (ns *NexusStream) Start(s *Stream) {
-	// read from send channel and call Handle
-	// in a goroutine
-	go func() {
-		for record := range ns.Send {
-			s.HandleRecord(record)
-		}
-	}()
-}
-
-func (ns *NexusStream) CaptureResult(result *service.Result) {
-	switch x := result.ResultType.(type) {
-	case *service.Result_RunResult:
-		if ns.Run == nil {
-			ns.Run = x.RunResult.GetRun()
-
-		}
-	case *service.Result_ExitResult:
-	}
-
-	if ns.Callback != nil {
-		ns.Callback(ns.Run, ns.Settings, result)
-	}
-}
-
-var chars = "abcdefghijklmnopqrstuvwxyz1234567890"
-
-func ShortID(length int) string {
-
-	charsLen := len(chars)
-	b := make([]byte, length)
-	_, err := rand.Read(b) // generates len(b) random bytes
+func writePortFile(portFile string, port int) {
+	tempFile := fmt.Sprintf("%s.tmp", portFile)
+	f, err := os.Create(tempFile)
 	if err != nil {
-		err = fmt.Errorf("rand error: %s", err.Error())
-		slog.LogAttrs(context.Background(),
-			slog.LevelError,
-			"ShortID: error",
-			slog.String("error", err.Error()))
-		panic(err)
+		LogError(slog.Default(), "fail create", err)
+	}
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
+
+	if _, err = f.WriteString(fmt.Sprintf("sock=%d\n", port)); err != nil {
+		LogError(slog.Default(), "fail write", err)
 	}
 
-	for i := 0; i < length; i++ {
-		b[i] = chars[int(b[i])%charsLen]
+	if _, err = f.WriteString("EOF"); err != nil {
+		LogError(slog.Default(), "fail write EOF", err)
 	}
-	return string(b)
+
+	if err = f.Sync(); err != nil {
+		LogError(slog.Default(), "fail sync", err)
+	}
+
+	if err = os.Rename(tempFile, portFile); err != nil {
+		LogError(slog.Default(), "fail rename", err)
+	}
+	// slog.Info("wrote port file", "file", portFile, "port", port)
 }
