@@ -1517,7 +1517,7 @@ class Api:
         launch_spec: Dict[str, str],
         project_queue: str,
     ) -> Optional[Dict[str, Any]]:
-        entity = launch_spec["entity"]
+        entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
@@ -3207,7 +3207,6 @@ class Api:
                     description
                     state
                     createdAt
-                    labels
                     metadata
                 }
             }
@@ -3358,8 +3357,7 @@ class Api:
             values += "sequenceClientID: $sequenceClientID,"
 
         if "enableDigestDeduplication" in fields:
-            types += "$enableDigestDeduplication: Boolean,"
-            values += "enableDigestDeduplication: $enableDigestDeduplication,"
+            values += "enableDigestDeduplication: true,"
 
         if "ttlDurationSeconds" in fields:
             types += "$ttlDurationSeconds: Int64,"
@@ -3374,7 +3372,6 @@ class Api:
                 $runName: String,
                 $description: String,
                 $digest: String!,
-                $labels: JSONString,
                 $aliases: [ArtifactAliasInput!],
                 $metadata: JSONString,
                 _CREATE_ARTIFACT_ADDITIONAL_TYPE_
@@ -3388,7 +3385,6 @@ class Api:
                     description: $description,
                     digest: $digest,
                     digestAlgorithm: MANIFEST_MD5,
-                    labels: $labels,
                     aliases: $aliases,
                     metadata: $metadata,
                     _CREATE_ARTIFACT_ADDITIONAL_VALUE_
@@ -3428,13 +3424,11 @@ class Api:
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
         description: Optional[str] = None,
-        labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
         ttl_duration_seconds: Optional[int] = None,
         aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
-        enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
         fields = self.server_create_artifact_introspection()
@@ -3470,15 +3464,11 @@ class Api:
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
-                "labels": json.dumps(util.make_safe_for_json(labels))
-                if labels
-                else None,
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
                 "ttlDurationSeconds": ttl_duration_seconds,
                 "distributedID": distributed_id,
-                "enableDigestDeduplication": enable_digest_deduplication,
                 "historyStep": history_step,
             },
         )

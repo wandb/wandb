@@ -1,11 +1,10 @@
 """Artifact manifest entry."""
+import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
 
-import wandb
-from wandb import util
 from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import (
@@ -18,7 +17,6 @@ from wandb.sdk.lib.hashutil import (
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
-    from wandb.apis.public import RetryingClient
     from wandb.sdk.artifacts.artifact import Artifact
 
 
@@ -55,6 +53,38 @@ class ArtifactManifestEntry:
         self.local_path = str(local_path) if local_path else None
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
+
+    def __repr__(self) -> str:
+        cls = self.__class__.__name__
+        ref = f", ref={self.ref!r}" if self.ref is not None else ""
+        birth_artifact_id = (
+            f", birth_artifact_id={self.birth_artifact_id!r}"
+            if self.birth_artifact_id is not None
+            else ""
+        )
+        size = f", size={self.size}" if self.size is not None else ""
+        extra = f", extra={json.dumps(self.extra)}" if self.extra else ""
+        local_path = f", local_path={self.local_path!r}" if self.local_path else ""
+        others = ref + birth_artifact_id + size + extra + local_path
+        return f"{cls}(path={self.path!r}, digest={self.digest!r}{others})"
+
+    def __eq__(self, other: object) -> bool:
+        """Strict equality, comparing all public fields.
+
+        ArtifactManifestEntries for the same file may not compare equal if they were
+        added in different ways or created for different parent artifacts.
+        """
+        if not isinstance(other, ArtifactManifestEntry):
+            return False
+        return (
+            self.path == other.path
+            and self.digest == other.digest
+            and self.ref == other.ref
+            and self.birth_artifact_id == other.birth_artifact_id
+            and self.size == other.size
+            and self.extra == other.extra
+            and self.local_path == other.local_path
+        )
 
     @property
     def name(self) -> LogicalPath:
@@ -151,9 +181,7 @@ class ArtifactManifestEntry:
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
 
-    def _get_referenced_artifact(self, client: "RetryingClient") -> "Artifact":
-        artifact: Artifact = wandb.Artifact._from_id(
-            hex_to_b64_id(util.host_from_path(self.ref)), client
-        )
-        assert artifact is not None
-        return artifact
+    def _referenced_artifact_id(self) -> Optional[str]:
+        if not self._is_artifact_reference():
+            return None
+        return hex_to_b64_id(urlparse(self.ref).netloc)
