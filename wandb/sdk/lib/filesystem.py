@@ -72,6 +72,15 @@ def mkdir_allow_fallback(dir_name: StrPath) -> StrPath:
     raise OSError(f"Unable to create directory '{dir_name}'")
 
 
+def files_in(path: StrPath) -> Generator[os.DirEntry, None, None]:
+    """Yield a directory entry for each file under a given path (recursive)."""
+    for entry in os.scandir(path):
+        if entry.is_dir():
+            yield from files_in(entry.path)
+        else:
+            yield entry
+
+
 class WriteSerializingFile:
     """Wrapper for a file object that serializes writes."""
 

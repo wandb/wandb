@@ -3,8 +3,9 @@ import contextlib
 import errno
 import hashlib
 import os
-import secrets
 import shutil
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 import wandb
@@ -12,7 +13,7 @@ from wandb import env, util
 from wandb.errors import term
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.lib.capped_dict import CappedDict
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -35,9 +36,11 @@ class ArtifactsCache:
     _TMP_PREFIX = "tmp"
 
     def __init__(self, cache_dir: StrPath) -> None:
-        self._cache_dir = cache_dir
-        self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
-        self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
+        self._cache_dir = Path(cache_dir)
+        self._temp_dir = self._cache_dir / "tmp"
+        self._temp_dir.mkdir(parents=True, exist_ok=True)
+        self._obj_dir = self._cache_dir / "obj"
+        self._obj_dir.mkdir(parents=True, exist_ok=True)
         self._artifacts_by_id: Dict[str, Artifact] = CappedDict()
         self._artifacts_by_client_id: Dict[str, Artifact] = CappedDict()
 
@@ -45,7 +48,7 @@ class ArtifactsCache:
         self, b64_md5: B64MD5, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
-        path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
+        path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
         return self._check_or_create(path, size)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
@@ -60,14 +63,14 @@ class ArtifactsCache:
             hashlib.sha256(url.encode("utf-8")).digest()
             + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
-        path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
+        path = self._obj_dir / "etag" / hexhash[:2] / hexhash[2:]
         return self._check_or_create(path, size)
 
     def _check_or_create(
-        self, path: StrPath, size: int
+        self, path: Path, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         opener = self._cache_opener(path, size)
-        hit = os.path.isfile(path) and os.path.getsize(path) == size
+        hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
@@ -119,50 +122,45 @@ class ArtifactsCache:
             raise ValueError("target_fraction must be between 0 and 1")
 
         bytes_reclaimed = 0
-        paths = {}
         total_size = 0
         temp_size = 0
-        for root, _, files in os.walk(self._cache_dir):
-            for file in files:
+
+        # Remove all temporary files if requested. Otherwise sum their size.
+        for entry in files_in(self._temp_dir):
+            size = entry.stat().st_size
+            total_size += size
+            if remove_temp:
                 try:
-                    path = os.path.join(root, file)
-                    stat = os.stat(path)
-
-                    if file.startswith(ArtifactsCache._TMP_PREFIX):
-                        if remove_temp:
-                            os.remove(path)
-                            bytes_reclaimed += stat.st_size
-                        else:
-                            temp_size += stat.st_size
-                            total_size += stat.st_size
-                        continue
+                    os.remove(entry.path)
+                    bytes_reclaimed += size
                 except OSError:
-                    continue
-                paths[path] = stat
-                total_size += stat.st_size
-
-        if target_fraction is not None:
-            target_size = int(total_size * target_fraction)
-        assert target_size is not None
-
+                    pass
+            else:
+                temp_size += size
         if temp_size:
             wandb.termwarn(
                 f"Cache contains {util.to_human_size(temp_size)} of temporary files. "
                 "Run `wandb artifact cleanup --remove-temp` to remove them."
             )
 
-        sorted_paths = sorted(paths.items(), key=lambda x: x[1].st_atime)
-        for path, stat in sorted_paths:
-            if total_size < target_size:
-                return bytes_reclaimed
+        entries = []
+        for file_entry in files_in(self._obj_dir):
+            total_size += file_entry.stat().st_size
+            entries.append(file_entry)
 
+        if target_fraction is not None:
+            target_size = int(total_size * target_fraction)
+        assert target_size is not None
+
+        for entry in sorted(entries, key=lambda x: x.stat().st_atime):
+            if total_size <= target_size:
+                return bytes_reclaimed
             try:
-                os.remove(path)
+                os.remove(entry.path)
             except OSError:
                 pass
-
-            total_size -= stat.st_size
-            bytes_reclaimed += stat.st_size
+            total_size -= entry.stat().st_size
+            bytes_reclaimed += entry.stat().st_size
 
         if total_size > target_size:
             wandb.termerror(
@@ -172,75 +170,44 @@ class ArtifactsCache:
 
         return bytes_reclaimed
 
-    def _reserve_space(self, path: StrPath, size: int) -> None:
+    def _free_space(self) -> int:
+        """Return the number of bytes of free space in the cache directory."""
+        return shutil.disk_usage(self._cache_dir)[2]
+
+    def _reserve_space(self, size: int) -> None:
         """If a `size` write would exceed disk space, remove cached items to make space.
 
         Raises:
             OSError: If there is not enough space to write `size` bytes, even after
                 removing cached items.
         """
-        # Get the most recent parent that exists.
-        path = os.path.abspath(path)
-        while not os.path.exists(os.path.dirname(path)):
-            path = os.path.dirname(path)
-        _, _, free = shutil.disk_usage(os.path.dirname(path))
-        if free > size:
+        if size <= self._free_space():
             return
 
         term.termwarn("Cache size exceeded. Attempting to reclaim space...")
         self.cleanup(target_fraction=0.5)
-        _, _, free = shutil.disk_usage(os.path.dirname(path))
-        if free > size:
+        if size <= self._free_space():
             return
 
         self.cleanup(target_size=0)
-        _, _, free = shutil.disk_usage(os.path.dirname(path))
-        if free < size:
-            raise OSError(errno.ENOSPC, f"Insufficient free space in {path}")
+        if size > self._free_space():
+            raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
 
-    def _cache_opener(self, path: StrPath, size: int) -> "Opener":
+    def _cache_opener(self, path: Path, size: int) -> "Opener":
         @contextlib.contextmanager
         def helper(mode: str = "w") -> Generator[IO, None, None]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
-            self._reserve_space(path, size)
-            dirname = os.path.dirname(path)
-            mkdir_exists_ok(dirname)
-            tmp_file = os.path.join(
-                dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
-            )
-            try:
-                with util.fsync_open(tmp_file, mode=mode) as f:
-                    yield f
-            except Exception:
-                # The write failed for whatever reason. Delete the temp file.
+            self._reserve_space(size)
+            with NamedTemporaryFile(dir=self._temp_dir, mode=mode) as f:
+                yield f
                 try:
-                    os.remove(tmp_file)
-                except OSError:
-                    pass
-                raise
-
-            try:
-                # Use replace where we can, as it implements an atomic
-                # move on most platforms. If it doesn't exist, we have
-                # to use rename which isn't atomic in all cases but there
-                # isn't a better option.
-                #
-                # The atomic replace is important in the event multiple processes
-                # attempt to write to / read from the cache at the same time. Each
-                # writer firsts stages its writes to a temporary file in the cache.
-                # Once it is finished, we issue an atomic replace operation to update
-                # the cache. Although this can result in redundant downloads, this
-                # guarantees that readers can NEVER read incomplete files from the
-                # cache.
-                #
-                # IMPORTANT: Replace is NOT atomic across different filesystems. This why
-                # it is critical that the temporary files sit directly in the cache --
-                # they need to be on the same filesystem!
-                os.replace(tmp_file, path)
-            except AttributeError:
-                os.rename(tmp_file, path)
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    os.link(f.name, path)
+                except FileExistsError:
+                    os.remove(path)
+                    os.link(f.name, path)
 
         return helper
 
@@ -251,6 +218,5 @@ _artifacts_cache = None
 def get_artifacts_cache() -> ArtifactsCache:
     global _artifacts_cache
     if _artifacts_cache is None:
-        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
-        _artifacts_cache = ArtifactsCache(cache_dir)
+        _artifacts_cache = ArtifactsCache(env.get_cache_dir() / "artifacts")
     return _artifacts_cache
