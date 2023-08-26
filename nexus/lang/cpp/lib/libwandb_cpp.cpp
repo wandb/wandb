@@ -1,8 +1,7 @@
+#include "libwandb_cpp.h"
+#include <libwandb_core.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <libwandb_core.h>
-#include <libwandb_cpp.h>
 
 namespace wandb {
 
@@ -11,30 +10,36 @@ Session *Session::defaultSession_ = nullptr;
 
 Settings::Settings() {}
 
-Settings::Settings(std::unordered_map<std::string, std::string>) {}
+Settings::Settings(const std::unordered_map<std::string, std::string> &) {}
 
-Settings::Settings(settings::Options options) {}
+Settings::Settings(const settings::Options &options) {}
 
 Session::Session(Settings *settings) {
   // set static so future calls to functions initRun() have a default session
   defaultSession_ = this;
 }
 
-Run::Run() { this->_num = 0; }
+Run::Run() : _num(0) {}
 
 void Run::logPartialCommit() { wandbcoreLogCommit(this->_num); }
 
-void Run::log(std::vector<const char *> &keys, std::vector<double> &values,
+template <typename T>
+void Run::log(std::vector<const char *> &keys, std::vector<T> &values,
               bool commit) {
-  wandbcoreLogDoubles(this->_num, commit, keys.size(), &keys[0], &values[0]);
+  if constexpr (std::is_same_v<T, double>) {
+    wandbcoreLogDoubles(this->_num, commit, keys.size(), &keys[0], &values[0]);
+  } else if constexpr (std::is_same_v<T, int>) {
+    wandbcoreLogInts(this->_num, commit, keys.size(), &keys[0], &values[0]);
+  }
 }
 
-void Run::log(std::vector<const char *> &keys, std::vector<int> &values,
-              bool commit) {
-  wandbcoreLogInts(this->_num, commit, keys.size(), &keys[0], &values[0]);
-}
+// Explicit instantiation of the template function
+template void Run::log(std::vector<const char *> &keys,
+                       std::vector<double> &values, bool commit);
+template void Run::log(std::vector<const char *> &keys,
+                       std::vector<int> &values, bool commit);
 
-void Run::log(std::unordered_map<std::string, Value> &myMap) {
+void Run::log(const std::unordered_map<std::string, Value> &myMap) {
   std::vector<const char *> keyDoubles;
   std::vector<const char *> keyInts;
   std::vector<double> valDoubles;
@@ -77,16 +82,18 @@ Session *Session::GetInstance() {
 Run Session::_initRun(Settings *settings) {
   _session_setup();
   int n = wandbcoreInit();
-  auto r = Run();
+  Run r;
   r._num = n;
   return r;
 }
 
 Run Session::initRun() { return _initRun(nullptr); }
 
-Run Session::initRun(Settings settings) { return _initRun(&settings); }
+Run Session::initRun(const Settings &settings) {
+  return _initRun(const_cast<Settings *>(&settings));
+}
 
-Run _initRun(Settings *settings = nullptr) {
+Run initRun(Settings *settings = nullptr) {
   auto s = Session::GetInstance();
   if (settings != nullptr) {
     return s->initRun(*settings);
@@ -94,18 +101,20 @@ Run _initRun(Settings *settings = nullptr) {
   return s->initRun();
 }
 
-Run initRun(Settings settings) { return _initRun(&settings); }
+Run initRun(const Settings &settings) {
+  return initRun(const_cast<Settings *>(&settings));
+}
 
-Run initRun() { return _initRun(nullptr); }
+Run initRun() { return initRun(nullptr); }
 
-Run initRun(std::initializer_list<run::InitRunOption> options) {
-  return _initRun(nullptr);
+Run initRun(const std::initializer_list<run::InitRunOption> &options) {
+  return initRun(nullptr);
 }
 
 namespace run {
 InitRunOption::InitRunOption() {}
 
-WithSettings::WithSettings(Settings s) {}
+WithSettings::WithSettings(const Settings &s) {}
 } // namespace run
 
 } // namespace wandb

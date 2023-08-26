@@ -1,3 +1,6 @@
+#ifndef LIBWANDB_CPP_H
+#define LIBWANDB_CPP_H
+
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -5,15 +8,14 @@
 
 namespace wandb {
 
-typedef std::variant<int, float, double> Value;
-
+typedef std::variant<int, double> Value;
 typedef std::unordered_map<std::string, wandb::Value> History;
 
 namespace settings {
-typedef struct settings_options_s {
+struct Options {
   bool offline;
   std::string apiKey;
-} Options;
+};
 } // namespace settings
 
 class Settings {
@@ -23,41 +25,41 @@ private:
 
 public:
   Settings();
-  Settings(std::unordered_map<std::string, std::string>);
-  Settings(settings::Options);
+  Settings(const std::unordered_map<std::string, std::string> &settings_map);
+  Settings(const settings::Options &options);
 };
 
 class Run {
 private:
-  void log(std::vector<const char *> &, std::vector<double> &,
-           bool commit = false);
-  void log(std::vector<const char *> &, std::vector<int> &,
-           bool commit = false);
+  int _num;
+
   void logPartialCommit();
 
-protected:
-  int _num;
+  template <typename T>
+  void log(std::vector<const char *> &keys, std::vector<T> &values,
+           bool commit = false);
 
 public:
   Run();
-  Run(Settings settings);
-  void log(std::unordered_map<std::string, Value> &);
-  // void log(std::vector<const char *>&, std::vector<Value>&);
+  Run(const Settings &settings);
+
+  void log(const std::unordered_map<std::string, Value> &values_map);
   void finish();
+
   friend class Session;
 };
 
 class Session {
 private:
-  Run _initRun(Settings *settings = NULL);
   static Session *defaultSession_;
-  Session(Settings *settings = NULL);
+
+  Session(Settings *settings = nullptr);
+  Run _initRun(Settings *settings = nullptr);
 
 public:
-  Session() : Session(NULL) {}
-  Session(Settings settings) : Session(&settings) {}
   Run initRun();
-  Run initRun(Settings settings);
+  Run initRun(const Settings &settings);
+
   static Session *GetInstance();
 };
 
@@ -69,11 +71,13 @@ public:
 
 class WithSettings : public InitRunOption {
 public:
-  WithSettings(Settings s);
+  WithSettings(const Settings &s);
 };
 } // namespace run
 
 Run initRun();
-Run initRun(std::initializer_list<run::InitRunOption>);
+Run initRun(const std::initializer_list<run::InitRunOption> &options);
 
 } // namespace wandb
+
+#endif // LIBWANDB_CPP_H
