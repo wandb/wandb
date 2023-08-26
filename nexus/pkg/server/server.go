@@ -2,9 +2,10 @@ package server
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"sync"
+
+	"golang.org/x/exp/slog"
 )
 
 const BufferSize = 32

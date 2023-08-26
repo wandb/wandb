@@ -3,8 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
+
+	"golang.org/x/exp/slog"
 )
 
 func LogError(log *slog.Logger, msg string, err error) {

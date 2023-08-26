@@ -1,10 +1,10 @@
 package observability
 
 import (
-	"log/slog"
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"golang.org/x/exp/slog"
 )
 
 const sentryDsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"

@@ -3,13 +3,13 @@ package filestream
 import (
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slog"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/nexus/internal/clienttest"
