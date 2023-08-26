@@ -33,14 +33,11 @@ if TYPE_CHECKING:
 
 
 class ArtifactsCache:
-    _TMP_PREFIX = "tmp"
-
     def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = Path(cache_dir)
         self._temp_dir = self._cache_dir / "tmp"
         self._temp_dir.mkdir(parents=True, exist_ok=True)
         self._obj_dir = self._cache_dir / "obj"
-        self._obj_dir.mkdir(parents=True, exist_ok=True)
         self._artifacts_by_id: Dict[str, Artifact] = CappedDict()
         self._artifacts_by_client_id: Dict[str, Artifact] = CappedDict()
 
@@ -202,8 +199,8 @@ class ArtifactsCache:
             self._reserve_space(size)
             with NamedTemporaryFile(dir=self._temp_dir, mode=mode) as f:
                 yield f
+                path.parent.mkdir(parents=True, exist_ok=True)
                 try:
-                    path.parent.mkdir(parents=True, exist_ok=True)
                     os.link(f.name, path)
                 except FileExistsError:
                     os.remove(path)
