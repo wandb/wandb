@@ -24,6 +24,12 @@ func (k *RunKeeper) Get(num int) *gowandb.Run {
 	return k.runs[num]
 }
 
+func (k *RunKeeper) Remove(num int) {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+	delete(k.runs, num)
+}
+
 func (k *RunKeeper) Add(run *gowandb.Run) int {
 	k.mutex.Lock()
 	defer k.mutex.Unlock()
