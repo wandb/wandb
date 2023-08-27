@@ -21,8 +21,8 @@ cd -
 # build shared-library
 cp core/*.go tmpbuild/
 cd tmpbuild/
-go build -buildmode c-shared -o ../export/libwandb_core.so *.go
-go build -buildmode c-archive -o ../export/libwandb_core.a *.go
+go build -tags=libwandb_core -buildmode c-shared -o ../export/libwandb_core.so *.go
+go build -tags=libwandb_core -buildmode c-archive -o ../export/libwandb_core.a *.go
 mv ../export/libwandb_core.so ../export/libwandb_core.a ../export/lib/
 mv ../export/libwandb_core.h ../export/include/
 cd -
