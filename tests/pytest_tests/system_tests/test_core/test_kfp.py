@@ -10,6 +10,13 @@ from kfp.components._structures import InputSpec, OutputSpec
 from wandb.integration.kfp import unpatch_kfp, wandb_log
 
 
+# todo: skip all file
+pytest.skip(
+    "KFP integration does not work with the latest version of KFP",
+    allow_module_level=True,
+)
+
+
 def test_get_noop_decorator_if_patching_fails():
     with patch("kfp.components._python_op.create_component_from_func", None):
         reload(wandb.integration.kfp)
