@@ -128,7 +128,9 @@ class Settings:
         # if not writable (if tempdir is shared, for example), try creating a subdir
         if not os.access(default_config_dir, os.W_OK):
             username = getpass.getuser()
-            default_config_dir = os.path.join(tempfile.gettempdir(), username, ".config", "wandb")
+            default_config_dir = os.path.join(
+                tempfile.gettempdir(), username, ".config", "wandb"
+            )
 
         config_dir = os.environ.get(env.CONFIG_DIR, default_config_dir)
         os.makedirs(config_dir, exist_ok=True)
