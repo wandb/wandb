@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.docker import is_docker_installed
 from wandb.sdk.launch.errors import LaunchError
 
 from .builder.abstract import AbstractBuilder
@@ -141,7 +142,10 @@ def builder_from_config(
     This helper function is used to create a builder from a config. The
     config should have a "type" key that specifies the type of builder to import
     and create. The remaining keys are passed to the builder's from_config
-    method. If the config is None or empty, a DockerBuilder is returned.
+    method. If the config is None or empty, a default builder is returned.
+
+    The default builder will be a DockerBuilder if we find a working docker cli
+    on the system, otherwise it will be a NoOpBuilder.
 
     Arguments:
         config (Dict[str, Any]): The builder config.
@@ -154,11 +158,16 @@ def builder_from_config(
         LaunchError: If the builder is not configured correctly.
     """
     if not config:
-        from .builder.docker_builder import DockerBuilder
+        if is_docker_installed():
+            from .builder.docker_builder import DockerBuilder
 
-        return DockerBuilder.from_config(
-            {}, environment, registry
-        )  # This is the default builder.
+            return DockerBuilder.from_config(
+                {}, environment, registry
+            )  # This is the default builder.
+
+        from .builder.noop import NoOpBuilder
+
+        return NoOpBuilder.from_config({}, environment, registry)
 
     builder_type = config.get("type")
     if builder_type is None:
