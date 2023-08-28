@@ -1,12 +1,10 @@
 # 0.15.9 (Aug 28, 2023)
 
 ### :magic_wand: Enhancements
-
 - feat(sweeps): launch sweep schedulers to team queues from UI by @gtarpenning in https://github.com/wandb/wandb/pull/6112
 - feat(launch): make vertex launcher more customizable by @bcsherma in https://github.com/wandb/wandb/pull/6088
 - feat(launch): default to noop builder if docker not installed by @bcsherma in https://github.com/wandb/wandb/pull/6137
 ### :hammer: Fixes
-
 - fix(launch): Use built in entrypoint and args commands for sagemaker by @KyleGoyette in https://github.com/wandb/wandb/pull/5897
 - fix(artifacts): copy parent source project info to new draft artifact by @moredatarequired in https://github.com/wandb/wandb/pull/6062
 - fix(sdk): avoid error at end of run with bigints by @raubitsj in https://github.com/wandb/wandb/pull/6134
