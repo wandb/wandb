@@ -1,4 +1,5 @@
 import configparser
+import getpass
 import os
 import tempfile
 from typing import Any, Optional
@@ -124,6 +125,10 @@ class Settings:
         # if not writable, fall back to a temp directory
         if not os.access(default_config_dir, os.W_OK):
             default_config_dir = os.path.join(tempfile.gettempdir(), ".config", "wandb")
+        # if not writable (if tempdir is shared, for example), try creating a subdir
+        if not os.access(default_config_dir, os.W_OK):
+            username = getpass.getuser()
+            default_config_dir = os.path.join(tempfile.gettempdir(), username, ".config", "wandb")
 
         config_dir = os.environ.get(env.CONFIG_DIR, default_config_dir)
         os.makedirs(config_dir, exist_ok=True)
