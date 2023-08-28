@@ -277,7 +277,6 @@ func (al *ArtifactLinker) Link() error {
 	var err error
 	var response *gql.LinkArtifactResponse
 	if server_id != "" {
-		// Todo: Test
 		response, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
@@ -305,7 +304,5 @@ func (al *ArtifactLinker) Link() error {
 		al.Logger.CaptureFatalAndPanic("sendLinkArtifact", err)
 		return err
 	}
-	linkedArtifactVersionIndex := response.GetLinkArtifact().GetVersionIndex()
-	// Todo: return error if linkedArtifactVersionIndex is nil
 	return nil
 }
