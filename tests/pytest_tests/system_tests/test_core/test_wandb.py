@@ -344,6 +344,8 @@ def test_log_step(relay_server, wandb_init):
     assert relay.context.history["_step"][0] == 5
 
 
+# todo: incremental artifact in nexus
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_log_custom_chart(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
