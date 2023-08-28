@@ -2,9 +2,9 @@ package gowandb
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
-	"strconv"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
@@ -15,11 +15,12 @@ type Settings map[string]interface{}
 
 type Run struct {
 	// ctx is the context for the run
-	ctx      context.Context
-	settings *service.Settings
-	conn     *Connection
-	wg       sync.WaitGroup
-	run      *service.RunRecord
+	ctx            context.Context
+	settings       *service.Settings
+	conn           *Connection
+	wg             sync.WaitGroup
+	run            *service.RunRecord
+	partialHistory History
 }
 
 // NewRun creates a new run with the given settings and responders.
@@ -30,6 +31,7 @@ func NewRun(ctx context.Context, settings *service.Settings, conn *Connection) *
 		conn:     conn,
 		wg:       sync.WaitGroup{},
 	}
+	run.resetPartialHistory()
 	return run
 }
 
@@ -118,13 +120,17 @@ func (r *Run) start() {
 	handle.wait()
 }
 
-func (r *Run) Log(data map[string]float64) {
+func (r *Run) logCommit(data map[string]interface{}) {
 	history := service.PartialHistoryRequest{}
 	for key, value := range data {
-		strValue := strconv.FormatFloat(value, 'f', -1, 64)
+		// strValue := strconv.FormatFloat(value, 'f', -1, 64)
+		data, err := json.Marshal(value)
+		if err != nil {
+			panic(err)
+		}
 		history.Item = append(history.Item, &service.HistoryItem{
 			Key:       key,
-			ValueJson: strValue,
+			ValueJson: string(data),
 		})
 	}
 	request := service.Request{
@@ -146,10 +152,34 @@ func (r *Run) Log(data map[string]float64) {
 	}
 }
 
-func (r *Run) Finish() {
+func (r *Run) resetPartialHistory() {
+	r.partialHistory = make(map[string]interface{})
+}
+
+func (r *Run) LogPartial(data map[string]interface{}, commit bool) {
+	for k, v := range data {
+		r.partialHistory[k] = v
+	}
+	if commit {
+		r.LogPartialCommit()
+	}
+}
+
+func (r *Run) LogPartialCommit() {
+	r.logCommit(r.partialHistory)
+	r.resetPartialHistory()
+}
+
+func (r *Run) Log(data map[string]interface{}) {
+	r.LogPartial(data, true)
+}
+
+func (r *Run) sendExit() {
 	record := service.Record{
-		RecordType: &service.Record_Exit{Exit: &service.RunExitRecord{ExitCode: 0, XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()}}},
-		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+		RecordType: &service.Record_Exit{
+			Exit: &service.RunExitRecord{
+				ExitCode: 0, XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()}}},
+		XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
 	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
@@ -160,16 +190,46 @@ func (r *Run) Finish() {
 		return
 	}
 	handle.wait()
+}
 
-	serverRecord = service.ServerRequest{
+func (r *Run) sendShutdown() {
+	record := &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_Shutdown{
+					Shutdown: &service.ShutdownRequest{},
+				},
+			}},
+		Control: &service.Control{AlwaysSend: true, ReqResp: true},
+	}
+	serverRecord := service.ServerRequest{
+		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: record},
+	}
+	handle := r.conn.Mbox.Deliver(record)
+	err := r.conn.Send(&serverRecord)
+	if err != nil {
+		return
+	}
+	handle.wait()
+}
+
+func (r *Run) sendInformFinish() {
+	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_InformFinish{InformFinish: &service.ServerInformFinishRequest{
 			XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 		}},
 	}
-	err = r.conn.Send(&serverRecord)
+	err := r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
+}
+
+func (r *Run) Finish() {
+	r.sendExit()
+	r.sendShutdown()
+	r.sendInformFinish()
+
 	r.conn.Close()
 	r.wg.Wait()
 	shared.PrintHeadFoot(r.run, r.settings)
