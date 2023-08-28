@@ -1,17 +1,14 @@
 import asyncio
 import base64
-import errno
 import logging
 import os
 import random
 from multiprocessing import Pool
-from unittest import mock
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
-from wandb import util
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -45,12 +42,13 @@ def test_check_md5_obj_path(artifacts_cache):
     expected_path = os.path.join(
         artifacts_cache._cache_dir, "obj", "md5", "61", "6263646566"
     )
+    assert path == expected_path
+
     with opener() as f:
         f.write("hi")
     with open(path) as f:
         contents = f.read()
 
-    assert path == expected_path
     assert exists is False
     assert contents == "hi"
 
@@ -190,9 +188,7 @@ def test_artifacts_cache_cleanup(artifacts_cache):
 
 
 def test_artifacts_cache_cleanup_tmp_files_when_asked(artifacts_cache):
-    path = os.path.join(artifacts_cache._cache_dir, "obj", "md5", "aa")
-    os.makedirs(path)
-    with open(os.path.join(path, "tmp_abc"), "w") as f:
+    with open(artifacts_cache._temp_dir / "foo", "w") as f:
         f.truncate(1000)
 
     # Even if we are above our target size, the cleanup
@@ -203,9 +199,7 @@ def test_artifacts_cache_cleanup_tmp_files_when_asked(artifacts_cache):
 
 
 def test_artifacts_cache_cleanup_leaves_tmp_files_by_default(artifacts_cache, capsys):
-    path = os.path.join(artifacts_cache._cache_dir, "obj", "md5", "aa")
-    os.makedirs(path)
-    with open(os.path.join(path, "tmp_abc"), "w") as f:
+    with open(artifacts_cache._temp_dir / "foo", "w") as f:
         f.truncate(1000)
 
     # The cleanup should leave temp files alone, even if we haven't reached our target.
@@ -309,22 +303,57 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
     term_log = MagicMock()
     monkeypatch.setattr(term, "_log", term_log)
 
-    def out_of_space(*args, **kwargs):
-        raise OSError(errno.ENOSPC, "out of space")
+    # Ask to create a 1 quettabyte file to ensure the cache won't find room.
+    _, _, opener = artifacts_cache.check_md5_obj_path(example_digest, size=10**30)
 
-    monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
-
-    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
-
-    with pytest.raises(OSError, match="out of space"):
-        with opener() as f:
-            f.write("hello")
+    with pytest.raises(OSError, match="Insufficient free space"):
+        with opener():
+            pass
 
     assert term_log.call_count >= 1
-    log_call = term_log.call_args[1]
-    assert "No disk space available" in log_call["string"]
-    assert "set WANDB_CACHE_DIR" in log_call["string"]
-    assert log_call["level"] == logging.ERROR
+    check_warning = False
+    for call in term_log.call_args_list:
+        print(call)
+        if "Cache size exceeded. Attempting to reclaim space..." in call[1]["string"]:
+            assert call[1]["level"] == logging.WARNING
+            check_warning = True
+    assert check_warning
+
+
+def test_cache_drops_lru_when_adding_not_enough_space(fs, artifacts_cache):
+    # Simulate a 1KB drive.
+    fs.set_disk_usage(1000)
+
+    # Create a few files to fill up the cache (exactly).
+    cache_paths = []
+    for i in range(10):
+        content = f"{i}" * 100
+        path, _, opener = artifacts_cache.check_md5_obj_path(md5_string(content), 100)
+        with opener() as f:
+            f.write(content)
+        cache_paths.append(path)
+
+    # This next file won't fit; we should drop 1/2 the files in LRU order.
+    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("x"), 100)
+    with opener() as f:
+        f.write("x")
+
+    for path in cache_paths[:5]:
+        assert not os.path.exists(path)
+    for path in cache_paths[5:]:
+        assert os.path.exists(path)
+
+    assert fs.get_disk_usage()[1] == 501
+
+    # Add something big enough that removing half the items isn't enough.
+    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("y" * 800), 800)
+    with opener() as f:
+        f.write("y" * 800)
+
+    # All paths should have been removed, and the usage is just the new file size.
+    for path in cache_paths:
+        assert not os.path.exists(path)
+    assert fs.get_disk_usage()[1] == 800
 
 
 def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
@@ -342,25 +371,9 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
             path = f.name
             assert os.path.exists(path)
 
-            monkeypatch.setattr(os, "fsync", fail)
+            monkeypatch.setattr(os, "link", fail)
 
     assert not os.path.exists(path)
-
-
-def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch):
-    def out_of_space(*args, **kwargs):
-        raise OSError(errno.ENOSPC, "out of space")
-
-    # Will raise an error without creating any file to delete.
-    monkeypatch.setattr(util, "fsync_open", out_of_space)
-
-    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
-
-    with mock.patch("os.remove", side_effect=FileNotFoundError) as mock_remove:
-        with pytest.raises(OSError, match="out of space"):
-            with opener():
-                pass
-        assert mock_remove.call_count == 1
 
 
 class FakePublicApi:

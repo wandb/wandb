@@ -27,4 +27,5 @@ func main() {
 		panic(err)
 	}
 	run.Log(gowandb.History{"acc": 1.0})
+	run.Finish()
 }
