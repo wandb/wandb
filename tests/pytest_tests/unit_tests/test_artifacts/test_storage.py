@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import logging
 import os
 import random
@@ -25,22 +24,22 @@ example_digest = md5_string("example")
 
 
 def test_opener_rejects_append_mode(artifacts_cache):
-    _, _, opener = artifacts_cache.check_md5_obj_path(base64.b64encode(b"abcdef"), 10)
+    _, _, opener = artifacts_cache.check_md5_obj_path(example_digest, 7)
 
     with pytest.raises(ValueError):
         with opener("a"):
             pass
 
     # make sure that the ValueError goes away if we use a valid mode
-    with opener("w"):
-        pass
+    with opener("w") as f:
+        f.write("example")
 
 
 def test_check_md5_obj_path(artifacts_cache):
-    md5 = base64.b64encode(b"abcdef")
-    path, exists, opener = artifacts_cache.check_md5_obj_path(md5, 10)
+    md5 = md5_string("hi")
+    path, exists, opener = artifacts_cache.check_md5_obj_path(md5, 6)
     expected_path = os.path.join(
-        artifacts_cache._cache_dir, "obj", "md5", "61", "6263646566"
+        artifacts_cache._cache_dir, "obj", "md5", "49", "f68a5c8493ec2c0bf489821c21fc3b"
     )
     assert path == expected_path
 
@@ -217,9 +216,9 @@ def test_local_file_handler_load_path_uses_cache(artifacts_cache, tmp_path):
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=digest, size=123)
+    path, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=digest, size=5)
     with opener() as f:
-        f.write(123 * "a")
+        f.write("hello")
 
     handler = LocalFileHandler()
     handler._cache = artifacts_cache
@@ -229,7 +228,7 @@ def test_local_file_handler_load_path_uses_cache(artifacts_cache, tmp_path):
             path="foo/bar",
             ref=uri,
             digest=digest,
-            size=123,
+            size=5,
         ),
         local=True,
     )
@@ -278,9 +277,9 @@ def test_gcs_storage_handler_load_path_nonlocal():
 
 def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
     uri = "gs://some-bucket/path/to/file.json"
-    etag = "some etag"
+    digest = md5_string("a" * 123)
 
-    path, _, opener = artifacts_cache.check_md5_obj_path(etag, 123)
+    path, _, opener = artifacts_cache.check_md5_obj_path(digest, 123)
     with opener() as f:
         f.write(123 * "a")
 
@@ -291,7 +290,7 @@ def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
         ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
-            digest=etag,
+            digest=digest,
             size=123,
         ),
         local=True,
@@ -360,11 +359,11 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
     def fail(*args, **kwargs):
         raise OSError
 
-    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=7)
 
     with pytest.raises(OSError):
         with opener() as f:
-            f.write("hello " * 100)
+            f.write("example")
             f.flush()
             os.fsync(f.fileno())
 
