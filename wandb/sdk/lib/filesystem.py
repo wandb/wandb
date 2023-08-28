@@ -242,16 +242,16 @@ def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
     return target_path
 
 
-def _reflink_linux(target: StrPath, new_link: StrPath) -> None:
-    """Create a reflink to `target` at `new_link` on Linux."""
+def _reflink_linux(existing_path: Path, new_path: Path) -> None:
+    """Create a reflink to `existing_path` at `new_path` on Linux."""
     import fcntl
 
     FICLONE = 0x40049409  # magic number from <linux/fs.h>  # noqa: N806
-    with open(target, "rb") as t_f, open(new_link, "wb+") as l_f:
+    with open(existing_path, "rb") as t_f, open(new_path, "wb+") as l_f:
         fcntl.ioctl(l_f.fileno(), FICLONE, t_f.fileno())
 
 
-def _reflink_macos(target: StrPath, new_link: StrPath) -> None:
+def _reflink_macos(existing_path: Path, new_path: Path) -> None:
     try:
         clib = ctypes.CDLL("libc.dylib", use_errno=True)
     except OSError as e:
@@ -267,14 +267,14 @@ def _reflink_macos(target: StrPath, new_link: StrPath) -> None:
     clonefile.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int)
     clonefile.restype = ctypes.c_int
 
-    if clonefile(os.fsencode(target), os.fsencode(new_link), ctypes.c_int(0)):
+    if clonefile(os.fsencode(existing_path), os.fsencode(new_path), ctypes.c_int(0)):
         # Anything other than 0 is an error.
         err = ctypes.get_errno()
-        raise OSError(err, os.strerror(err), target)
+        raise OSError(err, os.strerror(err), existing_path)
 
 
-def reflink(target: StrPath, new_link: StrPath, overwrite: bool = False) -> None:
-    """Create a reflink to `target` at `new_link`.
+def reflink(existing_path: StrPath, new_path: StrPath, overwrite: bool = False) -> None:
+    """Create a reflink to `existing_path` at `new_path`.
 
     A reflink (reflective link) is a copy-on-write reference to a file. Once linked, the
     file and link are both "real" files (not symbolic or hard links) and each can be
@@ -302,19 +302,19 @@ def reflink(target: StrPath, new_link: StrPath, overwrite: bool = False) -> None
             errno.ENOTSUP, f"reflinks are not supported on {platform.system()}"
         )
 
-    if os.path.exists(new_link):
+    if os.path.exists(new_path):
         if not overwrite:
-            raise FileExistsError(f"{new_link} already exists")
-        logger.warning(f"Overwriting existing file {new_link}.")
-        os.unlink(new_link)
+            raise FileExistsError(f"{new_path} already exists")
+        logger.warning(f"Overwriting existing file {new_path}.")
+        os.unlink(new_path)
 
     # Create any missing parent directories.
-    os.makedirs(os.path.dirname(os.path.abspath(new_link)), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(new_path)), exist_ok=True)
 
     try:
-        link_fn(target, new_link)
+        link_fn(existing_path, new_path)
     except OSError as e:
-        base_msg = f"failed to create reflink from {target} to {new_link}."
+        base_msg = f"failed to create reflink from {existing_path} to {new_path}."
         if e.errno in (errno.EPERM, errno.EACCES):
             raise PermissionError(f"Insufficient permissions; {base_msg}") from e
         if e.errno == errno.ENOENT:
