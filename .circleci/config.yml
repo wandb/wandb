@@ -1159,7 +1159,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7]
+              python_version_minor: [8]
               shard:
                 - yolov5
                 - huggingface
