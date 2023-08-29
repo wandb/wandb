@@ -649,11 +649,6 @@ jobs:
             - run:
                 name: Setup environment
                 command: |
-                  curl https://pyenv.run | bash
-                  echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-                  echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-                  echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
-                  source ~/.bashrc
                   aws ecr get-login-password --region us-east-2
                   pip install /mnt/ramdisk/wandb
                   wandb login $WANDB_API_KEY
