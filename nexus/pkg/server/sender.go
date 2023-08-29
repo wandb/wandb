@@ -340,7 +340,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 	s.loopbackChan <- rec
 }
 
-func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
+func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
