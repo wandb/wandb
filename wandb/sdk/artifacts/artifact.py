@@ -2000,9 +2000,9 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if not self._ttl_is_inherited:
+        if self._ttl_duration_seconds is not None:
             termwarn(
-                "Artifact TTL will be removed for source artifacts that are linked to portfolios."
+                "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
             )
 
         if wandb.run is None:

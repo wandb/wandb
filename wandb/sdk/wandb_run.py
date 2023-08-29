@@ -2634,9 +2634,9 @@ class Run:
                     entity,
                     project,
                 )
-                if not artifact._ttl_is_inherited:
+                if artifact._ttl_duration_seconds is not None:
                     wandb.termwarn(
-                        "Artifact TTL will be removed for source artifacts that are linked to portfolios."
+                        "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
                     )
             else:
                 # TODO: implement offline mode + sync
