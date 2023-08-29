@@ -59,6 +59,7 @@ def test_resume_must_failure(wandb_init):
         wandb_init(reinit=True, resume="must")
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_unlogged_artifact_in_config(wandb_init, test_settings):
     run = wandb_init(settings=test_settings())
     artifact = wandb.Artifact("my-arti", type="dataset")
