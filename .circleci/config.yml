@@ -621,9 +621,13 @@ jobs:
       tox_args:
         type: string
         default: "--cli_branch $CIRCLE_BRANCH"
-    docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-    resource_class: small
+    machine:
+      image: ubuntu-2004:202104-01
+      docker_layer_caching: true
+    resource_class: large
+    # docker:
+    #   - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    # resource_class: small
     working_directory: /mnt/ramdisk/wandb
     steps:
       - checkout
