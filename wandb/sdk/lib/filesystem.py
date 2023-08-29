@@ -10,6 +10,8 @@ import threading
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Generator, Optional
 
+import psutil
+
 from wandb.sdk.lib.paths import StrPath
 
 logger = logging.getLogger(__name__)
@@ -133,6 +135,60 @@ class CRDedupedFile(WriteSerializingFile):
         if self._buff:
             super().write(self._buff)
         super().close()
+
+
+def resolve_to_existing_parent(path: StrPath) -> StrPath:
+    """Return the nearest ancestor path that actually exists.
+
+    The path will be resolved, eliminating `..` components and following symlinks. If
+    the path exists, that absolute path will be returned. Otherwise, path components
+    will be removed one by one until the resulting path points to a real directory.
+    """
+    real = Path(path).resolve(strict=False)
+    while not real.exists():
+        real = real.parent
+    # Return the same type as the input.
+    return type(path)(real)  # type: ignore
+
+
+_cached_disk_partitions = None
+
+
+def disk_partitions(reload: bool = False):
+    """Cached wrapper to psutil.disk_partitions.
+
+    The returned list is sorted in descending order of device name, so that testing
+    subpaths can be done in most to least specific order.
+    """
+    global _cached_disk_partitions
+    if _cached_disk_partitions and not reload:
+        return _cached_disk_partitions
+    _cached_disk_partitions = sorted(
+        psutil.disk_partitions(), key=lambda p: p.device, reverse=True
+    )
+    return _cached_disk_partitions
+
+
+def partition_info(path: StrPath) -> str:
+    """Return information about the partition a path is (or would be) on."""
+    resolved = str(resolve_to_existing_parent(path))
+
+    for partition in disk_partitions():
+        if resolved.startswith(partition.mountpoint):
+            return partition
+
+    # If we didn't find it, maybe our partition table isn't up to date?
+    for partition in disk_partitions(reload=True):
+        if resolved.startswith(partition.mountpoint):
+            return partition
+
+    raise FileNotFoundError(f"Unable to locate a partition for {path}")
+
+
+def on_same_partition(path_1: StrPath, path_2: StrPath) -> bool:
+    """Test if two paths reside (or would reside) on the same filesystem partition."""
+    partition_1, partition_2 = partition_info(path_1), partition_info(path_2)
+    return partition_1.device == partition_2.device
 
 
 def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> StrPath:
