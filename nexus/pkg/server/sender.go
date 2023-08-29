@@ -464,9 +464,9 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		program := s.settings.GetProgram().GetValue()
 		// start a new context with an additional argument from the parent context
 		// this is used to pass the retry function to the graphql client
-		//ctx := context.WithValue(s.ctx, CtxRetryFuncKey, UpsertBucketRetryPolicy)
+		ctx := context.WithValue(s.ctx, CtxRetryFuncKey, UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
-			s.ctx,                        // ctx
+			ctx,                          // ctx
 			s.graphqlClient,              // client
 			nil,                          // id
 			&run.RunId,                   // name
