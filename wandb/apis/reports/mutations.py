@@ -4,25 +4,25 @@ VIEW_REPORT = gql(
     """
     query SpecificReport($reportId: ID!) {
         view(id: $reportId) {
-        id
-        type
-        name
-        displayName
-        description
-        project {
             id
+            type
             name
-            entityName
-        }
-        createdAt
-        updatedAt
-        spec
-        previewUrl
-        user {
-            name
-            username
-            userInfo
-        }
+            displayName
+            description
+            project {
+                id
+                name
+                entityName
+            }
+            createdAt
+            updatedAt
+            spec
+            previewUrl
+            user {
+                name
+                username
+                userInfo
+            }
         }
     }
     """

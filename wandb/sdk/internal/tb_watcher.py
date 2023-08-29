@@ -14,7 +14,6 @@ import wandb
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.paths import LogicalPath
 from wandb.viz import CustomChart
 
 from . import run as internal_run
@@ -59,12 +58,16 @@ def _link_and_save_file(
     interface.publish_files(dict(files=[(GlobStr(glob.escape(file_name)), "live")]))
 
 
-def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
-    """Check if a path is a tfevents file created by hostname.
+def is_tfevents_file_created_by(
+    path: str, hostname: Optional[str], start_time: Optional[float]
+) -> bool:
+    """Check if a path is a tfevents file.
+
+    Optionally checks that it was created by [hostname] after [start_time].
 
     tensorboard tfevents filename format:
         https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
-    tensorflow tfevents fielname format:
+    tensorflow tfevents filename format:
         https://github.com/tensorflow/tensorflow/blob/8f597046dc30c14b5413813d02c0e0aed399c177/tensorflow/core/util/events_writer.cc#L68
     """
     if not path:
@@ -78,23 +81,27 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     except ValueError:
         return False
     # check the hostname, which may have dots
-    for i, part in enumerate(hostname.split(".")):
+    if hostname is not None:
+        for i, part in enumerate(hostname.split(".")):
+            try:
+                fname_component_part = fname_components[tfevents_idx + 2 + i]
+            except IndexError:
+                return False
+            if part != fname_component_part:
+                return False
+    if start_time is not None:
         try:
-            fname_component_part = fname_components[tfevents_idx + 2 + i]
-        except IndexError:
+            created_time = int(fname_components[tfevents_idx + 1])
+        except (ValueError, IndexError):
             return False
-        if part != fname_component_part:
+        # Ensure that the file is newer then our start time, and that it was
+        # created from the same hostname.
+        # TODO: we should also check the PID (also contained in the tfevents
+        #     filename). Can we assume that our parent pid is the user process
+        #     that wrote these files?
+        if created_time < int(start_time):
             return False
-    try:
-        created_time = int(fname_components[tfevents_idx + 1])
-    except (ValueError, IndexError):
-        return False
-    # Ensure that the file is newer then our start time, and that it was
-    # created from the same hostname.
-    # TODO: we should also check the PID (also contained in the tfevents
-    #     filename). Can we assume that our parent pid is the user process
-    #     that wrote these files?
-    return created_time >= int(start_time)
+    return True
 
 
 class TBWatcher:
@@ -109,7 +116,7 @@ class TBWatcher:
         force: bool = False,
     ) -> None:
         self._logdirs = {}
-        self._consumer: Optional["TBEventConsumer"] = None
+        self._consumer: Optional[TBEventConsumer] = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
@@ -127,14 +134,17 @@ class TBWatcher:
         else:
             filename = ""
 
-        if rootdir == ".":
-            rootdir = LogicalPath(os.path.dirname(os.path.commonprefix(dirs)))
+        if rootdir == "":
+            rootdir = util.to_forward_slash_path(
+                os.path.dirname(os.path.commonprefix(dirs))
+            )
             # Tensorboard loads all tfevents files in a directory and prepends
             # their values with the path. Passing namespace to log allows us
             # to nest the values in wandb
             # Note that we strip '/' instead of os.sep, because elsewhere we've
             # converted paths to forward slash.
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
+
             # TODO: revisit this heuristic, it exists because we don't know the
             # root log directory until more than one tfevents file is written to
             if len(dirs) == 1 and namespace not in ["train", "validation"]:
@@ -145,8 +155,8 @@ class TBWatcher:
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:
-        logdir = LogicalPath(logdir)
-        root_dir = LogicalPath(root_dir)
+        logdir = util.to_forward_slash_path(logdir)
+        root_dir = util.to_forward_slash_path(root_dir)
         if logdir in self._logdirs:
             return
         namespace = self._calculate_namespace(logdir, root_dir)
@@ -216,12 +226,13 @@ class TBDirWatcher:
         """Check if a path has been modified since launch and contains tfevents."""
         if not path:
             raise ValueError("Path must be a nonempty string")
-        if self._force:
-            return True
         path = self.tf_compat.tf.compat.as_str_any(path)
-        return is_tfevents_file_created_by(
-            path, self._hostname, self._tbwatcher._settings._start_time
-        )
+        if self._force:
+            return is_tfevents_file_created_by(path, None, None)
+        else:
+            return is_tfevents_file_created_by(
+                path, self._hostname, self._tbwatcher._settings._start_time
+            )
 
     def _loader(
         self, save: bool = True, namespace: Optional[str] = None
@@ -355,7 +366,7 @@ class TBEventConsumer:
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
         def datatypes_cb(fname: GlobStr) -> None:
-            files: "FilesDict" = dict(files=[(fname, "now")])
+            files: FilesDict = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
         # this is only used for logging artifacts

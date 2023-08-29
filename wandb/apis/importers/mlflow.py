@@ -1,97 +1,161 @@
-from typing import Any, Dict, Iterable, Optional
+import re
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+from unittest.mock import patch
 
-from wandb.util import get_module
+from packaging.version import Version  # type: ignore
+from tqdm.auto import tqdm
 
-from .base import Importer, ImporterRun
+import wandb
+from wandb import Artifact
+from wandb.util import coalesce, get_module
+
+from .base import ImporterRun, send_run_with_send_manager
+
+with patch("click.echo"):
+    from wandb.apis.reports import Report
 
 mlflow = get_module(
     "mlflow",
     required="To use the MlflowImporter, please install mlflow: `pip install mlflow`",
 )
 
+mlflow_version = Version(mlflow.__version__)
 
-class MlflowRun(ImporterRun):
+
+class MlflowRun:
     def __init__(self, run, mlflow_client):
         self.run = run
         self.mlflow_client = mlflow_client
-        super().__init__()
 
-    def run_id(self):
+    def run_id(self) -> str:
         return self.run.info.run_id
 
-    def entity(self):
+    def entity(self) -> str:
         return self.run.info.user_id
 
-    def project(self):
+    def project(self) -> str:
         return "imported-from-mlflow"
 
-    def config(self):
+    def config(self) -> Dict[str, Any]:
         return self.run.data.params
 
-    def summary(self):
+    def summary(self) -> Dict[str, float]:
         return self.run.data.metrics
 
-    def metrics(self):
-        def wandbify(metrics):
-            for step, t in enumerate(metrics):
-                d = {m.key: m.value for m in t}
-                d["_step"] = step
-                yield d
+    def metrics(self) -> Iterable[Dict[str, float]]:
+        d: Dict[int, Dict[str, float]] = defaultdict(dict)
+        for k in self.run.data.metrics.keys():
+            metric = self.mlflow_client.get_metric_history(self.run.info.run_id, k)
+            for item in metric:
+                d[item.step][item.key] = item.value
 
-        metrics = [
-            self.mlflow_client.get_metric_history(self.run.info.run_id, k)
-            for k in self.run.data.metrics.keys()
-        ]
-        metrics = zip(*metrics)  # transpose
-        return wandbify(metrics)
+        for k, v in d.items():
+            yield {"_step": k, **v}
 
-        # Alternate: Might be slower but use less mem
-        # Can't make this a generator.  See mlflow get_metric_history internals
-        # https://github.com/mlflow/mlflow/blob/master/mlflow/tracking/_tracking_service/client.py#L74-L93
-        # for k in self.run.data.metrics.keys():
-        #     history = self.mlflow_client.get_metric_history(self.run.info.run_id, k)
-        #     yield wandbify(history)
-
-    def run_group(self):
+    def run_group(self) -> Optional[str]:
         # this is nesting?  Parent at `run.info.tags.get("mlflow.parentRunId")`
         return f"Experiment {self.run.info.experiment_id}"
 
-    def job_type(self):
+    def job_type(self) -> Optional[str]:
         # Is this the right approach?
         return f"User {self.run.info.user_id}"
 
-    def display_name(self):
+    def display_name(self) -> str:
+        if mlflow_version < Version("1.30.0"):
+            return self.run.data.tags["mlflow.runName"]
         return self.run.info.run_name
 
-    def notes(self):
+    def notes(self) -> Optional[str]:
         return self.run.data.tags.get("mlflow.note.content")
 
-    def tags(self):
-        return {
+    def tags(self) -> Optional[List[str]]:
+        mlflow_tags = {
             k: v for k, v in self.run.data.tags.items() if not k.startswith("mlflow.")
         }
+        return [f"{k}={v}" for k, v in mlflow_tags.items()]
 
-    def start_time(self):
-        return self.run.info.start_time // 1000
+    def artifacts(self) -> Optional[Iterable[Artifact]]:
+        if mlflow_version < Version("2.0.0"):
+            dir_path = self.mlflow_client.download_artifacts(
+                run_id=self.run.info.run_id, path=""
+            )
+        else:
+            dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
 
-    def runtime(self):
-        return self.run.info.end_time // 1_000 - self.start_time()
+        artifact_name = self._handle_incompatible_strings(self.display_name())
+        art = wandb.Artifact(artifact_name, "imported-artifacts")
+        art.add_dir(dir_path)
 
-    def git(self):
+        return [art]
+
+    def used_artifacts(self) -> Optional[Iterable[Artifact]]:
         ...
 
-    def artifacts(self):
-        for f in self.mlflow_client.list_artifacts(self.run.info.run_id):
-            dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
-            full_path = dir_path + f.path
-            yield (f.path, full_path)
+    def os_version(self) -> Optional[str]:
+        ...
+
+    def python_version(self) -> Optional[str]:
+        ...
+
+    def cuda_version(self) -> Optional[str]:
+        ...
+
+    def program(self) -> Optional[str]:
+        ...
+
+    def host(self) -> Optional[str]:
+        ...
+
+    def username(self) -> Optional[str]:
+        ...
+
+    def executable(self) -> Optional[str]:
+        ...
+
+    def gpus_used(self) -> Optional[str]:
+        ...
+
+    def cpus_used(self) -> Optional[int]:  # can we get the model?
+        ...
+
+    def memory_used(self) -> Optional[int]:
+        ...
+
+    def runtime(self) -> Optional[int]:
+        end_time = (
+            self.run.info.end_time // 1000
+            if self.run.info.end_time is not None
+            else self.start_time()
+        )
+        return end_time - self.start_time()
+
+    def start_time(self) -> Optional[int]:
+        return self.run.info.start_time // 1000
+
+    def code_path(self) -> Optional[str]:
+        ...
+
+    def cli_version(self) -> Optional[str]:
+        ...
+
+    def files(self) -> Optional[Iterable[Tuple[str, str]]]:
+        ...
+
+    def logs(self) -> Optional[Iterable[str]]:
+        ...
+
+    @staticmethod
+    def _handle_incompatible_strings(s: str) -> str:
+        valid_chars = r"[^a-zA-Z0-9_\-\.]"
+        replacement = "__"
+
+        return re.sub(valid_chars, replacement, s)
 
 
-class MlflowImporter(Importer):
-    def __init__(
-        self, mlflow_tracking_uri, mlflow_registry_uri=None, wandb_base_url=None
-    ) -> None:
-        super().__init__()
+class MlflowImporter:
+    def __init__(self, mlflow_tracking_uri, mlflow_registry_uri=None) -> None:
         self.mlflow_tracking_uri = mlflow_tracking_uri
 
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
@@ -99,15 +163,68 @@ class MlflowImporter(Importer):
             mlflow.set_registry_uri(mlflow_registry_uri)
         self.mlflow_client = mlflow.tracking.MlflowClient(mlflow_tracking_uri)
 
-    def import_one(
+    def collect_runs(self, limit: Optional[int] = None) -> Iterable[MlflowRun]:
+        if mlflow_version < Version("1.28.0"):
+            experiments = self.mlflow_client.list_experiments()
+        else:
+            experiments = self.mlflow_client.search_experiments()
+
+        runs = (
+            run
+            for exp in experiments
+            for run in self.mlflow_client.search_runs(exp.experiment_id)
+        )
+        for i, run in enumerate(runs):
+            if limit and i >= limit:
+                break
+            yield MlflowRun(run, self.mlflow_client)
+
+    def import_run(
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-        super().import_one(run, overrides)
+        send_run_with_send_manager(run, overrides)
 
-    def download_all_runs(self) -> Iterable[MlflowRun]:
-        for exp in self.mlflow_client.search_experiments():
-            for run in self.mlflow_client.search_runs(exp.experiment_id):
-                yield MlflowRun(run, self.mlflow_client)
+    def import_runs(
+        self,
+        runs: Iterable[ImporterRun],
+        overrides: Optional[Dict[str, Any]] = None,
+        pool_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        _overrides = coalesce(overrides, {})
+        _pool_kwargs = coalesce(pool_kwargs, {})
+        runs = list(self.collect_runs())
+
+        with ThreadPoolExecutor(**_pool_kwargs) as exc:
+            futures = {
+                exc.submit(self.import_run, run, overrides=_overrides): run
+                for run in runs
+            }
+            with tqdm(desc="Importing runs", total=len(futures), unit="run") as pbar:
+                for future in as_completed(futures):
+                    run = futures[future]
+                    try:
+                        future.result()
+                    except Exception as e:
+                        wandb.termerror(f"Failed to import {run.display_name()}: {e}")
+                        raise e
+                    else:
+                        pbar.set_description(
+                            f"Imported Run: {run.run_group()} {run.display_name()}"
+                        )
+                    finally:
+                        pbar.update(1)
+
+    def import_all_runs(
+        self,
+        limit: Optional[int] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        pool_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        runs = self.collect_runs(limit)
+        self.import_runs(runs, overrides, pool_kwargs)
+
+    def import_report(self, report: Report):
+        raise NotImplementedError("MLFlow does not have a reports concept")

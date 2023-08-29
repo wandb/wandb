@@ -18,7 +18,7 @@ from click.testing import CliRunner  # noqa: E402
 from wandb import Api  # noqa: E402
 from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
 from wandb.sdk.lib import filesystem, runid  # noqa: E402
-from wandb.sdk.lib.git import GitRepo  # noqa: E402
+from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
 from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 # --------------------------------
@@ -249,3 +249,19 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
 
     yield mock_run_fn
     unset_globals()
+
+
+@pytest.fixture
+def example_file(tmp_path: Path) -> Path:
+    new_file = tmp_path / "test.txt"
+    new_file.write_text("hello")
+    return new_file
+
+
+@pytest.fixture
+def example_files(tmp_path: Path) -> Path:
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(3):
+        (artifact_dir / f"artifact_{i}.txt").write_text(f"file-{i}")
+    return artifact_dir

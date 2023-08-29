@@ -72,23 +72,25 @@ def test_project_fill_macros():
         git_info={},
         resource="local-container",
         resource_args={
-            "labels": [
-                {"key": "wandb-project", "value": "${project_name}"},
-                {"key": "wandb-entity", "value": "${entity_name}"},
-            ],
-            "jobName": "launch-job-${run_id}",
-            "gpus": "${CUDA_VISIBLE_DEVICES}",
-            "image": "${image_uri}",
+            "kubernetes": {
+                "labels": [
+                    {"key": "wandb-project", "value": "${project_name}"},
+                    {"key": "wandb-entity", "value": "${entity_name}"},
+                ],
+                "jobName": "launch-job-${run_id}",
+                "gpus": "${CUDA_VISIBLE_DEVICES}",
+                "image": "${image_uri}",
+            }
         },
         uri=None,
         name=None,
         run_id="my-run-id",
     )
-    project.fill_macros("my-custom-image")
-    assert project.resource_args["labels"] == [
+    resource_args = project.fill_macros("my-custom-image")
+    assert resource_args["kubernetes"]["labels"] == [
         {"key": "wandb-project", "value": "mock-test-project"},
         {"key": "wandb-entity", "value": "mock-test-entity"},
     ]
-    assert project.resource_args["jobName"] == "launch-job-my-run-id"
-    assert project.resource_args["gpus"] == "0,1,2,3"
-    assert project.resource_args["image"] == "my-custom-image"
+    assert resource_args["kubernetes"]["jobName"] == "launch-job-my-run-id"
+    assert resource_args["kubernetes"]["gpus"] == "0,1,2,3"
+    assert resource_args["kubernetes"]["image"] == "my-custom-image"

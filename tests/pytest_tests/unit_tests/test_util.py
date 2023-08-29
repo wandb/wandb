@@ -161,6 +161,41 @@ def test_bfloat16_to_float():
 
 
 ###############################################################################
+# Test util.json_friendly_val
+###############################################################################
+
+
+def test_dataclass():
+    from dataclasses import dataclass
+
+    @dataclass
+    class TestDataClass:
+        test: bool
+
+    test_dataclass = TestDataClass(True)
+    converted = util.json_friendly_val({"test": test_dataclass})
+    assert isinstance(converted["test"], dict)
+
+
+def test_nested_dataclasses():
+    from dataclasses import dataclass
+
+    @dataclass
+    class TestDataClass:
+        test: bool
+
+    @dataclass
+    class TestDataClassHolder:
+        test_dataclass: TestDataClass
+
+    nested_dataclass = TestDataClassHolder(TestDataClass(False))
+    converted = util.json_friendly_val({"nested_dataclass": nested_dataclass})
+    assert isinstance(converted["nested_dataclass"], dict)
+    assert isinstance(converted["nested_dataclass"]["test_dataclass"], dict)
+    assert converted["nested_dataclass"]["test_dataclass"]["test"] is False
+
+
+###############################################################################
 # Test util.make_json_if_not_number
 ###############################################################################
 

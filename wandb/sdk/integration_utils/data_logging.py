@@ -84,7 +84,7 @@ class ValidationDataLogger:
             infer_missing_processors: Determines if processors are inferred if
                 they are missing. Defaults to True.
         """
-        class_labels_table: Optional["wandb.Table"]
+        class_labels_table: Optional[wandb.Table]
         if isinstance(class_labels, list) and len(class_labels) > 0:
             class_labels_table = wandb.Table(
                 columns=["label"], data=[[label] for label in class_labels]
@@ -223,7 +223,7 @@ def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
 def _get_example_shape(example: Union[Sequence, Any]):
     """Get the shape of an object if applicable."""
     shape = []
-    if type(example) is not str and hasattr(example, "__len__"):
+    if not isinstance(example, str) and hasattr(example, "__len__"):
         length = len(example)
         shape = [length]
         if length > 0:
