@@ -7,7 +7,7 @@ orbs:
   gcloud: circleci/gcp-cli@3.1.0
   gke: circleci/gcp-gke@2.1.0
   codecov: codecov/codecov@3
-  aws-cli: circleci/aws-cli@4.0.0
+  aws-cli: circleci/aws-cli@4.1.0
 
 parameters:
   manual:
@@ -625,6 +625,7 @@ jobs:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     resource_class: small
     working_directory: /mnt/ramdisk/wandb
+    executor: aws-cli/default
     steps:
       - checkout
       - add_ssh_keys:
