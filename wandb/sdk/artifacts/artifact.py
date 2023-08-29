@@ -2000,11 +2000,6 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._ttl_duration_seconds is not None:
-            termwarn(
-                "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
-            )
-
         if wandb.run is None:
             with wandb.init(
                 entity=self._source_entity,
