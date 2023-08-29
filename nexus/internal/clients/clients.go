@@ -82,3 +82,9 @@ func WithRetryClientHttpTimeout(timeout time.Duration) RetryClientOption {
 		rc.HTTPClient.Timeout = timeout
 	}
 }
+
+func WithRetryClientRetryPolicy(retryPolicy retryablehttp.CheckRetry) RetryClientOption {
+	return func(rc *retryablehttp.Client) {
+		rc.CheckRetry = retryPolicy
+	}
+}

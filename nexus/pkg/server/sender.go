@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +89,44 @@ func emptyAsNil(s *string) *string {
 	return s
 }
 
+func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	// dont retry on context errors
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	// dont retry on 4xx errors
+	if resp.StatusCode >= 100 && resp.StatusCode < 500 {
+		// don't retry on a 400 bad request
+		if resp.StatusCode == http.StatusBadRequest {
+			return false, fmt.Errorf("bad request")
+		}
+		// don't retry on a 401 unauthorized
+		if resp.StatusCode == http.StatusUnauthorized {
+			return false, fmt.Errorf("unauthorized")
+		}
+		// don't retry on a 403 forbidden
+		if resp.StatusCode == http.StatusForbidden {
+			return false, fmt.Errorf("forbidden")
+		}
+		// don't retry on a 404 not found
+		if resp.StatusCode == http.StatusNotFound {
+			return false, fmt.Errorf("not found")
+		}
+		return true, nil
+	}
+
+	if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
+		return true, fmt.Errorf("unexpected HTTP status %s", resp.Status)
+	}
+
+	return false, nil
+}
+
 // NewSender creates a new Sender with the given settings
 func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
 
@@ -106,9 +145,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		retryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientHttpAuthTransport(settings.GetApiKey().GetValue()),
+			clients.WithRetryClientRetryPolicy(CheckRetry),
 		)
-		httpClient := retryClient.StandardClient()
-		sender.graphqlClient = graphql.NewClient(url, httpClient)
+		sender.graphqlClient = graphql.NewClient(url, retryClient.StandardClient())
 	}
 	return sender
 }
