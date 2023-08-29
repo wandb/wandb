@@ -166,7 +166,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		retryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientHttpAuthTransport(settings.GetApiKey().GetValue()),
-			//clients.WithRetryClientRetryPolicy(CheckRetry),
+			clients.WithRetryClientRetryPolicy(CheckRetry),
 		)
 		sender.graphqlClient = graphql.NewClient(url, retryClient.StandardClient())
 	}
@@ -464,9 +464,9 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		program := s.settings.GetProgram().GetValue()
 		// start a new context with an additional argument from the parent context
 		// this is used to pass the retry function to the graphql client
-		ctx := context.WithValue(s.ctx, CtxRetryFuncKey, UpsertBucketRetryPolicy)
+		//ctx := context.WithValue(s.ctx, CtxRetryFuncKey, UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
-			ctx,                          // ctx
+			s.ctx,                        // ctx
 			s.graphqlClient,              // client
 			nil,                          // id
 			&run.RunId,                   // name
