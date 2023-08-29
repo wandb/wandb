@@ -179,8 +179,8 @@ def assertion(run_id, found, stderr):
         (None, False),
     ],
 )
-def test_offline_resume(test_settings, capsys, resume, found):
-    run = wandb.init(mode="offline", resume=resume, settings=test_settings())
+def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
+    run = wandb_init(mode="offline", resume=resume, settings=test_settings())
     captured = capsys.readouterr()
     assert assertion(run.id, found, captured.err)
     run.finish()
