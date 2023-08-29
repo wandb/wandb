@@ -381,7 +381,7 @@ class WandbStoragePolicy(StoragePolicy):
         )
         if not hit:
             try:
-                with cache_open() as f:
-                    shutil.copyfile(entry.local_path, f.name)
+                with cache_open("wb") as f, open(entry.local_path, "rb") as src:
+                    shutil.copyfileobj(src, f)
             except OSError as e:
                 termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
