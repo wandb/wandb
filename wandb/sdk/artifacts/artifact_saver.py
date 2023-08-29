@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
@@ -68,7 +68,6 @@ class ArtifactSaver:
         ttl_duration_seconds: Optional[int] = None,
         description: Optional[str] = None,
         aliases: Optional[Sequence[str]] = None,
-        labels: Optional[List[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
@@ -86,7 +85,6 @@ class ArtifactSaver:
                 ttl_duration_seconds,
                 description,
                 aliases,
-                labels,
                 use_after_commit,
                 incremental,
                 history_step,
@@ -107,31 +105,14 @@ class ArtifactSaver:
         ttl_duration_seconds: Optional[int] = None,
         description: Optional[str] = None,
         aliases: Optional[Sequence[str]] = None,
-        labels: Optional[List[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
     ) -> Optional[Dict]:
-        aliases = aliases or []
         alias_specs = []
-        for alias in aliases:
-            if ":" in alias:
-                # Users can explicitly alias this artifact to names
-                # other than the primary one passed in by using the
-                # 'secondaryName:alias' notation.
-                idx = alias.index(":")
-                artifact_collection_name = alias[: idx - 1]
-                tag = alias[idx + 1 :]
-            else:
-                artifact_collection_name = name
-                tag = alias
-            alias_specs.append(
-                {
-                    "artifactCollectionName": artifact_collection_name,
-                    "alias": tag,
-                }
-            )
+        for alias in aliases or []:
+            alias_specs.append({"artifactCollectionName": name, "alias": alias})
 
         """Returns the server artifact."""
         self._server_artifact, latest = self._api.create_artifact(
@@ -141,13 +122,11 @@ class ArtifactSaver:
             metadata=metadata,
             ttl_duration_seconds=ttl_duration_seconds,
             aliases=alias_specs,
-            labels=labels,
             description=description,
             is_user_created=self._is_user_created,
             distributed_id=distributed_id,
             client_id=client_id,
             sequence_client_id=sequence_client_id,
-            enable_digest_deduplication=use_after_commit,  # Reuse logical duplicates in the `use_artifact` flow
             history_step=history_step,
         )
 
@@ -163,7 +142,7 @@ class ArtifactSaver:
             self._server_artifact["state"] == "COMMITTED"
             or self._server_artifact["state"] == "COMMITTING"
         ):
-            # TODO: update aliases, labels, description etc?
+            # TODO: update aliases, description etc?
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
             return self._server_artifact

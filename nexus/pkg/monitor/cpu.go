@@ -19,15 +19,11 @@ type CPU struct {
 }
 
 func NewCPU(settings *service.Settings) *CPU {
-	metrics := map[string][]float64{}
-
-	processor := &CPU{
+	return &CPU{
 		name:     "cpu",
-		metrics:  metrics,
+		metrics:  map[string][]float64{},
 		settings: settings,
 	}
-
-	return processor
 }
 
 func (c *CPU) Name() string { return c.name }
