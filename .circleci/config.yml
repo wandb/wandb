@@ -628,7 +628,6 @@ jobs:
     # docker:
     #   - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     # resource_class: small
-    working_directory: /mnt/ramdisk/wandb
     steps:
       - checkout
       - add_ssh_keys:
@@ -650,7 +649,7 @@ jobs:
                 name: Setup environment
                 command: |
                   aws ecr get-login-password --region us-east-2
-                  pip3 install /mnt/ramdisk/wandb
+                  pip3 install ./project
                   wandb login $WANDB_API_KEY
                   python3 ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
                 no_output_timeout: 30m
