@@ -48,9 +48,9 @@ def test_log_code_custom_root(wandb_init):
 
 
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
-def test_invalid_project_name(user, project_name):
+def test_invalid_project_name(wandb_init, project_name):
     with pytest.raises(UsageError) as e:
-        wandb.init(project=project_name)
+        wandb_init(project=project_name)
         assert 'Invalid project name "{project_name}"' in str(e.value)
 
 
@@ -59,8 +59,9 @@ def test_resume_must_failure(wandb_init):
         wandb_init(reinit=True, resume="must")
 
 
-def test_unlogged_artifact_in_config(user, test_settings):
-    run = wandb.init(settings=test_settings())
+@pytest.mark.nexus_failure(feature="artifacts")
+def test_unlogged_artifact_in_config(wandb_init, test_settings):
+    run = wandb_init(settings=test_settings())
     artifact = wandb.Artifact("my-arti", type="dataset")
     with pytest.raises(Exception) as e_info:
         run.config.dataset = artifact
@@ -71,9 +72,9 @@ def test_unlogged_artifact_in_config(user, test_settings):
     run.finish()
 
 
-def test_media_in_config(runner, user, test_settings):
+def test_media_in_config(runner, wandb_init, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings())
+        run = wandb_init(settings=test_settings())
         with pytest.raises(ValueError):
             run.config["image"] = wandb.Image(np.random.randint(0, 255, (100, 100, 3)))
         run.finish()
@@ -93,18 +94,18 @@ def test_init_with_settings(wandb_init, test_settings):
     run.finish()
 
 
-def test_attach_same_process(user, test_settings):
+def test_attach_same_process(wandb_init, test_settings):
     with pytest.raises(RuntimeError) as excinfo:
-        run = wandb.init(settings=test_settings())
+        run = wandb_init(settings=test_settings())
         new_run = pickle.loads(pickle.dumps(run))
         new_run.log({"a": 2})
     run.finish()
     assert "attach in the same process is not supported" in str(excinfo.value)
 
 
-def test_deprecated_feature_telemetry(relay_server, test_settings, user):
+def test_deprecated_feature_telemetry(wandb_init, relay_server, test_settings, user):
     with relay_server() as relay:
-        run = wandb.init(
+        run = wandb_init(
             config_include_keys=("lol",),
             settings=test_settings(),
         )
@@ -127,7 +128,7 @@ def test_deprecated_feature_telemetry(relay_server, test_settings, user):
         )
 
 
-def test_except_hook(test_settings):
+def test_except_hook(wandb_init, test_settings):
     # Test to make sure we respect excepthooks by 3rd parties like pdb
     errs = []
 
@@ -142,7 +143,7 @@ def test_except_hook(test_settings):
 
     raise_(Exception("Before wandb.init()"))
 
-    run = wandb.init(mode="offline", settings=test_settings())
+    run = wandb_init(mode="offline", settings=test_settings())
 
     old_stderr_write = sys.stderr.write
     stderr = []
@@ -179,8 +180,8 @@ def assertion(run_id, found, stderr):
         (None, False),
     ],
 )
-def test_offline_resume(test_settings, capsys, resume, found):
-    run = wandb.init(mode="offline", resume=resume, settings=test_settings())
+def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
+    run = wandb_init(mode="offline", resume=resume, settings=test_settings())
     captured = capsys.readouterr()
     assert assertion(run.id, found, captured.err)
     run.finish()

@@ -286,7 +286,7 @@ class HandleManager:
                 if best_key:
                     _dict_nested_set(self._consolidated_summary, best_key, v)
                     updated = True
-        # defaulting to minimize if goal is not supecified
+        # defaulting to minimize if goal is not specified
         if s.min or best_key and not goal_max:
             min_key = tuple(kl + ["min"])
             old_min = self._metric_track.get(min_key)

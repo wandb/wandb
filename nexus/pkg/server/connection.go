@@ -231,6 +231,9 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 		if s.GetApiKey().GetValue() != "" {
 			return
 		}
+		if s.GetXOffline().GetValue() {
+			return
+		}
 		baseUrl := s.GetBaseUrl().GetValue()
 		u, err := url.Parse(baseUrl)
 		if err != nil {
