@@ -205,7 +205,6 @@ class WandbRun:
             return []
 
         for art in self._used_artifacts:
-            name, ver = art.name.split(":v")
             with patch("click.echo"):
                 try:
                     path = art.download()
@@ -546,7 +545,7 @@ class WandbImporter:
         arts = _add_placeholders(sequence)
         art = arts[0]
         _type = art.type
-        name, _ = art.name.split(":")
+        name, *_ = art.name.split(":v")
 
         task = progress.subtask_pbar.add_task(
             f"Artifact Sequence ({_type}/{name})", total=len(arts)
@@ -923,8 +922,7 @@ class WandbImporter:
 
 
 def _get_art_version(art: wandb.Artifact) -> int:
-    _, ver = art.name.split(":")
-    ver = ver[1:]
+    _, ver = art.name.split(":v")
     return int(ver)
 
 
