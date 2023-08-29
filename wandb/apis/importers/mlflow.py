@@ -1,20 +1,18 @@
 import re
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
 
 from packaging.version import Version  # type: ignore
-from tqdm.auto import tqdm
 
 import wandb
-from wandb import Artifact
-from wandb.util import coalesce, get_module
+from wandb.util import get_module
 
-from .base import ImporterRun, send_run_with_send_manager
+from . import internal, protocols
+from .config import ImportConfig
 
 with patch("click.echo"):
-    from wandb.apis.reports import Report
+    pass
 
 mlflow = get_module(
     "mlflow",
@@ -76,7 +74,7 @@ class MlflowRun:
         }
         return [f"{k}={v}" for k, v in mlflow_tags.items()]
 
-    def artifacts(self) -> Optional[Iterable[Artifact]]:
+    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
         if mlflow_version < Version("2.0.0"):
             dir_path = self.mlflow_client.download_artifacts(
                 run_id=self.run.info.run_id, path=""
@@ -90,7 +88,7 @@ class MlflowRun:
 
         return [art]
 
-    def used_artifacts(self) -> Optional[Iterable[Artifact]]:
+    def used_artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
         ...
 
     def os_version(self) -> Optional[str]:
@@ -163,6 +161,8 @@ class MlflowImporter:
             mlflow.set_registry_uri(mlflow_registry_uri)
         self.mlflow_client = mlflow.tracking.MlflowClient(mlflow_tracking_uri)
 
+    import_runs = protocols.import_runs
+
     def collect_runs(self, limit: Optional[int] = None) -> Iterable[MlflowRun]:
         if mlflow_version < Version("1.28.0"):
             experiments = self.mlflow_client.list_experiments()
@@ -179,52 +179,23 @@ class MlflowImporter:
                 break
             yield MlflowRun(run, self.mlflow_client)
 
-    def import_run(
-        self,
-        run: ImporterRun,
-        overrides: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    def import_run(self, run: MlflowRun, config: Optional[ImportConfig]) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-        send_run_with_send_manager(run, overrides)
 
-    def import_runs(
-        self,
-        runs: Iterable[ImporterRun],
-        overrides: Optional[Dict[str, Any]] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        _overrides = coalesce(overrides, {})
-        _pool_kwargs = coalesce(pool_kwargs, {})
-        runs = list(self.collect_runs())
+        if config is None:
+            config = ImportConfig()
 
-        with ThreadPoolExecutor(**_pool_kwargs) as exc:
-            futures = {
-                exc.submit(self.import_run, run, overrides=_overrides): run
-                for run in runs
-            }
-            with tqdm(desc="Importing runs", total=len(futures), unit="run") as pbar:
-                for future in as_completed(futures):
-                    run = futures[future]
-                    try:
-                        future.result()
-                    except Exception as e:
-                        wandb.termerror(f"Failed to import {run.display_name()}: {e}")
-                        raise e
-                    else:
-                        pbar.set_description(
-                            f"Imported Run: {run.run_group()} {run.display_name()}"
-                        )
-                    finally:
-                        pbar.update(1)
+        _overrides = {}
+        if config.entity:
+            _overrides["entity"] = config.entity
+        if config.project:
+            _overrides["project"] = config.project
 
-    def import_all_runs(
-        self,
-        limit: Optional[int] = None,
-        overrides: Optional[Dict[str, Any]] = None,
-        pool_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        runs = self.collect_runs(limit)
-        self.import_runs(runs, overrides, pool_kwargs)
+        sm_config = internal.SendManagerConfig(
+            log_artifacts=True,
+            metadata=True,
+            history=True,
+            summary=True,
+        )
 
-    def import_report(self, report: Report):
-        raise NotImplementedError("MLFlow does not have a reports concept")
+        internal.send_run_with_send_manager(run, overrides=_overrides, config=sm_config)
