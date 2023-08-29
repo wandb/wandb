@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <libwandb.h>
-#include <libwandbcore.h>
+#include <libwandb_core.h>
 
 void wandb_setup() {
     wandbcoreSetup();

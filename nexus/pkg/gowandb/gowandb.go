@@ -1,7 +1,7 @@
 // package gowandb implements the go Weights & Biases SDK
 package gowandb
 
-type History map[string]float64
+type History map[string]interface{}
 
 func NewSession(opts ...SessionOption) (*Session, error) {
 	session := &Session{}

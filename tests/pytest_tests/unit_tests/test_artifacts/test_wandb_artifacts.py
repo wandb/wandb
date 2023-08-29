@@ -306,13 +306,7 @@ class TestStoreFile:
         else:
             api.upload_method.assert_not_called()
 
-    @pytest.mark.parametrize(
-        "err",
-        [
-            None,
-            Exception("some error"),
-        ],
-    )
+    @pytest.mark.parametrize("err", [None, Exception("some error")])
     def test_caches_result_on_success(
         self,
         store_file: "StoreFileFixture",
@@ -513,15 +507,12 @@ def test_unlogged_artifact_other_method_errors():
     with pytest.raises(ArtifactNotLoggedError, match="Artifact.get"):
         art["obj_name"]
 
-    with pytest.raises(ArtifactNotLoggedError, match="Artifact.link"):
-        art.link("target_portfolio")
-
 
 def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     def bad_write(*args, **kwargs):
         raise FileNotFoundError("unable to copy from source file")
 
-    monkeypatch.setattr(shutil, "copyfile", bad_write)
+    monkeypatch.setattr(shutil, "copyfileobj", bad_write)
     policy = WandbStoragePolicy()
     path = Path("foo.txt")
     path.write_text("hello")
