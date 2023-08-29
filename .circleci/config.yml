@@ -633,8 +633,8 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - aws-cli/setup:
-                role_arn: [TODO get role arn]
                 region: us-east-2
+                role_arn: $AWS_ROLE_ARN
                 profile_name: launch_release_tests
             - run:
                 name: Setup environment
@@ -645,7 +645,7 @@ jobs:
                   echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
                   source ~/.bashrc
                   aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 305054156030.dkr.ecr.us-east-2.amazonaws.com
-                  wandb login [TODO get SA api key]
+                  wandb login $WANDB_API_KEY
                   python ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
                 no_output_timeout: 30m
             - run:
