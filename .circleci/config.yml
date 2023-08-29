@@ -637,9 +637,10 @@ jobs:
                 region: us-east-2
                 profile_name: launch_release_tests
             - run:
-                name: Install Docker
+                name: Install and start Docker
                 command: |
                   apt-get update && apt install -y docker.io
+                  systemctl start docker
                 no_output_timeout: 5m
             - run:
                 name: Setup environment
