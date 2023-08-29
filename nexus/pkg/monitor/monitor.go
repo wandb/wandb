@@ -203,7 +203,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 }
 
 func (sm *SystemMonitor) Stop() {
-	if sm == nil {
+	if sm == nil || sm.cancel == nil {
 		return
 	}
 	sm.logger.Info("Stopping system monitor")
