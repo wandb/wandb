@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/nexus/internal/clients"
 
@@ -100,7 +101,7 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 
 func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	fmt.Println("IMMA UPSERT BUCKET RETRY FUNC", ctx, resp, err)
-	return false, nil
+	return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 }
 
 func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
