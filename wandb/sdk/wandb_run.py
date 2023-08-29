@@ -99,7 +99,6 @@ if TYPE_CHECKING:
 
     import wandb.apis.public
     import wandb.sdk.backend.backend
-    import wandb.sdk.interface.interface_grpc
     import wandb.sdk.interface.interface_queue
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
@@ -480,10 +479,7 @@ class Run:
     # Use string literal annotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
     _internal_run_interface: Optional[
-        Union[
-            "wandb.sdk.interface.interface_queue.InterfaceQueue",
-            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
-        ]
+        "wandb.sdk.interface.interface_queue.InterfaceQueue"
     ]
     _wl: Optional[_WandbSetup]
 
@@ -1445,10 +1441,7 @@ class Run:
 
     def _set_internal_run_interface(
         self,
-        interface: Union[
-            "wandb.sdk.interface.interface_queue.InterfaceQueue",
-            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
-        ],
+        interface: "wandb.sdk.interface.interface_queue.InterfaceQueue",
     ) -> None:
         self._internal_run_interface = interface
 
@@ -2641,9 +2634,12 @@ class Run:
                     entity,
                     project,
                 )
-                if not artifact._ttl_is_inherited:
+                if (
+                    artifact._ttl_duration_seconds is not None
+                    or artifact._ttl_is_inherited
+                ):
                     wandb.termwarn(
-                        "Artifact TTL will be removed for source artifacts that are linked to portfolios."
+                        "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
                     )
             else:
                 # TODO: implement offline mode + sync

@@ -37,6 +37,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -45,7 +46,6 @@ from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
 )
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
@@ -53,7 +53,8 @@ from wandb.sdk.artifacts.exceptions import (
 )
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_layout import StorageLayout
-from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.artifacts.storage_policies import WANDB_STORAGE_POLICY
+from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -134,15 +135,12 @@ class Artifact:
 
         # Internal.
         self._client: Optional[RetryingClient] = None
-        storage_layout = (
-            StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
-        )
-        self._storage_policy = WandbStoragePolicy(
-            config={
-                "storageLayout": storage_layout,
-                #  TODO: storage region
-            }
-        )
+
+        storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
+        layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
+        policy_config = {"storageLayout": layout}
+        self._storage_policy = storage_policy_cls.from_config(config=policy_config)
+
         self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
         self._added_objs: Dict[
             int, Tuple[data_types.WBValue, ArtifactManifestEntry]
@@ -185,15 +183,16 @@ class Artifact:
         self._created_at: Optional[str] = None
         self._updated_at: Optional[str] = None
         self._final: bool = False
+
         # Cache.
-        get_artifacts_cache().store_client_artifact(self)
+        artifact_cache[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
-        artifact = get_artifacts_cache().get_artifact(artifact_id)
+        artifact = artifact_cache.get(artifact_id)
         if artifact is not None:
             return artifact
 
@@ -319,7 +318,9 @@ class Artifact:
         artifact._updated_at = attrs["updatedAt"]
         artifact._final = True
         # Cache.
-        get_artifacts_cache().store_artifact(artifact)
+
+        assert artifact.id is not None
+        artifact_cache[artifact.id] = artifact
         return artifact
 
     def new_draft(self) -> "Artifact":
@@ -1989,6 +1990,7 @@ class Artifact:
             },
         )
 
+    @normalize_exceptions
     def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
@@ -2001,66 +2003,16 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        self._ensure_logged("link")
-        if not self._ttl_is_inherited:
-            termwarn(
-                "Artifact TTL will be removed for source artifacts that are linked to portfolios."
-            )
-        self._link(target_path, aliases)
-
-    @normalize_exceptions
-    def _link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
-        if ":" in target_path:
-            raise ValueError(
-                f"target_path {target_path} cannot contain `:` because it is not an "
-                f"alias."
-            )
-
-        portfolio, project, entity = util._parse_entity_project_item(target_path)
-        aliases = util._resolve_aliases(aliases)
-
-        run_entity = wandb.run.entity if wandb.run else None
-        run_project = wandb.run.project if wandb.run else None
-        entity = entity or run_entity or self.entity
-        project = project or run_project or self.project
-
-        mutation = gql(
-            """
-            mutation LinkArtifact(
-                $artifactID: ID!,
-                $artifactPortfolioName: String!,
-                $entityName: String!,
-                $projectName: String!,
-                $aliases: [ArtifactAliasInput!]
-            ) {
-                linkArtifact(
-                    input: {
-                        artifactID: $artifactID,
-                        artifactPortfolioName: $artifactPortfolioName,
-                        entityName: $entityName,
-                        projectName: $projectName,
-                        aliases: $aliases
-                    }
-                ) {
-                    versionIndex
-                }
-            }
-            """
-        )
-        assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "artifactPortfolioName": portfolio,
-                "entityName": entity,
-                "projectName": project,
-                "aliases": [
-                    {"alias": alias, "artifactCollectionName": portfolio}
-                    for alias in aliases
-                ],
-            },
-        )
+        if wandb.run is None:
+            with wandb.init(
+                entity=self._source_entity,
+                project=self._source_project,
+                job_type="auto",
+                settings=wandb.Settings(silent="true"),
+            ) as run:
+                run.link_artifact(self, target_path, aliases)
+        else:
+            wandb.run.link_artifact(self, target_path, aliases)
 
     def used_by(self) -> List[Run]:
         """Get a list of the runs that have used this artifact.

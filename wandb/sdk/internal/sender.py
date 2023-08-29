@@ -33,7 +33,7 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.sdk.artifacts import artifact_saver
+from wandb.sdk.artifacts.artifact_saver import ArtifactSaver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import (
@@ -1446,28 +1446,6 @@ class SendManager:
 
         self._respond_result(result)
 
-    def send_request_artifact_send(self, record: "Record") -> None:
-        # TODO: combine and eventually remove send_request_log_artifact()
-
-        # for now, we are using req/resp uuid for transaction id
-        # in the future this should be part of the message to handle idempotency
-        xid = record.uuid
-
-        done_msg = wandb_internal_pb2.ArtifactDoneRequest(xid=xid)
-        artifact = record.request.artifact_send.artifact
-        try:
-            res = self._send_artifact(artifact)
-            assert res, "Unable to send artifact"
-            done_msg.artifact_id = res["id"]
-            logger.info(f"logged artifact {artifact.name} - {res}")
-        except Exception as e:
-            done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
-            )
-
-        logger.info("send artifact done")
-        self._interface._publish_artifact_done(done_msg)
-
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
@@ -1486,7 +1464,7 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifact_saver.ArtifactSaver(
+        saver = ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
             manifest_json=_manifest_json_from_proto(artifact.manifest),

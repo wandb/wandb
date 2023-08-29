@@ -41,7 +41,7 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *service.Settings
 
-	//	loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
 	loopbackChan chan *service.Record
 
 	// outChan is the channel for dispatcher messages
@@ -87,7 +87,7 @@ func emptyAsNil(s *string) *string {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
 
 	sender := &Sender{
 		ctx:          ctx,
@@ -95,7 +95,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		logger:       logger,
 		summaryMap:   make(map[string]*service.SummaryItem),
 		configMap:    make(map[string]interface{}),
-		loopbackChan: make(chan *service.Record, BufferSize),
+		loopbackChan: loopbackChan,
 		outChan:      make(chan *service.Result, BufferSize),
 		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
@@ -273,7 +273,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_END:
 		request.State++
 		s.respondExit(s.exitRecord)
-		close(s.loopbackChan)
+		// sender is done processing data, close our dispatch channel
 		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -291,7 +291,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 	s.loopbackChan <- rec
 }
 
-func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
+func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time

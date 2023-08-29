@@ -80,6 +80,9 @@ type Handler struct {
 	// outChan is the channel for results to the client
 	outChan chan *service.Result
 
+	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	loopbackChan chan *service.Record
+
 	// timer is used to track the run start and execution times
 	timer Timer
 
@@ -107,6 +110,7 @@ func NewHandler(
 	ctx context.Context,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
+	loopbackChan chan *service.Record,
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{
@@ -116,9 +120,10 @@ func NewHandler(
 		consolidatedSummary: make(map[string]string),
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
+		loopbackChan:        loopbackChan,
 	}
 	if !settings.GetXDisableStats().GetValue() {
-		h.systemMonitor = monitor.NewSystemMonitor(settings, logger)
+		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
 	return h
 }
@@ -128,6 +133,7 @@ func (h *Handler) do(in, lb <-chan *service.Record) {
 	defer observability.Reraise()
 
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
+loop:
 	for in != nil || lb != nil {
 		select {
 		case record, ok := <-in:
@@ -138,8 +144,9 @@ func (h *Handler) do(in, lb <-chan *service.Record) {
 			h.handleRecord(record)
 		case record, ok := <-lb:
 			if !ok {
-				lb = nil
-				continue
+				// exit the handler loop when loopback goes away
+				// (note: this could leave unread data on in chan)
+				break loop
 			}
 			h.handleRecord(record)
 		}
@@ -226,6 +233,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 }
 
 func (h *Handler) handleRequest(record *service.Record) {
+	shutdown := false
 	request := record.GetRequest()
 	response := &service.Response{}
 	switch x := request.RequestType.(type) {
@@ -248,6 +256,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
+		shutdown = true
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
 		h.handleLogArtifact(record, x.LogArtifact, response)
@@ -265,6 +274,15 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
 	h.sendResponse(record, response)
+
+	// shutdown request indicates that we have gone through the exit path and
+	// have sent all the requests needed to extract the final bits of information
+	// from the stream.  At this point we close the loopback channel as a trigger
+	// to stop processing new incoming messages.
+	// TODO(beta): assess whether this would be better shutdown with a context
+	if shutdown {
+		close(h.loopbackChan)
+	}
 }
 
 func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
@@ -304,23 +322,6 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 
 func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
 	h.sendRecord(record)
-}
-
-// startSystemMonitor starts the system monitor
-func (h *Handler) startSystemMonitor() {
-	if h.systemMonitor == nil {
-		return
-	}
-	go func() {
-		// this goroutine reads from the system monitor channel and writes
-		// to the handler's record channel. it will exit when the system
-		// monitor channel is closed
-		for msg := range h.systemMonitor.OutChan {
-			h.fwdChan <- msg
-		}
-		h.logger.Debug("system monitor channel closed")
-	}()
-	h.systemMonitor.Do()
 }
 
 func (h *Handler) handlePollExit(record *service.Record) {
@@ -372,7 +373,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(record, request)
 
 	// start the system monitor
-	h.startSystemMonitor()
+	h.systemMonitor.Do()
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -395,7 +396,7 @@ func (h *Handler) handlePause() {
 
 func (h *Handler) handleResume() {
 	h.timer.Resume()
-	h.startSystemMonitor()
+	h.systemMonitor.Do()
 }
 
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
@@ -434,7 +435,11 @@ func (h *Handler) handlePreempting(record *service.Record) {
 }
 
 func (h *Handler) handleRun(record *service.Record) {
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleConfig(record *service.Record) {

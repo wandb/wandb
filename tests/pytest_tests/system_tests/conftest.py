@@ -319,9 +319,12 @@ def _start_backend(
         wt = start_write_thread(iwm)
         st = start_send_thread(ism)
         if initial_run:
-            _run = _internal_sender.communicate_run(run)
+            handle = _internal_sender.deliver_run(run)
+            result = handle.wait(timeout=5)
+            run_result = result.run_result
             if initial_start:
-                _internal_sender.communicate_run_start(_run.run)
+                handle = _internal_sender.deliver_run_start(run_result.run)
+                handle.wait(timeout=5)
         return ht, wt, st
 
     yield start_backend_func
@@ -819,7 +822,7 @@ def inject_file_stream_response(base_url, user):
 
 @pytest.fixture
 def logged_artifact(wandb_init, example_files) -> Artifact:
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact("test-artifact", "dataset")
         artifact.add_dir(example_files)
         run.log_artifact(artifact)

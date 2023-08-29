@@ -1,8 +1,13 @@
 package main
 
+/*
+typedef const char cchar_t;
+*/
 import "C"
 
 import (
+	"unsafe"
+
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
 )
@@ -38,18 +43,49 @@ func wandbcoreInit() int {
 	return num
 }
 
+//export wandbcoreLogCommit
+func wandbcoreLogCommit(num int) {
+	run := wandbRuns.Get(num)
+	run.LogPartialCommit()
+}
+
 //export wandbcoreLogScaler
 func wandbcoreLogScaler(num int, log_key *C.char, log_value C.float) {
 	run := wandbRuns.Get(num)
-	run.Log(map[string]float64{
+	run.Log(map[string]interface{}{
 		C.GoString(log_key): float64(log_value),
 	})
+}
+
+//export wandbcoreLogInts
+func wandbcoreLogInts(num int, flags C.uchar, cLength C.int, cKeys **C.cchar_t, cInts *C.int) {
+	run := wandbRuns.Get(num)
+	keys := unsafe.Slice(cKeys, cLength)
+	ints := unsafe.Slice(cInts, cLength)
+	logs := make(map[string]interface{})
+	for i := range keys {
+		logs[C.GoString(keys[i])] = int(ints[i])
+	}
+	run.LogPartial(logs, (flags != 0))
+}
+
+//export wandbcoreLogDoubles
+func wandbcoreLogDoubles(num int, flags C.uchar, cLength C.int, cKeys **C.cchar_t, cDoubles *C.double) {
+	run := wandbRuns.Get(num)
+	keys := unsafe.Slice(cKeys, cLength)
+	doubles := unsafe.Slice(cDoubles, cLength)
+	logs := make(map[string]interface{})
+	for i := range keys {
+		logs[C.GoString(keys[i])] = float64(doubles[i])
+	}
+	run.LogPartial(logs, (flags != 0))
 }
 
 //export wandbcoreFinish
 func wandbcoreFinish(num int) {
 	run := wandbRuns.Get(num)
 	run.Finish()
+	wandbRuns.Remove(num)
 }
 
 //export wandbcoreTeardown
