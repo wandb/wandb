@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -92,12 +93,12 @@ func emptyAsNil(s *string) *string {
 	return s
 }
 
-func DefaultRetryFunc(ctx context.Context, resp *http.Response, err error) (bool, error) {
+func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	fmt.Println("IMMA DEFAULT RETRY FUNC", ctx, resp, err)
-	return false, nil
+	return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 }
 
-func UpsertBucketRetryFunc(ctx context.Context, resp *http.Response, err error) (bool, error) {
+func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	fmt.Println("IMMA UPSERT BUCKET RETRY FUNC", ctx, resp, err)
 	return false, nil
 }
@@ -116,7 +117,7 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 	// get retry function from context
 	retryFunc, ok := ctx.Value(CtxRetryFuncKey).(func(context.Context, *http.Response, error) (bool, error))
 	if !ok {
-		return DefaultRetryFunc(ctx, resp, err)
+		return DefaultRetryPolicy(ctx, resp, err)
 	}
 	return retryFunc(ctx, resp, err)
 
@@ -462,7 +463,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		program := s.settings.GetProgram().GetValue()
 		// start a new context with an additional argument from the parent context
 		// this is used to pass the retry function to the graphql client
-		ctx := context.WithValue(s.ctx, CtxRetryFuncKey, UpsertBucketRetryFunc)
+		ctx := context.WithValue(s.ctx, CtxRetryFuncKey, UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
 			ctx,                          // ctx
 			s.graphqlClient,              // client
