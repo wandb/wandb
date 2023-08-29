@@ -637,6 +637,11 @@ jobs:
                 region: us-east-2
                 profile_name: launch_release_tests
             - run:
+                name: Install Docker
+                command: |
+                  apt-get update && apt install -y docker.io
+                no_output_timeout: 5m
+            - run:
                 name: Setup environment
                 command: |
                   curl https://pyenv.run | bash
