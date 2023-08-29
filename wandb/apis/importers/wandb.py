@@ -164,7 +164,6 @@ class WandbRun:
             return []
 
         for art in self._artifacts:
-            name, ver = art.name.split(":v")
             with patch("click.echo"):
                 try:
                     path = art.download()
@@ -179,10 +178,7 @@ class WandbRun:
                     )
                     continue
 
-                # Hack: skip naming validation check for wandb-* types
-                new_art = wandb.Artifact(name, "temp")
-                new_art._type = art.type
-                new_art._created_at = art.created_at
+                new_art = make_new_art(art)
 
                 # empty artifact paths are not dirs
                 if Path(path).is_dir():
@@ -224,10 +220,7 @@ class WandbRun:
                     )
                     continue
 
-                # Hack: skip naming validation check for wandb-* types
-                new_art = wandb.Artifact(name, "temp")
-                new_art._type = art.type
-                new_art._created_at = art.created_at
+                new_art = make_new_art(art)
 
                 # empty artifact paths are not dirs
                 new_art.add_dir(path)
@@ -580,11 +573,8 @@ class WandbImporter:
                     )
                     continue
 
-                name, _ = art.name.split(":")
-                # Hack: skip naming validation check for wandb-* types
-                new_art = wandb.Artifact(name, "temp")
-                new_art._type = art.type
-                new_art._created_at = art.created_at
+                new_art = make_new_art(art)
+
                 if Path(path).is_dir():
                     new_art.add_dir(path)
 
@@ -622,7 +612,6 @@ class WandbImporter:
             finally:
                 progress.task_pbar.update(task, advance=1)
         progress.task_pbar.remove_task(task)
-
 
     def use_artifact_sequence(
         self, sequence: ArtifactSequence, config: Optional[ImportConfig] = None
@@ -668,11 +657,8 @@ class WandbImporter:
                 )
                 continue
 
-            name, _ = art.name.split(":")
+            new_art = make_new_art(art)
 
-            # Hack: skip naming validation check for wandb-* types
-            new_art = wandb.Artifact(name, "temp")
-            new_art._type = art.type
             if Path(path).is_dir():
                 new_art.add_dir(path)
 
@@ -837,16 +823,13 @@ class WandbImporter:
         )
         self.import_runs(runs, config, max_workers)
 
-        sequences = self.collect_artifact_sequences(
-            src_entity, src_project, artifact_sequences_limit
+        sequences = list(
+            self.collect_artifact_sequences(
+                src_entity, src_project, artifact_sequences_limit
+            )
         )
         self.import_artifact_sequences(sequences, config, max_workers)
-
-        sequences = self.collect_artifact_sequences(
-            src_entity, src_project, artifact_sequences_limit
-        )
         self.use_artifact_sequences(sequences, config, max_workers)
-
         self._remove_placeholders(dst_entity, dst_project)
 
     def import_artifact_sequences(
@@ -959,8 +942,28 @@ def _add_placeholders(arts: ArtifactSequence):
             art = wandb.Artifact(name, "temp")
             art._type = a.type
             art._description = ART_SEQUENCE_DUMMY_DESCRIPTION
-            p = Path(f"importer_temp/{v}")
-            p.mkdir(exist_ok=True)
-            art.add_file(str(p))
+
+            # This is important because artifacts are deduplicated.  This creates dummy files of 0 bytes
+            # which is enough for Artifacts to think that the file contents have changed and thus bump version
+            p = Path("importer_temp")
+            p.mkdir(parents=True, exist_ok=True)
+            fname = p / str(v)
+            with open(fname, "w"):
+                pass
+            art.add_file(fname)
         lst.append(art)
     return lst
+
+
+def make_new_art(art: wandb.Artifact) -> wandb.Artifact:
+    name, _ = art.name.split(":v")
+
+    # Hack: skip naming validation check for wandb-* types
+    new_art = wandb.Artifact(name, "temp")
+    new_art._type = art.type
+
+    new_art._created_at = art.created_at
+    new_art._aliases = art.aliases
+    new_art._description = art.description
+
+    return new_art
