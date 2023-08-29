@@ -649,7 +649,7 @@ jobs:
                 name: Setup environment
                 command: |
                   aws ecr get-login-password --region us-east-2
-                  pip install ./project
+                  pip3 install /home/circleci/project
                   wandb login $WANDB_API_KEY
                   python3 ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
                 no_output_timeout: 30m
