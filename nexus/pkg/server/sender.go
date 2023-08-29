@@ -25,12 +25,14 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type ContextKey string
+
 const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
 	// Modified from time.RFC3339Nano
 	RFC3339Micro    = "2006-01-02T15:04:05.000000Z07:00"
-	CtxRetryFuncKey = "retryFunc"
+	CtxRetryFuncKey ContextKey = "retryFunc"
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
