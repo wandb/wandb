@@ -7,6 +7,7 @@ orbs:
   gcloud: circleci/gcp-cli@3.1.0
   gke: circleci/gcp-gke@2.1.0
   codecov: codecov/codecov@3
+  aws-cli: circleci/aws-cli@4.0.0
 
 parameters:
   manual:
@@ -84,6 +85,9 @@ parameters:
   wandb_server_tag:
     type: string
     default: "master"
+  launch_release:
+    type: boolean
+    default: true
 
 commands:
   save-test-results:
@@ -596,6 +600,75 @@ jobs:
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
+
+  launch_release:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
+      notify_on_failure:
+        type: boolean
+        default: false
+      notify_on_failure_channel:
+        type: string
+        default: "$SLACK_SDK_NIGHTLY_CI_CHANNEL"
+      execute:
+        type: boolean
+        default: true
+      tox_args:
+        type: string
+        default: "--cli_branch $CIRCLE_BRANCH"
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk/wandb
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+      - when:
+          condition: << parameters.execute >>
+          steps:
+            - aws-cli/setup:
+                role_arn: [TODO get role arn]
+                region: us-east-2
+                profile_name: launch_release_tests
+            - run:
+                name: Setup environment
+                command: |
+                  curl https://pyenv.run | bash
+                  echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+                  echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+                  echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+                  source ~/.bashrc
+                  aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 305054156030.dkr.ecr.us-east-2.amazonaws.com
+                  wandb login [TODO get SA api key]
+                  python ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
+                no_output_timeout: 30m
+            - run:
+                name: Install tox
+                command: |
+                  pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install -U pip
+                no_output_timeout: 5m
+            - run:
+                name: Run tests
+                no_output_timeout: 30m
+                command: |
+                  tox run -v -e launch-release -- << parameters.tox_args >>
+            # conditionally post a notification to slack if the job failed
+            - when:
+                condition: << parameters.notify_on_failure >>
+                steps:
+                  - slack/notify:
+                      event: fail
+                      template: basic_fail_1
+                      mentions: "@channel"
+                      # taken from slack-secrets context
+                      channel: << parameters.notify_on_failure_channel >>
 
   launch:
     parameters:
@@ -1314,6 +1387,10 @@ workflows:
           notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
           notify_on_success: << pipeline.parameters.nightly_slack_notify >>
           execute: << pipeline.parameters.nightly_execute_standalone_gpu >>
+      - launch_release:
+          execute: << pipeline.parameters.launch_release >>
+          name: "launch-release-tests"
+          context: aws-launch-sandbox-secrets
       #
       # "And now my watch ends"
       #
