@@ -74,4 +74,11 @@ def list_failing_tests_nexus(session):
 
     my_plugin = MyPlugin()
     pytest.main(
-        ["-m", "nexus_failure", "tests/pytest_tests/system_tests/test_core", '--collect-only'], plugins=[my_plugin])
+        [
+            "-m",
+            "nexus_failure",
+            "tests/pytest_tests/system_tests/test_core",
+            "--collect-only",
+        ],
+        plugins=[my_plugin],
+    )
