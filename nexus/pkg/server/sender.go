@@ -96,36 +96,33 @@ func emptyAsNil(s *string) *string {
 
 func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	fmt.Println("IMMA DEFAULT RETRY FUNC", ctx, resp, err)
-	// // don't retry on 4xx errors
-	// if resp.StatusCode >= 100 && resp.StatusCode < 500 {
-	// 	// don't retry on a 400 bad request
-	// 	if resp.StatusCode == http.StatusBadRequest {
-	// 		return false, fmt.Errorf("bad request")
-	// 	}
-	// 	// don't retry on a 401 unauthorized
-	// 	if resp.StatusCode == http.StatusUnauthorized {
-	// 		return false, fmt.Errorf("unauthorized")
-	// 	}
-	// 	// don't retry on a 403 forbidden
-	// 	if resp.StatusCode == http.StatusForbidden {
-	// 		return false, fmt.Errorf("forbidden")
-	// 	}
-	// 	// don't retry on a 404 not found
-	// 	if resp.StatusCode == http.StatusNotFound {
-	// 		return false, fmt.Errorf("not found")
-	// 	}
-	// 	return true, nil
-	// }
-	//
-	// if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
-	// 	return true, fmt.Errorf("unexpected HTTP status %s", resp.Status)
-	// }
-	return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+
+	statusCode := resp.StatusCode
+	switch {
+	case statusCode == 400 || statusCode == 409:
+		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode == 401:
+		return false, fmt.Errorf("the API key you provided is either invalid or missing. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode == 403:
+		return false, fmt.Errorf("you don't have permission to access this resource. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode == 404:
+		return false, fmt.Errorf("the resource you requested could not be found. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	default:
+		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	}
 }
 
 func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	fmt.Println("IMMA UPSERT BUCKET RETRY FUNC", ctx, resp, err)
-	return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	statusCode := resp.StatusCode
+	switch {
+	case statusCode == 410:
+		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode == 409:
+		return true, fmt.Errorf("conflict, retrying. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	default:
+		return DefaultRetryPolicy(ctx, resp, err)
+	}
 }
 
 func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
