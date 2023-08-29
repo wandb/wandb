@@ -29,7 +29,8 @@ const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
 	// Modified from time.RFC3339Nano
-	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
+	RFC3339Micro    = "2006-01-02T15:04:05.000000Z07:00"
+	CtxRetryFuncKey = "retryFunc"
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -89,40 +90,58 @@ func emptyAsNil(s *string) *string {
 	return s
 }
 
-func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	// dont retry on context errors
-	if ctx.Err() != nil {
-		return false, ctx.Err()
-	}
+func DefaultRetryFunc(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	fmt.Println("IMMA DEFAULT RETRY FUNC", ctx, resp, err)
+	return false, nil
+}
 
+func UpsertBucketRetryFunc(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	fmt.Println("IMMA UPSERT BUCKET RETRY FUNC", ctx, resp, err)
+	return false, nil
+}
+
+func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	if err != nil {
 		return false, err
 	}
 
-	// dont retry on 4xx errors
-	if resp.StatusCode >= 100 && resp.StatusCode < 500 {
-		// don't retry on a 400 bad request
-		if resp.StatusCode == http.StatusBadRequest {
-			return false, fmt.Errorf("bad request")
-		}
-		// don't retry on a 401 unauthorized
-		if resp.StatusCode == http.StatusUnauthorized {
-			return false, fmt.Errorf("unauthorized")
-		}
-		// don't retry on a 403 forbidden
-		if resp.StatusCode == http.StatusForbidden {
-			return false, fmt.Errorf("forbidden")
-		}
-		// don't retry on a 404 not found
-		if resp.StatusCode == http.StatusNotFound {
-			return false, fmt.Errorf("not found")
-		}
-		return true, nil
+	// don't retry on context errors
+	if ctx.Err() != nil {
+		return false, ctx.Err()
 	}
 
-	if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
-		return true, fmt.Errorf("unexpected HTTP status %s", resp.Status)
+	fmt.Println("GOT ME SOME CONTEXT", ctx)
+	// get retry function from context
+	retryFunc, ok := ctx.Value(CtxRetryFuncKey).(func(context.Context, *http.Response, error) (bool, error))
+	if !ok {
+		return DefaultRetryFunc(ctx, resp, err)
 	}
+	return retryFunc(ctx, resp, err)
+
+	//// don't retry on 4xx errors
+	//if resp.StatusCode >= 100 && resp.StatusCode < 500 {
+	//	// don't retry on a 400 bad request
+	//	if resp.StatusCode == http.StatusBadRequest {
+	//		return false, fmt.Errorf("bad request")
+	//	}
+	//	// don't retry on a 401 unauthorized
+	//	if resp.StatusCode == http.StatusUnauthorized {
+	//		return false, fmt.Errorf("unauthorized")
+	//	}
+	//	// don't retry on a 403 forbidden
+	//	if resp.StatusCode == http.StatusForbidden {
+	//		return false, fmt.Errorf("forbidden")
+	//	}
+	//	// don't retry on a 404 not found
+	//	if resp.StatusCode == http.StatusNotFound {
+	//		return false, fmt.Errorf("not found")
+	//	}
+	//	return true, nil
+	//}
+	//
+	//if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
+	//	return true, fmt.Errorf("unexpected HTTP status %s", resp.Status)
+	//}
 
 	return false, nil
 }
@@ -441,8 +460,11 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 
 		program := s.settings.GetProgram().GetValue()
+		// start a new context with an additional argument from the parent context
+		// this is used to pass the retry function to the graphql client
+		ctx := context.WithValue(s.ctx, CtxRetryFuncKey, UpsertBucketRetryFunc)
 		data, err := gql.UpsertBucket(
-			s.ctx,                        // ctx
+			ctx,                          // ctx
 			s.graphqlClient,              // client
 			nil,                          // id
 			&run.RunId,                   // name
