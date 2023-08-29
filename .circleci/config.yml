@@ -645,6 +645,7 @@ jobs:
                   echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
                   source ~/.bashrc
                   aws ecr get-login-password --region us-east-2
+                  pip install /mnt/ramdisk/wandb
                   wandb login $WANDB_API_KEY
                   python ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
                 no_output_timeout: 30m
