@@ -180,6 +180,7 @@ class WandbRun:
                 # Hack: skip naming validation check for wandb-* types
                 new_art = wandb.Artifact(name, "temp")
                 new_art._type = art.type
+                new_art._created_at = art.created_at
 
                 # empty artifact paths are not dirs
                 if Path(path).is_dir():
@@ -224,6 +225,7 @@ class WandbRun:
                 # Hack: skip naming validation check for wandb-* types
                 new_art = wandb.Artifact(name, "temp")
                 new_art._type = art.type
+                new_art._created_at = art.created_at
 
                 # empty artifact paths are not dirs
                 new_art.add_dir(path)
@@ -569,6 +571,7 @@ class WandbImporter:
             # Hack: skip naming validation check for wandb-* types
             new_art = wandb.Artifact(name, "temp")
             new_art._type = art.type
+            new_art._created_at = art.created_at
             if Path(path).is_dir():
                 new_art.add_dir(path)
 
@@ -739,6 +742,7 @@ class WandbImporter:
         dst_entity: Optional[str] = None,
         src_project: Optional[str] = None,
         dst_project: Optional[str] = None,
+        *,
         max_workers: Optional[int] = None,
     ):
         """Currently supports runs, artifacts, and reports.
@@ -747,18 +751,62 @@ class WandbImporter:
         If `dst_project` is not specified, it will be the same as `src_project`.
         If `src_project` is not specified, we will try to import all projects under `src_entity`.
         """
+        self._import_all(
+            src_entity, dst_entity, src_project, dst_project, max_workers=max_workers
+        )
+
+    def import_all_since(
+        self,
+        src_entity: str,
+        dst_entity: Optional[str] = None,
+        src_project: Optional[str] = None,
+        dst_project: Optional[str] = None,
+        max_workers: Optional[int] = None,
+        *,
+        since: Optional[str] = None,
+    ):
+        """Import everything since `YYYY-MM-DD`."""
+        self._import_all(
+            src_entity,
+            dst_entity,
+            src_project,
+            dst_project,
+            max_workers=max_workers,
+            start_date=since,
+        )
+
+    def _import_all(
+        self,
+        src_entity: str,
+        dst_entity: Optional[str] = None,
+        src_project: Optional[str] = None,
+        dst_project: Optional[str] = None,
+        *,
+        max_workers: Optional[int] = None,
+        runs_limit: Optional[int] = None,
+        reports_limit: Optional[int] = None,
+        artifact_sequences_limit: Optional[int] = None,
+        skip_ids: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+    ):
         config = ImportConfig(entity=dst_entity, project=dst_project)
 
-        reports = self.collect_reports(src_entity, src_project)
+        reports = self.collect_reports(src_entity, src_project, reports_limit)
         self.import_reports(reports, config, max_workers)
 
-        runs = self.collect_runs(src_entity, src_project)
+        runs = self.collect_runs(
+            src_entity, src_project, runs_limit, skip_ids, start_date
+        )
         self.import_runs(runs, config, max_workers)
 
-        sequences = self.collect_artifact_sequences(src_entity, src_project)
+        sequences = self.collect_artifact_sequences(
+            src_entity, src_project, artifact_sequences_limit
+        )
         self.import_artifact_sequences(sequences, config, max_workers)
 
-        sequences = self.collect_artifact_sequences(src_entity, src_project)
+        sequences = self.collect_artifact_sequences(
+            src_entity, src_project, artifact_sequences_limit
+        )
         self.use_artifact_sequences(sequences, config, max_workers)
 
     def import_artifact_sequences(
