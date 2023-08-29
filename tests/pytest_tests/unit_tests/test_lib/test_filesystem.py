@@ -561,7 +561,7 @@ def test_reflink_macos_cross_device(monkeypatch, example_file):
 def test_reflink_macos_corner_cases(monkeypatch, example_file):
     def cdll_bad_fallback(module, *args, **kwargs):
         if module == "libc.dylib":
-            raise OSError(errno.ENOENT, "Library not found")
+            raise FileNotFoundError
         return None
 
     monkeypatch.setattr(ctypes, "CDLL", cdll_bad_fallback)

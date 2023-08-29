@@ -254,8 +254,8 @@ def _reflink_linux(existing_path: Path, new_path: Path) -> None:
 def _reflink_macos(existing_path: Path, new_path: Path) -> None:
     try:
         clib = ctypes.CDLL("libc.dylib", use_errno=True)
-    except OSError:
-        if ctypes.get_errno() != errno.ENOENT:
+    except (FileNotFoundError, OSError) as e:
+        if ctypes.get_errno() != errno.ENOENT and not isinstance(e, FileNotFoundError):
             raise
         # Before macOS 11 (<Nov 2020) clib was in libSystem.dylib, so we can try there.
         clib = ctypes.CDLL("/usr/lib/libSystem.dylib", use_errno=True)
