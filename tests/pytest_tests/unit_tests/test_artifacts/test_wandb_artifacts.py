@@ -519,7 +519,7 @@ def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     def bad_write(*args, **kwargs):
         raise FileNotFoundError("unable to copy from source file")
 
-    monkeypatch.setattr(shutil, "copyfile", bad_write)
+    monkeypatch.setattr(shutil, "copyfileobj", bad_write)
     policy = WandbStoragePolicy()
     path = Path("foo.txt")
     path.write_text("hello")
