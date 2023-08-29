@@ -96,11 +96,15 @@ def plot_mask_validation_results(
     predictor: SegmentationPredictor,
     table: wandb.Table,
     max_validation_batches: int,
+    max_batch_samples: Optional[int] = None,
     epoch: Optional[int] = None,
 ):
     data_idx = 0
     for batch_idx, batch in enumerate(dataloader):
-        for img_idx, image_path in enumerate(batch["im_file"]):
+        samples = batch["im_file"]
+        if max_batch_samples is not None and max_batch_samples > 0:
+            samples = samples[:min(len(samples), max_batch_samples)]
+        for img_idx, image_path in enumerate(samples):
             prediction_result = predictor(image_path)[0]
             (
                 _,
@@ -136,6 +140,6 @@ def plot_mask_validation_results(
                 data_idx += 1
             except TypeError:
                 pass
-        if batch_idx + 1 == max_validation_batches:
+        if batch_idx + 1 >= max_validation_batches:
             break
     return table

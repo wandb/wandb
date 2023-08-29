@@ -262,6 +262,7 @@ class WandBUltralyticsCallback:
                         predictor=self.predictor,
                         table=self.train_validation_table,
                         max_validation_batches=self.max_validation_batches,
+                        max_batch_samples=self.max_batch_samples,
                         epoch=trainer.epoch,
                     )
                 elif self.task == "detect":
@@ -272,6 +273,7 @@ class WandBUltralyticsCallback:
                         predictor=self.predictor,
                         table=self.train_validation_table,
                         max_validation_batches=self.max_validation_batches,
+                        max_batch_samples=self.max_batch_samples,
                         epoch=trainer.epoch,
                     )
                 elif self.task == "classify":
@@ -282,6 +284,7 @@ class WandBUltralyticsCallback:
                             predictor=self.predictor,
                             table=self.train_validation_table,
                             max_validation_batches=self.max_validation_batches,
+                            max_batch_samples=self.max_batch_samples,
                             epoch=trainer.epoch,
                         )
                     )
@@ -321,6 +324,7 @@ class WandBUltralyticsCallback:
                         predictor=self.predictor,
                         table=self.validation_table,
                         max_validation_batches=self.max_validation_batches,
+                        max_batch_samples=self.max_batch_samples,
                     )
                 elif self.task == "detect":
                     self.validation_table = plot_validation_results(
@@ -330,6 +334,7 @@ class WandBUltralyticsCallback:
                         predictor=self.predictor,
                         table=self.validation_table,
                         max_validation_batches=self.max_validation_batches,
+                        max_batch_samples=self.max_batch_samples,
                     )
                 elif self.task == "classify":
                     self.validation_table = plot_classification_validation_results(
@@ -338,6 +343,7 @@ class WandBUltralyticsCallback:
                         predictor=self.predictor,
                         table=self.validation_table,
                         max_validation_batches=self.max_validation_batches,
+                        max_batch_samples=self.max_batch_samples,
                     )
             wandb.log({"Validation-Table": self.validation_table})
 

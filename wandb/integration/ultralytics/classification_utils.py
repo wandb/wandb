@@ -39,6 +39,7 @@ def plot_classification_validation_results(
     predictor: ClassificationPredictor,
     table: wandb.Table,
     max_validation_batches: int,
+    max_batch_samples: Optional[int] = None,
     epoch: Optional[int] = None,
 ):
     data_idx = 0
@@ -47,7 +48,7 @@ def plot_classification_validation_results(
     for batch_idx, batch in enumerate(dataloader):
         image_batch = batch["img"].numpy()
         ground_truth = batch["cls"].numpy().tolist()
-        for img_idx in range(image_batch.shape[0]):
+        for img_idx in range(min(image_batch.shape[0], max_batch_samples)):
             image = np.transpose(image_batch[img_idx], (1, 2, 0))
             # print(image)
             prediction_result = predictor(image, show=False)[0]
@@ -60,6 +61,6 @@ def plot_classification_validation_results(
             table_row = [model_name] + table_row
             table.add_data(*table_row)
             data_idx += 1
-        if batch_idx + 1 == max_validation_batches:
+        if batch_idx + 1 >= max_validation_batches:
             break
     return table
