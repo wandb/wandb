@@ -625,7 +625,6 @@ jobs:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     resource_class: small
     working_directory: /mnt/ramdisk/wandb
-    executor: aws-cli/default
     steps:
       - checkout
       - add_ssh_keys:
@@ -634,11 +633,9 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - aws-cli/setup:
-                profile_name: default
-            - aws-cli/role_arn_setup:
-                profile_name: launch_release_tests
                 role_arn: $AWS_ROLE_ARN
-                source_profile: default
+                region: us-east-2
+                profile_name: launch_release_tests
             - run:
                 name: Setup environment
                 command: |
