@@ -235,6 +235,7 @@ def _make_settings(root_dir: str, settings_override: Optional[Dict[str, Any]] = 
         "_live_policy_wait_time": 600,  # matches dir_watcher
         "_async_upload_concurrency_limit": None,
         "_file_stream_timeout_seconds": 60,
+        "_import_mode": True,
     }
 
     combined_settings = {**default_settings, **_settings_override}
