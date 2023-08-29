@@ -628,7 +628,7 @@ jobs:
     # docker:
     #   - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     # resource_class: small
-    # working_directory: /mnt/ramdisk/wandb
+    working_directory: /mnt/ramdisk/wandb
     steps:
       - checkout
       - add_ssh_keys:
