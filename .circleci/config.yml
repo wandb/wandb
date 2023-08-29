@@ -633,10 +633,11 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - aws-cli/setup:
-                region: us-east-2
-                role_arn: $AWS_ROLE_ARN
-                role_session_name: launch_release_tests
+                profile_name: default
+            - aws-cli/role_arn_setup:
                 profile_name: launch_release_tests
+                role_arn: $AWS_ROLE_ARN
+                source_profile: default
             - run:
                 name: Setup environment
                 command: |
