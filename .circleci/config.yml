@@ -635,6 +635,7 @@ jobs:
             - aws-cli/setup:
                 region: us-east-2
                 role_arn: $AWS_ROLE_ARN
+                role_session_name: launch_release_tests
                 profile_name: launch_release_tests
             - run:
                 name: Setup environment
