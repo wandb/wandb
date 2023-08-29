@@ -306,13 +306,7 @@ class TestStoreFile:
         else:
             api.upload_method.assert_not_called()
 
-    @pytest.mark.parametrize(
-        "err",
-        [
-            None,
-            Exception("some error"),
-        ],
-    )
+    @pytest.mark.parametrize("err", [None, Exception("some error")])
     def test_caches_result_on_success(
         self,
         store_file: "StoreFileFixture",
