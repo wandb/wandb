@@ -177,14 +177,15 @@ class ArtifactsCache:
                 raise ValueError("Appending to cache files is not supported")
 
             self._reserve_space(size)
-            with NamedTemporaryFile(dir=self._temp_dir, mode=mode) as f:
-                yield f
+            temp_file = NamedTemporaryFile(dir=self._temp_dir, mode=mode, delete=False)
+            try:
+                yield temp_file
+                temp_file.close()
                 path.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    os.link(f.name, path)
-                except FileExistsError:
-                    os.remove(path)
-                    os.link(f.name, path)
+                os.replace(temp_file.name, path)
+            except Exception:
+                os.remove(temp_file.name)
+                raise
 
         return helper
 
