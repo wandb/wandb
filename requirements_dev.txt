@@ -45,6 +45,7 @@ responses
 respx
 prometheus_client
 google-cloud-aiplatform
+polars
 
 .[async]
 .[perf]

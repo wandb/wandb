@@ -33,6 +33,8 @@ rich = get_module(
     required="Missing `rich`, try `pip install rich`",
 )
 
+ART_SEQUENCE_DUMMY_DESCRIPTION = "__ART_SEQUENCE_DUMMY_DESCRIPTION__"
+
 
 class WandbRun:
     def __init__(self, run: Run):
@@ -504,8 +506,8 @@ class WandbImporter:
             for project in projects:
                 # the "project" in artifact_types is actually entity/project
                 _project = f"{entity}/{project.name}"
-                for type in self.src_api.artifact_types(_project):
-                    for collection in type.collections():
+                for _type in self.src_api.artifact_types(_project):
+                    for collection in _type.collections():
                         if collection.is_sequence():
                             yield collection
 
@@ -542,40 +544,52 @@ class WandbImporter:
         )
 
         sequence = list(sequence)
-        s = sequence[0]
-        _type = s.type
-        name, _ = s.name.split(":")
+        placeholder_run = None
+        for s in sequence:
+            placeholder_run = s.logged_by()
+            if placeholder_run is not None:
+                break
+
+        arts = _add_placeholders(sequence)
+        art = arts[0]
+        _type = art.type
+        name, _ = art.name.split(":")
 
         task = progress.subtask_pbar.add_task(
-            f"Artifact Sequence ({_type}/{name})", total=len(sequence)
+            f"Artifact Sequence ({_type}/{name})", total=len(arts)
         )
-        for art in sequence:
-            wandb_run = art.logged_by()
-            if wandb_run is None:
-                continue
+        for art in arts:
+            if art.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
+                new_art = art
+                run = WandbRun(placeholder_run)
+            else:
+                wandb_run = art.logged_by()
+                if wandb_run is None:
+                    continue
 
-            try:
-                path = art.download()
-            except Exception as e:
-                wandb_logger.error(
-                    f"Error downloading artifact {art} -- {e}",
-                    extra={
-                        "entity": wandb_run.entity,
-                        "project": wandb_run.project,
-                        "run_id": wandb_run.id,
-                    },
-                )
-                continue
+                try:
+                    path = art.download()
+                except Exception as e:
+                    wandb_logger.error(
+                        f"Error downloading artifact {art} -- {e}",
+                        extra={
+                            "entity": wandb_run.entity,
+                            "project": wandb_run.project,
+                            "run_id": wandb_run.id,
+                        },
+                    )
+                    continue
 
-            name, _ = art.name.split(":")
-            # Hack: skip naming validation check for wandb-* types
-            new_art = wandb.Artifact(name, "temp")
-            new_art._type = art.type
-            new_art._created_at = art.created_at
-            if Path(path).is_dir():
-                new_art.add_dir(path)
+                name, _ = art.name.split(":")
+                # Hack: skip naming validation check for wandb-* types
+                new_art = wandb.Artifact(name, "temp")
+                new_art._type = art.type
+                new_art._created_at = art.created_at
+                if Path(path).is_dir():
+                    new_art.add_dir(path)
 
-            run = WandbRun(wandb_run)
+                run = WandbRun(wandb_run)
+
             internal.send_artifact_with_send_manager(
                 new_art,
                 run,
@@ -585,6 +599,30 @@ class WandbImporter:
             )
             progress.subtask_pbar.update(task, advance=1)
         progress.subtask_pbar.remove_task(task)
+
+    def _remove_placeholders(self, entity: str, project: Optional[str] = None) -> None:
+        projects = self._projects(entity, project)
+
+        def placeholder_artifacts():
+            for project in projects:
+                _project = f"{entity}/{project.name}"
+                for _type in self.dst_api.artifact_types(_project):
+                    for collection in _type.collections():
+                        for version in collection.versions():
+                            if version.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
+                                yield version
+
+        task = progress.task_pbar.add_task("Cleaning up placeholder artifacts")
+        for art in placeholder_artifacts():
+            try:
+                art.delete(delete_aliases=True)
+            except Exception as e:
+                if "cannot delete system managed artifact" not in str(e):
+                    raise e
+            finally:
+                progress.task_pbar.update(task, advance=1)
+        progress.task_pbar.remove_task(task)
+
 
     def use_artifact_sequence(
         self, sequence: ArtifactSequence, config: Optional[ImportConfig] = None
@@ -809,6 +847,8 @@ class WandbImporter:
         )
         self.use_artifact_sequences(sequences, config, max_workers)
 
+        self._remove_placeholders(dst_entity, dst_project)
+
     def import_artifact_sequences(
         self,
         sequences: Iterable[ArtifactSequence],
@@ -874,3 +914,53 @@ class WandbImporter:
                         future.result()
                     except Exception:
                         continue
+
+    def _wipe_artifacts(self, entity: str, project: Optional[str] = None) -> None:
+        projects = self._projects(entity, project)
+
+        def artifacts():
+            for project in projects:
+                _project = f"{entity}/{project.name}"
+                for _type in self.dst_api.artifact_types(_project):
+                    for collection in _type.collections():
+                        for version in collection.versions():
+                            version: wandb.Artifact
+                            yield version
+
+        task = progress.task_pbar.add_task("Wiping artifacts")
+        for art in artifacts():
+            try:
+                art.delete(delete_aliases=True)
+            except Exception as e:
+                if "cannot delete system managed artifact" not in str(e):
+                    raise e
+            finally:
+                progress.task_pbar.update(task, advance=1)
+        progress.task_pbar.remove_task(task)
+
+
+def _get_art_version(art: wandb.Artifact) -> int:
+    _, ver = art.name.split(":")
+    ver = ver[1:]
+    return int(ver)
+
+
+def _add_placeholders(arts: ArtifactSequence):
+    a = arts[0]
+    name, _ = a.name.split(":")
+
+    art_versions = {_get_art_version(a): a for a in arts}
+
+    lst = []
+    for v in range(max(art_versions) + 1):
+        if v in art_versions:
+            art = art_versions[v]
+        else:
+            art = wandb.Artifact(name, "temp")
+            art._type = a.type
+            art._description = ART_SEQUENCE_DUMMY_DESCRIPTION
+            p = Path(f"importer_temp/{v}")
+            p.mkdir(exist_ok=True)
+            art.add_file(str(p))
+        lst.append(art)
+    return lst

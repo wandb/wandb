@@ -185,12 +185,6 @@ class MlflowImporter:
         if config is None:
             config = ImportConfig()
 
-        _overrides = {}
-        if config.entity:
-            _overrides["entity"] = config.entity
-        if config.project:
-            _overrides["project"] = config.project
-
         sm_config = internal.SendManagerConfig(
             log_artifacts=True,
             metadata=True,
@@ -198,4 +192,4 @@ class MlflowImporter:
             summary=True,
         )
 
-        internal.send_run_with_send_manager(run, overrides=_overrides, config=sm_config)
+        internal.send_run_with_send_manager(run, overrides=config.send_manager_overrides, config=sm_config)

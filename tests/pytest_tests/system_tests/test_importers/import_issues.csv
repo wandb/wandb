@@ -1,0 +1,657 @@
+,,,ERROR,500 response executing GraphQL.
+,,,ERROR,400 response executing GraphQL.
+,,,ERROR,{"errors":[{"message":"An internal error occurred. Please contact support.","path":["upsertBucket"]}],"data":{"upsertBucket":null}}
+,,,ERROR,{"errors":[{"message":"invalid tag 'ix6ez0cj_q9x5kus=Æ󨼳𑖜񦮝î񊽤r -£Ö\u0016򭟰񆒽񭀦ª'. must be between 1 and 64 characters","path":["upsertBucket"]}],"data":{"upsertBucket":null}}
+,,,ERROR,invalid tag 'ix6ez0cj_q9x5kus=Æ󨼳𑖜񦮝î񊽤r -£Ö򭟰񆒽񭀦ª'. must be between 1 and 64 characters (Error 400: Bad Request)
+Traceback (most recent call last):
+  File "/Users/andrewtruong/repos/wandb/wandb/apis/normalize.py", line 41, in wrapper
+    return func(*args, **kwargs)
+  File "/Users/andrewtruong/repos/wandb/wandb/sdk/internal/internal_api.py", line 2016, in upsert_run
+    response = self.gql(
+  File "/Users/andrewtruong/repos/wandb/wandb/sdk/internal/internal_api.py", line 330, in gql
+    ret = self._retry_gql(
+  File "/Users/andrewtruong/repos/wandb/wandb/sdk/lib/retry.py", line 131, in __call__
+    result = self._call_fn(*args, **kwargs)
+  File "/Users/andrewtruong/repos/wandb/wandb/sdk/internal/internal_api.py", line 358, in execute
+    return self.client.execute(*args, **kwargs)  # type: ignore
+  File "/Users/andrewtruong/repos/wandb/wandb/vendor/gql-0.2.0/wandb_gql/client.py", line 52, in execute
+    result = self._get_result(document, *args, **kwargs)
+  File "/Users/andrewtruong/repos/wandb/wandb/vendor/gql-0.2.0/wandb_gql/client.py", line 60, in _get_result
+    return self.transport.execute(document, *args, **kwargs)
+  File "/Users/andrewtruong/repos/wandb/wandb/sdk/lib/gql_request.py", line 56, in execute
+    request.raise_for_status()
+  File "/Users/andrewtruong/.pyenv/versions/3.9.15/lib/python3.9/site-packages/requests/models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:8080/graphql
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/andrewtruong/repos/wandb/wandb/sdk/internal/sender.py", line 974, in send_run
+    self._init_run(run, config_value_dict)
+  File "/Users/andrewtruong/repos/wandb/wandb/sdk/internal/sender.py", line 1012, in _init_run
+    server_run, inserted, server_messages = self._api.upsert_run(
+  File "/Users/andrewtruong/repos/wandb/wandb/apis/normalize.py", line 51, in wrapper
+    raise CommError(message, error)
+wandb.errors.CommError: invalid tag 'ix6ez0cj_q9x5kus=Æ󨼳𑖜񦮝î񊽤r -£Ö򭟰񆒽񭀦ª'. must be between 1 and 64 characters (Error 400: Bad Request)
+,,,ERROR,send_artifact: failed for artifact "imported-artifacts/Run______67ccea3c-8a26-43a5-a554-8a18fcebb095": 
+,,,ERROR,500 response executing GraphQL.
+,,,ERROR,{"errors":[{"message":"An internal error occurred. Please contact support.","path":["createArtifact"]}],"data":{"createArtifact":null}}
+,,,ERROR,500 response executing GraphQL.
+,,,ERROR,500 response executing GraphQL.
+,,,ERROR,{"errors":[{"message":"An internal error occurred. Please contact support.","path":["createArtifact"]}],"data":{"createArtifact":null}}
+,,,ERROR,{"errors":[{"message":"An internal error occurred. Please contact support.","path":["createArtifact"]}],"data":{"createArtifact":null}}
+,,,ERROR,500 response executing GraphQL.
+,,,ERROR,{"errors":[{"message":"An internal error occurred. Please contact support.","path":["createArtifact"]}],"data":{"createArtifact":null}}
+,,,ERROR,500 response executing GraphQL.
+,,,ERROR,{"errors":[{"message":"An internal error occurred. Please contact support.","path":["upsertBucket"]}],"data":{"upsertBucket":null}}
+,,,ERROR,500 response executing GraphQL.
+,,,ERROR,{"errors":[{"message":"An internal error occurred. Please contact support.","path":["upsertBucket"]}],"data":{"upsertBucket":null}}
+,,,ERROR,500 response executing GraphQL.
+,,,ERROR,{"errors":[{"message":"An internal error occurred. Please contact support.","path":["upsertBucket"]}],"data":{"upsertBucket":null}}
+,,,ERROR,502 response executing GraphQL.
+,,,ERROR,<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>W&B Local</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    
+    <meta id="refresh" http-equiv="refresh" content="3" />
+    
+    <style>
+      body {
+        background-color: #f9f9f9;
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        cursor: default;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      main,
+      aside,
+      section {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+      }
+      main {
+        height: 100%;
+      }
+      aside {
+        background: #000;
+        flex-shrink: 1;
+        padding: 30px 20px;
+      }
+      aside p {
+        margin: 0;
+        color: #999999;
+        font-size: 14px;
+        line-height: 24px;
+      }
+      aside a {
+        color: #fff;
+        text-decoration: none;
+      }
+      section span {
+        font-size: 24px;
+        font-weight: 500;
+        display: block;
+        border-bottom: 1px solid #eaeaea;
+        text-align: center;
+        padding-bottom: 20px;
+        width: 100px;
+      }
+      section p {
+        font-size: 14px;
+        font-weight: 400;
+      }
+      section span + p {
+        margin: 20px 0 0 0;
+      }
+      @media (min-width: 768px) {
+        section {
+          height: 40px;
+          flex-direction: row;
+        }
+        section span,
+        section p {
+          height: 100%;
+          line-height: 40px;
+        }
+        section span {
+          border-bottom: 0;
+          border-right: 1px solid #eaeaea;
+          padding: 0 20px 0 0;
+          width: auto;
+        }
+        section span + p {
+          margin: 0;
+          padding-left: 20px;
+        }
+        aside {
+          padding: 50px 0;
+        }
+        aside p {
+          max-width: 520px;
+          text-align: center;
+        }
+      }
+      svg {
+        margin: 4em auto 2em;
+      }
+    </style>
+  </head>
+  <body>
+    <svg
+      width="256"
+      height="256"
+      viewBox="0 0 256 256"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="256" height="256" fill="#1A1C1F" />
+      <path
+        d="M51.2005 100.813C51.2005 109.581 58.3083 116.689 67.0763 116.689C75.8443 116.689 82.9521 109.581 82.9521 100.813C82.9521 92.0449 75.8443 84.937 67.0763 84.937C58.3083 84.937 51.2005 92.0449 51.2005 100.813Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M51.2005 180.192C51.2005 188.96 58.3083 196.068 67.0763 196.068C75.8443 196.068 82.9521 188.96 82.9521 180.192C82.9521 171.424 75.8443 164.316 67.0763 164.316C58.3083 164.316 51.2005 171.424 51.2005 180.192Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M57.1529 140.503C57.1529 145.983 61.5954 150.426 67.0755 150.426C72.5556 150.426 76.998 145.983 76.998 140.503C76.998 135.023 72.5556 130.581 67.0755 130.581C61.5954 130.581 57.1529 135.023 57.1529 140.503Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M57.1529 61.1226C57.1529 66.6027 61.5954 71.0452 67.0755 71.0452C72.5556 71.0452 76.998 66.6027 76.998 61.1226C76.998 55.6426 72.5556 51.2001 67.0755 51.2001C61.5954 51.2001 57.1529 55.6426 57.1529 61.1226Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M112.124 155.187C112.124 163.955 119.232 171.063 128 171.063C136.768 171.063 143.876 163.955 143.876 155.187C143.876 146.419 136.768 139.311 128 139.311C119.232 139.311 112.124 146.419 112.124 155.187Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 194.878C118.078 200.358 122.52 204.8 128 204.8C133.48 204.8 137.923 200.358 137.923 194.878C137.923 189.397 133.48 184.955 128 184.955C122.52 184.955 118.078 189.397 118.078 194.878Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 115.498C118.078 120.978 122.52 125.421 128 125.421C133.48 125.421 137.923 120.978 137.923 115.498C137.923 110.018 133.48 105.576 128 105.576C122.52 105.576 118.078 110.018 118.078 115.498Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 75.8081C118.078 81.2881 122.52 85.7306 128 85.7306C133.48 85.7306 137.923 81.2881 137.923 75.8081C137.923 70.328 133.48 65.8855 128 65.8855C122.52 65.8855 118.078 70.328 118.078 75.8081Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M173.048 100.813C173.048 109.581 180.156 116.689 188.924 116.689C197.692 116.689 204.8 109.581 204.8 100.813C204.8 92.0449 197.692 84.937 188.924 84.937C180.156 84.937 173.048 92.0449 173.048 100.813Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 61.1226C179.002 66.6027 183.444 71.0452 188.924 71.0452C194.404 71.0452 198.847 66.6027 198.847 61.1226C198.847 55.6426 194.404 51.2001 188.924 51.2001C183.444 51.2001 179.002 55.6426 179.002 61.1226Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 140.503C179.002 145.983 183.444 150.426 188.924 150.426C194.404 150.426 198.847 145.983 198.847 140.503C198.847 135.023 194.404 130.581 188.924 130.581C183.444 130.581 179.002 135.023 179.002 140.503Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 180.192C179.002 185.672 183.444 190.115 188.924 190.115C194.404 190.115 198.847 185.672 198.847 180.192C198.847 174.712 194.404 170.27 188.924 170.27C183.444 170.27 179.002 174.712 179.002 180.192Z"
+        fill="#FFCC00"
+      />
+    </svg>
+    <div id="root"></div>
+    <script type="text/javascript">
+      const query = window.location.search.substring(1);
+      const parts = query.split("&");
+      const vars = {};
+      for (var i = 0; i < parts.length; i++) {
+        var pair = parts[i].split("=");
+        vars[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+      }
+      let code = vars.code || '502';
+      let authCode = '';
+      let message =
+        'Bad Gateway';
+      if (!code.match(/\d+/)) {
+        code = "500";
+      }
+      if (!authCode.match(/\d+/)) {
+        authCode = null;
+      }
+      if (message.match(/^</)) {
+        window.stop();
+        message = "Unknown service error";
+      }
+      const displayCode = parseInt(authCode || code, 10);
+      if (displayCode === 502) {
+        // TODO: we should pipe the actual root prefix here.
+        message =
+          "A service is down or restarting, contact your administrator to check the system logs";
+      } else if (displayCode === 401 || displayCode === 403) {
+        message = `<a href="./login">Login</a> required to access this page.`;
+      }
+      const root = document.getElementById("root");
+      root.innerHTML = `<section><span>${displayCode}</span><p>${message}</p></section>`;
+    </script>
+  </body>
+</html>
+
+,,,ERROR,502 response executing GraphQL.
+,,,ERROR,<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>W&B Local</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    
+    <meta id="refresh" http-equiv="refresh" content="3" />
+    
+    <style>
+      body {
+        background-color: #f9f9f9;
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        cursor: default;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      main,
+      aside,
+      section {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+      }
+      main {
+        height: 100%;
+      }
+      aside {
+        background: #000;
+        flex-shrink: 1;
+        padding: 30px 20px;
+      }
+      aside p {
+        margin: 0;
+        color: #999999;
+        font-size: 14px;
+        line-height: 24px;
+      }
+      aside a {
+        color: #fff;
+        text-decoration: none;
+      }
+      section span {
+        font-size: 24px;
+        font-weight: 500;
+        display: block;
+        border-bottom: 1px solid #eaeaea;
+        text-align: center;
+        padding-bottom: 20px;
+        width: 100px;
+      }
+      section p {
+        font-size: 14px;
+        font-weight: 400;
+      }
+      section span + p {
+        margin: 20px 0 0 0;
+      }
+      @media (min-width: 768px) {
+        section {
+          height: 40px;
+          flex-direction: row;
+        }
+        section span,
+        section p {
+          height: 100%;
+          line-height: 40px;
+        }
+        section span {
+          border-bottom: 0;
+          border-right: 1px solid #eaeaea;
+          padding: 0 20px 0 0;
+          width: auto;
+        }
+        section span + p {
+          margin: 0;
+          padding-left: 20px;
+        }
+        aside {
+          padding: 50px 0;
+        }
+        aside p {
+          max-width: 520px;
+          text-align: center;
+        }
+      }
+      svg {
+        margin: 4em auto 2em;
+      }
+    </style>
+  </head>
+  <body>
+    <svg
+      width="256"
+      height="256"
+      viewBox="0 0 256 256"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="256" height="256" fill="#1A1C1F" />
+      <path
+        d="M51.2005 100.813C51.2005 109.581 58.3083 116.689 67.0763 116.689C75.8443 116.689 82.9521 109.581 82.9521 100.813C82.9521 92.0449 75.8443 84.937 67.0763 84.937C58.3083 84.937 51.2005 92.0449 51.2005 100.813Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M51.2005 180.192C51.2005 188.96 58.3083 196.068 67.0763 196.068C75.8443 196.068 82.9521 188.96 82.9521 180.192C82.9521 171.424 75.8443 164.316 67.0763 164.316C58.3083 164.316 51.2005 171.424 51.2005 180.192Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M57.1529 140.503C57.1529 145.983 61.5954 150.426 67.0755 150.426C72.5556 150.426 76.998 145.983 76.998 140.503C76.998 135.023 72.5556 130.581 67.0755 130.581C61.5954 130.581 57.1529 135.023 57.1529 140.503Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M57.1529 61.1226C57.1529 66.6027 61.5954 71.0452 67.0755 71.0452C72.5556 71.0452 76.998 66.6027 76.998 61.1226C76.998 55.6426 72.5556 51.2001 67.0755 51.2001C61.5954 51.2001 57.1529 55.6426 57.1529 61.1226Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M112.124 155.187C112.124 163.955 119.232 171.063 128 171.063C136.768 171.063 143.876 163.955 143.876 155.187C143.876 146.419 136.768 139.311 128 139.311C119.232 139.311 112.124 146.419 112.124 155.187Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 194.878C118.078 200.358 122.52 204.8 128 204.8C133.48 204.8 137.923 200.358 137.923 194.878C137.923 189.397 133.48 184.955 128 184.955C122.52 184.955 118.078 189.397 118.078 194.878Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 115.498C118.078 120.978 122.52 125.421 128 125.421C133.48 125.421 137.923 120.978 137.923 115.498C137.923 110.018 133.48 105.576 128 105.576C122.52 105.576 118.078 110.018 118.078 115.498Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 75.8081C118.078 81.2881 122.52 85.7306 128 85.7306C133.48 85.7306 137.923 81.2881 137.923 75.8081C137.923 70.328 133.48 65.8855 128 65.8855C122.52 65.8855 118.078 70.328 118.078 75.8081Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M173.048 100.813C173.048 109.581 180.156 116.689 188.924 116.689C197.692 116.689 204.8 109.581 204.8 100.813C204.8 92.0449 197.692 84.937 188.924 84.937C180.156 84.937 173.048 92.0449 173.048 100.813Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 61.1226C179.002 66.6027 183.444 71.0452 188.924 71.0452C194.404 71.0452 198.847 66.6027 198.847 61.1226C198.847 55.6426 194.404 51.2001 188.924 51.2001C183.444 51.2001 179.002 55.6426 179.002 61.1226Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 140.503C179.002 145.983 183.444 150.426 188.924 150.426C194.404 150.426 198.847 145.983 198.847 140.503C198.847 135.023 194.404 130.581 188.924 130.581C183.444 130.581 179.002 135.023 179.002 140.503Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 180.192C179.002 185.672 183.444 190.115 188.924 190.115C194.404 190.115 198.847 185.672 198.847 180.192C198.847 174.712 194.404 170.27 188.924 170.27C183.444 170.27 179.002 174.712 179.002 180.192Z"
+        fill="#FFCC00"
+      />
+    </svg>
+    <div id="root"></div>
+    <script type="text/javascript">
+      const query = window.location.search.substring(1);
+      const parts = query.split("&");
+      const vars = {};
+      for (var i = 0; i < parts.length; i++) {
+        var pair = parts[i].split("=");
+        vars[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+      }
+      let code = vars.code || '502';
+      let authCode = '';
+      let message =
+        'Bad Gateway';
+      if (!code.match(/\d+/)) {
+        code = "500";
+      }
+      if (!authCode.match(/\d+/)) {
+        authCode = null;
+      }
+      if (message.match(/^</)) {
+        window.stop();
+        message = "Unknown service error";
+      }
+      const displayCode = parseInt(authCode || code, 10);
+      if (displayCode === 502) {
+        // TODO: we should pipe the actual root prefix here.
+        message =
+          "A service is down or restarting, contact your administrator to check the system logs";
+      } else if (displayCode === 401 || displayCode === 403) {
+        message = `<a href="./login">Login</a> required to access this page.`;
+      }
+      const root = document.getElementById("root");
+      root.innerHTML = `<section><span>${displayCode}</span><p>${message}</p></section>`;
+    </script>
+  </body>
+</html>
+
+,,,ERROR,502 response executing GraphQL.
+,,,ERROR,<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>W&B Local</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    
+    <meta id="refresh" http-equiv="refresh" content="3" />
+    
+    <style>
+      body {
+        background-color: #f9f9f9;
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        cursor: default;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      main,
+      aside,
+      section {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+      }
+      main {
+        height: 100%;
+      }
+      aside {
+        background: #000;
+        flex-shrink: 1;
+        padding: 30px 20px;
+      }
+      aside p {
+        margin: 0;
+        color: #999999;
+        font-size: 14px;
+        line-height: 24px;
+      }
+      aside a {
+        color: #fff;
+        text-decoration: none;
+      }
+      section span {
+        font-size: 24px;
+        font-weight: 500;
+        display: block;
+        border-bottom: 1px solid #eaeaea;
+        text-align: center;
+        padding-bottom: 20px;
+        width: 100px;
+      }
+      section p {
+        font-size: 14px;
+        font-weight: 400;
+      }
+      section span + p {
+        margin: 20px 0 0 0;
+      }
+      @media (min-width: 768px) {
+        section {
+          height: 40px;
+          flex-direction: row;
+        }
+        section span,
+        section p {
+          height: 100%;
+          line-height: 40px;
+        }
+        section span {
+          border-bottom: 0;
+          border-right: 1px solid #eaeaea;
+          padding: 0 20px 0 0;
+          width: auto;
+        }
+        section span + p {
+          margin: 0;
+          padding-left: 20px;
+        }
+        aside {
+          padding: 50px 0;
+        }
+        aside p {
+          max-width: 520px;
+          text-align: center;
+        }
+      }
+      svg {
+        margin: 4em auto 2em;
+      }
+    </style>
+  </head>
+  <body>
+    <svg
+      width="256"
+      height="256"
+      viewBox="0 0 256 256"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="256" height="256" fill="#1A1C1F" />
+      <path
+        d="M51.2005 100.813C51.2005 109.581 58.3083 116.689 67.0763 116.689C75.8443 116.689 82.9521 109.581 82.9521 100.813C82.9521 92.0449 75.8443 84.937 67.0763 84.937C58.3083 84.937 51.2005 92.0449 51.2005 100.813Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M51.2005 180.192C51.2005 188.96 58.3083 196.068 67.0763 196.068C75.8443 196.068 82.9521 188.96 82.9521 180.192C82.9521 171.424 75.8443 164.316 67.0763 164.316C58.3083 164.316 51.2005 171.424 51.2005 180.192Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M57.1529 140.503C57.1529 145.983 61.5954 150.426 67.0755 150.426C72.5556 150.426 76.998 145.983 76.998 140.503C76.998 135.023 72.5556 130.581 67.0755 130.581C61.5954 130.581 57.1529 135.023 57.1529 140.503Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M57.1529 61.1226C57.1529 66.6027 61.5954 71.0452 67.0755 71.0452C72.5556 71.0452 76.998 66.6027 76.998 61.1226C76.998 55.6426 72.5556 51.2001 67.0755 51.2001C61.5954 51.2001 57.1529 55.6426 57.1529 61.1226Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M112.124 155.187C112.124 163.955 119.232 171.063 128 171.063C136.768 171.063 143.876 163.955 143.876 155.187C143.876 146.419 136.768 139.311 128 139.311C119.232 139.311 112.124 146.419 112.124 155.187Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 194.878C118.078 200.358 122.52 204.8 128 204.8C133.48 204.8 137.923 200.358 137.923 194.878C137.923 189.397 133.48 184.955 128 184.955C122.52 184.955 118.078 189.397 118.078 194.878Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 115.498C118.078 120.978 122.52 125.421 128 125.421C133.48 125.421 137.923 120.978 137.923 115.498C137.923 110.018 133.48 105.576 128 105.576C122.52 105.576 118.078 110.018 118.078 115.498Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M118.078 75.8081C118.078 81.2881 122.52 85.7306 128 85.7306C133.48 85.7306 137.923 81.2881 137.923 75.8081C137.923 70.328 133.48 65.8855 128 65.8855C122.52 65.8855 118.078 70.328 118.078 75.8081Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M173.048 100.813C173.048 109.581 180.156 116.689 188.924 116.689C197.692 116.689 204.8 109.581 204.8 100.813C204.8 92.0449 197.692 84.937 188.924 84.937C180.156 84.937 173.048 92.0449 173.048 100.813Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 61.1226C179.002 66.6027 183.444 71.0452 188.924 71.0452C194.404 71.0452 198.847 66.6027 198.847 61.1226C198.847 55.6426 194.404 51.2001 188.924 51.2001C183.444 51.2001 179.002 55.6426 179.002 61.1226Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 140.503C179.002 145.983 183.444 150.426 188.924 150.426C194.404 150.426 198.847 145.983 198.847 140.503C198.847 135.023 194.404 130.581 188.924 130.581C183.444 130.581 179.002 135.023 179.002 140.503Z"
+        fill="#FFCC00"
+      />
+      <path
+        d="M179.002 180.192C179.002 185.672 183.444 190.115 188.924 190.115C194.404 190.115 198.847 185.672 198.847 180.192C198.847 174.712 194.404 170.27 188.924 170.27C183.444 170.27 179.002 174.712 179.002 180.192Z"
+        fill="#FFCC00"
+      />
+    </svg>
+    <div id="root"></div>
+    <script type="text/javascript">
+      const query = window.location.search.substring(1);
+      const parts = query.split("&");
+      const vars = {};
+      for (var i = 0; i < parts.length; i++) {
+        var pair = parts[i].split("=");
+        vars[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+      }
+      let code = vars.code || '502';
+      let authCode = '';
+      let message =
+        'Bad Gateway';
+      if (!code.match(/\d+/)) {
+        code = "500";
+      }
+      if (!authCode.match(/\d+/)) {
+        authCode = null;
+      }
+      if (message.match(/^</)) {
+        window.stop();
+        message = "Unknown service error";
+      }
+      const displayCode = parseInt(authCode || code, 10);
+      if (displayCode === 502) {
+        // TODO: we should pipe the actual root prefix here.
+        message =
+          "A service is down or restarting, contact your administrator to check the system logs";
+      } else if (displayCode === 401 || displayCode === 403) {
+        message = `<a href="./login">Login</a> required to access this page.`;
+      }
+      const root = document.getElementById("root");
+      root.innerHTML = `<section><span>${displayCode}</span><p>${message}</p></section>`;
+    </script>
+  </body>
+</html>
+

@@ -1,24 +1,42 @@
 import os
+import random
 import signal
+import string
 import subprocess
 import tempfile
 import time
+import typing
 import urllib.parse
 import uuid
 import warnings
-from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from typing import Iterable, List
 
 import hypothesis.strategies as st
 import mlflow
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
 import psutil
 import pytest
 import requests
+import wandb
+import wandb.apis.reports as wr
 from hypothesis.errors import NonInteractiveExampleWarning
 from mlflow.entities import Metric
 from mlflow.tracking import MlflowClient
 from packaging.version import Version
+from PIL import Image
+from rdkit import Chem
 from wandb.util import batched
+
+from ..helpers import (
+    MlflowLoggingConfig,
+    MlflowServerSettings,
+    WandbLoggingConfig,
+    WandbServerSettings,
+    WandbServerUser,
+)
 
 SECONDS_FROM_2023_01_01 = 1672549200
 
@@ -27,60 +45,7 @@ mlflow_version = Version(mlflow.__version__)
 try:
     from typing import Literal
 except ImportError:
-    from typing_extensions import Literal
-
-
-@dataclass
-class MlflowServerSettings:
-    metrics_backend: Literal[
-        "mssql_backend",
-        "mysql_backend",
-        "postgres_backend",
-        "file_backend",
-        "sqlite_backend",
-    ]
-    artifacts_backend: Literal["file_artifacts", "s3_artifacts"]
-
-    base_url: str = "http://localhost:4040"
-    health_endpoint: str = "health"
-
-    # helper if port is blocked
-    new_port: Optional[str] = None
-
-    def __post_init__(self):
-        self.new_port = self._get_free_port()
-        self.base_url = self.base_url.replace("4040", self.new_port)
-
-    def _get_free_port():
-        import socket
-
-        sock = socket.socket()
-        sock.bind(("", 0))
-        return str(sock.getsockname()[1])
-
-
-@dataclass
-class MlflowLoggingConfig:
-    # experiments and metrics
-    n_experiments: int
-    n_runs_per_experiment: int
-    n_steps_per_run: int
-
-    # artifacts
-    n_root_files: int
-    n_subdirs: int
-    n_subdir_files: int
-
-    # batching
-    logging_batch_size: int = 50
-
-    @property
-    def total_runs(self):
-        return self.n_experiments * self.n_runs_per_experiment
-
-    @property
-    def total_files(self):
-        return self.n_root_files + self.n_subdirs * self.n_subdir_files
+    pass
 
 
 # def make_nested_run():
@@ -280,7 +245,7 @@ def mlflow_logging_config():
 
 
 @pytest.fixture
-def mlflow_server(mlflow_server_settings):
+def new_mlflow_server(mlflow_server_settings):
     if mlflow_version < Version("2.0.0"):
         start_cmd = [
             "mlflow",
@@ -318,12 +283,12 @@ def mlflow_server(mlflow_server_settings):
 
 
 @pytest.fixture
-def prelogged_mlflow_server(mlflow_server, mlflow_logging_config):
+def new_prelogged_mlflow_server(new_mlflow_server, mlflow_logging_config):
     config = mlflow_logging_config
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
-        mlflow.set_tracking_uri(mlflow_server.base_url)
+        mlflow.set_tracking_uri(new_mlflow_server.base_url)
 
         # Experiments
         for _ in range(config.n_experiments):
@@ -352,4 +317,248 @@ def prelogged_mlflow_server(mlflow_server, mlflow_logging_config):
                         )
                         mlflow.log_artifact(artifacts_dir)
 
-    return mlflow_server
+    return new_mlflow_server
+
+
+def determine_scope(fixture_name, config):
+    return config.getoption("--user-scope")
+
+
+@pytest.fixture(scope="session")
+def wandb_logging_config():
+    return WandbLoggingConfig(
+        n_steps=100,
+        n_metrics=2,
+        n_experiments=3,
+        n_reports=3,
+    )
+
+
+@pytest.fixture(scope="session")
+def wandb_server2(wandb_server_factory):
+    settings = WandbServerSettings(
+        name="wandb-src-server",
+        volume="wandb-src-server-vol",
+        local_base_port="9180",
+        services_api_port="9183",
+        fixture_service_port="9115",
+        db_port="3307",
+        wandb_server_pull="missing",
+        wandb_server_tag="master",
+    )
+
+    wandb_server_factory(settings)
+    return settings
+
+
+@pytest.fixture(scope=determine_scope)
+def user2(user_factory, fixture_fn2, wandb_server2):
+    yield from user_factory(fixture_fn2, wandb_server2)
+
+
+@pytest.fixture(scope="session")
+def fixture_fn2(wandb_server2, fixture_fn_factory):
+    yield from fixture_fn_factory(wandb_server2)
+
+
+@pytest.fixture
+def wandb_server_dst(wandb_server, user):
+    return WandbServerUser(wandb_server, user)
+
+
+@pytest.fixture
+def wandb_server_src(wandb_server2, user2, wandb_logging_config):
+    def artifact_generator():
+        names = string.ascii_lowercase
+        types = ["t" + str(i // 2 + 1) for i, _ in enumerate(names)]
+
+        for name, _type in zip(names, types):
+            yield wandb.Artifact(name, _type)
+
+    art_gen = artifact_generator()
+
+    old_arts = []
+    new_arts = []
+
+    for _ in range(wandb_logging_config.n_experiments):
+        with wandb.init(
+            project=wandb_logging_config.project_name,
+            settings={"console": "off", "save_code": False},
+        ) as run:
+            # log metrics
+            data = generate_random_data(
+                wandb_logging_config.n_steps, wandb_logging_config.n_metrics
+            )
+            for i in range(wandb_logging_config.n_steps):
+                metrics = {k: v[i] for k, v in data.items()}
+                run.log(metrics)
+
+            # log tables
+            run.log(
+                {
+                    "df": create_random_dataframe(),
+                    "img": create_random_image(),
+                    # "vid": create_random_video(),  # path error matplotlib
+                    "audio": create_random_audio(),
+                    "pc": create_random_point_cloud(),
+                    "html": create_random_html(),
+                    "plotly_fig": create_random_plotly(),
+                    "mol": create_random_molecule(),
+                }
+            )
+
+            # log artifacts
+            old_arts, new_arts = new_arts, [next(art_gen), next(art_gen)]
+            for old_art in old_arts:
+                run.use_artifact(old_art)
+
+            for new_art in new_arts:
+                run.log_artifact(new_art)
+
+    # create reports
+    for _ in range(wandb_logging_config.n_reports):
+        wr.Report(
+            project=wandb_logging_config.project_name,
+            blocks=[wr.H1("blah")],
+        ).save()
+
+    return WandbServerUser(wandb_server2, user2)
+
+
+def generate_random_data(n: int, n_metrics: int) -> list:
+    steps = np.arange(0, n, 1)
+    data = {}
+    fns: list[typing.Any] = [
+        lambda steps: steps**2,
+        lambda steps: np.cos(steps * 0.0001),
+        lambda steps: np.sin(steps * 0.01),
+        lambda steps: np.log(steps + 1),
+        lambda steps: np.exp(steps * 0.0001),
+        lambda steps: np.exp(-steps * 0.0001) * 1000,  # Simulate decreasing loss
+        lambda steps: 1 - np.exp(-steps * 0.0001),  # Simulate increasing accuracy
+        lambda steps: np.power(steps, -0.5)
+        * 1000,  # Simulate decreasing loss with power-law decay
+        lambda steps: np.tanh(
+            steps * 0.0001
+        ),  # Simulate a metric converging to a value
+        lambda steps: np.arctan(
+            steps * 0.0001
+        ),  # Simulate a metric converging to a value with a different curve
+        lambda steps: np.piecewise(
+            steps,
+            [steps < n / 2, steps >= n / 2],
+            [lambda steps: steps * 0.001, lambda steps: 1 - np.exp(-steps * 0.0001)],
+        ),  # Simulate a two-stage training process
+        lambda steps: np.sin(steps * 0.001)
+        * np.exp(-steps * 0.0001),  # Sinusoidal oscillations with exponential decay
+        lambda steps: (np.cos(steps * 0.001) + 1)
+        * 0.5
+        * (
+            1 - np.exp(-steps * 0.0001)
+        ),  # Oscillations converging to increasing accuracy
+        lambda steps: np.log(steps + 1)
+        * (
+            1 - np.exp(-steps * 0.0001)
+        ),  # Logarithmic growth modulated by increasing accuracy
+        lambda steps: np.random.random()
+        * (
+            1 - np.exp(-steps * 0.0001)
+        ),  # Random constant value modulated by increasing accuracy
+    ]
+    for j in range(n_metrics):
+        noise_fraction = random.random()
+        fn = random.choice(fns)
+        values = fn(steps)
+        # Add different types of noise
+        noise_type = random.choice(["uniform", "normal", "triangular"])
+        if noise_type == "uniform":
+            noise = np.random.uniform(low=-noise_fraction, high=noise_fraction, size=n)
+        elif noise_type == "normal":
+            noise = np.random.normal(scale=noise_fraction, size=n)
+        elif noise_type == "triangular":
+            noise = np.random.triangular(
+                left=-noise_fraction, mode=0, right=noise_fraction, size=n
+            )
+        data[f"metric{j}"] = values + noise_fraction * values * noise
+    return data
+
+
+# Function to generate random text
+def generate_random_text(length=10):
+    letters = string.ascii_lowercase
+    return "".join(random.choice(letters) for i in range(length))
+
+
+def create_random_dataframe(rows=100, columns=5):
+    data = np.random.randint(0, 100, (rows, columns))
+    df = pd.DataFrame(data)
+    return df
+
+
+def create_random_image(size=(100, 100)):
+    array = np.random.randint(0, 256, size + (3,), dtype=np.uint8)
+    img = Image.fromarray(array)
+    return wandb.Image(img)
+
+
+def create_random_video():
+    frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+    return wandb.Video(frames, fps=4)
+
+
+def create_random_audio():
+    # Generate a random numpy array for audio data
+    sampling_rate = 44100  # Typical audio sampling rate
+    duration = 1.0  # duration in seconds
+    audio_data = np.random.uniform(
+        low=-1.0, high=1.0, size=int(sampling_rate * duration)
+    )
+    return wandb.Audio(audio_data, sample_rate=sampling_rate, caption="its audio yo")
+
+
+def create_random_plotly():
+    df = pd.DataFrame({"x": np.random.rand(100), "y": np.random.rand(100)})
+
+    # Create a scatter plot
+    fig = px.scatter(df, x="x", y="y")
+    return fig
+
+
+def create_random_html():
+    fig = create_random_plotly()
+    string = pio.to_html(fig)
+    return wandb.Html(string)
+
+
+def create_random_point_cloud():
+    point_cloud = np.random.rand(100, 3)
+    return wandb.Object3D(point_cloud)
+
+
+def create_random_molecule():
+    m = Chem.MolFromSmiles("Cc1ccccc1")
+    return wandb.Molecule.from_rdkit(m)
+
+
+def make_artifact(name):
+    # Create a temporary directory
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Set the filename
+        filename = os.path.join(tmpdirname, "random_text.txt")
+
+        # Open the file in write mode
+        with open(filename, "w") as f:
+            for _ in range(100):  # Write 100 lines of random text
+                random_text = generate_random_text(
+                    50
+                )  # Each line contains 50 characters
+                f.write(random_text + "\n")  # Write the random text to the file
+
+        print(f"Random text data has been written to {filename}")
+
+        # Create a new artifact
+        artifact = wandb.Artifact(name, name)
+
+        # Add the file to the artifact
+        artifact.add_file(filename)
+        return artifact
