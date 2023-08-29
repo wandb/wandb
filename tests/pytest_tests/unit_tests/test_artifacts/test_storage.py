@@ -333,7 +333,7 @@ def test_cache_drops_lru_when_adding_not_enough_space(fs, artifacts_cache):
         cache_paths.append(path)
 
     # This next file won't fit; we should drop 1/2 the files in LRU order.
-    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("x"), 100)
+    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("x"), 1)
     with opener() as f:
         f.write("x")
 
@@ -370,7 +370,7 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
             path = f.name
             assert os.path.exists(path)
 
-            monkeypatch.setattr(os, "link", fail)
+            monkeypatch.setattr(os, "replace", fail)
 
     assert not os.path.exists(path)
 
