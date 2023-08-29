@@ -110,17 +110,17 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 	}
 
 	// don't retry on context errors
-	if ctx.Err() != nil {
-		return false, ctx.Err()
-	}
-
-	fmt.Println("GOT ME SOME CONTEXT", ctx)
-	// get retry function from context
-	retryFunc, ok := ctx.Value(CtxRetryFuncKey).(func(context.Context, *http.Response, error) (bool, error))
-	if !ok {
-		return DefaultRetryPolicy(ctx, resp, err)
-	}
-	return retryFunc(ctx, resp, err)
+	//if ctx.Err() != nil {
+	//	return false, ctx.Err()
+	//}
+	return DefaultRetryPolicy(ctx, resp, err)
+	//fmt.Println("GOT ME SOME CONTEXT", ctx)
+	//// get retry function from context
+	//retryFunc, ok := ctx.Value(CtxRetryFuncKey).(func(context.Context, *http.Response, error) (bool, error))
+	//if !ok {
+	//	return DefaultRetryPolicy(ctx, resp, err)
+	//}
+	//return retryFunc(ctx, resp, err)
 
 	//// don't retry on 4xx errors
 	//if resp.StatusCode >= 100 && resp.StatusCode < 500 {
