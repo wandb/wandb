@@ -110,42 +110,42 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 	}
 
 	// don't retry on context errors
-	//if ctx.Err() != nil {
-	//	return false, ctx.Err()
-	//}
-	return DefaultRetryPolicy(ctx, resp, err)
-	//fmt.Println("GOT ME SOME CONTEXT", ctx)
-	//// get retry function from context
-	//retryFunc, ok := ctx.Value(CtxRetryFuncKey).(func(context.Context, *http.Response, error) (bool, error))
-	//if !ok {
-	//	return DefaultRetryPolicy(ctx, resp, err)
-	//}
-	//return retryFunc(ctx, resp, err)
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
 
-	//// don't retry on 4xx errors
-	//if resp.StatusCode >= 100 && resp.StatusCode < 500 {
-	//	// don't retry on a 400 bad request
-	//	if resp.StatusCode == http.StatusBadRequest {
-	//		return false, fmt.Errorf("bad request")
-	//	}
-	//	// don't retry on a 401 unauthorized
-	//	if resp.StatusCode == http.StatusUnauthorized {
-	//		return false, fmt.Errorf("unauthorized")
-	//	}
-	//	// don't retry on a 403 forbidden
-	//	if resp.StatusCode == http.StatusForbidden {
-	//		return false, fmt.Errorf("forbidden")
-	//	}
-	//	// don't retry on a 404 not found
-	//	if resp.StatusCode == http.StatusNotFound {
-	//		return false, fmt.Errorf("not found")
-	//	}
-	//	return true, nil
-	//}
+	fmt.Println("GOT ME SOME CONTEXT", ctx)
+	// get retry function from context
+	retryFunc, ok := ctx.Value(CtxRetryFuncKey).(func(context.Context, *http.Response, error) (bool, error))
+	if !ok {
+		return DefaultRetryPolicy(ctx, resp, err)
+	}
+	return retryFunc(ctx, resp, err)
+
+	// // don't retry on 4xx errors
+	// if resp.StatusCode >= 100 && resp.StatusCode < 500 {
+	// 	// don't retry on a 400 bad request
+	// 	if resp.StatusCode == http.StatusBadRequest {
+	// 		return false, fmt.Errorf("bad request")
+	// 	}
+	// 	// don't retry on a 401 unauthorized
+	// 	if resp.StatusCode == http.StatusUnauthorized {
+	// 		return false, fmt.Errorf("unauthorized")
+	// 	}
+	// 	// don't retry on a 403 forbidden
+	// 	if resp.StatusCode == http.StatusForbidden {
+	// 		return false, fmt.Errorf("forbidden")
+	// 	}
+	// 	// don't retry on a 404 not found
+	// 	if resp.StatusCode == http.StatusNotFound {
+	// 		return false, fmt.Errorf("not found")
+	// 	}
+	// 	return true, nil
+	// }
 	//
-	//if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
-	//	return true, fmt.Errorf("unexpected HTTP status %s", resp.Status)
-	//}
+	// if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
+	// 	return true, fmt.Errorf("unexpected HTTP status %s", resp.Status)
+	// }
 }
 
 // NewSender creates a new Sender with the given settings
