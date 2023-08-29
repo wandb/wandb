@@ -166,7 +166,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		retryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientHttpAuthTransport(settings.GetApiKey().GetValue()),
-			clients.WithRetryClientRetryPolicy(CheckRetry),
+			//clients.WithRetryClientRetryPolicy(CheckRetry),
 		)
 		sender.graphqlClient = graphql.NewClient(url, retryClient.StandardClient())
 	}
