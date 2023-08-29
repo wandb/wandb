@@ -447,6 +447,7 @@ class SettingsData:
     tmp_dir: str
     username: str
     wandb_dir: str
+    _import_mode: bool
 
 
 class Property:
