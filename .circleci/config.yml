@@ -650,9 +650,9 @@ jobs:
                 name: Setup environment
                 command: |
                   aws ecr get-login-password --region us-east-2
-                  pip install /mnt/ramdisk/wandb
+                  pip3 install /mnt/ramdisk/wandb
                   wandb login $WANDB_API_KEY
-                  python ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
+                  python3 ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
                 no_output_timeout: 30m
             - run:
                 name: Install tox
