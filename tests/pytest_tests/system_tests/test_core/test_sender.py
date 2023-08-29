@@ -12,6 +12,10 @@ from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.lib import filesystem
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_live_existing_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     file_name = "wandb.rules"
@@ -27,6 +31,10 @@ def test_save_live_existing_file(relay_server, user, mock_run, backend_interface
     assert uploaded_files.count(file_name) == 1
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_live_write_after_policy(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     file_name = "wandb.rules"
@@ -40,6 +48,10 @@ def test_save_live_write_after_policy(relay_server, user, mock_run, backend_inte
     assert uploaded_files.count(file_name) == 1
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_preempting_sent_to_server(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -48,6 +60,10 @@ def test_preempting_sent_to_server(relay_server, user, mock_run, backend_interfa
     assert relay.context.entries[run.id].get("preempting") is not None
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_live_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     file_name = "wandb.rules"
@@ -69,6 +85,10 @@ def test_save_live_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="TODO: fix this test")
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_live_glob_multi_write(
     relay_server, user, mock_run, backend_interface, mocker
 ):
@@ -108,6 +128,10 @@ def test_save_live_glob_multi_write(
     assert uploaded_files.count("checkpoints/test_2.txt") == 1
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_rename_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -125,6 +149,10 @@ def test_save_rename_file(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("test-copy.txt") == 1
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_end_write_after_policy(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -136,6 +164,10 @@ def test_save_end_write_after_policy(relay_server, user, mock_run, backend_inter
     assert uploaded_files.count("test.txt") == 1
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_end_existing_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -147,6 +179,10 @@ def test_save_end_existing_file(relay_server, user, mock_run, backend_interface)
     assert uploaded_files.count("test.txt") == 1
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_end_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -164,6 +200,10 @@ def test_save_end_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_now_write_after_policy(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -176,6 +216,10 @@ def test_save_now_write_after_policy(relay_server, user, mock_run, backend_inter
     assert uploaded_files.count("test.txt") == 1
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_now_existing_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -188,6 +232,10 @@ def test_save_now_existing_file(relay_server, user, mock_run, backend_interface)
 
 
 @pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_now_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -204,6 +252,10 @@ def test_save_now_multi_write(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("test.txt") == 1
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -228,6 +280,10 @@ def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_now_relative_path(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -243,6 +299,10 @@ def test_save_now_relative_path(relay_server, user, mock_run, backend_interface)
 
 
 @pytest.mark.xfail(reason="TODO: This test is flakey")
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_save_now_twice(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -262,6 +322,10 @@ def test_save_now_twice(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("foo/test.txt") == 2
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_upgrade_upgraded(
     mock_run,
     backend_interface,
@@ -296,6 +360,10 @@ def test_upgrade_upgraded(
         assert run_result.HasField("error") is False
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_upgrade_yanked(
     mock_run,
     backend_interface,
@@ -333,6 +401,10 @@ def test_upgrade_yanked(
         assert run_result.HasField("error") is False
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_upgrade_yanked_message(
     mock_run,
     backend_interface,
@@ -370,6 +442,10 @@ def test_upgrade_yanked_message(
         assert run_result.HasField("error") is False
 
 
+@pytest.mark.nexus_failure(
+    feature="file_uploader",
+    reason="test relies on internal python implementation",
+)
 def test_upgrade_removed(
     mock_run,
     backend_interface,
