@@ -2634,7 +2634,10 @@ class Run:
                     entity,
                     project,
                 )
-                if artifact._ttl_duration_seconds is not None:
+                if (
+                    artifact._ttl_duration_seconds is not None
+                    or artifact._ttl_is_inherited
+                ):
                     wandb.termwarn(
                         "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
                     )
