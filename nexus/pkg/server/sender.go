@@ -31,7 +31,7 @@ const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
 	// Modified from time.RFC3339Nano
-	RFC3339Micro    = "2006-01-02T15:04:05.000000Z07:00"
+	RFC3339Micro               = "2006-01-02T15:04:05.000000Z07:00"
 	CtxRetryFuncKey ContextKey = "retryFunc"
 )
 
@@ -144,8 +144,6 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 	//if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
 	//	return true, fmt.Errorf("unexpected HTTP status %s", resp.Status)
 	//}
-
-	return false, nil
 }
 
 // NewSender creates a new Sender with the given settings
