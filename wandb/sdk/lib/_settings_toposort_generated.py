@@ -155,6 +155,7 @@ _Setting = Literal[
     "tmp_dir",
     "username",
     "wandb_dir",
+    "_import_mode",
 ]
 
 SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (

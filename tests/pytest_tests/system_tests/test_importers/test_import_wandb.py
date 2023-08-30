@@ -91,11 +91,10 @@ def test_wandb_artifact_sequence(
     config = ImportConfig(
         entity=wandb_server_dst.user, project=wandb_logging_config.project_name
     )
-    artifact_sequences = list(
+    sequences = list(
         importer.collect_artifact_sequences(wandb_server_src.user, limit=1)
     )
-    sequence = artifact_sequences[0]
-    importer.import_artifact_sequence(sequence, config)
+    importer.import_artifact_sequences(sequences, config)
 
     # Check if import was successful
     api = wandb.Api(
@@ -103,16 +102,17 @@ def test_wandb_artifact_sequence(
         overrides={"base_url": wandb_server_dst.server.base_url},
     )
 
-    for source_art in sequence:
-        result_art = api.artifact(source_art.name, source_art.type)
-        assert result_art is not None
+    for sequence in sequences:
+        for src_art in sequence:
+            dst_art = api.artifact(src_art.name, src_art.type)
+            assert dst_art is not None
 
-        assert result_art.name == source_art.name
-        assert result_art.type == source_art.type
-        assert result_art.description == source_art.description
+            assert dst_art.name == src_art.name
+            assert dst_art.type == src_art.type
+            assert dst_art.description == src_art.description
 
-        for name, result_entry in result_art.manifest.entries.items():
-            source_entry = source_art.manifest.entries[name]
-            assert result_entry.path == source_entry.path
-            assert result_entry.digest == source_entry.digest
-            assert result_entry.size == source_entry.size
+            for name, dst_entry in dst_art.manifest.entries.items():
+                src_entry = src_art.manifest.entries[name]
+                assert dst_entry.path == src_entry.path
+                assert dst_entry.digest == src_entry.digest
+                assert dst_entry.size == src_entry.size
