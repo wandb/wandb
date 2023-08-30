@@ -95,7 +95,7 @@ func emptyAsNil(s *string) *string {
 }
 
 func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	fmt.Println("IMMA DEFAULT RETRY FUNC", ctx, resp, err)
+	// fmt.Println("IMMA DEFAULT RETRY FUNC", ctx, resp, err)
 
 	statusCode := resp.StatusCode
 	switch {
@@ -107,15 +107,13 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 		return false, fmt.Errorf("you don't have permission to access this resource. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode == http.StatusNotFound: // don't retry on 404 not found
 		return false, fmt.Errorf("the resource you requested could not be found. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode >= 100 && statusCode < 500: // retry on 1xx informational, 2xx success, 3xx redirection and the rest of 4xx client error
-		return true, nil
 	default: // retry on 5xx server error
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 }
 
 func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	fmt.Println("IMMA UPSERT BUCKET RETRY FUNC", ctx, resp, err)
+	// fmt.Println("IMMA UPSERT BUCKET RETRY FUNC", ctx, resp, err)
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusGone: // don't retry on 410 Gone
@@ -132,7 +130,7 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 
-	fmt.Println("GOT ME SOME CONTEXT", ctx)
+	// fmt.Println("GOT ME SOME CONTEXT", ctx)
 	// get retry policy from context
 	retryPolicy, ok := ctx.Value(CtxRetryPolicyKey).(func(context.Context, *http.Response, error) (bool, error))
 	switch {

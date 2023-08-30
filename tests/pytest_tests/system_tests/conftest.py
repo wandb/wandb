@@ -857,6 +857,27 @@ def inject_file_stream_response(base_url, user):
     yield helper
 
 
+@pytest.fixture(scope="function")
+def inject_graphql_response(base_url, user):
+    def helper(
+        body: Union[str, Exception] = "{}",
+        status: int = 200,
+        application_pattern: str = "1",
+    ) -> InjectedResponse:
+        if status > 299:
+            message = body if isinstance(body, str) else "::".join(body.args)
+            body = DeliberateHTTPError(status_code=status, message=message)
+        return InjectedResponse(
+            method="POST",
+            url=urllib.parse.urljoin(base_url, "/graphql"),
+            body=body,
+            status=status,
+            application_pattern=TokenizedCircularPattern(application_pattern),
+        )
+
+    yield helper
+
+
 @pytest.fixture
 def logged_artifact(wandb_init, example_files) -> Artifact:
     with wandb_init() as run:
