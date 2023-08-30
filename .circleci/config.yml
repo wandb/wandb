@@ -622,7 +622,7 @@ jobs:
         type: string
         default: "--cli_branch $CIRCLE_BRANCH"
     machine:
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2004:2022.04.1
       docker_layer_caching: true
     resource_class: large
     # docker:
@@ -648,8 +648,8 @@ jobs:
             - run:
                 name: Install tox
                 command: |
-                  pip install --upgrade pip
-                  pip install tox==<< pipeline.parameters.tox_version >>
+                  pip3 install -U pip
+                  pip3 install tox==<< pipeline.parameters.tox_version >>
                 no_output_timeout: 5m
             - run:
                 name: Setup environment
