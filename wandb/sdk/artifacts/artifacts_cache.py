@@ -6,21 +6,17 @@ import os
 import shutil
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
+from typing import IO, TYPE_CHECKING, ContextManager, Generator, Optional, Tuple
 
 import wandb
 from wandb import env, util
 from wandb.errors import term
-from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
-from wandb.sdk.lib.capped_dict import CappedDict
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     import sys
-
-    from wandb.sdk.artifacts.artifact import Artifact
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -35,11 +31,9 @@ if TYPE_CHECKING:
 class ArtifactsCache:
     def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = Path(cache_dir)
+        self._obj_dir = self._cache_dir / "obj"
         self._temp_dir = self._cache_dir / "tmp"
         self._temp_dir.mkdir(parents=True, exist_ok=True)
-        self._obj_dir = self._cache_dir / "obj"
-        self._artifacts_by_id: Dict[str, Artifact] = CappedDict()
-        self._artifacts_by_client_id: Dict[str, Artifact] = CappedDict()
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
@@ -69,20 +63,6 @@ class ArtifactsCache:
         opener = self._cache_opener(path, size)
         hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
-
-    def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
-        return self._artifacts_by_id.get(artifact_id)
-
-    def store_artifact(self, artifact: "Artifact") -> None:
-        if not artifact.id:
-            raise ArtifactNotLoggedError(artifact, "store_artifact")
-        self._artifacts_by_id[artifact.id] = artifact
-
-    def get_client_artifact(self, client_id: str) -> Optional["Artifact"]:
-        return self._artifacts_by_client_id.get(client_id)
-
-    def store_client_artifact(self, artifact: "Artifact") -> None:
-        self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(
         self,
