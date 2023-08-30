@@ -722,8 +722,12 @@ class WandbImporter:
             },
         )
 
-    def _projects(self, entity: str, project: Optional[str]):
-        api = self.src_api
+    def _projects(
+        self, entity: str, project: Optional[str], api: Optional[wandb.Api] = None
+    ):
+        if api is None:
+            api = self.src_api
+
         if project is None:
             return api.projects(entity)
         return [api.project(project, entity)]
@@ -898,7 +902,7 @@ class WandbImporter:
                         continue
 
     def _wipe_artifacts(self, entity: str, project: Optional[str] = None) -> None:
-        projects = self._projects(entity, project)
+        projects = self._projects(entity, project, api=self.dst_api)
 
         def artifacts():
             for project in projects:
