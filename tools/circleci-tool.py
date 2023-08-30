@@ -178,8 +178,8 @@ def trigger_nightly(args):
             f"Valid shards are: {default_shards}"
         )
     # flip the requested shards to True
-    for shard in requested_shards:
-        shards[f"nightly_execute_{shard.replace('-', '_')}"] = True
+    # for shard in requested_shards:
+    #     shards[f"nightly_execute_{shard.replace('-', '_')}"] = True
 
     payload = {
         "branch": args.branch,
