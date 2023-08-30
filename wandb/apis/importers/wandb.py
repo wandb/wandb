@@ -961,8 +961,7 @@ class WandbImporter:
         def artifacts(project_name):
             for _type in self.dst_api.artifact_types(project_name):
                 for collection in _type.collections():
-                    for version in collection.versions():
-                        yield version
+                    yield from collection.versions()
 
         projects = self._projects(entity, project, api=self.dst_api)
         proj_names = [f"{entity}/{p.name}" for p in projects]

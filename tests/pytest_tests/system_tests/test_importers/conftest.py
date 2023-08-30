@@ -42,11 +42,6 @@ SECONDS_FROM_2023_01_01 = 1672549200
 
 mlflow_version = Version(mlflow.__version__)
 
-try:
-    from typing import Literal
-except ImportError:
-    pass
-
 
 # def make_nested_run():
 #     with mlflow.start_run():

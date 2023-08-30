@@ -1,30 +1,9 @@
+import string
+
 import pandas as pd
 import pytest
 import wandb
 from wandb.apis.importers import ImportConfig, WandbImporter
-
-# @pytest.fixture
-# def dst_api(wandb_server_dst):
-#     yield wandb.Api(
-#         api_key=wandb_server_dst.user,
-#         overrides={"base_url": wandb_server_dst.server.base_url},
-#     )
-
-
-def setup_importer(wandb_server_src, wandb_server_dst, wandb_logging_config):
-    importer = WandbImporter(
-        src_base_url=wandb_server_src.server.base_url,
-        src_api_key=wandb_server_src.user,
-        dst_base_url=wandb_server_dst.server.base_url,
-        dst_api_key=wandb_server_dst.user,
-    )
-
-    config = ImportConfig(
-        entity=wandb_server_dst.user,
-        project=wandb_logging_config.project_name,
-    )
-    
-    return importer, config
 
 
 @pytest.mark.timeout(300)
@@ -103,6 +82,13 @@ def test_wandb_reports(wandb_server_src, wandb_server_dst, wandb_logging_config)
 def test_wandb_artifact_sequences(
     wandb_server_src, wandb_server_dst, wandb_logging_config
 ):
+    def artifact_generator():
+        names = string.ascii_lowercase
+        types = ["t" + str(i // 2 + 1) for i, _ in enumerate(names)]
+
+        for name, _type in zip(names, types):
+            yield wandb.Artifact(name, _type)
+
     # Import
     importer = WandbImporter(
         src_base_url=wandb_server_src.server.base_url,
@@ -114,7 +100,9 @@ def test_wandb_artifact_sequences(
     config = ImportConfig(
         entity=wandb_server_dst.user, project=wandb_logging_config.project_name
     )
-    artifact_sequences = list(importer.collect_artifact_sequences(wandb_server_src.user))
+    artifact_sequences = list(
+        importer.collect_artifact_sequences(wandb_server_src.user)
+    )
     importer.import_artifact_sequences(artifact_sequences, config)
 
     # Check if import was successful
@@ -122,7 +110,7 @@ def test_wandb_artifact_sequences(
         api_key=wandb_server_dst.user,
         overrides={"base_url": wandb_server_dst.server.base_url},
     )
-    
+
     api.artifact_versions()
 
     # runs = api.runs(f"{entity}/{project}")

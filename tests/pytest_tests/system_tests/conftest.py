@@ -39,12 +39,6 @@ from .helpers import (
     WandbServerSettings,
 )
 
-try:
-    from typing import Literal
-except ImportError:
-    pass
-
-
 # `local-testcontainer` ports
 LOCAL_BASE_PORT = "8080"
 SERVICES_API_PORT = "8083"
