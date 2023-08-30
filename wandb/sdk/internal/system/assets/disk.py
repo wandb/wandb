@@ -43,7 +43,9 @@ class DiskUsagePercent:
         disk_metrics = {}
         for i, _path in enumerate(self.paths):
             aggregate_i = aggregate_mean([sample[i] for sample in self.samples])
-            disk_metrics[self.name.format(path=i)] = aggregate_i
+            # ugly hack to please the frontend:
+            _path = _path.replace("/", "\\")
+            disk_metrics[self.name.format(path=_path)] = aggregate_i
 
         return disk_metrics
 
@@ -73,7 +75,9 @@ class DiskUsage:
         disk_metrics = {}
         for i, _path in enumerate(self.paths):
             aggregate_i = aggregate_mean([sample[i] for sample in self.samples])
-            disk_metrics[self.name.format(path=i)] = aggregate_i
+            # ugly hack to please the frontend:
+            _path = _path.replace("/", "\\")
+            disk_metrics[self.name.format(path=_path)] = aggregate_i
 
         return disk_metrics
 
