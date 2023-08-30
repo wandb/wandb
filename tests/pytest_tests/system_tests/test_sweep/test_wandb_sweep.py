@@ -182,5 +182,5 @@ def test_add_run_to_existing_sweep(user, wandb_init, relay_server):
         run.log({"x": 1})
         run.finish()
 
-    response = relay.context.get_upsert_bucket_responses(run.id)[0]
-    assert sweep_id == response["sweepName"]
+    run_attrs = relay.context.get_run_attrs(run.id)
+    assert sweep_id == run_attrs.sweep_name
