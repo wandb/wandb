@@ -2,14 +2,14 @@
 
 import concurrent.futures
 import functools
-import os
 import queue
 import shutil
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
 from wandb.filesync import step_upload
-from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 class RequestUpload(NamedTuple):
-    path: str
+    path: Path
     save_name: LogicalPath
     copy: bool
 
@@ -74,11 +74,10 @@ class StepChecksum:
             if isinstance(req, RequestUpload):
                 path = req.path
                 if req.copy:
-                    path = os.path.join(
-                        self._tempdir.name,
-                        f"{runid.generate_id()}-{req.save_name}",
+                    path = Path(
+                        self._tempdir.name, f"{runid.generate_id()}-{req.save_name}"
                     )
-                    filesystem.mkdir_exists_ok(os.path.dirname(path))
+                    path.parent.mkdir(parents=True, exist_ok=True)
                     try:
                         # certain linux distros throw an exception when copying
                         # large files: https://bugs.python.org/issue43743
@@ -86,7 +85,7 @@ class StepChecksum:
                     except OSError:
                         shutil._USE_CP_SENDFILE = False  # type: ignore[attr-defined]
                         shutil.copy2(req.path, path)
-                self._stats.init_file(req.save_name, os.path.getsize(path))
+                self._stats.init_file(req.save_name, path.stat().st_size)
                 self._output_queue.put(
                     step_upload.RequestUpload(
                         path,
@@ -103,13 +102,13 @@ class StepChecksum:
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
                         self._stats.init_file(
-                            entry.local_path,
+                            entry.path,
                             cast(int, entry.size),
                             is_artifact_file=True,
                         )
                         self._output_queue.put(
                             step_upload.RequestUpload(
-                                entry.local_path,
+                                Path(entry.local_path),
                                 entry.path,
                                 req.artifact_id,
                                 entry.digest,

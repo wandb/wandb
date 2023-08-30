@@ -5,6 +5,7 @@ import queue
 import tempfile
 import threading
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
@@ -129,7 +130,7 @@ class FilePusher:
     def file_counts_by_category(self) -> stats.FileCountsByCategory:
         return self._stats.file_counts_by_category()
 
-    def file_changed(self, save_name: LogicalPath, path: str, copy: bool = True):
+    def file_changed(self, save_name: LogicalPath, path: Path, copy: bool = True):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
@@ -138,9 +139,7 @@ class FilePusher:
             path: actual string path of the file to upload on the filesystem.
         """
         # Tests in linux were failing because wandb-events.jsonl didn't exist
-        if not os.path.exists(path) or not os.path.isfile(path):
-            return
-        if os.path.getsize(path) == 0:
+        if not path.is_file() or path.stat().st_size == 0:
             return
 
         event = step_checksum.RequestUpload(path, save_name, copy)

@@ -11,6 +11,7 @@ import pytest
 import wandb.filesync.dir_watcher
 from wandb.filesync.dir_watcher import DirWatcher, PolicyEnd, PolicyLive, PolicyNow
 from wandb.sdk.internal.file_pusher import FilePusher
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface import PolicyName
@@ -38,13 +39,13 @@ def dir_watcher(settings, file_pusher, tempdir: Path) -> DirWatcher:
         yield DirWatcher(
             settings=settings,
             file_pusher=file_pusher,
-            file_dir=str(tempdir),
+            file_dir=tempdir,
         )
 
 
 def write_with_mtime(path: Path, content: bytes, mtime: int) -> None:
     path.write_bytes(content)
-    os.utime(str(path), (mtime, mtime))
+    os.utime(path, (mtime, mtime))
 
 
 @pytest.mark.parametrize(
@@ -65,7 +66,7 @@ def test_dirwatcher_update_policy_live_calls_file_changed_iff_file_nonempty(
     """Test that if a file exists, the update policy is called."""
     f = tempdir / "my-file.txt"
     write_file(f)
-    dir_watcher.update_policy(str(f), "live")
+    dir_watcher.update_policy(f, "live")
     assert file_pusher.file_changed.called == expect_called
 
 
@@ -90,7 +91,7 @@ def test_dirwatcher_update_policy_on_nonexistent_file_calls_file_changed_when_fi
     write_with_mtime(f, b"content", mtime=0)
 
     file_pusher.file_changed.assert_not_called()
-    dir_watcher._on_file_created(Mock(src_path=str(f)))
+    dir_watcher._on_file_created(Mock(src_path=f))
     assert file_pusher.file_changed.called == expect_called
 
 
@@ -100,7 +101,9 @@ def test_dirwatcher_finish_uploads_unheardof_files(
     f = tempdir / "my-file.txt"
     write_with_mtime(f, b"content", mtime=0)
     dir_watcher.finish()
-    file_pusher.file_changed.assert_called_once_with("my-file.txt", str(f), copy=False)
+    file_pusher.file_changed.assert_called_once_with(
+        LogicalPath("my-file.txt"), f, copy=False
+    )
 
 
 def test_dirwatcher_finish_skips_now_files(
@@ -120,7 +123,9 @@ def test_dirwatcher_finish_uploads_end_files(
     write_with_mtime(f, b"content", mtime=0)
     dir_watcher.update_policy(str(f), "end")
     dir_watcher.finish()
-    file_pusher.file_changed.assert_called_once_with("my-file.txt", str(f), copy=False)
+    file_pusher.file_changed.assert_called_once_with(
+        LogicalPath("my-file.txt"), f, copy=False
+    )
 
 
 @pytest.mark.parametrize("changed", [True, False])
@@ -170,9 +175,7 @@ def test_dirwatcher_prefers_live_policy_when_multiple_rules_match_file(
     dir_watcher.update_policy("*.txt", "live")
     dir_watcher.update_policy("my-file.*", "end")
     dir_watcher.update_policy("my-*.txt", "now")
-    assert isinstance(
-        dir_watcher._get_file_event_handler(str(f), "my-file.txt"), PolicyLive
-    )
+    assert isinstance(dir_watcher._get_file_event_handler(f, "my-file.txt"), PolicyLive)
 
 
 @pytest.mark.skip(
@@ -184,13 +187,9 @@ def test_dirwatcher_can_overwrite_policy_for_file(
     f = tempdir / "my-file.txt"
     write_with_mtime(f, b"content", mtime=0)
     dir_watcher.update_policy("my-file.txt", "live")
-    assert isinstance(
-        dir_watcher._get_file_event_handler(str(f), "my-file.txt"), PolicyLive
-    )
+    assert isinstance(dir_watcher._get_file_event_handler(f, "my-file.txt"), PolicyLive)
     dir_watcher.update_policy("my-file.txt", "end")
-    assert isinstance(
-        dir_watcher._get_file_event_handler(str(f), "my-file.txt"), PolicyEnd
-    )
+    assert isinstance(dir_watcher._get_file_event_handler(f, "my-file.txt"), PolicyEnd)
 
 
 def test_policylive_uploads_nonempty_unchanged_file_on_modified(
@@ -198,9 +197,9 @@ def test_policylive_uploads_nonempty_unchanged_file_on_modified(
 ):
     f = tempdir / "my-file.txt"
     write_with_mtime(f, b"content", mtime=0)
-    policy = PolicyLive(str(f), f.name, file_pusher)
+    policy = PolicyLive(f, f.name, file_pusher)
     policy.on_modified()
-    file_pusher.file_changed.assert_called_once_with(f.name, str(f))
+    file_pusher.file_changed.assert_called_once_with(f.name, f)
 
 
 def test_policylive_ratelimits_modified_file_reupload(tempdir: Path, file_pusher: Mock):
@@ -208,7 +207,7 @@ def test_policylive_ratelimits_modified_file_reupload(tempdir: Path, file_pusher
     with patch.object(time, "time", lambda: elapsed):
         f = tempdir / "my-file.txt"
         write_with_mtime(f, b"content", mtime=0)
-        policy = PolicyLive(str(f), f.name, file_pusher)
+        policy = PolicyLive(f, f.name, file_pusher)
         policy.on_modified()
 
         threshold = max(
@@ -233,7 +232,7 @@ def test_policylive_forceuploads_on_finish(tempdir: Path, file_pusher: Mock):
     with patch.object(time, "time", lambda: elapsed):
         f = tempdir / "my-file.txt"
         write_with_mtime(f, b"content", mtime=0)
-        policy = PolicyLive(str(f), f.name, file_pusher)
+        policy = PolicyLive(f, f.name, file_pusher)
         policy.on_modified()
         file_pusher.reset_mock()
 
@@ -250,7 +249,7 @@ def test_policynow_uploads_on_modified_iff_not_already_uploaded(
 ):
     f = tempdir / "my-file.txt"
     write_with_mtime(f, b"content", mtime=0)
-    policy = PolicyNow(str(f), f.name, file_pusher)
+    policy = PolicyNow(f, f.name, file_pusher)
 
     policy.on_modified()
     file_pusher.file_changed.assert_called()
