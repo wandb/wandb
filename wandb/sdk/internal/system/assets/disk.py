@@ -41,7 +41,7 @@ class DiskUsagePercent:
         if not self.samples:
             return {}
         disk_metrics = {}
-        for i, path in enumerate(self.paths):
+        for i, _path in enumerate(self.paths):
             aggregate_i = aggregate_mean([sample[i] for sample in self.samples])
             disk_metrics[self.name.format(path=i)] = aggregate_i
 
@@ -71,7 +71,7 @@ class DiskUsage:
         if not self.samples:
             return {}
         disk_metrics = {}
-        for i, path in enumerate(self.paths):
+        for i, _path in enumerate(self.paths):
             aggregate_i = aggregate_mean([sample[i] for sample in self.samples])
             disk_metrics[self.name.format(path=i)] = aggregate_i
 
