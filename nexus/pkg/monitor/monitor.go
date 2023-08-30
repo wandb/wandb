@@ -103,6 +103,7 @@ func NewSystemMonitor(
 		NewCPU(settings),
 		NewDisk(settings),
 		NewNetwork(settings),
+		NewGPUNvidia(settings),
 	}
 
 	// if asset is available, add it to the list of assets to monitor
@@ -202,11 +203,19 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 }
 
 func (sm *SystemMonitor) Stop() {
-	if sm == nil {
+	if sm == nil || sm.cancel == nil {
 		return
 	}
 	sm.logger.Info("Stopping system monitor")
+	// signal to stop monitoring the assets
 	sm.cancel()
+	// wait for all assets to stop monitoring
 	sm.wg.Wait()
+	// close the assets, if they require any cleanup
+	for _, asset := range sm.assets {
+		if closer, ok := asset.(interface{ Close() }); ok {
+			closer.Close()
+		}
+	}
 	sm.logger.Info("Stopped system monitor")
 }

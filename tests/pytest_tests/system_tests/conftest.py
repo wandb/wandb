@@ -859,7 +859,7 @@ def inject_file_stream_response(base_url, user):
 
 @pytest.fixture
 def logged_artifact(wandb_init, example_files) -> Artifact:
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact("test-artifact", "dataset")
         artifact.add_dir(example_files)
         run.log_artifact(artifact)

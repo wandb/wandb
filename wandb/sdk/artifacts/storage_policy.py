@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class StoragePolicy:
     @classmethod
     def lookup_by_name(cls, name: str) -> Type["StoragePolicy"]:
-        from wandb.sdk.artifacts import storage_policies  # noqa: F401
+        import wandb.sdk.artifacts.storage_policies  # noqa: F401
 
         for sub in cls.__subclasses__():
             if sub.name() == name:

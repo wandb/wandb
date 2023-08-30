@@ -37,6 +37,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -45,7 +46,6 @@ from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
 )
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
@@ -183,15 +183,16 @@ class Artifact:
         self._created_at: Optional[str] = None
         self._updated_at: Optional[str] = None
         self._final: bool = False
+
         # Cache.
-        get_artifacts_cache().store_client_artifact(self)
+        artifact_cache[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
-        artifact = get_artifacts_cache().get_artifact(artifact_id)
+        artifact = artifact_cache.get(artifact_id)
         if artifact is not None:
             return artifact
 
@@ -317,7 +318,9 @@ class Artifact:
         artifact._updated_at = attrs["updatedAt"]
         artifact._final = True
         # Cache.
-        get_artifacts_cache().store_artifact(artifact)
+
+        assert artifact.id is not None
+        artifact_cache[artifact.id] = artifact
         return artifact
 
     def new_draft(self) -> "Artifact":
@@ -2000,11 +2003,6 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if not self._ttl_is_inherited:
-            termwarn(
-                "Artifact TTL will be removed for source artifacts that are linked to portfolios."
-            )
-
         if wandb.run is None:
             with wandb.init(
                 entity=self._source_entity,
