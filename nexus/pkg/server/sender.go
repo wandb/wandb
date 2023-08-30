@@ -99,15 +99,17 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 
 	statusCode := resp.StatusCode
 	switch {
-	case statusCode == 400 || statusCode == 409:
+	case statusCode == http.StatusBadRequest, statusCode == http.StatusConflict: // don't retry on 400 bad request or 409 conflict
 		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == 401:
+	case statusCode == http.StatusUnauthorized: // retry on 401 unauthorized
 		return false, fmt.Errorf("the API key you provided is either invalid or missing. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == 403:
+	case statusCode == http.StatusForbidden: // don't retry on 403 forbidden
 		return false, fmt.Errorf("you don't have permission to access this resource. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == 404:
+	case statusCode == http.StatusNotFound: // don't retry on 404 not found
 		return false, fmt.Errorf("the resource you requested could not be found. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	default:
+	case statusCode >= 100 && statusCode < 500: // retry on 1xx informational, 2xx success, 3xx redirection and the rest of 4xx client error
+		return true, nil
+	default: // retry on 5xx server error
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 }
@@ -116,11 +118,11 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 	fmt.Println("IMMA UPSERT BUCKET RETRY FUNC", ctx, resp, err)
 	statusCode := resp.StatusCode
 	switch {
-	case statusCode == 410:
+	case statusCode == http.StatusGone: // don't retry on 410 Gone
 		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == 409:
+	case statusCode == http.StatusConflict: // retry on 409 Conflict
 		return true, fmt.Errorf("conflict, retrying. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	default:
+	default: // use default retry policy for all other status codes
 		return DefaultRetryPolicy(ctx, resp, err)
 	}
 }
