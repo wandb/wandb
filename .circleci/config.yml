@@ -646,6 +646,11 @@ jobs:
                   pip3 install tox==<< pipeline.parameters.tox_version >>
                 no_output_timeout: 5m
             - run:
+                name: Install Docker
+                command: |
+                  curl -fsSL https://get.docker.com -o install-docker.sh
+                  sudo sh install-docker.sh
+            - run:
                 name: Install kubectl
                 command: |
                   curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"

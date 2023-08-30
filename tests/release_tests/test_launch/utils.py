@@ -21,8 +21,8 @@ def run_cmd_async(command: str) -> subprocess.Popen:
 
 def cleanup_deployment(namespace: str):
     """Delete a k8s deployment and all pods in the same namespace."""
-    if os.path.exists(os.path.expanduser("~/.kube/config")):
-        config.load_kube_config()
+    # config.load_kube_config(config_file="./kube_config")
+    config.load_kube_config()
     apps_api = client.AppsV1Api()
     core_api = client.CoreV1Api()
 
@@ -38,8 +38,11 @@ def wait_for_image_job_completion(
     namespace: str, entity: str, project: str, queued_run
 ) -> Tuple[str, str]:
     """W&B's wait_until_finished() doesn't work for image based jobs, so poll the k8s output for job completion."""
-    if os.path.exists(os.path.expanduser("~/.kube/config")):
-        config.load_kube_config()
+    # print("\n" * 20)
+    # loc = os.path.join(os.getcwd(), "tests/release_tests/test_launch/kube_config")
+    # print(loc)
+    # config.load_kube_config(config_file="tests/release_tests/test_launch/kube_config")
+    config.load_kube_config()
     v1 = client.CoreV1Api()
     w = watch.Watch()
     status = None
