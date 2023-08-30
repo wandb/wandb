@@ -56,11 +56,21 @@ _logger = logging.getLogger(__name__)
 # Dict for mapping possible states of custom objects to the states we want to report
 # to the agent.
 CRD_STATE_DICT: Dict[str, State] = {
+    # Starting states.
+    "created": "starting",
     "pending": "starting",
+    # Running states.
     "running": "running",
+    "completing": "running",
+    # Finished states.
+    "succeeded": "finished",
     "completed": "finished",
+    # Failed states.
     "failed": "failed",
     "aborted": "failed",
+    "timeout": "failed",
+    "terminated": "failed",
+    # Stopping states.
     "terminating": "stopping",
     "terminated": "stopped",
 }
@@ -99,6 +109,10 @@ class KubernetesRunMonitor:
         namespace: str,
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
+        custom_api: "CustomObjectsApi" = None,
+        group: str = None,
+        version: str = None,
+        plural: str = None,
     ) -> None:
         """Initial KubernetesRunMonitor.
 
@@ -113,23 +127,27 @@ class KubernetesRunMonitor:
         self.namespace = namespace
         self.batch_api = batch_api
         self.core_api = core_api
+        self.custom_api = custom_api
+        self.group = group
+        self.version = version
+        self.plural = plural
 
         self._status_lock = Lock()
         self._status = Status("starting")
 
         self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
         self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
+        self._watch_crd_thread = Thread(target=self._watch_crd, daemon=True)
 
         self._job_watcher = watch.Watch()
         self._pod_watcher = watch.Watch()
 
     def start(self) -> None:
         """Start the run monitor."""
-        if self._watch_job_thread.is_alive() or self._watch_pods_thread.is_alive():
-            raise LaunchError(
-                "Attempted to start monitor that has already started"
-            )  # TODO: what should I do here?
-        self._watch_job_thread.start()
+        if self.custom_api is None:
+            self._watch_job_thread.start()
+        else:
+            self._watch_crd_thread.start()
         self._watch_pods_thread.start()
 
     def stop(self) -> None:
@@ -194,7 +212,7 @@ class KubernetesRunMonitor:
         try:
             for event in self._job_watcher.stream(
                 self.batch_api.list_namespaced_job,
-                namespace="default",
+                namespace=self.namespace,
                 field_selector=self.job_field_selector,
             ):
                 object = event.get("object")
@@ -225,6 +243,54 @@ class KubernetesRunMonitor:
             raise LaunchError(
                 f"Broken event stream for job watcher in state {state} with selector {self.job_field_selector}: {e}"
             )
+
+    def _watch_crd(self) -> None:
+        """Watch for CRD matching the jobname."""
+        try:
+            for event in self._job_watcher.stream(
+                self.custom_api.list_namespaced_custom_object,
+                namespace=self.namespace,
+                field_selector=self.job_field_selector,
+                group=self.group,
+                version=self.version,
+                plural=self.plural,
+            ):
+                event_type = event.get("type")
+                # This check is needed because CRDs will often not have a status
+                # on the ADDED event, and the status at that time is not useful
+                # in any case.
+                # TODO: Use a constant for these event types.
+                if event_type == "MODIFIED":
+                    object = event.get("object")
+                    status = object.get("status")
+                    state = status.get("state")
+                    if isinstance(state, dict):
+                        state = state.get("phase")
+                    else:
+                        conditions = status.get("conditions")
+                        if isinstance(conditions, list):
+                            if len(conditions) > 0:
+                                state = conditions[-1].get("type")
+                            else:
+                                # TODO: Should this ever happen?
+                                pass
+                        else:
+                            # TODO: Why would this ever happen?
+                            pass
+                    if state is None:
+                        raise LaunchError(
+                            f"Failed to get CRD {self.name} in namespace {self.namespace}: no state found"
+                        )
+                    status = Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
+                    self._set_status(status)
+                    if status.state in ["finished", "failed"]:
+                        self.stop()
+                        break
+
+        # Handle exceptions here.
+        except Exception as e:
+            print(e)
+            raise e
 
 
 class KubernetesSubmittedRun(AbstractRun):
@@ -309,7 +375,7 @@ class KubernetesSubmittedRun(AbstractRun):
         while True:
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            if status.state != "running":
+            if status.state in ["finished", "failed"]:
                 break
             time.sleep(5)
         return (
@@ -374,7 +440,7 @@ class CrdSubmittedRun(AbstractRun):
         namespace: str,
         core_api: CoreV1Api,
         custom_api: CustomObjectsApi,
-        pod_names: List[str],
+        monitor: KubernetesRunMonitor,
     ) -> None:
         """Create a run object for tracking the progress of a CRD.
 
@@ -386,7 +452,7 @@ class CrdSubmittedRun(AbstractRun):
             namespace: The namespace of the CRD instance.
             core_api: The Kubernetes core API client.
             custom_api: The Kubernetes custom object API client.
-            pod_names: The names of the pods associated with the CRD instance.
+            monitor: The run monitor.
 
         Raises:
             LaunchError: If the CRD instance does not exist.
@@ -398,20 +464,20 @@ class CrdSubmittedRun(AbstractRun):
         self.namespace = namespace
         self.core_api = core_api
         self.custom_api = custom_api
-        self.pod_names = pod_names
         self._fail_count = 0
-        try:
-            self.job = self.custom_api.get_namespaced_custom_object(
-                group=self.group,
-                version=self.version,
-                namespace=self.namespace,
-                plural=self.plural,
-                name=self.name,
-            )
-        except ApiException as e:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
-            ) from e
+        self.monitor = monitor
+        # try:
+        #     self.job = self.custom_api.get_namespaced_custom_object(
+        #         group=self.group,
+        #         version=self.version,
+        #         namespace=self.namespace,
+        #         plural=self.plural,
+        #         name=self.name,
+        #     )
+        # except ApiException as e:
+        #     raise LaunchError(
+        #         f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
+        #     ) from e
 
     @property
     def id(self) -> str:
@@ -437,30 +503,31 @@ class CrdSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         """Get status of custom object."""
-        try:
-            job_response = self.custom_api.get_namespaced_custom_object_status(
-                group=self.group,
-                version=self.version,
-                namespace=self.namespace,
-                plural=self.plural,
-                name=self.name,
-            )
-        except ApiException as e:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
-            ) from e
-        # Custom objects can technically define whater states and format the
-        # response to the status request however they want. This checks for
-        # the most common cases.
-        status = job_response["status"]
-        state = status.get("state")
-        if isinstance(state, dict):
-            state = state.get("phase")
-        if state is None:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: no state found"
-            )
-        return Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
+        # try:
+        #     job_response = self.custom_api.get_namespaced_custom_object_status(
+        #         group=self.group,
+        #         version=self.version,
+        #         namespace=self.namespace,
+        #         plural=self.plural,
+        #         name=self.name,
+        #     )
+        # except ApiException as e:
+        #     raise LaunchError(
+        #         f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
+        #     ) from e
+        # # Custom objects can technically define whater states and format the
+        # # response to the status request however they want. This checks for
+        # # the most common cases.
+        # status = job_response["status"]
+        # state = status.get("state")
+        # if isinstance(state, dict):
+        #     state = state.get("phase")
+        # if state is None:
+        #     raise LaunchError(
+        #         f"Failed to get CRD {self.name} in namespace {self.namespace}: no state found"
+        #     )
+        # return Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
+        return self.monitor.get_status()
 
     def cancel(self) -> None:
         """Cancel the custom object."""
@@ -482,10 +549,9 @@ class CrdSubmittedRun(AbstractRun):
         while True:
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            if status.state != "running":
-                break
             time.sleep(5)
-        return status.state == "finished"
+            if status.state in ["finished", "failed"]:
+                return status.state == "finished"
 
 
 class KubernetesRunner(AbstractRunner):
@@ -743,15 +809,27 @@ class KubernetesRunner(AbstractRunner):
                 )
             except ApiException as e:
                 raise LaunchError(
-                    f"Error creating CRD of kind {kind}: {e.status} {e.reason}"
+                    f"Error creating CRD of kind {kind}: {e.status} {e.reason} {e.body} {e.headers}"
                 ) from e
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
             core = client.CoreV1Api(api_client)
-            pod_names = self.wait_job_launch(
-                launch_project.run_id, namespace, core, label="wandb/run-id"
+            # pod_names = self.wait_job_launch(
+            #     launch_project.run_id, namespace, core, label="wandb/run-id"
+            # )
+            run_monitor = KubernetesRunMonitor(
+                job_field_selector=f"metadata.name={name}",
+                pod_label_selector=f"wandb/run-id={launch_project.run_id}",
+                namespace=namespace,
+                batch_api=None,
+                core_api=core,
+                custom_api=api,
+                group=group,
+                version=version,
+                plural=plural,
             )
-            return CrdSubmittedRun(
+            run_monitor.start()
+            submitted_run = CrdSubmittedRun(
                 name=name,
                 group=group,
                 version=version,
@@ -759,8 +837,11 @@ class KubernetesRunner(AbstractRunner):
                 plural=plural,
                 core_api=client.CoreV1Api(api_client),
                 custom_api=api,
-                pod_names=pod_names,
+                monitor=run_monitor,
             )
+            if self.backend_config[PROJECT_SYNCHRONOUS]:
+                submitted_run.wait()
+            return submitted_run
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
