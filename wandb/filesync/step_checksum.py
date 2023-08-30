@@ -88,7 +88,7 @@ class StepChecksum:
                 self._stats.init_file(req.save_name, path.stat().st_size)
                 self._output_queue.put(
                     step_upload.RequestUpload(
-                        path,
+                        Path(path),
                         req.save_name,
                         None,
                         None,

@@ -115,8 +115,6 @@ class FileSystemEvent(object):
     """True if event was emitted for a directory; False otherwise."""
 
     def __init__(self, src_path):
-        if not isinstance(src_path, str):
-            raise ValueError("src_path must be a string.")
         self._src_path = src_path
 
     @property
