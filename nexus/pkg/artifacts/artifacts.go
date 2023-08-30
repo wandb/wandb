@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -49,7 +50,7 @@ type ManifestV1 struct {
 type ArtifactLinker struct {
 	Ctx           context.Context
 	Logger        *observability.NexusLogger
-	Artifact      *service.LinkArtifactRecord
+	LinkArtifact  *service.LinkArtifactRecord
 	GraphqlClient graphql.Client
 }
 
@@ -259,14 +260,14 @@ func (as *ArtifactSaver) Save() (ArtifactSaverResult, error) {
 }
 
 func (al *ArtifactLinker) Link() error {
-	client_id := al.Artifact.ClientId
-	server_id := al.Artifact.ServerId
-	portfolio_name := al.Artifact.PortfolioName
-	portfolio_entity := al.Artifact.PortfolioEntity
-	portfolio_project := al.Artifact.PortfolioProject
+	client_id := al.LinkArtifact.ClientId
+	server_id := al.LinkArtifact.ServerId
+	portfolio_name := al.LinkArtifact.PortfolioName
+	portfolio_entity := al.LinkArtifact.PortfolioEntity
+	portfolio_project := al.LinkArtifact.PortfolioProject
 	portfolio_aliases := []gql.ArtifactAliasInput{}
 
-	for _, alias := range al.Artifact.PortfolioAliases {
+	for _, alias := range al.LinkArtifact.PortfolioAliases {
 		portfolio_aliases = append(portfolio_aliases,
 			gql.ArtifactAliasInput{
 				ArtifactCollectionName: portfolio_name,
@@ -298,6 +299,8 @@ func (al *ArtifactLinker) Link() error {
 			&client_id,
 			nil,
 		)
+	} else {
+		al.Logger.CaptureFatalAndPanic("sendLinkArtifact", errors.New("artifact must have either server id or client id"))
 	}
 	if err != nil {
 		err = fmt.Errorf("LinkArtifact: %s, error: %+v response: %+v", portfolio_name, err, response)

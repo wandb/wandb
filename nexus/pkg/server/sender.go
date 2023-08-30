@@ -308,7 +308,7 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 	linker := artifacts.ArtifactLinker{
 		Ctx:           s.ctx,
 		Logger:        s.logger,
-		Artifact:      record.GetLinkArtifact(),
+		LinkArtifact:  record.GetLinkArtifact(),
 		GraphqlClient: s.graphqlClient,
 	}
 	err := linker.Link()
