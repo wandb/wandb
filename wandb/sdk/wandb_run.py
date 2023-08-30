@@ -474,6 +474,7 @@ class Run:
     _job_type: Optional[str]
     _name: Optional[str]
     _notes: Optional[str]
+    _sweep_id: Optional[str]
 
     _run_obj: Optional[RunRecord]
     # Use string literal annotation because of type reference loop
