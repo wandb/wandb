@@ -59,10 +59,12 @@ def test_kubernetes_agent_on_local_process():
 def _create_config_files():
     """Create a launch-config.yml and launch-agent.yml."""
     launch_config = yaml.load_all(
-        open("wandb/sdk/launch/deploys/kubernetes/launch-config.yaml")
+        open("wandb/sdk/launch/deploys/kubernetes/launch-config.yaml"),
+        Loader=yaml.Loader,
     )
     launch_config_patch = yaml.load_all(
-        open("tests/release_tests/test_launch/launch-config-patch.yaml")
+        open("tests/release_tests/test_launch/launch-config-patch.yaml"),
+        Loader=yaml.Loader,
     )
     final_launch_config = []
     for original, updated in zip(launch_config, launch_config_patch):
@@ -74,10 +76,12 @@ def _create_config_files():
         open("tests/release_tests/test_launch/launch-config.yml", "w+"),
     )
     launch_agent = yaml.load(
-        open("wandb/sdk/launch/deploys/kubernetes/launch-agent.yaml")
+        open("wandb/sdk/launch/deploys/kubernetes/launch-agent.yaml"),
+        Loader=yaml.Loader,
     )
     launch_agent_patch = yaml.load(
-        open("tests/release_tests/test_launch/launch-agent-patch.yaml")
+        open("tests/release_tests/test_launch/launch-agent-patch.yaml"),
+        Loader=yaml.Loader,
     )
     launch_agent_dict = dict(launch_agent)
     update_dict(launch_agent_dict, dict(launch_agent_patch))

@@ -603,12 +603,6 @@ jobs:
 
   launch_release:
     parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 7
       notify_on_failure:
         type: boolean
         default: false
