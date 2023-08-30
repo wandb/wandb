@@ -36,7 +36,8 @@ class FileEventHandler(abc.ABC):
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        self.file_path = Path(file_path)
+        # pathlib.Path would be nice, but isn't compatible with watchdog.
+        self.file_path = str(file_path)
         # Convert windows paths to unix paths
         self.save_name = LogicalPath(save_name)
         self._file_pusher = file_pusher
@@ -56,7 +57,7 @@ class FileEventHandler(abc.ABC):
         raise NotImplementedError
 
     def on_renamed(self, new_path: StrPath, new_name: StrPath) -> None:
-        self.file_path = Path(new_path)
+        self.file_path = str(new_path)
         self.save_name = LogicalPath(new_name)
         self.on_modified()
 
@@ -110,7 +111,7 @@ class PolicyLive(FileEventHandler):
 
     def __init__(
         self,
-        file_path: Path,
+        file_path: StrPath,
         save_name: LogicalPath,
         file_pusher: "FilePusher",
         settings: Optional["SettingsStatic"] = None,
@@ -192,7 +193,7 @@ class DirWatcher:
         file_dir: Optional[StrPath] = None,
     ) -> None:
         self._file_count = 0
-        self._dir = Path(file_dir or settings.files_dir)
+        self._dir = str(file_dir or settings.files_dir)
         self._settings = settings
         self._savename_file_policies: MutableMapping[LogicalPath, PolicyName] = {}
         self._user_file_policies: Mapping[PolicyName, MutableSet[GlobStr]] = {
@@ -204,7 +205,7 @@ class DirWatcher:
         self._file_event_handlers: MutableMapping[LogicalPath, FileEventHandler] = {}
         self._file_observer = wd_polling.PollingObserver()
         self._file_observer.schedule(
-            self._per_file_event_handler(), str(self._dir), recursive=True
+            self._per_file_event_handler(), self._dir, recursive=True
         )
         self._file_observer.start()
         logger.info("watching files in: %s", settings.files_dir)
@@ -232,9 +233,8 @@ class DirWatcher:
             self._savename_file_policies[save_name] = policy
         else:
             self._user_file_policies[policy].add(path)
-        for pathname in glob.glob(os.path.join(self._dir, path)):
-            src_path = Path(pathname)
-            save_name = LogicalPath(src_path.relative_to(self._dir))
+        for src_path in glob.glob(os.path.join(self._dir, path)):
+            save_name = LogicalPath(os.path.relpath(src_path, self._dir))
             feh = self._get_file_event_handler(src_path, save_name)
             # handle the case where the policy changed
             if feh.policy != policy:
@@ -307,7 +307,7 @@ class DirWatcher:
         handler.on_renamed(event.dest_path, new_save_name)
 
     def _get_file_event_handler(
-        self, file_path: Path, save_name: LogicalPath
+        self, file_path: StrPath, save_name: LogicalPath
     ) -> FileEventHandler:
         """Get or create an event handler for a particular file.
 
@@ -315,6 +315,7 @@ class DirWatcher:
         save_name: its path relative to the run directory (aka the watch directory)
         """
         # Always return PolicyNow for any of our media files.
+        file_path = str(file_path)
         if save_name.startswith("media/"):
             return PolicyNow(file_path, save_name, self._file_pusher, self._settings)
         if save_name not in self._file_event_handlers:
@@ -389,8 +390,8 @@ class DirWatcher:
 
         for dirpath, _, filenames in os.walk(self._dir):
             for fname in filenames:
-                file_path = Path(dirpath, fname)
-                save_name = LogicalPath(file_path.relative_to(self._dir))
+                file_path = os.path.join(dirpath, fname)
+                save_name = LogicalPath(os.path.relpath(file_path, self._dir))
                 ignored = False
                 for glb in self._settings.ignore_globs:
                     if len(fnmatch.filter([save_name], glb)) > 0:
