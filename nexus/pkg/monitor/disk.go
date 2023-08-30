@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/shirou/gopsutil/v3/disk"
@@ -40,13 +41,22 @@ func (d *Disk) SampleMetrics() {
 	d.mutex.RLock()
 	defer d.mutex.RUnlock()
 
-	usage, err := disk.Usage("/")
-	if err == nil {
-		// used disk space as a percentage
-		d.metrics["disk"] = append(
-			d.metrics["disk"],
-			usage.UsedPercent,
-		)
+	for i, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+		usage, err := disk.Usage(diskPath)
+		if err == nil {
+			// used disk space as a percentage
+			keyPercent := fmt.Sprintf("disk.%d.usagePercent", i)
+			d.metrics[keyPercent] = append(
+				d.metrics[keyPercent],
+				usage.UsedPercent,
+			)
+			// used disk space in GB
+			keyGB := fmt.Sprintf("disk.%d.usageGB", i)
+			d.metrics[keyGB] = append(
+				d.metrics[keyGB],
+				float64(usage.Used)/1024/1024/1024,
+			)
+		}
 	}
 
 	// IO counters
@@ -95,3 +105,19 @@ func (d *Disk) Probe() map[string]map[string]interface{} {
 	}
 	return info
 }
+
+// func (d *Disk) Probe() map[string]map[string]map[string]interface{} {
+// 	info := make(map[string]map[string]map[string]interface{})
+// 	info["disk"] = make(map[string]map[string]interface{})
+// 	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+// 		usage, err := disk.Usage(diskPath)
+// 		if err == nil {
+// 			info["disk"][diskPath] = map[string]interface{}{
+// 				"total": usage.Total / 1024 / 1024 / 1024,
+// 				"used":  usage.Used / 1024 / 1024 / 1024,
+// 			}
+// 		}
+// 	}
+//
+// 	return info
+// }
