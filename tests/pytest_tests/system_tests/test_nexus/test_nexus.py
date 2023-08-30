@@ -1,5 +1,4 @@
 import pytest
-
 from wandb.errors import CommError
 
 
@@ -44,9 +43,9 @@ def test_upsert_bucket_409(
 
 
 def test_upsert_bucket_410(
-        wandb_init,
-        relay_server,
-        inject_graphql_response,
+    wandb_init,
+    relay_server,
+    inject_graphql_response,
 ):
     def custom_match_fn(self, other):  # noqa
         request_body = other.__dict__.get("body") or b"{}"
@@ -56,7 +55,7 @@ def test_upsert_bucket_410(
         body="GOT ME A 410",
         status=410,
         custom_match_fn=custom_match_fn,
-        application_pattern="12"  # apply once and stop
+        application_pattern="12",  # apply once and stop
     )
     # we do not retry 410s on upsert bucket mutations, so this should fail
     with relay_server(inject=[inject_response]):
