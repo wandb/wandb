@@ -442,6 +442,15 @@ class WandbImporter:
         skip_ids: Optional[List[str]] = None,
         start_date: Optional[str] = None,
     ) -> Iterable[WandbRun]:
+        """Collect all of the runs from `entity`/`project`.
+
+        - If `project` is not specified, this will collect all runs from all projects
+
+        Optionally set:
+        - `limit` to get up to `limit` runs.
+        - `skip_ids` to ignore specific run ids
+        - `start_date` (in the format YYYY-MM-DD) to only import runs created after that date
+        """
         filters: Dict[str, Any] = {}
         if skip_ids is not None:
             filters["name"] = {"$nin": skip_ids}
@@ -461,6 +470,10 @@ class WandbImporter:
         yield from itertools.islice(runs(), limit)
 
     def import_run(self, run: WandbRun, config: Optional[ImportConfig] = None) -> None:
+        """Import one WandbRun.
+
+        Use `config` to specify alternate settings like where the run should be uploaded
+        """
         if config is None:
             config = ImportConfig()
 
@@ -492,6 +505,13 @@ class WandbImporter:
         project: Optional[str] = None,
         limit: Optional[int] = None,
     ) -> Iterable[ArtifactSequence]:
+        """Collect all of the artifact sequences from `entity`/`project`.
+
+        - If `project` is not specified, this will collect all runs from all projects
+
+        Optionally set:
+        - `limit` to get up to `limit` artifact sequences.
+        """
         projects = self._projects(entity, project)
 
         def sequences():
@@ -521,6 +541,10 @@ class WandbImporter:
     def import_artifact_sequence(
         self, sequence: ArtifactSequence, config: Optional[ImportConfig] = None
     ) -> None:
+        """Import one artifact sequence.
+
+        Use `config` to specify alternate settings like where the artifact sequence should be uploaded
+        """
         if config is None:
             config = ImportConfig()
 
@@ -542,17 +566,19 @@ class WandbImporter:
             if placeholder_run is not None:
                 break
 
-        arts = _add_placeholders(sequence)
-        art = arts[0]
+        # instead of uploading placeholders 1 by 1,
+        # just upload the entire batch of placeholders in one run update
+        groups_of_artifacts = list(fill_with_dummy_arts(sequence))
+        art = groups_of_artifacts[0][0]
         _type = art.type
         name, *_ = art.name.split(":v")
 
         task = progress.subtask_pbar.add_task(
-            f"Artifact Sequence ({_type}/{name})", total=len(arts)
+            f"Artifact Sequence ({_type}/{name})", total=len(groups_of_artifacts)
         )
-        for art in arts:
+        for group in groups_of_artifacts:
+            art = group[0]
             if art.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
-                new_art = art
                 run = WandbRun(placeholder_run)
             else:
                 wandb_run = art.logged_by()
@@ -577,10 +603,11 @@ class WandbImporter:
                 if Path(path).is_dir():
                     new_art.add_dir(path)
 
+                group = [new_art]
                 run = WandbRun(wandb_run)
 
-            internal.send_artifact_with_send_manager(
-                new_art,
+            internal.send_artifacts_with_send_manager(
+                group,
                 run,
                 overrides=config.send_manager_overrides,
                 settings_override=settings_override,
@@ -590,31 +617,44 @@ class WandbImporter:
         progress.subtask_pbar.remove_task(task)
 
     def _remove_placeholders(self, entity: str, project: Optional[str] = None) -> None:
+        def placeholder_artifacts(project):
+            for _type in self.dst_api.artifact_types(project):
+                for collection in _type.collections():
+                    for version in collection.versions():
+                        if version.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
+                            yield version
+
+        d = {}
         projects = self._projects(entity, project)
+        for project in projects:
+            _project = f"{entity}/{project.name}"
+            d[_project] = list(placeholder_artifacts(_project))
 
-        def placeholder_artifacts():
-            for project in projects:
-                _project = f"{entity}/{project.name}"
-                for _type in self.dst_api.artifact_types(_project):
-                    for collection in _type.collections():
-                        for version in collection.versions():
-                            if version.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
-                                yield version
-
-        task = progress.task_pbar.add_task("Cleaning up placeholder artifacts")
-        for art in placeholder_artifacts():
-            try:
-                art.delete(delete_aliases=True)
-            except Exception as e:
-                if "cannot delete system managed artifact" not in str(e):
-                    raise e
-            finally:
-                progress.task_pbar.update(task, advance=1)
-        progress.task_pbar.remove_task(task)
+        with progress.live:
+            outer_task = progress.task_pbar.add_task(
+                "Tidy project artifacts", total=len(d)
+            )
+            for name, arts in d.items():
+                task = progress.subtask_pbar.add_task(
+                    f"Remove placeholders {name}", total=len(arts)
+                )
+                for art in arts:
+                    try:
+                        art.delete(delete_aliases=True)
+                    except Exception as e:
+                        if "cannot delete system managed artifact" not in str(e):
+                            raise e
+                    progress.subtask_pbar.update(task, advance=1)
+                progress.subtask_pbar.update(task, visible=False)
+                progress.task_pbar.update(outer_task, advance=1)
 
     def use_artifact_sequence(
         self, sequence: ArtifactSequence, config: Optional[ImportConfig] = None
     ) -> None:
+        """Do the equivalent of `run.use_artifact(art)` for each artifact in the artifact sequence.
+
+        Use `config` to specify alternate settings like where the artifact sequence should be used
+        """
         if config is None:
             config = ImportConfig()
 
@@ -639,8 +679,13 @@ class WandbImporter:
             f"Use Artifact Sequence ({_type}/{name})", total=len(sequence)
         )
         for art in sequence:
+            if art.type == "job":
+                # Job is a special type that can't be used yet
+                continue
+
             wandb_runs = art.used_by()
             if wandb_runs == []:
+                # Don't try to download an artifact that doesn't exist
                 continue
 
             try:
@@ -663,7 +708,7 @@ class WandbImporter:
 
             for wandb_run in wandb_runs:
                 run = WandbRun(wandb_run)
-                internal.send_artifact_with_send_manager(
+                internal.send_artifacts_with_send_manager(
                     new_art,
                     run,
                     overrides=config.send_manager_overrides,
@@ -676,6 +721,13 @@ class WandbImporter:
     def collect_reports(
         self, entity: str, project: Optional[str] = None, limit: Optional[int] = None
     ) -> Iterable[Report]:
+        """Collect all of the reports from `entity`/`project`.
+
+        - If `project` is not specified, this will collect all runs from all projects
+
+        Optionally set:
+        - `limit` to get up to `limit` runs.
+        """
         api = self.src_api
         projects = self._projects(entity, project)
 
@@ -689,6 +741,10 @@ class WandbImporter:
     def import_report(
         self, report: Report, config: Optional[ImportConfig] = None
     ) -> None:
+        """Import one wandb.Report.
+
+        Use `config` to specify alternate settings like where the report should be uploaded
+        """
         if config is None:
             config = ImportConfig()
 
@@ -902,59 +958,39 @@ class WandbImporter:
                         continue
 
     def _wipe_artifacts(self, entity: str, project: Optional[str] = None) -> None:
+        def artifacts(project_name):
+            for _type in self.dst_api.artifact_types(project_name):
+                for collection in _type.collections():
+                    for version in collection.versions():
+                        yield version
+
         projects = self._projects(entity, project, api=self.dst_api)
+        proj_names = [f"{entity}/{p.name}" for p in projects]
+        proj_arts = {p: artifacts(p) for p in proj_names}
 
-        def artifacts():
-            for project in projects:
-                _project = f"{entity}/{project.name}"
-                for _type in self.dst_api.artifact_types(_project):
-                    for collection in _type.collections():
-                        for version in collection.versions():
-                            version: wandb.Artifact
-                            yield version
-
-        task = progress.task_pbar.add_task("Wiping artifacts")
-        for art in artifacts():
-            try:
-                art.delete(delete_aliases=True)
-            except Exception as e:
-                if "cannot delete system managed artifact" not in str(e):
-                    raise e
-            finally:
-                progress.task_pbar.update(task, advance=1)
-        progress.task_pbar.remove_task(task)
-
-
-def _get_art_version(art: wandb.Artifact) -> int:
-    _, ver = art.name.split(":v")
-    return int(ver)
+        with progress.live:
+            for proj_path, arts in progress.task_pbar.track(
+                proj_arts.items(),
+                description=f"Wiping artifacts from destination: {entity}",
+                total=len(proj_arts),
+            ):
+                task = progress.subtask_pbar.add_task(
+                    f"Wiping artifacts from {proj_path}", total=None
+                )
+                for art in arts:
+                    try:
+                        art.delete(delete_aliases=True)
+                    except Exception as e:
+                        if "cannot delete system managed artifact" not in str(e):
+                            raise e
+                    finally:
+                        progress.subtask_pbar.advance(task, 1)
+                progress.subtask_pbar.remove_task(task)
 
 
-def _add_placeholders(arts: ArtifactSequence):
-    a = arts[0]
-    name, _ = a.name.split(":")
-
-    art_versions = {_get_art_version(a): a for a in arts}
-
-    lst = []
-    for v in range(max(art_versions) + 1):
-        if v in art_versions:
-            art = art_versions[v]
-        else:
-            art = wandb.Artifact(name, "temp")
-            art._type = a.type
-            art._description = ART_SEQUENCE_DUMMY_DESCRIPTION
-
-            # This is important because artifacts are deduplicated.  This creates dummy files of 0 bytes
-            # which is enough for Artifacts to think that the file contents have changed and thus bump version
-            p = Path("importer_temp")
-            p.mkdir(parents=True, exist_ok=True)
-            fname = p / str(v)
-            with open(fname, "w"):
-                pass
-            art.add_file(fname)
-        lst.append(art)
-    return lst
+def get_art_name_ver(art: wandb.Artifact) -> int:
+    name, ver = art.name.split(":v")
+    return name, int(ver)
 
 
 def make_new_art(art: wandb.Artifact) -> wandb.Artifact:
@@ -969,3 +1005,35 @@ def make_new_art(art: wandb.Artifact) -> wandb.Artifact:
     new_art._description = art.description
 
     return new_art
+
+
+def _make_dummy_art(name: str, _type: str, ver: int):
+    art = wandb.Artifact(name, "temp")
+    art._type = _type
+    art._description = ART_SEQUENCE_DUMMY_DESCRIPTION
+
+    p = Path("importer_temp")
+    p.mkdir(parents=True, exist_ok=True)
+    fname = p / str(ver)
+    with open(fname, "w"):
+        pass
+    art.add_file(fname)
+    return art
+
+
+def fill_with_dummy_arts(arts):
+    prev_ver, first = None, True
+
+    for a in arts:
+        name, ver = get_art_name_ver(a)
+        if first:
+            if ver > 0:
+                yield [_make_dummy_art(name, a.type, v) for v in range(0, ver)]
+            first = False
+        else:
+            if ver - prev_ver > 1:
+                yield [
+                    _make_dummy_art(name, a.type, v) for v in range(prev_ver + 1, ver)
+                ]
+        yield [a]
+        prev_ver = ver

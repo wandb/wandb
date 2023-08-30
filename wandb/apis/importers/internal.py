@@ -401,8 +401,8 @@ def send_run_with_send_manager(
         _handle_terminal_output(sm, rm, config, run_identifier)
 
 
-def send_artifact_with_send_manager(
-    art: Artifact,
+def send_artifacts_with_send_manager(
+    arts: Iterable[Artifact],
     run: ImporterRun,
     overrides: Optional[Dict[str, Any]] = None,
     settings_override: Optional[Dict[str, Any]] = None,
@@ -432,5 +432,6 @@ def send_artifact_with_send_manager(
         settings, record_q, result_q, interface, context_keeper
     ) as sm:
         _handle_run_record(sm, rm)
-        _handle_use_specific_artifact(sm, rm, art, config)
-        _handle_log_specific_artifact(sm, rm, art, config)
+        for art in arts:
+            _handle_use_specific_artifact(sm, rm, art, config)
+            _handle_log_specific_artifact(sm, rm, art, config)

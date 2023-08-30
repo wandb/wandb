@@ -46,9 +46,8 @@ fh2.setFormatter(formatter2)
 fh2.addFilter(ThreadLocalFilter())
 root_logger.addHandler(fh2)
 
-
-urllib_logger = logging.getLogger("urllib3.connectionpool")
-urllib_logger.propagate = False
+logging.getLogger("urllib3").setLevel(logging.ERROR)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
 wandb_logger = logging.getLogger("wandb.apis.importers.wandb")
 
