@@ -26,9 +26,7 @@ def test_upsert_bucket_409(
     inject_graphql_response,
 ):
     inject_response = inject_graphql_response(
-        body="GOT ME A 409",
-        status=409,
-        application_pattern="0110"
+        body="GOT ME A 409", status=409, application_pattern="0110"
     )
-    with relay_server(inject=[inject_response]) as relay:
-        run = wandb_init()
+    with relay_server(inject=[inject_response]):
+        wandb_init()
