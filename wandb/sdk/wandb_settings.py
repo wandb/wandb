@@ -351,6 +351,7 @@ class SettingsData:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
+    _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -686,6 +687,10 @@ class Settings(SettingsData):
             _stats_open_metrics_filters={
                 # capture all metrics on all endpoints by default
                 "value": (".*",),
+                "preprocessor": _str_as_json,
+            },
+            _stats_disk_paths={
+                "value": ("/",),
                 "preprocessor": _str_as_json,
             },
             _tmp_code_dir={
