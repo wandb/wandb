@@ -318,7 +318,7 @@ class QueryResolver:
         if query:
             run_name = request_data["variables"]["run"]
             files = (
-                response_data.get("data", {}).get("createRunFiles", {}).get("files", {})
+                ((response_data.get("data") or {}).get("createRunFiles") or {}).get("files", {})
             )
             post_processed_data = {
                 "name": run_name,
