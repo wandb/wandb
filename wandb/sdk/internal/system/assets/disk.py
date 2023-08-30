@@ -28,7 +28,7 @@ class DiskUsagePercent:
     def __init__(self, paths: List[str]) -> None:
         self.samples = deque([])
         # check if we have access to the disk paths:
-        self.paths = []
+        self.paths: List[str] = []
         for path in paths:
             try:
                 psutil.disk_usage(path)
@@ -69,7 +69,7 @@ class DiskUsage:
     def __init__(self, paths: List[str]) -> None:
         self.samples = deque([])
         # check if we have access to the disk paths:
-        self.paths = []
+        self.paths: List[str] = []
         for path in paths:
             try:
                 psutil.disk_usage(path)
