@@ -23,8 +23,6 @@ def cleanup_deployment(namespace: str):
     """Delete a k8s deployment and all pods in the same namespace."""
     if os.path.exists(os.path.expanduser("~/.kube/config")):
         config.load_kube_config()
-    else:
-        config.load_incluster_config()
     apps_api = client.AppsV1Api()
     core_api = client.CoreV1Api()
 
@@ -42,8 +40,6 @@ def wait_for_image_job_completion(
     """W&B's wait_until_finished() doesn't work for image based jobs, so poll the k8s output for job completion."""
     if os.path.exists(os.path.expanduser("~/.kube/config")):
         config.load_kube_config()
-    else:
-        config.load_incluster_config()
     v1 = client.CoreV1Api()
     w = watch.Watch()
     status = None
