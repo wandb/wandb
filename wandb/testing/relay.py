@@ -223,6 +223,15 @@ class Context:
         run_stats = self.events[mask_run]
         return run_stats
 
+    def get_upsert_bucket_responses(self, run_id: str) -> List[Dict[str, Any]]:
+        responses = []
+        for query in self.raw_data:
+            if "upsertBucket" in query["request"].get("query", ""):
+                resp = query["response"]["data"]["upsertBucket"]["bucket"]
+                if resp.get("name") == run_id:
+                    responses += [resp]
+        return responses
+
     # todo: add getter (by run_id) utilities for other properties
 
 
