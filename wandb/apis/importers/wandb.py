@@ -566,6 +566,17 @@ class WandbImporter:
             if placeholder_run is not None:
                 break
 
+        if placeholder_run is None:
+            wandb_logger.error(
+                "Error finding placeholder run",
+                extra={
+                    "entity": "",
+                    "project": "",
+                    "run_id": "",
+                },
+            )
+            return
+
         # instead of uploading placeholders 1 by 1,
         # just upload the entire batch of placeholders in one run update
         groups_of_artifacts = list(fill_with_dummy_arts(sequence))
@@ -626,8 +637,8 @@ class WandbImporter:
 
         d = {}
         projects = self._projects(entity, project)
-        for project in projects:
-            _project = f"{entity}/{project.name}"
+        for proj in projects:
+            _project = f"{entity}/{proj.name}"
             d[_project] = list(placeholder_artifacts(_project))
 
         with progress.live:
@@ -780,7 +791,7 @@ class WandbImporter:
 
     def _projects(
         self, entity: str, project: Optional[str], api: Optional[wandb.Api] = None
-    ):
+    ) -> List[wandb.apis.public.Project]:
         if api is None:
             api = self.src_api
 
@@ -889,7 +900,9 @@ class WandbImporter:
         )
         self.import_artifact_sequences(sequences, config, max_workers)
         self.use_artifact_sequences(sequences, config, max_workers)
-        self._remove_placeholders(dst_entity, dst_project)
+
+        entity = src_entity if dst_entity is None else dst_entity
+        self._remove_placeholders(entity, dst_project)
 
     def import_artifact_sequences(
         self,
@@ -987,7 +1000,7 @@ class WandbImporter:
                 progress.subtask_pbar.remove_task(task)
 
 
-def get_art_name_ver(art: wandb.Artifact) -> int:
+def get_art_name_ver(art: wandb.Artifact) -> Tuple[str, int]:
     name, ver = art.name.split(":v")
     return name, int(ver)
 

@@ -363,18 +363,6 @@ def wandb_server_dst(wandb_server, user):
 
 @pytest.fixture
 def wandb_server_src(wandb_server2, user2, wandb_logging_config):
-    def artifact_generator():
-        names = string.ascii_lowercase
-        types = ["t" + str(i // 2 + 1) for i, _ in enumerate(names)]
-
-        for name, _type in zip(names, types):
-            yield wandb.Artifact(name, _type)
-
-    art_gen = artifact_generator()
-
-    old_arts = []
-    new_arts = []
-
     for _ in range(wandb_logging_config.n_experiments):
         with wandb.init(
             project=wandb_logging_config.project_name,
@@ -402,13 +390,10 @@ def wandb_server_src(wandb_server2, user2, wandb_logging_config):
                 }
             )
 
-            # log artifacts
-            old_arts, new_arts = new_arts, [next(art_gen), next(art_gen)]
-            for old_art in old_arts:
-                run.use_artifact(old_art)
-
-            for new_art in new_arts:
-                run.log_artifact(new_art)
+            art = make_artifact("logged_art")
+            # art2 = make_artifact("used_art")
+            run.log_artifact(art)
+            # run.use_artifact(art2)
 
     # create reports
     for _ in range(wandb_logging_config.n_reports):

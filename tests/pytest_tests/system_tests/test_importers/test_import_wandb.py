@@ -1,5 +1,3 @@
-import string
-
 import pandas as pd
 import pytest
 import wandb
@@ -79,16 +77,9 @@ def test_wandb_reports(wandb_server_src, wandb_server_dst, wandb_logging_config)
 
 
 @pytest.mark.timeout(300)
-def test_wandb_artifact_sequences(
+def test_wandb_artifact_sequence(
     wandb_server_src, wandb_server_dst, wandb_logging_config
 ):
-    def artifact_generator():
-        names = string.ascii_lowercase
-        types = ["t" + str(i // 2 + 1) for i, _ in enumerate(names)]
-
-        for name, _type in zip(names, types):
-            yield wandb.Artifact(name, _type)
-
     # Import
     importer = WandbImporter(
         src_base_url=wandb_server_src.server.base_url,
@@ -101,9 +92,10 @@ def test_wandb_artifact_sequences(
         entity=wandb_server_dst.user, project=wandb_logging_config.project_name
     )
     artifact_sequences = list(
-        importer.collect_artifact_sequences(wandb_server_src.user)
+        importer.collect_artifact_sequences(wandb_server_src.user, limit=1)
     )
-    importer.import_artifact_sequences(artifact_sequences, config)
+    sequence = artifact_sequences[0]
+    importer.import_artifact_sequence(sequence, config)
 
     # Check if import was successful
     api = wandb.Api(
@@ -111,23 +103,16 @@ def test_wandb_artifact_sequences(
         overrides={"base_url": wandb_server_dst.server.base_url},
     )
 
-    api.artifact_versions()
+    for source_art in sequence:
+        result_art = api.artifact(source_art.name, source_art.type)
+        assert result_art is not None
 
-    # runs = api.runs(f"{entity}/{project}")
-    # runs = list(runs)
+        assert result_art.name == source_art.name
+        assert result_art.type == source_art.type
+        assert result_art.description == source_art.description
 
-    # assert len(runs) == wandb_logging_config.n_experiments
-    # for run in runs:
-    #     history = run.scan_history()
-    #     df = pd.DataFrame(history)
-    #     metric_cols = df.columns.str.startswith("metric")
-    #     media_cols = ["df", "img", "audio", "pc", "html", "plotly_fig", "mol"]
-
-    #     metric_df = df.loc[:, metric_cols].dropna(how="all")
-    #     media_df = df.loc[:, media_cols].dropna(how="all")
-
-    #     assert metric_df.shape == (
-    #         wandb_logging_config.n_steps,
-    #         wandb_logging_config.n_metrics,
-    #     )
-    #     assert media_df.shape == (1, 7)
+        for name, result_entry in result_art.manifest.entries.items():
+            source_entry = source_art.manifest.entries[name]
+            assert result_entry.path == source_entry.path
+            assert result_entry.digest == source_entry.digest
+            assert result_entry.size == source_entry.size
