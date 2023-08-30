@@ -37,7 +37,7 @@ def test_opener_rejects_append_mode(artifacts_cache):
 
 def test_check_md5_obj_path(artifacts_cache):
     md5 = md5_string("hi")
-    path, exists, opener = artifacts_cache.check_md5_obj_path(md5, 6)
+    path, exists, opener = artifacts_cache.check_md5_obj_path(md5, 2)
     expected_path = os.path.join(
         artifacts_cache._cache_dir, "obj", "md5", "49", "f68a5c8493ec2c0bf489821c21fc3b"
     )
