@@ -169,3 +169,22 @@ def test_minmax_validation():
 
     with pytest.raises(ValueError):
         api.api._validate_config_and_fill_distribution(sweep_config)
+
+
+def test_add_run_to_existing_sweep(user, wandb_init):
+    api = wandb.apis.PublicApi()
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "random",
+        "parameters": {"parameter1": {"min": 0, "max": 1}},
+    }
+    sweep_id = wandb.sweep(sweep_config, entity=user, project="test")
+    settings = wandb.Settings()
+    settings.update({"sweep_id": sweep_id})
+    run = wandb_init(entity=user, settings=settings)
+    run.log({"x": 1})
+    run.finish()
+
+    sweep = api.sweep(f"{user}/test/{sweep_id}")
+    assert len(sweep.runs) == 1
+    assert sweep.runs[0].name == run.name
