@@ -652,9 +652,13 @@ jobs:
                   pip3 install tox==<< pipeline.parameters.tox_version >>
                 no_output_timeout: 5m
             - run:
-                name: Setup environment
+                name: Install kubectl
                 command: |
-                  aws configure list
+                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                  sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            - run:
+                name: Setup wandb
+                command: |
                   pip3 install /home/circleci/project
                   wandb login $WANDB_API_KEY
                   python3 ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
