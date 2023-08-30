@@ -654,7 +654,7 @@ jobs:
             - run:
                 name: Setup environment
                 command: |
-                  aws ecr get-login-password --region us-east-2
+                  aws sts assume-role --role-arn $AWS_ROLE_ARN --role_session_name circleci-session
                   pip3 install /home/circleci/project
                   wandb login $WANDB_API_KEY
                   python3 ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
