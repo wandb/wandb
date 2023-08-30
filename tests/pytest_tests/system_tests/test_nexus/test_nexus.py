@@ -25,6 +25,7 @@ def test_upsert_bucket_409(
     relay_server,
     inject_graphql_response,
 ):
+    """Test that we retry upsert bucket mutations on 409s"""
     def custom_match_fn(self, other):  # noqa
         request_body = other.__dict__.get("body") or b"{}"
         return b"mutation UpsertBucket" in request_body
@@ -47,6 +48,7 @@ def test_upsert_bucket_410(
     relay_server,
     inject_graphql_response,
 ):
+    """Test that we do not retry upsert bucket mutations on 410s"""
     def custom_match_fn(self, other):  # noqa
         request_body = other.__dict__.get("body") or b"{}"
         return b"mutation UpsertBucket" in request_body

@@ -95,8 +95,6 @@ func emptyAsNil(s *string) *string {
 }
 
 func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	// fmt.Println("IMMA DEFAULT RETRY FUNC", ctx, resp, err)
-
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusBadRequest, statusCode == http.StatusConflict: // don't retry on 400 bad request or 409 conflict
@@ -113,7 +111,6 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 }
 
 func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	// fmt.Println("IMMA UPSERT BUCKET RETRY FUNC", ctx, resp, err)
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusGone: // don't retry on 410 Gone
@@ -130,7 +127,6 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 
-	// fmt.Println("GOT ME SOME CONTEXT", ctx)
 	// get retry policy from context
 	retryPolicy, ok := ctx.Value(CtxRetryPolicyKey).(func(context.Context, *http.Response, error) (bool, error))
 	switch {
