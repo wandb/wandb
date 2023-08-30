@@ -5,7 +5,7 @@ from wandb.apis.importers import ImportConfig, WandbImporter
 
 
 @pytest.mark.timeout(300)
-def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
+def test_import_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
     # Import
     importer = WandbImporter(
         src_base_url=wandb_server_src.server.base_url,
@@ -48,7 +48,7 @@ def test_wandb_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
 
 
 @pytest.mark.timeout(300)
-def test_wandb_reports(wandb_server_src, wandb_server_dst, wandb_logging_config):
+def test_import_reports(wandb_server_src, wandb_server_dst, wandb_logging_config):
     # Import
     importer = WandbImporter(
         src_base_url=wandb_server_src.server.base_url,
@@ -77,7 +77,7 @@ def test_wandb_reports(wandb_server_src, wandb_server_dst, wandb_logging_config)
 
 
 @pytest.mark.timeout(300)
-def test_wandb_artifact_sequence(
+def test_import_artifact_sequences(
     wandb_server_src, wandb_server_dst, wandb_logging_config
 ):
     # Import

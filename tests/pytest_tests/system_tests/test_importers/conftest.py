@@ -391,9 +391,9 @@ def wandb_server_src(wandb_server2, user2, wandb_logging_config):
             )
 
             art = make_artifact("logged_art")
-            # art2 = make_artifact("used_art")
+            art2 = make_artifact("used_art")
             run.log_artifact(art)
-            # run.use_artifact(art2)
+            run.use_artifact(art2)
 
     # create reports
     for _ in range(wandb_logging_config.n_reports):
