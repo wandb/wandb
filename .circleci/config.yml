@@ -620,6 +620,7 @@ jobs:
         default: true
       tox_args:
         type: string
+        default: ""
     machine:
       image: ubuntu-2004:2022.04.1
       docker_layer_caching: true
