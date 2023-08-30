@@ -633,12 +633,6 @@ jobs:
                 role_arn: $AWS_ROLE_ARN
                 region: us-east-2
                 profile_name: launch_release_tests
-            # - run:
-            #     name: Install and start Docker
-            #     command: |
-            #       sudo apt-get update && sudo apt install -y docker.io
-            #       systemctl start docker
-            #     no_output_timeout: 5m
             - run:
                 name: Install tox
                 command: |
@@ -646,15 +640,16 @@ jobs:
                   pip3 install tox==<< pipeline.parameters.tox_version >>
                 no_output_timeout: 5m
             - run:
-                name: Install Docker
-                command: |
-                  curl -fsSL https://get.docker.com -o install-docker.sh
-                  sudo sh install-docker.sh
-            - run:
                 name: Install kubectl
                 command: |
                   curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                   sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            - run:
+                name: Install and start minikube
+                command: |
+                  curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+                  sudo install minikube-linux-amd64 /usr/local/bin/minikube
+                  minikube start
             - run:
                 name: Setup wandb
                 command: |
