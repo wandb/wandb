@@ -1586,7 +1586,9 @@ def _list(project, entity):
         wandb.termlog(f"{name} -- versions ({len(aliases)}): {aliases_str}")
 
 
-@job.command(help="Describe a launch job. Provide the launch job in the form of: <entity>/<project>/<job-name>:<alias-or-version>")
+@job.command(
+    help="Describe a launch job. Provide the launch job in the form of: entity/project/job-name:alias-or-version"
+    )
 @click.argument("job")
 def describe(job):
     public_api = PublicApi()
