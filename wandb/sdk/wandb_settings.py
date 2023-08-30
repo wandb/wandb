@@ -688,6 +688,10 @@ class Settings(SettingsData):
                 "value": (".*",),
                 "preprocessor": _str_as_json,
             },
+            _stats_disk_paths={
+                "value": ("/",),
+                "preprocessor": _str_as_json,
+            },
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),

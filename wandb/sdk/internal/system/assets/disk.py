@@ -23,9 +23,9 @@ class DiskUsagePercent:
     name = "disk.{path}.usagePercent"
     samples: "Deque[float]"
 
-    def __init__(self, paths: Optional[List[str]] = None) -> None:
+    def __init__(self, paths: List[str]) -> None:
         self.samples: Deque[List[float]] = deque([])
-        self.paths = paths or ["/"]
+        self.paths = paths
 
     def sample(self) -> None:
         # self.samples.append(psutil.disk_usage("/").percent)
@@ -54,9 +54,9 @@ class DiskUsage:
     name = "disk.{path}.usageGB"
     samples: "Deque[float]"
 
-    def __init__(self, paths: Optional[List[str]] = None) -> None:
+    def __init__(self, paths: List[str]) -> None:
         self.samples: Deque[List[float]] = deque([])
-        self.paths = paths or ["/"]
+        self.paths = paths
 
     def sample(self) -> None:
         disk_usage = []
@@ -143,9 +143,10 @@ class Disk:
         shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
+        self.settings = settings
         self.metrics: List[Metric] = [
-            DiskUsagePercent(list(settings._stats_disk_paths)),
-            DiskUsage(list(settings._stats_disk_paths)),
+            DiskUsagePercent(list(settings._stats_disk_paths or ["/"])),
+            DiskUsage(list(settings._stats_disk_paths or ["/"])),
             DiskIn(),
             DiskOut(),
         ]
@@ -163,12 +164,19 @@ class Disk:
         return psutil is not None
 
     def probe(self) -> dict:
-        # total disk space in GB:
-        total = psutil.disk_usage("/").total / 1024 / 1024 / 1024
-        # total disk space used in GB:
-        used = psutil.disk_usage("/").used / 1024 / 1024 / 1024
+        disk_paths = list(self.settings._stats_disk_paths or ["/"])
+        disk_metrics = {}
+        for disk_path in disk_paths:
+            # total disk space in GB:
+            total = psutil.disk_usage(disk_path).total / 1024 / 1024 / 1024
+            # total disk space used in GB:
+            used = psutil.disk_usage(disk_path).used / 1024 / 1024 / 1024
+            disk_metrics[disk_path] = {
+                "total": total,
+                "used": used,
+            }
 
-        return {self.name: {"total": total, "used": used}}
+        return {self.name: disk_metrics}
 
     def start(self) -> None:
         self.metrics_monitor.start()
