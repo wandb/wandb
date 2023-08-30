@@ -17,17 +17,22 @@ if TYPE_CHECKING:
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
-class DiskUsage:
+class DiskUsagePercent:
     """Total system disk usage in percent."""
 
-    name = "disk"
+    name = "disk.{path}.usagePercent"
     samples: "Deque[float]"
 
-    def __init__(self) -> None:
-        self.samples = deque([])
+    def __init__(self, paths: Optional[List[str]] = None) -> None:
+        self.samples: Deque[List[float]] = deque([])
+        self.paths = paths or ["/"]
 
     def sample(self) -> None:
-        self.samples.append(psutil.disk_usage("/").percent)
+        # self.samples.append(psutil.disk_usage("/").percent)
+        disk_usage = []
+        for path in self.paths:
+            disk_usage.append(psutil.disk_usage(path).percent)
+        self.samples.append(disk_usage)
 
     def clear(self) -> None:
         self.samples.clear()
@@ -35,8 +40,42 @@ class DiskUsage:
     def aggregate(self) -> dict:
         if not self.samples:
             return {}
-        aggregate = aggregate_mean(self.samples)
-        return {self.name: aggregate}
+        disk_metrics = {}
+        for i, path in enumerate(self.paths):
+            aggregate_i = aggregate_mean([sample[i] for sample in self.samples])
+            disk_metrics[self.name.format(path=i)] = aggregate_i
+
+        return disk_metrics
+
+
+class DiskUsage:
+    """Total system disk usage in GB."""
+
+    name = "disk.{path}.usageGB"
+    samples: "Deque[float]"
+
+    def __init__(self, paths: Optional[List[str]] = None) -> None:
+        self.samples: Deque[List[float]] = deque([])
+        self.paths = paths or ["/"]
+
+    def sample(self) -> None:
+        disk_usage = []
+        for path in self.paths:
+            disk_usage.append(psutil.disk_usage(path).used / 1024 / 1024 / 1024)
+        self.samples.append(disk_usage)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        if not self.samples:
+            return {}
+        disk_metrics = {}
+        for i, path in enumerate(self.paths):
+            aggregate_i = aggregate_mean([sample[i] for sample in self.samples])
+            disk_metrics[self.name.format(path=i)] = aggregate_i
+
+        return disk_metrics
 
 
 class DiskIn:
@@ -104,7 +143,12 @@ class Disk:
         shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        self.metrics: List[Metric] = [DiskUsage(), DiskIn(), DiskOut()]
+        self.metrics: List[Metric] = [
+            DiskUsagePercent(list(settings._stats_disk_paths)),
+            DiskUsage(list(settings._stats_disk_paths)),
+            DiskIn(),
+            DiskOut(),
+        ]
         self.metrics_monitor = MetricsMonitor(
             self.name,
             self.metrics,
