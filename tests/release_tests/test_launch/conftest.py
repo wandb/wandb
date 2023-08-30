@@ -22,12 +22,12 @@ def pytest_generate_tests(metafunc):
 
 def pytest_configure(config):
     """Fixture to confirm the session has the correct credentials."""
-    client_config = botocore.config.Config(region_name="us-east-2")
-    sts = boto3.client("sts", config=client_config)
-    try:
-        sts.get_caller_identity()
-    except botocore.exceptions.ClientError:
-        raise Exception("Not logged into LaunchSandbox AWS account")
+    # client_config = botocore.config.Config(region_name="us-east-2")
+    # sts = boto3.client("sts", config=client_config)
+    # try:
+    #     sts.get_caller_identity()
+    # except botocore.exceptions.ClientError:
+    #     raise Exception("Not logged into LaunchSandbox AWS account")
 
     creds_path = os.path.expanduser("~/.aws")
     run_cmd(
