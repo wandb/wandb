@@ -30,15 +30,15 @@ logger = logging.getLogger(__name__)
 class FileEventHandler(abc.ABC):
     def __init__(
         self,
-        file_path: Path,
-        save_name: LogicalPath,
+        file_path: StrPath,
+        save_name: StrPath,
         file_pusher: "FilePusher",
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        self.file_path = file_path
+        self.file_path = Path(file_path)
         # Convert windows paths to unix paths
-        self.save_name = save_name
+        self.save_name = LogicalPath(save_name)
         self._file_pusher = file_pusher
         self._last_sync: Optional[float] = None
 
@@ -55,9 +55,9 @@ class FileEventHandler(abc.ABC):
     def finish(self) -> None:
         raise NotImplementedError
 
-    def on_renamed(self, new_path: Path, new_name: LogicalPath) -> None:
-        self.file_path = new_path
-        self.save_name = new_name
+    def on_renamed(self, new_path: StrPath, new_name: StrPath) -> None:
+        self.file_path = Path(new_path)
+        self.save_name = LogicalPath(new_name)
         self.on_modified()
 
 
@@ -204,7 +204,7 @@ class DirWatcher:
         self._file_event_handlers: MutableMapping[LogicalPath, FileEventHandler] = {}
         self._file_observer = wd_polling.PollingObserver()
         self._file_observer.schedule(
-            self._per_file_event_handler(), self._dir, recursive=True
+            self._per_file_event_handler(), str(self._dir), recursive=True
         )
         self._file_observer.start()
         logger.info("watching files in: %s", settings.files_dir)
