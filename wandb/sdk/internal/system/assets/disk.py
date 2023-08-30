@@ -8,6 +8,7 @@ except ImportError:
     psutil = None
 
 from wandb.errors.term import termwarn
+
 from .aggregators import aggregate_mean
 from .asset_registry import asset_registry
 from .interfaces import Interface, Metric, MetricsMonitor
@@ -37,7 +38,7 @@ class DiskUsagePercent:
 
     def sample(self) -> None:
         # self.samples.append(psutil.disk_usage("/").percent)
-        disk_usage = []
+        disk_usage: List[float] = []
         for path in self.paths:
             disk_usage.append(psutil.disk_usage(path).percent)
         if disk_usage:
@@ -77,7 +78,7 @@ class DiskUsage:
                 termwarn(f"Could not access disk path {path}: {e}", repeat=False)
 
     def sample(self) -> None:
-        disk_usage = []
+        disk_usage: List[float] = []
         for path in self.paths:
             disk_usage.append(psutil.disk_usage(path).used / 1024 / 1024 / 1024)
         if disk_usage:
