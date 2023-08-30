@@ -7,6 +7,7 @@ try:
 except ImportError:
     psutil = None
 
+from wandb.errors.term import termwarn
 from .aggregators import aggregate_mean
 from .asset_registry import asset_registry
 from .interfaces import Interface, Metric, MetricsMonitor
@@ -21,18 +22,26 @@ class DiskUsagePercent:
     """Total system disk usage in percent."""
 
     name = "disk.{path}.usagePercent"
-    samples: "Deque[float]"
+    samples: "Deque[List[float]]"
 
     def __init__(self, paths: List[str]) -> None:
-        self.samples: Deque[List[float]] = deque([])
-        self.paths = paths
+        self.samples = deque([])
+        # check if we have access to the disk paths:
+        self.paths = []
+        for path in paths:
+            try:
+                psutil.disk_usage(path)
+                self.paths.append(path)
+            except Exception as e:  # noqa
+                termwarn(f"Could not access disk path {path}: {e}", repeat=False)
 
     def sample(self) -> None:
         # self.samples.append(psutil.disk_usage("/").percent)
         disk_usage = []
         for path in self.paths:
             disk_usage.append(psutil.disk_usage(path).percent)
-        self.samples.append(disk_usage)
+        if disk_usage:
+            self.samples.append(disk_usage)
 
     def clear(self) -> None:
         self.samples.clear()
@@ -54,17 +63,25 @@ class DiskUsage:
     """Total system disk usage in GB."""
 
     name = "disk.{path}.usageGB"
-    samples: "Deque[float]"
+    samples: "Deque[List[float]]"
 
     def __init__(self, paths: List[str]) -> None:
-        self.samples: Deque[List[float]] = deque([])
-        self.paths = paths
+        self.samples = deque([])
+        # check if we have access to the disk paths:
+        self.paths = []
+        for path in paths:
+            try:
+                psutil.disk_usage(path)
+                self.paths.append(path)
+            except Exception as e:  # noqa
+                termwarn(f"Could not access disk path {path}: {e}", repeat=False)
 
     def sample(self) -> None:
         disk_usage = []
         for path in self.paths:
             disk_usage.append(psutil.disk_usage(path).used / 1024 / 1024 / 1024)
-        self.samples.append(disk_usage)
+        if disk_usage:
+            self.samples.append(disk_usage)
 
     def clear(self) -> None:
         self.samples.clear()
@@ -171,14 +188,17 @@ class Disk:
         disk_paths = list(self.settings._stats_disk_paths or ["/"])
         disk_metrics = {}
         for disk_path in disk_paths:
-            # total disk space in GB:
-            total = psutil.disk_usage(disk_path).total / 1024 / 1024 / 1024
-            # total disk space used in GB:
-            used = psutil.disk_usage(disk_path).used / 1024 / 1024 / 1024
-            disk_metrics[disk_path] = {
-                "total": total,
-                "used": used,
-            }
+            try:
+                # total disk space in GB:
+                total = psutil.disk_usage(disk_path).total / 1024 / 1024 / 1024
+                # total disk space used in GB:
+                used = psutil.disk_usage(disk_path).used / 1024 / 1024 / 1024
+                disk_metrics[disk_path] = {
+                    "total": total,
+                    "used": used,
+                }
+            except Exception as e:  # noqa
+                termwarn(f"Could not access disk path {disk_path}: {e}", repeat=False)
 
         return {self.name: disk_metrics}
 

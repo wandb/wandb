@@ -41,17 +41,17 @@ func (d *Disk) SampleMetrics() {
 	d.mutex.RLock()
 	defer d.mutex.RUnlock()
 
-	for i, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
 		usage, err := disk.Usage(diskPath)
 		if err == nil {
 			// used disk space as a percentage
-			keyPercent := fmt.Sprintf("disk.%d.usagePercent", i)
+			keyPercent := fmt.Sprintf("disk.%s.usagePercent", diskPath)
 			d.metrics[keyPercent] = append(
 				d.metrics[keyPercent],
 				usage.UsedPercent,
 			)
 			// used disk space in GB
-			keyGB := fmt.Sprintf("disk.%d.usageGB", i)
+			keyGB := fmt.Sprintf("disk.%s.usageGB", diskPath)
 			d.metrics[keyGB] = append(
 				d.metrics[keyGB],
 				float64(usage.Used)/1024/1024/1024,
