@@ -75,3 +75,44 @@ func TestSendRun(t *testing.T) {
 	sender.sendRecord(run)
 	<-sender.outChan
 }
+
+func TestSendLinkArtifact(t *testing.T) {
+	to := nexustest.MakeTestObject(t)
+	defer to.TeardownTest()
+
+	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
+
+	run := &service.Record{
+		RecordType: &service.Record_LinkArtifact{
+			LinkArtifact: &service.LinkArtifactRecord{
+				ClientId:         "clientId",
+				ServerId:         "serverId",
+				PortfolioName:    "portfolioName",
+				PortfolioEntity:  "portfolioEntity",
+				PortfolioProject: "portfolioProject",
+			}},
+		Control: &service.Control{
+			MailboxSlot: "junk",
+		},
+	}
+
+	respEncode := &graphql.Response{
+		Data: &gql.LinkArtifactResponse{
+			LinkArtifact: &gql.LinkArtifactLinkArtifactLinkArtifactPayload{
+				VersionIndex: nexustest.IntPtr(0),
+			},
+		}}
+	to.MockClient.EXPECT().MakeRequest(
+		gomock.Any(), // context.Context
+		gomock.Any(), // *graphql.Request
+		gomock.Any(), // *graphql.Response
+	).Return(nil).Do(nexustest.InjectResponse(
+		respEncode,
+		func(vars nexustest.RequestVars) {
+			assert.Equal(t, "portfolioProject", vars["portfolio_project"]) // Currently vars["<anything>"] returns nil
+		},
+	))
+
+	sender.sendRecord(run)
+	<-sender.outChan
+}
