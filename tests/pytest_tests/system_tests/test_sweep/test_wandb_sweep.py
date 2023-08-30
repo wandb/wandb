@@ -171,20 +171,25 @@ def test_minmax_validation():
         api.api._validate_config_and_fill_distribution(sweep_config)
 
 
-def test_add_run_to_existing_sweep(user, wandb_init):
-    api = wandb.apis.PublicApi()
-    sweep_config = {
-        "name": "My Sweep",
-        "method": "random",
-        "parameters": {"parameter1": {"min": 0, "max": 1}},
-    }
-    sweep_id = wandb.sweep(sweep_config, entity=user, project="test")
-    settings = wandb.Settings()
-    settings.update({"sweep_id": sweep_id})
-    run = wandb_init(entity=user, settings=settings)
-    run.log({"x": 1})
-    run.finish()
+def test_add_run_to_existing_sweep(user, wandb_init, relay_server):
+    # Test that updating settings with sweep_id includes it in upsertBucket mutation
 
-    sweep = api.sweep(f"{user}/test/{sweep_id}")
-    assert len(sweep.runs) == 1
-    assert sweep.runs[0].name == run.name
+    with relay_server() as relay:
+        sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user)
+        settings = wandb.Settings()
+        settings.update({"sweep_id": sweep_id})
+        run = wandb_init(entity=user, settings=settings)
+        run.log({"x": 1})
+        run.finish()
+
+    for query in relay.context.raw_data:
+        if "upsertBucket" in query["request"].get("query", ""):
+            assert (
+                run.name
+                == query["response"]["data"]["upsertBucket"]["bucket"]["displayName"]
+            )
+            assert (
+                sweep_id
+                == query["response"]["data"]["upsertBucket"]["bucket"]["sweepName"]
+            )
+            break
