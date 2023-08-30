@@ -646,19 +646,19 @@ jobs:
             #       systemctl start docker
             #     no_output_timeout: 5m
             - run:
+                name: Install tox
+                command: |
+                  pip install --upgrade pip
+                  pip install tox==<< pipeline.parameters.tox_version >>
+                no_output_timeout: 5m
+            - run:
                 name: Setup environment
                 command: |
                   aws ecr get-login-password --region us-east-2
-                  pip3 install /home/circleci/project
+                  pip install /home/circleci/project
                   wandb login $WANDB_API_KEY
                   python3 ./tools/build_launch_agent.py --tag wandb-launch-agent:latest
                 no_output_timeout: 30m
-            - run:
-                name: Install tox
-                command: |
-                  pip install tox==<< pipeline.parameters.tox_version >>
-                  pip install -U pip
-                no_output_timeout: 5m
             - run:
                 name: Run tests
                 no_output_timeout: 30m
