@@ -153,11 +153,16 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
+		// todo(nexus:beta): make all client parameters configurable via settings/env vars
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		graphqlRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientHttpAuthTransport(settings.GetApiKey().GetValue()),
 			clients.WithRetryClientRetryPolicy(CheckRetry),
+			clients.WithRetryClientRetryMax(10),                 // todo: make this configurable
+			clients.WithRetryClientRetryWaitMin(2*time.Second),  // todo: make this configurable
+			clients.WithRetryClientRetryWaitMax(60*time.Second), // todo: make this configurable
+			clients.WithRetryClientHttpTimeout(30*time.Second),
 		)
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
@@ -187,8 +192,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		uploadManagerRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientRetryMax(10),                 // todo: make this configurable
-			clients.WithRetryClientRetryWaitMin(1*time.Second),  // todo: make this configurable
+			clients.WithRetryClientRetryWaitMin(2*time.Second),  // todo: make this configurable
 			clients.WithRetryClientRetryWaitMax(60*time.Second), // todo: make this configurable
+			clients.WithRetryClientHttpTimeout(0),               // todo: make this configurable
 		)
 		defaultUploader := uploader.NewDefaultUploader(
 			logger,
