@@ -277,7 +277,8 @@ func (al *ArtifactLinker) Link() error {
 	}
 	var err error
 	var response *gql.LinkArtifactResponse
-	if server_id != "" {
+	switch {
+	case server_id != "":
 		response, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
@@ -288,7 +289,7 @@ func (al *ArtifactLinker) Link() error {
 			nil,
 			&server_id,
 		)
-	} else if client_id != "" {
+	case client_id != "":
 		response, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
@@ -299,7 +300,7 @@ func (al *ArtifactLinker) Link() error {
 			&client_id,
 			nil,
 		)
-	} else {
+	default:
 		al.Logger.CaptureFatalAndPanic("sendLinkArtifact", errors.New("artifact must have either server id or client id"))
 	}
 	if err != nil {
