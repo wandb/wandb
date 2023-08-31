@@ -1,4 +1,5 @@
 from typing import List, Optional
+
 import wandb
 from wandb.sdk.lib.paths import StrPath
 
@@ -44,13 +45,14 @@ def log_model(
 
 
 def use_model(model_name: str) -> StrPath:
-    """Arguments:
-    model_name: (str) A model artifact name.
-        May be prefixed with entity/project/. Valid names
-        can be in the following forms:
-            - name:version
-            - name:alias
-            - digest.
+    """Download a logged model artifact.
+    Arguments:
+        model_name: (str) A model artifact name.
+            May be prefixed with entity/project/. Valid names
+            can be in the following forms:
+                - name:version
+                - name:alias
+                - digest.
     """
     temp_run = False
     if wandb.run is None:
