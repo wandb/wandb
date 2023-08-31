@@ -30,6 +30,13 @@ def pytest_configure(config):
     #     raise Exception("Not logged into LaunchSandbox AWS account")
 
     creds_path = os.path.expanduser("~/.aws")
+
+    # Create namespace if it doesn't exist
+    run_cmd(
+        "kubectl create namespace wandb-release-testing --dry-run=client -o yaml | kubectl apply -f -"
+    )
+
+    # Create AWS secrets
     run_cmd(
         "kubectl delete secret generic aws-secret --ignore-not-found -n wandb-release-testing"
     )
