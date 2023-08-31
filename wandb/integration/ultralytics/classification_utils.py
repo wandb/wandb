@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from ultralytics.engine.results import Results
@@ -10,6 +10,9 @@ import wandb
 def plot_classification_predictions(
     result: Results, model_name: str, table: Optional[wandb.Table] = None
 ):
+    """Plot classification prediction results to a `wandb.Table` if the table
+    is passed otherwise return the data.
+    """
     result = result.to("cpu")
     probabilities = result.probs
     probabilities_list = probabilities.data.numpy().tolist()
@@ -34,13 +37,14 @@ def plot_classification_predictions(
 
 
 def plot_classification_validation_results(
-    dataloader,
+    dataloader: Any,
     model_name: str,
     predictor: ClassificationPredictor,
     table: wandb.Table,
     max_validation_batches: int,
     epoch: Optional[int] = None,
 ):
+    """Plot classification results to a `wandb.Table`."""
     data_idx = 0
     predictor.args.save = False
     predictor.args.show = False
