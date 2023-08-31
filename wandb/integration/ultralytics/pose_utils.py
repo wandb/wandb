@@ -23,9 +23,9 @@ def annotate_keypoint_batch(image_path: str, keypoints: Any, visualize_skeleton:
     original_image = None
     with Image.open(image_path) as original_image:
         original_image = np.ascontiguousarray(original_image)
-    annotator = Annotator(original_image)
-    annotator.kpts(keypoints.numpy(), kpt_line=visualize_skeleton)
-    return annotator.im
+        annotator = Annotator(original_image)
+        annotator.kpts(keypoints.numpy(), kpt_line=visualize_skeleton)
+        return annotator.im
 
 
 def plot_pose_predictions(
