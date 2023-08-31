@@ -68,7 +68,7 @@ func (b *Bench) Worker() {
 		panic(err)
 	}
 
-	data := map[string]float64{}
+	data := make(gowandb.History)
 	for i := 0; i < *b.opts.numHistoryElements; i++ {
 		data[fmt.Sprintf("loss_%d", i)] = float64(100 + i)
 	}

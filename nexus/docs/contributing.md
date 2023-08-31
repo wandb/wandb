@@ -11,23 +11,23 @@ Now when you run `git push` the hooks will run automatically.
 
 This step is not required, but it is highly recommended.
 
-
 ## Installing Nexus
-To install Nexus, you will need to run the following commands (assuming you are in the root of the repository):
+To install Nexus, you will need to run the following commands (assuming you are in the
+root of the repository):
 ```bash
-```bash
-pip install ./nexus
+pip install -r requirements_build.txt  # Install build dependencies, if needed
+nox -s build-nexus install-nexus
 ```
-This will install Nexus in your current Python environment.  Note that every time you make a change to the code, you
-will need to re-run this command to install the changes. If you want to make changes to the code and have them
-immediately available, you can install Nexus in development mode.  See the next section for instructions on how to do
-that.
+This will build Nexus for your current platform and install it into your current Python environment.
+Note that every time you make a change to the code, you will need to re-run this command to install
+the changes. If you want to make changes to the code and have them immediately available,
+you can install Nexus in development mode.
 
 ## Installing Nexus in Development Mode
-To install Nexus in development mode, you will need to run the following commands (assuming you are in the root of the
-repository):
+To install Nexus in development mode, you will need to run the following commands
+(assuming you are in the root of the repository):
 ```bash
 ./nexus/scripts/setup-nexus-path.sh
 ```
-This script will also allow you to unset the Nexus path if you no longer want to use the development version of Nexus.
-Follow the instructions in the script to do that.
+This script will also allow you to unset the Nexus path if you no longer want to use
+the development version of Nexus. Follow the instructions in the script to do that.

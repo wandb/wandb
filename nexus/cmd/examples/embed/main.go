@@ -5,6 +5,7 @@ import (
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/run"
 )
 
 // Generate the core SDK library.  This is useful if you want to create self-contained binaries.
@@ -27,4 +28,5 @@ func main() {
 		panic(err)
 	}
 	run.Log(gowandb.History{"acc": 1.0})
+	run.Finish()
 }
