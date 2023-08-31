@@ -1,4 +1,4 @@
-id: 0.yolov8.detection
+id: 0.yolov8.segmentation
 plugin:
     - wandb
 tag:
@@ -27,13 +27,16 @@ assert:
         - :wandb:runs[0][summary][model/speed_PyTorch(ms)]
         - 0
     - :op:>=:
-        - :wandb:runs[0][summary][train/box_loss]
+        - :wandb:runs[0][summary][train/loss]
         - 0.0
     - :op:>=:
-        - :wandb:runs[0][summary][train/cls_loss]
+        - :wandb:runs[0][summary][val/loss]
         - 0.0
     - :op:>=:
         - :wandb:runs[0][summary][train/dfl_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/seg_loss]
         - 0.0
     - :op:>=:
         - :wandb:runs[0][summary][val/box_loss]
@@ -43,6 +46,9 @@ assert:
         - 0.0
     - :op:>=:
         - :wandb:runs[0][summary][val/dfl_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/seg_loss]
         - 0.0
     - :op:<=:
         - :wandb:runs[0][summary][metrics/mAP50(B)]
