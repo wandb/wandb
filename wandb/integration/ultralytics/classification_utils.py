@@ -10,9 +10,7 @@ import wandb
 def plot_classification_predictions(
     result: Results, model_name: str, table: Optional[wandb.Table] = None
 ):
-    """Plot classification prediction results to a `wandb.Table` if the table
-    is passed otherwise return the data.
-    """
+    """Plot classification prediction results to a `wandb.Table` if the table is passed otherwise return the data."""
     result = result.to("cpu")
     probabilities = result.probs
     probabilities_list = probabilities.data.numpy().tolist()
