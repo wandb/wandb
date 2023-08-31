@@ -1042,7 +1042,8 @@ class TestNameMappings:
             "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
             "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
             "entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "this-is-a-title--VmlldzoxMjkwMzEy", # with the base64 = in report id
+            # with the base64 = in report id
+            "this-is-a-title--VmlldzoxMjkwMzEy", 
             "this-is-a-title--VmlldzoxMjkwMzEy=",
             "    this-is-a-title--VmlldzoxMjkwMzEy",
             " this-is-a- title --    VmlldzoxMjkwMzEy=     ",
@@ -1077,7 +1078,7 @@ class TestNameMappings:
     @pytest.mark.parametrize(
         "url",
         [
-            '',
+            "",
             "--",
             "---",
             "this-is-a-title--",

@@ -72,18 +72,18 @@ class Report(Base):
             report_path, *_ = url.split("?")
             report_path = report_path.replace("---", "--")
 
-            if '--' not in report_path:
+            if "--" not in report_path:
                 raise ValueError(path_msg)
 
             *_, report_id = report_path.split("--")
             if len(report_id) == 0:
-                raise ValueError('Invalid report id')
+                raise ValueError("Invalid report id")
 
             # The base64 = is stripped from the report url in core app,
             # so we need to add it back in here
             report_id = report_id.strip()
-            if report_id[-1] != '=':
-                report_id += '='
+            if report_id[-1] != "=":
+                report_id += "="
 
         except ValueError as e:
             raise ValueError(path_msg) from e
