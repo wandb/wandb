@@ -2109,30 +2109,14 @@ def put(path, name, description, type, alias, run_id, resume):
         id=run_id,
         resume=resume,
     )
-    # We create the artifact manually to get the current version
-    res, _ = api.create_artifact(
-        type,
-        artifact_name,
-        artifact.digest,
-        client_id=artifact._client_id,
-        sequence_client_id=artifact._sequence_client_id,
-        entity_name=entity,
-        project_name=project,
-        run_name=run.id,
-        description=description,
-        aliases=[{"artifactCollectionName": artifact_name, "alias": a} for a in alias],
-    )
-    artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
-    # Re-create the artifact and actually upload any files needed
     run.log_artifact(artifact, aliases=alias)
     artifact.wait()
 
     wandb.termlog(
         "Artifact uploaded, use this artifact in a run by adding:\n", prefix=False
     )
-
     wandb.termlog(
-        f'    artifact = run.use_artifact("{artifact_path}")\n',
+        f'    artifact = run.use_artifact("{artifact.source_qualified_name}")\n',
         prefix=False,
     )
 
