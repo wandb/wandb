@@ -402,6 +402,31 @@ def wandb_server_src(wandb_server2, user2, wandb_logging_config):
             blocks=[wr.H1("blah")],
         ).save()
 
+    # Create special artifacts
+    with wandb.init(
+        id="artifact-gaps",
+        project="artifact-gaps",
+        settings={"console": "off", "save_code": False},
+    ) as run:
+        # Create 10 artifact versions
+        for i in range(10):
+            fname = str(i)
+            art = wandb.Artifact("gap", "gap")
+            with open(fname, "w"):
+                pass
+            art.add_file(fname)
+            run.log_artifact(art)
+
+    # Then delete some to make gaps in-between
+    api = wandb.Api()
+    art_type = api.artifact_type("gap", "artifact-gaps")
+    for collection in art_type.collections():
+        for art in collection.versions():
+            v = int(art.version[1:])
+            # not deleted: 3,6,7,9
+            if v in (0, 1, 2, 4, 5, 8):
+                art.delete(delete_aliases=True)
+
     return WandbServerUser(wandb_server2, user2)
 
 

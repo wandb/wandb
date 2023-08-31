@@ -140,6 +140,13 @@ def import_runs(
     config: Optional[ImportConfig] = None,
     max_workers: Optional[int] = None,
 ) -> None:
+    """Import a collection of runs.
+
+    Use `config` to specify alternate settings like where the report should be uploaded
+
+    Optional:
+    - `max_workers` -- set number of worker threads
+    """
     with progress.live:
         with ThreadPoolExecutor(max_workers) as exc:
             futures = {

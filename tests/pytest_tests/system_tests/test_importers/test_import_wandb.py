@@ -30,8 +30,10 @@ def test_import_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
     runs = api.runs(f"{config.entity}/{config.project}")
     runs = list(runs)
 
-    assert len(runs) == wandb_logging_config.n_experiments
-    for run in runs:
+    non_artifact_runs = [r for r in runs if r.id != "artifact-gaps"]
+
+    assert len(non_artifact_runs) == wandb_logging_config.n_experiments
+    for run in non_artifact_runs:
         history = run.scan_history()
         df = pd.DataFrame(history)
         metric_cols = df.columns.str.startswith("metric")
@@ -116,3 +118,77 @@ def test_import_artifact_sequences(
                 assert dst_entry.path == src_entry.path
                 assert dst_entry.digest == src_entry.digest
                 assert dst_entry.size == src_entry.size
+
+
+@pytest.mark.timeout(300)
+def test_import_artifact_sequences_with_gaps(
+    wandb_server_src, wandb_server_dst, wandb_logging_config
+):
+    importer = WandbImporter(
+        src_base_url=wandb_server_src.server.base_url,
+        src_api_key=wandb_server_src.user,
+        dst_base_url=wandb_server_dst.server.base_url,
+        dst_api_key=wandb_server_dst.user,
+    )
+
+    config = ImportConfig(
+        entity=wandb_server_dst.user, project=wandb_logging_config.project_name
+    )
+    sequences = list(
+        importer.collect_artifact_sequences(
+            wandb_server_src.user, "artifact-gaps", limit=1
+        )
+    )
+    importer.import_artifact_sequences(sequences, config)
+    importer._remove_placeholders(config.entity, config.project)
+
+    # Check if import was successful
+    api = wandb.Api(
+        api_key=wandb_server_dst.user,
+        overrides={"base_url": wandb_server_dst.server.base_url},
+    )
+
+    for sequence in sequences:
+        art = sequence[0]
+        src_versions = set(int(a.version[1:]) for a in sequence)
+        art_type = api.artifact_type(art.type, config.project)
+        for collection in art_type.collections():
+            dst_versions = set(int(a.version[1:]) for a in collection.versions())
+            assert dst_versions == src_versions
+
+
+@pytest.mark.timeout(300)
+def test_use_artifact_sequences(
+    wandb_server_src, wandb_server_dst, wandb_logging_config
+):
+    # Import
+    importer = WandbImporter(
+        src_base_url=wandb_server_src.server.base_url,
+        src_api_key=wandb_server_src.user,
+        dst_base_url=wandb_server_dst.server.base_url,
+        dst_api_key=wandb_server_dst.user,
+    )
+
+    config = ImportConfig(
+        entity=wandb_server_dst.user, project=wandb_logging_config.project_name
+    )
+    sequences = list(
+        importer.collect_artifact_sequences(wandb_server_src.user, limit=1)
+    )
+    importer.import_artifact_sequences(sequences, config)
+
+    # Check if import was successful
+    api = wandb.Api(
+        api_key=wandb_server_dst.user,
+        overrides={"base_url": wandb_server_dst.server.base_url},
+    )
+
+    for sequence in sequences:
+        for src_art in sequence:
+            dst_art = api.artifact(src_art.name, src_art.type)
+
+            src_runs = src_art.used_by()
+            dst_runs = dst_art.used_by()
+
+            for src_run, dst_run in zip(src_runs, dst_runs):
+                assert src_run.id == dst_run.id

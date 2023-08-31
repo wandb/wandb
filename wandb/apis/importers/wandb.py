@@ -910,6 +910,13 @@ class WandbImporter:
         config: Optional[ImportConfig] = None,
         max_workers: Optional[int] = None,
     ) -> None:
+        """Import a collection of artifact sequences.
+
+        Use `config` to specify alternate settings like where the report should be uploaded
+
+        Optional:
+        - `max_workers` -- set number of worker threads
+        """
         with progress.live:
             with ThreadPoolExecutor(max_workers) as exc:
                 futures = {
@@ -954,6 +961,13 @@ class WandbImporter:
         config: Optional[ImportConfig] = None,
         max_workers: Optional[int] = None,
     ) -> None:
+        """Import a collection of wandb.Reports.
+
+        Use `config` to specify alternate settings like where the report should be uploaded
+
+        Optional:
+        - `max_workers` -- set number of worker threads
+        """
         with progress.live:
             with ThreadPoolExecutor(max_workers) as exc:
                 futures = {
