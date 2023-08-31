@@ -74,6 +74,18 @@ class DeliberateHTTPError(Exception):
         return f"DeliberateHTTPError({self.message!r}, {self.status_code!r})"
 
 
+@dataclasses.dataclass
+class RunAttrs:
+    """Simple data class for run attributes."""
+
+    name: str
+    display_name: str
+    description: str
+    sweep_name: str
+    project: Dict[str, Any]
+    config: Dict[str, Any]
+
+
 class Context:
     """A container used to store the snooped state/data of a test.
 
@@ -222,6 +234,20 @@ class Context:
         mask_run = self.events["__run_id"] == run_id
         run_stats = self.events[mask_run]
         return run_stats
+
+    def get_run_attrs(self, run_id: str) -> Optional[RunAttrs]:
+        run_entry = self._entries.get(run_id)
+        if not run_entry:
+            return None
+
+        return RunAttrs(
+            name=run_entry["name"],
+            display_name=run_entry["displayName"],
+            description=run_entry["description"],
+            sweep_name=run_entry["sweepName"],
+            project=run_entry["project"],
+            config=run_entry["config"],
+        )
 
     # todo: add getter (by run_id) utilities for other properties
 

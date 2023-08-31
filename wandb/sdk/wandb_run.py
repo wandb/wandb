@@ -474,6 +474,7 @@ class Run:
     _job_type: Optional[str]
     _name: Optional[str]
     _notes: Optional[str]
+    _sweep_id: Optional[str]
 
     _run_obj: Optional[RunRecord]
     # Use string literal annotation because of type reference loop
@@ -580,6 +581,7 @@ class Run:
         self._tags = None
         self._remote_url = None
         self._commit = None
+        self._sweep_id = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -748,6 +750,8 @@ class Run:
             self._notes = settings.run_notes
         if settings.run_tags is not None:
             self._tags = settings.run_tags
+        if settings.sweep_id is not None:
+            self._sweep_id = settings.sweep_id
 
     def _make_proto_run(self, run: RunRecord) -> None:
         """Populate protocol buffer RunData for interface/interface."""
@@ -774,6 +778,8 @@ class Run:
             run.git.remote_url = self._remote_url
         if self._commit is not None:
             run.git.commit = self._commit
+        if self._sweep_id is not None:
+            run.sweep_id = self._sweep_id
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
