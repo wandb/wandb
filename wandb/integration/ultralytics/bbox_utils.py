@@ -37,7 +37,9 @@ def get_ground_truth_bbox_annotations(
     class_name_map_reverse = {v: k for k, v in class_name_map.items()}
 
     if len(bboxes) == 0:
-        wandb.termwarn(f"Image: {image_path} has no bounding boxes labels")
+        wandb.termwarn(
+            f"Image: {image_path} has no bounding boxes labels", repeat=False
+        )
         return None
 
     cls_labels = batch["cls"][indices].squeeze(1).tolist()
