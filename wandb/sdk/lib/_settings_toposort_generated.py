@@ -61,6 +61,7 @@ _Setting = Literal[
     "_stats_neuron_monitor_config_path",
     "_stats_open_metrics_endpoints",
     "_stats_open_metrics_filters",
+    "_stats_disk_paths",
     "_tmp_code_dir",
     "_tracelog",
     "_unsaved_keys",

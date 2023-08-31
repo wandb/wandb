@@ -23,8 +23,10 @@ def test_disk_metrics(test_settings):
     # Test that the probe() method returns the correct disk metrics
     expected_metrics = {
         "disk": {
-            "total": disk.probe()["disk"]["total"],
-            "used": disk.probe()["disk"]["used"],
+            "/": {
+                "total": disk.probe()["disk"]["/"]["total"],
+                "used": disk.probe()["disk"]["/"]["used"],
+            }
         }
     }
 
