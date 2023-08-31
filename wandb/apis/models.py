@@ -1,5 +1,5 @@
-import wandb
 from typing import List, Optional
+import wandb
 from wandb.sdk.lib.paths import StrPath
 
 
@@ -29,7 +29,6 @@ def log_model(
     Returns:
         None
     """
-
     temp_run = False
     if wandb.run is None:
         run = wandb.init(settings=wandb.Settings(silent="true"))
@@ -53,7 +52,6 @@ def use_model(model_name: str) -> StrPath:
             - name:alias
             - digest.
     """
-
     temp_run = False
     if wandb.run is None:
         run = wandb.init(settings=wandb.Settings(silent="true"))
@@ -92,7 +90,6 @@ def link_model(
     Returns:
         None
     """
-
     temp_run = False
     if wandb.run is None:
         run = wandb.init(settings=wandb.Settings(silent="true"))
