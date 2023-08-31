@@ -89,10 +89,9 @@ def test_gql_410(
         body="GOT ME A 410",
         status=410,
         custom_match_fn=custom_match_fn,
-        application_pattern="12",  # apply once and stop
+        application_pattern="111112",  # apply once and stop
     )
     # we'll retry once and succeed
-    with relay_server(inject=[inject_response]):
+    with relay_server(inject=[inject_response]) as relay:
         run = wandb_init()
-
-    run.finish()
+        run.finish()

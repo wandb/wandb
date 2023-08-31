@@ -99,13 +99,15 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 	switch {
 	case statusCode == http.StatusBadRequest, statusCode == http.StatusConflict: // don't retry on 400 bad request or 409 conflict
 		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == http.StatusUnauthorized: // retry on 401 unauthorized
+	case statusCode == http.StatusUnauthorized: // don't retry on 401 unauthorized
 		return false, fmt.Errorf("the API key you provided is either invalid or missing. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode == http.StatusForbidden: // don't retry on 403 forbidden
 		return false, fmt.Errorf("you don't have permission to access this resource. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode == http.StatusNotFound: // don't retry on 404 not found
 		return false, fmt.Errorf("the resource you requested could not be found. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	default: // retry on 5xx server error
+	case statusCode >= 400 && statusCode < 500: // retry on 4xx client error
+		return true, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	default: // use default retry policy for all other status codes
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 }
@@ -152,13 +154,14 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 	}
 	if !settings.GetXOffline().GetValue() {
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		retryClient := clients.NewRetryClient(
+		graphqlRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientHttpAuthTransport(settings.GetApiKey().GetValue()),
 			clients.WithRetryClientRetryPolicy(CheckRetry),
 		)
-		sender.graphqlClient = graphql.NewClient(url, retryClient.StandardClient())
-		retryClient = clients.NewRetryClient(
+		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
+
+		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientRetryWaitMin(2*time.Second),
 			clients.WithRetryClientRetryWaitMax(60*time.Second),
@@ -175,15 +178,26 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			// TODO(nexus:beta): add custom retry function
 			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
 		)
-
 		sender.fileStream = fs.NewFileStream(
 			fs.WithSettings(settings),
 			fs.WithLogger(logger),
-			fs.WithHttpClient(retryClient),
+			fs.WithHttpClient(fileStreamRetryClient),
+		)
+
+		uploadManagerRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryMax(10),                 // todo: make this configurable
+			clients.WithRetryClientRetryWaitMin(1*time.Second),  // todo: make this configurable
+			clients.WithRetryClientRetryWaitMax(60*time.Second), // todo: make this configurable
+		)
+		defaultUploader := uploader.NewDefaultUploader(
+			logger,
+			uploadManagerRetryClient,
 		)
 		sender.uploadManager = uploader.NewUploadManager(
 			uploader.WithLogger(logger),
 			uploader.WithSettings(settings),
+			uploader.WithUploader(defaultUploader),
 		)
 
 	}

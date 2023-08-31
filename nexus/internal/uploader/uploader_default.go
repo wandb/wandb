@@ -1,15 +1,11 @@
 package uploader
 
 import (
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 	"net/http"
 	"os"
 	"strings"
-	"time"
-
-	"github.com/wandb/wandb/nexus/internal/clients"
-
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/nexus/pkg/observability"
 )
 
 // DefaultUploader uploads files to the server
@@ -22,18 +18,10 @@ type DefaultUploader struct {
 }
 
 // NewDefaultUploader creates a new uploader
-func NewDefaultUploader(logger *observability.NexusLogger) *DefaultUploader {
-	retryClient := clients.NewRetryClient(
-		clients.WithRetryClientLogger(logger),
-		clients.WithRetryClientRetryMax(10),                 // todo: make this configurable
-		clients.WithRetryClientRetryWaitMin(1*time.Second),  // todo: make this configurable
-		clients.WithRetryClientRetryWaitMax(60*time.Second), // todo: make this configurable
-	)
-
-	// todo: add ResponseHandlerFunc to retryClient to handle non-200 responses
+func NewDefaultUploader(logger *observability.NexusLogger, client *retryablehttp.Client) *DefaultUploader {
 	uploader := &DefaultUploader{
-		client: retryClient,
 		logger: logger,
+		client: client,
 	}
 	return uploader
 }
