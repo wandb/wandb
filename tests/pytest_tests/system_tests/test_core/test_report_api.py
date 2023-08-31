@@ -287,10 +287,9 @@ def panel(request):
 
 
 @pytest.fixture
-def saved_report_and_creating_entity(user):
-    creating_entity = os.getenv("WANDB_ENTITY")
+def save_new_report(user):
     report = wr.Report(project="example-project").save()
-    yield report, creating_entity
+    yield report
 
 
 _inline_content = [
@@ -414,10 +413,8 @@ class TestReports:
         report.save()
         # check for upsert report mutation
 
-    @pytest.mark.xfail(reason="Not sure why this fails tbh...")
-    def test_load_report(self, saved_report_and_creating_entity):
-        saved_report, creating_entity = saved_report_and_creating_entity
-        os.environ["WANDB_ENTITY"] = creating_entity
+    def test_load_report(self, save_new_report):
+        saved_report = save_new_report
         report = wr.Report.from_url(saved_report.url)
         assert isinstance(report, wr.Report)
 
@@ -1047,6 +1044,7 @@ class TestNameMappings:
             "entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
             "this-is-a-title--VmlldzoxMjkwMzEy",
             "VmlldzoxMjkwMzEy",
+            "VmlldzoxMjkwMzEy=",  # with the base64 = in report id
             # three dashes too for some reason
             "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
             "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
@@ -1073,7 +1071,7 @@ class TestNameMappings:
     )
     def test_url_to_report_id(self, url):
         id = wr.Report._url_to_report_id(url)
-        assert id == "VmlldzoxMjkwMzEy"
+        assert id == "VmlldzoxMjkwMzEy="
 
     # For Scatter and ParallelCoords
     @pytest.mark.parametrize(

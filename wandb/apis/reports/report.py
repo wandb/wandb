@@ -69,9 +69,20 @@ class Report(Base):
     def _url_to_report_id(url):
         try:
             report, *_ = url.split("?")
+
             # If the report title ends in trailing space
             report = report.replace("---", "--")
             *_, report_id = report.split("--")
+
+            if len(report_id) == 0:
+                raise ValueError('Invalid report url')
+
+            # The base64 = is stripped from the report url in core app,
+            # so we need to add it back in here
+            report_id = report_id.strip()
+            if report_id[-1] != '=':
+                report_id += '='
+
         except ValueError as e:
             raise ValueError("Path must be `entity/project/reports/report_id`") from e
         else:
