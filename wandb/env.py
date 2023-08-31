@@ -14,6 +14,7 @@ import json
 import os
 import sys
 from distutils.util import strtobool
+from pathlib import Path
 from typing import List, MutableMapping, Optional, Union
 
 import appdirs
@@ -379,12 +380,9 @@ def get_artifact_dir(env: Optional[Env] = None) -> str:
     return val
 
 
-def get_cache_dir(env: Optional[Env] = None) -> str:
-    default_dir = appdirs.user_cache_dir("wandb")
-    if env is None:
-        env = os.environ
-    val = env.get(CACHE_DIR, default_dir)
-    return val
+def get_cache_dir(env: Optional[Env] = None) -> Path:
+    env = env or os.environ
+    return Path(env.get(CACHE_DIR, appdirs.user_cache_dir("wandb")))
 
 
 def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:

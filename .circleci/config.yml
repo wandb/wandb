@@ -1381,7 +1381,7 @@ workflows:
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
       #
-      # Nexus smoke tests with pytest on Linux, using real wandb server
+      # System tests with pytest on Linux, using real wandb server, with Nexus
       #
       - pytest:
           requires:
@@ -1391,7 +1391,20 @@ workflows:
               python_version_major: [ 3 ]
               python_version_minor: [ 7, 8, 9, 10, 11 ]
           name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_core"
+      #
+      # Nexus smoke tests with pytest on Linux, using real wandb server
+      #
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10, 11 ]
+          name: "nexus-smoke-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_nexus"

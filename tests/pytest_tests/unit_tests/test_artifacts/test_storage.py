@@ -1,17 +1,13 @@
 import asyncio
-import base64
-import errno
 import logging
 import os
 import random
 from multiprocessing import Pool
-from unittest import mock
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
-from wandb import util
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -28,29 +24,30 @@ example_digest = md5_string("example")
 
 
 def test_opener_rejects_append_mode(artifacts_cache):
-    _, _, opener = artifacts_cache.check_md5_obj_path(base64.b64encode(b"abcdef"), 10)
+    _, _, opener = artifacts_cache.check_md5_obj_path(example_digest, 7)
 
     with pytest.raises(ValueError):
         with opener("a"):
             pass
 
     # make sure that the ValueError goes away if we use a valid mode
-    with opener("w"):
-        pass
+    with opener("w") as f:
+        f.write("example")
 
 
 def test_check_md5_obj_path(artifacts_cache):
-    md5 = base64.b64encode(b"abcdef")
-    path, exists, opener = artifacts_cache.check_md5_obj_path(md5, 10)
+    md5 = md5_string("hi")
+    path, exists, opener = artifacts_cache.check_md5_obj_path(md5, 2)
     expected_path = os.path.join(
-        artifacts_cache._cache_dir, "obj", "md5", "61", "6263646566"
+        artifacts_cache._cache_dir, "obj", "md5", "49", "f68a5c8493ec2c0bf489821c21fc3b"
     )
+    assert path == expected_path
+
     with opener() as f:
         f.write("hi")
     with open(path) as f:
         contents = f.read()
 
-    assert path == expected_path
     assert exists is False
     assert contents == "hi"
 
@@ -190,9 +187,7 @@ def test_artifacts_cache_cleanup(artifacts_cache):
 
 
 def test_artifacts_cache_cleanup_tmp_files_when_asked(artifacts_cache):
-    path = os.path.join(artifacts_cache._cache_dir, "obj", "md5", "aa")
-    os.makedirs(path)
-    with open(os.path.join(path, "tmp_abc"), "w") as f:
+    with open(artifacts_cache._temp_dir / "foo", "w") as f:
         f.truncate(1000)
 
     # Even if we are above our target size, the cleanup
@@ -203,9 +198,7 @@ def test_artifacts_cache_cleanup_tmp_files_when_asked(artifacts_cache):
 
 
 def test_artifacts_cache_cleanup_leaves_tmp_files_by_default(artifacts_cache, capsys):
-    path = os.path.join(artifacts_cache._cache_dir, "obj", "md5", "aa")
-    os.makedirs(path)
-    with open(os.path.join(path, "tmp_abc"), "w") as f:
+    with open(artifacts_cache._temp_dir / "foo", "w") as f:
         f.truncate(1000)
 
     # The cleanup should leave temp files alone, even if we haven't reached our target.
@@ -223,9 +216,9 @@ def test_local_file_handler_load_path_uses_cache(artifacts_cache, tmp_path):
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=digest, size=123)
+    path, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=digest, size=5)
     with opener() as f:
-        f.write(123 * "a")
+        f.write("hello")
 
     handler = LocalFileHandler()
     handler._cache = artifacts_cache
@@ -235,7 +228,7 @@ def test_local_file_handler_load_path_uses_cache(artifacts_cache, tmp_path):
             path="foo/bar",
             ref=uri,
             digest=digest,
-            size=123,
+            size=5,
         ),
         local=True,
     )
@@ -284,9 +277,9 @@ def test_gcs_storage_handler_load_path_nonlocal():
 
 def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
     uri = "gs://some-bucket/path/to/file.json"
-    etag = "some etag"
+    digest = md5_string("a" * 123)
 
-    path, _, opener = artifacts_cache.check_md5_obj_path(etag, 123)
+    path, _, opener = artifacts_cache.check_md5_obj_path(digest, 123)
     with opener() as f:
         f.write(123 * "a")
 
@@ -297,7 +290,7 @@ def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
         ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
-            digest=etag,
+            digest=digest,
             size=123,
         ),
         local=True,
@@ -340,7 +333,7 @@ def test_cache_drops_lru_when_adding_not_enough_space(fs, artifacts_cache):
         cache_paths.append(path)
 
     # This next file won't fit; we should drop 1/2 the files in LRU order.
-    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("x"), 100)
+    _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("x"), 1)
     with opener() as f:
         f.write("x")
 
@@ -366,36 +359,20 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
     def fail(*args, **kwargs):
         raise OSError
 
-    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
+    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=7)
 
     with pytest.raises(OSError):
         with opener() as f:
-            f.write("hello " * 100)
+            f.write("example")
             f.flush()
             os.fsync(f.fileno())
 
             path = f.name
             assert os.path.exists(path)
 
-            monkeypatch.setattr(os, "fsync", fail)
+            monkeypatch.setattr(os, "replace", fail)
 
     assert not os.path.exists(path)
-
-
-def test_cache_add_clean_up_ignores_file_not_found(artifacts_cache, monkeypatch):
-    def out_of_space(*args, **kwargs):
-        raise OSError(errno.ENOSPC, "out of space")
-
-    # Will raise an error without creating any file to delete.
-    monkeypatch.setattr(util, "fsync_open", out_of_space)
-
-    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=123)
-
-    with mock.patch("os.remove", side_effect=FileNotFoundError) as mock_remove:
-        with pytest.raises(OSError, match="out of space"):
-            with opener():
-                pass
-        assert mock_remove.call_count == 1
 
 
 class FakePublicApi:
