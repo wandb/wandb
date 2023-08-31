@@ -53,7 +53,6 @@ def plot_classification_validation_results(
         ground_truth = batch["cls"].numpy().tolist()
         for img_idx in range(image_batch.shape[0]):
             image = np.transpose(image_batch[img_idx], (1, 2, 0))
-            # print(image)
             prediction_result = predictor(image, show=False)[0]
             class_id_to_label, table_row = plot_classification_predictions(
                 prediction_result, model_name
