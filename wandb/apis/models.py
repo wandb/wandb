@@ -22,6 +22,28 @@ def log_model(
     model_name: Optional[str] = None,
     aliases: Optional[List[str]] = None,
 ) -> None:
+    """Declare a model artifact as an output of a run
+
+    Arguments:
+        local_path: (str) A path to the contents of this model,
+            can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+        model_name: (str, optional) An artifact name. May be prefixed with entity/project.
+            Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+            This will default to the basename of the path prepended with the current
+            run id  if not specified.
+        aliases: (list, optional) Aliases to apply to this artifact,
+                defaults to `["latest"]`
+
+    Returns:
+        None
+    """
+
     temp_run = False
     if wandb.run is None:
         run = wandb.init(settings=wandb.Settings(silent="true"))
@@ -36,7 +58,7 @@ def log_model(
     return None
 
 
-def use_model(model_name: str, aliases: Optional[List[str]] = None) -> StrPath:
+def use_model(model_name: str) -> StrPath:
     """
     Arguments:
     model_name: (str) A model artifact name.
@@ -46,6 +68,7 @@ def use_model(model_name: str, aliases: Optional[List[str]] = None) -> StrPath:
             - name:alias
             - digest
     """
+
     temp_run = False
     if wandb.run is None:
         run = wandb.init(settings=wandb.Settings(silent="true"))
@@ -53,7 +76,7 @@ def use_model(model_name: str, aliases: Optional[List[str]] = None) -> StrPath:
     else:
         run = wandb.run
 
-    artifact = run.use_artifact(artifact_or_name=model_name, aliases=aliases)
+    artifact = run.use_artifact(artifact_or_name=model_name)
     local_path = artifact.download()
     if temp_run:
         run.finish()
@@ -66,6 +89,26 @@ def link_model(
     model_name: Optional[str] = None,
     aliases: Optional[List[str]] = None,
 ) -> None:
+    """
+    Link a model version to a model portfolio (a promoted collection of model artifacts).
+
+    The linked model will be visible in the UI for the specified portfolio.
+
+    Arguments:
+        local_path: (str) A path to the contents of this model,
+            can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+        link_model_name: (str) - the name of the portfolio that the model is to be linked to. The entity will be derived from the run
+        aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
+            inside the portfolio.
+            The alias "latest" will always be applied to the latest version of an artifact that is linked.
+
+    Returns:
+        None
+    """
+
     temp_run = False
     if wandb.run is None:
         run = wandb.init(settings=wandb.Settings(silent="true"))
