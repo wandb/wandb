@@ -288,8 +288,7 @@ def panel(request):
 
 @pytest.fixture
 def save_new_report(user):
-    report = wr.Report(project="example-project").save()
-    yield report
+    return wr.Report(project="example-project").save()
 
 
 _inline_content = [
@@ -1042,11 +1041,10 @@ class TestNameMappings:
             "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
             "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
             "entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            # with the base64 = in report id
-            "this-is-a-title--VmlldzoxMjkwMzEy", 
-            "this-is-a-title--VmlldzoxMjkwMzEy=",
-            "    this-is-a-title--VmlldzoxMjkwMzEy",
-            " this-is-a- title --    VmlldzoxMjkwMzEy=     ",
+            "this-is-a-title--VmlldzoxMjkwMzEy",
+            "another-one-with-=--VmlldzoxMjkwMzEy=",
+            "    another-one-with-whitespace--VmlldzoxMjkwMzEy",
+            " i-am-title --    VmlldzoxMjkwMzEy=     ",
             # three dashes too for some reason
             "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
             "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
