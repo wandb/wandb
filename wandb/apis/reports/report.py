@@ -1,3 +1,4 @@
+import base64
 import inspect
 import json
 import re
@@ -72,6 +73,10 @@ class Report(Base):
             # If the report title ends in trailing space
             report = report.replace("---", "--")
             *_, report_id = report.split("--")
+            # server does not generate IDs with correct padding, decode with "validate=False" which
+            # will work when there is padding or when there is no padding. Then re-encode it with correct
+            # padding
+            report_id = base64.b64encode(base64.b64decode(report_id + "==", validate=False)).decode('utf-8')
         except ValueError as e:
             raise ValueError("Path must be `entity/project/reports/report_id`") from e
         else:
