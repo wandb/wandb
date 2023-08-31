@@ -7,10 +7,13 @@ try:
 except ImportError:
     import pickle
 
-import torch
-from tqdm.auto import tqdm
+import wandb
+from wandb.sdk.lib import telemetry
 
 try:
+    import torch
+    from tqdm.auto import tqdm
+
     from ultralytics.models import YOLO
     from ultralytics.models.yolo.classify import (
         ClassificationPredictor,
@@ -30,27 +33,26 @@ try:
     )
     from ultralytics.utils.torch_utils import de_parallel
     from ultralytics.yolo.utils import RANK, __version__
-except ImportError as e:
-    print(e)
 
-import wandb
-from wandb.integration.ultralytics.bbox_utils import (
-    plot_predictions,
-    plot_validation_results,
-)
-from wandb.integration.ultralytics.classification_utils import (
-    plot_classification_predictions,
-    plot_classification_validation_results,
-)
-from wandb.integration.ultralytics.mask_utils import (
-    plot_mask_predictions,
-    plot_mask_validation_results,
-)
-from wandb.integration.ultralytics.pose_utils import (
-    plot_pose_predictions,
-    plot_pose_validation_results,
-)
-from wandb.sdk.lib import telemetry
+    from wandb.integration.ultralytics.bbox_utils import (
+        plot_predictions,
+        plot_validation_results,
+    )
+    from wandb.integration.ultralytics.classification_utils import (
+        plot_classification_predictions,
+        plot_classification_validation_results,
+    )
+    from wandb.integration.ultralytics.mask_utils import (
+        plot_mask_predictions,
+        plot_mask_validation_results,
+    )
+    from wandb.integration.ultralytics.pose_utils import (
+        plot_pose_predictions,
+        plot_pose_validation_results,
+    )
+except ImportError as e:
+    wandb.error(e)
+
 
 TRAINER_TYPE = Union[
     ClassificationTrainer, DetectionTrainer, SegmentationTrainer, PoseTrainer
