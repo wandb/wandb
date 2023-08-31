@@ -602,9 +602,9 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	}
 
 	config := s.serializeConfig()
-
+	ctx := context.WithValue(s.ctx, CtxRetryPolicyKey, UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
-		s.ctx,                            // ctx
+		ctx,                              // ctx
 		s.graphqlClient,                  // client
 		nil,                              // id
 		&s.RunRecord.RunId,               // name
