@@ -159,9 +159,8 @@ class WandBUltralyticsCallback:
             ]
             validation_columns = ["Data-Index", "Batch-Index"] + classification_columns
             validation_columns.insert(3, "Ground-Truth-Category")
-            train_columns = ["Epoch"] + validation_columns
             self.train_validation_table = wandb.Table(
-                columns=["Model-Name"] + train_columns
+                columns=["Model-Name", "Epoch"] + validation_columns
             )
             self.validation_table = wandb.Table(
                 columns=["Model-Name"] + validation_columns
