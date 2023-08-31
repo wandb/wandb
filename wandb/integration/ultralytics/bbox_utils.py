@@ -77,12 +77,13 @@ def get_mean_confidence_map(
     confidence_map = {v: [] for _, v in class_id_to_label.items()}
     for class_idx, confidence_value in zip(classes, confidence):
         confidence_map[class_id_to_label[class_idx]].append(confidence_value)
+    updated_confidence_map = {}
     for label, confidence_list in confidence_map.items():
         if len(confidence_list) > 0:
-            confidence_map[label] = sum(confidence_list) / len(confidence_list)
+            updated_confidence_map[label] = sum(confidence_list) / len(confidence_list)
         else:
-            confidence_map[label] = 0
-    return confidence_map
+            updated_confidence_map[label] = 0
+    return updated_confidence_map
 
 
 def get_boxes(result: Results) -> Tuple[Dict, Dict]:
