@@ -1,11 +1,12 @@
 package uploader
 
 import (
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 )
 
 // DefaultUploader uploads files to the server
