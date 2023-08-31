@@ -153,7 +153,8 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
-		// todo(nexus:beta): make all client parameters configurable via settings/env vars
+		// todo(nexus:beta): pass X-WANDB-USERNAME, X-WANDB-USER-EMAIL, and
+		//  user-defined headers from _graphql_extra_http_headers to the retry client
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		graphqlRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
