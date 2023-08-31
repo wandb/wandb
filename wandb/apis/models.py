@@ -1,20 +1,6 @@
 import wandb
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    NamedTuple,
-    Optional,
-    Sequence,
-    TextIO,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import List, Optional
 from wandb.sdk.lib.paths import StrPath
-import os
 
 
 def log_model(
@@ -22,7 +8,7 @@ def log_model(
     model_name: Optional[str] = None,
     aliases: Optional[List[str]] = None,
 ) -> None:
-    """Declare a model artifact as an output of a run
+    """Declare a model artifact as an output of a run.
 
     Arguments:
         local_path: (str) A path to the contents of this model,
@@ -34,7 +20,7 @@ def log_model(
             Valid names can be in the following forms:
                 - name:version
                 - name:alias
-                - digest
+                - digest.
             This will default to the basename of the path prepended with the current
             run id  if not specified.
         aliases: (list, optional) Aliases to apply to this artifact,
@@ -59,14 +45,13 @@ def log_model(
 
 
 def use_model(model_name: str) -> StrPath:
-    """
-    Arguments:
+    """Arguments:
     model_name: (str) A model artifact name.
         May be prefixed with entity/project/. Valid names
         can be in the following forms:
             - name:version
             - name:alias
-            - digest
+            - digest.
     """
 
     temp_run = False
@@ -89,8 +74,7 @@ def link_model(
     model_name: Optional[str] = None,
     aliases: Optional[List[str]] = None,
 ) -> None:
-    """
-    Link a model version to a model portfolio (a promoted collection of model artifacts).
+    """Link a model version to a model portfolio (a promoted collection of model artifacts).
 
     The linked model will be visible in the UI for the specified portfolio.
 
