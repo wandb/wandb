@@ -13,7 +13,6 @@ from wandb.sdk.lib import telemetry
 try:
     import torch
     from tqdm.auto import tqdm
-
     from ultralytics.models import YOLO
     from ultralytics.models.yolo.classify import (
         ClassificationPredictor,
