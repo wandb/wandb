@@ -158,6 +158,34 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			clients.WithRetryClientRetryPolicy(CheckRetry),
 		)
 		sender.graphqlClient = graphql.NewClient(url, retryClient.StandardClient())
+		retryClient = clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryWaitMin(2*time.Second),
+			clients.WithRetryClientRetryWaitMax(60*time.Second),
+			// Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
+			// retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
+			//             = 7200 / 60 + ceil(log2(60/2))
+			//             = 120 + 5
+			clients.WithRetryClientRetryMax(125),
+			// Set a 3 minute timeout for all filestream post requests
+			clients.WithRetryClientHttpTimeout(time.Minute*3),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+			// retryClient.BackOff = fs.GetBackoffFunc()
+			// TODO(nexus:beta): add custom retry function
+			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
+		)
+
+		sender.fileStream = fs.NewFileStream(
+			fs.WithSettings(settings),
+			fs.WithLogger(logger),
+			fs.WithHttpClient(retryClient),
+		)
+		sender.uploadManager = uploader.NewUploadManager(
+			uploader.WithLogger(logger),
+			uploader.WithSettings(settings),
+		)
+
 	}
 	return sender
 }
@@ -232,42 +260,14 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
-	if !s.settings.GetXOffline().GetValue() {
-		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-		retryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(s.logger),
-			clients.WithRetryClientRetryWaitMin(2*time.Second),
-			clients.WithRetryClientRetryWaitMax(60*time.Second),
-			// Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
-			// retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
-			//             = 7200 / 60 + ceil(log2(60/2))
-			//             = 120 + 5
-			clients.WithRetryClientRetryMax(125),
-			// Set a 3 minute timeout for all filestream post requests
-			clients.WithRetryClientHttpTimeout(time.Minute*3),
-			clients.WithRetryClientHttpAuthTransport(s.settings.GetApiKey().GetValue()),
-			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
-			// retryClient.BackOff = fs.GetBackoffFunc()
-			// TODO(nexus:beta): add custom retry function
-			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
-		)
+	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
+		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 
-		s.fileStream = fs.NewFileStream(
-			fs.WithPath(fsPath),
-			fs.WithSettings(s.settings),
-			fs.WithLogger(s.logger),
-			fs.WithHttpClient(retryClient),
-			fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
-		)
-		s.fileStream.Start()
-		s.uploadManager = uploader.NewUploadManager(
-			uploader.WithLogger(s.logger),
-			uploader.WithSettings(s.settings),
-		)
-		s.uploadManager.Start()
-	}
+	fs.WithPath(fsPath)(s.fileStream)
+	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
 
+	s.fileStream.Start()
+	s.uploadManager.Start()
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
