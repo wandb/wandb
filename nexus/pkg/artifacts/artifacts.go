@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	b64 "encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -301,11 +300,12 @@ func (al *ArtifactLinker) Link() error {
 			nil,
 		)
 	default:
-		al.Logger.CaptureFatalAndPanic("sendLinkArtifact", errors.New("artifact must have either server id or client id"))
+		err = fmt.Errorf("LinkArtifact: %s, error: artifact must have either server id or client id", portfolio_name)
+		al.Logger.CaptureFatalAndPanic("linkArtifact", err)
 	}
 	if err != nil {
 		err = fmt.Errorf("LinkArtifact: %s, error: %+v response: %+v", portfolio_name, err, response)
-		al.Logger.CaptureFatalAndPanic("sendLinkArtifact", err)
+		al.Logger.CaptureFatalAndPanic("linkArtifact", err)
 		return err
 	}
 	return nil
