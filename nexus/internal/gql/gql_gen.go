@@ -417,6 +417,24 @@ func (v *CreateRunFilesResponse) GetCreateRunFiles() *CreateRunFilesCreateRunFil
 	return v.CreateRunFiles
 }
 
+// LinkArtifactLinkArtifactLinkArtifactPayload includes the requested fields of the GraphQL type LinkArtifactPayload.
+type LinkArtifactLinkArtifactLinkArtifactPayload struct {
+	VersionIndex *int `json:"versionIndex"`
+}
+
+// GetVersionIndex returns LinkArtifactLinkArtifactLinkArtifactPayload.VersionIndex, and is useful for accessing the field via an interface.
+func (v *LinkArtifactLinkArtifactLinkArtifactPayload) GetVersionIndex() *int { return v.VersionIndex }
+
+// LinkArtifactResponse is returned by LinkArtifact on success.
+type LinkArtifactResponse struct {
+	LinkArtifact *LinkArtifactLinkArtifactLinkArtifactPayload `json:"linkArtifact"`
+}
+
+// GetLinkArtifact returns LinkArtifactResponse.LinkArtifact, and is useful for accessing the field via an interface.
+func (v *LinkArtifactResponse) GetLinkArtifact() *LinkArtifactLinkArtifactLinkArtifactPayload {
+	return v.LinkArtifact
+}
+
 // NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload includes the requested fields of the GraphQL type NotifyScriptableRunAlertPayload.
 type NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload struct {
 	Success bool `json:"success"`
@@ -834,6 +852,34 @@ func (v *__CreateRunFilesInput) GetRun() string { return v.Run }
 // GetFiles returns __CreateRunFilesInput.Files, and is useful for accessing the field via an interface.
 func (v *__CreateRunFilesInput) GetFiles() []string { return v.Files }
 
+// __LinkArtifactInput is used internally by genqlient
+type __LinkArtifactInput struct {
+	ArtifactPortfolioName string               `json:"artifactPortfolioName"`
+	EntityName            string               `json:"entityName"`
+	ProjectName           string               `json:"projectName"`
+	Aliases               []ArtifactAliasInput `json:"aliases"`
+	ClientId              *string              `json:"clientId"`
+	ArtifactId            *string              `json:"artifactId"`
+}
+
+// GetArtifactPortfolioName returns __LinkArtifactInput.ArtifactPortfolioName, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetArtifactPortfolioName() string { return v.ArtifactPortfolioName }
+
+// GetEntityName returns __LinkArtifactInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns __LinkArtifactInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetProjectName() string { return v.ProjectName }
+
+// GetAliases returns __LinkArtifactInput.Aliases, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetAliases() []ArtifactAliasInput { return v.Aliases }
+
+// GetClientId returns __LinkArtifactInput.ClientId, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetClientId() *string { return v.ClientId }
+
+// GetArtifactId returns __LinkArtifactInput.ArtifactId, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetArtifactId() *string { return v.ArtifactId }
+
 // __NotifyScriptableRunAlertInput is used internally by genqlient
 type __NotifyScriptableRunAlertInput struct {
 	EntityName   string         `json:"entityName"`
@@ -1219,6 +1265,51 @@ func CreateRunFiles(
 	var err error
 
 	var data CreateRunFilesResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by LinkArtifact.
+const LinkArtifact_Operation = `
+mutation LinkArtifact ($artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!], $clientId: ID, $artifactId: ID) {
+	linkArtifact(input: {artifactPortfolioName:$artifactPortfolioName,entityName:$entityName,projectName:$projectName,aliases:$aliases,artifactID:$artifactId,clientID:$clientId}) {
+		versionIndex
+	}
+}
+`
+
+func LinkArtifact(
+	ctx context.Context,
+	client graphql.Client,
+	artifactPortfolioName string,
+	entityName string,
+	projectName string,
+	aliases []ArtifactAliasInput,
+	clientId *string,
+	artifactId *string,
+) (*LinkArtifactResponse, error) {
+	req := &graphql.Request{
+		OpName: "LinkArtifact",
+		Query:  LinkArtifact_Operation,
+		Variables: &__LinkArtifactInput{
+			ArtifactPortfolioName: artifactPortfolioName,
+			EntityName:            entityName,
+			ProjectName:           projectName,
+			Aliases:               aliases,
+			ClientId:              clientId,
+			ArtifactId:            artifactId,
+		},
+	}
+	var err error
+
+	var data LinkArtifactResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
