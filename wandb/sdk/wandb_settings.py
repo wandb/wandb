@@ -629,9 +629,14 @@ class Settings(SettingsData):
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
+            # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
+            # retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
+            #             = 7200 / 60 + ceil(log2(60/2))
+            #             = 120 + 5
             _file_stream_retry_max={"value": 125, "preprocessor": int},
             _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": int},
             _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": int},
+            # A 3 minute timeout for all filestream post requests
             _file_stream_timeout_seconds={"value": 180, "preprocessor": int},
             _file_uploader_retry_max={"value": 10, "preprocessor": int},
             _file_uploader_retry_wait_min_seconds={"value": 2, "preprocessor": int},
@@ -1577,6 +1582,8 @@ class Settings(SettingsData):
             "WANDB_NOTES": "run_notes",
             "WANDB_TAGS": "run_tags",
             "WANDB_JOB_TYPE": "run_job_type",
+            "WANDB_HTTP_TIMEOUT": "_graphql_timeout_seconds",
+            "WANDB_FILE_PUSHER_TIMEOUT": "_file_uploader_timeout_seconds",
         }
         env = dict()
         for setting, value in environ.items():

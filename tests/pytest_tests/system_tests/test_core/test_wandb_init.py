@@ -76,6 +76,7 @@ def test_gql_409(
 
 def test_gql_410(
     wandb_init,
+    test_settings,
     relay_server,
     inject_graphql_response,
 ):
@@ -89,9 +90,9 @@ def test_gql_410(
         body="GOT ME A 410",
         status=410,
         custom_match_fn=custom_match_fn,
-        application_pattern="111112",  # apply once and stop
+        application_pattern="1112",  # apply once and stop
     )
     # we'll retry once and succeed
     with relay_server(inject=[inject_response]):
-        run = wandb_init()
+        run = wandb_init(settings=test_settings({"_graphql_retry_max": 4}))
         run.finish()

@@ -159,24 +159,19 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientHttpAuthTransport(settings.GetApiKey().GetValue()),
 			clients.WithRetryClientRetryPolicy(CheckRetry),
-			clients.WithRetryClientRetryMax(10),                 // todo: make this configurable
-			clients.WithRetryClientRetryWaitMin(2*time.Second),  // todo: make this configurable
-			clients.WithRetryClientRetryWaitMax(60*time.Second), // todo: make this configurable
-			clients.WithRetryClientHttpTimeout(30*time.Second),
+			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXGraphqlTimeoutSeconds().GetValue()*int32(time.Second))),
 		)
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientRetryWaitMin(2*time.Second),
-			clients.WithRetryClientRetryWaitMax(60*time.Second),
-			// Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
-			// retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
-			//             = 7200 / 60 + ceil(log2(60/2))
-			//             = 120 + 5
-			clients.WithRetryClientRetryMax(125),
-			// Set a 3 minute timeout for all filestream post requests
-			clients.WithRetryClientHttpTimeout(time.Minute*3),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
 			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
 			// retryClient.BackOff = fs.GetBackoffFunc()
@@ -188,13 +183,12 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			fs.WithLogger(logger),
 			fs.WithHttpClient(fileStreamRetryClient),
 		)
-
 		uploadManagerRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientRetryMax(10),                 // todo: make this configurable
-			clients.WithRetryClientRetryWaitMin(2*time.Second),  // todo: make this configurable
-			clients.WithRetryClientRetryWaitMax(60*time.Second), // todo: make this configurable
-			clients.WithRetryClientHttpTimeout(0),               // todo: make this configurable
+			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileUploaderRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileUploaderRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileUploaderTimeoutSeconds().GetValue()*int32(time.Second))),
 		)
 		defaultUploader := uploader.NewDefaultUploader(
 			logger,
