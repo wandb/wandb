@@ -53,7 +53,7 @@ coverage:
         informational: true
         paths:
           - wandb/apis/
-          - wandb/apis/importers/
+          - wandb/apis/importers/*.py
       nexus:
         paths:
           - nexus/
