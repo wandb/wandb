@@ -569,8 +569,8 @@ class TestBlocks:
     @pytest.mark.parametrize(
         "ids",
         [
-            ["VmlldzoxMjc5Njkz"],
-            ["Code-Compare-Panel--VmlldzoxMjc5Njkz"],
+            ["test-title--VmlldzoxMjc5Njkz"],
+            ["Code-Compare-Panel--VmlldzoxMjc5Njkz?query=hi"],
             [
                 "https://wandb.ai/stacey/deep-drive/reports/Code-Compare-Panel--VmlldzoxMjc5Njkz"
             ],
@@ -1042,9 +1042,10 @@ class TestNameMappings:
             "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
             "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
             "entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "this-is-a-title--VmlldzoxMjkwMzEy",
-            "VmlldzoxMjkwMzEy",
-            "VmlldzoxMjkwMzEy=",  # with the base64 = in report id
+            "this-is-a-title--VmlldzoxMjkwMzEy", # with the base64 = in report id
+            "this-is-a-title--VmlldzoxMjkwMzEy=",
+            "    this-is-a-title--VmlldzoxMjkwMzEy",
+            " this-is-a- title --    VmlldzoxMjkwMzEy=     ",
             # three dashes too for some reason
             "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
             "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
@@ -1072,6 +1073,31 @@ class TestNameMappings:
     def test_url_to_report_id(self, url):
         id = wr.Report._url_to_report_id(url)
         assert id == "VmlldzoxMjkwMzEy="
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            '',
+            "--",
+            "---",
+            "this-is-a-title--",
+            "entity/project/reports/this-is-a-title",
+            "this-is-a-title--",
+            "https://site.tld/entity/project/reports/this-is-a-title--",
+            "sub.site.tld/entity/project/reports",
+            "http://sub.site.tld/entity/project/reports/",
+            "https://sub.site.tld/entity/project/reports/this-is-a-",
+            "site.tld/entity/project/reports/this-is-a-title---",
+            # sites with queries
+            "sub.site.tld/entity/project/reports/this-is-a-title?query=something",
+            "http://sub.site.tld/entity/project/reports/this-is-a-title---?query=something",
+            "https://sub.site.tld/entity/project/reports/this-is-a-title--?query=something",
+            "site.tld/entity/project/reports/this-is-a-?query=something",
+        ],
+    )
+    def test_url_with_invalid_report_id(self, url):
+        with pytest.raises(ValueError):
+            _ = wr.Report._url_to_report_id(url)
 
     # For Scatter and ParallelCoords
     @pytest.mark.parametrize(

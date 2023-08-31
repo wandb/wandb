@@ -67,15 +67,17 @@ class Report(Base):
 
     @staticmethod
     def _url_to_report_id(url):
+        path_msg = "Path must be `entity/project/reports/report_title--report_id`"
         try:
-            report, *_ = url.split("?")
+            report_path, *_ = url.split("?")
+            report_path = report_path.replace("---", "--")
 
-            # If the report title ends in trailing space
-            report = report.replace("---", "--")
-            *_, report_id = report.split("--")
+            if '--' not in report_path:
+                raise ValueError(path_msg)
 
+            *_, report_id = report_path.split("--")
             if len(report_id) == 0:
-                raise ValueError('Invalid report url')
+                raise ValueError('Invalid report id')
 
             # The base64 = is stripped from the report url in core app,
             # so we need to add it back in here
@@ -84,7 +86,7 @@ class Report(Base):
                 report_id += '='
 
         except ValueError as e:
-            raise ValueError("Path must be `entity/project/reports/report_id`") from e
+            raise ValueError(path_msg) from e
         else:
             return report_id
 
