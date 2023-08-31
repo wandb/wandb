@@ -552,6 +552,7 @@ class RelayServer:
         base_url: str,
         inject: Optional[List[InjectedResponse]] = None,
         control: Optional[RelayControlProtocol] = None,
+        verbose: bool = False,
     ) -> None:
         # todo for the future:
         #  - consider switching from Flask to Quart
@@ -607,6 +608,7 @@ class RelayServer:
 
         # useful when debugging:
         # self.after_request_fn = self.app.after_request(self.after_request_fn)
+        self.verbose = verbose
 
     @staticmethod
     def handle_http_exception(e):
@@ -658,11 +660,25 @@ class RelayServer:
             json=request.get_json(),
         ).prepare()
 
+        if self.verbose:
+            print("*****************")
+            print("RELAY REQUEST:")
+            print(prepared_relayed_request.url)
+            print(prepared_relayed_request.method)
+            print(prepared_relayed_request.headers)
+            print(prepared_relayed_request.body)
+            print("*****************")
+
         for injected_response in self.inject:
             # where are we in the application pattern?
             should_apply = injected_response.application_pattern.should_apply()
             # check if an injected response matches the request
             if injected_response == prepared_relayed_request:
+                if self.verbose:
+                    print("*****************")
+                    print("INJECTING RESPONSE:")
+                    print(injected_response.to_dict())
+                    print("*****************")
                 # rotate the injection pattern
                 injected_response.application_pattern.next()
                 if should_apply:
@@ -719,19 +735,21 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        # print("*****************")
-        # print("GRAPHQL REQUEST:")
-        # print(request.get_json())
-        # print("GRAPHQL RESPONSE:")
-        # print(relayed_response.status_code, relayed_response.json())
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("GRAPHQL REQUEST:")
+            print(request.get_json())
+            print("GRAPHQL RESPONSE:")
+            print(relayed_response.status_code, relayed_response.json())
+            print("*****************")
         # snoop work to extract the context
         self.snoop_context(request, relayed_response, timer.elapsed)
-        # print("*****************")
-        # print("SNOOPED CONTEXT:")
-        # print(self.context.entries)
-        # print(len(self.context.raw_data))
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("SNOOPED CONTEXT:")
+            print(self.context.entries)
+            print(len(self.context.raw_data))
+            print("*****************")
 
         return relayed_response.json()
 
@@ -739,16 +757,17 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        # print("*****************")
-        # print("FILE STREAM REQUEST:")
-        # print("********PATH*********")
-        # print(path)
-        # print("********ENDPATH*********")
-        # print(request.get_json())
-        # print("FILE STREAM RESPONSE:")
-        # print(relayed_response)
-        # print(relayed_response.status_code, relayed_response.json())
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("FILE STREAM REQUEST:")
+            print("********PATH*********")
+            print(path)
+            print("********ENDPATH*********")
+            print(request.get_json())
+            print("FILE STREAM RESPONSE:")
+            print(relayed_response)
+            print(relayed_response.status_code, relayed_response.json())
+            print("*****************")
 
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
@@ -758,12 +777,13 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        # print("*****************")
-        # print("STORAGE REQUEST:")
-        # print(request.get_json())
-        # print("STORAGE RESPONSE:")
-        # print(relayed_response.status_code, relayed_response.json())
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("STORAGE REQUEST:")
+            print(request.get_json())
+            print("STORAGE RESPONSE:")
+            print(relayed_response.status_code, relayed_response.json())
+            print("*****************")
 
         self.snoop_context(request, relayed_response, timer.elapsed)
 
@@ -773,15 +793,16 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        # print("*****************")
-        # print("STORAGE FILE REQUEST:")
-        # print("********PATH*********")
-        # print(path)
-        # print("********ENDPATH*********")
-        # print(request.get_json())
-        # print("STORAGE FILE RESPONSE:")
-        # print(relayed_response.json())
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("STORAGE FILE REQUEST:")
+            print("********PATH*********")
+            print(path)
+            print("********ENDPATH*********")
+            print(request.get_json())
+            print("STORAGE FILE RESPONSE:")
+            print(relayed_response.json())
+            print("*****************")
 
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 

@@ -474,6 +474,12 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests in debug mode",
     )
+    parser.addoption(
+        "--wandb-verbose",
+        action="store_true",
+        default=False,
+        help="Run tests in verbose mode",
+    )
 
 
 def random_string(length: int = 12) -> str:
@@ -499,6 +505,11 @@ def base_url(request):
 @pytest.fixture(scope="session")
 def wandb_debug(request):
     return request.config.getoption("--wandb-debug", default=False)
+
+
+@pytest.fixture(scope="session")
+def wandb_verbose(request):
+    return request.config.getoption("--wandb-verbose", default=False)
 
 
 def check_server_health(
@@ -745,12 +756,16 @@ def debug(wandb_debug, fixture_fn, base_url):
 
 
 @pytest.fixture(scope="function")
-def relay_server(base_url):
+def relay_server(base_url, wandb_verbose):
     """Create a new relay server."""
 
     @contextmanager
     def relay_server_context(inject: Optional[List[InjectedResponse]] = None):
-        _relay_server = RelayServer(base_url=base_url, inject=inject)
+        _relay_server = RelayServer(
+            base_url=base_url,
+            inject=inject,
+            verbose=wandb_verbose,
+        )
         try:
             _relay_server.start()
             print(f"Relay server started at {_relay_server.relay_url}")
