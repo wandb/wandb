@@ -4,7 +4,7 @@ from wandb.sdk.lib.paths import StrPath
 
 
 def log_model(
-    local_path: StrPath,  # can be path to file or directory - we need to check
+    local_path: StrPath,
     model_name: Optional[str] = None,
     aliases: Optional[List[str]] = None,
 ) -> None:
