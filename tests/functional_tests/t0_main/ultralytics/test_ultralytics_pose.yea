@@ -6,7 +6,7 @@ tag:
   platforms:
     - linux
 command:
-    program: test_yolov8_pose.py
+    program: test_ultralytics_pose.py
 depend:
     requirements:
         - "ultralytics>=8.0.167"
