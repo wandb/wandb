@@ -17,7 +17,7 @@ QUEUE = "kubernetes-queue"
 JOB_NAME = "sample_job:v0"  # simple job that counts to 50
 
 LAUNCH_JOB_CONFIG = {
-    "resource_args": {"kubernetes": {"namespace": NAMESPACE}},
+    "resource_args": {"kubernetes": {"namespace": NAMESPACE, "backoffLimit": 6}},
 }
 
 
