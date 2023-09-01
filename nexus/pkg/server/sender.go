@@ -4,9 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
+
+	"github.com/wandb/wandb/nexus/internal/clients"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
@@ -21,9 +27,14 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type ContextKey string
+
 const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
+	// Modified from time.RFC3339Nano
+	RFC3339Micro                 = "2006-01-02T15:04:05.000000Z07:00"
+	CtxRetryPolicyKey ContextKey = "retryFunc"
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -38,11 +49,11 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *service.Settings
 
-	//	recordChan is the channel for outgoing messages
-	recordChan chan *service.Record
+	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	loopbackChan chan *service.Record
 
-	// resultChan is the channel for dispatcher messages
-	resultChan chan *service.Result
+	// outChan is the channel for dispatcher messages
+	outChan chan *service.Result
 
 	// graphqlClient is the graphql client
 	graphqlClient graphql.Client
@@ -83,23 +94,113 @@ func emptyAsNil(s *string) *string {
 	return s
 }
 
+func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	statusCode := resp.StatusCode
+	switch {
+	case statusCode == http.StatusBadRequest, statusCode == http.StatusConflict: // don't retry on 400 bad request or 409 conflict
+		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode == http.StatusUnauthorized: // don't retry on 401 unauthorized
+		return false, fmt.Errorf("the API key you provided is either invalid or missing. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode == http.StatusForbidden: // don't retry on 403 forbidden
+		return false, fmt.Errorf("you don't have permission to access this resource. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode == http.StatusNotFound: // don't retry on 404 not found
+		return false, fmt.Errorf("the resource you requested could not be found. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode >= 400 && statusCode < 500: // retry on 4xx client error
+		return true, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	default: // use default retry policy for all other status codes
+		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	}
+}
+
+func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	statusCode := resp.StatusCode
+	switch {
+	case statusCode == http.StatusGone: // don't retry on 410 Gone
+		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	case statusCode == http.StatusConflict: // retry on 409 Conflict
+		return true, fmt.Errorf("conflict, retrying. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+	default: // use default retry policy for all other status codes
+		return DefaultRetryPolicy(ctx, resp, err)
+	}
+}
+
+func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	if err != nil || ctx.Err() != nil {
+		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	}
+
+	// get retry policy from context
+	retryPolicy, ok := ctx.Value(CtxRetryPolicyKey).(func(context.Context, *http.Response, error) (bool, error))
+	switch {
+	case !ok, retryPolicy == nil:
+		return DefaultRetryPolicy(ctx, resp, err)
+	default:
+		return retryPolicy(ctx, resp, err)
+	}
+}
+
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
 
 	sender := &Sender{
-		ctx:        ctx,
-		settings:   settings,
-		logger:     logger,
-		summaryMap: make(map[string]*service.SummaryItem),
-		configMap:  make(map[string]interface{}),
-		recordChan: make(chan *service.Record, BufferSize),
-		resultChan: make(chan *service.Result, BufferSize),
-		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
+		ctx:          ctx,
+		settings:     settings,
+		logger:       logger,
+		summaryMap:   make(map[string]*service.SummaryItem),
+		configMap:    make(map[string]interface{}),
+		loopbackChan: loopbackChan,
+		outChan:      make(chan *service.Result, BufferSize),
+		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
+		// todo(nexus:beta): pass X-WANDB-USERNAME, X-WANDB-USER-EMAIL, and
+		//  user-defined headers from _graphql_extra_http_headers to the retry client
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		apiKey := settings.GetApiKey().GetValue()
-		sender.graphqlClient = newGraphqlClient(url, apiKey, logger)
+		graphqlRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientHttpAuthTransport(settings.GetApiKey().GetValue()),
+			clients.WithRetryClientRetryPolicy(CheckRetry),
+			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXGraphqlTimeoutSeconds().GetValue()*int32(time.Second))),
+		)
+		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
+
+		fileStreamRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+			// retryClient.BackOff = fs.GetBackoffFunc()
+			// TODO(nexus:beta): add custom retry function
+			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
+		)
+		sender.fileStream = fs.NewFileStream(
+			fs.WithSettings(settings),
+			fs.WithLogger(logger),
+			fs.WithHttpClient(fileStreamRetryClient),
+		)
+		uploadManagerRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileUploaderRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileUploaderRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileUploaderTimeoutSeconds().GetValue()*int32(time.Second))),
+		)
+		defaultUploader := uploader.NewDefaultUploader(
+			logger,
+			uploadManagerRetryClient,
+		)
+		sender.uploadManager = uploader.NewUploadManager(
+			uploader.WithLogger(logger),
+			uploader.WithSettings(settings),
+			uploader.WithUploader(defaultUploader),
+		)
+
 	}
 	return sender
 }
@@ -144,6 +245,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
+	case *service.Record_LinkArtifact:
+		s.sendLinkArtifact(record)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -174,38 +277,14 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
-	if !s.settings.GetXOffline().GetValue() {
-		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-		retryClient := NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)
-		retryClient.RetryWaitMin = 2 * time.Second
-		retryClient.RetryWaitMax = 60 * time.Second
-		// Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
-		// retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
-		//             = 7200 / 60 + ceil(log2(60/2))
-		//             = 120 + 5
-		retryClient.RetryMax = 125
-		// Set a 3 minute timeout for all filestream post requests
-		retryClient.HTTPClient.Timeout = time.Minute * 3
-		// TODO(nexus:beta): add jitter to DefaultBackoff scheme
-		// retryClient.BackOff = fs.GetBackoffFunc()
-		// TODO(nexus:beta): add custom retry function
-		// retryClient.CheckRetry = fs.GetCheckRetryFunc()
-		s.fileStream = fs.NewFileStream(
-			fs.WithPath(fsPath),
-			fs.WithSettings(s.settings),
-			fs.WithLogger(s.logger),
-			fs.WithHttpClient(retryClient),
-			fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
-		)
-		s.fileStream.Start()
-		s.uploadManager = uploader.NewUploadManager(
-			uploader.WithLogger(s.logger),
-			uploader.WithSettings(s.settings),
-		)
-		s.uploadManager.Start()
-	}
+	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
+		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 
+	fs.WithPath(fsPath)(s.fileStream)
+	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
+
+	s.fileStream.Start()
+	s.uploadManager.Start()
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -254,18 +333,14 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
-		if s.uploadManager != nil {
-			s.uploadManager.Close()
-		}
+		s.uploadManager.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
-		if s.fileStream != nil {
-			s.fileStream.Close()
-		}
+		s.fileStream.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FINAL:
@@ -273,11 +348,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
-		if s.exitRecord != nil {
-			s.respondExit(s.exitRecord)
-		}
-		close(s.recordChan)
-		close(s.resultChan)
+		s.respondExit(s.exitRecord)
+		// sender is done processing data, close our dispatch channel
+		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -291,10 +364,10 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
-func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
+func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
@@ -302,9 +375,26 @@ func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.Teleme
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
+	s.fileStream.StreamRecord(record)
+}
+
+func (s *Sender) sendLinkArtifact(record *service.Record) {
+	linker := artifacts.ArtifactLinker{
+		Ctx:           s.ctx,
+		Logger:        s.logger,
+		LinkArtifact:  record.GetLinkArtifact(),
+		GraphqlClient: s.graphqlClient,
 	}
+	err := linker.Link()
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
+	}
+
+	result := &service.Result{
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
 }
 
 // updateConfig updates the config map with the config record
@@ -397,8 +487,11 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 
 		program := s.settings.GetProgram().GetValue()
+		// start a new context with an additional argument from the parent context
+		// this is used to pass the retry function to the graphql client
+		ctx := context.WithValue(s.ctx, CtxRetryPolicyKey, UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
-			s.ctx,                        // ctx
+			ctx,                          // ctx
 			s.graphqlClient,              // client
 			nil,                          // id
 			&run.RunId,                   // name
@@ -436,7 +529,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 					Control: record.Control,
 					Uuid:    record.Uuid,
 				}
-				s.resultChan <- result
+				s.outChan <- result
 			}
 			return
 		}
@@ -458,16 +551,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			Control: record.Control,
 			Uuid:    record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
@@ -496,9 +587,7 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 		},
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 // sendConfig sends a config record to the server via an upsertBucket mutation
@@ -513,9 +602,9 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	}
 
 	config := s.serializeConfig()
-
+	ctx := context.WithValue(s.ctx, CtxRetryPolicyKey, UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
-		s.ctx,                            // ctx
+		ctx,                              // ctx
 		s.graphqlClient,                  // client
 		nil,                              // id
 		&s.RunRecord.RunId,               // name
@@ -544,9 +633,7 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecord) {
@@ -563,15 +650,14 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
-	t := time.Now().UTC().Format(time.RFC3339)
+	// generate compatible timestamp to python isoformat (microseconds without Z)
+	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
 		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(recordCopy)
-	}
+	s.fileStream.StreamRecord(recordCopy)
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
@@ -585,7 +671,6 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
-	waitDuration := time.Duration(alert.WaitDuration) * time.Second
 
 	data, err := gql.NotifyScriptableRunAlert(
 		s.ctx,
@@ -596,7 +681,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		alert.Title,
 		alert.Text,
 		&severity,
-		&waitDuration,
+		&alert.WaitDuration,
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
@@ -609,13 +694,16 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 // respondExit called from the end of the defer state machine
 func (s *Sender) respondExit(record *service.Record) {
+	if record == nil {
+		return
+	}
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
 		result := &service.Result{
 			ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
 			Control:    record.Control,
 			Uuid:       record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
@@ -624,9 +712,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	// response is done by respondExit() and called when defer state machine is complete
 	s.exitRecord = record
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
@@ -638,7 +724,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
 // sendMetric sends a metrics record to the file stream,
@@ -716,5 +802,5 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.resultChan <- result
+	s.outChan <- result
 }

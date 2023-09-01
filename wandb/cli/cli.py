@@ -248,9 +248,6 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
 )
 @click.option(
-    "--grpc-port", default=None, type=int, help="The host port to bind grpc service."
-)
-@click.option(
     "--sock-port", default=None, type=int, help="The host port to bind socket service."
 )
 @click.option("--port-filename", default=None, help="Save allocated port to file.")
@@ -258,29 +255,24 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
 @click.option("--debug", is_flag=True, help="log debug info")
 @click.option("--serve-sock", is_flag=True, help="use socket mode")
-@click.option("--serve-grpc", is_flag=True, help="use grpc mode")
 @display_error
 def service(
-    grpc_port=None,
     sock_port=None,
     port_filename=None,
     address=None,
     pid=None,
     debug=False,
     serve_sock=False,
-    serve_grpc=False,
 ):
     from wandb.sdk.service.server import WandbServer
 
     server = WandbServer(
-        grpc_port=grpc_port,
         sock_port=sock_port,
         port_fname=port_filename,
         address=address,
         pid=pid,
         debug=debug,
         serve_sock=serve_sock,
-        serve_grpc=serve_grpc,
     )
     server.serve()
 
@@ -1088,6 +1080,12 @@ def launch_sweep(
     hidden=True,
     help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
 )
+@click.option(
+    "--dockerfile",
+    "-D",
+    default=None,
+    help="Path to the Dockerfile used to build the job, relative to the job's root",
+)
 @display_error
 def launch(
     uri,
@@ -1106,6 +1104,7 @@ def launch(
     build,
     repository,
     project_queue,
+    dockerfile,
 ):
     """Start a W&B run from the given URI.
 
@@ -1159,10 +1158,16 @@ def launch(
 
     run_id = config.get("run_id")
 
+    if dockerfile:
+        if "overrides" in config:
+            config["overrides"]["dockerfile"] = dockerfile
+        else:
+            config["overrides"] = {"dockerfile": dockerfile}
+
     if queue is None:
         # direct launch
         try:
-            wandb_launch.run(
+            run = wandb_launch.run(
                 api,
                 uri,
                 job,
@@ -1179,6 +1184,9 @@ def launch(
                 run_id=run_id,
                 repository=repository,
             )
+            if run.get_status().state in ["failed", "stopped", "preempted"]:
+                wandb.termerror("Launched run exited with non-zero status")
+                sys.exit(1)
         except LaunchError as e:
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
@@ -1939,30 +1947,14 @@ def put(path, name, description, type, alias, run_id, resume):
         id=run_id,
         resume=resume,
     )
-    # We create the artifact manually to get the current version
-    res, _ = api.create_artifact(
-        type,
-        artifact_name,
-        artifact.digest,
-        client_id=artifact._client_id,
-        sequence_client_id=artifact._sequence_client_id,
-        entity_name=entity,
-        project_name=project,
-        run_name=run.id,
-        description=description,
-        aliases=[{"artifactCollectionName": artifact_name, "alias": a} for a in alias],
-    )
-    artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
-    # Re-create the artifact and actually upload any files needed
     run.log_artifact(artifact, aliases=alias)
     artifact.wait()
 
     wandb.termlog(
         "Artifact uploaded, use this artifact in a run by adding:\n", prefix=False
     )
-
     wandb.termlog(
-        f'    artifact = run.use_artifact("{artifact_path}")\n',
+        f'    artifact = run.use_artifact("{artifact.source_qualified_name}")\n',
         prefix=False,
     )
 

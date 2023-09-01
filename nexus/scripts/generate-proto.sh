@@ -15,41 +15,41 @@
 set -e
 
 # make sure we are running from the nexus dir
-BASE=$(dirname $(dirname $(readlink -f $0)))
+BASE=$(dirname $(dirname $(dirname $(readlink -f $0))))
 cd $BASE
 
 # hack to make sure we use our local protoc
 export PATH="$HOME/.local/bin:$PATH"
 
-./scripts/update-dev-env.sh protocolbuffers/protobuf
-./scripts/update-dev-env.sh protoc-gen-go
+./nexus/scripts/update-dev-env.sh protocolbuffers/protobuf
+./nexus/scripts/update-dev-env.sh protoc-gen-go
 
-MOD=pkg/service/
-INC=api/proto/
+MOD=nexus/pkg/service/
 
-protoc -I=$INC \
-    --go_opt=Mwandb_base.proto=$MOD \
-    --go_opt=Mwandb_telemetry.proto=$MOD \
-    --go_opt=Mwandb_internal.proto=$MOD \
-    --go_out=. --proto_path=. wandb_internal.proto
+protoc \
+    --go_opt=Mwandb/proto/wandb_internal.proto=$MOD \
+    --go_opt=Mwandb/proto/wandb_base.proto=$MOD \
+    --go_opt=Mwandb/proto/wandb_telemetry.proto=$MOD \
+    --go_opt=Mandb/proto/wandb_internal.proto=$MOD \
+    --go_out=. --proto_path=. wandb/proto/wandb_internal.proto
 
-protoc -I=$INC \
-    --go_opt=Mwandb_base.proto=$MOD \
-    --go_out=. --proto_path=. wandb_base.proto
+protoc \
+    --go_opt=Mwandb/proto/wandb_base.proto=$MOD \
+    --go_out=. --proto_path=. wandb/proto/wandb_base.proto
 
-protoc -I=$INC \
-    --go_opt=Mwandb_base.proto=$MOD \
-    --go_opt=Mwandb_telemetry.proto=$MOD \
-    --go_out=. --proto_path=. wandb_telemetry.proto
+protoc \
+    --go_opt=Mwandb/proto/wandb_base.proto=$MOD \
+    --go_opt=Mwandb/proto/wandb_telemetry.proto=$MOD \
+    --go_out=. --proto_path=. wandb/proto/wandb_telemetry.proto
 
-protoc -I=$INC \
-    --go_opt=Mwandb_settings.proto=$MOD \
-    --go_out=. --proto_path=. wandb_settings.proto
+protoc \
+    --go_opt=Mwandb/proto/wandb_settings.proto=$MOD \
+    --go_out=. --proto_path=. wandb/proto/wandb_settings.proto
 
-protoc -I=$INC \
-    --go_opt=Mwandb_base.proto=$MOD \
-    --go_opt=Mwandb_telemetry.proto=$MOD \
-    --go_opt=Mwandb_settings.proto=$MOD \
-    --go_opt=Mwandb_internal.proto=$MOD \
-    --go_opt=Mwandb_server.proto=$MOD \
-    --go_out=. --proto_path=. wandb_server.proto
+protoc \
+    --go_opt=Mwandb/proto/wandb_base.proto=$MOD \
+    --go_opt=Mwandb/proto/wandb_telemetry.proto=$MOD \
+    --go_opt=Mwandb/proto/wandb_settings.proto=$MOD \
+    --go_opt=Mwandb/proto/wandb_internal.proto=$MOD \
+    --go_opt=Mwandb/proto/wandb_server.proto=$MOD \
+    --go_out=. --proto_path=. wandb/proto/wandb_server.proto

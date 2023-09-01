@@ -55,7 +55,7 @@ from wandb.sdk.launch.utils import (
     apply_patch,
     convert_jupyter_notebook_to_script,
 )
-from wandb.sdk.lib import ipython, retry, runid
+from wandb.sdk.lib import ipython, json_util, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.paths import LogicalPath
 
@@ -509,7 +509,7 @@ class Api:
         # 2. create default resource config, receive config id
         config_json = json.dumps({"resource_args": {type: config}})
         create_config_result = api.create_default_resource_config(
-            entity, LAUNCH_DEFAULT_PROJECT, type, config_json
+            entity, type, config_json
         )
         if not create_config_result["success"]:
             raise wandb.Error("failed to create default resource config")
@@ -1837,6 +1837,7 @@ class Run(Attrs):
         read_only (boolean): Whether the run is editable
         history_keys (str): Keys of the history metrics that have been logged
             with `wandb.log({key: value})`
+        metadata (str): Metadata about the run from wandb-metadata.json
     """
 
     def __init__(
@@ -1869,6 +1870,7 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
+        self._metadata: Optional[Dict[str, Any]] = None
         self._state = _attrs.get("state", "not found")
 
         self.load(force=not _attrs)
@@ -2386,6 +2388,18 @@ class Run(Attrs):
         path = self.path
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            try:
+                f = self.file("wandb-metadata.json")
+                contents = util.download_file_into_memory(f.url, Api().api_key)
+                self._metadata = json_util.loads(contents)
+            except:  # noqa: E722
+                # file doesn't exist, or can't be downloaded, or can't be parsed
+                pass
+        return self._metadata
 
     @property
     def lastHistoryStep(self):  # noqa: N802
@@ -4424,6 +4438,66 @@ class ArtifactCollection:
             raise ValueError("Could not find artifact type %s" % self.type)
         self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
+
+    @normalize_exceptions
+    def is_sequence(self) -> bool:
+        """Return True if this is a sequence."""
+        query = gql(
+            """
+            query FindSequence($entity: String!, $project: String!, $collection: String!, $type: String!) {
+                project(name: $project, entityName: $entity) {
+                    artifactType(name: $type) {
+                        __typename
+                        artifactSequence(name: $collection) {
+                            __typename
+                        }
+                    }
+                }
+            }
+            """
+        )
+        variables = {
+            "entity": self.entity,
+            "project": self.project,
+            "collection": self.name,
+            "type": self.type,
+        }
+        res = self.client.execute(query, variable_values=variables)
+        sequence = res["project"]["artifactType"]["artifactSequence"]
+        return sequence is not None and sequence["__typename"] == "ArtifactSequence"
+
+    @normalize_exceptions
+    def delete(self):
+        """Delete the entire artifact collection."""
+        if self.is_sequence():
+            mutation = gql(
+                """
+                mutation deleteArtifactSequence($id: ID!) {
+                    deleteArtifactSequence(input: {
+                        artifactSequenceID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        else:
+            mutation = gql(
+                """
+                mutation deleteArtifactPortfolio($id: ID!) {
+                    deleteArtifactPortfolio(input: {
+                        artifactPortfolioID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        self.client.execute(mutation, variable_values={"id": self.id})
 
     def __repr__(self):
         return f"<ArtifactCollection {self.name} ({self.type})>"
