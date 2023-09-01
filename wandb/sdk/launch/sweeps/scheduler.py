@@ -246,7 +246,7 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> SdkRun:
         """Controls resume or init logic for a scheduler wandb run."""
-        name = self._settings_config.get("name") or f"Scheduler.{self._sweep_id}"
+        name = f"Scheduler.{self._sweep_id}"
         run: SdkRun = wandb.init(
             name=name,
             job_type=self.SWEEP_JOB_TYPE,
