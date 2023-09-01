@@ -32,9 +32,9 @@ def pytest_configure(config):
     creds_path = os.path.expanduser("~/.aws")
 
     # Create namespace if it doesn't exist
-    run_cmd(
-        "kubectl create namespace wandb-release-testing --dry-run=client -o yaml | kubectl apply -f -"
-    )
+    namespaces = run_cmd("kubectl get namespace")
+    if "wandb-release-testing" not in namespaces:
+        run_cmd("kubectl create namespace wandb-release-testing")
 
     # Create AWS secrets
     run_cmd(

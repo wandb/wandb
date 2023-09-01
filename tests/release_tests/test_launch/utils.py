@@ -10,8 +10,14 @@ from kubernetes import client, config, watch
 from wandb.apis.public import Api
 
 
-def run_cmd(command: str) -> None:
-    subprocess.Popen(command.split(" ")).wait()
+def run_cmd(command: str) -> str:
+    # Run a command and return its stdout + stderr output
+    return subprocess.run(
+        command.split(" "),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    ).stdout
 
 
 def run_cmd_async(command: str) -> subprocess.Popen:
