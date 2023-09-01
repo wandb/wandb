@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -92,22 +93,22 @@ func (s *SettingsWrap) SetRunID(runID string) {
 	s.Settings.RunId = &wrapperspb.StringValue{Value: runID}
 	s.Settings.SyncDir = &wrapperspb.StringValue{Value: syncDir}
 	s.Settings.SyncFile = &wrapperspb.StringValue{
-			Value: filepath.Join(syncDir, "run-"+runID+".wandb"),
-		}
+		Value: filepath.Join(syncDir, "run-"+runID+".wandb"),
+	}
 	s.Settings.FilesDir = &wrapperspb.StringValue{
-			Value: filepath.Join(syncDir, "files"),
-		}
+		Value: filepath.Join(syncDir, "files"),
+	}
 	s.Settings.LogDir = &wrapperspb.StringValue{Value: logDir}
 	s.Settings.LogInternal = &wrapperspb.StringValue{
-			Value: filepath.Join(logDir, "debug-internal.log"),
-		}
+		Value: filepath.Join(logDir, "debug-internal.log"),
+	}
 	s.Settings.LogUser = &wrapperspb.StringValue{
-			Value: filepath.Join(logDir, "debug.log"),
-		}
+		Value: filepath.Join(logDir, "debug.log"),
+	}
 	s.Settings.TmpDir = &wrapperspb.StringValue{
-			Value: tmpDir,
-		}
+		Value: tmpDir,
+	}
 	s.Settings.XTmpCodeDir = &wrapperspb.StringValue{
-			Value: filepath.Join(tmpDir, "code"),
-		}
+		Value: filepath.Join(tmpDir, "code"),
+	}
 }

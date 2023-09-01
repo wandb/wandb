@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 )
 
 type BenchOpts struct {

@@ -10,4 +10,3 @@ func WithConfig() RunOption {
 	return func(s *RunParams) {
 	}
 }
-

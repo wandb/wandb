@@ -12,8 +12,8 @@ import (
 )
 
 type Session struct {
-	manager    *Manager
-	execCmd    *execbin.ForkExecCmd
+	manager *Manager
+	execCmd *execbin.ForkExecCmd
 
 	// embed settings parameters which are set by sessionopts options
 	sessionopts.SessionParams
