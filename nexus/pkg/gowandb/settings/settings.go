@@ -66,7 +66,7 @@ func NewSettings(args ...any) *SettingsWrap {
 		XOffline: &wrapperspb.BoolValue{
 			Value: (mode == "offline"),
 		},
-		XFileStreamTimeoutSeconds: &wrapperspb.DoubleValue{
+		XFileStreamTimeoutSeconds: &wrapperspb.Int32Value{
 			Value: 60,
 		},
 		XStatsSamplesToAverage: &wrapperspb.Int32Value{
