@@ -31,6 +31,10 @@ def pytest_configure(config):
 
     creds_path = os.path.expanduser("~/.aws")
 
+    docker_env_cmds = run_cmd("minikube -p minikube docker-env")
+    for cmd in docker_env_cmds:
+        run_cmd(cmd)
+
     # Create namespace if it doesn't exist
     namespaces = run_cmd("kubectl get namespace")
     if "wandb-release-testing" not in namespaces:
