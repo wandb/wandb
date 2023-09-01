@@ -7,7 +7,8 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 )
 
 type BenchOpts struct {
@@ -31,14 +32,14 @@ func NewBench(benchOpts BenchOpts) *Bench {
 }
 
 func (b *Bench) Setup() {
-	opts := []gowandb.SessionOption{}
+	opts := []sessionopts.SessionOption{}
 	if *b.opts.port != 0 {
-		opts = append(opts, session.WithCoreAddress(fmt.Sprintf("%s:%d", *b.opts.host, *b.opts.port)))
+		opts = append(opts, sessionopts.WithCoreAddress(fmt.Sprintf("%s:%d", *b.opts.host, *b.opts.port)))
 	}
 	if *b.opts.offline {
-		settings := gowandb.NewSettings()
-		settings.XOffline.Value = true
-		opts = append(opts, session.WithSettings(settings))
+		baseSettings := settings.NewSettings()
+		baseSettings.XOffline.Value = true
+		opts = append(opts, sessionopts.WithSettings(baseSettings))
 	}
 	var err error
 	b.wandb, err = gowandb.NewSession(opts...)
