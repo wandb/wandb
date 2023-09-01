@@ -105,11 +105,10 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		baseHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
 			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
-			"User-Agent":         "wandb-nexus",
 		}
 		graphqlRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientHttpAuthTransportWithHeaders(
+			clients.WithRetryClientHttpAuthTransport(
 				settings.GetApiKey().GetValue(),
 				baseHeaders,
 				settings.GetXExtraHttpHeaders().GetValue(),
