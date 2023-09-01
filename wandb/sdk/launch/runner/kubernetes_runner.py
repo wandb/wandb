@@ -279,7 +279,7 @@ class KubernetesRunMonitor:
                             pass
                     if state is None:
                         raise LaunchError(
-                            f"Failed to get CRD {self.name} in namespace {self.namespace}: no state found"
+                            f"Failed to get CRD {self.job_field_selector} in namespace {self.namespace}: no state found"
                         )
                     status = Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
                     self._set_status(status)
