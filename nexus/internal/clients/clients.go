@@ -28,18 +28,13 @@ func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 type authedTransportWithHeaders struct {
-	key      string
-	username string
-	email    string
-	wrapped  http.RoundTripper
-	headers  map[string]string
+	key     string
+	wrapped http.RoundTripper
+	headers map[string]string
 }
 
 func (t *authedTransportWithHeaders) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
-	req.Header.Set("User-Agent", "wandb-nexus")
-	req.Header.Set("X-WANDB-USERNAME", t.username)
-	req.Header.Set("X-WANDB-USER-EMAIL", t.email)
 	for k, v := range t.headers {
 		req.Header.Set(k, v)
 	}
@@ -96,14 +91,23 @@ func WithRetryClientHttpAuthTransport(key string) RetryClientOption {
 	}
 }
 
-func WithRetryClientHttpAuthTransportWithHeaders(key, username, email string, headers map[string]string) RetryClientOption {
+// combineHeaders converts a slice of maps to a single map
+func combineHeaders(headers ...map[string]string) map[string]string {
+	result := make(map[string]string)
+	for _, h := range headers {
+		for k, v := range h {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+func WithRetryClientHttpAuthTransportWithHeaders(key string, headers ...map[string]string) RetryClientOption {
 	return func(rc *retryablehttp.Client) {
 		authTransport := &authedTransportWithHeaders{
-			key:      key,
-			username: username,
-			email:    email,
-			wrapped:  rc.HTTPClient.Transport,
-			headers:  headers,
+			key:     key,
+			wrapped: rc.HTTPClient.Transport,
+			headers: combineHeaders(headers...),
 		}
 		rc.HTTPClient.Transport = authTransport
 	}

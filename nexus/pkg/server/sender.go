@@ -102,14 +102,16 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
-		// todo(nexus:beta): pass X-WANDB-USERNAME, X-WANDB-USER-EMAIL, and
-		//  user-defined headers from _graphql_extra_http_headers to the retry client
+		baseHeaders := map[string]string{
+			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
+			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
+			"User-Agent":         "wandb-nexus",
+		}
 		graphqlRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientHttpAuthTransportWithHeaders(
 				settings.GetApiKey().GetValue(),
-				settings.GetUsername().GetValue(),
-				settings.GetEmail().GetValue(),
+				baseHeaders,
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
