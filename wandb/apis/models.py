@@ -46,6 +46,7 @@ def log_model(
 
 def use_model(model_name: str) -> StrPath:
     """Download a logged model artifact.
+
     Arguments:
         model_name: (str) A model artifact name.
             May be prefixed with entity/project/. Valid names
