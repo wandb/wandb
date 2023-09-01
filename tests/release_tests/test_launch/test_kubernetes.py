@@ -95,11 +95,13 @@ def _create_config_files():
 def test_kubernetes_agent_in_cluster():
     _create_config_files()
 
-    run_cmd(
-        "python tools/build_launch_agent.py --tag wandb-launch-agent:release-testing"
+    print(
+        run_cmd(
+            "python tools/build_launch_agent.py --tag wandb-launch-agent:release-testing"
+        )
     )
-    run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
-    run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml")
+    print(run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml"))
+    print(run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml"))
 
     setup_cleanup_on_exit(NAMESPACE)
 
