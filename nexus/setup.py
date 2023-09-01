@@ -89,6 +89,8 @@ class NexusBase:
                 "build",
                 "-t",
                 "wheel_builder",
+                "--platform",
+                f"linux/{goarch}",
                 ".",
             )
             subprocess.check_call(
@@ -102,6 +104,8 @@ class NexusBase:
                 "docker",
                 "run",
                 "--rm",
+                "--platform",
+                f"linux/{goarch}",
                 "-v",
                 f"{src_dir.parent}:/project",
                 "-v",
@@ -171,7 +175,7 @@ class WrapInstall(install, NexusBase):
 class WrapDevelop(develop, NexusBase):
     def run(self):
         develop.run(self)
-        self._build_nexus(path=Path("wandb_core"))
+        # self._build_nexus(path=Path("wandb_core"))
 
 
 class WrapBdistWheel(bdist_wheel, NexusBase):
