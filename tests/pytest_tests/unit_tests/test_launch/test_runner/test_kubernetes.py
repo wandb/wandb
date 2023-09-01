@@ -6,10 +6,8 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-import wandb
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
-    CrdSubmittedRun,
     KubernetesRunMonitor,
     KubernetesRunner,
     add_entrypoint_args_overrides,

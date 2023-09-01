@@ -72,7 +72,6 @@ CRD_STATE_DICT: Dict[str, State] = {
     "terminated": "failed",
     # Stopping states.
     "terminating": "stopping",
-    "terminated": "stopped",
 }
 
 
@@ -110,9 +109,9 @@ class KubernetesRunMonitor:
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         custom_api: "CustomObjectsApi" = None,
-        group: str = None,
-        version: str = None,
-        plural: str = None,
+        group: Optional[str] = None,
+        version: Optional[str] = None,
+        plural: Optional[str] = None,
     ) -> None:
         """Initial KubernetesRunMonitor.
 
