@@ -17,7 +17,7 @@ def build_nexus(session):
         "-w",
         "-n",
         "./nexus",
-        f"--config-setting=--build-option=--nexus-build={system}-{arch}",
+        f"-Cbuild-option=--nexus-build={system}-{arch}",
         external=True,
     )
 
