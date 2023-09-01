@@ -1,5 +1,5 @@
 from ultralytics import YOLO
-from wandb.yolov8 import add_wandb_callback
+from wandb.integration.ultralytics import add_wandb_callback
 
 
 def main():
