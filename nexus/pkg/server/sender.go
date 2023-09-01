@@ -4,13 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/nexus/internal/clients"
 
@@ -27,14 +24,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type ContextKey string
-
 const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
-	// Modified from time.RFC3339Nano
-	RFC3339Micro                 = "2006-01-02T15:04:05.000000Z07:00"
-	CtxRetryPolicyKey ContextKey = "retryFunc"
+	// RFC3339Micro Modified from time.RFC3339Nano
+	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -94,51 +88,6 @@ func emptyAsNil(s *string) *string {
 	return s
 }
 
-func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	statusCode := resp.StatusCode
-	switch {
-	case statusCode == http.StatusBadRequest, statusCode == http.StatusConflict: // don't retry on 400 bad request or 409 conflict
-		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == http.StatusUnauthorized: // don't retry on 401 unauthorized
-		return false, fmt.Errorf("the API key you provided is either invalid or missing. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == http.StatusForbidden: // don't retry on 403 forbidden
-		return false, fmt.Errorf("you don't have permission to access this resource. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == http.StatusNotFound: // don't retry on 404 not found
-		return false, fmt.Errorf("the resource you requested could not be found. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode >= 400 && statusCode < 500: // retry on 4xx client error
-		return true, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	default: // use default retry policy for all other status codes
-		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
-	}
-}
-
-func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	statusCode := resp.StatusCode
-	switch {
-	case statusCode == http.StatusGone: // don't retry on 410 Gone
-		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	case statusCode == http.StatusConflict: // retry on 409 Conflict
-		return true, fmt.Errorf("conflict, retrying. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	default: // use default retry policy for all other status codes
-		return DefaultRetryPolicy(ctx, resp, err)
-	}
-}
-
-func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	if err != nil || ctx.Err() != nil {
-		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
-	}
-
-	// get retry policy from context
-	retryPolicy, ok := ctx.Value(CtxRetryPolicyKey).(func(context.Context, *http.Response, error) (bool, error))
-	switch {
-	case !ok, retryPolicy == nil:
-		return DefaultRetryPolicy(ctx, resp, err)
-	default:
-		return retryPolicy(ctx, resp, err)
-	}
-}
-
 // NewSender creates a new Sender with the given settings
 func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
 
@@ -155,16 +104,21 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 	if !settings.GetXOffline().GetValue() {
 		// todo(nexus:beta): pass X-WANDB-USERNAME, X-WANDB-USER-EMAIL, and
 		//  user-defined headers from _graphql_extra_http_headers to the retry client
-		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		graphqlRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientHttpAuthTransport(settings.GetApiKey().GetValue()),
-			clients.WithRetryClientRetryPolicy(CheckRetry),
+			clients.WithRetryClientHttpAuthTransportWithHeaders(
+				settings.GetApiKey().GetValue(),
+				settings.GetUsername().GetValue(),
+				settings.GetEmail().GetValue(),
+				settings.GetXExtraHttpHeaders().GetValue(),
+			),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXGraphqlTimeoutSeconds().GetValue()*int32(time.Second))),
 		)
+		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
 		fileStreamRetryClient := clients.NewRetryClient(
@@ -184,7 +138,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			fs.WithLogger(logger),
 			fs.WithHttpClient(fileStreamRetryClient),
 		)
-		uploadManagerRetryClient := clients.NewRetryClient(
+		uploaderRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileUploaderRetryWaitMinSeconds().GetValue()*int32(time.Second))),
@@ -193,7 +147,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		)
 		defaultUploader := uploader.NewDefaultUploader(
 			logger,
-			uploadManagerRetryClient,
+			uploaderRetryClient,
 		)
 		sender.uploadManager = uploader.NewUploadManager(
 			uploader.WithLogger(logger),
@@ -489,7 +443,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		program := s.settings.GetProgram().GetValue()
 		// start a new context with an additional argument from the parent context
 		// this is used to pass the retry function to the graphql client
-		ctx := context.WithValue(s.ctx, CtxRetryPolicyKey, UpsertBucketRetryPolicy)
+		ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
 			ctx,                          // ctx
 			s.graphqlClient,              // client
@@ -602,7 +556,7 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	}
 
 	config := s.serializeConfig()
-	ctx := context.WithValue(s.ctx, CtxRetryPolicyKey, UpsertBucketRetryPolicy)
+	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
 		ctx,                              // ctx
 		s.graphqlClient,                  // client
@@ -650,7 +604,7 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
-	// generate compatible timestamp to python isoformat (microseconds without Z)
+	// generate compatible timestamp to python iso-format (microseconds without Z)
 	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
