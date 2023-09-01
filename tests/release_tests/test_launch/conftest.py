@@ -32,7 +32,7 @@ def pytest_configure(config):
     creds_path = os.path.expanduser("~/.aws")
 
     docker_env_cmds = run_cmd("minikube -p minikube docker-env")
-    for cmd in docker_env_cmds:
+    for cmd in docker_env_cmds.split("\n"):
         run_cmd(cmd)
 
     # Create namespace if it doesn't exist
