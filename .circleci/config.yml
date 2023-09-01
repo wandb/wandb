@@ -654,6 +654,7 @@ jobs:
                 name: Setup wandb
                 command: |
                   pip3 install /home/circleci/project
+                  pip3 install /home/circleci/project[launch]
                   wandb login $WANDB_API_KEY
                   python3 ./tools/build_launch_agent.py --tag wandb-launch-agent:release-testing
                 no_output_timeout: 30m
