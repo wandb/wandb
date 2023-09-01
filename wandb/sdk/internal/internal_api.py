@@ -268,6 +268,7 @@ class Api:
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                    "X-WANDB-USE-ASYNC-FILESTREAM": "true",
                     **extra_http_headers,
                 },
                 use_json=True,

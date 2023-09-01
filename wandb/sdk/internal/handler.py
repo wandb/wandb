@@ -480,8 +480,9 @@ class HandleManager:
         history_dict: Dict[str, Any],
     ) -> None:
         #  if syncing an old run, we can skip this logic
-        if history_dict.get("_step") is None:
-            self._history_assign_step(history, history_dict)
+        # if history_dict.get("_step") is None:
+        #     self._history_assign_step(history, history_dict)
+        self._step += 1
 
         update_history: Dict[str, Any] = {}
         # Look for metric matches
@@ -521,8 +522,11 @@ class HandleManager:
                 item = history.item.add()
                 item.key = k
                 item.value_json = json.dumps(v)
-            if step is not None:
-                history.step.num = step
+            item = history.item.add()
+            item.key = "_user_step"
+            item.value_json = json.dumps(step)
+            # if step is not None:
+            #     history.step.num = step
             self.handle_history(Record(history=history))
             self._partial_history = {}
 
@@ -545,13 +549,13 @@ class HandleManager:
 
         history_dict = proto_util.dict_from_proto_list(partial_history.item)
         if step is not None:
-            if step < self._step:
-                logger.warning(
-                    f"Step {step} < {self._step}. Dropping entry: {history_dict}."
-                )
-                return
-            elif step > self._step:
-                self._flush_partial_history()
+            # if step < self._step:
+            #     logger.warning(
+            #         f"Step {step} < {self._step}. Dropping entry: {history_dict}."
+            #     )
+            #     return
+            if step != self._step:
+                self._flush_partial_history(step)
                 self._step = step
         elif flush is None:
             flush = True
