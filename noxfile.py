@@ -17,7 +17,7 @@ def build_nexus(session):
         "-w",
         "-n",
         "./nexus",
-        f"-Cbuild-option=--nexus-build={system}-{arch}",
+        f"-C--build-option=bdist_wheel --nexus-build={system}-{arch}",
         external=True,
     )
 
