@@ -53,8 +53,8 @@ func (b *Bench) RunWorkers() {
 		runtime.GOMAXPROCS(*b.opts.numCPUs)
 	}
 	var wg sync.WaitGroup
-	wg.Add(1)
 	for i := 0; i < *b.opts.numWorkers; i++ {
+		wg.Add(1)
 		go func() {
 			b.Worker()
 			wg.Done()
