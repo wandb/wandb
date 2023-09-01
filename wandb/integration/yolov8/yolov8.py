@@ -246,7 +246,7 @@ def add_callbacks(
     )
     wandb.termwarn(
         """This wandb callback is no longer functional and would be deprecated in the near future.
-        We recommend you to use the updated callback using `from wandb.yolov8 import add_wandb_callback`.
+        We recommend you to use the updated callback using `from wandb.integration.ultralytics import add_wandb_callback`.
         The updated callback is tested and supported for ultralytics 8.0.167 and above.
         You can refer to https://docs.wandb.ai/guides/integrations/ultralytics for the updated documentation.
         Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.
