@@ -87,10 +87,12 @@ class Report(Base):
                 Then re-encode it with correct padding.
                 https://stackoverflow.com/questions/2941995/python-ignore-incorrect-padding-error-when-base64-decoding
 
-                Corresponding core app logic that strips the padding in url 
+                Corresponding core app logic that strips the padding in url
                 https://github.com/wandb/core/blob/b563437c1f3237ec35b1fb388ac14abbab7b4279/frontends/app/src/util/url/shared.ts#L33-L78
             """
-            report_id = base64.b64encode(base64.b64decode(report_id + "==")).decode('utf-8')
+            report_id = base64.b64encode(base64.b64decode(report_id + "==")).decode(
+                "utf-8"
+            )
 
         except ValueError as e:
             raise ValueError(path_msg) from e
