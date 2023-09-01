@@ -1037,25 +1037,64 @@ class TestNameMappings:
         "url,expected",
         [
             # No padding needed for `View:1290312` (base64 decoded), `VmlldzoxMjkwMzEy` (base64 encoded)
-            ("sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
-            ("http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
-            ("https://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
-            ("site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
-            ("http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
-            ("https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
-            ("entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
+            (
+                "sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "https://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
             ("this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
             ("another-one-with-=--VmlldzoxMjkwMzEy=", "VmlldzoxMjkwMzEy"),
             ("    another-one-with-whitespace--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
             (" i-am-title --    VmlldzoxMjkwMzEy=     ", "VmlldzoxMjkwMzEy"),
             # three dashes too for some reason
-            ("sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
-            ("http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
-            ("site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
+            (
+                "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
             # sites with queries
-            ("sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something", "VmlldzoxMjkwMzEy"),
-            ("http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something", "VmlldzoxMjkwMzEy"),
-            ("site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something&query2=hi", "VmlldzoxMjkwMzEy"),
+            (
+                "sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something&query2=hi",
+                "VmlldzoxMjkwMzEy",
+            ),
             # Add "==" padding to `View:13` (base64 decoded), `VmlldzoxMw` (base64 encoded)
             ("imatitle--VmlldzoxMw", "VmlldzoxMw=="),
             ("entity/project/reports/this-is-a-title--VmlldzoxMw==", "VmlldzoxMw=="),
