@@ -632,7 +632,7 @@ jobs:
             - aws-cli/setup:
                 role_arn: $AWS_ROLE_ARN
                 region: us-east-2
-                profile_name: launch_release_tests
+                profile_name: default
             - run:
                 name: Install tox
                 command: |
