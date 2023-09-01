@@ -1,3 +1,4 @@
+import base64
 import inspect
 import json
 import re
@@ -79,11 +80,17 @@ class Report(Base):
             if len(report_id) == 0:
                 raise ValueError("Invalid report id")
 
-            # The base64 = is stripped from the report url in core app,
-            # so we need to add it back in here
             report_id = report_id.strip()
-            if report_id[-1] != "=":
-                report_id += "="
+
+            """
+                Server does not generate IDs with correct padding, so decode with default validate=False.
+                Then re-encode it with correct padding.
+                https://stackoverflow.com/questions/2941995/python-ignore-incorrect-padding-error-when-base64-decoding
+
+                Corresponding core app logic that strips the padding in url 
+                https://github.com/wandb/core/blob/b563437c1f3237ec35b1fb388ac14abbab7b4279/frontends/app/src/util/url/shared.ts#L33-L78
+            """
+            report_id = base64.b64encode(base64.b64decode(report_id + "==")).decode('utf-8')
 
         except ValueError as e:
             raise ValueError(path_msg) from e
