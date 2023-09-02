@@ -1,6 +1,4 @@
-ARG PYTHON_VERSION=3.9
-ARG PLATFORM=amd64
-FROM --platform=linux/${PLATFORM} python:${PYTHON_VERSION}
+FROM nvidia/cuda:12.2.0-runtime-ubuntu20.04
 
 # Mount a volume for the Go build cache
 VOLUME /root/.cache/go-build
@@ -15,6 +13,7 @@ RUN apt-get update && \
     apt-get install -y \
     build-essential \
     libffi-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Go
