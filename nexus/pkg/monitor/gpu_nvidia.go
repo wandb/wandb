@@ -4,10 +4,8 @@ package monitor
 
 import (
 	"fmt"
-	"sync"
-	"time"
-
 	"github.com/shirou/gopsutil/v3/process"
+	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -241,11 +239,12 @@ func (g *GPUNvidia) ClearMetrics() {
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
-	start := time.Now()
+	defer func() {
+		if r := recover(); r != nil {
+			g.nvmlInit = nvml.ERROR_UNINITIALIZED
+		}
+	}()
 	g.nvmlInit = nvml.Init()
-	elapsed := time.Since(start)
-	fmt.Println("nvml.Init() took", elapsed)
-
 	return g.nvmlInit == nvml.SUCCESS
 }
 
