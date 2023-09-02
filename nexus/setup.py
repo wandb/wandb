@@ -175,7 +175,7 @@ class WrapInstall(install, NexusBase):
 class WrapDevelop(develop, NexusBase):
     def run(self):
         develop.run(self)
-        # self._build_nexus(path=Path("wandb_core"))
+        self._build_nexus(path=Path("wandb_core"))
 
 
 class WrapBdistWheel(bdist_wheel, NexusBase):
