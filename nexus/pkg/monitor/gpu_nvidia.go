@@ -4,8 +4,9 @@ package monitor
 
 import (
 	"fmt"
-	"github.com/shirou/gopsutil/v3/process"
 	"sync"
+
+	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
