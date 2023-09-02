@@ -1588,7 +1588,7 @@ def _list(project, entity):
 
 @job.command(
     help="Describe a launch job. Provide the launch job in the form of: entity/project/job-name:alias-or-version"
-    )
+)
 @click.argument("job")
 def describe(job):
     public_api = PublicApi()
