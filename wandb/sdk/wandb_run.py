@@ -3092,6 +3092,26 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
 
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def system_metrics(self) -> Dict[str, Any]:
+        """Returns a dictionary of system metrics.
+
+        Returns:
+            A dictionary of system metrics.
+        """
+        if self._backend and self._backend.interface:
+            handle = self._backend.interface.deliver_get_system_metrics()
+            result = handle.wait(
+                timeout=1,
+                # on_progress=self._on_progress_init,
+                cancel=True,
+            )
+            if result:
+                system_metrics = result.system_metrics_result
+                return system_metrics
+        return {}
+
     # ------------------------------------------------------------------------------
     # HEADER
     # ------------------------------------------------------------------------------
