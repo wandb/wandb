@@ -270,6 +270,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleResume()
 	case *service.Request_Cancel:
 		h.handleCancel(record)
+	case *service.Request_GetSystemMetrics:
+		h.handleGetSystemMetrics(record, response)
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -488,6 +490,13 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 			Item: items,
 		},
 	}
+}
+
+func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Response) {
+	// response.ResponseType = &service.Response_GetSystemMetricsResponse{
+	// 	GetSystemMetricsResponse: h.systemMonitor.GetMetrics(),
+	// }
+	fmt.Println("handleGetSystemMetrics: not implemented")
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {

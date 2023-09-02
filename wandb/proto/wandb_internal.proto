@@ -507,6 +507,7 @@ message Request {
     SummaryRecordRequest  summary_record = 71;
     TelemetryRecordRequest telemetry_record = 72;
     JobInfoRequest      job_info = 73;
+    GetSystemMetricsRequest     get_system_metrics = 74;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -603,6 +604,17 @@ message GetSummaryRequest {
 
 message GetSummaryResponse {
   repeated SummaryItem item = 1;
+}
+
+/*
+ * GetSystemMetrics: request system metrics
+ */
+message GetSystemMetricsRequest {
+  _RequestInfo _info = 200;
+}
+
+message GetSystemMetricsResponse {
+  repeated StatsRecord record = 1;
 }
 
 /*

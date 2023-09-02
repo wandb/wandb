@@ -3107,9 +3107,10 @@ class Run:
                 # on_progress=self._on_progress_init,
                 cancel=True,
             )
-            if result:
-                system_metrics = result.system_metrics_result
-                return system_metrics
+            print("result", result)
+            # if result:
+            #     system_metrics = result.system_metrics_result
+            #     return system_metrics
         return {}
 
     # ------------------------------------------------------------------------------
@@ -3438,7 +3439,7 @@ class Run:
             f"({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
         )
         # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
-        printer.progress_update(line)  # type: ignore [call-arg]
+        printer.progress_update(line)  # type:ignore[call-arg]
 
         done = all(
             [
