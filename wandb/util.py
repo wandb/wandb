@@ -635,6 +635,7 @@ def json_friendly(  # noqa: C901
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)
     elif isinstance(obj,set):
+        'convert set to tuple to make it json serializable'
         obj = tuple(obj)
     else:
         converted = False
