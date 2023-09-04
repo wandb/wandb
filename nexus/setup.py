@@ -89,6 +89,8 @@ class NexusBase:
                 "build",
                 "-t",
                 "wheel_builder",
+                "--platform",
+                f"linux/{goarch}",
                 ".",
             )
             subprocess.check_call(
@@ -102,6 +104,8 @@ class NexusBase:
                 "docker",
                 "run",
                 "--rm",
+                "--platform",
+                f"linux/{goarch}",
                 "-v",
                 f"{src_dir.parent}:/project",
                 "-v",

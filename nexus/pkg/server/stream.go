@@ -129,13 +129,13 @@ func (s *Stream) GetRun() *service.RunRecord {
 	return s.handler.GetRun()
 }
 
-// Gracefully wait for handler, writer, sender, dispatcher to shutdown cleanly
+// Close Gracefully wait for handler, writer, sender, dispatcher to shutdown cleanly
 // assumes an exit record has already been sent
 func (s *Stream) Close() {
 	s.wg.Wait()
 }
 
-// Handle internal responses like from the finish and close path
+// Respond Handle internal responses like from the finish and close path
 func (s *Stream) Respond(resp *service.ServerResponse) {
 	s.respChan <- resp
 }

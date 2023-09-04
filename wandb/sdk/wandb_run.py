@@ -1166,7 +1166,7 @@ class Run:
     def entity(self) -> str:
         """The name of the W&B entity associated with the run.
 
-        Entity can be a user name or the name of a team or organization.
+        Entity can be a username or the name of a team or organization.
         """
         return self._entity or ""
 

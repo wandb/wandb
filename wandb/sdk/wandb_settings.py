@@ -1584,6 +1584,7 @@ class Settings(SettingsData):
             "WANDB_JOB_TYPE": "run_job_type",
             "WANDB_HTTP_TIMEOUT": "_graphql_timeout_seconds",
             "WANDB_FILE_PUSHER_TIMEOUT": "_file_uploader_timeout_seconds",
+            "WANDB_USER_EMAIL": "email",
         }
         env = dict()
         for setting, value in environ.items():
