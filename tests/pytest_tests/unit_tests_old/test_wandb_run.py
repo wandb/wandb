@@ -422,12 +422,16 @@ def test_artifact_job_creation(live_mock_server, test_settings, runner):
 
 def test_container_job_creation(live_mock_server, test_settings):
     test_settings.update({"disable_git": True})
-    with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:v0"):
+    with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:docker-tag"):
         run = wandb.init(settings=test_settings)
         run.finish()
         ctx = live_mock_server.get_ctx()
         artifact_name = list(ctx["artifacts"].keys())[0]
-        assert artifact_name == "job-dummy-container_v0"
+        assert artifact_name == "job-dummy-container"
+        aliases = [
+            x["alias"] for x in ctx["artifacts"]["job-dummy-container"][0]["aliases"]
+        ]
+        assert "docker-tag" in aliases
 
 
 def test_manual_git_run_metadata_from_settings(live_mock_server, test_settings):

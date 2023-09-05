@@ -279,9 +279,7 @@ class Type:
         if depth > 0:
             return f"{gap}{wbtype} not assignable to {self}"
         else:
-            return "{}{} of type {} is not assignable to {}".format(
-                gap, other, wbtype, self
-            )
+            return f"{gap}{other} of type {wbtype} is not assignable to {self}"
 
     def __repr__(self):
         rep = self.name.capitalize()

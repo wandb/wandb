@@ -16,8 +16,8 @@ import io
 import json
 import logging
 import os
-import platform
 import shutil
+import sys
 import tempfile
 import time
 import urllib
@@ -32,12 +32,17 @@ from typing import (
     Sequence,
 )
 
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
 import requests
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
-from wandb import __version__, env, util
+from wandb import env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError
@@ -50,13 +55,15 @@ from wandb.sdk.launch.utils import (
     apply_patch,
     convert_jupyter_notebook_to_script,
 )
-from wandb.sdk.lib import ipython, retry, runid
+from wandb.sdk.lib import ipython, json_util, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util
+
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 
 logger = logging.getLogger(__name__)
 
@@ -225,7 +232,10 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
-        from pkg_resources import parse_version
+        try:
+            from packaging.version import Version as parse_version  # noqa: N813
+        except ImportError:
+            from pkg_resources import parse_version
 
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
@@ -245,7 +255,7 @@ class Api:
             You can also set defaults for `entity`, `project`, and `run`.
     """
 
-    _HTTP_TIMEOUT = env.get_http_timeout(9)
+    _HTTP_TIMEOUT = env.get_http_timeout(29)
     VIEWER_QUERY = gql(
         """
         query Viewer{
@@ -403,6 +413,9 @@ class Api:
         )
         self._client = RetryingClient(self._base_client)
 
+    def create_project(self, name: str, entity: str):
+        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
+
     def create_run(self, **kwargs):
         """Create a new run."""
         if kwargs.get("entity") is None:
@@ -426,8 +439,90 @@ class Api:
             project, entity, title, description, width, blocks
         ).save()
 
-    def create_project(self, name: str, entity: str):
-        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
+    def create_run_queue(
+        self,
+        name: str,
+        type: "RunQueueResourceType",
+        access: "RunQueueAccessType",
+        entity: Optional[str] = None,
+        config: Optional[dict] = None,
+    ) -> None:
+        """Create a new run queue (launch).
+
+        Arguments:
+            name: (str) Name of the queue to create
+            type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
+            access: (str) Access level for the queue. Either "project" or "user".
+            entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
+            config: (dict) Optional default resource configuration to be used for the queue.
+
+        Returns:
+            The newly created `RunQueue`
+
+        Raises:
+            ValueError if any of the parameters are invalid
+            wandb.Error on wandb API errors
+        """
+        # TODO(np): Need to check server capabilities for this feature
+        # 0. assert params are valid/normalized
+        if entity is None:
+            entity = self.settings["entity"] or self.default_entity
+            if entity is None:
+                raise ValueError(
+                    "entity must be passed as a parameter, or set in settings"
+                )
+
+        if len(name) == 0:
+            raise ValueError("name must be non-empty")
+        if len(name) > 64:
+            raise ValueError("name must be less than 64 characters")
+
+        access = access.upper()
+        if access not in ["PROJECT", "USER"]:
+            raise ValueError("access must be one of 'project' or 'user'")
+
+        if type not in [
+            "local-container",
+            "local-process",
+            "kubernetes",
+            "sagemaker",
+            "gcp-vertex",
+        ]:
+            raise ValueError(
+                "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', or 'gcp-vertex'"
+            )
+
+        if config is None:
+            config = {}
+
+        # 1. create required default launch project in the entity
+        self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
+
+        api = InternalApi(
+            default_settings={
+                "entity": entity,
+                "project": self.project(LAUNCH_DEFAULT_PROJECT),
+            },
+            retry_timedelta=RETRY_TIMEDELTA,
+        )
+
+        # 2. create default resource config, receive config id
+        config_json = json.dumps({"resource_args": {type: config}})
+        create_config_result = api.create_default_resource_config(
+            entity, type, config_json
+        )
+        if not create_config_result["success"]:
+            raise wandb.Error("failed to create default resource config")
+        config_id = create_config_result["defaultResourceConfigID"]
+
+        # 3. create run queue
+        create_queue_result = api.create_run_queue(
+            entity, LAUNCH_DEFAULT_PROJECT, name, access, config_id
+        )
+        if not create_queue_result["success"]:
+            raise wandb.Error("failed to create run queue")
+
+        return RunQueue(self.client, name, entity, access, config_id, config)
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """Get report at a given path.
@@ -487,7 +582,7 @@ class Api:
 
     @property
     def user_agent(self):
-        return "W&B Public Client %s" % __version__
+        return "W&B Public Client %s" % wandb.__version__
 
     @property
     def api_key(self):
@@ -873,6 +968,21 @@ class Api:
             project_queue=project_queue,
         )
 
+    def run_queue(
+        self,
+        entity,
+        name,
+    ):
+        """Return the named `RunQueue` for entity.
+
+        To create a new `RunQueue`, use `wandb.Api().create_run_queue(...)`.
+        """
+        return RunQueue(
+            self.client,
+            name,
+            entity,
+        )
+
     @normalize_exceptions
     def sweep(self, path=""):
         """Return a sweep by parsing path in the form `entity/project/sweep_id`.
@@ -923,7 +1033,9 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = wandb.Artifact.from_name(entity, project, artifact_name, self.client)
+        artifact = wandb.Artifact._from_name(
+            entity, project, artifact_name, self.client
+        )
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
@@ -939,6 +1051,75 @@ class Api:
                 "Invalid job specification. A job must be of the form: <entity>/<project>/<job-name>:<alias-or-version>"
             )
         return Job(self, name, path)
+
+    @normalize_exceptions
+    def list_jobs(self, entity, project):
+        if entity is None:
+            raise ValueError("Specify an entity when listing jobs")
+        if project is None:
+            raise ValueError("Specify a project when listing jobs")
+
+        query = gql(
+            """
+        query ArtifactOfType(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactCollections {
+                        edges {
+                            node {
+                                artifacts {
+                                    edges {
+                                        node {
+                                            id
+                                            state
+                                            aliases {
+                                                alias
+                                            }
+                                            artifactSequence {
+                                                name
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+
+        try:
+            artifact_query = self._client.execute(
+                query,
+                {
+                    "projectName": project,
+                    "entityName": entity,
+                    "artifactTypeName": "job",
+                },
+            )
+
+            if not artifact_query or not artifact_query["project"]:
+                wandb.termerror(
+                    f"Project: '{project}' not found in entity: '{entity}' or access denied."
+                )
+                return []
+
+            if artifact_query["project"]["artifactType"] is None:
+                return []
+
+            artifacts = artifact_query["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
+
+            return [x["node"]["artifacts"] for x in artifacts]
+        except requests.exceptions.HTTPError:
+            return False
 
 
 class Attrs:
@@ -1656,6 +1837,7 @@ class Run(Attrs):
         read_only (boolean): Whether the run is editable
         history_keys (str): Keys of the history metrics that have been logged
             with `wandb.log({key: value})`
+        metadata (str): Metadata about the run from wandb-metadata.json
     """
 
     def __init__(
@@ -1688,6 +1870,7 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
+        self._metadata: Optional[Dict[str, Any]] = None
         self._state = _attrs.get("state", "not found")
 
         self.load(force=not _attrs)
@@ -2207,6 +2390,18 @@ class Run(Attrs):
         return self.client.app_url + "/".join(path)
 
     @property
+    def metadata(self):
+        if self._metadata is None:
+            try:
+                f = self.file("wandb-metadata.json")
+                contents = util.download_file_into_memory(f.url, Api().api_key)
+                self._metadata = json_util.loads(contents)
+            except:  # noqa: E722
+                # file doesn't exist, or can't be downloaded, or can't be parsed
+                pass
+        return self._metadata
+
+    @property
     def lastHistoryStep(self):  # noqa: N802
         query = gql(
             """
@@ -2246,7 +2441,7 @@ class Run(Attrs):
 
 
 class QueuedRun:
-    """A single queued run associated with an entity and project. Call `run = wait_until_running()` or `run = wait_until_finished()` methods to access the run."""
+    """A single queued run associated with an entity and project. Call `run = queued_run.wait_until_running()` or `run = queued_run.wait_until_finished()` to access the run."""
 
     def __init__(
         self,
@@ -2451,6 +2646,177 @@ class QueuedRun:
 
     def __repr__(self):
         return f"<QueuedRun {self.queue_name} ({self.id})"
+
+
+RunQueueResourceType = Literal[
+    "local-container", "local-process", "kubernetes", "sagemaker", "gcp-vertex"
+]
+RunQueueAccessType = Literal["project", "user"]
+
+
+class RunQueue:
+    def __init__(
+        self,
+        client: RetryingClient,
+        name: str,
+        entity: str,
+        _access: Optional[RunQueueAccessType] = None,
+        _default_resource_config_id: Optional[int] = None,
+        _default_resource_config: Optional[dict] = None,
+    ) -> None:
+        self._name: str = name
+        self._client = client
+        self._entity = entity
+        self._access = _access
+        self._default_resource_config_id = _default_resource_config_id
+        self._default_resource_config = _default_resource_config
+        self._type = None
+        self._items = None
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def access(self) -> RunQueueAccessType:
+        if self._access is None:
+            self._get_metadata()
+        return self._access
+
+    @property
+    def type(self) -> RunQueueResourceType:
+        if self._type is None:
+            if self._default_resource_config_id is None:
+                self._get_metadata()
+            self._get_default_resource_config()
+        return self._type
+
+    @property
+    def default_resource_config(self):
+        if self._default_resource_config is None:
+            if self._default_resource_config_id is None:
+                self._get_metadata()
+            self._get_default_resource_config()
+        return self._default_resource_config
+
+    @property
+    def items(self) -> List[QueuedRun]:
+        """Up to the first 100 queued runs. Modifying this list will not modify the queue or any enqueued items!"""
+        # TODO(np): Add a paginated interface
+        if self._items is None:
+            self._get_items()
+        return self._items
+
+    def __repr__(self):
+        return f"<RunQueue {self._entity}/{self._name}>"
+
+    @normalize_exceptions
+    def _get_metadata(self):
+        query = gql(
+            """
+            query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueue) {
+                        access
+                        defaultResourceConfigID
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": LAUNCH_DEFAULT_PROJECT,
+            "entityName": self._entity,
+            "runQueue": self._name,
+        }
+        res = self._client.execute(query, variable_values)
+        self._access = res["project"]["runQueue"]["access"]
+        self._default_resource_config_id = res["project"]["runQueue"][
+            "defaultResourceConfigID"
+        ]
+        if self._default_resource_config_id is None:
+            self._default_resource_config = {}
+
+    @normalize_exceptions
+    def _get_default_resource_config(self):
+        query = gql(
+            """
+            query GetDefaultResourceConfig($entityName: String!, $id: ID!) {
+                entity(name: $entityName) {
+                    defaultResourceConfig(id: $id) {
+                        config
+                        resource
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "entityName": self._entity,
+            "id": self._default_resource_config_id,
+        }
+        res = self._client.execute(query, variable_values)
+        self._type = res["entity"]["defaultResourceConfig"]["resource"]
+        self._default_resource_config = res["entity"]["defaultResourceConfig"]["config"]
+
+    @normalize_exceptions
+    def _get_items(self):
+        query = gql(
+            """
+            query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueue) {
+                        runQueueItems(first: 100) {
+                            edges {
+                                node {
+                                    id
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": LAUNCH_DEFAULT_PROJECT,
+            "entityName": self._entity,
+            "runQueue": self._name,
+        }
+        res = self._client.execute(query, variable_values)
+        self._items = []
+        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+            self._items.append(
+                QueuedRun(
+                    self._client,
+                    self._entity,
+                    LAUNCH_DEFAULT_PROJECT,
+                    self._name,
+                    item["node"]["id"],
+                )
+            )
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        resource: "RunQueueResourceType",
+        access: "RunQueueAccessType",
+        entity: Optional[str] = None,
+        config: Optional[dict] = None,
+    ) -> "RunQueue":
+        public_api = Api()
+        return public_api.create_run_queue(
+            name,
+            resource,
+            access,
+            entity,
+            config,
+        )
 
 
 class Sweep(Attrs):
@@ -3075,8 +3441,6 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
-    from pkg_resources import parse_version
-
     SPACER = "----------"
     DECIMAL_SPACER = ";;;"
     FRONTEND_NAME_MAPPING = {
@@ -3116,7 +3480,7 @@ class PythonMongoishQueryGenerator:
         ast.Not: "$not",
     }
 
-    if parse_version(platform.python_version()) >= parse_version("3.8"):
+    if sys.version_info >= (3, 8):
         AST_FIELDS = {
             ast.Constant: "value",
             ast.Name: "id",
@@ -3810,9 +4174,8 @@ class RunArtifacts(Paginator):
                     }
                 }
             }
-            %s
             """
-            % wandb.Artifact.GQL_FRAGMENT
+            + wandb.Artifact._get_gql_artifact_fragment()
         )
 
         input_query = gql(
@@ -3838,9 +4201,8 @@ class RunArtifacts(Paginator):
                     }
                 }
             }
-            %s
             """
-            % wandb.Artifact.GQL_FRAGMENT
+            + wandb.Artifact._get_gql_artifact_fragment()
         )
 
         self.run = run
@@ -3888,7 +4250,7 @@ class RunArtifacts(Paginator):
 
     def convert_objects(self):
         return [
-            wandb.Artifact.from_attrs(
+            wandb.Artifact._from_attrs(
                 self.run.entity,
                 self.run.project,
                 "{}:v{}".format(
@@ -4077,6 +4439,66 @@ class ArtifactCollection:
         self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
+    @normalize_exceptions
+    def is_sequence(self) -> bool:
+        """Return True if this is a sequence."""
+        query = gql(
+            """
+            query FindSequence($entity: String!, $project: String!, $collection: String!, $type: String!) {
+                project(name: $project, entityName: $entity) {
+                    artifactType(name: $type) {
+                        __typename
+                        artifactSequence(name: $collection) {
+                            __typename
+                        }
+                    }
+                }
+            }
+            """
+        )
+        variables = {
+            "entity": self.entity,
+            "project": self.project,
+            "collection": self.name,
+            "type": self.type,
+        }
+        res = self.client.execute(query, variable_values=variables)
+        sequence = res["project"]["artifactType"]["artifactSequence"]
+        return sequence is not None and sequence["__typename"] == "ArtifactSequence"
+
+    @normalize_exceptions
+    def delete(self):
+        """Delete the entire artifact collection."""
+        if self.is_sequence():
+            mutation = gql(
+                """
+                mutation deleteArtifactSequence($id: ID!) {
+                    deleteArtifactSequence(input: {
+                        artifactSequenceID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        else:
+            mutation = gql(
+                """
+                mutation deleteArtifactPortfolio($id: ID!) {
+                    deleteArtifactPortfolio(input: {
+                        artifactPortfolioID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        self.client.execute(mutation, variable_values={"id": self.id})
+
     def __repr__(self):
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
@@ -4142,7 +4564,7 @@ class ArtifactVersions(Paginator):
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
-                wandb.Artifact.GQL_FRAGMENT,
+                wandb.Artifact._get_gql_artifact_fragment(),
             )
         )
         super().__init__(client, variables, per_page)
@@ -4178,7 +4600,7 @@ class ArtifactVersions(Paginator):
         if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
         return [
-            wandb.Artifact.from_attrs(
+            wandb.Artifact._from_attrs(
                 self.entity,
                 self.project,
                 self.collection_name + ":" + a["version"],
@@ -4286,6 +4708,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
     _notebook_job: bool
+    _partial: bool
 
     def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
@@ -4308,6 +4731,7 @@ class Job:
         self._notebook_job = source_info.get("notebook", False)
         self._entrypoint = source_info.get("entrypoint")
         self._args = source_info.get("args")
+        self._partial = self._job_info.get("_partial", False)
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
             self._job_info.get("input_types")
@@ -4315,7 +4739,6 @@ class Job:
         self._output_types = TypeRegistry.type_from_dict(
             self._job_info.get("output_types")
         )
-
         if self._job_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
         if self._job_info.get("source_type") == "repo":
@@ -4333,11 +4756,15 @@ class Job:
     def _get_code_artifact(self, artifact_string):
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
-            code_artifact = wandb.Artifact.from_id(artifact_string, self._api._client)
+            code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
         else:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
+        if code_artifact.state == ArtifactState.DELETED:
+            raise LaunchError(
+                f"Job {self.name} references deleted code artifact {code_artifact.name}"
+            )
         return code_artifact
 
     def _configure_launch_project_notebook(self, launch_project):
@@ -4346,7 +4773,7 @@ class Job:
         )
         new_entrypoint = self._entrypoint
         new_entrypoint[-1] = new_fname
-        launch_project.add_entry_point(new_entrypoint)
+        launch_project.set_entry_point(new_entrypoint)
 
     def _configure_launch_project_repo(self, launch_project):
         git_info = self._job_info.get("source", {}).get("git", {})
@@ -4363,7 +4790,7 @@ class Job:
         if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
-            launch_project.add_entry_point(self._entrypoint)
+            launch_project.set_entry_point(self._entrypoint)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._job_info.get("source", {}).get("artifact")
@@ -4379,7 +4806,7 @@ class Job:
         if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
-            launch_project.add_entry_point(self._entrypoint)
+            launch_project.set_entry_point(self._entrypoint)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._job_info.get("source", {}).get("image")
@@ -4388,7 +4815,7 @@ class Job:
                 "Job had malformed source dictionary without an image key"
             )
         if self._entrypoint:
-            launch_project.add_entry_point(self._entrypoint)
+            launch_project.set_entry_point(self._entrypoint)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint
@@ -4415,8 +4842,13 @@ class Job:
         run_config.update(config)
 
         assigned_config_type = self._input_types.assign(run_config)
-        if isinstance(assigned_config_type, InvalidType):
-            raise TypeError(self._input_types.explain(run_config))
+        if self._partial:
+            wandb.termwarn(
+                "Launching manually created job for the first time, can't verify types"
+            )
+        else:
+            if isinstance(assigned_config_type, InvalidType):
+                raise TypeError(self._input_types.explain(run_config))
 
         queued_run = launch_add.launch_add(
             job=self._name,

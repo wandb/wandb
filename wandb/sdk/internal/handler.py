@@ -40,7 +40,7 @@ from .settings_static import SettingsStatic
 from .system.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import ArtifactDoneRequest, MetricSummary
+    from wandb.proto.wandb_internal_pb2 import MetricSummary
 
 
 SummaryDict = Dict[str, Any]
@@ -80,7 +80,6 @@ class HandleManager:
     _metric_copy: Dict[Tuple[str, ...], Any]
     _track_time: Optional[float]
     _accumulate_time: float
-    _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
     _context_keeper: context.ContextKeeper
 
@@ -119,9 +118,6 @@ class HandleManager:
         self._metric_globs = defaultdict(MetricRecord)
         self._metric_track = dict()
         self._metric_copy = dict()
-
-        # TODO: implement release protocol to clean this up
-        self._artifact_xid_done = dict()
 
     def __len__(self) -> int:
         return self._record_q.qsize()
@@ -290,7 +286,7 @@ class HandleManager:
                 if best_key:
                     _dict_nested_set(self._consolidated_summary, best_key, v)
                     updated = True
-        # defaulting to minimize if goal is not supecified
+        # defaulting to minimize if goal is not specified
         if s.min or best_key and not goal_max:
             min_key = tuple(kl + ["min"])
             old_min = self._metric_track.get(min_key)
@@ -639,44 +635,6 @@ class HandleManager:
     def handle_request_log_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
-    def handle_request_artifact_send(self, record: Record) -> None:
-        assert record.control.req_resp
-        result = proto_util._result_from_record(record)
-
-        self._dispatch_record(record)
-
-        # send response immediately, the request will be polled for result
-        xid = record.uuid
-        result.response.artifact_send_response.xid = xid
-        self._respond_result(result)
-
-    def handle_request_artifact_poll(self, record: Record) -> None:
-        assert record.control.req_resp
-        xid = record.request.artifact_poll.xid
-        assert xid
-
-        result = proto_util._result_from_record(record)
-        done_req = self._artifact_xid_done.get(xid)
-        if done_req:
-            result.response.artifact_poll_response.artifact_id = done_req.artifact_id
-            result.response.artifact_poll_response.error_message = (
-                done_req.error_message
-            )
-            result.response.artifact_poll_response.ready = True
-        self._respond_result(result)
-
-    def handle_request_artifact_done(self, record: Record) -> None:
-        assert not record.control.req_resp
-        done_req = record.request.artifact_done
-        xid = done_req.xid
-        assert xid
-
-        self._artifact_xid_done[xid] = done_req
-
-    # def handle_request_artifact_release(self, record: Record) -> None:
-    #     assert record.control.req_resp
-    #     # TODO: implement release protocol to clean up _artifact_xid_done dict
-
     def handle_telemetry(self, record: Record) -> None:
         self._dispatch_record(record)
 
@@ -716,7 +674,7 @@ class HandleManager:
 
     def handle_request_resume(self, record: Record) -> None:
         if self._system_monitor is not None:
-            logger.info("starting system metrics thread or process")
+            logger.info("starting system metrics thread")
             self._system_monitor.start()
 
         if self._track_time is not None:
@@ -725,7 +683,7 @@ class HandleManager:
 
     def handle_request_pause(self, record: Record) -> None:
         if self._system_monitor is not None:
-            logger.info("stopping system metrics thread or process")
+            logger.info("stopping system metrics thread")
             self._system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
@@ -826,7 +784,11 @@ class HandleManager:
             item.key = key
             values: Iterable[Any] = sampled.get()
             if all(isinstance(i, numbers.Integral) for i in values):
-                item.values_int.extend(values)
+                try:
+                    item.values_int.extend(values)
+                except ValueError:
+                    # it is safe to ignore these as this is for display information
+                    pass
             elif all(isinstance(i, numbers.Real) for i in values):
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
@@ -849,6 +811,9 @@ class HandleManager:
         result = proto_util._result_from_record(record)
         self._respond_result(result)
         self._stopped.set()
+
+    def handle_request_job_info(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
 
     def finish(self) -> None:
         logger.info("shutting down handler")

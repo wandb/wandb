@@ -61,7 +61,7 @@ class RunState(Enum):
     UNKNOWN = "unknown", "alive"
 
     def __new__(cls: Any, *args: List, **kwds: Any) -> "RunState":
-        obj: "RunState" = object.__new__(cls)
+        obj: RunState = object.__new__(cls)
         obj._value_ = args[0]
         return obj
 
@@ -130,10 +130,10 @@ class Scheduler(ABC):
             if resp.get("state") == SchedulerState.CANCELLED.name:
                 self._state = SchedulerState.CANCELLED
             self._sweep_config = yaml.safe_load(resp["config"])
-            self._num_runs_launched: int = len(resp["runs"])
+            self._num_runs_launched: int = self._get_num_runs_launched(resp["runs"])
             if self._num_runs_launched > 0:
                 wandb.termlog(
-                    f"{LOG_PREFIX}Found {self._num_runs_launched} previous runs for sweep {self._sweep_id}"
+                    f"{LOG_PREFIX}Found {self._num_runs_launched} previous valid runs for sweep {self._sweep_id}"
                 )
         except Exception as e:
             raise SchedulerError(
@@ -295,9 +295,11 @@ class Scheduler(ABC):
         self.state = SchedulerState.RUNNING
         try:
             while True:
-                wandb.termlog(f"{LOG_PREFIX}Polling for new runs to launch")
+                self._update_scheduler_run_state()
                 if not self.is_alive:
                     break
+
+                wandb.termlog(f"{LOG_PREFIX}Polling for new runs to launch")
 
                 self._update_run_states()
                 self._poll()
@@ -316,8 +318,17 @@ class Scheduler(ABC):
                         self.state = SchedulerState.FLUSH_RUNS
                         break
 
-                    run: Optional[SweepRun] = self._get_next_sweep_run(worker_id)
-                    if not run:
+                    try:
+                        run: Optional[SweepRun] = self._get_next_sweep_run(worker_id)
+                        if not run:
+                            break
+                    except SchedulerError as e:
+                        raise SchedulerError(e)
+                    except Exception as e:
+                        wandb.termerror(
+                            f"{LOG_PREFIX}Failed to get next sweep run: {e}"
+                        )
+                        self.state = SchedulerState.FAILED
                         break
 
                     if self._add_to_launch_queue(run):
@@ -335,9 +346,8 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler completed successfully")
-            # don't overwrite special states (e.g. STOPPED, FAILED)
-            if self.state in [SchedulerState.RUNNING, SchedulerState.FLUSH_RUNS]:
+            # scheduler succeeds if at runcap
+            if self.state == SchedulerState.FLUSH_RUNS and self.at_runcap:
                 self.state = SchedulerState.COMPLETED
             self.exit()
 
@@ -351,14 +361,41 @@ class Scheduler(ABC):
                 f"{LOG_PREFIX}Failed to save state: {traceback.format_exc()}"
             )
 
-        if self.state not in [
-            SchedulerState.COMPLETED,
-            SchedulerState.STOPPED,
-        ]:
+        status = ""
+        if self.state == SchedulerState.FLUSH_RUNS:
+            self._set_sweep_state("PAUSED")
+            status = "paused"
+        elif self.state == SchedulerState.COMPLETED:
+            self._set_sweep_state("FINISHED")
+            status = "completed"
+        elif self.state in [SchedulerState.CANCELLED, SchedulerState.STOPPED]:
+            self._set_sweep_state("CANCELED")  # one L
+            status = "cancelled"
+            self._stop_runs()
+        else:
             self.state = SchedulerState.FAILED
-        self._stop_runs()
-        self._set_sweep_state("FINISHED")
+            self._set_sweep_state("CRASHED")
+            status = "crashed"
+            self._stop_runs()
+
+        wandb.termlog(f"{LOG_PREFIX}Scheduler {status}")
         self._wandb_run.finish()
+
+    def _get_num_runs_launched(self, runs: List[Dict[str, Any]]) -> int:
+        """Returns the number of valid runs in the sweep."""
+        count = 0
+        for run in runs:
+            # if bad run, shouldn't be counted against run cap
+            if run.get("state", "") in ["killed", "crashed"] and not run.get(
+                "summaryMetrics"
+            ):
+                _logger.debug(
+                    f"excluding run: {run['name']} with state: {run['state']} from run cap \n{run}"
+                )
+                continue
+            count += 1
+
+        return count
 
     def _try_load_executable(self) -> bool:
         """Check existance of valid executable for a run.
@@ -384,12 +421,17 @@ class Scheduler(ABC):
     def _register_agents(self) -> None:
         for worker_id in range(self._num_workers):
             _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
-            agent_config = self._api.register_agent(
-                f"{socket.gethostname()}-{worker_id}",  # host
-                sweep_id=self._sweep_id,
-                project_name=self._project,
-                entity=self._entity,
-            )
+            try:
+                agent_config = self._api.register_agent(
+                    f"{socket.gethostname()}-{worker_id}",  # host
+                    sweep_id=self._sweep_id,
+                    project_name=self._project,
+                    entity=self._entity,
+                )
+            except Exception as e:
+                _logger.debug(f"failed to register agent: {e}")
+                self.fail_sweep(f"failed to register agent: {e}")
+
             self._workers[worker_id] = _Worker(
                 agent_config=agent_config,
                 agent_id=agent_config["id"],
@@ -454,6 +496,34 @@ class Scheduler(ABC):
             _logger.debug(f"error stopping run ({run_id}): {e}")
 
         return False
+
+    def _update_scheduler_run_state(self) -> None:
+        """Update the scheduler state from state of scheduler run and sweep state."""
+        state: RunState = self._get_run_state(self._wandb_run.id)
+
+        # map scheduler run-state to scheduler-state
+        if state == RunState.KILLED:
+            self.state = SchedulerState.STOPPED
+        elif state in [RunState.FAILED, RunState.CRASHED]:
+            self.state = SchedulerState.FAILED
+        elif state == RunState.FINISHED:
+            self.state = SchedulerState.COMPLETED
+
+        # check sweep state for completed states, overwrite scheduler state
+        try:
+            sweep_state = self._api.get_sweep_state(
+                self._sweep_id, self._entity, self._project
+            )
+        except Exception as e:
+            _logger.debug(f"sweep state error: {e}")
+            return
+
+        if sweep_state == "FINISHED":
+            self.state = SchedulerState.COMPLETED
+        elif sweep_state in ["CANCELLED", "STOPPED"]:
+            self.state = SchedulerState.CANCELLED
+        elif sweep_state == "PAUSED":
+            self.state = SchedulerState.FLUSH_RUNS
 
     def _update_run_states(self) -> None:
         """Iterate through runs.
@@ -530,7 +600,7 @@ class Scheduler(ABC):
                 run_state = RunState.UNKNOWN
         except (AttributeError, ValueError):
             wandb.termwarn(
-                f"Bad state ({state}) for run ({run_id}). Error: {traceback.format_exc()}"
+                f"Bad state ({run_state}) for run ({run_id}). Error: {traceback.format_exc()}"
             )
             run_state = RunState.UNKNOWN
         return run_state
@@ -564,6 +634,39 @@ class Scheduler(ABC):
             base64.b64decode(bytes(_id.encode("utf-8"))).decode("utf-8").split(":")[2]
         )
 
+    def _make_entry_and_launch_config(
+        self, run: SweepRun
+    ) -> Tuple[Optional[List[str]], Dict[str, Dict[str, Any]]]:
+        args = create_sweep_command_args({"args": run.args})
+        entry_point, macro_args = make_launch_sweep_entrypoint(
+            args, self._sweep_config.get("command")
+        )
+        # handle program macro
+        if entry_point and "${program}" in entry_point:
+            if not self._sweep_config.get("program"):
+                raise SchedulerError(
+                    f"{LOG_PREFIX}Program macro in command has no corresponding 'program' in sweep config."
+                )
+            pidx = entry_point.index("${program}")
+            entry_point[pidx] = self._sweep_config["program"]
+
+        launch_config = self._wandb_run.config.get("launch", {})
+        if "overrides" not in launch_config:
+            launch_config["overrides"] = {"run_config": {}}
+        launch_config["overrides"]["run_config"].update(args["args_dict"])
+
+        if macro_args:  # pipe in hyperparam args as params to launch
+            launch_config["overrides"]["args"] = macro_args
+
+        if entry_point:
+            unresolved = [x for x in entry_point if str(x).startswith("${")]
+            if unresolved:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Sweep command contains unresolved macros: "
+                    f"{unresolved}, see launch docs for supported macros."
+                )
+        return entry_point, launch_config
+
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
         # job and image first from CLI args, then from sweep config
@@ -575,25 +678,15 @@ class Scheduler(ABC):
         elif _job is not None and _image_uri is not None:
             raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
 
-        args = create_sweep_command_args({"args": run.args})
-        entry_point, macro_args = make_launch_sweep_entrypoint(
-            args, self._sweep_config.get("command")
-        )
-        launch_config = {"overrides": {"run_config": args["args_dict"]}}
-        if macro_args:  # pipe in hyperparam args as params to launch
-            launch_config["overrides"]["args"] = macro_args
-
+        entry_point, launch_config = self._make_entry_and_launch_config(run)
         if entry_point:
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
                 f' {"job" if _job else "image_uri"} entrypoint'
             )
-            unresolved = [x for x in entry_point if str(x).startswith("${")]
-            if unresolved:
-                wandb.termwarn(
-                    f"{LOG_PREFIX}Sweep command contains unresolved macros: "
-                    f"{unresolved}, see launch docs for supported macros."
-                )
+
+        # override resource and args of job
+        _job_launch_config = self._wandb_run.config.get("launch") or {}
 
         run_id = run.id or generate_id()
         queued_run = launch_add(
@@ -606,8 +699,8 @@ class Scheduler(ABC):
             entity=self._entity,
             queue_name=self._kwargs.get("queue"),
             project_queue=self._project_queue,
-            resource=self._kwargs.get("resource", None),
-            resource_args=self._kwargs.get("resource_args", None),
+            resource=_job_launch_config.get("resource"),
+            resource_args=_job_launch_config.get("resource_args"),
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
         )

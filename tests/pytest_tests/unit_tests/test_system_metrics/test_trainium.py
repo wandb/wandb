@@ -919,7 +919,7 @@ def trainium_asset(test_settings) -> AssetInterface:
                 _stats_samples_to_average=1,
                 _stats_pid=1337,
             )
-        ).make_static()
+        ).to_proto()
     )
     shutdown_event = threading.Event()
 

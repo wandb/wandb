@@ -2,7 +2,7 @@ import os
 import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
 
@@ -12,9 +12,10 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
+import wandb.sdk.artifacts.artifacts_cache as artifacts_cache
 from wandb import util
-from wandb.sdk.artifacts import artifacts_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
@@ -1326,6 +1327,56 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
+def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
+    # Create an artifact that references a non-existent S3 object.
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Patch the S3 handler to return a 404 error when checking the ETag.
+    def bad_request(*args, **kwargs):
+        raise util.get_module("botocore").exceptions.ClientError(
+            operation_name="HeadObject",
+            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+        )
+
+    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+
+    with pytest.raises(FileNotFoundError, match="Unable to find"):
+        artifact.download()
+
+
+def test_s3_storage_handler_load_path_missing_reference_allowed(
+    monkeypatch, wandb_init, capsys
+):
+    # Create an artifact that references a non-existent S3 object.
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Patch the S3 handler to return a 404 error when checking the ETag.
+    def bad_request(*args, **kwargs):
+        raise util.get_module("botocore").exceptions.ClientError(
+            operation_name="HeadObject",
+            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+        )
+
+    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+
+    artifact.download(allow_missing_references=True)
+
+    # It should still log a warning about skipping the missing reference.
+    assert "Unable to find my_object.pb" in capsys.readouterr().err
+
+
 def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
@@ -1425,3 +1476,39 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
     # Even though this works in production, the test often fails. I don't know why :(.
     assert found
     assert cache.cleanup(0) == 2**20
+
+
+def test_artifact_ttl_setter_getter():
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed is False
+    assert art._ttl_is_inherited
+
+    art = wandb.Artifact("test", type="test")
+    art.ttl = None
+    assert art.ttl is None
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ArtifactTTL.INHERIT
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited
+
+    ttl_timedelta = timedelta(days=100)
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ttl_timedelta
+    assert art.ttl == ttl_timedelta
+    assert art._ttl_duration_seconds == int(ttl_timedelta.total_seconds())
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ValueError):
+        art.ttl = timedelta(days=-1)

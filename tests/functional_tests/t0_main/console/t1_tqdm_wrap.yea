@@ -6,6 +6,9 @@ depend:
     - tqdm
 command:
   program: test_tqdm.py
+tag:
+  skips:
+    - platform: win
 env:
   - WANDB_CONSOLE: wrap
 assert:

@@ -1,6 +1,6 @@
 <p align="center">
-  <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
-  <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
+  <img src="./docs/README_images/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./docs/README_images/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
 # Contributing to `wandb`
@@ -43,7 +43,7 @@ Please make sure to update the ToC when you update this page!
   * [All changes to objects are reflected in sync data](#all-changes-to-objects-are-reflected-in-sync-data)
   * [Library can be disabled](#library-can-be-disabled)
 - [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
-- [Documentation Generation](#documentation-generation)
+- [Server introspection](#server-introspection)
 - [Deprecating features](#deprecating-features)
 - [Adding URLs](#adding-urls)
 
@@ -624,6 +624,28 @@ TODO: There are lots of cool things we could do with this, currently it just put
 tox -e dev
 ```
 
+### Editable mode:
+
+When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
+
+- During installation, provide the following flags:
+
+  ```shell
+  pip install -e . --config-settings editable_mode=strict
+  ```
+  By doing so, editable mode will correctly identify the relevant files.
+
+
+- Alternatively, you can configure it once using the following command:
+  ```shell
+  pip config set global.config-settings editable_mode=strict
+  ```
+  Once the configuration is in place, you can use the command:
+  ```shell
+  pip install -e .
+  ```
+  without any additional flags, and the strict editable mode will be applied consistently.
+
 ## Library Objectives
 
 ### Supported user interface
@@ -731,7 +753,9 @@ The `Settings` object:
 
 #### Adding a new setting
 
-- Add a new type-annotated `Settings` class attribute.
+- Add a new type-annotated `SettingsData` class attribute.
+- Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
+  - Run `make proto` to re-generate the python stubs.
 - If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
   the template dictionary that the `Settings._default_props` method returns, using the same key name as
   the corresponding class variable.
@@ -741,7 +765,7 @@ The `Settings` object:
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 - Note that individual settings may depend on other settings through validator methods and runtime hooks,
   but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `tox -e generate` -- it will also automatically
+  modification order list with `tox -e auto-codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated
@@ -830,43 +854,18 @@ run.log(dict(this=3))
   - Exit code of program is captured and sent synchronously to internal process as `ExitData`
   - `Run.on_final()` is called to display final information about the run
 
-## Documentation Generation
 
-The documentation generator is broken into two parts:
+## Server introspection
 
-- `generate.py`: Generic documentation generator for wandb/ref
-- `docgen_cli.py`: Documentation generator for wandb CLI
+Some features may depend on a minimum version of the W&B backend service, but this library may be communicating with an outdated backend.  We use the GraphQL introspection schema to determine which features are supported.  See the `*_introspection` methods in [internal_api.py](/wandb/sdk/internal/internal_api.py) for examples.  Depending on the nature of your feature, you may need to introspect:
 
-### `generate.py`
+- If one or more fields on the root `Query` or `Mutation` types exist: [example](/wandb/sdk/internal/internal_api.py#L477)
+- If an input type includes a specific field: [example](/wandb/sdk/internal/internal_api.py#L546)
 
-The following is a road map of how to generate documentation for the reference.
-**Steps**
+You should reuse the generic introspection methods if possible, and cache the introspection result.
 
-1. `pip install git+https://github.com/wandb/tf-docs@wandb-docs` This installs a modified fork of [Tensorflow docs](https://github.com/tensorflow/docs). The modifications are minor templating changes.
-2. `python generate.py` creates the documentation.
+The entire introspection schema is available.  For more info see the [official GraphQL docs](https://graphql.org/learn/introspection/)
 
-**Outputs**
-A folder named `library` in the same folder as the code. The files in the `library` folder are the generated markdown.
-
-**Requirements**
-
-- wandb
-
-### `docgen_cli.py`
-
-**Usage**
-
-```shell
-python docgen_cli.py
-```
-
-**Outputs**
-A file named `cli.md` in the same folder as the code. The file is the generated markdown for the CLI.
-
-**Requirements**
-
-- python >= 3.8
-- wandb
 
 ## Deprecating features
 

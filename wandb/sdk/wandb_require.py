@@ -9,6 +9,7 @@ Example:
     wandb.require("incremental-artifacts@beta")
 """
 
+import os
 from typing import Optional, Sequence, Union
 
 import wandb
@@ -37,6 +38,12 @@ class _Requires:
 
     def require_service(self) -> None:
         self._require_service()
+
+    def _require_nexus(self) -> None:
+        os.environ["WANDB_REQUIRE_NEXUS"] = "True"
+
+    def require_nexus(self) -> None:
+        self._require_nexus()
 
     def apply(self) -> None:
         """Call require_* method for supported features."""

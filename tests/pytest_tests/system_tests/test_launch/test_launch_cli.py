@@ -1,4 +1,5 @@
 import json
+from unittest.mock import Mock
 
 import pytest
 import wandb
@@ -183,7 +184,11 @@ def test_launch_repository_arg(
     ):
         assert repository or "--repository=" in args or "--repository" in args
 
-        return "run"
+        mock_run = Mock()
+        rv = Mock()
+        rv.state = "finished"
+        mock_run.get_status.return_value = rv
+        return mock_run
 
     monkeypatch.setattr(
         "wandb.sdk.launch.launch._run",
@@ -291,7 +296,7 @@ def _setup_agent(monkeypatch, pop_func):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.create_launch_agent",
-        lambda c, e, p, q, g: {"launchAgentId": "mock_agent_id"},
+        lambda c, e, p, q, a, v, g: {"launchAgentId": "mock_agent_id"},
     )
 
 
@@ -361,11 +366,11 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.fail_run_queue_item",
-        lambda c, r: print_then_exit(),
+        lambda c, run_queue_item_id, message, phase, files: print_then_exit(),
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.run_job",
-        lambda a, b: raise_(LaunchError("blah blah")),
+        lambda a, b, c, d: raise_(LaunchError("blah blah")),
     )
 
     monkeypatch.setattr(
@@ -391,3 +396,100 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         print(result.output)
         assert "blah blah" in result.output
         assert "except caught, failed item" in result.output
+
+
+@pytest.mark.parametrize(
+    "path,job_type",
+    [
+        ("./test.py", "code"),
+        ("test.py", "code"),
+    ],
+)
+def test_create_job_no_reqs(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        result = runner.invoke(
+            cli.job,
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert "Could not find requirements.txt file" in result.output
+
+
+@pytest.mark.parametrize(
+    "path,job_type",
+    [
+        ("./test.py", "123"),
+        ("./test.py", ""),
+        (".test.py", "docker"),
+        (".test.py", "repo"),
+    ],
+)
+def test_create_job_bad_type(path, job_type, runner, user):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write("print('hello world')\n")
+
+        with open("requirements.txt", "w") as f:
+            f.write("wandb\n")
+
+        result = runner.invoke(
+            cli.job,
+            ["create", job_type, path, "--entity", user, "--project", "proj"],
+        )
+        print(result.output)
+        assert (
+            "ERROR" in result.output
+            or "Usage: job create [OPTIONS] {git|code|image} PATH" in result.output
+        )
+
+
+def patched_run_run_entry(cmd, dir):
+    print(f"running command: {cmd}")
+    mock_run = Mock()
+    rv = Mock()
+    rv.state = "finished"
+    mock_run.get_status.return_value = rv
+    return mock_run
+
+
+def test_launch_supplied_docker_image(
+    runner,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.pull_docker_image",
+        lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.docker_image_exists",
+        lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
+        patched_run_run_entry,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "--async",
+                "--docker-image",
+                "test:tag",
+            ],
+        )
+
+    print(result)
+    assert result.exit_code == 0
+    assert "-e WANDB_DOCKER=test:tag" in result.output
+    assert " -e WANDB_CONFIG='{}'" in result.output
+    assert "-e WANDB_ARTIFACTS='{}'" in result.output
+    assert "test:tag" in result.output

@@ -1,15 +1,15 @@
 """Artifact class."""
+import concurrent.futures
 import contextlib
-import datetime
 import json
 import multiprocessing.dummy
 import os
-import platform
 import re
 import shutil
 import tempfile
 import time
 from copy import copy
+from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
 from typing import (
@@ -34,29 +34,32 @@ import requests
 import wandb
 from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactFiles, RetryingClient, Run
+from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
     ArtifactManifestV1,
 )
-from wandb.sdk.artifacts.artifact_saver import get_staging_dir
 from wandb.sdk.artifacts.artifact_state import ArtifactState
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
     WaitTimeoutError,
 )
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_layout import StorageLayout
-from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.artifacts.storage_policies import WANDB_STORAGE_POLICY
+from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.sdk.lib import filesystem, runid, telemetry
+from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
@@ -78,63 +81,35 @@ class Artifact:
     `wandb.log_artifact()` to log it.
 
     Arguments:
-        name: (str) A human-readable name for this artifact, which is how you can
-            identify this artifact in the UI or reference it in `use_artifact` calls.
-            Names can contain letters, numbers, underscores, hyphens, and dots. The name
-            must be unique across a project.
-        type: (str) The type of the artifact, which is used to organize and
-            differentiate artifacts. Common types include `dataset` or `model`, but you
-            can use any string containing letters, numbers, underscores, hyphens, and
-            dots.
-        description: (str, optional) Free text that offers a description of the
-            artifact. The description is markdown rendered in the UI, so this is a good
-            place to place tables, links, etc.
-        metadata: (dict, optional) Structured data associated with the artifact, for
-            example class distribution of a dataset. This will eventually be queryable
-            and plottable in the UI. There is a hard limit of 100 total keys.
-
-    Examples:
-        Basic usage
-        ```
-        wandb.init()
-
-        artifact = wandb.Artifact('mnist', type='dataset')
-        artifact.add_dir('mnist/')
-        wandb.log_artifact(artifact)
-        ```
+        name: A human-readable name for this artifact, which is how you can identify
+            this artifact in the UI or reference it in `use_artifact` calls. Names can
+            contain letters, numbers, underscores, hyphens, and dots. The name must be
+            unique across a project.
+        type: The type of the artifact, which is used to organize and differentiate
+            artifacts. Common types include `dataset` or `model`, but you can use any
+            string containing letters, numbers, underscores, hyphens, and dots.
+        description: Free text that offers a description of the artifact. The
+            description is markdown rendered in the UI, so this is a good place to place
+            tables, links, etc.
+        metadata: Structured data associated with the artifact, for example class
+            distribution of a dataset. This will eventually be queryable and plottable
+            in the UI. There is a hard limit of 100 total keys.
 
     Returns:
         An `Artifact` object.
+
+    Examples:
+        Basic usage:
+        ```python
+        wandb.init()
+
+        artifact = wandb.Artifact("mnist", type="dataset")
+        artifact.add_dir("mnist/")
+        wandb.log_artifact(artifact)
+        ```
     """
 
-    TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
-    GQL_FRAGMENT = """
-      fragment ArtifactFragment on Artifact {
-          id
-          artifactSequence {
-              project {
-                  entityName
-                  name
-              }
-              name
-          }
-          versionIndex
-          artifactType {
-              name
-          }
-          description
-          metadata
-          aliases {
-              artifactCollectionName
-              alias
-          }
-          state
-          commitHash
-          fileCount
-          createdAt
-          updatedAt
-      }
-    """
+    _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
 
     def __init__(
         self,
@@ -160,21 +135,22 @@ class Artifact:
 
         # Internal.
         self._client: Optional[RetryingClient] = None
-        storage_layout = (
-            StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
-        )
-        self._storage_policy = WandbStoragePolicy(
-            config={
-                "storageLayout": storage_layout,
-                #  TODO: storage region
-            }
-        )
+
+        storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
+        layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
+        policy_config = {"storageLayout": layout}
+        self._storage_policy = storage_policy_cls.from_config(config=policy_config)
+
         self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
-        self._added_objs: Dict[int, ArtifactManifestEntry] = {}
+        self._added_objs: Dict[
+            int, Tuple[data_types.WBValue, ArtifactManifestEntry]
+        ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
-        self._save_future: Optional["MessageFuture"] = None
-        self._dependent_artifacts: Set["Artifact"] = set()
+        self._save_future: Optional[MessageFuture] = None
+        self._dependent_artifacts: Set[Artifact] = set()
         self._download_roots: Set[str] = set()
+        # Set by new_draft(), otherwise the latest artifact will be used as the base.
+        self._base_id: Optional[str] = None
         # Properties.
         self._id: Optional[str] = None
         self._client_id: str = runid.generate_id(128)
@@ -190,6 +166,9 @@ class Artifact:
         self._type: str = type
         self._description: Optional[str] = description
         self._metadata: dict = self._normalize_metadata(metadata)
+        self._ttl_duration_seconds: Optional[int] = None
+        self._ttl_is_inherited: bool = True
+        self._ttl_changed: bool = False
         self._aliases: List[str] = []
         self._saved_aliases: List[str] = []
         self._distributed_id: Optional[str] = None
@@ -204,15 +183,16 @@ class Artifact:
         self._created_at: Optional[str] = None
         self._updated_at: Optional[str] = None
         self._final: bool = False
+
         # Cache.
-        get_artifacts_cache().store_client_artifact(self)
+        artifact_cache[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
-    def from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
-        artifact = get_artifacts_cache().get_artifact(artifact_id)
+    def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
+        artifact = artifact_cache.get(artifact_id)
         if artifact is not None:
             return artifact
 
@@ -229,7 +209,7 @@ class Artifact:
                 }
             }
             """
-            + cls.GQL_FRAGMENT
+            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -241,10 +221,10 @@ class Artifact:
         entity = attrs["artifactSequence"]["project"]["entityName"]
         project = attrs["artifactSequence"]["project"]["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
-        return cls.from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
-    def from_name(
+    def _from_name(
         cls, entity: str, project: str, name: str, client: RetryingClient
     ) -> "Artifact":
         query = gql(
@@ -261,7 +241,7 @@ class Artifact:
                 }
             }
             """
-            + cls.GQL_FRAGMENT
+            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -276,10 +256,10 @@ class Artifact:
             raise ValueError(
                 f"Unable to fetch artifact with name {entity}/{project}/{name}"
             )
-        return cls.from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
-    def from_attrs(
+    def _from_attrs(
         cls,
         entity: str,
         project: str,
@@ -287,18 +267,22 @@ class Artifact:
         attrs: Dict[str, Any],
         client: RetryingClient,
     ) -> "Artifact":
-        # type="placeholder" is required to skip validation.
-        artifact = cls(name.split(":")[0], type="placeholder")
+        # Placeholder is required to skip validation.
+        artifact = cls("placeholder", type="placeholder")
         artifact._client = client
         artifact._id = attrs["id"]
         artifact._entity = entity
         artifact._project = project
         artifact._name = name
-        version_aliases = [
+        aliases = [
             alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == name.split(":")[0]
-            and util.alias_is_version_index(alias["alias"])
+            for alias in attrs["aliases"]
+            if alias["artifactCollection"]["project"]["entityName"] == entity
+            and alias["artifactCollection"]["project"]["name"] == project
+            and alias["artifactCollection"]["name"] == name.split(":")[0]
+        ]
+        version_aliases = [
+            alias for alias in aliases if util.alias_is_version_index(alias)
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
@@ -313,11 +297,14 @@ class Artifact:
         artifact.metadata = cls._normalize_metadata(
             json.loads(attrs["metadata"] or "{}")
         )
+        artifact._ttl_duration_seconds = artifact._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        artifact._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
+        )
         artifact._aliases = [
-            alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == name.split(":")[0]
-            and not util.alias_is_version_index(alias["alias"])
+            alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
         artifact._saved_aliases = copy(artifact._aliases)
         artifact._state = ArtifactState(attrs["state"])
@@ -331,18 +318,35 @@ class Artifact:
         artifact._updated_at = attrs["updatedAt"]
         artifact._final = True
         # Cache.
-        get_artifacts_cache().store_artifact(artifact)
+
+        assert artifact.id is not None
+        artifact_cache[artifact.id] = artifact
         return artifact
 
     def new_draft(self) -> "Artifact":
         """Create a new draft artifact with the same content as this committed artifact.
 
         The artifact returned can be extended or modified and logged as a new version.
-        """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "new_draft")
 
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
+        """
+        self._ensure_logged("new_draft")
+
+        # Name, _entity and _project are set to the *source* name/entity/project:
+        # if this artifact is saved it must be saved to the source sequence.
         artifact = Artifact(self.source_name.split(":")[0], self.type)
+        artifact._entity = self._source_entity
+        artifact._project = self._source_project
+        artifact._source_entity = self._source_entity
+        artifact._source_project = self._source_project
+
+        # This artifact's parent is the one we are making a draft from.
+        artifact._base_id = self.id
+
+        # We can reuse the client, and copy over all the attributes that aren't
+        # version-dependent and don't depend on having been logged.
+        artifact._client = self._client
         artifact._description = self.description
         artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(
@@ -355,7 +359,7 @@ class Artifact:
     @property
     def id(self) -> Optional[str]:
         """The artifact's ID."""
-        if self._state == ArtifactState.PENDING:
+        if self.is_draft():
             return None
         assert self._id is not None
         return self._id
@@ -363,16 +367,14 @@ class Artifact:
     @property
     def entity(self) -> str:
         """The name of the entity of the secondary (portfolio) artifact collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "entity")
+        self._ensure_logged("entity")
         assert self._entity is not None
         return self._entity
 
     @property
     def project(self) -> str:
         """The name of the project of the secondary (portfolio) artifact collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "project")
+        self._ensure_logged("project")
         assert self._project is not None
         return self._project
 
@@ -393,24 +395,34 @@ class Artifact:
     @property
     def version(self) -> str:
         """The artifact's version in its secondary (portfolio) collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "version")
+        self._ensure_logged("version")
         assert self._version is not None
         return self._version
 
     @property
+    def collection(self) -> ArtifactCollection:
+        """The collection this artifact was retrieved from.
+
+        If this artifact was retrieved from a portfolio / linked collection, that
+        collection will be returned rather than the source sequence.
+        """
+        self._ensure_logged("collection")
+        base_name = self.name.split(":")[0]
+        return ArtifactCollection(
+            self._client, self.entity, self.project, base_name, self.type
+        )
+
+    @property
     def source_entity(self) -> str:
         """The name of the entity of the primary (sequence) artifact collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "source_entity")
+        self._ensure_logged("source_entity")
         assert self._source_entity is not None
         return self._source_entity
 
     @property
     def source_project(self) -> str:
         """The name of the project of the primary (sequence) artifact collection."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "source_project")
+        self._ensure_logged("source_project")
         assert self._source_project is not None
         return self._source_project
 
@@ -434,10 +446,18 @@ class Artifact:
 
         A string with the format "v{number}".
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "source_version")
+        self._ensure_logged("source_version")
         assert self._source_version is not None
         return self._source_version
+
+    @property
+    def source_collection(self) -> ArtifactCollection:
+        """The artifact's primary (sequence) collection."""
+        self._ensure_logged("source_collection")
+        base_name = self.source_name.split(":")[0]
+        return ArtifactCollection(
+            self._client, self.source_entity, self.source_project, base_name, self.type
+        )
 
     @property
     def type(self) -> str:
@@ -448,8 +468,7 @@ class Artifact:
     def description(self) -> Optional[str]:
         """The artifact description.
 
-        Returns:
-            (str): Free text that offers a user-set description of the artifact.
+        Free text that offers a user-set description of the artifact.
         """
         return self._description
 
@@ -469,8 +488,7 @@ class Artifact:
     def metadata(self) -> dict:
         """User-defined artifact metadata.
 
-        Returns:
-            (dict): Structured data associated with the artifact.
+        Structured data associated with the artifact.
         """
         return self._metadata
 
@@ -484,9 +502,59 @@ class Artifact:
         Note: There is currently a limit of 100 total keys.
 
         Arguments:
-            metadata: (dict) Structured data associated with the artifact.
+            metadata: Structured data associated with the artifact.
         """
         self._metadata = self._normalize_metadata(metadata)
+
+    @property
+    def ttl(self) -> Union[timedelta, None]:
+        """Time To Live (TTL).
+
+        The artifact will be deleted shortly after TTL since its creation.
+        None means the artifact will never expire.
+        If TTL is not set on an artifact, it will inherit the default for its collection.
+
+        Raises:
+            ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
+        """
+        if self._ttl_is_inherited and (self.is_draft() or self._ttl_changed):
+            raise ArtifactNotLoggedError(self, "ttl")
+        if self._ttl_duration_seconds is None:
+            return None
+        return timedelta(seconds=self._ttl_duration_seconds)
+
+    @ttl.setter
+    def ttl(self, ttl: Union[timedelta, ArtifactTTL, None]) -> None:
+        """Time To Live (TTL).
+
+        The artifact will be deleted shortly after TTL since its creation. None means the artifact will never expire.
+        If TTL is not set on an artifact, it will inherit the default TTL rules for its collection.
+
+        Arguments:
+            ttl: How long the artifact will remain active from its creation.
+                - Timedelta must be positive.
+                - `None` means the artifact will never expire.
+                - wandb.ArtifactTTL.INHERIT will set the TTL to go back to the default and inherit from collection rules.
+        """
+        if self.type == "wandb-history":
+            raise ValueError("Cannot set artifact TTL for type wandb-history")
+
+        self._ttl_changed = True
+        if isinstance(ttl, ArtifactTTL):
+            if ttl == ArtifactTTL.INHERIT:
+                self._ttl_is_inherited = True
+            else:
+                raise ValueError(f"Unhandled ArtifactTTL enum {ttl}")
+        else:
+            self._ttl_is_inherited = False
+            if ttl is None:
+                self._ttl_duration_seconds = None
+            else:
+                if ttl.total_seconds() <= 0:
+                    raise ValueError(
+                        f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
+                    )
+                self._ttl_duration_seconds = int(ttl.total_seconds())
 
     @property
     def aliases(self) -> List[str]:
@@ -494,15 +562,13 @@ class Artifact:
 
         The list is mutable and calling `save()` will persist all alias changes.
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "aliases")
+        self._ensure_logged("aliases")
         return self._aliases
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
         """Set the aliases associated with this artifact."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "aliases")
+        self._ensure_logged("aliases")
 
         if any(char in alias for alias in aliases for char in ["/", ":"]):
             raise ValueError(
@@ -585,9 +651,7 @@ class Artifact:
     def size(self) -> int:
         """The total size of the artifact in bytes.
 
-        Returns:
-            (int): The size in bytes of the artifact. Includes any references tracked by
-                this artifact.
+        Includes any references tracked by this artifact.
         """
         total_size: int = 0
         for entry in self.manifest.entries.values():
@@ -597,36 +661,29 @@ class Artifact:
 
     @property
     def commit_hash(self) -> str:
-        """The hash returned when this artifact was committed.
-
-        Returns:
-            (str): The artifact's commit hash which is used in http URLs.
-        """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "commit_hash")
+        """The hash returned when this artifact was committed."""
+        self._ensure_logged("commit_hash")
         assert self._commit_hash is not None
         return self._commit_hash
 
     @property
     def file_count(self) -> int:
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "file_count")
+        """The number of files (including references)."""
+        self._ensure_logged("file_count")
         assert self._file_count is not None
         return self._file_count
 
     @property
     def created_at(self) -> str:
         """The time at which the artifact was created."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "created_at")
+        self._ensure_logged("created_at")
         assert self._created_at is not None
         return self._created_at
 
     @property
     def updated_at(self) -> str:
         """The time at which the artifact was last updated."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "created_at")
+        self._ensure_logged("updated_at")
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
@@ -636,9 +693,6 @@ class Artifact:
         """Mark this artifact as final, disallowing further modifications.
 
         This happens automatically when calling `log_artifact`.
-
-        Returns:
-            None
         """
         self._final = True
 
@@ -646,7 +700,12 @@ class Artifact:
         if self._final:
             raise ArtifactFinalizedError(artifact=self)
 
+    def _ensure_logged(self, attr: Optional[str] = None) -> None:
+        if self.is_draft():
+            raise ArtifactNotLoggedError(self, attr)
+
     def is_draft(self) -> bool:
+        """Whether the artifact is a draft, i.e. it hasn't been saved yet."""
         return self._state == ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
@@ -663,13 +722,10 @@ class Artifact:
         run, a run of type "auto" will be created to track this artifact.
 
         Arguments:
-            project: (str, optional) A project to use for the artifact in the case that
-                a run is not already in context
-            settings: (wandb.Settings, optional) A settings object to use when
-                initializing an automatic run. Most commonly used in testing harness.
-
-        Returns:
-            None
+            project: A project to use for the artifact in the case that a run is not
+                already in context
+            settings: A settings object to use when initializing an automatic run. Most
+                commonly used in testing harness.
         """
         if self._state != ArtifactState.PENDING:
             return self._update()
@@ -681,7 +737,12 @@ class Artifact:
         if wandb.run is None:
             if settings is None:
                 settings = wandb.Settings(silent="true")
-            with wandb.init(project=project, job_type="auto", settings=settings) as run:
+            with wandb.init(
+                entity=self._source_entity,
+                project=project or self._source_project,
+                job_type="auto",
+                settings=settings,
+            ) as run:
                 # redoing this here because in this branch we know we didn't
                 # have the run at the beginning of the method
                 if self._incremental:
@@ -701,12 +762,9 @@ class Artifact:
         """Wait for this artifact to finish logging, if needed.
 
         Arguments:
-            timeout: (int, optional) Wait up to this long.
-
-        Returns:
-            Artifact
+            timeout: Wait up to this long.
         """
-        if self._state == ArtifactState.PENDING:
+        if self.is_draft():
             if self._save_future is None:
                 raise ArtifactNotLoggedError(self, "wait")
             result = self._save_future.get(timeout)
@@ -721,8 +779,7 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        query = gql(
-            """
+        query_template = """
             query ArtifactByIDShort($id: ID!) {
                 artifact(id: $id) {
                     artifactSequence {
@@ -733,8 +790,16 @@ class Artifact:
                         name
                     }
                     versionIndex
+                    ttlDurationSeconds
+                    ttlIsInherited
                     aliases {
-                        artifactCollectionName
+                        artifactCollection {
+                            project {
+                                entityName
+                                name
+                            }
+                            name
+                        }
                         alias
                     }
                     state
@@ -749,8 +814,16 @@ class Artifact:
                     updatedAt
                 }
             }
-            """
-        )
+        """
+
+        fields = InternalApi().server_artifact_introspection()
+        if "ttlIsInherited" not in fields:
+            query_template = query_template.replace("ttlDurationSeconds", "").replace(
+                "ttlIsInherited",
+                "",
+            )
+        query = gql(query_template)
+
         assert self._client is not None
         response = self._client.execute(
             query,
@@ -770,18 +843,23 @@ class Artifact:
         self._source_project = self._project
         self._source_name = self._name
         self._source_version = self._version
+        self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        self._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
+        )
+        self._ttl_changed = False  # Reset after saving artifact
         self._aliases = [
             alias["alias"]
-            for alias in attrs.get("aliases", [])
-            if alias["artifactCollectionName"] == self._name.split(":")[0]
+            for alias in attrs["aliases"]
+            if alias["artifactCollection"]["project"]["entityName"] == self._entity
+            and alias["artifactCollection"]["project"]["name"] == self._project
+            and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
         ]
         self._state = ArtifactState(attrs["state"])
-        with requests.get(attrs["currentManifest"]["file"]["directUrl"]) as request:
-            request.raise_for_status()
-            self._manifest = ArtifactManifest.from_manifest_json(
-                json.loads(util.ensure_text(request.content))
-            )
+        self._load_manifest(attrs["currentManifest"]["file"]["directUrl"])
         self._commit_hash = attrs["commitHash"]
         self._file_count = attrs["fileCount"]
         self._created_at = attrs["createdAt"]
@@ -880,12 +958,12 @@ class Artifact:
                 for alias in self._aliases
             ]
 
-        mutation = gql(
-            """
+        mutation_template = """
             mutation updateArtifact(
                 $artifactID: ID!,
                 $description: String,
                 $metadata: JSONString,
+                _TTL_DURATION_SECONDS_TYPE_
                 $aliases: [ArtifactAliasInput!]
             ) {
                 updateArtifact(
@@ -893,26 +971,68 @@ class Artifact:
                         artifactID: $artifactID,
                         description: $description,
                         metadata: $metadata,
+                        _TTL_DURATION_SECONDS_VALUE_
                         aliases: $aliases
                     }
                 ) {
                     artifact {
                         id
+                        _TTL_DURATION_SECONDS_FIELDS_
                     }
                 }
             }
-            """
-        )
+        """
+        fields = InternalApi().server_artifact_introspection()
+        if "ttlIsInherited" in fields:
+            mutation_template = (
+                mutation_template.replace(
+                    "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
+                )
+                .replace(
+                    "_TTL_DURATION_SECONDS_VALUE_",
+                    "ttlDurationSeconds: $ttlDurationSeconds,",
+                )
+                .replace(
+                    "_TTL_DURATION_SECONDS_FIELDS_", "ttlDurationSeconds ttlIsInherited"
+                )
+            )
+        else:
+            if self._ttl_changed:
+                termwarn(
+                    "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
+                )
+            mutation_template = (
+                mutation_template.replace("_TTL_DURATION_SECONDS_TYPE_", "")
+                .replace(
+                    "_TTL_DURATION_SECONDS_VALUE_",
+                    "",
+                )
+                .replace("_TTL_DURATION_SECONDS_FIELDS_", "")
+            )
+        mutation = gql(mutation_template)
         assert self._client is not None
-        self._client.execute(
+
+        ttl_duration_input = self._ttl_duration_seconds_to_gql()
+        response = self._client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
+                "ttlDurationSeconds": ttl_duration_input,
                 "aliases": aliases,
             },
         )
+        attrs = response["updateArtifact"]["artifact"]
+
+        # Update ttl_duration_seconds based on updateArtifact
+        self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        self._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
+        )
+        self._ttl_changed = False  # Reset after updating artifact
 
     # Adding, removing, getting entries.
 
@@ -920,24 +1040,26 @@ class Artifact:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
-            name: (str) The artifact relative name to get
+            name: The artifact relative name to get
 
         Raises:
             ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
 
         Examples:
-            Basic usage
-            ```
-            artifact = wandb.Artifact('my_table', 'dataset')
-            table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
+            Basic usage:
+            ```python
+            artifact = wandb.Artifact("my_table", type="dataset")
+            table = wandb.Table(
+                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
+            )
             artifact["my_table"] = table
 
             wandb.log_artifact(artifact)
             ```
 
             Retrieving an object:
-            ```
-            artifact = wandb.use_artifact('my_table:latest')
+            ```python
+            artifact = wandb.use_artifact("my_table:latest")
             table = artifact["my_table"]
             ```
         """
@@ -947,28 +1069,30 @@ class Artifact:
         """Add `item` to the artifact at path `name`.
 
         Arguments:
-            name: (str) The path within the artifact to add the object.
-            item: (wandb.WBValue) The object to add.
+            name: The path within the artifact to add the object.
+            item: The object to add.
 
         Returns:
-            ArtifactManifestEntry: the added manifest entry
+            The added manifest entry
 
         Raises:
             ArtifactFinalizedError: if the artifact has already been finalized.
 
         Examples:
-            Basic usage
-            ```
-            artifact = wandb.Artifact('my_table', 'dataset')
-            table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
+            Basic usage:
+            ```python
+            artifact = wandb.Artifact("my_table", type="dataset")
+            table = wandb.Table(
+                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
+            )
             artifact["my_table"] = table
 
             wandb.log_artifact(artifact)
             ```
 
             Retrieving an object:
-            ```
-            artifact = wandb.use_artifact('my_table:latest')
+            ```python
+            artifact = wandb.use_artifact("my_table:latest")
             table = artifact["my_table"]
             ```
         """
@@ -981,24 +1105,24 @@ class Artifact:
         """Open a new temporary file that will be automatically added to the artifact.
 
         Arguments:
-            name: (str) The name of the new file being added to the artifact.
-            mode: (str, optional) The mode in which to open the new file.
-            encoding: (str, optional) The encoding in which to open the new file.
-
-        Examples:
-            ```
-            artifact = wandb.Artifact('my_data', type='dataset')
-            with artifact.new_file('hello.txt') as f:
-                f.write('hello!')
-            wandb.log_artifact(artifact)
-            ```
+            name: The name of the new file being added to the artifact.
+            mode: The mode in which to open the new file.
+            encoding: The encoding in which to open the new file.
 
         Returns:
-            (file): A new file object that can be written to. Upon closing,
-                the file will be automatically added to the artifact.
+            A new file object that can be written to. Upon closing, the file will be
+            automatically added to the artifact.
 
         Raises:
             ArtifactFinalizedError: if the artifact has already been finalized.
+
+        Examples:
+            ```python
+            artifact = wandb.Artifact("my_data", type="dataset")
+            with artifact.new_file("hello.txt") as f:
+                f.write("hello!")
+            wandb.log_artifact(artifact)
+            ```
         """
         self._ensure_can_add()
         if self._tmp_dir is None:
@@ -1029,31 +1153,30 @@ class Artifact:
         """Add a local file to the artifact.
 
         Arguments:
-            local_path: (str) The path to the file being added.
-            name: (str, optional) The path within the artifact to use for the file being
-                added. Defaults to the basename of the file.
-            is_tmp: (bool, optional) If true, then the file is renamed deterministically
-                to avoid collisions. (default: False)
+            local_path: The path to the file being added.
+            name: The path within the artifact to use for the file being added. Defaults
+                to the basename of the file.
+            is_tmp: If true, then the file is renamed deterministically to avoid
+                collisions.
+
+        Returns:
+            The added manifest entry
+
+        Raises:
+            ArtifactFinalizedError: if the artifact has already been finalized
 
         Examples:
             Add a file without an explicit name:
-            ```
+            ```python
             # Add as `file.txt'
-            artifact.add_file('path/to/file.txt')
+            artifact.add_file("path/to/file.txt")
             ```
 
             Add a file with an explicit name:
-            ```
+            ```python
             # Add as 'new/path/file.txt'
-            artifact.add_file('path/to/file.txt', name='new/path/file.txt')
+            artifact.add_file("path/to/file.txt", name="new/path/file.txt")
             ```
-
-        Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
-
-        Returns:
-            ArtifactManifestEntry: the added manifest entry
-
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
@@ -1074,28 +1197,25 @@ class Artifact:
         """Add a local directory to the artifact.
 
         Arguments:
-            local_path: (str) The path to the directory being added.
-            name: (str, optional) The path within the artifact to use for the directory
-                being added. Defaults to the root of the artifact.
+            local_path: The path to the directory being added.
+            name: The path within the artifact to use for the directory being added.
+                Defaults to the root of the artifact.
+
+        Raises:
+            ArtifactFinalizedError: if the artifact has already been finalized
 
         Examples:
             Add a directory without an explicit name:
-            ```
+            ```python
             # All files in `my_dir/` are added at the root of the artifact.
-            artifact.add_dir('my_dir/')
+            artifact.add_dir("my_dir/")
             ```
 
             Add a directory and name it explicitly:
-            ```
+            ```python
             # All files in `my_dir/` are added under `destination/`.
-            artifact.add_dir('my_dir/', name='destination')
+            artifact.add_dir("my_dir/", name="destination")
             ```
-
-        Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
-
-        Returns:
-            None
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
@@ -1120,8 +1240,6 @@ class Artifact:
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
             self._add_local_file(logical_path, physical_path)
-
-        import multiprocessing.dummy  # this uses threads
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
@@ -1163,43 +1281,43 @@ class Artifact:
         blank.
 
         Arguments:
-            uri: (str) The URI path of the reference to add. Can be an object returned
-                from Artifact.get_path to store a reference to another artifact's entry.
-            name: (str) The path within the artifact to place the contents of this
-                reference
-            checksum: (bool, optional) Whether or not to checksum the resource(s)
-                located at the reference URI. Checksumming is strongly recommended as it
-                enables automatic integrity validation, however it can be disabled to
-                speed up artifact creation. (default: True)
-            max_objects: (int, optional) The maximum number of objects to consider when
-                adding a reference that points to directory or bucket store prefix. For
-                S3 and GCS, this limit is 10,000 by default but is uncapped for other
-                URI schemes. (default: None)
+            uri: The URI path of the reference to add. Can be an object returned from
+                Artifact.get_path to store a reference to another artifact's entry.
+            name: The path within the artifact to place the contents of this reference
+            checksum: Whether or not to checksum the resource(s) located at the
+                reference URI. Checksumming is strongly recommended as it enables
+                automatic integrity validation, however it can be disabled to speed up
+                artifact creation. (default: True)
+            max_objects: The maximum number of objects to consider when adding a
+                reference that points to directory or bucket store prefix. For S3 and
+                GCS, this limit is 10,000 by default but is uncapped for other URI
+                schemes. (default: None)
+
+        Returns:
+            The added manifest entries.
 
         Raises:
             ArtifactFinalizedError: if the artifact has already been finalized.
 
-        Returns:
-            List["ArtifactManifestEntry"]: The added manifest entries.
-
         Examples:
-        Add an HTTP link:
-        ```python
-        # Adds `file.txt` to the root of the artifact as a reference.
-        artifact.add_reference("http://myserver.com/file.txt")
-        ```
+            Add an HTTP link:
+            ```python
+            # Adds `file.txt` to the root of the artifact as a reference.
+            artifact.add_reference("http://myserver.com/file.txt")
+            ```
 
-        Add an S3 prefix without an explicit name:
-        ```python
-        # All objects under `prefix/` will be added at the root of the artifact.
-        artifact.add_reference("s3://mybucket/prefix")
-        ```
+            Add an S3 prefix without an explicit name:
+            ```python
+            # All objects under `prefix/` will be added at the root of the artifact.
+            artifact.add_reference("s3://mybucket/prefix")
+            ```
 
-        Add a GCS prefix with an explicit name:
-        ```python
-        # All objects under `prefix/` will be added under `path/` at the artifact root.
-        artifact.add_reference("gs://mybucket/prefix", name="path")
-        ```
+            Add a GCS prefix with an explicit name:
+            ```python
+            # All objects under `prefix/` will be added under `path/` at the artifact
+            # root.
+            artifact.add_reference("gs://mybucket/prefix", name="path")
+            ```
         """
         self._ensure_can_add()
         if name is not None:
@@ -1232,35 +1350,33 @@ class Artifact:
     def add(self, obj: data_types.WBValue, name: StrPath) -> ArtifactManifestEntry:
         """Add wandb.WBValue `obj` to the artifact.
 
-        ```
-        obj = artifact.get(name)
-        ```
-
         Arguments:
-            obj: (wandb.WBValue) The object to add. Currently support one of
-                Bokeh, JoinedTable, PartitionedTable, Table, Classes, ImageMask,
-                BoundingBoxes2D, Audio, Image, Video, Html, Object3D
-            name: (str) The path within the artifact to add the object.
+            obj: The object to add. Currently support one of Bokeh, JoinedTable,
+                PartitionedTable, Table, Classes, ImageMask, BoundingBoxes2D, Audio,
+                Image, Video, Html, Object3D
+            name: The path within the artifact to add the object.
 
         Returns:
-            ArtifactManifestEntry: the added manifest entry
+            The added manifest entry
 
         Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
+            ArtifactFinalizedError: if the artifact has already been finalized
 
         Examples:
-            Basic usage
-            ```
-            artifact = wandb.Artifact('my_table', 'dataset')
-            table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
+            Basic usage:
+            ```python
+            artifact = wandb.Artifact("my_table", type="dataset")
+            table = wandb.Table(
+                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
+            )
             artifact.add(table, "my_table")
 
             wandb.log_artifact(artifact)
             ```
 
             Retrieve an object:
-            ```
-            artifact = wandb.use_artifact('my_table:latest')
+            ```python
+            artifact = wandb.use_artifact("my_table:latest")
             table = artifact.get("my_table")
             ```
         """
@@ -1301,7 +1417,7 @@ class Artifact:
 
         obj_id = id(obj)
         if obj_id in self._added_objs:
-            return self._added_objs[obj_id]
+            return self._added_objs[obj_id][1]
 
         # If the object is coming from another artifact, save it as a reference
         ref_path = obj._get_artifact_entry_ref_url()
@@ -1321,7 +1437,7 @@ class Artifact:
             f.write(json.dumps(val, sort_keys=True))
 
         if is_tmp_name:
-            file_path = os.path.join(self.TMP_DIR.name, str(id(self)), name)
+            file_path = os.path.join(self._TMP_DIR.name, str(id(self)), name)
             folder_path, _ = os.path.split(file_path)
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
@@ -1336,7 +1452,8 @@ class Artifact:
         # It will be added again later on finalize, but succeed since
         # the checksum should match
         entry = self.add_file(file_path, name, is_tmp_name)
-        self._added_objs[obj_id] = entry
+        # We store a reference to the obj so that its id doesn't get reused.
+        self._added_objs[obj_id] = (obj, entry)
         if obj._artifact_target is None:
             obj._set_artifact_target(self, entry.path)
 
@@ -1369,16 +1486,13 @@ class Artifact:
         """Remove an item from the artifact.
 
         Arguments:
-            item: (str, os.PathLike, ArtifactManifestEntry) the item to remove. Can be a
-                specific manifest entry or the name of an artifact-relative path. If the
-                item matches a directory all items in that directory will be removed.
+            item: the item to remove. Can be a specific manifest entry or the name of an
+                artifact-relative path. If the item matches a directory all items in
+                that directory will be removed.
 
         Raises:
             ArtifactFinalizedError: if the artifact has already been finalized.
             FileNotFoundError: if the item isn't found in the artifact.
-
-        Returns:
-            None
         """
         self._ensure_can_add()
 
@@ -1399,34 +1513,34 @@ class Artifact:
             self.manifest.remove_entry(entry)
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
-        """Get the path to the file located at the artifact relative `name`.
+        """Get the entry with the given name.
 
         Arguments:
-            name: (str) The artifact relative name to get
+            name: The artifact relative name to get
 
         Raises:
             ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
+            KeyError: if the artifact doesn't contain an entry with the given name
 
         Examples:
-            Basic usage
-            ```
+            Basic usage:
+            ```python
             # Run logging the artifact
             with wandb.init() as r:
-                artifact = wandb.Artifact('my_dataset', type='dataset')
-                artifact.add_file('path/to/file.txt')
+                artifact = wandb.Artifact("my_dataset", type="dataset")
+                artifact.add_file("path/to/file.txt")
                 wandb.log_artifact(artifact)
 
             # Run using the artifact
             with wandb.init() as r:
-                artifact = r.use_artifact('my_dataset:latest')
-                path = artifact.get_path('file.txt')
+                artifact = r.use_artifact("my_dataset:latest")
+                path = artifact.get_path("file.txt")
 
                 # Can now download 'file.txt' directly:
                 path.download()
             ```
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "get_path")
+        self._ensure_logged("get_path")
 
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
@@ -1439,29 +1553,30 @@ class Artifact:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
-            name: (str) The artifact relative name to get
+            name: The artifact relative name to get
 
         Raises:
             ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
 
         Examples:
-            Basic usage
-            ```
+            Basic usage:
+            ```python
             # Run logging the artifact
             with wandb.init() as r:
-                artifact = wandb.Artifact('my_dataset', type='dataset')
-                table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
+                artifact = wandb.Artifact("my_dataset", type="dataset")
+                table = wandb.Table(
+                    columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
+                )
                 artifact.add(table, "my_table")
                 wandb.log_artifact(artifact)
 
             # Run using the artifact
             with wandb.init() as r:
-                artifact = r.use_artifact('my_dataset:latest')
-                table = r.get('my_table')
+                artifact = r.use_artifact("my_dataset:latest")
+                table = artifact.get("my_table")
             ```
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "get")
+        self._ensure_logged("get")
 
         entry, wb_class = self._get_obj_entry(name)
         if entry is None or wb_class is None:
@@ -1469,9 +1584,11 @@ class Artifact:
 
         # If the entry is a reference from another artifact, then get it directly from
         # that artifact.
-        if entry._is_artifact_reference():
+        referenced_id = entry._referenced_artifact_id()
+        if referenced_id:
             assert self._client is not None
-            artifact = entry._get_referenced_artifact(self._client)
+            artifact = self._from_id(referenced_id, client=self._client)
+            assert artifact is not None
             return artifact.get(util.uri_from_path(entry.ref))
 
         # Special case for wandb.Table. This is intended to be a short term
@@ -1499,19 +1616,19 @@ class Artifact:
         """Get the artifact relative name of a file added by a local filesystem path.
 
         Arguments:
-            local_path: (str) The local path to resolve into an artifact relative name.
+            local_path: The local path to resolve into an artifact relative name.
 
         Returns:
-            str: The artifact relative name.
+            The artifact relative name.
 
         Examples:
-            Basic usage
-            ```
-            artifact = wandb.Artifact('my_dataset', type='dataset')
-            artifact.add_file('path/to/file.txt', name='artifact/path/file.txt')
+            Basic usage:
+            ```python
+            artifact = wandb.Artifact("my_dataset", type="dataset")
+            artifact.add_file("path/to/file.txt", name="artifact/path/file.txt")
 
             # Returns `artifact/path/file.txt`:
-            name = artifact.get_added_local_path_name('path/to/file.txt')
+            name = artifact.get_added_local_path_name("path/to/file.txt")
             ```
         """
         entry = self._added_local_paths.get(local_path, None)
@@ -1529,8 +1646,8 @@ class Artifact:
         able to resolve a name, without tasking the user with appending .THING.json.
         This method returns an entry if it exists by a suffixed name.
 
-        Args:
-            name: (str) name used when adding
+        Arguments:
+            name: name used when adding
         """
         for wb_class in WBValue.type_mapping().values():
             wandb_file_name = wb_class.with_suffix(name)
@@ -1542,7 +1659,10 @@ class Artifact:
     # Downloading.
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
+        self,
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1551,15 +1671,17 @@ class Artifact:
         match the artifact.
 
         Arguments:
-            root: (str, optional) The directory in which to download this artifact's files.
-            recursive: (bool, optional) If true, then all dependent artifacts are eagerly
-                downloaded. Otherwise, the dependent artifacts are downloaded as needed.
+            root: The directory in which to download this artifact's files.
+            recursive: If true, then all dependent artifacts are eagerly downloaded.
+                Otherwise, the dependent artifacts are downloaded as needed.
 
         Returns:
-            (str): The path to the downloaded contents.
+            The path to the downloaded contents.
+
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "download")
+        self._ensure_logged("download")
 
         root = root or self._default_root()
         self._add_download_root(root)
@@ -1574,11 +1696,11 @@ class Artifact:
                     self.name, size / (1024 * 1024), nfiles
                 ),
             )
-            start_time = datetime.datetime.now()
+            start_time = datetime.now()
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
-        def _download_file(
-            name: str,
+        def _download_entry(
+            entry: ArtifactManifestEntry,
             api_key: Optional[str],
             cookies: Optional[Dict],
             headers: Optional[Dict],
@@ -1587,26 +1709,52 @@ class Artifact:
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
 
-            self.get_path(name).download(root)
+            try:
+                entry.download(root)
+            except FileNotFoundError as e:
+                if allow_missing_references:
+                    wandb.termwarn(str(e))
+                    return
+                raise
             download_logger.notify_downloaded()
 
-        pool = multiprocessing.dummy.Pool(32)
-        pool.map(
-            partial(
-                _download_file,
-                api_key=_thread_local_api_settings.api_key,
-                cookies=_thread_local_api_settings.cookies,
-                headers=_thread_local_api_settings.headers,
-            ),
-            self.manifest.entries,
+        download_entry = partial(
+            _download_entry,
+            api_key=_thread_local_api_settings.api_key,
+            cookies=_thread_local_api_settings.cookies,
+            headers=_thread_local_api_settings.headers,
         )
+
+        with concurrent.futures.ThreadPoolExecutor(64) as executor:
+            active_futures = set()
+            has_next_page = True
+            cursor = None
+            while has_next_page:
+                attrs = self._fetch_file_urls(cursor)
+                has_next_page = attrs["pageInfo"]["hasNextPage"]
+                cursor = attrs["pageInfo"]["endCursor"]
+                for edge in attrs["edges"]:
+                    entry = self.get_path(edge["node"]["name"])
+                    entry._download_url = edge["node"]["directUrl"]
+                    active_futures.add(executor.submit(download_entry, entry))
+                # Wait for download threads to catch up.
+                max_backlog = 5000
+                if len(active_futures) > max_backlog:
+                    for future in concurrent.futures.as_completed(active_futures):
+                        future.result()  # check for errors
+                        active_futures.remove(future)
+                        if len(active_futures) <= max_backlog:
+                            break
+            # Check for errors.
+            for future in concurrent.futures.as_completed(active_futures):
+                future.result()
+
         if recursive:
-            pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
-        pool.close()
-        pool.join()
+            for dependent_artifact in self._dependent_artifacts:
+                dependent_artifact.download()
 
         if log:
-            now = datetime.datetime.now()
+            now = datetime.now()
             delta = abs((now - start_time).total_seconds())
             hours = int(delta // 3600)
             minutes = int((delta - hours * 3600) // 60)
@@ -1617,6 +1765,39 @@ class Artifact:
             )
         return FilePathStr(root)
 
+    @retry.retriable(
+        retry_timedelta=timedelta(minutes=3),
+        retryable_exceptions=(requests.RequestException),
+    )
+    def _fetch_file_urls(self, cursor: Optional[str]) -> Any:
+        query = gql(
+            """
+            query ArtifactFileURLs($id: ID!, $cursor: String) {
+                artifact(id: $id) {
+                    files(after: $cursor, first: 5000) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                directUrl
+                            }
+                        }
+                    }
+                }
+            }
+            """
+        )
+        assert self._client is not None
+        response = self._client.execute(
+            query,
+            variable_values={"id": self.id, "cursor": cursor},
+            timeout=60,
+        )
+        return response["artifact"]["files"]
+
     def checkout(self, root: Optional[str] = None) -> str:
         """Replace the specified root directory with the contents of the artifact.
 
@@ -1624,13 +1805,15 @@ class Artifact:
         artifact.
 
         Arguments:
-            root: (str, optional) The directory to replace with this artifact's files.
+            root: The directory to replace with this artifact's files.
 
         Returns:
-           (str): The path to the checked out contents.
+           The path to the checked out contents.
+
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "checkout")
+        self._ensure_logged("checkout")
 
         root = root or self._default_root(include_version=False)
 
@@ -1655,14 +1838,14 @@ class Artifact:
         NOTE: References are not verified.
 
         Arguments:
-            root: (str, optional) The directory to verify. If None
-                artifact will be downloaded to './artifacts/self.name/'
+            root: The directory to verify. If None artifact will be downloaded to
+                './artifacts/self.name/'
 
         Raises:
-            (ValueError): If the verification fails.
+            ArtifactNotLoggedError: if the artifact has not been logged
+            ValueError: If the verification fails.
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "verify")
+        self._ensure_logged("verify")
 
         root = root or self._default_root()
 
@@ -1693,14 +1876,17 @@ class Artifact:
         """Download a single file artifact to dir specified by the root.
 
         Arguments:
-            root: (str, optional) The root directory in which to place the file.
-                Defaults to './artifacts/self.name/'.
+            root: The root directory in which to place the file. Defaults to
+                './artifacts/self.name/'.
 
         Returns:
-            (str): The full path of the downloaded file.
+            The full path of the downloaded file.
+
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
+            ValueError: if the artifact contains more than one file
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "file")
+        self._ensure_logged("file")
 
         if root is None:
             root = os.path.join(".", "artifacts", self.name)
@@ -1719,25 +1905,27 @@ class Artifact:
         """Iterate over all files stored in this artifact.
 
         Arguments:
-            names: (list of str, optional) The filename paths relative to the
-                root of the artifact you wish to list.
-            per_page: (int, default 50) The number of files to return per request
+            names: The filename paths relative to the root of the artifact you wish to
+                list.
+            per_page: The number of files to return per request
 
         Returns:
-            (`ArtifactFiles`): An iterator containing `File` objects
-        """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "files")
+            An iterator containing `File` objects
 
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
+        """
+        self._ensure_logged("files")
         return ArtifactFiles(self._client, self, names, per_page)
 
-    def _default_root(self, include_version: bool = True) -> str:
-        name = self.name if include_version else self.name.split(":")[0]
+    def _default_root(self, include_version: bool = True) -> FilePathStr:
+        name = self.source_name if include_version else self.source_name.split(":")[0]
         root = os.path.join(env.get_artifact_dir(), name)
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(root)
-            root = head + tail.replace(":", "-")
-        return root
+        # In case we're on a system where the artifact dir has a name corresponding to
+        # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
+        # use that, otherwise we'll fall back to the system-preferred path.
+        path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
+        return FilePathStr(str(path))
 
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
@@ -1756,23 +1944,25 @@ class Artifact:
     def delete(self, delete_aliases: bool = False) -> None:
         """Delete an artifact and its files.
 
+        Arguments:
+            delete_aliases: If true, deletes all aliases associated with the artifact.
+                Otherwise, this raises an exception if the artifact has existing
+                aliases.
+
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
+
         Examples:
             Delete all the "model" artifacts a run has logged:
-            ```
+            ```python
             runs = api.runs(path="my_entity/my_project")
             for run in runs:
                 for artifact in run.logged_artifacts():
                     if artifact.type == "model":
                         artifact.delete(delete_aliases=True)
             ```
-
-        Arguments:
-            delete_aliases: (bool) If true, deletes all aliases associated with the
-                artifact. Otherwise, this raises an exception if the artifact has
-                existing aliases.
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "delete")
+        self._ensure_logged("delete")
         self._delete(delete_aliases)
 
     @normalize_exceptions
@@ -1800,80 +1990,37 @@ class Artifact:
             },
         )
 
+    @normalize_exceptions
     def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
         Arguments:
-            target_path: (str) The path to the portfolio. It must take the form
-                {portfolio}, {project}/{portfolio} or {entity}/{project}/{portfolio}.
-            aliases: (Optional[List[str]]) A list of strings which uniquely
-                identifies the artifact inside the specified portfolio.
+            target_path: The path to the portfolio. It must take the form {portfolio},
+                {project}/{portfolio} or {entity}/{project}/{portfolio}.
+            aliases: A list of strings which uniquely identifies the artifact inside the
+                specified portfolio.
 
-        Returns:
-            None
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
         """
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "link")
-        self._link(target_path, aliases)
-
-    @normalize_exceptions
-    def _link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
-        if ":" in target_path:
-            raise ValueError(
-                f"target_path {target_path} cannot contain `:` because it is not an "
-                f"alias."
-            )
-
-        portfolio, project, entity = util._parse_entity_project_item(target_path)
-        aliases = util._resolve_aliases(aliases)
-
-        run_entity = wandb.run.entity if wandb.run else None
-        run_project = wandb.run.project if wandb.run else None
-        entity = entity or run_entity or self.entity
-        project = project or run_project or self.project
-
-        mutation = gql(
-            """
-            mutation LinkArtifact(
-                $artifactID: ID!,
-                $artifactPortfolioName: String!,
-                $entityName: String!,
-                $projectName: String!,
-                $aliases: [ArtifactAliasInput!]
-            ) {
-                linkArtifact(
-                    input: {
-                        artifactID: $artifactID,
-                        artifactPortfolioName: $artifactPortfolioName,
-                        entityName: $entityName,
-                        projectName: $projectName,
-                        aliases: $aliases
-                    }
-                ) {
-                    versionIndex
-                }
-            }
-            """
-        )
-        assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "artifactPortfolioName": portfolio,
-                "entityName": entity,
-                "projectName": project,
-                "aliases": [
-                    {"alias": alias, "artifactCollectionName": portfolio}
-                    for alias in aliases
-                ],
-            },
-        )
+        if wandb.run is None:
+            with wandb.init(
+                entity=self._source_entity,
+                project=self._source_project,
+                job_type="auto",
+                settings=wandb.Settings(silent="true"),
+            ) as run:
+                run.link_artifact(self, target_path, aliases)
+        else:
+            wandb.run.link_artifact(self, target_path, aliases)
 
     def used_by(self) -> List[Run]:
-        """Get a list of the runs that have used this artifact."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "used_by")
+        """Get a list of the runs that have used this artifact.
+
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
+        """
+        self._ensure_logged("used_by")
 
         query = gql(
             """
@@ -1912,9 +2059,12 @@ class Artifact:
         ]
 
     def logged_by(self) -> Optional[Run]:
-        """Get the run that first logged this artifact."""
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "logged_by")
+        """Get the run that first logged this artifact.
+
+        Raises:
+            ArtifactNotLoggedError: if the artifact has not been logged
+        """
+        self._ensure_logged("logged_by")
 
         query = gql(
             """
@@ -1951,12 +2101,11 @@ class Artifact:
         )
 
     def json_encode(self) -> Dict[str, Any]:
-        if self._state == ArtifactState.PENDING:
-            raise ArtifactNotLoggedError(self, "json_encode")
+        self._ensure_logged("json_encode")
         return util.artifact_to_json(self)
 
     @staticmethod
-    def expected_type(
+    def _expected_type(
         entity_name: str, project_name: str, name: str, client: RetryingClient
     ) -> Optional[str]:
         """Returns the expected type for a given artifact name and project."""
@@ -2009,10 +2158,78 @@ class Artifact:
                 json.loads(util.ensure_text(request.content))
             )
         for entry in self.manifest.entries.values():
-            if entry._is_artifact_reference():
+            referenced_id = entry._referenced_artifact_id()
+            if referenced_id:
                 assert self._client is not None
-                dep_artifact = entry._get_referenced_artifact(self._client)
+                dep_artifact = self._from_id(referenced_id, client=self._client)
+                assert dep_artifact is not None
                 self._dependent_artifacts.add(dep_artifact)
+
+    @staticmethod
+    def _get_gql_artifact_fragment() -> str:
+        fields = InternalApi().server_artifact_introspection()
+        fragment = """
+            fragment ArtifactFragment on Artifact {
+                id
+                artifactSequence {
+                    project {
+                        entityName
+                        name
+                    }
+                    name
+                }
+                versionIndex
+                artifactType {
+                    name
+                }
+                description
+                metadata
+                ttlDurationSeconds
+                ttlIsInherited
+                aliases {
+                    artifactCollection {
+                        project {
+                            entityName
+                            name
+                        }
+                        name
+                    }
+                    alias
+                }
+                state
+                commitHash
+                fileCount
+                createdAt
+                updatedAt
+            }
+        """
+        if "ttlIsInherited" not in fields:
+            return fragment.replace("ttlDurationSeconds", "").replace(
+                "ttlIsInherited", ""
+            )
+        return fragment
+
+    def _ttl_duration_seconds_to_gql(self) -> Optional[int]:
+        # Set artifact ttl value to ttl_duration_seconds if the user set a value
+        # otherwise use ttl_status to indicate the backend INHERIT(-1) or DISABLED(-2) when the TTL is None
+        # When ttl_change = None its a no op since nothing changed
+        INHERIT = -1  # noqa: N806
+        DISABLED = -2  # noqa: N806
+
+        if not self._ttl_changed:
+            return None
+        if self._ttl_is_inherited:
+            return INHERIT
+        return self._ttl_duration_seconds or DISABLED
+
+    def _ttl_duration_seconds_from_gql(
+        self, gql_ttl_duration_seconds: Optional[int]
+    ) -> Optional[int]:
+        # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
+        # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
+        if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
+            return gql_ttl_duration_seconds
+        return None
 
 
 class _ArtifactVersionType(WBType):

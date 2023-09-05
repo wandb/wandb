@@ -43,7 +43,7 @@ def test_configure_notebook_repo_job(mocker, tmp_path):
     mock_code_artifact = MagicMock()
     mock_code_artifact.download.side_effect = mock_download_code
 
-    mocker.patch("wandb.sdk.artifacts.artifact.Artifact.from_id", mock_artifact)
+    mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_id", mock_artifact)
 
     mock_api = MagicMock()
     mock_api.artifact.return_value = mock_artifact
@@ -56,7 +56,7 @@ def test_configure_notebook_repo_job(mocker, tmp_path):
     mock_launch_project.project_dir = tmp_path / proj_path
 
     job.configure_launch_project(mock_launch_project)
-    assert mock_launch_project.add_entry_point.called_with(["python3", new_fname])
+    assert mock_launch_project.set_entry_point.called_with(["python3", new_fname])
     assert job._entrypoint == ["python3", new_fname]
 
 
@@ -92,7 +92,7 @@ def test_configure_notebook_artifact_job(mocker, tmp_path):
         with open(os.path.join(root, "test.ipynb"), "w") as f:
             f.write("hello")
 
-    mocker.patch("wandb.sdk.artifacts.artifact.Artifact.from_id", mock_artifact)
+    mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_id", mock_artifact)
 
     mock_api = MagicMock()
     mock_api.artifact.return_value = mock_artifact
@@ -105,5 +105,5 @@ def test_configure_notebook_artifact_job(mocker, tmp_path):
     mock_launch_project.project_dir = tmp_path / proj_path
 
     job.configure_launch_project(mock_launch_project)
-    assert mock_launch_project.add_entry_point.called_with(["python3", new_fname])
+    assert mock_launch_project.set_entry_point.called_with(["python3", new_fname])
     assert job._entrypoint == ["python3", new_fname]

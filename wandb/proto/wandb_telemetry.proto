@@ -19,6 +19,7 @@ message TelemetryRecord {
   Labels  label = 9;
   Deprecated deprecated = 10;
   Issues issues = 11;
+  string  core_version = 12;
   _RecordInfo _info = 200;
 }
 
@@ -127,6 +128,10 @@ message Imports {
   bool optimum = 99;
   bool evaluate = 100;
   bool langflow = 101;
+  bool keras_core = 102; // keras-core
+  bool lightning_fabric = 103; // lightning-fabric
+  bool curated_transformers = 104; // curated-transformers
+  bool orjson = 105;
 }
 
 message Feature {
@@ -184,6 +189,7 @@ message Feature {
   bool langchain_tracer = 52; // Langchain wandb tracer callback used
   bool cohere_autolog = 53; // Cohere autolog used
   bool hf_pipeline_autolog = 54; // HuggingFace Autologging
+  bool nexus = 55; // Using wandb nexus internal process
 }
 
 message Env {
@@ -220,6 +226,7 @@ message Deprecated {
   bool init__config_include_keys = 7 ; // wandb.init(config_include_keys=...) called
   bool init__config_exclude_keys = 8 ; // wandb.init(config_exclude_keys=...) called
   bool keras_callback__save_model = 9; // wandb.keras.WandbCallback(save_model=True) called
+  bool langchain_tracer = 10; // wandb.integration.langchain.WandbTracer called
 }
 
 message Issues {

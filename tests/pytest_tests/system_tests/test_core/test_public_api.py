@@ -59,6 +59,7 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
         assert len(uploaded_files) == 17
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_fetching_artifact_files(user, wandb_init):
     project = "test"
 
@@ -90,6 +91,7 @@ def test_fetching_artifact_files(user, wandb_init):
     assert open(file_path).read() == "testing"
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_save_aliases_after_logging_artifact(user, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
@@ -111,7 +113,8 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
     assert "hello" in aliases
 
 
-def test_update_aliases_on_artifact(user, relay_server, wandb_init):
+@pytest.mark.nexus_failure(feature="artifacts")
+def test_update_aliases_on_artifact(user, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
     artifact = wandb.Artifact("test-artifact", "test-type")
@@ -150,6 +153,7 @@ def test_update_aliases_on_artifact(user, relay_server, wandb_init):
     assert "sequence" not in aliases
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_artifact_version(wandb_init):
     def create_test_artifact(content: str):
         art = wandb.Artifact("test-artifact", "test-type")
@@ -179,3 +183,75 @@ def test_artifact_version(wandb_init):
 
     assert artifact.version == "v0"
     assert artifact.source_version == "v1"
+
+
+@pytest.mark.nexus_failure(feature="artifacts")
+def test_delete_collection(wandb_init):
+    with wandb_init(project="test") as run:
+        art = wandb.Artifact("test-artifact", "test-type")
+        with art.new_file("test.txt", "w") as f:
+            f.write("testing")
+        run.log_artifact(art)
+        run.link_artifact(art, "test/test-portfolio")
+
+    project = Api().artifact_type("test-type", project="test")
+    portfolio = project.collection("test-portfolio")
+    portfolio.delete()
+
+    with pytest.raises(wandb.errors.CommError):
+        Api().artifact(
+            name=f"{project.entity}/test/test-portfolio:latest",
+            type="test-type",
+        )
+
+    # The base artifact should still exist.
+    Api().artifact(
+        name=f"{project.entity}/test/test-artifact:latest",
+        type="test-type",
+    )
+
+    sequence = project.collection("test-artifact")
+    sequence.delete()
+
+    # Until now.
+    with pytest.raises(wandb.errors.CommError):
+        Api().artifact(
+            name=f"{project.entity}/test/test-artifact:latest",
+            type="test-type",
+        )
+
+
+@pytest.mark.nexus_failure(feature="artifacts")
+def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
+    # todo: logged_artifact does not work with nexus
+    entity, project = logged_artifact.entity, logged_artifact.project
+
+    draft = logged_artifact.new_draft()
+    draft._type = "futz"
+    with pytest.raises(ValueError, match="already exists with type 'dataset'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
+
+    draft = logged_artifact.new_draft()
+    draft._source_entity = "mistaken"
+    with pytest.raises(ValueError, match="can't be moved to 'mistaken'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
+
+    draft = logged_artifact.new_draft()
+    draft._source_project = "wrong"
+    with pytest.raises(ValueError, match="can't be moved to 'wrong'"):
+        with wandb_init(entity=entity, project=project) as run:
+            run.log_artifact(draft)
+
+
+@pytest.mark.xfail(
+    reason="there is no guarantee that the backend has processed the event"
+)
+def test_run_metadata(wandb_init):
+    project = "test_metadata"
+    run = wandb_init(project=project)
+    run.finish()
+
+    metadata = Api().run(f"{run.entity}/{project}/{run.id}").metadata
+    assert len(metadata)

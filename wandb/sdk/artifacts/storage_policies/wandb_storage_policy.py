@@ -23,6 +23,7 @@ from wandb.sdk.artifacts.storage_handlers.wb_local_artifact_handler import (
     WBLocalArtifactHandler,
 )
 from wandb.sdk.artifacts.storage_layout import StorageLayout
+from wandb.sdk.artifacts.storage_policies.register import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
@@ -34,8 +35,8 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
     from wandb.sdk.internal import progress
 
-# This makes the first sleep 1s, and then doubles it up to total times,
-# which makes for ~18 hours.
+# Sleep length: 0, 2, 4, 8, 16, 32, 64, 120, 120, 120, 120, 120, 120, 120, 120, 120
+# seconds, i.e. a total of 20min 6s.
 _REQUEST_RETRY_STRATEGY = urllib3.util.retry.Retry(
     backoff_factor=1,
     total=16,
@@ -53,7 +54,7 @@ S3_MAX_MULTI_UPLOAD_SIZE = 5 * 1024**4
 class WandbStoragePolicy(StoragePolicy):
     @classmethod
     def name(cls) -> str:
-        return "wandb-storage-policy-v1"
+        return WANDB_STORAGE_POLICY
 
     @classmethod
     def from_config(cls, config: Dict) -> "WandbStoragePolicy":
@@ -115,17 +116,25 @@ class WandbStoragePolicy(StoragePolicy):
         if hit:
             return path
 
-        auth = None
-        if not _thread_local_api_settings.cookies:
-            auth = ("api", self._api.api_key)
-        response = self._session.get(
-            self._file_url(self._api, artifact.entity, manifest_entry),
-            auth=auth,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
-            stream=True,
-        )
-        response.raise_for_status()
+        if manifest_entry._download_url is not None:
+            response = self._session.get(manifest_entry._download_url, stream=True)
+            try:
+                response.raise_for_status()
+            except Exception:
+                # Signed URL might have expired, fall back to fetching it one by one.
+                manifest_entry._download_url = None
+        if manifest_entry._download_url is None:
+            auth = None
+            if not _thread_local_api_settings.cookies:
+                auth = ("api", self._api.api_key)
+            response = self._session.get(
+                self._file_url(self._api, artifact.entity, manifest_entry),
+                auth=auth,
+                cookies=_thread_local_api_settings.cookies,
+                headers=_thread_local_api_settings.headers,
+                stream=True,
+            )
+            response.raise_for_status()
 
         with cache_open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
@@ -372,7 +381,7 @@ class WandbStoragePolicy(StoragePolicy):
         )
         if not hit:
             try:
-                with cache_open() as f:
-                    shutil.copyfile(entry.local_path, f.name)
+                with cache_open("wb") as f, open(entry.local_path, "rb") as src:
+                    shutil.copyfileobj(src, f)
             except OSError as e:
                 termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")

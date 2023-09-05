@@ -51,6 +51,7 @@ class AwsEnvironment(AbstractEnvironment):
         self._access_key = access_key
         self._secret_key = secret_key
         self._session_token = session_token
+        self._account = None
         if verify:
             self.verify()
 
@@ -131,7 +132,7 @@ class AwsEnvironment(AbstractEnvironment):
         try:
             session = self.get_session()
             client = session.client("sts")
-            client.get_caller_identity()
+            self._account = client.get_caller_identity().get("Account")
             # TODO: log identity details from the response
         except botocore.exceptions.ClientError as e:
             raise LaunchError(

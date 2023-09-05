@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import CommError
-from wandb.sdk.launch.agent.agent import JobAndRunStatus, LaunchAgent
+from wandb.sdk.launch.agent.agent import JobAndRunStatusTracker, LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
 
 
@@ -76,9 +76,81 @@ def test_run_job_secure_mode(mocker):
         'This agent is configured to lock "command" in container spec but the job specification attempts to override it.',
         'This agent is configured to lock the "entrypoint" override but the job specification attempts to override it.',
     ]
+    mock_file_saver = MagicMock()
     for job, error in zip(jobs, errors):
         with pytest.raises(ValueError, match=error):
-            agent.run_job(job)
+            agent.run_job(job, "test-queue", mock_file_saver)
+
+
+def _setup_requeue(mocker):
+    _setup(mocker)
+    mocker.event = MagicMock()
+    mocker.event.is_set = MagicMock(return_value=True)
+
+    mocker.status = MagicMock()
+    mocker.status.state = "preempted"
+    mocker.run = MagicMock()
+    mocker.run.get_status = MagicMock(return_value=mocker.status)
+    mocker.runner = MagicMock()
+    mocker.runner.run = MagicMock(return_value=mocker.run)
+
+    mocker.launch_add = MagicMock()
+
+    mocker.patch("wandb.sdk.launch.agent.agent.threading", MagicMock())
+    mocker.patch("multiprocessing.Event", mocker.event)
+    mocker.patch("multiprocessing.pool.ThreadPool", MagicMock())
+    mocker.project = MagicMock()
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.create_project_from_spec", mocker.project
+    )
+    mocker.project.return_value.target_entity = "test-entity"
+    mocker.project.return_value.run_id = "test-run-id"
+
+    mocker.patch("wandb.sdk.launch.agent.agent.fetch_and_validate_project", MagicMock())
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.builder_from_config",
+        return_value=MagicMock(),
+    )
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.runner_from_config",
+        return_value=mocker.runner,
+    )
+
+    mocker.api.fail_run_queue_item = MagicMock()
+    mocker.patch("wandb.sdk.launch.agent.agent.launch_add", mocker.launch_add)
+
+
+def test_requeue_on_preemption(mocker):
+    _setup_requeue(mocker)
+
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    mock_job = {
+        "runQueueItemId": "test-id",
+    }
+    mock_launch_spec = {}
+
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+
+    job_tracker = JobAndRunStatusTracker(
+        mock_job["runQueueItemId"], "test-queue", MagicMock()
+    )
+
+    agent.thread_run_job(
+        launch_spec=mock_launch_spec,
+        job=mock_job,
+        default_config={},
+        api=mocker.api,
+        job_tracker=job_tracker,
+    )
+
+    expected_config = {"run_id": "test-run-id", "_resume_count": 1}
+
+    mocker.launch_add.assert_called_once_with(
+        config=expected_config, project_queue="test-project", queue_name="test-queue"
+    )
 
 
 def test_team_entity_warning(mocker):
@@ -120,7 +192,7 @@ def test_max_scheduler_setup(mocker, num_schedulers):
         num_schedulers = 1  # default for none
     elif num_schedulers == -1:
         num_schedulers = float("inf")
-    elif type(num_schedulers) is str:
+    elif isinstance(num_schedulers, str):
         num_schedulers = int(num_schedulers)
 
     assert agent._max_schedulers == num_schedulers
@@ -164,13 +236,15 @@ def test_thread_finish_no_fail(mocker):
 
     mocker.api.get_run_info = MagicMock(return_value=lambda x: {"program": "blah"})
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
     agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
     assert not mocker.api.fail_run_queue_item.called
+    assert not mock_saver.save_contents.called
 
 
 def test_thread_finish_sweep_fail(mocker):
@@ -182,13 +256,15 @@ def test_thread_finish_sweep_fail(mocker):
 
     mocker.api.get_run_info = MagicMock(return_value=None)
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
     agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
     assert mocker.api.fail_run_queue_item.called_once
+    assert mock_saver.save_contents.called_once
 
 
 def test_thread_finish_run_fail(mocker):
@@ -200,13 +276,15 @@ def test_thread_finish_run_fail(mocker):
 
     mocker.api.get_run_info = MagicMock(side_effect=[CommError("failed")])
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     job.project = MagicMock()
     agent._jobs = {"thread_1": job}
     agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
     assert mocker.api.fail_run_queue_item.called_once
+    assert mock_saver.save_contents.called_once
 
 
 def test_thread_finish_run_fail_start(mocker):
@@ -217,13 +295,15 @@ def test_thread_finish_run_fail_start(mocker):
     }
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     agent._jobs = {"thread_1": job}
     agent._jobs_lock = MagicMock()
     agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
     assert mocker.api.fail_run_queue_item.called_once
+    assert mock_saver.save_contents.called_once
 
 
 def test_thread_finish_run_fail_start_old_server(mocker):
@@ -235,13 +315,15 @@ def test_thread_finish_run_fail_start_old_server(mocker):
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     agent._gorilla_supports_fail_run_queue_items = False
-    job = JobAndRunStatus("run_queue_item_id")
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     agent._jobs_lock = MagicMock()
     agent._jobs = {"thread_1": job}
     agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
     assert not mocker.api.fail_run_queue_item.called
+    assert not mock_saver.save_contents.called
 
 
 def test_thread_finish_run_fail_different_entity(mocker):
@@ -252,7 +334,8 @@ def test_thread_finish_run_fail_different_entity(mocker):
     }
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    job = JobAndRunStatus("run_queue_item_id")
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     job.project = "test-project"
     job.entity = "other-entity"
@@ -261,3 +344,37 @@ def test_thread_finish_run_fail_different_entity(mocker):
     agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
     assert not mocker.api.fail_run_queue_item.called
+    assert not mock_saver.save_contents.called
+
+
+def test_agent_fails_sweep_state(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    def mock_set_sweep_state(sweep, entity, project, state):
+        assert entity == "test-entity"
+        assert project == "test-project"
+        assert sweep == "test-sweep-id"
+        assert state == "CANCELED"
+
+    mocker.api.set_sweep_state = mock_set_sweep_state
+
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "_queue", mock_saver)
+    job.completed_status = False
+    job.run_id = "test-sweep-id"
+    job.is_scheduler = True
+    job.entity = "test-entity"
+    job.project = "test-project"
+    run = MagicMock()
+    run.get_status.return_value.state = "failed"
+    job.run = run
+
+    # should detect failed scheduler, set sweep state to CANCELED
+    out = agent._check_run_finished(job, {})
+    assert job.completed_status == "failed"
+    assert out, "True when status successfully updated"

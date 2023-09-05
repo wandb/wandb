@@ -19,6 +19,7 @@ from wandb.sdk.lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from wandb.sdk.lib.gitlib import GitRepo
+from wandb.sdk.wandb_settings import _get_program_relpath
 
 from .assets.interfaces import Interface
 
@@ -35,7 +36,7 @@ class SystemInfo:
         self.backend_interface = interface
         self.git = GitRepo(
             root=self.settings.git_root,
-            remote=self.settings.git_remote,  # type: ignore
+            remote=self.settings.git_remote,
             remote_url=self.settings.git_remote_url,
             commit=self.settings.git_commit,
         )
@@ -205,11 +206,14 @@ class SystemInfo:
         data["docker"] = self.settings.docker
 
         data["cuda"] = self.settings._cuda
-        data["args"] = self.settings._args
+        data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
 
         if self.settings.program is not None:
             data["program"] = self.settings.program
+            # Used during artifact-job creation, always points to the relpath
+            # of code execution, even when in a git repo
+            data["codePathLocal"] = _get_program_relpath(self.settings.program)
         if not self.settings.disable_code:
             if self.settings.program_relpath is not None:
                 data["codePath"] = self.settings.program_relpath

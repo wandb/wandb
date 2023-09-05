@@ -1,7 +1,10 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
 import base64
 import logging
+import re
 from typing import Dict, Tuple
+
+import yaml
 
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
@@ -52,7 +55,7 @@ class ElasticContainerRegistry(AbstractRegistry):
     @classmethod
     def from_config(  # type: ignore[override]
         cls,
-        config: Dict,
+        config: Dict[str, str],
         environment: AwsEnvironment,
         verify: bool = True,
     ) -> "ElasticContainerRegistry":
@@ -70,10 +73,41 @@ class ElasticContainerRegistry(AbstractRegistry):
                 f"Could not create ElasticContainerRegistry from config. Expected type 'ecr' "
                 f"but got '{config.get('type')}'."
             )
-        repository = config.get("repository")
-        if not repository:
+        if ("uri" in config) == ("repository" in config):
             raise LaunchError(
-                "Could not create ElasticContainerRegistry from config. 'repository' is required."
+                "Could not create ElasticContainerRegistry from config. Either 'uri' or "
+                f"'repository' is required. The config received was:\n{yaml.dump(config)}."
+            )
+        if "repository" in config:
+            repository = config.get("repository")
+        else:
+            match = re.match(
+                r"^(?P<account>.*)\.dkr\.ecr\.(?P<region>.*)\.amazonaws\.com/(?P<repository>.*)/?$",
+                config["uri"],
+            )
+            if not match:
+                raise LaunchError(
+                    f"Could not create ElasticContainerRegistry from config. The uri "
+                    f"{config.get('uri')} is invalid."
+                )
+            repository = match.group("repository")
+            if match.group("region") != environment.region:
+                raise LaunchError(
+                    f"Could not create ElasticContainerRegistry from config. The uri "
+                    f"{config.get('uri')} is in region {match.group('region')} but the "
+                    f"environment is in region {environment.region}."
+                )
+            if match.group("account") != environment._account:
+                raise LaunchError(
+                    f"Could not create ElasticContainerRegistry from config. The uri "
+                    f"{config.get('uri')} is in account {match.group('account')} but the "
+                    f"account being used is {environment._account}."
+                )
+        if not isinstance(repository, str):
+            # This is for mypy. We should never get here.
+            raise LaunchError(
+                f"Could not create ElasticContainerRegistry from config. The repository "
+                f"{repository} is invalid: repository should be a string."
             )
         return cls(repository, environment)
 

@@ -33,12 +33,10 @@ if TYPE_CHECKING:
 class S3Handler(StorageHandler):
     _s3: Optional["boto3.resources.base.ServiceResource"]
     _scheme: str
-    _versioning_enabled: Optional[bool]
 
     def __init__(self, scheme: Optional[str] = None) -> None:
         self._scheme = scheme or "s3"
         self._s3 = None
-        self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
@@ -47,7 +45,7 @@ class S3Handler(StorageHandler):
     def init_boto(self) -> "boto3.resources.base.ServiceResource":
         if self._s3 is not None:
             return self._s3
-        boto: "boto3" = util.get_module(
+        boto: boto3 = util.get_module(
             "boto3",
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
             lazy=False,
@@ -69,15 +67,6 @@ class S3Handler(StorageHandler):
         version = query.get("versionId")
 
         return bucket, key, version
-
-    def versioning_enabled(self, bucket: str) -> bool:
-        self.init_boto()
-        assert self._s3 is not None  # mypy: unwraps optionality
-        if self._versioning_enabled is not None:
-            return self._versioning_enabled
-        res = self._s3.BucketVersioning(bucket)
-        self._versioning_enabled = res.status == "Enabled"
-        return self._versioning_enabled
 
     def load_path(
         self,
@@ -104,39 +93,42 @@ class S3Handler(StorageHandler):
         version = manifest_entry.extra.get("versionID")
 
         extra_args = {}
-        if version is None:
-            # We don't have version information so just get the latest version
-            # and fallback to listing all versions if we don't have a match.
-            obj = self._s3.Object(bucket, key)
-            etag = self._etag_from_obj(obj)
-            if etag != manifest_entry.digest:
-                if self.versioning_enabled(bucket):
-                    # Fallback to listing versions
-                    obj = None
-                    object_versions = self._s3.Bucket(bucket).object_versions.filter(
-                        Prefix=key
-                    )
-                    for object_version in object_versions:
-                        if (
-                            manifest_entry.extra.get("etag")
-                            == object_version.e_tag[1:-1]
-                        ):
-                            obj = object_version.Object()
-                            extra_args["VersionId"] = object_version.version_id
-                            break
-                    if obj is None:
-                        raise ValueError(
-                            "Couldn't find object version for {}/{} matching etag {}".format(
-                                bucket, key, manifest_entry.extra.get("etag")
-                            )
-                        )
-                else:
-                    raise ValueError(
-                        f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {etag}"
-                    )
-        else:
+        if version:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args["VersionId"] = version
+        else:
+            obj = self._s3.Object(bucket, key)
+
+        try:
+            etag = self._etag_from_obj(obj)
+        except self._botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "404":
+                raise FileNotFoundError(
+                    f"Unable to find {manifest_entry.path} at s3://{bucket}/{key}"
+                ) from e
+            raise
+
+        if etag != manifest_entry.digest:
+            # Try to match the etag with some other version.
+            if version:
+                raise ValueError(
+                    f"Digest mismatch for object {manifest_entry.ref} with version {version}: expected {manifest_entry.digest} but found {etag}"
+                )
+            obj = None
+            object_versions = self._s3.Bucket(bucket).object_versions.filter(Prefix=key)
+            for object_version in object_versions:
+                if manifest_entry.extra.get("etag") == self._etag_from_obj(
+                    object_version
+                ):
+                    obj = object_version.Object()
+                    extra_args["VersionId"] = object_version.version_id
+                    break
+            if obj is None:
+                raise FileNotFoundError(
+                    "Couldn't find object version for {}/{} matching etag {}".format(
+                        bucket, key, manifest_entry.extra.get("etag")
+                    )
+                )
 
         with cache_open(mode="wb") as f:
             obj.download_fileobj(f, ExtraArgs=extra_args)
@@ -159,10 +151,6 @@ class S3Handler(StorageHandler):
         # metadata in the artifact entry itself.
         bucket, key, version = self._parse_uri(path)
         path = URIStr(f"{self._scheme}://{bucket}/{key}")
-        if not self.versioning_enabled(bucket) and version:
-            raise ValueError(
-                f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
-            )
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:

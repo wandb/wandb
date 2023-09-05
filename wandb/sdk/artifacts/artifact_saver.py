@@ -4,15 +4,15 @@ import json
 import os
 import sys
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
-from wandb import env, util
+from wandb import util
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -65,12 +65,13 @@ class ArtifactSaver:
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         metadata: Optional[Dict] = None,
+        ttl_duration_seconds: Optional[int] = None,
         description: Optional[str] = None,
         aliases: Optional[Sequence[str]] = None,
-        labels: Optional[List[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
+        base_id: Optional[str] = None,
     ) -> Optional[Dict]:
         try:
             return self._save_internal(
@@ -81,12 +82,13 @@ class ArtifactSaver:
                 distributed_id,
                 finalize,
                 metadata,
+                ttl_duration_seconds,
                 description,
                 aliases,
-                labels,
                 use_after_commit,
                 incremental,
                 history_step,
+                base_id,
             )
         finally:
             self._cleanup_staged_entries()
@@ -100,32 +102,17 @@ class ArtifactSaver:
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         metadata: Optional[Dict] = None,
+        ttl_duration_seconds: Optional[int] = None,
         description: Optional[str] = None,
         aliases: Optional[Sequence[str]] = None,
-        labels: Optional[List[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
+        base_id: Optional[str] = None,
     ) -> Optional[Dict]:
-        aliases = aliases or []
         alias_specs = []
-        for alias in aliases:
-            if ":" in alias:
-                # Users can explicitly alias this artifact to names
-                # other than the primary one passed in by using the
-                # 'secondaryName:alias' notation.
-                idx = alias.index(":")
-                artifact_collection_name = alias[: idx - 1]
-                tag = alias[idx + 1 :]
-            else:
-                artifact_collection_name = name
-                tag = alias
-            alias_specs.append(
-                {
-                    "artifactCollectionName": artifact_collection_name,
-                    "alias": tag,
-                }
-            )
+        for alias in aliases or []:
+            alias_specs.append({"artifactCollectionName": name, "alias": alias})
 
         """Returns the server artifact."""
         self._server_artifact, latest = self._api.create_artifact(
@@ -133,34 +120,27 @@ class ArtifactSaver:
             name,
             self._digest,
             metadata=metadata,
+            ttl_duration_seconds=ttl_duration_seconds,
             aliases=alias_specs,
-            labels=labels,
             description=description,
             is_user_created=self._is_user_created,
             distributed_id=distributed_id,
             client_id=client_id,
             sequence_client_id=sequence_client_id,
-            enable_digest_deduplication=use_after_commit,  # Reuse logical duplicates in the `use_artifact` flow
             history_step=history_step,
         )
 
-        # TODO(artifacts):
-        #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily
-        #   correct. It may be better to poll until it's committed or failed, and then decided what to
-        #   do
         assert self._server_artifact is not None  # mypy optionality unwrapper
         artifact_id = self._server_artifact["id"]
-        latest_artifact_id = latest["id"] if latest else None
-        if (
-            self._server_artifact["state"] == "COMMITTED"
-            or self._server_artifact["state"] == "COMMITTING"
-        ):
-            # TODO: update aliases, labels, description etc?
+        if base_id is None and latest:
+            base_id = latest["id"]
+        if self._server_artifact["state"] == "COMMITTED":
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
             return self._server_artifact
-        elif (
+        if (
             self._server_artifact["state"] != "PENDING"
+            # For old servers, see https://github.com/wandb/wandb/pull/6190
             and self._server_artifact["state"] != "DELETED"
         ):
             raise Exception(
@@ -179,7 +159,7 @@ class ArtifactSaver:
             manifest_filename,
             "",
             artifact_id,
-            base_artifact_id=latest_artifact_id,
+            base_artifact_id=base_id,
             include_upload=False,
             type=manifest_type,
         )
@@ -232,7 +212,7 @@ class ArtifactSaver:
                     manifest_filename,
                     digest,
                     artifact_id,
-                    base_artifact_id=latest_artifact_id,
+                    base_artifact_id=base_id,
                 )
 
             # We're duplicating the file upload logic a little, which isn't great.
@@ -249,7 +229,7 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        commit_result: "concurrent.futures.Future[None]" = concurrent.futures.Future()
+        commit_result: concurrent.futures.Future[None] = concurrent.futures.Future()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
@@ -302,16 +282,3 @@ class ArtifactSaver:
                     os.remove(entry.local_path)
                 except OSError:
                     pass
-
-
-def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    try:
-        mkdir_exists_ok(path)
-    except OSError as e:
-        raise PermissionError(
-            f"Unable to write staging files to {path}. To fix this problem, please set "
-            f"{env.DATA_DIR} to a directory where you have the necessary write access."
-        ) from e
-
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
