@@ -1828,7 +1828,7 @@ def sample_with_exponential_decay_weights(
     xs_array = np.array(xs)
     ys_array = np.array(ys)
     keys_array = np.array(keys) if keys else None
-    weights = np.exp(-np.arange(len(xs_array))/len(xs_array))
+    weights = np.exp(-np.arange(len(xs_array)) / len(xs_array))
     weights /= np.sum(weights)
     sampled_indices = np.random.choice(len(xs_array), size=sample_size, p=weights)
     sampled_xs = xs_array[sampled_indices].tolist()
