@@ -493,6 +493,7 @@ message Request {
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
     LogArtifactRequest    log_artifact = 13;
+    DownloadArtifactRequest    download_artifact = 14;
     KeepaliveRequest      keepalive = 17;
     RunStatusRequest      run_status = 20;
     CancelRequest         cancel = 21;
@@ -526,6 +527,7 @@ message Response {
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
     LogArtifactResponse    log_artifact_response = 30;
+    DownloadArtifactResponse    download_artifact_response = 31;
     RunStatusResponse      run_status_response = 35;
     CancelResponse         cancel_response = 36;
     ShutdownResponse       shutdown_response = 64;
@@ -869,6 +871,22 @@ message LogArtifactRequest {
 
 message LogArtifactResponse {
   string artifact_id = 1;
+  string error_message = 2;
+}
+
+/*
+ * DownloadArtifact:
+ */
+ message DownloadArtifactRequest {
+  ArtifactRecord  artifact = 1;
+  string download_root = 2;
+  bool recursive = 3;
+  bool allow_missing_references = 4;
+  _RequestInfo    _info = 200;
+}
+
+message DownloadArtifactResponse {
+  string file_download_path = 1;
   string error_message = 2;
 }
 

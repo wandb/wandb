@@ -1664,6 +1664,17 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
+        return wandb.run._download_artifact(
+            self, root, recursive, allow_missing_references
+        )
+        # return self._download(root, recursive, allow_missing_references)
+
+    def _download(
+        self,
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
+    ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
         NOTE: Any existing files at `root` are left untouched. Explicitly delete

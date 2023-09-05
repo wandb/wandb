@@ -131,6 +131,7 @@ class InterfaceShared(InterfaceBase):
         run_start: Optional[pb.RunStartRequest] = None,
         check_version: Optional[pb.CheckVersionRequest] = None,
         log_artifact: Optional[pb.LogArtifactRequest] = None,
+        download_artifact: Optional[pb.DownloadArtifactRequest] = None,
         defer: Optional[pb.DeferRequest] = None,
         attach: Optional[pb.AttachRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
@@ -171,6 +172,8 @@ class InterfaceShared(InterfaceBase):
             request.check_version.CopyFrom(check_version)
         elif log_artifact:
             request.log_artifact.CopyFrom(log_artifact)
+        elif download_artifact:
+            request.download_artifact.CopyFrom(download_artifact)
         elif defer:
             request.defer.CopyFrom(defer)
         elif attach:
@@ -379,6 +382,10 @@ class InterfaceShared(InterfaceBase):
     def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
         rec = self._make_request(log_artifact=log_artifact)
         return self._communicate_async(rec)
+
+    def _download_artifact(self, download_artifact: pb.DownloadArtifactRequest) -> Any:
+        rec = self._make_request(download_artifact=download_artifact)
+        self._publish(rec)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         rec = self._make_record(artifact=proto_artifact)

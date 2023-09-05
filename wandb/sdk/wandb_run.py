@@ -2904,6 +2904,24 @@ class Run:
             finalize=True,
         )
 
+    def _download_artifact(
+        self,
+        artifact: Artifact,
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
+    ) -> FilePathStr:
+        download_handle = self._backend.interface.download_artifact(
+            artifact,
+            root,
+            recursive,
+            allow_missing_references,
+        )
+        download_artifact_result = download_handle.get()
+        return (
+            download_artifact_result.response.download_artifact_response.file_download_path
+        )
+
     def _log_artifact(
         self,
         artifact_or_path: Union[Artifact, StrPath],
