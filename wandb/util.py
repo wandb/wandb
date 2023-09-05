@@ -634,6 +634,9 @@ def json_friendly(  # noqa: C901
         obj = None
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)
+    elif isinstance(obj, set):
+        # set is not json serializable, so we convert it to tuple
+        obj = tuple(obj)
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
