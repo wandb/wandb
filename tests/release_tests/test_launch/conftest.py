@@ -1,7 +1,5 @@
 import os
 
-import boto3
-import botocore
 from utils import run_cmd
 
 
@@ -49,4 +47,7 @@ def pytest_configure(config):
     )
     run_cmd(
         f"kubectl create secret generic aws-secret --from-file={creds_path} -n wandb-release-testing"
+    )
+    run_cmd(
+        "kubectl create secret generic wandb-api-key --from-literal=password=$WANDB_API_KEY -n wandb-release-testing"
     )
