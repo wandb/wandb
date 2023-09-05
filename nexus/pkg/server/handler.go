@@ -205,6 +205,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Header:
 	case *service.Record_History:
 	case *service.Record_LinkArtifact:
+		h.handleLinkArtifact(record)
 	case *service.Record_Metric:
 		h.handleMetric(record, x.Metric)
 	case *service.Record_Output:
@@ -325,6 +326,10 @@ func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifa
 	h.sendRecord(record)
 }
 
+func (h *Handler) handleLinkArtifact(record *service.Record) {
+	h.sendRecord(record)
+}
+
 func (h *Handler) handlePollExit(record *service.Record) {
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -436,7 +441,11 @@ func (h *Handler) handlePreempting(record *service.Record) {
 }
 
 func (h *Handler) handleRun(record *service.Record) {
-	h.sendRecord(record)
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleConfig(record *service.Record) {

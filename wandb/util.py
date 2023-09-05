@@ -4,6 +4,7 @@ import functools
 import gzip
 import importlib
 import importlib.util
+import itertools
 import json
 import logging
 import math
@@ -13,8 +14,10 @@ import platform
 import queue
 import random
 import re
+import secrets
 import shlex
 import socket
+import string
 import sys
 import tarfile
 import tempfile
@@ -42,6 +45,7 @@ from typing import (
     Set,
     TextIO,
     Tuple,
+    TypeVar,
     Union,
 )
 
@@ -62,6 +66,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+T = TypeVar("T")
 
 
 logger = logging.getLogger(__name__)
@@ -629,6 +634,9 @@ def json_friendly(  # noqa: C901
         obj = None
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)
+    elif isinstance(obj, set):
+        # set is not json serializable, so we convert it to tuple
+        obj = tuple(obj)
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -1770,3 +1778,61 @@ def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
             d[k] = dict(v)
             cast_dictlike_to_dict(d[k])
     return d
+
+
+def remove_keys_with_none_values(
+    d: Union[Dict[str, Any], Any]
+) -> Union[Dict[str, Any], Any]:
+    # otherwise iterrows will create a bunch of ugly charts
+    if not isinstance(d, dict):
+        return d
+
+    if isinstance(d, dict):
+        new_dict = {}
+        for k, v in d.items():
+            new_v = remove_keys_with_none_values(v)
+            if new_v is not None and not (isinstance(new_v, dict) and len(new_v) == 0):
+                new_dict[k] = new_v
+        return new_dict if new_dict else None
+
+
+def batched(n: int, iterable: Iterable[T]) -> Generator[List[T], None, None]:
+    i = iter(iterable)
+    batch = list(itertools.islice(i, n))
+    while batch:
+        yield batch
+        batch = list(itertools.islice(i, n))
+
+
+def random_string(length: int = 12) -> str:
+    """Generate a random string of a given length.
+
+    :param length: Length of the string to generate.
+    :return: Random string.
+    """
+    return "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+    )
+
+
+def sample_with_exponential_decay_weights(
+    xs: Union[Iterable, Iterable[Iterable]],
+    ys: Iterable[Iterable],
+    keys: Optional[Iterable] = None,
+    sample_size: int = 1500,
+) -> Tuple[List, List, Optional[List]]:
+    """Sample from a list of lists with weights that decay exponentially.
+
+    May be used with the wandb.plot.line_series function.
+    """
+    xs_array = np.array(xs)
+    ys_array = np.array(ys)
+    keys_array = np.array(keys) if keys else None
+    weights = np.exp(-np.arange(len(xs_array)) / len(xs_array))
+    weights /= np.sum(weights)
+    sampled_indices = np.random.choice(len(xs_array), size=sample_size, p=weights)
+    sampled_xs = xs_array[sampled_indices].tolist()
+    sampled_ys = ys_array[sampled_indices].tolist()
+    sampled_keys = keys_array[sampled_indices].tolist() if keys else None
+
+    return sampled_xs, sampled_ys, sampled_keys

@@ -362,36 +362,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(metric=metric)
         self._publish(rec)
 
-    def _communicate_attach(
-        self, attach: pb.AttachRequest
-    ) -> Optional[pb.AttachResponse]:
-        req = self._make_request(attach=attach)
-        resp = self._communicate(req)
-        if resp is None:
-            return None
-        return resp.response.attach_response
-
-    def _communicate_run(
-        self, run: pb.RunRecord, timeout: Optional[int] = None
-    ) -> Optional[pb.RunUpdateResult]:
-        """Send synchronous run object waiting for a response.
-
-        Arguments:
-            run: RunRecord object
-            timeout: number of seconds to wait
-
-        Returns:
-            RunRecord object
-        """
-        req = self._make_record(run=run)
-        resp = self._communicate(req, timeout=timeout)
-        if resp is None:
-            logger.info("couldn't get run from backend")
-            # Note: timeouts handled by callers: wandb_init.py
-            return None
-        assert resp.HasField("run_result")
-        return resp.run_result
-
     def publish_stats(self, stats_dict: dict) -> None:
         stats = self._make_stats(stats_dict)
         rec = self._make_record(stats=stats)
@@ -431,97 +401,13 @@ class InterfaceShared(InterfaceBase):
         assert resp.response.status_response
         return resp.response.status_response
 
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
-        req = self._make_request(stop_status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.stop_status_response
-        return resp.response.stop_status_response
-
-    def _communicate_network_status(
-        self, status: pb.NetworkStatusRequest
-    ) -> Optional[pb.NetworkStatusResponse]:
-        req = self._make_request(network_status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.network_status_response
-        return resp.response.network_status_response
-
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         rec = self._make_record(exit=exit_data)
         self._publish(rec)
 
-    def _communicate_poll_exit(
-        self, poll_exit: pb.PollExitRequest
-    ) -> Optional[pb.PollExitResponse]:
-        rec = self._make_request(poll_exit=poll_exit)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        poll_exit_response = result.response.poll_exit_response
-        assert poll_exit_response
-        return poll_exit_response
-
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
         record = self._make_request(keepalive=keepalive)
         self._publish(record)
-
-    def _communicate_server_info(
-        self, server_info: pb.ServerInfoRequest
-    ) -> Optional[pb.ServerInfoResponse]:
-        rec = self._make_request(server_info=server_info)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        server_info_response = result.response.server_info_response
-        assert server_info_response
-        return server_info_response
-
-    def _communicate_check_version(
-        self, check_version: pb.CheckVersionRequest
-    ) -> Optional[pb.CheckVersionResponse]:
-        rec = self._make_request(check_version=check_version)
-        result = self._communicate(rec)
-        if result is None:
-            # Note: timeouts handled by callers: wandb_init.py
-            return None
-        return result.response.check_version_response
-
-    def _communicate_run_start(
-        self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.RunStartResponse]:
-        rec = self._make_request(run_start=run_start)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        run_start_response = result.response.run_start_response
-        return run_start_response
-
-    def _communicate_get_summary(
-        self, get_summary: pb.GetSummaryRequest
-    ) -> Optional[pb.GetSummaryResponse]:
-        record = self._make_request(get_summary=get_summary)
-        result = self._communicate(record, timeout=10)
-        if result is None:
-            return None
-        get_summary_response = result.response.get_summary_response
-        assert get_summary_response
-        return get_summary_response
-
-    def _communicate_sampled_history(
-        self, sampled_history: pb.SampledHistoryRequest
-    ) -> Optional[pb.SampledHistoryResponse]:
-        record = self._make_request(sampled_history=sampled_history)
-        result = self._communicate(record)
-        if result is None:
-            return None
-        sampled_history_response = result.response.sampled_history_response
-        assert sampled_history_response
-        return sampled_history_response
 
     def _communicate_shutdown(self) -> None:
         # shutdown

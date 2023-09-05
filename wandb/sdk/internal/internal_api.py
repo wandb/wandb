@@ -3391,12 +3391,7 @@ class Api:
                 }) {
                     artifact {
                         id
-                        digest
                         state
-                        aliases {
-                            artifactCollectionName
-                            alias
-                        }
                         artifactSequence {
                             id
                             latestArtifact {
@@ -3473,13 +3468,6 @@ class Api:
             },
         )
         av = response["createArtifact"]["artifact"]
-        # TODO: make this a part of the graph
-        av["version"] = "latest"
-        for alias in av["aliases"]:
-            if alias["artifactCollectionName"] == artifact_collection_name and re.match(
-                r"^v\d+$", alias["alias"]
-            ):
-                av["version"] = alias["alias"]
         latest = response["createArtifact"]["artifact"]["artifactSequence"].get(
             "latestArtifact"
         )

@@ -11,6 +11,7 @@ import pytest
 import requests
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
@@ -95,13 +96,13 @@ def mock_preparer(**kwargs):
     return Mock(**kwargs)
 
 
-def test_capped_cache(artifacts_cache):
-    for i in range(51):
+def test_capped_cache():
+    for i in range(101):
         art = Artifact(f"foo-{i}", type="test")
         art._id = f"foo-{i}"
         art._state = "COMMITTED"
-        artifacts_cache.store_artifact(art)
-    assert len(artifacts_cache._artifacts_by_id) == 50
+        artifact_cache[art.id] = art
+    assert len(artifact_cache) == 100
 
 
 class TestStoreFile:
@@ -306,13 +307,7 @@ class TestStoreFile:
         else:
             api.upload_method.assert_not_called()
 
-    @pytest.mark.parametrize(
-        "err",
-        [
-            None,
-            Exception("some error"),
-        ],
-    )
+    @pytest.mark.parametrize("err", [None, Exception("some error")])
     def test_caches_result_on_success(
         self,
         store_file: "StoreFileFixture",
@@ -518,7 +513,7 @@ def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     def bad_write(*args, **kwargs):
         raise FileNotFoundError("unable to copy from source file")
 
-    monkeypatch.setattr(shutil, "copyfile", bad_write)
+    monkeypatch.setattr(shutil, "copyfileobj", bad_write)
     policy = WandbStoragePolicy()
     path = Path("foo.txt")
     path.write_text("hello")

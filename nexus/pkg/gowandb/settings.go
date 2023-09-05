@@ -23,7 +23,18 @@ func NewSettings(args ...any) *SettingsWrap {
 	}
 	wandbDir := filepath.Join(rootDir, ".wandb")
 	timeStamp := time.Now().Format("20060102_150405")
+
+	// TODO: parse more settings env variables
+	mode := "online"
+	envMode := os.Getenv("WANDB_MODE")
+	if envMode != "" {
+		mode = envMode
+	}
+
 	runMode := "run"
+	if mode == "offline" {
+		runMode = "offline-run"
+	}
 
 	syncDir := filepath.Join(wandbDir, runMode+"-"+timeStamp+"-"+runID)
 	logDir := filepath.Join(syncDir, "logs")
@@ -79,9 +90,9 @@ func NewSettings(args ...any) *SettingsWrap {
 			Value: true,
 		},
 		XOffline: &wrapperspb.BoolValue{
-			Value: false,
+			Value: (mode == "offline"),
 		},
-		XFileStreamTimeoutSeconds: &wrapperspb.DoubleValue{
+		XFileStreamTimeoutSeconds: &wrapperspb.Int32Value{
 			Value: 60,
 		},
 		XStatsSamplesToAverage: &wrapperspb.Int32Value{

@@ -52,6 +52,10 @@ func StrPtr(s string) *string {
 	return &s
 }
 
+func IntPtr(i int) *int {
+	return &i
+}
+
 func InjectResponse(respEncode *graphql.Response, matchFunc func(RequestVars)) func(context.Context, *graphql.Request, *graphql.Response) {
 	return func(ctx context.Context, req *graphql.Request, resp *graphql.Response) {
 		// check request

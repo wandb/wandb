@@ -65,17 +65,22 @@ func WithSettings(settings *service.Settings) UploadManagerOption {
 	}
 }
 
+func WithUploader(uploader Uploader) UploadManagerOption {
+	return func(um *UploadManager) {
+		um.uploader = uploader
+	}
+}
+
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 
 	um := UploadManager{
 		inChan: make(chan *UploadTask, bufferSize),
 		wg:     &sync.WaitGroup{},
 	}
+
 	for _, opt := range opts {
 		opt(&um)
 	}
-
-	um.uploader = NewDefaultUploader(um.logger)
 
 	concurrencyLimit := getRlimit(um.settings.XAsyncUploadConcurrencyLimit.GetValue())
 	um.semaphore = make(chan struct{}, concurrencyLimit)
@@ -121,6 +126,9 @@ func (um *UploadManager) AddTask(task *UploadTask) {
 
 // Close closes the uploader
 func (um *UploadManager) Close() {
+	if um == nil {
+		return
+	}
 	um.logger.Debug("uploader: Close")
 	if um.inChan == nil {
 		return
