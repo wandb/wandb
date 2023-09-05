@@ -25,6 +25,22 @@ func Average(nums []float64) float64 {
 	return total / float64(len(nums))
 }
 
+type List struct {
+	elements []int
+	maxSize  int
+}
+
+func (l *List) Append(element int) {
+	if (l.maxSize > 0) && (len(l.elements) >= l.maxSize) {
+		l.elements = l.elements[1:]  // Drop the oldest element
+	}
+	l.elements = append(l.elements, element)  // Add the new element
+}
+
+func (l *List) GetElements() []int {
+	return l.elements
+}
+
 func makeStatsRecord(stats map[string]float64) *service.Record {
 	record := &service.Record{
 		RecordType: &service.Record_Stats{
