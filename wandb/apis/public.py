@@ -55,13 +55,15 @@ from wandb.sdk.launch.utils import (
     apply_patch,
     convert_jupyter_notebook_to_script,
 )
-from wandb.sdk.lib import ipython, retry, runid
+from wandb.sdk.lib import ipython, json_util, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util
+
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 
 logger = logging.getLogger(__name__)
 
@@ -507,7 +509,7 @@ class Api:
         # 2. create default resource config, receive config id
         config_json = json.dumps({"resource_args": {type: config}})
         create_config_result = api.create_default_resource_config(
-            entity, LAUNCH_DEFAULT_PROJECT, type, config_json
+            entity, type, config_json
         )
         if not create_config_result["success"]:
             raise wandb.Error("failed to create default resource config")
@@ -1835,6 +1837,7 @@ class Run(Attrs):
         read_only (boolean): Whether the run is editable
         history_keys (str): Keys of the history metrics that have been logged
             with `wandb.log({key: value})`
+        metadata (str): Metadata about the run from wandb-metadata.json
     """
 
     def __init__(
@@ -1867,6 +1870,7 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
+        self._metadata: Optional[Dict[str, Any]] = None
         self._state = _attrs.get("state", "not found")
 
         self.load(force=not _attrs)
@@ -2384,6 +2388,18 @@ class Run(Attrs):
         path = self.path
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            try:
+                f = self.file("wandb-metadata.json")
+                contents = util.download_file_into_memory(f.url, Api().api_key)
+                self._metadata = json_util.loads(contents)
+            except:  # noqa: E722
+                # file doesn't exist, or can't be downloaded, or can't be parsed
+                pass
+        return self._metadata
 
     @property
     def lastHistoryStep(self):  # noqa: N802
@@ -4158,9 +4174,8 @@ class RunArtifacts(Paginator):
                     }
                 }
             }
-            %s
             """
-            % wandb.Artifact._GQL_FRAGMENT
+            + wandb.Artifact._get_gql_artifact_fragment()
         )
 
         input_query = gql(
@@ -4186,9 +4201,8 @@ class RunArtifacts(Paginator):
                     }
                 }
             }
-            %s
             """
-            % wandb.Artifact._GQL_FRAGMENT
+            + wandb.Artifact._get_gql_artifact_fragment()
         )
 
         self.run = run
@@ -4425,6 +4439,66 @@ class ArtifactCollection:
         self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
+    @normalize_exceptions
+    def is_sequence(self) -> bool:
+        """Return True if this is a sequence."""
+        query = gql(
+            """
+            query FindSequence($entity: String!, $project: String!, $collection: String!, $type: String!) {
+                project(name: $project, entityName: $entity) {
+                    artifactType(name: $type) {
+                        __typename
+                        artifactSequence(name: $collection) {
+                            __typename
+                        }
+                    }
+                }
+            }
+            """
+        )
+        variables = {
+            "entity": self.entity,
+            "project": self.project,
+            "collection": self.name,
+            "type": self.type,
+        }
+        res = self.client.execute(query, variable_values=variables)
+        sequence = res["project"]["artifactType"]["artifactSequence"]
+        return sequence is not None and sequence["__typename"] == "ArtifactSequence"
+
+    @normalize_exceptions
+    def delete(self):
+        """Delete the entire artifact collection."""
+        if self.is_sequence():
+            mutation = gql(
+                """
+                mutation deleteArtifactSequence($id: ID!) {
+                    deleteArtifactSequence(input: {
+                        artifactSequenceID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        else:
+            mutation = gql(
+                """
+                mutation deleteArtifactPortfolio($id: ID!) {
+                    deleteArtifactPortfolio(input: {
+                        artifactPortfolioID: $id
+                    }) {
+                        artifactCollection {
+                            state
+                        }
+                    }
+                }
+                """
+            )
+        self.client.execute(mutation, variable_values={"id": self.id})
+
     def __repr__(self):
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
@@ -4490,7 +4564,7 @@ class ArtifactVersions(Paginator):
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
-                wandb.Artifact._GQL_FRAGMENT,
+                wandb.Artifact._get_gql_artifact_fragment(),
             )
         )
         super().__init__(client, variables, per_page)
@@ -4687,6 +4761,10 @@ class Job:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
+        if code_artifact.state == ArtifactState.DELETED:
+            raise LaunchError(
+                f"Job {self.name} references deleted code artifact {code_artifact.name}"
+            )
         return code_artifact
 
     def _configure_launch_project_notebook(self, launch_project):
@@ -4695,7 +4773,7 @@ class Job:
         )
         new_entrypoint = self._entrypoint
         new_entrypoint[-1] = new_fname
-        launch_project.add_entry_point(new_entrypoint)
+        launch_project.set_entry_point(new_entrypoint)
 
     def _configure_launch_project_repo(self, launch_project):
         git_info = self._job_info.get("source", {}).get("git", {})
@@ -4712,7 +4790,7 @@ class Job:
         if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
-            launch_project.add_entry_point(self._entrypoint)
+            launch_project.set_entry_point(self._entrypoint)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._job_info.get("source", {}).get("artifact")
@@ -4728,7 +4806,7 @@ class Job:
         if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
-            launch_project.add_entry_point(self._entrypoint)
+            launch_project.set_entry_point(self._entrypoint)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._job_info.get("source", {}).get("image")
@@ -4737,7 +4815,7 @@ class Job:
                 "Job had malformed source dictionary without an image key"
             )
         if self._entrypoint:
-            launch_project.add_entry_point(self._entrypoint)
+            launch_project.set_entry_point(self._entrypoint)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint

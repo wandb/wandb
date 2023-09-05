@@ -753,7 +753,7 @@ The `Settings` object:
 
 #### Adding a new setting
 
-- Add a new type-annotated `Settings` class attribute.
+- Add a new type-annotated `SettingsData` class attribute.
 - Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
   - Run `make proto` to re-generate the python stubs.
 - If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to

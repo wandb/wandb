@@ -19,6 +19,7 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
@@ -313,9 +314,12 @@ def _start_backend(
         wt = start_write_thread(iwm)
         st = start_send_thread(ism)
         if initial_run:
-            _run = _internal_sender.communicate_run(run)
+            handle = _internal_sender.deliver_run(run)
+            result = handle.wait(timeout=5)
+            run_result = result.run_result
             if initial_start:
-                _internal_sender.communicate_run_start(_run.run)
+                handle = _internal_sender.deliver_run_start(run_result.run)
+                handle.wait(timeout=5)
         return ht, wt, st
 
     yield start_backend_func
@@ -470,6 +474,12 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests in debug mode",
     )
+    parser.addoption(
+        "--wandb-verbose",
+        action="store_true",
+        default=False,
+        help="Run tests in verbose mode",
+    )
 
 
 def random_string(length: int = 12) -> str:
@@ -495,6 +505,11 @@ def base_url(request):
 @pytest.fixture(scope="session")
 def wandb_debug(request):
     return request.config.getoption("--wandb-debug", default=False)
+
+
+@pytest.fixture(scope="session")
+def wandb_verbose(request):
+    return request.config.getoption("--wandb-verbose", default=False)
 
 
 def check_server_health(
@@ -741,12 +756,16 @@ def debug(wandb_debug, fixture_fn, base_url):
 
 
 @pytest.fixture(scope="function")
-def relay_server(base_url):
+def relay_server(base_url, wandb_verbose):
     """Create a new relay server."""
 
     @contextmanager
     def relay_server_context(inject: Optional[List[InjectedResponse]] = None):
-        _relay_server = RelayServer(base_url=base_url, inject=inject)
+        _relay_server = RelayServer(
+            base_url=base_url,
+            inject=inject,
+            verbose=wandb_verbose,
+        )
         try:
             _relay_server.start()
             print(f"Relay server started at {_relay_server.relay_url}")
@@ -851,3 +870,37 @@ def inject_file_stream_response(base_url, user):
         )
 
     yield helper
+
+
+@pytest.fixture(scope="function")
+def inject_graphql_response(base_url, user):
+    def helper(
+        body: Union[str, Exception] = "{}",
+        status: int = 200,
+        custom_match_fn=None,
+        application_pattern: str = "1",
+    ) -> InjectedResponse:
+        if status > 299:
+            message = body if isinstance(body, str) else "::".join(body.args)
+            body = DeliberateHTTPError(status_code=status, message=message)
+
+        return InjectedResponse(
+            method="POST",
+            url=urllib.parse.urljoin(base_url, "/graphql"),
+            body=body,
+            status=status,
+            custom_match_fn=custom_match_fn,
+            application_pattern=TokenizedCircularPattern(application_pattern),
+        )
+
+    yield helper
+
+
+@pytest.fixture
+def logged_artifact(wandb_init, example_files) -> Artifact:
+    with wandb_init() as run:
+        artifact = wandb.Artifact("test-artifact", "dataset")
+        artifact.add_dir(example_files)
+        run.log_artifact(artifact)
+    artifact.wait()
+    return artifact

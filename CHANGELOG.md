@@ -1,3 +1,55 @@
+# 0.15.9 (Aug 28, 2023)
+
+### :magic_wand: Enhancements
+- feat(sweeps): launch sweep schedulers to team queues from UI by @gtarpenning in https://github.com/wandb/wandb/pull/6112
+- feat(launch): make vertex launcher more customizable by @bcsherma in https://github.com/wandb/wandb/pull/6088
+- feat(launch): default to noop builder if docker not installed by @bcsherma in https://github.com/wandb/wandb/pull/6137
+### :hammer: Fixes
+- fix(launch): Use built in entrypoint and args commands for sagemaker by @KyleGoyette in https://github.com/wandb/wandb/pull/5897
+- fix(artifacts): copy parent source project info to new draft artifact by @moredatarequired in https://github.com/wandb/wandb/pull/6062
+- fix(sdk): avoid error at end of run with bigints by @raubitsj in https://github.com/wandb/wandb/pull/6134
+- fix(launch): manually created image jobs can rerun correctly by @gtarpenning in https://github.com/wandb/wandb/pull/6148
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.8...v0.15.9
+
+# 0.15.8 (Aug 01, 2023)
+
+### :magic_wand: Enhancements
+* perf(sdk): use mutation createRunFiles to get uploadUrls by @harukatab in https://github.com/wandb/wandb/pull/5731
+* feat(launch): add create_run_queue to public API by @nickpenaranda in https://github.com/wandb/wandb/pull/5874
+* perf(sdk): add hidden option to use orjson instead of json by @dmitryduev in https://github.com/wandb/wandb/pull/5911
+* feat(launch): Improve error message when building with noop builder by @TimH98 in https://github.com/wandb/wandb/pull/5925
+* feat(launch): create launch agent includes agent config if present by @TimH98 in https://github.com/wandb/wandb/pull/5893
+* feat(launch): Check if job ingredients exist before making job by @TimH98 in https://github.com/wandb/wandb/pull/5942
+* feat(launch): Gracefully handle Kubernetes 404 error by @TimH98 in https://github.com/wandb/wandb/pull/5945
+### :hammer: Fixes
+* fix(sdk): only creating new project if it doesn't already exist by @mbarrramsey in https://github.com/wandb/wandb/pull/5814
+* fix(launch): Support namespace in metadata key of resource args by @KyleGoyette in https://github.com/wandb/wandb/pull/5639
+* fix(launch): use "" instead of None for project kwarg when no project given by @bcsherma in https://github.com/wandb/wandb/pull/5839
+* fix(launch): add + to torch cpu regex + tests by @bcsherma in https://github.com/wandb/wandb/pull/5833
+* fix(sdk): implement timeout for file_stream and add debug logs by @kptkin in https://github.com/wandb/wandb/pull/5812
+* fix(artifacts): fix collection filtering when getting aliases by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/5810
+* fix(sdk): replace `dir_watcher` settings with SettingsStatic by @kptkin in https://github.com/wandb/wandb/pull/5863
+* fix(artifacts): set correct base for incremental artifacts by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/5870
+* fix(launch): drop https from azure registries to ensure compatibility with ${image_uri} macro by @bcsherma in https://github.com/wandb/wandb/pull/5880
+* fix(artifacts): handle None description correctly by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/5910
+* fix(launch): Don't create k8s secret if it already exists by @TimH98 in https://github.com/wandb/wandb/pull/5900
+* fix(artifacts): drop S3 bucket versioning check by @moredatarequired in https://github.com/wandb/wandb/pull/5927
+* fix(sdk): speed up import time and fix `pkg_resources` DeprecationWarning by @hauntsaninja in https://github.com/wandb/wandb/pull/5899
+### :books: Docs
+* docs(sdk): Add introspection section to CONTRIBUTING.md by @nickpenaranda in https://github.com/wandb/wandb/pull/5887
+* docs(sdk): update GH action to generate reference docs and clean up docstrings by @dmitryduev in https://github.com/wandb/wandb/pull/5947
+* docs(sdk): update `README.md` to unify the spelling of `Hugging Face` by @eltociear in https://github.com/wandb/wandb/pull/5891
+### :nail_care: Cleanup
+* revert(launch): revert job re-queuing implementation on pod disconnect by @KyleGoyette in https://github.com/wandb/wandb/pull/5811
+
+## New Contributors
+* @mbarrramsey made their first contribution in https://github.com/wandb/wandb/pull/5814
+* @hauntsaninja made their first contribution in https://github.com/wandb/wandb/pull/5899
+* @eltociear made their first contribution in https://github.com/wandb/wandb/pull/5891
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.7...v0.15.8
+
 # 0.15.7 (July 25, 2023)
 
 ### :hammer: Fixes
