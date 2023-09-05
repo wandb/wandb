@@ -212,7 +212,16 @@ def test_run_basic():
         ),
     )
     run = wandb_sdk.wandb_run.Run(settings=s, config=c)
-    assert dict(run.config) == c
+    assert dict(run.config) == dict(
+        param1=2,
+        param2=4,
+        param3=list(range(10)),
+        param4=list(range(10, 20)),
+        param5=list(range(20, 30)),
+        dict_param=dict(
+            a=list(range(10)), b=list(range(10, 20)), c=list(range(20, 30))
+        ),
+    )
 
 
 def test_run_sweep():
