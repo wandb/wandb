@@ -642,8 +642,8 @@ jobs:
             - run:
                 name: Install tox
                 command: |
-                  pip3 install -U pip
-                  pip3 install tox==<< pipeline.parameters.tox_version >>
+                  pip install -U pip
+                  pip install tox==<< pipeline.parameters.tox_version >>
                 no_output_timeout: 5m
             - run:
                 name: Install kubectl
@@ -660,10 +660,10 @@ jobs:
             - run:
                 name: Setup wandb
                 command: |
-                  pip3 install /home/circleci/project
-                  pip3 install /home/circleci/project[launch]
+                  pip install /home/circleci/project
+                  pip install /home/circleci/project[launch]
                   wandb login $WANDB_API_KEY
-                  python3 ./tools/build_launch_agent.py --tag wandb-launch-agent:release-testing
+                  python ./tools/build_launch_agent.py --tag wandb-launch-agent:release-testing
                 no_output_timeout: 30m
             - run:
                 name: Run tests
