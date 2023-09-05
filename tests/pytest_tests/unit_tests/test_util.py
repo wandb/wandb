@@ -766,6 +766,8 @@ def test_sampling_weights():
     xs = np.arange(0, 100)
     ys = np.arange(100, 200)
     sample_size = 1000
-    sampled_xs, _, _ = util.sample_with_exponential_decay_weights(xs, ys, sample_size=sample_size)
+    sampled_xs, _, _ = util.sample_with_exponential_decay_weights(
+        xs, ys, sample_size=sample_size
+    )
     # Expect more samples from the start of the list
     assert np.mean(sampled_xs) < np.mean(xs)
