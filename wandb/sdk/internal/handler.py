@@ -35,7 +35,7 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import handler_util, proto_util, tracelog
+from ..lib import handler_util, proto_util, tracelog, wburls
 from . import context, sample, tb_watcher
 from .settings_static import SettingsStatic
 from .system.system_monitor import SystemMonitor
@@ -548,7 +548,11 @@ class HandleManager:
         history_dict = proto_util.dict_from_proto_list(partial_history.item)
         if step is not None:
             if step < self._step:
-                message = f"Step {step} < {self._step}. Dropping entry: {history_dict}."
+                message = (
+                    "Step only supports monotonically increasing values, use define_metric to set a custom x "
+                    f"axis. For details see: {wburls.wburls.get('wandb_define_metric')}"
+                    f"({step} < {self._step}. Dropping entry: {history_dict})."
+                )
                 self._internal_messages.warning.append(message)
                 return
             elif step > self._step:
