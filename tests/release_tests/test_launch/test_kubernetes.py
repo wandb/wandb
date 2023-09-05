@@ -14,7 +14,7 @@ NAMESPACE = "wandb-release-testing"
 ENTITY = "launch-release-testing"
 PROJECT = "release-testing"
 QUEUE = "kubernetes-queue"
-JOB_NAME = "sample_job:v1"  # simple job that counts to 50
+JOB_NAME = "sample_job:v2"  # simple job that counts to 50
 
 LAUNCH_JOB_CONFIG = {
     "resource_args": {"kubernetes": {"namespace": NAMESPACE, "backoffLimit": 6}},
