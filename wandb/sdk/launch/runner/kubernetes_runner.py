@@ -288,7 +288,6 @@ class KubernetesRunMonitor:
 
         # Handle exceptions here.
         except Exception as e:
-            print(e)
             raise e
 
 
