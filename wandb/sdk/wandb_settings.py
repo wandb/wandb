@@ -620,14 +620,26 @@ class Settings(SettingsData):
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
             },
-            _disable_meta={"preprocessor": _str_as_bool},
+            _disable_machine_info={
+                "value": False,
+                "preprocessor": _str_as_bool,
+            },
+            _disable_meta={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
             _disable_service={
                 "value": False,
                 "preprocessor": _str_as_bool,
                 "is_policy": True,
             },
             _disable_setproctitle={"value": False, "preprocessor": _str_as_bool},
-            _disable_stats={"preprocessor": _str_as_bool},
+            _disable_stats={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
             # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
@@ -746,10 +758,22 @@ class Settings(SettingsData):
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
             },
-            disable_code={"preprocessor": _str_as_bool},
+            disable_code={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
             disable_hints={"preprocessor": _str_as_bool},
-            disable_git={"preprocessor": _str_as_bool},
-            disable_job_creation={"value": False, "preprocessor": _str_as_bool},
+            disable_git={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
+            disable_job_creation={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",

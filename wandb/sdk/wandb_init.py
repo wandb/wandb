@@ -571,17 +571,6 @@ class _WandbInit:
         logger.info(
             f"wandb.init called with sweep_config: {self.sweep_config}\nconfig: {self.config}"
         )
-        if self.settings._disable_machine_info:
-            self.settings.update(
-                {
-                    "_disable_stats": True,
-                    "_disable_meta": True,
-                    "disable_code": True,
-                    "disable_git": True,
-                    "disable_job_creation": True,
-                },
-                source=Source.INIT,
-            )
 
         if self.settings._noop:
             return self._make_run_disabled()
