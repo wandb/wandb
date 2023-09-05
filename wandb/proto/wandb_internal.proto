@@ -613,8 +613,12 @@ message GetSystemMetricsRequest {
   _RequestInfo _info = 200;
 }
 
-message GetSystemMetricsResponse {
+message SystemMetricsBuffer {
   repeated StatsRecord record = 1;
+}
+
+message GetSystemMetricsResponse{
+  map<string, SystemMetricsBuffer> system_metrics = 1;
 }
 
 /*

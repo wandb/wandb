@@ -3092,6 +3092,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
 
+    @property
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def system_metrics(self) -> Dict[str, Any]:
