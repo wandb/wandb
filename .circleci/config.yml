@@ -634,6 +634,12 @@ jobs:
                 region: us-east-2
                 profile_name: default
             - run:
+                name: Use py37
+                command: |
+                  pyenv install -s 3.7.13
+                  pyenv versions
+                  pyenv global 3.7.13
+            - run:
                 name: Install tox
                 command: |
                   pip3 install -U pip
