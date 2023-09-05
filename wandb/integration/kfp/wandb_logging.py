@@ -35,7 +35,7 @@ def wandb_log(  # noqa: C901
         f = getattr(t, "_fields", None)
         if not isinstance(f, tuple):
             return False
-        return all(type(n) == str for n in f)
+        return all(isinstance(n, str) for n in f)
 
     def get_iframe_html(run):
         return f'<iframe src="{run.url}?kfp=true" style="border:none;width:100%;height:100%;min-width:900px;min-height:600px;"></iframe>'

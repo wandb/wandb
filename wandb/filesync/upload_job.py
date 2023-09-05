@@ -78,9 +78,7 @@ class UploadJob:
                 if hasattr(e, "response"):
                     message = e.response.content
                 wandb.termerror(
-                    'Error uploading "{}": {}, {}'.format(
-                        self.save_path, type(e).__name__, message
-                    )
+                    f'Error uploading "{self.save_path}": {type(e).__name__}, {message}'
                 )
                 raise
 
@@ -137,9 +135,7 @@ class UploadJob:
                 wandb._sentry.exception(e)
                 if not self.silent:
                     wandb.termerror(
-                        'Error uploading "{}": {}, {}'.format(
-                            self.save_name, type(e).__name__, e
-                        )
+                        f'Error uploading "{self.save_name}": {type(e).__name__}, {e}'
                     )
                 raise
 

@@ -94,6 +94,23 @@ def _handle_launch_config(settings: "Settings") -> Dict[str, Any]:
         with open(settings.launch_config_path) as fp:
             launch_config = json.loads(fp.read())
         launch_run_config = launch_config.get("overrides", {}).get("run_config")
+    else:
+        i = 0
+        chunks = []
+        while True:
+            key = f"WANDB_CONFIG_{i}"
+            if key in os.environ:
+                chunks.append(os.environ[key])
+                i += 1
+            else:
+                break
+        if len(chunks) > 0:
+            config_string = "".join(chunks)
+            try:
+                launch_run_config = json.loads(config_string)
+            except (ValueError, SyntaxError):
+                wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+
     return launch_run_config
 
 
@@ -112,7 +129,7 @@ class _WandbInit:
         self._teardown_hooks: List[TeardownHook] = []
         self._wl: Optional[wandb_setup._WandbSetup] = None
         self._reporter: Optional[wandb.sdk.lib.reporting.Reporter] = None
-        self.notebook: Optional["wandb.jupyter.Notebook"] = None  # type: ignore
+        self.notebook: Optional[wandb.jupyter.Notebook] = None  # type: ignore
         self.printer: Optional[Printer] = None
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
@@ -712,7 +729,7 @@ class _WandbInit:
         if not self.settings.disable_git:
             run._populate_git_info()
 
-        run_result: Optional["pb.RunUpdateResult"] = None
+        run_result: Optional[pb.RunUpdateResult] = None
 
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
@@ -723,7 +740,7 @@ class _WandbInit:
                     "`resume` will be ignored since W&B syncing is set to `offline`. "
                     f"Starting a new run with run id {run.id}."
                 )
-        error: Optional["wandb.errors.Error"] = None
+        error: Optional[wandb.errors.Error] = None
 
         timeout = self.settings.init_timeout
 

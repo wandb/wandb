@@ -59,7 +59,7 @@ class Sentry:
 
         self.dsn = os.environ.get(wandb.env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
 
-        self.hub: Optional["sentry_sdk.hub.Hub"] = None
+        self.hub: Optional[sentry_sdk.hub.Hub] = None
 
         # ensure we always end the Sentry session
         atexit.register(self.end_session)

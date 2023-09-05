@@ -87,8 +87,6 @@ def _setup_requeue(mocker):
     mocker.event = MagicMock()
     mocker.event.is_set = MagicMock(return_value=True)
 
-    mocker.project = MagicMock()
-
     mocker.status = MagicMock()
     mocker.status.state = "preempted"
     mocker.run = MagicMock()
@@ -96,17 +94,18 @@ def _setup_requeue(mocker):
     mocker.runner = MagicMock()
     mocker.runner.run = MagicMock(return_value=mocker.run)
 
-    mocker.job_tracker = MagicMock()
-    mocker.job_tracker.completed_status = None
-    mocker.job_tracker.entity = "test-entity"
     mocker.launch_add = MagicMock()
 
     mocker.patch("wandb.sdk.launch.agent.agent.threading", MagicMock())
     mocker.patch("multiprocessing.Event", mocker.event)
     mocker.patch("multiprocessing.pool.ThreadPool", MagicMock())
+    mocker.project = MagicMock()
     mocker.patch(
         "wandb.sdk.launch.agent.agent.create_project_from_spec", mocker.project
     )
+    mocker.project.return_value.target_entity = "test-entity"
+    mocker.project.return_value.run_id = "test-run-id"
+
     mocker.patch("wandb.sdk.launch.agent.agent.fetch_and_validate_project", MagicMock())
     mocker.patch(
         "wandb.sdk.launch.agent.agent.loader.builder_from_config",
@@ -116,18 +115,13 @@ def _setup_requeue(mocker):
         "wandb.sdk.launch.agent.agent.loader.runner_from_config",
         return_value=mocker.runner,
     )
-    mocker.patch(
-        "wandb.sdk.launch.agent.agent.JobAndRunStatusTracker",
-        return_value=mocker.job_tracker,
-    )
+
     mocker.api.fail_run_queue_item = MagicMock()
     mocker.patch("wandb.sdk.launch.agent.agent.launch_add", mocker.launch_add)
 
 
 def test_requeue_on_preemption(mocker):
     _setup_requeue(mocker)
-    mocker.job_tracker.run_id = "test-run-id"
-    mocker.job_tracker.queue = "test-queue"
 
     mock_config = {
         "entity": "test-entity",
@@ -140,13 +134,16 @@ def test_requeue_on_preemption(mocker):
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
 
+    job_tracker = JobAndRunStatusTracker(
+        mock_job["runQueueItemId"], "test-queue", MagicMock()
+    )
+
     agent.thread_run_job(
         launch_spec=mock_launch_spec,
         job=mock_job,
         default_config={},
         api=mocker.api,
-        queue="test-queue",
-        file_saver=MagicMock(),
+        job_tracker=job_tracker,
     )
 
     expected_config = {"run_id": "test-run-id", "_resume_count": 1}
@@ -195,7 +192,7 @@ def test_max_scheduler_setup(mocker, num_schedulers):
         num_schedulers = 1  # default for none
     elif num_schedulers == -1:
         num_schedulers = float("inf")
-    elif type(num_schedulers) is str:
+    elif isinstance(num_schedulers, str):
         num_schedulers = int(num_schedulers)
 
     assert agent._max_schedulers == num_schedulers
@@ -348,3 +345,36 @@ def test_thread_finish_run_fail_different_entity(mocker):
     assert len(agent._jobs) == 0
     assert not mocker.api.fail_run_queue_item.called
     assert not mock_saver.save_contents.called
+
+
+def test_agent_fails_sweep_state(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    def mock_set_sweep_state(sweep, entity, project, state):
+        assert entity == "test-entity"
+        assert project == "test-project"
+        assert sweep == "test-sweep-id"
+        assert state == "CANCELED"
+
+    mocker.api.set_sweep_state = mock_set_sweep_state
+
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker("run_queue_item_id", "_queue", mock_saver)
+    job.completed_status = False
+    job.run_id = "test-sweep-id"
+    job.is_scheduler = True
+    job.entity = "test-entity"
+    job.project = "test-project"
+    run = MagicMock()
+    run.get_status.return_value.state = "failed"
+    job.run = run
+
+    # should detect failed scheduler, set sweep state to CANCELED
+    out = agent._check_run_finished(job, {})
+    assert job.completed_status == "failed"
+    assert out, "True when status successfully updated"

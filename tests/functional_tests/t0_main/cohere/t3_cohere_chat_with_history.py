@@ -8,11 +8,11 @@ def main():
     co = cohere.Client()
 
     _ = co.chat(
-        query="Give me your favorite Math Rock song!",
+        message="What is the weather like today?",
         model="command-light",
         chat_history=[
-            {"user_name": "User", "text": "Hey! How are you doing today?"},
-            {"user_name": "Bot", "text": "I am doing great! How can I help you?"},
+            {"user_name": "User", "message": "Hey! How are you doing today?"},
+            {"user_name": "Bot", "message": "I am doing great! How can I help you?"},
         ],
         return_prompt=True,
         return_preamble=True,
@@ -20,11 +20,11 @@ def main():
     )
 
     _ = co.chat(
-        query="Give me your favorite Math Rock song!",
+        message="How many people live in New York City?",
         model="command-light",
         chat_history=[
-            {"user_name": "User", "text": "What is your favorite Genre?"},
-            {"user_name": "Bot", "text": "Have you listened to Math Rock?"},
+            {"user_name": "User", "message": "Hi! How are you doing today?"},
+            {"user_name": "Bot", "message": "I am doing great! How can I help you?"},
         ],
     )
 

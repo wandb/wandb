@@ -3,7 +3,11 @@ from unittest.mock import MagicMock
 
 import pytest
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
-from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
+from wandb.sdk.launch.environment.gcp_environment import (
+    GCP_REGION_ENV_VAR,
+    GcpEnvironment,
+    get_gcloud_config_value,
+)
 from wandb.sdk.launch.errors import LaunchError
 
 
@@ -116,3 +120,50 @@ def test_upload_dir(mocker):
             ),
         ],
     )
+
+
+@pytest.mark.parametrize(
+    "region,value",
+    [
+        (b"us-central1", "us-central1"),
+        (b"unset", None),
+    ],
+)
+def test_get_gcloud_config_value(mocker, region, value):
+    """Test that we correctly handle gcloud outputs."""
+    # Mock subprocess.check_output
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.subprocess.check_output",
+        return_value=region,
+    )
+    # environment = GcpEnvironment.from_default()
+    assert get_gcloud_config_value("region") == value
+
+
+def test_from_default_gcloud(mocker):
+    """Test constructing gcp environment in a region read by the gcloud CLI."""
+    #  First test that we construct from gcloud output
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.subprocess.check_output",
+        return_value=b"us-central1",
+    )
+    environment = GcpEnvironment.from_default(verify=False)
+    assert environment.region == "us-central1"
+
+
+def test_from_default_env(mocker):
+    """Test that we can construct default reading region from env var."""
+    # Patch gcloud output
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.subprocess.check_output",
+        return_value=b"unset",
+    )
+    # Patch env vars
+    mocker.patch.dict(
+        os.environ,
+        {
+            GCP_REGION_ENV_VAR: "us-central1",
+        },
+    )
+    environment = GcpEnvironment.from_default(verify=False)
+    assert environment.region == "us-central1"

@@ -14,6 +14,7 @@ import json
 import os
 import sys
 from distutils.util import strtobool
+from pathlib import Path
 from typing import List, MutableMapping, Optional, Union
 
 import appdirs
@@ -50,6 +51,7 @@ RUN_GROUP = "WANDB_RUN_GROUP"
 RUN_DIR = "WANDB_RUN_DIR"
 SWEEP_ID = "WANDB_SWEEP_ID"
 HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
+FILE_PUSHER_TIMEOUT = "WANDB_FILE_PUSHER_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
@@ -191,11 +193,22 @@ def get_docker(
     return env.get(DOCKER, default)
 
 
-def get_http_timeout(default: int = 10, env: Optional[Env] = None) -> int:
+def get_http_timeout(default: int = 30, env: Optional[Env] = None) -> int:
     if env is None:
         env = os.environ
 
     return int(env.get(HTTP_TIMEOUT, default))
+
+
+def get_file_pusher_timeout(
+    default: Optional[int] = None,
+    env: Optional[Env] = None,
+) -> Optional[int]:
+    if env is None:
+        env = os.environ
+
+    timeout = env.get(FILE_PUSHER_TIMEOUT, default)
+    return int(timeout) if timeout else None
 
 
 def get_ignore(
@@ -367,12 +380,9 @@ def get_artifact_dir(env: Optional[Env] = None) -> str:
     return val
 
 
-def get_cache_dir(env: Optional[Env] = None) -> str:
-    default_dir = appdirs.user_cache_dir("wandb")
-    if env is None:
-        env = os.environ
-    val = env.get(CACHE_DIR, default_dir)
-    return val
+def get_cache_dir(env: Optional[Env] = None) -> Path:
+    env = env or os.environ
+    return Path(env.get(CACHE_DIR, appdirs.user_cache_dir("wandb")))
 
 
 def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:

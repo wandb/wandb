@@ -787,9 +787,12 @@ def _start_backend(
         wt = start_write_thread(internal_wm)
         st = start_send_thread(internal_sm)
         if initial_run:
-            run = _internal_sender.communicate_run(mocked_run)
+            handle = _internal_sender.deliver_run(mocked_run)
+            result = handle.wait(timeout=10)
+            run_result = result.run_result
             if initial_start:
-                _internal_sender.communicate_run_start(run.run)
+                handle = _internal_sender.deliver_run_start(run_result.run)
+                handle.wait(timeout=10)
         return (ht, wt, st)
 
     yield start_backend_func

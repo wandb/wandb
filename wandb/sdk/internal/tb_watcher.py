@@ -116,7 +116,7 @@ class TBWatcher:
         force: bool = False,
     ) -> None:
         self._logdirs = {}
-        self._consumer: Optional["TBEventConsumer"] = None
+        self._consumer: Optional[TBEventConsumer] = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
@@ -366,7 +366,7 @@ class TBEventConsumer:
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
         def datatypes_cb(fname: GlobStr) -> None:
-            files: "FilesDict" = dict(files=[(fname, "now")])
+            files: FilesDict = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
         # this is only used for logging artifacts

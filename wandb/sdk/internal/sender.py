@@ -4,8 +4,10 @@ import json
 import logging
 import os
 import queue
+import sys
 import threading
 import time
+import traceback
 from collections import defaultdict
 from datetime import datetime
 from queue import Queue
@@ -18,6 +20,7 @@ from typing import (
     NewType,
     Optional,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -30,10 +33,17 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.sdk.artifacts import artifact_saver
+from wandb.sdk.artifacts.artifact_saver import ArtifactSaver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
+from wandb.sdk.internal import (
+    context,
+    datastore,
+    file_stream,
+    internal_api,
+    job_builder,
+    update,
+)
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -50,9 +60,12 @@ from wandb.sdk.lib import (
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
 
-if TYPE_CHECKING:
-    import sys
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
+if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactManifest,
         ArtifactRecord,
@@ -64,11 +77,6 @@ if TYPE_CHECKING:
         RunRecord,
         SummaryRecord,
     )
-
-    if sys.version_info >= (3, 8):
-        from typing import Literal
-    else:
-        from typing_extensions import Literal
 
     StreamLiterals = Literal["stdout", "stderr"]
 
@@ -278,7 +286,7 @@ class SendManager:
         self._api_settings = dict()
 
         # queue filled by retry_callback
-        self._retry_q: "Queue[HttpResponse]" = queue.Queue()
+        self._retry_q: Queue[HttpResponse] = queue.Queue()
 
         # do we need to debounce?
         self._config_needs_debounce: bool = False
@@ -300,7 +308,11 @@ class SendManager:
         self._debounce_status_time = time_now
 
     @classmethod
-    def setup(cls, root_dir: str, resume: Union[None, bool, str]) -> "SendManager":
+    def setup(
+        cls,
+        root_dir: str,
+        resume: Union[None, bool, str],
+    ) -> "SendManager":
         """Set up a standalone SendManager.
 
         Currently, we're using this primarily for `sync.py`.
@@ -318,8 +330,8 @@ class SendManager:
             _file_stream_timeout_seconds=0,
         )
         settings = SettingsStatic(settings.to_proto())
-        record_q: "Queue[Record]" = queue.Queue()
-        result_q: "Queue[Result]" = queue.Queue()
+        record_q: Queue[Record] = queue.Queue()
+        result_q: Queue[Result] = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
@@ -332,6 +344,21 @@ class SendManager:
 
     def __len__(self) -> int:
         return self._record_q.qsize()
+
+    def __enter__(self) -> "SendManager":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[traceback.TracebackException],
+    ) -> Literal[False]:
+        while self:
+            data = next(self)
+            self.send(data)
+        self.finish()
+        return False
 
     def retry_callback(self, status: int, response_text: str) -> None:
         response = wandb_internal_pb2.HttpResponse()
@@ -387,9 +414,9 @@ class SendManager:
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
-        if type(dictionary) == dict:
+        if isinstance(dictionary, dict):
             for k, v in list(dictionary.items()):
-                if type(v) == dict:
+                if isinstance(v, dict):
                     self._flatten(v)
                     dictionary.pop(k)
                     for k2, v2 in v.items():
@@ -1217,7 +1244,7 @@ class SendManager:
         if not self._fs:
             return
         out = record.output
-        stream: "StreamLiterals" = "stdout"
+        stream: StreamLiterals = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
@@ -1227,7 +1254,7 @@ class SendManager:
         if not self._fs:
             return
         out = record.output_raw
-        stream: "StreamLiterals" = "stdout"
+        stream: StreamLiterals = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRawRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
@@ -1392,8 +1419,14 @@ class SendManager:
         This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
-        if use.type == "job":
+
+        if use.type == "job" and not use.partial.job_name:
             self._job_builder.disable = True
+        elif use.partial.job_name:
+            # job is partial, let job builder rebuild job, set job source dict
+            self._job_builder._partial_source = (
+                job_builder.convert_use_artifact_to_job_source(record.use_artifact)
+            )
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1408,34 +1441,10 @@ class SendManager:
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
-                'error logging artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+                f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
         self._respond_result(result)
-
-    def send_request_artifact_send(self, record: "Record") -> None:
-        # TODO: combine and eventually remove send_request_log_artifact()
-
-        # for now, we are using req/resp uuid for transaction id
-        # in the future this should be part of the message to handle idempotency
-        xid = record.uuid
-
-        done_msg = wandb_internal_pb2.ArtifactDoneRequest(xid=xid)
-        artifact = record.request.artifact_send.artifact
-        try:
-            res = self._send_artifact(artifact)
-            assert res, "Unable to send artifact"
-            done_msg.artifact_id = res["id"]
-            logger.info(f"logged artifact {artifact.name} - {res}")
-        except Exception as e:
-            done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
-            )
-
-        logger.info("send artifact done")
-        self._interface._publish_artifact_done(done_msg)
 
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
@@ -1455,7 +1464,7 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifact_saver.ArtifactSaver(
+        saver = ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
             manifest_json=_manifest_json_from_proto(artifact.manifest),
@@ -1481,7 +1490,8 @@ class SendManager:
             client_id=artifact.client_id,
             sequence_client_id=artifact.sequence_client_id,
             metadata=metadata,
-            description=artifact.description,
+            ttl_duration_seconds=artifact.ttl_duration_seconds or None,
+            description=artifact.description or None,
             aliases=artifact.aliases,
             use_after_commit=artifact.use_after_commit,
             distributed_id=artifact.distributed_id,
