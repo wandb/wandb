@@ -73,6 +73,7 @@ _Setting = Literal[
     "_stats_open_metrics_endpoints",
     "_stats_open_metrics_filters",
     "_stats_disk_paths",
+    "_stats_buffer_size",
     "_tmp_code_dir",
     "_tracelog",
     "_unsaved_keys",
