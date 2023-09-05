@@ -32,9 +32,9 @@ type List struct {
 
 func (l *List) Append(element int) {
 	if (l.maxSize > 0) && (len(l.elements) >= l.maxSize) {
-		l.elements = l.elements[1:]  // Drop the oldest element
+		l.elements = l.elements[1:] // Drop the oldest element
 	}
-	l.elements = append(l.elements, element)  // Add the new element
+	l.elements = append(l.elements, element) // Add the new element
 }
 
 func (l *List) GetElements() []int {
