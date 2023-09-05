@@ -2003,6 +2003,9 @@ class Run:
             plot_table=self.plot_table,
             alert=self.alert,
             mark_preempting=self.mark_preempting,
+            log_model=self.log_model,
+            use_model=self.use_model,
+            link_model=self.link_model,
         )
 
     def _redirect(
@@ -3066,6 +3069,7 @@ class Run:
         )
         return None
 
+    @_run_decorator._attach
     def use_model(self, model_name: str) -> StrPath:
         """Download a logged model artifact.
 
@@ -3077,9 +3081,10 @@ class Run:
                     - name:alias
                     - digest.
         """
-
+        r = self._run_obj
+        assert r is not None
         artifact = self.use_artifact(artifact_or_name=model_name)
-        # TODO: Assert type == model?
+        assert artifact.type.lower() == "model"
         local_path = artifact.download()
         return local_path
 
