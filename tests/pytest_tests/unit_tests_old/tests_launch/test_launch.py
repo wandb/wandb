@@ -12,6 +12,7 @@ import wandb.sdk.launch.launch as launch
 import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.sdk.launch.builder.build import _inject_wandb_config_env_vars
 from wandb.sdk.launch.builder.docker_builder import DockerBuilder
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -1025,6 +1026,21 @@ def test_run_in_launch_context_with_config_env_var(
         assert run.config.lr == 0.004
 
 
+def test_run_in_launch_context_with_multi_config_env_var(
+    runner, live_mock_server, test_settings, monkeypatch
+):
+    with runner.isolated_filesystem():
+        config_env_vars = {}
+        _inject_wandb_config_env_vars({"epochs": 10}, config_env_vars, 5)
+        for k in config_env_vars.keys():
+            monkeypatch.setenv(k, config_env_vars[k])
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        run.finish()
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+
+
 def test_run_in_launch_context_with_artifact_string_no_used_as_env_var(
     runner, live_mock_server, test_settings, monkeypatch
 ):
@@ -1108,7 +1124,7 @@ def test_launch_entrypoint(test_settings):
         {},
         None,  # run_id
     )
-    launch_project.add_entry_point(entry_point)
+    launch_project.set_entry_point(entry_point)
     calced_ep = launch_project.get_single_entry_point().compute_command(["--blah", "2"])
     assert calced_ep == ["python", "main.py", "--blah", "2"]
 
@@ -1306,10 +1322,10 @@ def test_noop_builder(
             "project": "test",
             "synchronous": False,
         }
-        with pytest.raises(LaunchError) as e:
-            launch.run(**kwargs)
-
-        assert (
-            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
-            in str(e)
+        expected = (
+            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml.\n"
+            "Note: Jobs sourced from git repos and code artifacts require a builder, while jobs sourced from Docker images do not.\n"
+            "See https://docs.wandb.ai/guides/launch/create-job."
         )
+        with pytest.raises(LaunchError, match=expected):
+            launch.run(**kwargs)

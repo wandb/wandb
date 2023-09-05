@@ -2,7 +2,7 @@ import os
 import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
 
@@ -12,9 +12,10 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
+import wandb.sdk.artifacts.artifacts_cache as artifacts_cache
 from wandb import util
-from wandb.sdk.artifacts import artifacts_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
@@ -1475,3 +1476,39 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
     # Even though this works in production, the test often fails. I don't know why :(.
     assert found
     assert cache.cleanup(0) == 2**20
+
+
+def test_artifact_ttl_setter_getter():
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed is False
+    assert art._ttl_is_inherited
+
+    art = wandb.Artifact("test", type="test")
+    art.ttl = None
+    assert art.ttl is None
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ArtifactTTL.INHERIT
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited
+
+    ttl_timedelta = timedelta(days=100)
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ttl_timedelta
+    assert art.ttl == ttl_timedelta
+    assert art._ttl_duration_seconds == int(ttl_timedelta.total_seconds())
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ValueError):
+        art.ttl = timedelta(days=-1)

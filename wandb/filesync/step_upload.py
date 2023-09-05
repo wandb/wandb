@@ -155,7 +155,7 @@ class StepUpload:
         self._running_jobs: MutableMapping[LogicalPath, RequestUpload] = {}
         self._pending_jobs: MutableSequence[RequestUpload] = []
 
-        self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
+        self._artifacts: MutableMapping[str, ArtifactStatus] = {}
 
         self.silent = bool(settings.silent) if settings else False
 

@@ -19,6 +19,7 @@ message TelemetryRecord {
   Labels  label = 9;
   Deprecated deprecated = 10;
   Issues issues = 11;
+  string  core_version = 12;
   _RecordInfo _info = 200;
 }
 
@@ -127,6 +128,10 @@ message Imports {
   bool optimum = 99;
   bool evaluate = 100;
   bool langflow = 101;
+  bool keras_core = 102; // keras-core
+  bool lightning_fabric = 103; // lightning-fabric
+  bool curated_transformers = 104; // curated-transformers
+  bool orjson = 105;
 }
 
 message Feature {

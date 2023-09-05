@@ -4,7 +4,10 @@ import base64
 import json
 import logging
 import time
+from threading import Lock, Thread
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+
+import urllib3
 
 import wandb
 from wandb.apis.internal import Api
@@ -20,6 +23,7 @@ from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
     make_name_dns_safe,
@@ -31,21 +35,20 @@ get_module(
     required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
 )
 
-from kubernetes import client  # type: ignore # noqa: E402
+from kubernetes import client, watch  # type: ignore # noqa: E402
 from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
 from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
 from kubernetes.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
 from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
+from kubernetes.client.models.v1_pod_status import (  # type: ignore # noqa: E402
+    V1PodStatus,
+)
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
 from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
-MAX_KUBERNETES_RETRIES = (
-    60  # default 10 second loop time on the agent, this is 10 minutes
-)
-FAIL_MESSAGE_INTERVAL = 60
 
 _logger = logging.getLogger(__name__)
 
@@ -63,11 +66,173 @@ CRD_STATE_DICT: Dict[str, State] = {
 }
 
 
+def _is_preempted(status: "V1PodStatus") -> bool:
+    """Check if this pod has been preempted."""
+    if hasattr(status, "conditions") and status.conditions is not None:
+        for condition in status.conditions:
+            if condition.type == "DisruptionTarget" and condition.reason in [
+                "EvictionByEvictionAPI",
+                "PreemptionByScheduler",
+                "TerminationByKubelet",
+            ]:
+                return True
+    return False
+
+
+def _is_container_creating(status: "V1PodStatus") -> bool:
+    """Check if this pod has started creating containers."""
+    for container_status in status.container_statuses or []:
+        if (
+            container_status.state
+            and container_status.state.waiting
+            and container_status.state.waiting.reason == "ContainerCreating"
+        ):
+            return True
+    return False
+
+
+class KubernetesRunMonitor:
+    def __init__(
+        self,
+        job_field_selector: str,
+        pod_label_selector: str,
+        namespace: str,
+        batch_api: "BatchV1Api",
+        core_api: "CoreV1Api",
+    ) -> None:
+        """Initial KubernetesRunMonitor.
+
+        Arguments:
+            jobname: Name of the job.
+
+        Returns:
+            None.
+        """
+        self.pod_label_selector = pod_label_selector
+        self.job_field_selector = job_field_selector
+        self.namespace = namespace
+        self.batch_api = batch_api
+        self.core_api = core_api
+
+        self._status_lock = Lock()
+        self._status = Status("starting")
+
+        self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
+        self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
+
+        self._job_watcher = watch.Watch()
+        self._pod_watcher = watch.Watch()
+
+    def start(self) -> None:
+        """Start the run monitor."""
+        if self._watch_job_thread.is_alive() or self._watch_pods_thread.is_alive():
+            raise LaunchError(
+                "Attempted to start monitor that has already started"
+            )  # TODO: what should I do here?
+        self._watch_job_thread.start()
+        self._watch_pods_thread.start()
+
+    def stop(self) -> None:
+        """Stop the run monitor."""
+        self._job_watcher.stop()
+        self._pod_watcher.stop()
+
+    def _set_status(self, status: Status) -> None:
+        """Set the run status."""
+        with self._status_lock:
+            self._status = status
+
+    def get_status(self) -> Status:
+        """Get the run status."""
+        with self._status_lock:
+            return self._status
+
+    def _watch_pods(self) -> None:
+        """Watch for pods created matching the jobname."""
+        try:
+            # Stream with no timeout polling for pod status updates
+            for event in self._pod_watcher.stream(
+                self.core_api.list_namespaced_pod,
+                namespace=self.namespace,
+                label_selector=self.pod_label_selector,
+            ):
+                type = event.get("type")
+                object = event.get("object")
+
+                if type == "MODIFIED":
+                    if object.status.phase == "Running":
+                        self._set_status(Status("running"))
+                if _is_preempted(object.status):
+                    self._set_status(Status("preempted"))
+                    self.stop()
+                    break
+                if _is_container_creating(object.status):
+                    self._set_status(Status("starting"))
+
+        # This can happen if the initial cluster connection fails.
+        except ApiException as e:
+            raise LaunchError(
+                f"Exception when calling CoreV1Api.list_namespaced_pod with selector {self.pod_label_selector}: {e}"
+            )
+
+        # This can happen if the stream starts and gets broken, typically because
+        # a thread is hanging. The kubernetes SDK is already implementing a
+        # retry loop so if we get here it means that the pods cannot be monitored.
+        except urllib3.exceptions.ProtocolError as e:
+            state = self.get_status().state
+            if state in ["failed", "finished"]:
+                _logger.warning(
+                    f"Hanging pod monitor thread with selector {self.pod_label_selector}: {e}"
+                )
+                return
+            raise LaunchError(
+                f"Broken event stream for pod watcher in state '{state}' and selector {self.pod_label_selector}: {e}"
+            )
+
+    def _watch_job(self) -> None:
+        """Watch for job matching the jobname."""
+        try:
+            for event in self._job_watcher.stream(
+                self.batch_api.list_namespaced_job,
+                namespace="default",
+                field_selector=self.job_field_selector,
+            ):
+                object = event.get("object")
+                if object.status.succeeded == 1:
+                    self._set_status(Status("finished"))
+                    self.stop()
+                    break
+                elif object.status.failed is not None and object.status.failed >= 1:
+                    self._set_status(Status("failed"))
+                    self.stop()
+                    break
+
+        # This can happen if the initial cluster connection fails.
+        except ApiException as e:
+            raise LaunchError(
+                f"Exception when calling CoreV1Api.list_namespaced_job with selector {self.job_field_selector}: {e}"
+            )
+
+        # This can happen if the connection is lost to the Kubernetes API server
+        # and cannot be re-established.
+        except urllib3.exceptions.ProtocolError as e:
+            state = self.get_status().state
+            if state in ["finished", "failed"]:
+                _logger.warning(
+                    f"Hanging job monitor thread with select {self.job_field_selector}: {e}"
+                )
+                return
+            raise LaunchError(
+                f"Broken event stream for job watcher in state {state} with selector {self.job_field_selector}: {e}"
+            )
+
+
 class KubernetesSubmittedRun(AbstractRun):
     """Wrapper for a launched run on Kubernetes."""
 
     def __init__(
         self,
+        monitor: KubernetesRunMonitor,
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         name: str,
@@ -76,6 +241,14 @@ class KubernetesSubmittedRun(AbstractRun):
         secret: Optional["V1Secret"] = None,
     ) -> None:
         """Initialize a KubernetesSubmittedRun.
+
+        Other implementations of the AbstractRun interface poll on the run
+        when `get_status` is called, but KubernetesSubmittedRun uses
+        Kubernetes watch streams to update the run status. One thread handles
+        events from the job object and another thread handles events from the
+        rank 0 pod. These threads updated the `_status` attributed of the
+        KubernetesSubmittedRun object. When `get_status` is called, the
+        `_status` attribute is returned.
 
         Arguments:
             batch_api: Kubernetes BatchV1Api object.
@@ -88,6 +261,7 @@ class KubernetesSubmittedRun(AbstractRun):
         Returns:
             None.
         """
+        self.monitor = monitor
         self.batch_api = batch_api
         self.core_api = core_api
         self.name = name
@@ -142,58 +316,9 @@ class KubernetesSubmittedRun(AbstractRun):
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
-    def get_status(self) -> Status:
-        """Return the run status."""
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
-        status = job_response.status
-
-        pod = self.core_api.read_namespaced_pod(
-            name=self.pod_names[0], namespace=self.namespace
-        )
-
-        if (
-            hasattr(pod.status, "conditions")
-            and pod.status.conditions is not None
-            and pod.status.conditions[0].type == "DisruptionTarget"
-            and pod.status.conditions[0].reason
-            in [
-                "EvictionByEvictionAPI",
-                "PreemptionByScheduler",
-                "TerminationByKubelet",
-            ]
-        ):
-            return Status("preempted")
-        if pod.status.phase in ["Pending", "Unknown"]:
-            now = time.time()
-            if self._fail_count == 0:
-                self._fail_first_msg_time = now
-                self._fail_last_msg_time = 0.0
-            self._fail_count += 1
-            if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes."
-                )
-                self._fail_last_msg_time = now
-            if self._fail_count > MAX_KUBERNETES_RETRIES:
-                raise LaunchError(f"Failed to start job {self.name}")
-        # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
-        return_status = None
-        if status.succeeded == 1:
-            return_status = Status("finished")
-        elif status.failed is not None and status.failed >= 1:
-            return_status = Status("failed")
-        elif status.active == 1:
-            return Status("running")
-        elif status.conditions is not None and status.conditions[0].type == "Suspended":
-            return_status = Status("stopped")
-        else:
-            return_status = Status("unknown")
-        if (
-            return_status.state in ["stopped", "failed", "finished"]
-            and self.secret is not None
-        ):
+    def _delete_secret_if_completed(self, state: str) -> None:
+        """If the runner has a secret and the run is completed, delete the secret."""
+        if state in ["stopped", "failed", "finished"] and self.secret is not None:
             try:
                 self.core_api.delete_namespaced_secret(
                     self.secret.metadata.name, self.namespace
@@ -202,7 +327,9 @@ class KubernetesSubmittedRun(AbstractRun):
                 wandb.termerror(
                     f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
                 )
-        return return_status
+
+    def get_status(self) -> Status:
+        return self.monitor.get_status()
 
     def suspend(self) -> None:
         """Suspend the run."""
@@ -231,6 +358,7 @@ class KubernetesSubmittedRun(AbstractRun):
     def cancel(self) -> None:
         """Cancel the run."""
         self.suspend()
+        self.monitor.stop()
         self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
 
 
@@ -501,26 +629,19 @@ class KubernetesRunner(AbstractRunner):
                 }
 
         secret = None
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
         if launch_project.docker_image:
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
-                )
             # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = image_uri
             # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
-                )
             assert entry_point is not None
-            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             containers[0]["image"] = image_uri
-            launch_project.fill_macros(image_uri)
         secret = maybe_create_imagepull_secret(
             core_api, self.registry, launch_project.run_id, namespace
         )
@@ -536,7 +657,9 @@ class KubernetesRunner(AbstractRunner):
             launch_project.override_entrypoint is not None,
         )
 
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
         for cont in containers:
             # Add our env vars to user supplied env vars
             env = cont.get("env", [])
@@ -570,7 +693,7 @@ class KubernetesRunner(AbstractRunner):
             required="Kubernetes runner requires the kubernetes package. Please"
             " install it with `pip install wandb[launch]`.",
         )
-        resource_args = launch_project.resource_args.get("kubernetes", {})
+        resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a "
@@ -585,22 +708,21 @@ class KubernetesRunner(AbstractRunner):
         # run by creating a custom object.
         api_version = resource_args.get("apiVersion", "batch/v1")
         if api_version not in ["batch/v1", "batch/v1beta1"]:
-            launch_project.fill_macros(image_uri)
-            env_vars = get_env_vars_dict(launch_project, self._api)
+            env_vars = get_env_vars_dict(
+                launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+            )
             # Crawl the resource args and add our env vars to the containers.
-            add_wandb_env(launch_project.resource_args, env_vars)
+            add_wandb_env(resource_args, env_vars)
             # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
-            add_label_to_pods(
-                launch_project.resource_args, "wandb/run-id", launch_project.run_id
-            )
+            add_label_to_pods(resource_args, "wandb/run-id", launch_project.run_id)
             overrides = {}
             if launch_project.override_args:
                 overrides["args"] = launch_project.override_args
             if launch_project.override_entrypoint:
                 overrides["command"] = launch_project.override_entrypoint.command
             add_entrypoint_args_overrides(
-                launch_project.resource_args,
+                resource_args,
                 overrides,
             )
             api = client.CustomObjectsApi(api_client)
@@ -617,7 +739,7 @@ class KubernetesRunner(AbstractRunner):
                     version=version,
                     namespace=namespace,
                     plural=plural,
-                    body=launch_project.resource_args.get("kubernetes"),
+                    body=resource_args,
                 )
             except ApiException as e:
                 raise LaunchError(
@@ -656,12 +778,22 @@ class KubernetesRunner(AbstractRunner):
             0
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.name
-        pod_names = self.wait_job_launch(job_name, namespace, core_api)
+
+        # Event stream monitor to ensure pod creation and job completion.
+        monitor = KubernetesRunMonitor(
+            job_field_selector=f"metadata.name={job_name}",
+            pod_label_selector=f"job-name={job_name}",
+            namespace=namespace,
+            batch_api=batch_api,
+            core_api=core_api,
+        )
+        monitor.start()
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, pod_names, namespace, secret
+            monitor, batch_api, core_api, job_name, [], namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
+
         return submitted_job
 
 
@@ -734,7 +866,15 @@ def maybe_create_imagepull_secret(
         type="kubernetes.io/dockerconfigjson",
     )
     try:
-        return core_api.create_namespaced_secret(namespace, secret)
+        try:
+            return core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            # 409 = conflict = secret already exists
+            if e.status == 409:
+                return core_api.read_namespaced_secret(
+                    name=f"regcred-{run_id}", namespace=namespace
+                )
+            raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 

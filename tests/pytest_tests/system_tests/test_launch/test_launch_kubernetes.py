@@ -39,6 +39,7 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project.override_config = {}
         project.job = "testjob"
         project.launch_spec = {"_resume_count": 0}
+        project.fill_macros = lambda _: project.resource_args
 
         environment = loader.environment_from_config({})
         api = Api()
@@ -104,6 +105,7 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
         project.override_config = {}
         project.override_args = ["-a", "2"]
         project.job = "testjob"
+        project.fill_macros = lambda _: project.resource_args
         monkeypatch.setattr(
             kubernetes_runner,
             "maybe_create_imagepull_secret",

@@ -7,7 +7,7 @@ from wandb.sdk.launch.builder import build
 def test_get_env_vars_dict(mocker):
     _setup(mocker)
 
-    resp = build.get_env_vars_dict(mocker.launch_project, mocker.api)
+    resp = build.get_env_vars_dict(mocker.launch_project, mocker.api, 512)
 
     assert resp == {
         "WANDB_API_KEY": "test-api-key",
@@ -16,7 +16,6 @@ def test_get_env_vars_dict(mocker):
         "WANDB_CONFIG": "test-wandb-artifacts",
         "WANDB_DOCKER": "test-docker-image",
         "WANDB_ENTITY": "test-entity",
-        "WANDB_ENTRYPOINT_COMMAND": "",
         "WANDB_LAUNCH": "True",
         "WANDB_NAME": "test-name",
         "WANDB_PROJECT": "test-project",
@@ -30,16 +29,16 @@ def test_get_env_vars_dict_api_key_override(mocker):
     _setup(mocker)
     mocker.launch_project.launch_spec = {"_wandb_api_key": "override-api-key"}
 
-    resp = build.get_env_vars_dict(mocker.launch_project, mocker.api)
+    resp = build.get_env_vars_dict(mocker.launch_project, mocker.api, 10)
 
     assert resp == {
         "WANDB_API_KEY": "override-api-key",
         "WANDB_ARTIFACTS": "test-wandb-artifacts",
         "WANDB_BASE_URL": "base_url",
-        "WANDB_CONFIG": "test-wandb-artifacts",
+        "WANDB_CONFIG_0": "test-wandb",
+        "WANDB_CONFIG_1": "-artifacts",
         "WANDB_DOCKER": "test-docker-image",
         "WANDB_ENTITY": "test-entity",
-        "WANDB_ENTRYPOINT_COMMAND": "",
         "WANDB_LAUNCH": "True",
         "WANDB_NAME": "test-name",
         "WANDB_PROJECT": "test-project",

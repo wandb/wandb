@@ -107,6 +107,10 @@ def find_num_coverage_jobs(circleci_yaml):
     jobs = {}
     for job_name, job_config in config_yaml["jobs"].items():
         parallelism = job_config.get("parallelism", 1)
+        # exclude windows jobs since they are disabled
+        # for non-main and release branches right now
+        if "-win-" in job_name:
+            continue
         if "steps" in job_config:
             for step in job_config["steps"][1:]:
                 if "run" in step and re.search(
