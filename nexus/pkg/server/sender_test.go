@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
@@ -16,6 +17,7 @@ import (
 func makeSender(client graphql.Client, resultChan chan *service.Result) Sender {
 	logger := observability.NewNexusLogger(SetupDefaultLogger(), nil)
 	sender := Sender{
+		ctx:    context.Background(),
 		logger: logger,
 		settings: &service.Settings{
 			RunId: &wrapperspb.StringValue{Value: "run1"},
@@ -59,7 +61,9 @@ func TestSendRun(t *testing.T) {
 					},
 				},
 			},
-		}}
+		},
+	}
+
 	to.MockClient.EXPECT().MakeRequest(
 		gomock.Any(), // context.Context
 		gomock.Any(), // *graphql.Request
