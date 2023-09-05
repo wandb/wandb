@@ -488,7 +488,11 @@ class CrdSubmittedRun(AbstractRun):
         # TODO: test more carefully once we release multi-node support
         logs: Dict[str, Optional[str]] = {}
         try:
-            for pod_name in self.pod_names:
+            pods = self.core_api.list_namespaced_pod(
+                label_selector=f"wandb/run-id={self.name}", namespace=self.namespace
+            )
+            pod_names = [pi.metadata.name for pi in pods.items]
+            for pod_name in pod_names:
                 logs[pod_name] = self.core_api.read_namespaced_pod_log(
                     name=pod_name, namespace=self.namespace
                 )
