@@ -1939,7 +1939,7 @@ class GetSystemMetricsRequest(google.protobuf.message.Message):
 global___GetSystemMetricsRequest = GetSystemMetricsRequest
 
 @typing_extensions.final
-class GetSystemMetricsResponse(google.protobuf.message.Message):
+class SystemMetricsBuffer(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     RECORD_FIELD_NUMBER: builtins.int
@@ -1951,6 +1951,40 @@ class GetSystemMetricsResponse(google.protobuf.message.Message):
         record: collections.abc.Iterable[global___StatsRecord] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["record", b"record"]) -> None: ...
+
+global___SystemMetricsBuffer = SystemMetricsBuffer
+
+@typing_extensions.final
+class GetSystemMetricsResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    @typing_extensions.final
+    class SystemMetricsEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        @property
+        def value(self) -> global___SystemMetricsBuffer: ...
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: global___SystemMetricsBuffer | None = ...,
+        ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
+    SYSTEM_METRICS_FIELD_NUMBER: builtins.int
+    @property
+    def system_metrics(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___SystemMetricsBuffer]: ...
+    def __init__(
+        self,
+        *,
+        system_metrics: collections.abc.Mapping[builtins.str, global___SystemMetricsBuffer] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["system_metrics", b"system_metrics"]) -> None: ...
 
 global___GetSystemMetricsResponse = GetSystemMetricsResponse
 
