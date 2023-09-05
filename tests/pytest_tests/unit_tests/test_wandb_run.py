@@ -201,9 +201,27 @@ def test_use_artifact_offline(mock_run):
 
 def test_run_basic():
     s = wandb.Settings()
-    c = dict(param1=2, param2=4)
+    c = dict(
+        param1=2,
+        param2=4,
+        param3=set(range(10)),
+        param4=list(range(10, 20)),
+        param5=tuple(range(20, 30)),
+        dict_param=dict(
+            a=list(range(10)), b=tuple(range(10, 20)), c=set(range(20, 30))
+        ),
+    )
     run = wandb_sdk.wandb_run.Run(settings=s, config=c)
-    assert dict(run.config) == dict(param1=2, param2=4)
+    assert dict(run.config) == dict(
+        param1=2,
+        param2=4,
+        param3=list(range(10)),
+        param4=list(range(10, 20)),
+        param5=list(range(20, 30)),
+        dict_param=dict(
+            a=list(range(10)), b=list(range(10, 20)), c=list(range(20, 30))
+        ),
+    )
 
 
 def test_run_sweep():
