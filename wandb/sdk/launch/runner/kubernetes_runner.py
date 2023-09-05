@@ -780,9 +780,6 @@ class KubernetesRunner(AbstractRunner):
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
             core = client.CoreV1Api(api_client)
-            # pod_names = self.wait_job_launch(
-            #     launch_project.run_id, namespace, core, label="wandb/run-id"
-            # )
             run_monitor = KubernetesRunMonitor(
                 job_field_selector=f"metadata.name={name}",
                 pod_label_selector=f"wandb/run-id={launch_project.run_id}",
