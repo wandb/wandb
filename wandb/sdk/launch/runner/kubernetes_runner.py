@@ -465,18 +465,6 @@ class CrdSubmittedRun(AbstractRun):
         self.custom_api = custom_api
         self._fail_count = 0
         self.monitor = monitor
-        # try:
-        #     self.job = self.custom_api.get_namespaced_custom_object(
-        #         group=self.group,
-        #         version=self.version,
-        #         namespace=self.namespace,
-        #         plural=self.plural,
-        #         name=self.name,
-        #     )
-        # except ApiException as e:
-        #     raise LaunchError(
-        #         f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
-        #     ) from e
 
     @property
     def id(self) -> str:
@@ -506,30 +494,6 @@ class CrdSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         """Get status of custom object."""
-        # try:
-        #     job_response = self.custom_api.get_namespaced_custom_object_status(
-        #         group=self.group,
-        #         version=self.version,
-        #         namespace=self.namespace,
-        #         plural=self.plural,
-        #         name=self.name,
-        #     )
-        # except ApiException as e:
-        #     raise LaunchError(
-        #         f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
-        #     ) from e
-        # # Custom objects can technically define whater states and format the
-        # # response to the status request however they want. This checks for
-        # # the most common cases.
-        # status = job_response["status"]
-        # state = status.get("state")
-        # if isinstance(state, dict):
-        #     state = state.get("phase")
-        # if state is None:
-        #     raise LaunchError(
-        #         f"Failed to get CRD {self.name} in namespace {self.namespace}: no state found"
-        #     )
-        # return Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
         return self.monitor.get_status()
 
     def cancel(self) -> None:
