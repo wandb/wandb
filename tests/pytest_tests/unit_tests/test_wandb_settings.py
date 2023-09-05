@@ -1041,7 +1041,13 @@ def test_setup_offline(test_settings):
 
 def test_disable_machine_info(test_settings):
     settings = test_settings()
-    attrs = ("_disable_stats", "_disable_meta", "disable_code", "disable_git", "disable_job_creation")
+    attrs = (
+        "_disable_stats",
+        "_disable_meta",
+        "disable_code",
+        "disable_git",
+        "disable_job_creation",
+    )
     for attr in attrs:
         assert not getattr(settings, attr)
     settings.update({"_disable_machine_info": True}, source=Source.BASE)
