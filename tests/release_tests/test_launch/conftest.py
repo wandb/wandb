@@ -33,9 +33,13 @@ def pytest_configure(config):
 
     docker_env_cmds = run_cmd("minikube -p minikube docker-env")
     print(docker_env_cmds)
-    for cmd in docker_env_cmds.split("\n")[:-1]:
+    for cmd in docker_env_cmds.split("\n"):
         print(f"{cmd=}")
-        key, val = cmd[7:].replace('"', "").split("=")
+        try:
+            key, val = cmd[7:].replace('"', "").split("=")
+        except ValueError:
+            print("bad cmd")
+            continue
         print(f"{key=}, {val=}")
         os.environ[key] = val
 
