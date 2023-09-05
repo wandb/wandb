@@ -33,7 +33,9 @@ def pytest_configure(config):
 
     docker_env_cmds = run_cmd("minikube -p minikube docker-env")
     for cmd in docker_env_cmds.split("\n"):
-        run_cmd(cmd)
+        key, val = cmd[7:].replace('"', "").split("=")
+        print(f"{key=}, {val=}")
+        os.environ[key] = val
 
     # Create namespace if it doesn't exist
     namespaces = run_cmd("kubectl get namespace")
