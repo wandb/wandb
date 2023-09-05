@@ -194,7 +194,7 @@ class KubernetesRunMonitor:
         try:
             for event in self._job_watcher.stream(
                 self.batch_api.list_namespaced_job,
-                namespace="default",
+                namespace=self.namespace,
                 field_selector=self.job_field_selector,
             ):
                 object = event.get("object")
