@@ -121,6 +121,8 @@ class HandleManager:
         self._metric_copy = dict()
         self._internal_messages = InternalMessages()
 
+        self._dropped_history = False
+
     def __len__(self) -> int:
         return self._record_q.qsize()
 
@@ -264,7 +266,7 @@ class HandleManager:
         if s.none:
             return False
         if s.copy:
-            # non key list copy already done in _update_summary
+            # non-key list copy already done in _update_summary
             if len(kl) > 1:
                 _dict_nested_set(self._consolidated_summary, kl, v)
                 return True
@@ -372,7 +374,7 @@ class HandleManager:
         return updated
 
     def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
-        # For now, non recursive - just top level
+        # For now, non-recursive - just top level
         for nk, nv in v.items():
             if (
                 isinstance(nv, dict)
@@ -548,10 +550,16 @@ class HandleManager:
         history_dict = proto_util.dict_from_proto_list(partial_history.item)
         if step is not None:
             if step < self._step:
+                if not self._dropped_history:
+                    message = (
+                        "Step only supports monotonically increasing values, use define_metric to set a custom x "
+                        f"axis. For details see: {wburls.wburls.get('wandb_define_metric')}"
+                    )
+                    self._internal_messages.warning.append(message)
+                    self._dropped_history = True
                 message = (
-                    "Step only supports monotonically increasing values, use define_metric to set a custom x "
-                    f"axis. For details see: {wburls.wburls.get('wandb_define_metric')}"
-                    f"({step} < {self._step}. Dropping entry: {history_dict})."
+                    f"(User provided step: {step} is less than current step: {self._step}. "
+                    f"Dropping entry: {history_dict})."
                 )
                 self._internal_messages.warning.append(message)
                 return
