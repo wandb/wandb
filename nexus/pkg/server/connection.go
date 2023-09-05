@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/auth"
 	"github.com/wandb/wandb/nexus/pkg/service"
-	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -93,7 +93,31 @@ func (nc *Connection) HandleConnection() {
 		wg.Done()
 	}()
 
+	// Force shutdown of connections on teardown.
+	// TODO(beta): refactor the connection code so this is not needed
+	// Why this is needed right now:
+	//   - client might have multiple open connections to nexus
+	//   - teardown usually is sent on a new connection
+	//   - teardown closes teardownChan but we have nothing to
+	//     force shutdown of other connections
+	wgTeardown := sync.WaitGroup{}
+	wgTeardown.Add(1)
+	teardownWatcherChan := make(chan interface{})
+	go func() {
+		select {
+		case <-nc.teardownChan:
+			nc.Close()
+			break
+		case <-teardownWatcherChan:
+			break
+		}
+		wgTeardown.Done()
+	}()
+
 	wg.Wait()
+	close(teardownWatcherChan)
+	wgTeardown.Wait()
+
 	slog.Info("connection closed", "id", nc.id)
 }
 
@@ -119,7 +143,7 @@ func (nc *Connection) readConnection() {
 	buf := make([]byte, messageSize)
 	scanner.Buffer(buf, maxMessageSize)
 	tokenizer := &Tokenizer{}
-	scanner.Split(tokenizer.split)
+	scanner.Split(tokenizer.Split)
 	for scanner.Scan() {
 		msg := &service.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
@@ -205,6 +229,9 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 
 	func(s *service.Settings) {
 		if s.GetApiKey().GetValue() != "" {
+			return
+		}
+		if s.GetXOffline().GetValue() {
 			return
 		}
 		baseUrl := s.GetBaseUrl().GetValue()

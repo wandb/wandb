@@ -1343,7 +1343,7 @@ class Api:
 
     @normalize_exceptions
     def create_default_resource_config(
-        self, entity: str, project: str, resource: str, config: str
+        self, entity: str, resource: str, config: str
     ) -> Optional[Dict[str, Any]]:
         if not self.create_default_resource_config_introspection():
             raise Exception()
@@ -1351,14 +1351,12 @@ class Api:
             """
         mutation createDefaultResourceConfig(
             $entityName: String!
-            $projectName: String
             $resource: String!
             $config: JSONString!
         ) {
             createDefaultResourceConfig(
             input: {
                 entityName: $entityName
-                projectName: $projectName
                 resource: $resource
                 config: $config
             }
@@ -1371,7 +1369,6 @@ class Api:
         )
         variable_values = {
             "entityName": entity,
-            "projectName": project,
             "resource": resource,
             "config": config,
         }
@@ -1520,7 +1517,7 @@ class Api:
         launch_spec: Dict[str, str],
         project_queue: str,
     ) -> Optional[Dict[str, Any]]:
-        entity = launch_spec["entity"]
+        entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
@@ -1687,6 +1684,7 @@ class Api:
         project: str,
         queues: List[str],
         agent_config: Dict[str, Any],
+        version: str,
         gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
@@ -1727,22 +1725,28 @@ class Api:
             "hostname": hostname,
         }
 
-        mutation_params = """$entity: String!,
-                $project: String!,
-                $queues: [ID!]!,
-                $hostname: String!"""
+        mutation_params = """
+            $entity: String!,
+            $project: String!,
+            $queues: [ID!]!,
+            $hostname: String!
+        """
 
-        mutation_input = """entityName: $entity,
-                        projectName: $project,
-                        runQueues: $queues,
-                        hostname: $hostname"""
+        mutation_input = """
+            entityName: $entity,
+            projectName: $project,
+            runQueues: $queues,
+            hostname: $hostname
+        """
 
         if "agentConfig" in self.create_launch_agent_fields_introspection():
             variable_values["agentConfig"] = json.dumps(agent_config)
-            mutation_params += """,
-                $agentConfig: JSONString"""
-            mutation_input += """,
-                        agentConfig: $agentConfig"""
+            mutation_params += ", $agentConfig: JSONString"
+            mutation_input += ", agentConfig: $agentConfig"
+        if "version" in self.create_launch_agent_fields_introspection():
+            variable_values["version"] = version
+            mutation_params += ", $version: String"
+            mutation_input += ", version: $version"
 
         mutation = gql(
             f"""
@@ -3203,7 +3207,6 @@ class Api:
                     description
                     state
                     createdAt
-                    labels
                     metadata
                 }
             }
@@ -3354,8 +3357,7 @@ class Api:
             values += "sequenceClientID: $sequenceClientID,"
 
         if "enableDigestDeduplication" in fields:
-            types += "$enableDigestDeduplication: Boolean,"
-            values += "enableDigestDeduplication: $enableDigestDeduplication,"
+            values += "enableDigestDeduplication: true,"
 
         if "ttlDurationSeconds" in fields:
             types += "$ttlDurationSeconds: Int64,"
@@ -3370,7 +3372,6 @@ class Api:
                 $runName: String,
                 $description: String,
                 $digest: String!,
-                $labels: JSONString,
                 $aliases: [ArtifactAliasInput!],
                 $metadata: JSONString,
                 _CREATE_ARTIFACT_ADDITIONAL_TYPE_
@@ -3384,19 +3385,13 @@ class Api:
                     description: $description,
                     digest: $digest,
                     digestAlgorithm: MANIFEST_MD5,
-                    labels: $labels,
                     aliases: $aliases,
                     metadata: $metadata,
                     _CREATE_ARTIFACT_ADDITIONAL_VALUE_
                 }) {
                     artifact {
                         id
-                        digest
                         state
-                        aliases {
-                            artifactCollectionName
-                            alias
-                        }
                         artifactSequence {
                             id
                             latestArtifact {
@@ -3424,13 +3419,11 @@ class Api:
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
         description: Optional[str] = None,
-        labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
         ttl_duration_seconds: Optional[int] = None,
         aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
-        enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
         fields = self.server_create_artifact_introspection()
@@ -3466,26 +3459,15 @@ class Api:
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
-                "labels": json.dumps(util.make_safe_for_json(labels))
-                if labels
-                else None,
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
                 "ttlDurationSeconds": ttl_duration_seconds,
                 "distributedID": distributed_id,
-                "enableDigestDeduplication": enable_digest_deduplication,
                 "historyStep": history_step,
             },
         )
         av = response["createArtifact"]["artifact"]
-        # TODO: make this a part of the graph
-        av["version"] = "latest"
-        for alias in av["aliases"]:
-            if alias["artifactCollectionName"] == artifact_collection_name and re.match(
-                r"^v\d+$", alias["alias"]
-            ):
-                av["version"] = alias["alias"]
         latest = response["createArtifact"]["artifact"]["artifactSequence"].get(
             "latestArtifact"
         )

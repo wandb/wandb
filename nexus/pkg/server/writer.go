@@ -22,8 +22,8 @@ type Writer struct {
 	// logger is the logger for the writer
 	logger *observability.NexusLogger
 
-	// recordChan is the channel for outgoing messages
-	recordChan chan *service.Record
+	// fwdChan is the channel for forwarding messages to the sender
+	fwdChan chan *service.Record
 
 	// storeChan is the channel for messages to be stored
 	storeChan chan *service.Record
@@ -38,10 +38,10 @@ type Writer struct {
 func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Writer {
 
 	w := &Writer{
-		ctx:        ctx,
-		settings:   settings,
-		logger:     logger,
-		recordChan: make(chan *service.Record, BufferSize),
+		ctx:      ctx,
+		settings: settings,
+		logger:   logger,
+		fwdChan:  make(chan *service.Record, BufferSize),
 	}
 	return w
 }
@@ -83,7 +83,7 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 // which includes the store
 func (w *Writer) close() {
 	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
-	close(w.recordChan)
+	close(w.fwdChan)
 	close(w.storeChan)
 	w.wg.Wait()
 }
@@ -107,14 +107,16 @@ func (w *Writer) handleRecord(record *service.Record) {
 
 // storeRecord stores the record in the append-only log
 func (w *Writer) storeRecord(record *service.Record) {
+	if record.GetControl().GetLocal() {
+		return
+	}
 	w.storeChan <- record
 }
 
 func (w *Writer) sendRecord(record *service.Record) {
-	control := record.GetControl()
 	// TODO: redo it so it only uses control
-	if w.settings.GetXOffline().GetValue() && control != nil && !control.AlwaysSend {
+	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return
 	}
-	w.recordChan <- record
+	w.fwdChan <- record
 }

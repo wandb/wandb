@@ -70,7 +70,6 @@ kubeflow = [
 gcp = ["google-cloud-storage"]
 aws = ["boto3"]
 azure = ["azure-identity", "azure-storage-blob"]
-grpc = ["grpcio>=1.27.2"]
 media = [
     "numpy",
     "moviepy",
@@ -123,6 +122,7 @@ markers = [
     "multiclass",
     "wandb_args",
     "flaky",
+    "nexus_failure(feature): test failures on nexus, grouped by feature",
 ]
 timeout = 60
 log_format = "%(asctime)s %(levelname)s %(message)s"

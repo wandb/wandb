@@ -4,7 +4,6 @@ package gql
 
 import (
 	"context"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -416,6 +415,24 @@ type CreateRunFilesResponse struct {
 // GetCreateRunFiles returns CreateRunFilesResponse.CreateRunFiles, and is useful for accessing the field via an interface.
 func (v *CreateRunFilesResponse) GetCreateRunFiles() *CreateRunFilesCreateRunFilesCreateRunFilesPayload {
 	return v.CreateRunFiles
+}
+
+// LinkArtifactLinkArtifactLinkArtifactPayload includes the requested fields of the GraphQL type LinkArtifactPayload.
+type LinkArtifactLinkArtifactLinkArtifactPayload struct {
+	VersionIndex *int `json:"versionIndex"`
+}
+
+// GetVersionIndex returns LinkArtifactLinkArtifactLinkArtifactPayload.VersionIndex, and is useful for accessing the field via an interface.
+func (v *LinkArtifactLinkArtifactLinkArtifactPayload) GetVersionIndex() *int { return v.VersionIndex }
+
+// LinkArtifactResponse is returned by LinkArtifact on success.
+type LinkArtifactResponse struct {
+	LinkArtifact *LinkArtifactLinkArtifactLinkArtifactPayload `json:"linkArtifact"`
+}
+
+// GetLinkArtifact returns LinkArtifactResponse.LinkArtifact, and is useful for accessing the field via an interface.
+func (v *LinkArtifactResponse) GetLinkArtifact() *LinkArtifactLinkArtifactLinkArtifactPayload {
+	return v.LinkArtifact
 }
 
 // NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload includes the requested fields of the GraphQL type NotifyScriptableRunAlertPayload.
@@ -835,6 +852,34 @@ func (v *__CreateRunFilesInput) GetRun() string { return v.Run }
 // GetFiles returns __CreateRunFilesInput.Files, and is useful for accessing the field via an interface.
 func (v *__CreateRunFilesInput) GetFiles() []string { return v.Files }
 
+// __LinkArtifactInput is used internally by genqlient
+type __LinkArtifactInput struct {
+	ArtifactPortfolioName string               `json:"artifactPortfolioName"`
+	EntityName            string               `json:"entityName"`
+	ProjectName           string               `json:"projectName"`
+	Aliases               []ArtifactAliasInput `json:"aliases"`
+	ClientId              *string              `json:"clientId"`
+	ArtifactId            *string              `json:"artifactId"`
+}
+
+// GetArtifactPortfolioName returns __LinkArtifactInput.ArtifactPortfolioName, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetArtifactPortfolioName() string { return v.ArtifactPortfolioName }
+
+// GetEntityName returns __LinkArtifactInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns __LinkArtifactInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetProjectName() string { return v.ProjectName }
+
+// GetAliases returns __LinkArtifactInput.Aliases, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetAliases() []ArtifactAliasInput { return v.Aliases }
+
+// GetClientId returns __LinkArtifactInput.ClientId, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetClientId() *string { return v.ClientId }
+
+// GetArtifactId returns __LinkArtifactInput.ArtifactId, and is useful for accessing the field via an interface.
+func (v *__LinkArtifactInput) GetArtifactId() *string { return v.ArtifactId }
+
 // __NotifyScriptableRunAlertInput is used internally by genqlient
 type __NotifyScriptableRunAlertInput struct {
 	EntityName   string         `json:"entityName"`
@@ -843,7 +888,7 @@ type __NotifyScriptableRunAlertInput struct {
 	Title        string         `json:"title"`
 	Text         string         `json:"text"`
 	Severity     *AlertSeverity `json:"severity"`
-	WaitDuration *time.Duration `json:"waitDuration"`
+	WaitDuration *int64         `json:"waitDuration"`
 }
 
 // GetEntityName returns __NotifyScriptableRunAlertInput.EntityName, and is useful for accessing the field via an interface.
@@ -865,7 +910,7 @@ func (v *__NotifyScriptableRunAlertInput) GetText() string { return v.Text }
 func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return v.Severity }
 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
-func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *time.Duration { return v.WaitDuration }
+func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
 // __RunResumeStatusInput is used internally by genqlient
 type __RunResumeStatusInput struct {
@@ -1231,6 +1276,51 @@ func CreateRunFiles(
 	return &data, err
 }
 
+// The query or mutation executed by LinkArtifact.
+const LinkArtifact_Operation = `
+mutation LinkArtifact ($artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!], $clientId: ID, $artifactId: ID) {
+	linkArtifact(input: {artifactPortfolioName:$artifactPortfolioName,entityName:$entityName,projectName:$projectName,aliases:$aliases,artifactID:$artifactId,clientID:$clientId}) {
+		versionIndex
+	}
+}
+`
+
+func LinkArtifact(
+	ctx context.Context,
+	client graphql.Client,
+	artifactPortfolioName string,
+	entityName string,
+	projectName string,
+	aliases []ArtifactAliasInput,
+	clientId *string,
+	artifactId *string,
+) (*LinkArtifactResponse, error) {
+	req := &graphql.Request{
+		OpName: "LinkArtifact",
+		Query:  LinkArtifact_Operation,
+		Variables: &__LinkArtifactInput{
+			ArtifactPortfolioName: artifactPortfolioName,
+			EntityName:            entityName,
+			ProjectName:           projectName,
+			Aliases:               aliases,
+			ClientId:              clientId,
+			ArtifactId:            artifactId,
+		},
+	}
+	var err error
+
+	var data LinkArtifactResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
 // The query or mutation executed by NotifyScriptableRunAlert.
 const NotifyScriptableRunAlert_Operation = `
 mutation NotifyScriptableRunAlert ($entityName: String!, $projectName: String!, $runName: String!, $title: String!, $text: String!, $severity: AlertSeverity = INFO, $waitDuration: Duration) {
@@ -1249,7 +1339,7 @@ func NotifyScriptableRunAlert(
 	title string,
 	text string,
 	severity *AlertSeverity,
-	waitDuration *time.Duration,
+	waitDuration *int64,
 ) (*NotifyScriptableRunAlertResponse, error) {
 	req := &graphql.Request{
 		OpName: "NotifyScriptableRunAlert",

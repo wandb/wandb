@@ -2,6 +2,8 @@
 import logging
 import os
 import re
+import subprocess
+from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
@@ -43,6 +45,7 @@ google.cloud.storage = get_module(
 _logger = logging.getLogger(__name__)
 
 GCS_URI_RE = re.compile(r"gs://([^/]+)/(.+)")
+GCP_REGION_ENV_VAR = "GOOGLE_CLOUD_REGION"
 
 
 class GcpEnvironment(AbstractEnvironment):
@@ -94,6 +97,25 @@ class GcpEnvironment(AbstractEnvironment):
                 "field."
             )
         return cls(region=region)
+
+    @classmethod
+    def from_default(cls, verify: bool = True) -> "GcpEnvironment":
+        """Create a GcpEnvironment from the default configuration.
+
+        Returns:
+            GcpEnvironment: The GcpEnvironment.
+        """
+        region = get_default_region()
+        if region is None:
+            raise LaunchError(
+                "Could not create GcpEnvironment from user's gcloud configuration. "
+                "Please set the default region with `gcloud config set compute/region` "
+                "or set the environment variable {GCP_REGION_ENV_VAR}. "
+                "Alternatively, you may specify the region explicitly in your "
+                "wandb launch configuration at `$HOME/.config/wandb/launch-config.yaml`. "
+                "See https://docs.wandb.ai/guides/launch/run-agent#environments for more information."
+            )
+        return cls(region=region, verify=verify)
 
     @property
     def project(self) -> str:
@@ -259,3 +281,39 @@ class GcpEnvironment(AbstractEnvironment):
                     blob.upload_from_filename(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
             raise LaunchError(f"Could not upload directory to GCS: {e}") from e
+
+
+def get_gcloud_config_value(config_name: str) -> Optional[str]:
+    """Get a value from gcloud config.
+
+    Arguments:
+        config_name: The name of the config value.
+
+    Returns:
+        str: The config value, or None if the value is not set.
+    """
+    try:
+        value = (
+            subprocess.check_output(
+                ["gcloud", "config", "get-value", config_name], stderr=subprocess.STDOUT
+            )
+            .decode("utf-8")
+            .strip()
+        )
+        if value and "unset" not in value:
+            return value
+        return None
+    except subprocess.CalledProcessError:
+        return None
+
+
+def get_default_region() -> Optional[str]:
+    """Get the default region from gcloud config or environment variables.
+
+    Returns:
+        str: The default region, or None if it cannot be determined.
+    """
+    region = get_gcloud_config_value("compute/region")
+    if not region:
+        region = os.environ.get(GCP_REGION_ENV_VAR)
+    return region

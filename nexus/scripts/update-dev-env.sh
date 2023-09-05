@@ -57,7 +57,7 @@ function install {
     VERSION=$(pinned $SPEC)
     if is_version $COMMAND $VERSION; then
         echo "[INFO] update-dev-env.sh: Not updating \"$COMMAND\" (Version $VERSION found)"
-        continue
+        return
     fi
     INSTALL_CMD=$(install_cmd $SPEC)
     if [ "x$INSTALL_CMD" != "x" ]; then

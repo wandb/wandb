@@ -650,7 +650,7 @@ class RunComparer(Panel):
 
 class MediaBrowser(Panel):
     num_columns: Optional[int] = Attr(json_path="spec.config.columnCount")
-    media_keys: Optional[str] = Attr(json_path="spec.config.media_keys")
+    media_keys: Optional[str] = Attr(json_path="spec.config.mediaKeys")
     # Attr(json_path="spec.config.chartTitle")
     # Attr(json_path="spec.config.stepIndex")
     # Attr(json_path="spec.config.mediaIndex")

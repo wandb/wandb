@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/wandb/wandb/nexus/internal/clients"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
@@ -24,6 +27,8 @@ import (
 const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
+	// RFC3339Micro Modified from time.RFC3339Nano
+	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -38,11 +43,11 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *service.Settings
 
-	//	recordChan is the channel for outgoing messages
-	recordChan chan *service.Record
+	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	loopbackChan chan *service.Record
 
-	// resultChan is the channel for dispatcher messages
-	resultChan chan *service.Result
+	// outChan is the channel for dispatcher messages
+	outChan chan *service.Result
 
 	// graphqlClient is the graphql client
 	graphqlClient graphql.Client
@@ -51,7 +56,7 @@ type Sender struct {
 	fileStream *fs.FileStream
 
 	// uploader is the file uploader
-	uploader *uploader.Uploader
+	uploadManager *uploader.UploadManager
 
 	// RunRecord is the run record
 	RunRecord *service.RunRecord
@@ -60,6 +65,8 @@ type Sender struct {
 	resumeState *ResumeState
 
 	telemetry *service.TelemetryRecord
+
+	ms *MetricSender
 
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
@@ -82,22 +89,73 @@ func emptyAsNil(s *string) *string {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
 
 	sender := &Sender{
-		ctx:        ctx,
-		settings:   settings,
-		logger:     logger,
-		summaryMap: make(map[string]*service.SummaryItem),
-		configMap:  make(map[string]interface{}),
-		recordChan: make(chan *service.Record, BufferSize),
-		resultChan: make(chan *service.Result, BufferSize),
-		telemetry:  &service.TelemetryRecord{CoreVersion: NexusVersion},
+		ctx:          ctx,
+		settings:     settings,
+		logger:       logger,
+		summaryMap:   make(map[string]*service.SummaryItem),
+		configMap:    make(map[string]interface{}),
+		loopbackChan: loopbackChan,
+		outChan:      make(chan *service.Result, BufferSize),
+		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
+		baseHeaders := map[string]string{
+			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
+			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
+		}
+		graphqlRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientHttpAuthTransport(
+				settings.GetApiKey().GetValue(),
+				baseHeaders,
+				settings.GetXExtraHttpHeaders().GetValue(),
+			),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXGraphqlTimeoutSeconds().GetValue()*int32(time.Second))),
+		)
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		apiKey := settings.GetApiKey().GetValue()
-		sender.graphqlClient = newGraphqlClient(url, apiKey, logger)
+		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
+
+		fileStreamRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+			// retryClient.BackOff = fs.GetBackoffFunc()
+			// TODO(nexus:beta): add custom retry function
+			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
+		)
+		sender.fileStream = fs.NewFileStream(
+			fs.WithSettings(settings),
+			fs.WithLogger(logger),
+			fs.WithHttpClient(fileStreamRetryClient),
+		)
+		uploaderRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileUploaderRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileUploaderRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileUploaderTimeoutSeconds().GetValue()*int32(time.Second))),
+		)
+		defaultUploader := uploader.NewDefaultUploader(
+			logger,
+			uploaderRetryClient,
+		)
+		sender.uploadManager = uploader.NewUploadManager(
+			uploader.WithLogger(logger),
+			uploader.WithSettings(settings),
+			uploader.WithUploader(defaultUploader),
+		)
+
 	}
 	return sender
 }
@@ -122,6 +180,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendExit(record, x.Exit)
 	case *service.Record_Alert:
 		s.sendAlert(record, x.Alert)
+	case *service.Record_Metric:
+		s.sendMetric(record, x.Metric)
 	case *service.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
@@ -136,8 +196,12 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendOutputRaw(record, x.OutputRaw)
 	case *service.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
+	case *service.Record_Preempting:
+		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
+	case *service.Record_LinkArtifact:
+		s.sendLinkArtifact(record)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -168,21 +232,14 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
-	if !s.settings.GetXOffline().GetValue() {
-		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-		s.fileStream = fs.NewFileStream(
-			fs.WithPath(fsPath),
-			fs.WithSettings(s.settings),
-			fs.WithLogger(s.logger),
-			fs.WithHttpClient(NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)),
-			fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
-		)
-		s.fileStream.Start()
-		s.uploader = uploader.NewUploader(s.ctx, s.logger)
-		s.uploader.Start()
-	}
+	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
+		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 
+	fs.WithPath(fsPath)(s.fileStream)
+	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
+
+	s.fileStream.Start()
+	s.uploadManager.Start()
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -231,18 +288,14 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
-		if s.uploader != nil {
-			s.uploader.Close()
-		}
+		s.uploadManager.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
-		if s.fileStream != nil {
-			s.fileStream.Close()
-		}
+		s.fileStream.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FINAL:
@@ -250,11 +303,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
-		if s.exitRecord != nil {
-			s.respondExit(s.exitRecord)
-		}
-		close(s.recordChan)
-		close(s.resultChan)
+		s.respondExit(s.exitRecord)
+		// sender is done processing data, close our dispatch channel
+		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -268,14 +319,37 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
 }
 
-func (s *Sender) sendTelemetry(record *service.Record, telemetry *service.TelemetryRecord) {
+func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate(s.telemetry)
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
-	s.sendConfig(nil, nil)
+	s.sendConfig(nil, nil /*configRecord*/)
+}
+
+func (s *Sender) sendPreempting(record *service.Record) {
+	s.fileStream.StreamRecord(record)
+}
+
+func (s *Sender) sendLinkArtifact(record *service.Record) {
+	linker := artifacts.ArtifactLinker{
+		Ctx:           s.ctx,
+		Logger:        s.logger,
+		LinkArtifact:  record.GetLinkArtifact(),
+		GraphqlClient: s.graphqlClient,
+	}
+	err := linker.Link()
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
+	}
+
+	result := &service.Result{
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
 }
 
 // updateConfig updates the config map with the config record
@@ -295,25 +369,24 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 }
 
 // updateConfigPrivate updates the private part of the config map
-func (s *Sender) updateConfigPrivate(configRecord *service.TelemetryRecord) {
-	if configRecord == nil {
-		return
-	}
-
+func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
 	if _, ok := s.configMap["_wandb"]; !ok {
 		s.configMap["_wandb"] = make(map[string]interface{})
 	}
 
 	switch v := s.configMap["_wandb"].(type) {
 	case map[string]interface{}:
-		if configRecord.CliVersion != "" {
-			v["cli_version"] = configRecord.CliVersion
+		if telemetry.GetCliVersion() != "" {
+			v["cli_version"] = telemetry.CliVersion
 		}
-		if configRecord.PythonVersion != "" {
-			v["python_version"] = configRecord.PythonVersion
+		if telemetry.GetPythonVersion() != "" {
+			v["python_version"] = telemetry.PythonVersion
 		}
 		v["t"] = nexuslib.ProtoEncodeToDict(s.telemetry)
-		// todo: add the rest of the telemetry from configRecord
+		if s.ms != nil {
+			v["m"] = s.ms.configMetrics
+		}
+		// todo: add the rest of the telemetry from telemetry
 	default:
 		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
 		s.logger.CaptureFatalAndPanic("sender received error", err)
@@ -369,8 +442,11 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 
 		program := s.settings.GetProgram().GetValue()
+		// start a new context with an additional argument from the parent context
+		// this is used to pass the retry function to the graphql client
+		ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
-			s.ctx,                        // ctx
+			ctx,                          // ctx
 			s.graphqlClient,              // client
 			nil,                          // id
 			&run.RunId,                   // name
@@ -408,7 +484,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 					Control: record.Control,
 					Uuid:    record.Uuid,
 				}
-				s.resultChan <- result
+				s.outChan <- result
 			}
 			return
 		}
@@ -430,16 +506,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			Control: record.Control,
 			Uuid:    record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
@@ -468,9 +542,7 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 		},
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 // sendConfig sends a config record to the server via an upsertBucket mutation
@@ -485,9 +557,9 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	}
 
 	config := s.serializeConfig()
-
+	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
-		s.ctx,                            // ctx
+		ctx,                              // ctx
 		s.graphqlClient,                  // client
 		nil,                              // id
 		&s.RunRecord.RunId,               // name
@@ -516,9 +588,7 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecord) {
@@ -535,15 +605,14 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
-	t := time.Now().UTC().Format(time.RFC3339)
+	// generate compatible timestamp to python iso-format (microseconds without Z)
+	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
 		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
 	}
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(recordCopy)
-	}
+	s.fileStream.StreamRecord(recordCopy)
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
@@ -557,7 +626,6 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
-	waitDuration := time.Duration(alert.WaitDuration) * time.Second
 
 	data, err := gql.NotifyScriptableRunAlert(
 		s.ctx,
@@ -568,7 +636,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		alert.Title,
 		alert.Text,
 		&severity,
-		&waitDuration,
+		&alert.WaitDuration,
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
@@ -581,13 +649,16 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 // respondExit called from the end of the defer state machine
 func (s *Sender) respondExit(record *service.Record) {
+	if record == nil {
+		return
+	}
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
 		result := &service.Result{
 			ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
 			Control:    record.Control,
 			Uuid:       record.Uuid,
 		}
-		s.resultChan <- result
+		s.outChan <- result
 	}
 }
 
@@ -596,9 +667,7 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	// response is done by respondExit() and called when defer state machine is complete
 	s.exitRecord = record
 
-	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
-	}
+	s.fileStream.StreamRecord(record)
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
@@ -610,7 +679,24 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.recordChan <- rec
+	s.loopbackChan <- rec
+}
+
+// sendMetric sends a metrics record to the file stream,
+// which will then send it to the server
+func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
+	if s.ms == nil {
+		s.ms = NewMetricSender()
+	}
+
+	if metric.GetGlobName() != "" {
+		s.logger.Warn("sender: sendMetric: glob name is not supported in the backend", "globName", metric.GetGlobName())
+		return
+	}
+
+	s.encodeMetricHints(record, metric)
+	s.updateConfigPrivate(nil /*telemetry*/)
+	s.sendConfig(nil, nil /*configRecord*/)
 }
 
 // sendFiles iterates over the files in the FilesRecord and sends them to
@@ -623,7 +709,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 
 // sendFile sends a file to the server
 func (s *Sender) sendFile(name string) {
-	if s.graphqlClient == nil || s.uploader == nil {
+	if s.graphqlClient == nil || s.uploadManager == nil {
 		return
 	}
 
@@ -641,7 +727,7 @@ func (s *Sender) sendFile(name string) {
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
 		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl}
-		s.uploader.AddTask(task)
+		s.uploadManager.AddTask(task)
 	}
 }
 
@@ -651,7 +737,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Logger:        s.logger,
 		Artifact:      msg.Artifact,
 		GraphqlClient: s.graphqlClient,
-		Uploader:      s.uploader,
+		UploadManager: s.uploadManager,
 	}
 	saverResult, err := saver.Save()
 	if err != nil {
@@ -671,5 +757,5 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.resultChan <- result
+	s.outChan <- result
 }

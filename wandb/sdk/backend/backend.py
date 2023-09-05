@@ -25,7 +25,6 @@ from wandb.sdk.wandb_settings import Settings
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
 
-    from ..service.service_grpc import ServiceGrpcInterface
     from ..service.service_sock import ServiceSockInterface
     from ..wandb_run import Run
 
@@ -141,13 +140,6 @@ class Backend:
             main_module.__file__ = self._save_mod_path
 
     def _ensure_launched_manager(self) -> None:
-        # grpc_port: Optional[int] = None
-        # attach_id = self._settings._attach_id if self._settings else None
-        # if attach_id:
-        #     # TODO(attach): implement
-        #     # already have a server, assume it is already up
-        #     grpc_port = int(attach_id)
-
         assert self._manager
         svc = self._manager._get_service()
         assert svc
@@ -161,14 +153,6 @@ class Backend:
             sock_client = svc_iface_sock._get_sock_client()
             sock_interface = InterfaceSock(sock_client, mailbox=self._mailbox)
             self.interface = sock_interface
-        elif svc_transport == "grpc":
-            from ..interface.interface_grpc import InterfaceGrpc
-
-            svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
-            stub = svc_iface_grpc._get_stub()
-            grpc_interface = InterfaceGrpc(mailbox=self._mailbox)
-            grpc_interface._connect(stub=stub)
-            self.interface = grpc_interface
         else:
             raise AssertionError(f"Unsupported service transport: {svc_transport}")
 

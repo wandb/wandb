@@ -3,9 +3,8 @@ package nexuslib
 import (
 	"strings"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
-
-	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 func isBoolMessage(m protoreflect.Message) bool {
@@ -18,7 +17,7 @@ func isBoolMessage(m protoreflect.Message) bool {
 	return true
 }
 
-func ProtoEncodeToDict(p *service.TelemetryRecord) map[int]interface{} {
+func ProtoEncodeToDict(p proto.Message) map[int]interface{} {
 	pm := p.ProtoReflect()
 
 	m := make(map[int]interface{})
@@ -50,7 +49,7 @@ func ProtoEncodeToDict(p *service.TelemetryRecord) map[int]interface{} {
 				m2 := make(map[int]interface{})
 				pm2.Range(func(fd2 protoreflect.FieldDescriptor, v2 protoreflect.Value) bool {
 					// NOTE: only messages of strings are currently used
-					if fd.Kind() == protoreflect.StringKind {
+					if fd2.Kind() == protoreflect.StringKind {
 						m2[int(fd2.Number())] = v2.String()
 					}
 					return true

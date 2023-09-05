@@ -21,7 +21,7 @@ type ArtifactSaver struct {
 	Logger        *observability.NexusLogger
 	Artifact      *service.ArtifactRecord
 	GraphqlClient graphql.Client
-	Uploader      *uploader.Uploader
+	UploadManager *uploader.UploadManager
 	WgOutstanding sync.WaitGroup
 }
 
@@ -35,7 +35,7 @@ type ManifestStoragePolicyConfig struct {
 
 type ManifestEntry struct {
 	Digest          string `json:"digest"`
-	BirthArtifactID string `json:"birthArifactID"`
+	BirthArtifactID string `json:"birthArtifactID"`
 	Size            int64  `json:"size"`
 }
 
@@ -44,6 +44,13 @@ type ManifestV1 struct {
 	StoragePolicy       string                      `json:"storagePolicy"`
 	StoragePolicyConfig ManifestStoragePolicyConfig `json:"storagePolicyConfig"`
 	Contents            map[string]ManifestEntry    `json:"contents"`
+}
+
+type ArtifactLinker struct {
+	Ctx           context.Context
+	Logger        *observability.NexusLogger
+	LinkArtifact  *service.LinkArtifactRecord
+	GraphqlClient graphql.Client
 }
 
 func computeB64MD5(manifestFile string) (string, error) {
@@ -142,13 +149,15 @@ func (as *ArtifactSaver) sendManifestFiles(artifactID string, manifestID string)
 	for _, entry := range man.Contents {
 		as.Logger.Info("sendfiles", "entry", entry)
 		md5Checksum := ""
-		artifactFiles = append(artifactFiles,
+		artifactFiles = append(
+			artifactFiles,
 			gql.CreateArtifactFileSpecInput{
 				ArtifactID:         artifactID,
 				Name:               entry.Path,
 				Md5:                md5Checksum,
 				ArtifactManifestID: &manifestID,
-			})
+			},
+		)
 	}
 	response, err := gql.CreateArtifactFiles(
 		as.Ctx,
@@ -161,12 +170,12 @@ func (as *ArtifactSaver) sendManifestFiles(artifactID string, manifestID string)
 		as.Logger.CaptureFatalAndPanic("sendManifestFiles", err)
 	}
 	for n, edge := range response.GetCreateArtifactFiles().GetFiles().Edges {
-		upload := uploader.UploadTask{
+		task := uploader.UploadTask{
 			Url:           *edge.Node.GetUploadUrl(),
 			Path:          man.Contents[n].LocalPath,
 			WgOutstanding: &as.WgOutstanding,
 		}
-		as.Uploader.AddTask(&upload)
+		as.UploadManager.AddTask(&task)
 	}
 }
 
@@ -206,13 +215,13 @@ func (as *ArtifactSaver) writeManifest() (string, error) {
 }
 
 func (as *ArtifactSaver) sendManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) {
-	upload := uploader.UploadTask{
+	task := uploader.UploadTask{
 		Url:           *uploadUrl,
 		Path:          manifestFile,
 		Headers:       uploadHeaders,
 		WgOutstanding: &as.WgOutstanding,
 	}
-	as.Uploader.AddTask(&upload)
+	as.UploadManager.AddTask(&task)
 }
 
 func (as *ArtifactSaver) commitArtifact(artifactId string) {
@@ -247,4 +256,57 @@ func (as *ArtifactSaver) Save() (ArtifactSaverResult, error) {
 	as.commitArtifact(artifactId)
 
 	return ArtifactSaverResult{ArtifactId: artifactId}, nil
+}
+
+func (al *ArtifactLinker) Link() error {
+	client_id := al.LinkArtifact.ClientId
+	server_id := al.LinkArtifact.ServerId
+	portfolio_name := al.LinkArtifact.PortfolioName
+	portfolio_entity := al.LinkArtifact.PortfolioEntity
+	portfolio_project := al.LinkArtifact.PortfolioProject
+	portfolio_aliases := []gql.ArtifactAliasInput{}
+
+	for _, alias := range al.LinkArtifact.PortfolioAliases {
+		portfolio_aliases = append(portfolio_aliases,
+			gql.ArtifactAliasInput{
+				ArtifactCollectionName: portfolio_name,
+				Alias:                  alias,
+			},
+		)
+	}
+	var err error
+	var response *gql.LinkArtifactResponse
+	switch {
+	case server_id != "":
+		response, err = gql.LinkArtifact(
+			al.Ctx,
+			al.GraphqlClient,
+			portfolio_name,
+			portfolio_entity,
+			portfolio_project,
+			portfolio_aliases,
+			nil,
+			&server_id,
+		)
+	case client_id != "":
+		response, err = gql.LinkArtifact(
+			al.Ctx,
+			al.GraphqlClient,
+			portfolio_name,
+			portfolio_entity,
+			portfolio_project,
+			portfolio_aliases,
+			&client_id,
+			nil,
+		)
+	default:
+		err = fmt.Errorf("LinkArtifact: %s, error: artifact must have either server id or client id", portfolio_name)
+		al.Logger.CaptureFatalAndPanic("linkArtifact", err)
+	}
+	if err != nil {
+		err = fmt.Errorf("LinkArtifact: %s, error: %+v response: %+v", portfolio_name, err, response)
+		al.Logger.CaptureFatalAndPanic("linkArtifact", err)
+		return err
+	}
+	return nil
 }

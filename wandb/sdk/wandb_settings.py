@@ -312,9 +312,23 @@ class SettingsData:
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
-    _file_stream_timeout_seconds: float
+    # file stream retry client configuration
+    _file_stream_retry_max: int  # max number of retries
+    _file_stream_retry_wait_min_seconds: int  # min wait time between retries
+    _file_stream_retry_wait_max_seconds: int  # max wait time between retries
+    _file_stream_timeout_seconds: int  # timeout for individual HTTP requests
+    # file uploader retry client configuration
+    _file_uploader_retry_max: int
+    _file_uploader_retry_wait_min_seconds: int
+    _file_uploader_retry_wait_max_seconds: int
+    _file_uploader_timeout_seconds: int
     _flow_control_custom: bool
     _flow_control_disabled: bool
+    # graphql retry client configuration
+    _graphql_retry_max: int
+    _graphql_retry_wait_min_seconds: int
+    _graphql_retry_wait_max_seconds: int
+    _graphql_timeout_seconds: int
     _internal_check_process: float
     _internal_queue_timeout: float
     _ipython: bool
@@ -352,6 +366,7 @@ class SettingsData:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
+    _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -593,13 +608,17 @@ class Settings(SettingsData):
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
+            _async_upload_concurrency_limit={
+                "preprocessor": int,
+                "validator": self._validate__async_upload_concurrency_limit,
+            },
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
                 "auto_hook": True,
             },
-            _async_upload_concurrency_limit={
-                "preprocessor": int,
-                "validator": self._validate__async_upload_concurrency_limit,
+            _colab={
+                "hook": lambda _: "google.colab" in sys.modules,
+                "auto_hook": True,
             },
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_service={
@@ -611,11 +630,31 @@ class Settings(SettingsData):
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
-            _network_buffer={"preprocessor": int},
-            _colab={
-                "hook": lambda _: "google.colab" in sys.modules,
+            # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
+            # retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
+            #             = 7200 / 60 + ceil(log2(60/2))
+            #             = 120 + 5
+            _file_stream_retry_max={"value": 125, "preprocessor": int},
+            _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": int},
+            _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": int},
+            # A 3 minute timeout for all filestream post requests
+            _file_stream_timeout_seconds={"value": 180, "preprocessor": int},
+            _file_uploader_retry_max={"value": 10, "preprocessor": int},
+            _file_uploader_retry_wait_min_seconds={"value": 2, "preprocessor": int},
+            _file_uploader_retry_wait_max_seconds={"value": 60, "preprocessor": int},
+            _file_uploader_timeout_seconds={"value": 0, "preprocessor": int},
+            _flow_control_disabled={
+                "hook": lambda _: self._network_buffer == 0,
                 "auto_hook": True,
             },
+            _flow_control_custom={
+                "hook": lambda _: bool(self._network_buffer),
+                "auto_hook": True,
+            },
+            _graphql_retry_max={"value": 10, "preprocessor": int},
+            _graphql_retry_wait_min_seconds={"value": 2, "preprocessor": int},
+            _graphql_retry_wait_max_seconds={"value": 60, "preprocessor": int},
+            _graphql_timeout_seconds={"value": 30.0, "preprocessor": int},
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
@@ -628,6 +667,7 @@ class Settings(SettingsData):
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
             _log_level={"value": logging.DEBUG},
+            _network_buffer={"preprocessor": int},
             _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
             _notebook={
                 "hook": lambda _: self._ipython
@@ -644,19 +684,6 @@ class Settings(SettingsData):
                 ),
                 "auto_hook": True,
             },
-            _file_stream_timeout_seconds={
-                "value": 60,
-                "preprocessor": float,
-            },
-            _flow_control_disabled={
-                "hook": lambda _: self._network_buffer == 0,
-                "auto_hook": True,
-            },
-            _flow_control_custom={
-                "hook": lambda _: bool(self._network_buffer),
-                "auto_hook": True,
-            },
-            _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _require_nexus={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
@@ -692,6 +719,11 @@ class Settings(SettingsData):
                 "hook": self._auto_open_metrics_filters,
                 "auto_hook": True,
             },
+            _stats_disk_paths={
+                "value": ("/",),
+                "preprocessor": _str_as_json,
+            },
+            _sync={"value": False},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -1648,6 +1680,9 @@ class Settings(SettingsData):
             "WANDB_NOTES": "run_notes",
             "WANDB_TAGS": "run_tags",
             "WANDB_JOB_TYPE": "run_job_type",
+            "WANDB_HTTP_TIMEOUT": "_graphql_timeout_seconds",
+            "WANDB_FILE_PUSHER_TIMEOUT": "_file_uploader_timeout_seconds",
+            "WANDB_USER_EMAIL": "email",
         }
         env = dict()
         for setting, value in environ.items():
@@ -1835,6 +1870,7 @@ class Settings(SettingsData):
             job_type="run_job_type",
             notes="run_notes",
             dir="root_dir",
+            sweep_id="sweep_id",
         )
         init_settings = {
             param_map.get(k, k): v for k, v in init_settings.items() if v is not None

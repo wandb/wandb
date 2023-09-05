@@ -1,6 +1,6 @@
 """Reliably launch and connect to backend server process (wandb service).
 
-Backend server process can be connected to using tcp sockets or grpc transport.
+Backend server process can be connected to using tcp sockets transport.
 """
 import datetime
 import os
@@ -45,11 +45,9 @@ class ServiceStartPortError(Error):
 
 class _Service:
     _settings: "Settings"
-    _grpc_port: Optional[int]
     _sock_port: Optional[int]
     _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
-    _use_grpc: bool
     _startup_debug_enabled: bool
 
     def __init__(
@@ -58,25 +56,15 @@ class _Service:
     ) -> None:
         self._settings = settings
         self._stub = None
-        self._grpc_port = None
         self._sock_port = None
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
         _sentry.configure_scope(tags=dict(settings), process_context="service")
 
-        # Temporary setting to allow use of grpc so that we can keep
-        # that code from rotting during the transition
-        self._use_grpc = self._settings._service_transport == "grpc"
-
-        # current code only supports grpc or socket server implementation, in the
+        # current code only supports socket server implementation, in the
         # future we might be able to support both
-        if self._use_grpc:
-            from .service_grpc import ServiceGrpcInterface
-
-            self._service_interface = ServiceGrpcInterface()
-        else:
-            self._service_interface = ServiceSockInterface()
+        self._service_interface = ServiceSockInterface()
 
     def _startup_debug_print(self, message: str) -> None:
         if not self._startup_debug_enabled:
@@ -131,7 +119,6 @@ class _Service:
                 if not pf.is_valid:
                     time.sleep(0.2)
                     continue
-                self._grpc_port = pf.grpc_port
                 self._sock_port = pf.sock_port
             except Exception as e:
                 # todo: point at the docs. this could be due to a number of reasons,
@@ -200,10 +187,7 @@ class _Service:
                 pid,
                 "--debug",
             ]
-            if self._use_grpc:
-                service_args.append("--serve-grpc")
-            else:
-                service_args.append("--serve-sock")
+            service_args.append("--serve-sock")
 
             if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
                 # enable memory profiling with memray
@@ -259,10 +243,6 @@ class _Service:
 
     def start(self) -> None:
         self._launch_server()
-
-    @property
-    def grpc_port(self) -> Optional[int]:
-        return self._grpc_port
 
     @property
     def sock_port(self) -> Optional[int]:
