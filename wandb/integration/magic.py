@@ -292,7 +292,7 @@ def _magic_fit(
     # workers=1,
     # use_multiprocessing=False,
     *args,
-    **kwargs
+    **kwargs,
 ):
     if hasattr(self, "_wandb_internal_model"):
         return self._fit(
@@ -322,7 +322,7 @@ def _magic_fit_generator(
     # shuffle=True,
     # initial_epoch=0,
     *args,
-    **kwargs
+    **kwargs,
 ):
     return _fit_wrapper(
         self,
@@ -331,7 +331,7 @@ def _magic_fit_generator(
         steps_per_epoch=steps_per_epoch,
         epochs=epochs,
         *args,
-        **kwargs
+        **kwargs,
     )
 
 

@@ -37,7 +37,7 @@ Classes
 """
 
 import sys
-from six.moves.collections_abc import MutableSet
+from collections.abc import MutableSet
 from .compat import queue
 
 class SkipRepeatsQueue(queue.Queue):

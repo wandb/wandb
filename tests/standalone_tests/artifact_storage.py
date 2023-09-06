@@ -73,7 +73,7 @@ def main(argv):
 
         import pprint
 
-        pprint.pprint(art._load_manifest().to_manifest_json())
+        pprint.pprint(art.manifest.to_manifest_json())
         # print(art.list())
         art_dir = art.download()
         print(os.listdir(art_dir))
@@ -102,7 +102,7 @@ def main(argv):
         print("downloaded dig", art.digest)
         print("computed dig", computed.digest)
 
-        print("downloaded manifest", art._load_manifest().to_manifest_json())
+        print("downloaded manifest", art.manifest.to_manifest_json())
         print("computed manifest", computed.manifest.to_manifest_json())
 
 

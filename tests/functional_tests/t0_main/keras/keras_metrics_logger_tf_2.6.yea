@@ -10,12 +10,15 @@ depend:
         - tensorflow>=2.6.2
 assert:
     - :wandb:runs_len: 1
-    - :wandb:runs[0][summary][accuracy]: 0.10000000149011612
     - :wandb:runs[0][summary][batch/accuracy]: 0.10000000149011612
     - :wandb:runs[0][summary][batch/batch_step]: 7
+    - :wandb:runs[0][summary][batch/learning_rate]: 0.009999999776482582
     - :wandb:runs[0][summary][batch/loss]: 2.302401065826416
-    - :wandb:runs[0][summary][epoch]: 1
-    - :wandb:runs[0][summary][val_accuracy]: 0.14000000059604645
+    - :wandb:runs[0][summary][epoch/epoch]: 1
+    - :wandb:runs[0][summary][epoch/accuracy]: 0.10000000149011612
+    - :wandb:runs[0][summary][epoch/loss]: 2.302401065826416
+    - :wandb:runs[0][summary][epoch/val_accuracy]: 0.14000000059604645
+    - :wandb:runs[0][summary][epoch/val_loss]: 2.3020949363708496
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature
         - 38  # keras

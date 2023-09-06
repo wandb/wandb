@@ -1,0 +1,6 @@
+plugin:
+  - wandb
+assert:
+  # TODO: add more assertions once the mitm server has more abilities
+  - :wandb:runs_len: 1
+  - :yea:exit: 0

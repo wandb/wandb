@@ -6,7 +6,8 @@ tag:
     - platform: win
 depend:
   requirements:
-    - importlib-metadata<5.0  # 20221003: sb3 needs to fix this on their side
+    - --pre stable-baselines3
+    - tensorboard
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][policy_type]: MlpPolicy

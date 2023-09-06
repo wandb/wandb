@@ -1,4 +1,4 @@
-"""Defines plots for classification models built with scikit-learn."""
+"""Define plots for classification models built with scikit-learn."""
 from warnings import simplefilter
 
 import numpy as np
@@ -28,7 +28,7 @@ def classifier(
     feature_names=None,
     log_learning_curve=False,
 ):
-    """Generates all sklearn classifier plots supported by W&B.
+    """Generate all sklearn classifier plots supported by W&B.
 
     The following plots are generated:
         feature importances, confusion matrix, summary metrics,
@@ -61,9 +61,19 @@ def classifier(
 
     Example:
     ```python
-        wandb.sklearn.plot_classifier(model, X_train, X_test, y_train, y_test, y_pred, y_probas,
-                                      ['cat', 'dog'], False, RandomForest',
-                                      ['barks', 'drools, 'plays_fetch', 'breed'])
+    wandb.sklearn.plot_classifier(
+        model,
+        X_train,
+        X_test,
+        y_train,
+        y_test,
+        y_pred,
+        y_probas,
+        ["cat", "dog"],
+        False,
+        "RandomForest",
+        ["barks", "drools", "plays_fetch", "breed"],
+    )
     ```
     """
     wandb.termlog("\nPlotting %s." % model_name)
@@ -104,7 +114,7 @@ def roc(
     plot_macro=True,
     classes_to_plot=None,
 ):
-    """Logs the receiver-operating characteristic curve.
+    """Log the receiver-operating characteristic curve.
 
     Arguments:
         y_true: (arr) Test set labels.
@@ -120,7 +130,7 @@ def roc(
 
     Example:
     ```python
-        wandb.sklearn.plot_roc(y_true, y_probas, labels)
+    wandb.sklearn.plot_roc(y_true, y_probas, labels)
     ```
     """
     roc_chart = wandb.plots.roc.roc(
@@ -137,7 +147,7 @@ def confusion_matrix(
     pred_labels=None,
     normalize=False,
 ):
-    """Logs a confusion matrix to W&B.
+    """Log a confusion matrix to W&B.
 
     Confusion matrices depict the pattern of misclassifications by a model.
 
@@ -155,7 +165,7 @@ def confusion_matrix(
 
     Example:
     ```python
-        wandb.sklearn.plot_confusion_matrix(y_true, y_probas, labels)
+    wandb.sklearn.plot_confusion_matrix(y_true, y_probas, labels)
     ```
     """
     y_true = np.asarray(y_true)
@@ -180,7 +190,7 @@ def confusion_matrix(
 def precision_recall(
     y_true=None, y_probas=None, labels=None, plot_micro=True, classes_to_plot=None
 ):
-    """Logs a precision-recall curve to W&B.
+    """Log a precision-recall curve to W&B.
 
     Precision-recall curves depict the tradeoff between positive predictive value (precision)
     and true positive rate (recall) as the threshold of a classifier is shifted.
@@ -199,7 +209,7 @@ def precision_recall(
 
     Example:
     ```python
-        wandb.sklearn.plot_precision_recall(y_true, y_probas, labels)
+    wandb.sklearn.plot_precision_recall(y_true, y_probas, labels)
     ```
     """
     precision_recall_chart = wandb.plots.precision_recall(
@@ -212,7 +222,7 @@ def precision_recall(
 def feature_importances(
     model=None, feature_names=None, title="Feature Importance", max_num_features=50
 ):
-    """Logs a plot depicting the relative importance of each feature for a classifier's decisions.
+    """Log a plot depicting the relative importance of each feature for a classifier's decisions.
 
     Should only be called with a fitted classifer (otherwise an error is thrown).
     Only works with classifiers that have a feature_importances_ attribute, like trees.
@@ -228,7 +238,7 @@ def feature_importances(
 
     Example:
     ```python
-        wandb.sklearn.plot_feature_importances(model, ['width', 'height, 'length'])
+    wandb.sklearn.plot_feature_importances(model, ["width", "height", "length"])
     ```
     """
     not_missing = utils.test_missing(model=model)
@@ -241,7 +251,7 @@ def feature_importances(
 
 
 def class_proportions(y_train=None, y_test=None, labels=None):
-    """Plots the distribution of target classses in training and test sets.
+    """Plot the distribution of target classses in training and test sets.
 
     Useful for detecting imbalanced classes.
 
@@ -259,13 +269,12 @@ def class_proportions(y_train=None, y_test=None, labels=None):
 
     Example:
     ```python
-        wandb.sklearn.plot_class_proportions(y_train, y_test, ['dog', 'cat', 'owl'])
+    wandb.sklearn.plot_class_proportions(y_train, y_test, ["dog", "cat", "owl"])
     ```
     """
     not_missing = utils.test_missing(y_train=y_train, y_test=y_test)
     correct_types = utils.test_types(y_train=y_train, y_test=y_test)
     if not_missing and correct_types:
-
         y_train, y_test = np.array(y_train), np.array(y_test)
         class_proportions_chart = calculate.class_proportions(y_train, y_test, labels)
 
@@ -273,7 +282,7 @@ def class_proportions(y_train=None, y_test=None, labels=None):
 
 
 def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
-    """Logs a plot depicting how well-calibrated the predicted probabilities of a classifier are.
+    """Log a plot depicting how well-calibrated the predicted probabilities of a classifier are.
 
     Also suggests how to calibrate an uncalibrated classifier. Compares estimated predicted
     probabilities by a baseline logistic regression model, the model passed as
@@ -302,7 +311,7 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
 
     Example:
     ```python
-        wandb.sklearn.plot_calibration_curve(clf, X, y, 'RandomForestClassifier')
+    wandb.sklearn.plot_calibration_curve(clf, X, y, "RandomForestClassifier")
     ```
     """
     not_missing = utils.test_missing(clf=clf, X=X, y=y)
@@ -319,68 +328,3 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
         calibration_curve_chart = calculate.calibration_curves(clf, X, y, clf_name)
 
         wandb.log({"calibration_curve": calibration_curve_chart})
-
-
-def decision_boundaries(binary_clf=None, X=None, y=None):
-    """Visualizes decision boundaries of a binary classifier.
-
-    Works by sampling from the feature space where the classifier's uncertainty
-    if greater than > 0.5 and projecting these point to 2D space.
-
-    Useful for measuring model (decision boundary) complexity, visualizing
-    regions where the model falters, and to determine whether any over or
-    underfitting occured.
-
-    Should only be called with a fitted **binary** classifer (otherwise an error is
-    thrown). Please note this function fits variations of the model on the
-    training set when called.
-
-    Arguments:
-        model: (clf) Takes in a fitted binary classifier.
-        X_train: (arr) Training set features.
-        y_train: (arr) Training set labels.
-
-    Returns:
-        None: To see plots, go to your W&B run page then expand the 'media' tab
-              under 'auto visualizations'.
-
-    Example:
-    ```python
-        wandb.sklearn.plot_decision_boundaries(binary_classifier, X, y)
-    ```
-    """
-    if utils.test_missing(binary_clf=binary_clf, X=X, y=y) and utils.test_types(
-        binary_clf=binary_clf, X=X, y=y
-    ):
-        y = np.asarray(y)
-        # plot high-dimensional decision boundary
-        db = DBPlot(binary_clf)
-        db = None
-        db.fit(X, y)
-        (
-            decision_boundary_x,
-            decision_boundary_y,
-            decision_boundary_color,
-            train_x,
-            train_y,
-            train_color,
-            test_x,
-            test_y,
-            test_color,
-        ) = db.plot()
-
-        wandb.log(
-            {
-                "decision_boundaries": calculate.decision_boundaries(
-                    decision_boundary_x,
-                    decision_boundary_y,
-                    decision_boundary_color,
-                    train_x,
-                    train_y,
-                    train_color,
-                    test_x,
-                    test_y,
-                    test_color,
-                )
-            }
-        )

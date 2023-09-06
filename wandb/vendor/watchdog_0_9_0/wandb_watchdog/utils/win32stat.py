@@ -110,12 +110,12 @@ def stat(path):
             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
             None)
     if hfile == INVALID_HANDLE_VALUE:
-        raise ctypes.WinError()
+        raise ctypes.WinError
     info = BY_HANDLE_FILE_INFORMATION()
     r = GetFileInformationByHandle(hfile, info)
     CloseHandle(hfile)
     if not r:
-        raise ctypes.WinError()
+        raise ctypes.WinError
     return StatResult(st_dev=info.dwVolumeSerialNumber,
                       st_ino=(info.nFileIndexHigh << 32) + info.nFileIndexLow,
                       st_mode=_to_mode(info.dwFileAttributes),

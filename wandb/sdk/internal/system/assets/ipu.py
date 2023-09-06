@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -20,9 +20,7 @@ if TYPE_CHECKING:
 
 
 class IPUStats:
-    """
-    Stats for Graphcore IPU devices
-    """
+    """Stats for Graphcore IPU devices."""
 
     name = "ipu.{}.{}"
     samples: "Deque[dict]"
@@ -39,8 +37,8 @@ class IPUStats:
         "ipu utilisation (session)",
     }
 
-    def __init__(self, pid: int, gc_ipu_info: Any = None) -> None:
-        self.samples: "Deque[dict]" = deque()
+    def __init__(self, pid: int, gc_ipu_info: Optional[Any] = None) -> None:
+        self.samples: Deque[dict] = deque()
 
         if gc_ipu_info is None:
             if not gcipuinfo:
@@ -132,7 +130,7 @@ class IPU:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
@@ -161,11 +159,12 @@ class IPU:
         device_count = len(device_data)
         devices = []
         for i, device in enumerate(device_data):
+            device_metrics: Dict[str, str] = dict(device)
             devices.append(
                 {
-                    "id": device.get("id") or i,
-                    "board ipu index": device.get("board ipu index"),
-                    "board type": device.get("board type") or "unknown",
+                    "id": device_metrics.get("id") or i,
+                    "board ipu index": device_metrics.get("board ipu index"),
+                    "board type": device_metrics.get("board type") or "unknown",
                 }
             )
 

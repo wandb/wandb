@@ -4,6 +4,11 @@ plugin:
 tag:
   platforms:
     - win
+  skips:
+    - platform: win
+depend:
+  requirements:
+    - pillow
 command:
   program: t6_log_images.py
 assert:

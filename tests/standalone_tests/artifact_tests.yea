@@ -6,6 +6,9 @@ tag:
     - win
 plugin:
   - wandb
+depend:
+  requirements:
+    - pillow
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 8

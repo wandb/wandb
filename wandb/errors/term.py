@@ -17,7 +17,7 @@ _show_errors = True
 _logger = None
 
 
-def termsetup(settings, logger):
+def termsetup(settings, logger) -> None:
     global _silent, _show_info, _show_warnings, _show_errors, _logger
     _silent = settings.silent
     _show_info = settings.show_info

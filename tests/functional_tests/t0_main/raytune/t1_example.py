@@ -1,7 +1,7 @@
 """ray-tune test.
 
 Based on:
-    https://docs.wandb.ai/guides/integrations/other/ray-tune
+    https://docs.wandb.ai/guides/integrations/ray-tune
 """
 
 import random

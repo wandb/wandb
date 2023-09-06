@@ -1,4 +1,4 @@
-"""MessageFuturePoll - Derived from MessageFuture but implementing polling loop
+"""MessageFuturePoll - Derived from MessageFuture but implementing polling loop.
 
 MessageFuture represents a message result of an asynchronous operation.
 
@@ -24,13 +24,13 @@ class MessageFuturePoll(MessageFuture):
         self._fn = fn
         self._xid = xid
 
-    def get(self, timeout: int = None) -> Optional[pb.Result]:
+    def get(self, timeout: Optional[int] = None) -> Optional[pb.Result]:
         self._poll(timeout=timeout)
         if self._object_ready.is_set():
             return self._object
         return None
 
-    def _poll(self, timeout: int = None) -> None:
+    def _poll(self, timeout: Optional[int] = None) -> None:
         if self._object_ready.is_set():
             return
         done = False

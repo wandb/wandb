@@ -30,12 +30,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def history_dict_to_json(
-    run: "Optional[LocalRun]",
+    run: Optional["LocalRun"],
     payload: dict,
     step: Optional[int] = None,
     ignore_copy_err: Optional[bool] = None,
 ) -> dict:
-    # Converts a History row dict's elements so they're friendly for JSON serialization.
+    # Converts a History row dictionary's elements, so they're friendly for JSON serialization.
 
     if step is None:
         # We should be at the top level of the History row; assume this key is set.
@@ -58,7 +58,7 @@ def history_dict_to_json(
 
 # TODO: refine this
 def val_to_json(
-    run: "Optional[LocalRun]",
+    run: Optional["LocalRun"],
     key: str,
     val: "ValToJsonType",
     namespace: Optional[Union[str, int]] = None,
@@ -71,6 +71,12 @@ def val_to_json(
         )
 
     converted = val
+
+    if isinstance(val, (int, float, str, bool)):
+        # These are already JSON-serializable,
+        # no need to do the expensive checks below.
+        return converted  # type: ignore[return-value]
+
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
@@ -78,7 +84,9 @@ def val_to_json(
 
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
-    elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
+    elif isinstance(val, (list, tuple, range)) and all(
+        isinstance(v, WBValue) for v in val
+    ):
         assert run
         # This check will break down if Image/Audio/... have child classes.
         if (
@@ -86,7 +94,6 @@ def val_to_json(
             and isinstance(val[0], BatchableMedia)
             and all(isinstance(v, type(val[0])) for v in val)
         ):
-
             if TYPE_CHECKING:
                 val = cast(Sequence["BatchableMedia"], val)
 
@@ -111,7 +118,8 @@ def val_to_json(
                     )
                 if run._attach_id and run._init_pid != os.getpid():
                     wandb.termwarn(
-                        f"Attempting to log a sequence of {items[0].__class__.__name__} objects from multiple processes might result in data loss. Please upgrade your wandb server",
+                        f"Attempting to log a sequence of {items[0].__class__.__name__} objects from multiple "
+                        f"processes might result in data loss. Please upgrade your wandb server",
                         repeat=False,
                     )
 
@@ -121,7 +129,7 @@ def val_to_json(
             # the array index?
             # There is a bug here: if this array contains two arrays of the same type of
             # anonymous media objects, their eventual names will collide.
-            # This used to happen. The frontend doesn't handle heterogenous arrays
+            # This used to happen. The frontend doesn't handle heterogeneous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
             return [
@@ -139,16 +147,13 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
-
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
-                # we sanitize the key to meet the constraints defined in wandb_artifacts.py
+                # we sanitize the key to meet the constraints
                 # in this case, leaving only alphanumerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
-                art = wandb.wandb_sdk.wandb_artifacts.Artifact(
-                    f"run-{run.id}-{sanitized_key}", "run_table"
-                )
+                art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
                 art.add(val, key)
                 run.log_artifact(art)
 
@@ -167,10 +172,10 @@ def val_to_json(
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
     # If media type has a max respect it
     items = seq
-    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):  # type: ignore
+    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
         logging.warning(
             "Only %i %s will be uploaded."
-            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)  # type: ignore
+            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)
         )
-        items = seq[: seq[0].MAX_ITEMS]  # type: ignore
+        items = seq[: seq[0].MAX_ITEMS]
     return items

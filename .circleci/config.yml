@@ -2,9 +2,11 @@ version: 2.1
 
 orbs:
   win: circleci/windows@5.0.0
-  slack: circleci/slack@4.10.1
-  go: circleci/go@1.7.1
-  gke: circleci/gcp-gke@1.4.0
+  slack: circleci/slack@4.12.5
+  go: circleci/go@1.7.3
+  gcloud: circleci/gcp-cli@3.1.0
+  gke: circleci/gcp-gke@2.1.0
+  codecov: codecov/codecov@3
 
 parameters:
   manual:
@@ -48,43 +50,37 @@ parameters:
     default: 1
   tox_version:
     type: string
-    default: "3.24.0"
+    default: "4.5.1"
   container_registry:
     type: string
     default: "gcr.io"
   gcp_cluster_name:
     type: string
-    default: "gke-yea"
+    default: "sdk-nightly"
   manual_nightly:
     type: boolean
     default: false
-  manual_nightly_git_branch:
+  nightly_git_branch:
     type: string
     default: main
-  manual_nightly_slack_notify:
+  nightly_slack_notify:
     type: boolean
-    default: false
-  manual_nightly_execute_shard_standalone_cpu:
+    default: true
+  nightly_execute_standalone_cpu:
     type: boolean
-    default: false
-  manual_nightly_execute_shard_standalone_gpu:
+    default: true
+  nightly_execute_standalone_gpu:
     type: boolean
-    default: false
-  manual_nightly_execute_shard_standalone_tpu:
+    default: true
+  nightly_execute_kfp:
     type: boolean
-    default: false
-  manual_nightly_execute_shard_standalone_local:
+    default: true
+  nightly_execute_standalone_gpu_win:
     type: boolean
-    default: false
-  manual_nightly_execute_shard_kfp:
+    default: true
+  nightly_execute_regression:
     type: boolean
-    default: false
-  manual_nightly_execute_shard_standalone_gpu_win:
-    type: boolean
-    default: false
-  manual_nightly_execute_shard_imports:
-    type: boolean
-    default: false
+    default: true
   wandb_server_tag:
     type: string
     default: "master"
@@ -125,9 +121,12 @@ commands:
         default: << pipeline.parameters.gcp_cluster_name >>
     steps:
       - run:
-          name: "Setup gcloud"
+          name: "Setup gcloud and kubectl"
+          # gcloud --quiet components update
           command: |
             echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+            gcloud --quiet components install gke-gcloud-auth-plugin
+            gcloud --quiet components install kubectl
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
@@ -204,13 +203,12 @@ commands:
       - run:
           name: "Get gke cluster credentials"
           command: |
-            gcloud components install gke-gcloud-auth-plugin
             gcloud container clusters get-credentials << parameters.cluster >>
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
 jobs:
-  tox-base:
+  regression:
     parameters:
       python_version_major:
         type: integer
@@ -235,8 +233,94 @@ jobs:
       execute:
         type: boolean
         default: true
+      tox_args:
+        type: string
+        default: "--cli_branch $CIRCLE_BRANCH"
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    parallelism: << parameters.parallelism >>
+    resource_class: xlarge
+    working_directory: /mnt/ramdisk/wandb
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+      - when:
+          condition: << parameters.execute >>
+          steps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
+            - run:
+                name: Setup environment
+                command: |
+                  curl https://pyenv.run | bash
+                  echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+                  echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+                  echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+                  source ~/.bashrc
+                no_output_timeout: 30m
+            - run:
+                name: Install tox
+                command: |
+                  pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install -U pip
+                no_output_timeout: 5m
+            - run:
+                name: Run tests
+                no_output_timeout: 240m
+                command: |
+                  source ~/.bashrc
+                  tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            #            - save-test-results
+            # conditionally post a notification to slack if the job failed
+            - when:
+                condition: << parameters.notify_on_failure >>
+                steps:
+                  - slack/notify:
+                      event: fail
+                      template: basic_fail_1
+                      mentions: "@channel"
+                      # taken from slack-secrets context
+                      channel: << parameters.notify_on_failure_channel >>
+
+  tox-base:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 9
+      toxenv:
+        type: string
+      coverage_dir:
+        type: string
+        default: ""
+      shard:
+        type: string
+        default: "default"
+      notify_on_failure:
+        type: boolean
+        default: false
+      notify_on_failure_channel:
+        type: string
+        default: "$SLACK_SDK_NIGHTLY_CI_CHANNEL"
+      parallelism:
+        type: integer
+        default: 1
+      execute:
+        type: boolean
+        default: true
+      tox_args:
+        type: string
+        default: ""
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    environment:
+      SHARD: << parameters.shard >>
+      COVERAGE_DIR: << parameters.coverage_dir >>
     parallelism: << parameters.parallelism >>
     resource_class: xlarge
     working_directory: /mnt/ramdisk
@@ -259,7 +343,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -272,6 +356,14 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
+  prep:
+    docker:
+      - image: "cimg/base:stable"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+
   pytest:
     parameters:
       python_version_major:
@@ -279,18 +371,27 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 8
+      shard:
+        type: string
+        default: "core"
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       notify_on_failure:
         type: boolean
         default: false
       xdist:
         type: integer
         default: 6
+      tox_args:
+        type: string
+        default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-      - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -299,6 +400,9 @@ jobs:
           WANDB_ENABLE_TEST_CONTAINER: true
     resource_class: xlarge
     working_directory: /mnt/ramdisk
+    environment:
+      SHARD: << parameters.shard >>
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - run:
@@ -306,19 +410,28 @@ jobs:
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
       - run:
-          name: Install python dependencies
+          name: Install Python dependencies
           command: |
             pip install tox==<< pipeline.parameters.tox_version >>
             pip install -U pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
+          name: Install Go
+          command: |
+            wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+            PATH=/usr/local/go/bin:$PATH
+            go version
+          no_output_timeout: 1m
+      - run:
           name: Run tests
           no_output_timeout: 10m
           command: |
+            PATH=/usr/local/go/bin:$PATH \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
+            tox run -v -e <<parameters.toxenv>>  \
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -331,6 +444,46 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
+  gotest:
+    docker:
+      - image: cimg/go:1.21
+    steps:
+      - checkout
+      - run:
+          name: Run Nexus' Go tests and collect coverage
+          command: |
+            cd nexus
+            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+            # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
+      - codecov/upload
+
+  protobuf-compatability:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Check protobuf version compatibility
+          command: |
+            pip install -U pip
+            pip install .
+            python tools/check-protobuf-version-compatibility.py
+          no_output_timeout: 5m
+      - save-test-results
+
   win:
     parameters:
       python_version_major:
@@ -341,6 +494,9 @@ jobs:
         default: 9
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -349,17 +505,22 @@ jobs:
         default: 3
       machine_executor:
         type: string
-        default: "default"  # "default" or "server-2019-cuda"
+        default: "default" # "default" or "server-2019-cuda"
       executor_size:
         type: string
-        default: "large"  # could only be "medium" for "server-2019-cuda"
+        default: "large" # could only be "medium" for "server-2019-cuda"
       execute:
         type: boolean
         default: true
+      tox_args:
+        type: string
+        default: ""
     executor:
       name: win/<< parameters.machine_executor >>
       size: << parameters.executor_size >>
     parallelism: << parameters.parallelism >>
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - when:
@@ -370,14 +531,9 @@ jobs:
                 shell: bash.exe
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
-            - run:
-                name: Temporary conda hack
-                shell: bash.exe
-                command: |
-                  cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
             - when:
                 condition:
-                  equal: [ "server-2019-cuda", << parameters.machine_executor >> ]
+                  equal: ["server-2019-cuda", << parameters.machine_executor >>]
                 steps:
                   - run:
                       name: Update tox.ini on a GPU machine to install the proper pytorch version
@@ -394,7 +550,7 @@ jobs:
                   echo $GCLOUD_SERVICE_KEY > key.json
                   gcloud auth activate-service-account --key-file=key.json
                   yes | gcloud auth configure-docker
-                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
                 no_output_timeout: 10m
             - save-test-results
 
@@ -408,16 +564,24 @@ jobs:
         default: 7
       toxenv:
         type: string
+      coverage_dir:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
       xdist:
         type: integer
         default: 3
+      tox_args:
+        type: string
+        default: ""
     macos:
       xcode: 13.4.1
     resource_class: large
     parallelism: << parameters.parallelism >>
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - run:
@@ -429,7 +593,7 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
 
@@ -437,10 +601,23 @@ jobs:
     parameters:
       toxenv:
         type: string
+      tox_args:
+        type: string
+      coverage_dir:
+        type: string
+        default: ""
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
     resource_class: large
+    environment:
+      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - attach_workspace:
           at: .
@@ -454,12 +631,11 @@ jobs:
       - run:
           name: pull base docker images
           command: |
-            docker pull nvidia/cuda:10.0-runtime
-            docker pull python:3.6-buster
+            docker pull python:3.7-buster
       - run:
           name: Run tests
           command: |
-            python3 -m tox -vv -e << parameters.toxenv >>
+            python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
 
@@ -527,7 +703,7 @@ jobs:
             - run:
                 name: Run tests
                 command: |
-                  tox -v -e << parameters.toxenv >>
+                  tox run -v -e << parameters.toxenv >>
                 no_output_timeout: 25m
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
@@ -597,7 +773,7 @@ jobs:
         type: string
       python_version:
         type: string
-        default: "3.8"
+        default: "3.9"
       git_branch:
         type: string
         default: "main"
@@ -614,10 +790,11 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
-            - gke/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - gcloud/install
+            #            - gcloud/install:
+            #                version: "413.0.0"
+            #                components: "docker-credential-gcr"
+            - setup_gcloud
             - setup_docker_buildx:
                 docker_layer_caching: false
             - run:
@@ -630,7 +807,6 @@ jobs:
                     --build-arg GIT_BRANCH=<< parameters.git_branch >> \
                     --build-arg UTC_DATE=$(date -u +%Y%m%d) \
                     .
-            - setup_gcloud
             - run:
                 name: "Push << parameters.description >> to container registry"
                 command: |
@@ -672,15 +848,17 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
+      - gcloud/install
+      - setup_gcloud
       - create_gke_cluster:
+          cluster: << parameters.cluster >>
+      - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
       - run:
           name: "Install GPU drivers"
-          command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+          command: |
+            kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
@@ -708,10 +886,7 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
       - setup_gcloud
       - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
@@ -785,10 +960,7 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - go/install
-            - gke/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - gcloud/install
             - setup_gcloud
             - get_gke_cluster_credentials:
                 cluster: << parameters.cluster >>
@@ -984,109 +1156,139 @@ jobs:
 workflows:
   nightly:
     when:
-      and:
-        - equal:
-            - << pipeline.trigger_source >>
-            - scheduled_pipeline
-        - equal:
-            - << pipeline.schedule.name >>
-            - "nightly"
+      or:
+        - and:
+            - equal:
+                - << pipeline.trigger_source >>
+                - scheduled_pipeline
+            - equal:
+                - << pipeline.schedule.name >>
+                - "nightly"
+        - << pipeline.parameters.manual_nightly >> # this is a manual trigger
     jobs:
       #
-      # kfp tests
-      #
-      - kfp:
-          name: "mach-kubeflow"
-          toxenv: "func-s_kfp-py37"
-          context: slack-secrets
-          notify_on_failure: true
-      #
-      # import tests
-      #
-      - tox-base:
-          matrix:
-            parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8 ]
-              shard:
-                - "imports1"
-                - "imports2"
-                - "imports3"
-                - "imports4"
-                - "imports5"
-                - "imports6"
-                - "imports7"
-                - "imports8"
-                - "imports9"
-                - "imports10"
-                - "imports11"
-                - "imports12"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          context: slack-secrets
-          notify_on_failure: true
-          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
-      #
-      # standalone GPU tests on Windows
-      #
-      - win:
-          machine_executor: "server-2019-cuda"
-          executor_size: "medium"
-          matrix:
-            parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
-          name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 2
-          xdist: 1
-      #
-      # standalone tests on gke
+      # "And now my watch begins"
       #
       - slack_notify:
           name: "slack-notify-on-start"
           context: slack-secrets
           # todo? add a link to the pipeline in the message
           message: ":runner: *Nightly run started!*"
+          execute: << pipeline.parameters.nightly_slack_notify >>
+      #
+      # Regression tests
+      #
+      - regression:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7]
+              shard:
+                - yolov5
+                - huggingface
+                - keras
+                - tensorflow
+                # - pytorch
+                - wandb-sdk-standalone
+                - wandb-sdk-examples
+                - wandb-sdk-other
+                - s3
+                - sagemaker
+          name: "regression-<<matrix.shard>>"
+          toxenv: "regression-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          execute: << pipeline.parameters.nightly_execute_regression >>
+          context:
+            - slack-secrets
+            - aws-wandb-testing-secrets
+          requires:
+            - "slack-notify-on-start"
+          notify_on_failure: true
+      #
+      # kfp tests
+      #
+      - kfp:
+          name: "mach-kubeflow"
+          toxenv: "func-kfp-py37"
+          execute: << pipeline.parameters.nightly_execute_kfp >>
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
+      #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7, 8, 9, 10, 11]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          requires:
+            - "slack-notify-on-start"
+      #
+      # standalone GPU tests on Windows
+      #
+      - win:
+          machine_executor: "server-2019-cuda"
+          executor_size: "medium"
+          execute: << pipeline.parameters.nightly_execute_standalone_gpu_win >>
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
+          parallelism: 2
+          xdist: 1
+          requires:
+            - "slack-notify-on-start"
+      #
+      # standalone tests on gke
+      #
       # check that `pip install wandb` is successful
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+              python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
-          notify_on_failure: true
+          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
           requires:
             - "slack-notify-on-start"
       # build docker images for yea shards
       - sdk_docker:
           name: "build-cpu-docker-image"
           description: "SDK Docker image for CPU testing"
+          git_branch: << pipeline.parameters.nightly_git_branch >>
           path: "./tests/standalone_tests/shards/gke_cpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          execute: << pipeline.parameters.nightly_execute_standalone_cpu >>
           context: slack-secrets
-          notify_on_failure: true
+          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
+          git_branch: << pipeline.parameters.nightly_git_branch >>
           path: "./tests/standalone_tests/shards/gke_gpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          execute: << pipeline.parameters.nightly_execute_standalone_gpu >>
           context: slack-secrets
-          notify_on_failure: true
+          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
           context: slack-secrets
-          notify_on_failure: true
+          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
       - shut_down_cluster:
           requires:
             - spin_up_cluster
           context: slack-secrets
-          notify_on_failure: true
+          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
       # run the tests
       - cloud_test:
           name: "cloud-test-cpu"
@@ -1097,8 +1299,9 @@ workflows:
           pod_name: "cpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           context: slack-secrets
-          notify_on_failure: true
-          notify_on_success: true
+          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
+          notify_on_success: << pipeline.parameters.nightly_slack_notify >>
+          execute: << pipeline.parameters.nightly_execute_standalone_cpu >>
       - cloud_test:
           name: "cloud-test-gpu"
           requires:
@@ -1108,9 +1311,14 @@ workflows:
           pod_name: "gpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           context: slack-secrets
-          notify_on_failure: true
-          notify_on_success: true
+          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
+          notify_on_success: << pipeline.parameters.nightly_slack_notify >>
+          execute: << pipeline.parameters.nightly_execute_standalone_gpu >>
+      #
+      # "And now my watch ends"
+      #
       - slack_notify:
+          execute: << pipeline.parameters.nightly_slack_notify >>
           name: "slack-notify-on-finish"
           context: slack-secrets
           requires:
@@ -1131,128 +1339,350 @@ workflows:
       #
       - tox-base:
           name: "code-check"
-          python_version_minor: 8
-          toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
+          python_version_minor: 9
+          toxenv: "proto3-check,proto4-check,black-check,ruff-check,mypy,mypy-report,codecov-check,auto-codegen-check"
+
       #
-      # Unit tests with pytest on Linux, using real wandb server
+      # Prep jobs
+      #
+      # todo: pre-create toxenvs for all python versions,
+      #       currently these are just placeholders
+      - prep:
+          name: "system-tests"
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
+      - prep:
+          name: "unit-tests"
+      - prep:
+          name: "unit-tests-mock-server"
+      - prep:
+          name: "functional-tests"
+      - prep:
+          name: "executor-tests"
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
+
+      #
+      # System tests with pytest on Linux, using real wandb server
       #
       - pytest:
+          requires:
+            - "system-tests"
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
-          name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+              python_version_minor: [7, 8, 9, 10, 11]
+          name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_core"
+      #
+      # System tests with pytest on Linux, using real wandb server, with Nexus
+      #
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10, 11 ]
+          name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_core"
+      #
+      # Nexus smoke tests with pytest on Linux, using real wandb server
+      #
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10, 11 ]
+          name: "nexus-smoke-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_nexus"
+      #
+      # Nexus unit tests
+      #
+      - gotest:
+          requires:
+            - "unit-tests"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
       - tox-base:
+          requires:
+            - "unit-tests-mock-server"
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
-          name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+              python_version_minor: [7, 8, 9, 10, 11]
+          name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
+      #
+      # Unit tests with pytest on Linux
+      #
+      - tox-base:
+          requires:
+            - "unit-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7, 8, 9, 10, 11]
+          name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests"
+
+      #
+      # Unit tests with pytest on Windows and MacOS
+      #
+      - win:
+          requires:
+            - "unit-tests-mock-server"
+          filters:
+            branches:
+              only:
+                - main
+                - /^release-.*/
+                - /^.*-ci-win$/
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-win-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
+
+      - win:
+          requires:
+            - "unit-tests"
+          filters:
+            branches:
+              only:
+                - main
+                - /^release-.*/
+                - /^.*-ci-win$/
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests --timeout 300"
+
+      - mac:
+          requires:
+            - "unit-tests-mock-server"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
+
+      - mac:
+          requires:
+            - "unit-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests"
+
       #
       # Functional tests with yea on Linux (base only)
       #
       - tox-base:
+          requires:
+            - "functional-tests"
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7]
+              python_version_minor: [9]
               shard:
-                - "base"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+                - "default"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           parallelism: 4
+
+      - tox-base:
+          requires:
+            - "functional-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 9 ]
+              shard:
+                - "mitm"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/standalone_tests"
+
+      - tox-base:
+          requires:
+            - "functional-tests"
+          context: sdk-third-party-api
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+              shard:
+                - "docs"
+                - "llm"
+                - "noml"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
+
       #
       # Functional tests with yea on Linux
       #
       - tox-base:
+          requires:
+            - "functional-tests"
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [7]
               shard:
-                - "sklearn"
-                - "metaflow"
                 - "tf115"
                 - "tf21"
+                - "tf24"
                 - "tf25"
                 - "tf26"
                 - "ray112"
                 - "ray2"
+                - "sklearn"
+                - "metaflow"
                 - "service"
-                - "noml"
-                - "grpc"
-                - "docs"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+                - "artifacts"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
+
       #
       # Functional tests with yea on Windows
       #
       - win:
+          requires:
+            - "functional-tests"
+          filters:
+            branches:
+              only:
+                - main
+                - /^release-.*/
+                - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "func-win-s_default-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
-      #
-      # Unit tests with pytest on Windows and MacOS, using real wandb server
-      #
-      - win:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
-      - mac:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+
       #
       # wandb launch tests
       #
+      # todo: fix base docker image for cuda and uncomment this
       - launch:
-          name: "mach-launch"
-          toxenv: "pylaunch,covercircle"
+          requires:
+            - "unit-tests-mock-server"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests_old/tests_launch/"
+
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+              shard:
+                - "launch"
+                - "sweep"
+                - "artifacts"
+          name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
+
       #
-      # sharded unit tests
+      # notebook tests
       #
-      # s_nb: notebook tests
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-notebooks-linux-circle"
+          coverage_dir: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_notebooks"
+#      - win:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "system-notebooks-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          parallelism: 1
+#          xdist: 1
+#      - mac:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "system-notebooks-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          parallelism: 1
+#          xdist: 1
+      #
+      # functional tests with different executors
+      #
       - tox-base:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [6]
-          name: "unit-s_nb-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
-      - win:
+          requires:
+            - "executor-tests"
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 1
-          xdist: 1
-      - mac:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_nb-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 1
-          xdist: 1
+              toxenv:
+                - "executor-uwsgi"
+                - "executor-gunicorn"
+                - "executor-pex"
+          name: "<<matrix.toxenv>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 
   # todo: needs love
   #  manual_test:
@@ -1282,143 +1712,3 @@ workflows:
   #          toxenv: << pipeline.parameters.manual_mac_toxenv >>
   #          parallelism: << pipeline.parameters.manual_parallelism >>
   #          xdist: << pipeline.parameters.manual_xdist >>
-
-  manual_nightly:
-    when: << pipeline.parameters.manual_nightly >>
-    jobs:
-      #
-      # kfp tests
-      #
-      - kfp:
-          name: "mach-kubeflow"
-          toxenv: "func-s_kfp-py37"
-          execute: << pipeline.parameters.manual_nightly_execute_shard_kfp >>
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-      #
-      # import tests
-      #
-      - tox-base:
-          execute: << pipeline.parameters.manual_nightly_execute_shard_imports >>
-          matrix:
-            parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8 ]
-              shard:
-                - "imports1"
-                - "imports2"
-                - "imports3"
-                - "imports4"
-                - "imports5"
-                - "imports6"
-                - "imports7"
-                - "imports8"
-                - "imports9"
-                - "imports10"
-                - "imports11"
-                - "imports12"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          context: slack-secrets
-          notify_on_failure: true
-          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
-      #
-      # standalone GPU tests on Windows
-      #
-      - win:
-          machine_executor: "server-2019-cuda"
-          executor_size: "medium"
-          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu_win >>
-          matrix:
-            parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
-          name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 2
-          xdist: 1
-      #
-      # standalone tests on gke
-      #
-      - slack_notify:
-          name: "slack-notify-on-start"
-          context: slack-secrets
-          # todo? add a link to the pipeline in the message
-          message: ":runner: *Manual cloud run started!*"
-          execute: << pipeline.parameters.manual_nightly_slack_notify >>
-      # check that `pip install wandb` is successful
-      - pip_install_wandb:
-          matrix:
-            parameters:
-              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11-rc"]
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      # build docker images for yea shards
-      - sdk_docker:
-          name: "build-cpu-docker-image"
-          description: "SDK Docker image for CPU testing"
-          git_branch: << pipeline.parameters.manual_nightly_git_branch >>
-          path: "./tests/standalone_tests/shards/gke_cpu"
-          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-          requires:
-            - "slack-notify-on-start"
-          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_cpu >>
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-      - sdk_docker:
-          name: "build-gpu-docker-image"
-          description: "SDK Docker image for GPU testing"
-          git_branch: << pipeline.parameters.manual_nightly_git_branch >>
-          path: "./tests/standalone_tests/shards/gke_gpu"
-          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
-          requires:
-            - "slack-notify-on-start"
-          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu >>
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-      # manage the gke cluster
-      - spin_up_cluster:
-          requires:
-            - "slack-notify-on-start"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-      - shut_down_cluster:
-          requires:
-            - spin_up_cluster
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-      # run the tests
-      - cloud_test:
-          name: "cloud-test-cpu"
-          requires:
-            - "build-cpu-docker-image"
-            - spin_up_cluster
-          path: "./tests/standalone_tests/shards/gke_cpu"
-          pod_name: "cpu-pod"
-          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
-          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_cpu >>
-      - cloud_test:
-          name: "cloud-test-gpu"
-          requires:
-            - "build-gpu-docker-image"
-            - spin_up_cluster
-          path: "./tests/standalone_tests/shards/gke_gpu"
-          pod_name: "gpu-pod"
-          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
-          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu >>
-      - slack_notify:
-          execute: << pipeline.parameters.manual_nightly_slack_notify >>
-          name: "slack-notify-on-finish"
-          context: slack-secrets
-          requires:
-            - shut_down_cluster
-          message: ":checkered_flag: *Manual cloud run finished!*"

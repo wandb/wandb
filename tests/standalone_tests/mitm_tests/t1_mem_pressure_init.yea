@@ -1,0 +1,24 @@
+plugin:
+  - wandb
+tag:
+  shard: mitm
+option:
+  - :wandb:mitm
+command:
+  program: mem_pressure.py
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+trigger:
+  - :wandb:init:
+      command: pause
+      service: graphql
+      time: 20
+  - :wandb:log:
+      command: pause
+      service: file_stream
+      count: 1
+      skip: 10
+  - :wandb:finish:
+      command: unpause
+      service: file_stream

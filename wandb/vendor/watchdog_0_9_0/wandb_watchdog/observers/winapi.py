@@ -104,21 +104,21 @@ class OVERLAPPED(ctypes.Structure):
 
 def _errcheck_bool(value, func, args):
     if not value:
-        raise ctypes.WinError()
+        raise ctypes.WinError
     return args
 
 
 def _errcheck_handle(value, func, args):
     if not value:
-        raise ctypes.WinError()
+        raise ctypes.WinError
     if value == INVALID_HANDLE_VALUE:
-        raise ctypes.WinError()
+        raise ctypes.WinError
     return args
 
 
 def _errcheck_dword(value, func, args):
     if value == 0xFFFFFFFF:
-        raise ctypes.WinError()
+        raise ctypes.WinError
     return args
 
 

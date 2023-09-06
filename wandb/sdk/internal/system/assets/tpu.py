@@ -1,6 +1,6 @@
 import logging
-import multiprocessing as mp
 import os
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class TPUUtilization:
-    """
-    Google Cloud TPU utilization in percent.
-    """
+    """Google Cloud TPU utilization in percent."""
 
     name = "tpu"
     samples: "Deque[float]"
@@ -70,7 +68,7 @@ class TPU:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.service_addr = self.get_service_addr()
@@ -130,7 +128,6 @@ class TPU:
 
     @classmethod
     def is_available(cls) -> bool:
-
         if os.environ.get("TPU_NAME", False) is False:
             return False
 

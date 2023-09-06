@@ -4,6 +4,11 @@ changelog:
       - changelog-ignore
       - ignore-for-release
       - cc-revert
+      - cc-build
+      - cc-ci
+      - cc-test
+      - cc-chore
+      - cc-refactor
     authors:
       - octocat
   categories:
@@ -18,12 +23,6 @@ changelog:
     - title: ":books: Docs"
       labels:
         - cc-docs
-    - title: ":gear: Dev"
-      labels:
-        - cc-build
-        - cc-ci
-        - cc-test
-        - cc-chore
     - title: ":nail_care: Cleanup"
       labels:
         - "*"

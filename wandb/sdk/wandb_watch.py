@@ -25,7 +25,7 @@ def watch(
     idx: Optional[int] = None,
     log_graph: bool = False,
 ):
-    """Hooks into the torch model to collect gradients and the topology.
+    """Hook into the torch model to collect gradients and the topology.
 
     Should be extended to accept arbitrary ML models.
 

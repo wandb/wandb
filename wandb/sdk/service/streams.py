@@ -2,11 +2,10 @@
 
 StreamThread: Thread that runs internal.wandb_internal()
 StreamRecord: All the external state for the internal thread (queues, etc)
-StreamAction: Lightweight record for stream ops for thread safety with grpc
+StreamAction: Lightweight record for stream ops for thread safety
 StreamMux: Container for dictionary of stream threads per runid
 """
 import functools
-import logging
 import multiprocessing
 import queue
 import threading
@@ -17,6 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 import psutil
 
 import wandb
+import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.mailbox import (
@@ -49,18 +49,20 @@ class StreamThread(threading.Thread):
 
 
 class StreamRecord:
-    _record_q: "multiprocessing.Queue[pb.Record]"
-    _result_q: "multiprocessing.Queue[pb.Result]"
-    _relay_q: "multiprocessing.Queue[pb.Result]"
+    _record_q: "queue.Queue[pb.Record]"
+    _result_q: "queue.Queue[pb.Result]"
+    _relay_q: "queue.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
-    _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
+    _settings: SettingsStatic
+    _started: bool
 
-    def __init__(self, settings: Dict[str, Any], mailbox: Mailbox) -> None:
+    def __init__(self, settings: SettingsStatic, mailbox: Mailbox) -> None:
+        self._started = False
         self._mailbox = mailbox
-        self._record_q = multiprocessing.Queue()
-        self._result_q = multiprocessing.Queue()
-        self._relay_q = multiprocessing.Queue()
+        self._record_q = queue.Queue()
+        self._result_q = queue.Queue()
+        self._relay_q = queue.Queue()
         process = multiprocessing.current_process()
         self._iface = InterfaceRelay(
             record_q=self._record_q,
@@ -70,7 +72,7 @@ class StreamRecord:
             process_check=False,
             mailbox=self._mailbox,
         )
-        self._settings = SettingsStatic(settings)
+        self._settings = settings
 
     def start_thread(self, thread: StreamThread) -> None:
         self._thread = thread
@@ -84,9 +86,6 @@ class StreamRecord:
 
     def join(self) -> None:
         self._iface.join()
-        self._record_q.close()
-        self._result_q.close()
-        self._relay_q.close()
         if self._thread:
             self._thread.join()
 
@@ -97,10 +96,13 @@ class StreamRecord:
     def interface(self) -> InterfaceRelay:
         return self._iface
 
-    def update(self, settings: Dict[str, Any]) -> None:
+    def mark_started(self) -> None:
+        self._started = True
+
+    def update(self, settings: SettingsStatic) -> None:
         # Note: Currently just overriding the _settings attribute
         # once we use Settings Class we might want to properly update it
-        self._settings = SettingsStatic(settings)
+        self._settings = settings
 
 
 class StreamAction:
@@ -109,7 +111,7 @@ class StreamAction:
     _processed: Event
     _data: Any
 
-    def __init__(self, action: str, stream_id: str, data: Any = None):
+    def __init__(self, action: str, stream_id: str, data: Optional[Any] = None):
         self._action = action
         self._stream_id = stream_id
         self._data = data
@@ -160,12 +162,17 @@ class StreamMux:
     def set_pid(self, pid: int) -> None:
         self._pid = pid
 
-    def add_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
+    def add_stream(self, stream_id: str, settings: SettingsStatic) -> None:
         action = StreamAction(action="add", stream_id=stream_id, data=settings)
         self._action_q.put(action)
         action.wait_handled()
 
-    def update_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
+    def start_stream(self, stream_id: str) -> None:
+        action = StreamAction(action="start", stream_id=stream_id)
+        self._action_q.put(action)
+        action.wait_handled()
+
+    def update_stream(self, stream_id: str, settings: SettingsStatic) -> None:
         action = StreamAction(action="update", stream_id=stream_id, data=settings)
         self._action_q.put(action)
         action.wait_handled()
@@ -202,16 +209,11 @@ class StreamMux:
     def _process_add(self, action: StreamAction) -> None:
         stream = StreamRecord(action._data, mailbox=self._mailbox)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
-        settings_dict = action._data
-        settings_dict[
-            "_log_level"
-        ] = (
-            logging.DEBUG
-        )  # Note: not including this in the stream's settings to try and keep only Settings arguments
+        settings = action._data
         thread = StreamThread(
             target=wandb.wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(
-                settings=settings_dict,
+                settings=settings,
                 record_q=stream._record_q,
                 result_q=stream._result_q,
                 port=self._port,
@@ -221,6 +223,10 @@ class StreamMux:
         stream.start_thread(thread)
         with self._streams_lock:
             self._streams[action._stream_id] = stream
+
+    def _process_start(self, action: StreamAction) -> None:
+        with self._streams_lock:
+            self._streams[action._stream_id].mark_started()
 
     def _process_update(self, action: StreamAction) -> None:
         with self._streams_lock:
@@ -275,7 +281,6 @@ class StreamMux:
         if not streams:
             return
 
-        # TODO(settings) remove type ignore once SettingsStatic and Settings unified
         printer = get_printer(
             all(stream._settings._jupyter for stream in streams.values())
         )
@@ -284,7 +289,15 @@ class StreamMux:
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
         exit_handles = []
-        for stream in streams.values():
+
+        # only finish started streams, non started streams failed early
+        started_streams: Dict[str, StreamRecord] = {}
+        not_started_streams: Dict[str, StreamRecord] = {}
+        for stream_id, stream in streams.items():
+            d = started_streams if stream._started else not_started_streams
+            d[stream_id] = stream
+
+        for stream in started_streams.values():
             handle = stream.interface.deliver_exit(exit_code)
             handle.add_progress(self._on_progress_exit)
             handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
@@ -294,21 +307,28 @@ class StreamMux:
                 exit_code, settings=stream._settings, printer=printer  # type: ignore
             )
 
+        # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
+        # timeout = max(stream._settings._exit_timeout for stream in streams.values())
         got_result = self._mailbox.wait_all(
             handles=exit_handles, timeout=-1, on_progress_all=self._on_progress_exit_all
         )
         assert got_result
 
         # These could be done in parallel in the future
-        for _sid, stream in streams.items():
-
+        for _sid, stream in started_streams.items():
             # dispatch all our final requests
             poll_exit_handle = stream.interface.deliver_poll_exit()
             server_info_handle = stream.interface.deliver_request_server_info()
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
+            internal_messages_handle = stream.interface.deliver_internal_messages()
 
-            # wait for them, its ok to do this serially but this can be improved
+            result = internal_messages_handle.wait(timeout=-1)
+            assert result
+            internal_messages_response = result.response.internal_messages_response
+            job_info_handle = stream.interface.deliver_request_job_info()
+
+            # wait for them, it's ok to do this serially but this can be improved
             result = poll_exit_handle.wait(timeout=-1)
             assert result
             poll_exit_response = result.response.poll_exit_response
@@ -325,14 +345,24 @@ class StreamMux:
             assert result
             final_summary = result.response.get_summary_response
 
+            result = job_info_handle.wait(timeout=-1)
+            assert result
+            job_info = result.response.job_info_response
+
             Run._footer(
-                sampled_history,
-                final_summary,
-                poll_exit_response,
-                server_info_response,
+                sampled_history=sampled_history,
+                final_summary=final_summary,
+                poll_exit_response=poll_exit_response,
+                server_info_response=server_info_response,
+                internal_messages_response=internal_messages_response,
+                job_info=job_info,
                 settings=stream._settings,  # type: ignore
                 printer=printer,
             )
+            stream.join()
+
+        # not started streams need to be cleaned up
+        for stream in not_started_streams.values():
             stream.join()
 
     def _process_teardown(self, action: StreamAction) -> None:
@@ -351,6 +381,9 @@ class StreamMux:
             return
         if action._action == "update":
             self._process_update(action)
+            return
+        if action._action == "start":
+            self._process_start(action)
             return
         if action._action == "del":
             self._process_del(action)
@@ -376,7 +409,7 @@ class StreamMux:
     def _loop(self) -> None:
         while not self._stopped.is_set():
             if self._check_orphaned():
-                # parent process is gone, let other threads know we need to shutdown
+                # parent process is gone, let other threads know we need to shut down
                 self._stopped.set()
             try:
                 action = self._action_q.get(timeout=1)

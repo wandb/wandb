@@ -19,6 +19,7 @@ message TelemetryRecord {
   Labels  label = 9;
   Deprecated deprecated = 10;
   Issues issues = 11;
+  string  core_version = 12;
   _RecordInfo _info = 200;
 }
 
@@ -108,6 +109,29 @@ message Imports {
   bool albumentations = 80;
   bool keras_cv = 81;
   bool mmengine = 82;
+  bool diffusers = 83;
+  bool trl = 84;
+  bool trlx = 85;
+  bool langchain = 86;
+  bool llama_index = 87;
+  bool stability_sdk = 88;
+  bool prefect = 89;
+  bool prefect_ray = 90;
+  bool pinecone = 91; // pinecone-client
+  bool chromadb = 92;
+  bool weaviate = 93; // weaviate-client
+  bool promptlayer = 94;
+  bool openai = 95;
+  bool cohere = 96;
+  bool anthropic = 97;
+  bool peft = 98;
+  bool optimum = 99;
+  bool evaluate = 100;
+  bool langflow = 101;
+  bool keras_core = 102; // keras-core
+  bool lightning_fabric = 103; // lightning-fabric
+  bool curated_transformers = 104; // curated-transformers
+  bool orjson = 105;
 }
 
 message Feature {
@@ -151,6 +175,21 @@ message Feature {
   bool keras_metrics_logger = 38; // Keras WandbMetricsLogger used
   bool keras_model_checkpoint = 39; // Keras WandbModelCheckpoint used
   bool keras_wandb_eval_callback = 40; // Keras WandbEvalCallback used
+  bool flow_control_overflow = 41; // Hit flow control threshold
+  bool sync = 42; // Run was synced with wandb sync
+  bool flow_control_disabled = 43; // Flow control disabled by user
+  bool flow_control_custom = 44; // Flow control customized by user
+  bool service_disabled = 45; // Service disabled by user
+  bool open_metrics = 46; // Consuming metrics from an OpenMetrics endpoint
+  bool ultralytics_yolov8 = 47; // Ultralytics YOLOv8 integration callbacks used
+  bool importer_mlflow = 48; // Using Import API for MLFlow
+  bool sync_tfevents = 49; // Using wandb sync for tfevent files
+  bool async_uploads = 50; // Async file uploads enabled by user
+  bool openai_autolog = 51; // OpenAI autolog used
+  bool langchain_tracer = 52; // Langchain wandb tracer callback used
+  bool cohere_autolog = 53; // Cohere autolog used
+  bool hf_pipeline_autolog = 54; // HuggingFace Autologging
+  bool nexus = 55; // Using wandb nexus internal process
 }
 
 message Env {
@@ -163,6 +202,12 @@ message Env {
   bool start_forkserver = 7;  // multiprocessing forkserver
   bool start_thread = 8;      // thread start method
   bool maybe_mp = 9; // maybe user running multiprocessing
+  bool trainium = 10; // AWS Trainium env detected
+  bool pex = 11; // pex env detected
+  bool colab = 12; // colab env detected
+  bool ipython = 13; // ipython env detected
+  bool aws_lambda = 14; // running in AWS Lambda
+  bool amd_gpu = 15; // AMD GPU detected
 }
 
 message Labels {
@@ -181,6 +226,7 @@ message Deprecated {
   bool init__config_include_keys = 7 ; // wandb.init(config_include_keys=...) called
   bool init__config_exclude_keys = 8 ; // wandb.init(config_exclude_keys=...) called
   bool keras_callback__save_model = 9; // wandb.keras.WandbCallback(save_model=True) called
+  bool langchain_tracer = 10; // wandb.integration.langchain.WandbTracer called
 }
 
 message Issues {
