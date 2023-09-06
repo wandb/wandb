@@ -998,7 +998,7 @@ message MetadataRequest {
   repeated string args = 7;
   string state = 8;
   string program = 9;
-  string codePath = 10;
+  string code_path = 10 [json_name="codePath"];
   GitRepoRecord git = 11;
   string email = 12;
   string root = 13;
@@ -1010,4 +1010,5 @@ message MetadataRequest {
   MetaDiskInfo disk = 19;
   MetaGpuAppleInfo gpuapple = 20;
   MetaMemInfo memory = 21;
+  string code_path_local = 22 [json_name="codePathLocal"];
 }
