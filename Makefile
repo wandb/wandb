@@ -41,7 +41,7 @@ clean-test: ## remove test and coverage artifacts
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
 build: clean ## builds source and wheel package
-	python setup.py sdist bdist_wheel
+	python -m build -n
 	ls -l dist
 
 release-test: build ## package and upload test release
