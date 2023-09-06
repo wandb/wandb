@@ -233,6 +233,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	}
 }
 
+//gocyclo:ignore
 func (h *Handler) handleRequest(record *service.Record) {
 	shutdown := false
 	request := record.GetRequest()
