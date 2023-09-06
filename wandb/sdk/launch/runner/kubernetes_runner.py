@@ -102,7 +102,7 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
-def _iso8601_to_timestamp(iso8601_str):
+def _iso8601_to_timestamp(iso8601_str: str) -> float:
     """Convert an ISO8601 string to a timestamp."""
     dt = datetime.fromisoformat(iso8601_str.replace("Z", "+00:00"))
     return dt.replace(tzinfo=timezone.utc).timestamp()
