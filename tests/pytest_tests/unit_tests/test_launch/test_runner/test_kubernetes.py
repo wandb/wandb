@@ -364,7 +364,6 @@ def test_launch_kube_works(
     runner = KubernetesRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
     )
-    runner.wait_job_launch = MagicMock()
     submitted_run = runner.run(project, MagicMock())
 
     def _wait():
@@ -458,7 +457,6 @@ def test_launch_crd_works(
     runner = KubernetesRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
     )
-    runner.wait_job_launch = MagicMock()
     submitted_run = runner.run(project, MagicMock())
 
     def _wait():
@@ -531,7 +529,6 @@ def test_launch_kube_failed(
     runner = KubernetesRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
     )
-    runner.wait_job_launch = MagicMock()
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
         lambda *args, **kwargs: None,

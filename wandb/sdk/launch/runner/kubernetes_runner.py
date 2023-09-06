@@ -557,48 +557,6 @@ class KubernetesRunner(AbstractRunner):
         self.environment = environment
         self.registry = registry
 
-    def wait_job_launch(
-        self,
-        job_name: str,
-        namespace: str,
-        core_api: "CoreV1Api",
-        label: str = "job-name",
-    ) -> List[str]:
-        """Wait for a job to be launched and return the pod names.
-
-        Arguments:
-            job_name: The name of the job.
-            namespace: The namespace of the job.
-            core_api: The Kubernetes core API client.
-            label: The label key to match against job_name.
-
-        Returns:
-            The names of the pods associated with the job.
-        """
-        pods = core_api.list_namespaced_pod(
-            label_selector=f"{label}={job_name}", namespace=namespace
-        )
-        timeout = TIMEOUT
-        while len(pods.items) == 0 and timeout > 0:
-            time.sleep(1)
-            timeout -= 1
-            pods = core_api.list_namespaced_pod(
-                label_selector=f"{label}={job_name}", namespace=namespace
-            )
-
-        if timeout == 0:
-            raise LaunchError(
-                "No pods found for job {}. Check dashboard to see if job was launched successfully.".format(
-                    job_name
-                )
-            )
-
-        pod_names = [pi.metadata.name for pi in pods.items]
-        wandb.termlog(
-            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]} -n {namespace}`."
-        )
-        return pod_names
-
     def get_namespace(
         self, resource_args: Dict[str, Any], context: Dict[str, Any]
     ) -> str:
