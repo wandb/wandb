@@ -71,9 +71,7 @@ def _create_config_files(api_key: str):
         document = dict(original)
         update_dict(document, dict(updated))
         final_launch_config.append(document)
-    final_launch_config.append(
-        update_dict(launch_config[-1], {"stringData": {"password": api_key}})
-    )
+    final_launch_config[-1]["stringData"]["password"] = api_key
     print(final_launch_config)
     yaml.dump_all(
         final_launch_config,

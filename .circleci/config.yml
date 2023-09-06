@@ -670,7 +670,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 30m
                 command: |
-                  tox run -v -e launch-release -- << parameters.tox_args >>
+                  tox run -v -e launch-release -- --api-key=$WANDB_API_KEY << parameters.tox_args >>
             # conditionally post a notification to slack if the job failed
             - when:
                 condition: << parameters.notify_on_failure >>
