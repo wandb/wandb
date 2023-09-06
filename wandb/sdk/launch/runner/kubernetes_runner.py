@@ -205,7 +205,7 @@ class KubernetesRunMonitor:
         # retry loop so if we get here it means that the pods cannot be monitored.
         except urllib3.exceptions.ProtocolError as e:
             state = self.get_status().state
-            if state in ["failed", "finished"]:
+            if state in ["failed", "finished", "preempted"]:
                 _logger.warning(
                     f"Hanging pod monitor thread with selector {self.pod_label_selector}: {e}"
                 )
@@ -295,7 +295,7 @@ class KubernetesRunMonitor:
                         continue
                     status = Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
                     self._set_status(status)
-                    if status.state in ["finished", "failed"]:
+                    if status.state in ["finished", "failed", "preempted"]:
                         self.stop()
                         break
 
@@ -386,7 +386,7 @@ class KubernetesSubmittedRun(AbstractRun):
         while True:
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            if status.state in ["finished", "failed"]:
+            if status.state in ["finished", "failed", "preempted"]:
                 break
             time.sleep(5)
         return (
@@ -529,7 +529,7 @@ class CrdSubmittedRun(AbstractRun):
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
             time.sleep(5)
-            if status.state in ["finished", "failed"]:
+            if status.state in ["finished", "failed", "preempted"]:
                 return status.state == "finished"
 
 
