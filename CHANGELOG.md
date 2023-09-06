@@ -1,3 +1,87 @@
+# 0.15.10 (Sep 6, 2023)
+
+### :magic_wand: Enhancements
+* feat(integrations): add async support to `Autologger` API and enable it for Openai by @parambharat in https://github.com/wandb/wandb/pull/5960
+* feat(sdk): add official support for python 3.11 and drop support for python 3.6 by @dmitryduev in https://github.com/wandb/wandb/pull/4386
+* feat(sdk): implement network logging and file pusher timeout for debugging by @dmitryduev in https://github.com/wandb/wandb/pull/5894
+* feat(artifacts): set ttl(time to live) for artifact versions by @estellazx in https://github.com/wandb/wandb/pull/5859
+* feat(nexus): add support for define metric by @kptkin in https://github.com/wandb/wandb/pull/6036
+* feat(launch): Include agent version when creating launch agent by @TimH98 in https://github.com/wandb/wandb/pull/5970
+* feat(launch): Runless git jobs can use requirements.txt in parent directories by @TimH98 in https://github.com/wandb/wandb/pull/6008
+* feat(artifacts): retrieve the parent collection from an Artifact by @moredatarequired in https://github.com/wandb/wandb/pull/6019
+* feat(nexus): improve file uploads by @dmitryduev in https://github.com/wandb/wandb/pull/6052
+* feat(artifacts): Add run id option to artifact put method to log artifacts to existing runs by @ibindlish in https://github.com/wandb/wandb/pull/6074
+* feat(public-api): add metadata property to Run object by @dmitryduev in https://github.com/wandb/wandb/pull/6100
+* feat(launch): Support setting a custom Dockerfile in launch overrides by @TimH98 in https://github.com/wandb/wandb/pull/6104
+* feat(nexus): add Nvidia GPU asset to system monitor by @dmitryduev in https://github.com/wandb/wandb/pull/6081
+* feat(artifacts): enable deleting artifact collections from SDK by @moredatarequired in https://github.com/wandb/wandb/pull/6020
+* feat(launch): Add dockerfile CLI param & use Dockerfile.wandb by default if present by @TimH98 in https://github.com/wandb/wandb/pull/6122
+* feat(artifacts): extend cache cleanup to allow specifying a target fraction by @moredatarequired in https://github.com/wandb/wandb/pull/6152
+* feat(artifacts): add an eval-able repr to ArtifactManifestEntry by @moredatarequired in https://github.com/wandb/wandb/pull/6132
+* feat(nexus): enable docker-based wheel building for nexus by @dmitryduev in https://github.com/wandb/wandb/pull/6118
+* feat(nexus): add Nvidia GPU asset to system monitor by @dmitryduev in https://github.com/wandb/wandb/pull/6131
+* feat(artifacts): clear the cache on add to prevent overflow by @moredatarequired in https://github.com/wandb/wandb/pull/6149
+* feat(sdk): capture disk i/o utilization in system metrics by @umakrishnaswamy in https://github.com/wandb/wandb/pull/6106
+* feat(sdk): add disk io counters to monitor metrics by @dmitryduev in https://github.com/wandb/wandb/pull/6170
+* feat(sdk): make paths for disk usage monitoring configurable by @dmitryduev in https://github.com/wandb/wandb/pull/6196
+* feat(sweeps): Use `WANDB_SWEEP_ID` to include a run in an existing sweep by @gtarpenning in https://github.com/wandb/wandb/pull/6198
+* feat(artifacts): Handle LinkArtifact calls made to Nexus Core by @ibindlish in https://github.com/wandb/wandb/pull/6160
+* feat(nexus): fix retry logic for http clients and allow user customization by @kptkin in https://github.com/wandb/wandb/pull/6182
+* feat(nexus): support user defined headers in the gql client transport by @kptkin in https://github.com/wandb/wandb/pull/6208
+* feat(sdk): enable set types in wandb.Config by @fdsig in https://github.com/wandb/wandb/pull/6219
+* feat(integrations): visualize images with bbox overlays for `ultralytics` by @soumik12345 in https://github.com/wandb/wandb/pull/5867
+* feat(sdk): add exponential decay sampling utility for line_plot by @dmitryduev in https://github.com/wandb/wandb/pull/6228
+* feat(sdk): always print the traceback inside of the `wandb.init` context manager by @kptkin in https://github.com/wandb/wandb/pull/4603
+* feat(sdk): add setting to disable automatic machine info capture by @kptkin in https://github.com/wandb/wandb/pull/6230
+### :hammer: Fixes
+* fix(launch): Extend try in agent loop to cover all job handling by @KyleGoyette in https://github.com/wandb/wandb/pull/5923
+* fix(sdk): guard against undefined filestream timeout by @dmitryduev in https://github.com/wandb/wandb/pull/5997
+* fix(launch): error if code artifact underlying job has been deleted by @bcsherma in https://github.com/wandb/wandb/pull/5959
+* fix(artifacts): use a unique name for the artifact created by `verify` by @moredatarequired in https://github.com/wandb/wandb/pull/5929
+* fix(launch): Use resume=allow when auto requeuing by @TimH98 in https://github.com/wandb/wandb/pull/6002
+* fix(launch): correct entrypoint path from disabled git repo subir by @gtarpenning in https://github.com/wandb/wandb/pull/5903
+* fix(sweeps): override individual job resource_args by @gtarpenning in https://github.com/wandb/wandb/pull/5985
+* fix(sdk): fix import issue to support python 3.6 by @kptkin in https://github.com/wandb/wandb/pull/6018
+* fix(launch): Fix override entrypoint when using sweeps on launch without a scheduler job by @KyleGoyette in https://github.com/wandb/wandb/pull/6033
+* fix(nexus): fix resume reference when nil by @kptkin in https://github.com/wandb/wandb/pull/6055
+* fix(sdk): further speed up import time by @hauntsaninja in https://github.com/wandb/wandb/pull/6032
+* fix(launch): Fix sample kubernetes agent manifest secret mount by @KyleGoyette in https://github.com/wandb/wandb/pull/6057
+* fix(nexus): rm unused import by @dmitryduev in https://github.com/wandb/wandb/pull/6085
+* fix(launch): watch to get kuberntes run statuses by @bcsherma in https://github.com/wandb/wandb/pull/6022
+* fix(artifacts): prohibit saving artifacts to a different project than their base artifact by @moredatarequired in https://github.com/wandb/wandb/pull/6042
+* fix(artifacts): require existing artifacts to save to their source entity/project by @moredatarequired in https://github.com/wandb/wandb/pull/6034
+* fix(nexus): adjust system monitor start and stop functionality by @dmitryduev in https://github.com/wandb/wandb/pull/6087
+* fix(artifacts): remove suspect characters when directory creation fails by @moredatarequired in https://github.com/wandb/wandb/pull/6094
+* fix(launch): Default log_code exclusion behavior now correctly handles `wandb` in the root path prefix. by @nickpenaranda in https://github.com/wandb/wandb/pull/6095
+* fix(launch): disallow project queue creation by @bcsherma in https://github.com/wandb/wandb/pull/6011
+* fix(launch): catch all sweep set state errors by @gtarpenning in https://github.com/wandb/wandb/pull/6091
+* fix(launch): create_job now works from jupyter notebook by @gtarpenning in https://github.com/wandb/wandb/pull/6068
+* fix(nexus): fix race condition for defer and update control by @kptkin in https://github.com/wandb/wandb/pull/6125
+* fix(sdk): improved handling and logging of tensor types by @kptkin in https://github.com/wandb/wandb/pull/6086
+* fix(launch): launch cli command should exit with non-zero status if underlying launched run exits with non-zero status by @KyleGoyette in https://github.com/wandb/wandb/pull/6078
+* fix(nexus): fix correctness for offline mode by @kptkin in https://github.com/wandb/wandb/pull/6166
+* fix(sdk): reports api - fix media_keys json path by @laxels in https://github.com/wandb/wandb/pull/6167
+* fix(sdk): Allow uint8 images to be logged as wandb.Image() by @nate-wandb in https://github.com/wandb/wandb/pull/6043
+* fix(sdk): fall back to /tmp/username/.config/wandb in old settings by @dmitryduev in https://github.com/wandb/wandb/pull/6175
+* fix(nexus): use UpsertBucketRetryPolicy in all gql.UpsertBucket calls by @dmitryduev in https://github.com/wandb/wandb/pull/6207
+* fix(sdk): update report id validation and encoding by @jo-fang in https://github.com/wandb/wandb/pull/6203
+* fix(sdk): add support for propagating messages from the internal process by @kptkin in https://github.com/wandb/wandb/pull/5803
+### :books: Docs
+* docs(nexus): add package level docstrings for filestream by @raubitsj in https://github.com/wandb/wandb/pull/6061
+* docs(nexus): add basic developer guide by @kptkin in https://github.com/wandb/wandb/pull/6119
+* docs(cli): Added more context for lauch job describe description. by @ngrayluna in https://github.com/wandb/wandb/pull/6193
+### :nail_care: Cleanup
+* style(sdk): fix to new ruff rule E721 additions by @nickpenaranda in https://github.com/wandb/wandb/pull/6102
+
+## New Contributors
+* @geoffrey-g-delhomme made their first contribution in https://github.com/wandb/wandb/pull/5867
+* @kooshi made their first contribution in https://github.com/wandb/wandb/pull/6086
+* @umakrishnaswamy made their first contribution in https://github.com/wandb/wandb/pull/6106
+* @jo-fang made their first contribution in https://github.com/wandb/wandb/pull/6203
+* @wwzeng1 made their first contribution in https://github.com/wandb/wandb/pull/6228
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.9...v0.15.10
+
 # 0.15.9 (Aug 28, 2023)
 
 ### :magic_wand: Enhancements
