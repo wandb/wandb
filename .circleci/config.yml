@@ -639,10 +639,11 @@ jobs:
                   pyenv install -s 3.7.13
                   pyenv versions
                   pyenv global 3.7.13
+                  pip install -U pip
+                  pip install pytest
             - run:
                 name: Install tox
                 command: |
-                  pip install -U pip
                   pip install tox==<< pipeline.parameters.tox_version >>
                 no_output_timeout: 5m
             - run:

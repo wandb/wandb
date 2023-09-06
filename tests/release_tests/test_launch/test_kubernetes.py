@@ -56,7 +56,7 @@ def test_kubernetes_agent_on_local_process():
         run_cmd("rm -r artifacts")
 
 
-def _create_config_files():
+def _create_config_files(api_key: str):
     """Create a launch-config.yml and launch-agent.yml."""
     launch_config = yaml.load_all(
         open("wandb/sdk/launch/deploys/kubernetes/launch-config.yaml"),
@@ -66,6 +66,8 @@ def _create_config_files():
         open("tests/release_tests/test_launch/launch-config-patch.yaml"),
         Loader=yaml.Loader,
     )
+    launch_config_patch.append({"stringData": {"password": api_key}})
+    print(launch_config_patch)
     final_launch_config = []
     for original, updated in zip(launch_config, launch_config_patch):
         document = dict(original)
@@ -92,8 +94,8 @@ def _create_config_files():
 
 
 @pytest.mark.timeout(180)
-def test_kubernetes_agent_in_cluster():
-    _create_config_files()
+def test_kubernetes_agent_in_cluster(api_key: str):
+    _create_config_files(api_key)
 
     print(
         run_cmd(
