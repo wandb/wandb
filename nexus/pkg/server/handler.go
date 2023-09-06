@@ -103,6 +103,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	// systemInfo is the metadata / system info for the stream
+	systemInfo *monitor.SystemInfo
 }
 
 // NewHandler creates a new handler
@@ -124,6 +127,9 @@ func NewHandler(
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
+	}
+	if !settings.GetXDisableMeta().GetValue() {
+		h.systemInfo = monitor.NewSystemInfo(settings)
 	}
 	return h
 }
@@ -380,6 +386,18 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 
 	// start the system monitor
 	h.systemMonitor.Do()
+
+	// capture system info
+	if h.systemInfo != nil {
+		// update with runtime
+		h.systemInfo.Metadata.StartedAt = run.StartTime
+		// todo: probe system assets & update metadata
+		// publish system info
+		err := h.systemInfo.Publish()
+		if err != nil {
+			return
+		}
+	}
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {

@@ -11,10 +11,28 @@ import (
 
 type SystemInfo struct {
 	settings *service.Settings
+	Metadata *service.MetadataRequest
 }
 
 func NewSystemInfo(settings *service.Settings) *SystemInfo {
-	return &SystemInfo{settings}
+	return &SystemInfo{
+		settings: settings,
+		Metadata: &service.MetadataRequest{
+			Os:            settings.GetXOs().GetValue(),
+			Python:        settings.GetXPython().GetValue(),
+			Host:          settings.GetHost().GetValue(),
+			Cuda:          settings.GetXCuda().GetValue(),
+			Program:       settings.GetProgram().GetValue(),
+			CodePath:      settings.GetProgram().GetValue(),
+			CodePathLocal: settings.GetProgram().GetValue(),
+			Email:         settings.GetEmail().GetValue(),
+			Root:          settings.GetRootDir().GetValue(),
+			Username:      settings.GetUsername().GetValue(),
+			Docker:        settings.GetDocker().GetValue(),
+			Executable:    settings.GetXExecutable().GetValue(),
+			Args:          settings.GetXArgs().GetValue(),
+		},
+	}
 }
 
 func (s *SystemInfo) saveCode() (*string, error) {
