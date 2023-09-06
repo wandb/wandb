@@ -499,7 +499,7 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 	fmt.Println(sm)
 	// convert to protobuf
 	// response.ResponseType = &service.Response_GetSystemMetricsResponse{
-	// 	GetSystemMetricsResponse: h.systemMonitor.GetMetrics(),
+	// 	GetSystemMetricsResponse: h.systemMonitor.GetBuffer(),
 	// }
 }
 

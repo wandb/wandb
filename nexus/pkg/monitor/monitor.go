@@ -25,51 +25,62 @@ func Average(nums []float64) float64 {
 	return total / float64(len(nums))
 }
 
+type Measurement struct {
+	// timestamp of the measurement
+	Timestamp *timestamppb.Timestamp
+	// value of the measurement
+	Value float64
+}
+
 type List struct {
-	elements []float64
+	// slice of tuples of (timestamp, value)
+	elements []Measurement
 	maxSize  int32
 }
 
-func (l *List) Append(element float64) {
+func (l *List) Append(element Measurement) {
 	if (l.maxSize > 0) && (len(l.elements) >= int(l.maxSize)) {
 		l.elements = l.elements[1:] // Drop the oldest element
 	}
 	l.elements = append(l.elements, element) // Add the new element
 }
 
-type MetricsBuffer struct {
-	// Buffer is the in-memory metrics buffer for the system monitor
-	Buffer  map[string]List
-	mutex   sync.RWMutex
-	maxSize int32
+// Buffer is the in-memory metrics buffer for the system monitor
+type Buffer struct {
+	elements map[string]List
+	mutex    sync.RWMutex
+	maxSize  int32
 }
 
-func NewMetricsBuffer(maxSize int32) *MetricsBuffer {
-	return &MetricsBuffer{
-		Buffer:  make(map[string]List),
-		maxSize: maxSize,
+func NewBuffer(maxSize int32) *Buffer {
+	return &Buffer{
+		elements: make(map[string]List),
+		maxSize:  maxSize,
 	}
 }
 
-func (mb *MetricsBuffer) push(metricName string, metricValue float64) {
+func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
 	mb.mutex.Lock()
 	defer mb.mutex.Unlock()
-	if _, ok := mb.Buffer[metricName]; !ok {
-		mb.Buffer[metricName] = List{
+	if _, ok := mb.elements[metricName]; !ok {
+		mb.elements[metricName] = List{
 			maxSize: mb.maxSize,
 		}
 	}
-	buf := mb.Buffer[metricName]
-	buf.Append(metricValue)
-	mb.Buffer[metricName] = buf
+	buf := mb.elements[metricName]
+	buf.Append(Measurement{
+		Timestamp: timeStamp,
+		Value:     metricValue,
+	})
+	mb.elements[metricName] = buf
 }
 
-func makeStatsRecord(stats map[string]float64) *service.Record {
+func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
 	record := &service.Record{
 		RecordType: &service.Record_Stats{
 			Stats: &service.StatsRecord{
 				StatsType: service.StatsRecord_SYSTEM,
-				Timestamp: timestamppb.Now(),
+				Timestamp: timeStamp,
 			},
 		},
 		Control: &service.Control{AlwaysSend: true},
@@ -113,7 +124,7 @@ type SystemMonitor struct {
 	outChan chan *service.Record
 
 	// Buffer is the metrics buffer for the system monitor
-	buffer *MetricsBuffer
+	buffer *Buffer
 
 	// settings is the settings for the system monitor
 	settings *service.Settings
@@ -129,12 +140,12 @@ func NewSystemMonitor(
 	outChan chan *service.Record,
 ) *SystemMonitor {
 	sbs := settings.XStatsBufferSize.GetValue()
-	var metricsBuffer *MetricsBuffer
+	var buffer *Buffer
 	// if buffer size is 0, don't create a buffer
 	// a positive buffer size restricts the number of metrics that are kept in memory
 	// value of -1 indicates that all sampled metrics will be kept in memory
 	if sbs != 0 {
-		metricsBuffer = NewMetricsBuffer(sbs)
+		buffer = NewBuffer(sbs)
 	}
 
 	systemMonitor := &SystemMonitor{
@@ -142,7 +153,7 @@ func NewSystemMonitor(
 		settings: settings,
 		logger:   logger,
 		outChan:  outChan,
-		buffer:   metricsBuffer,
+		buffer:   buffer,
 	}
 
 	// if stats are disabled, return early
@@ -232,15 +243,16 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			if samplesCollected == samplesToAverage {
 				aggregatedMetrics := asset.AggregateMetrics()
 				if len(aggregatedMetrics) > 0 {
-					// store in buffer ensuring that metric names are present
+					ts := timestamppb.Now()
+					// store in buffer
 					for k, v := range aggregatedMetrics {
 						if sm.buffer != nil {
-							sm.buffer.push(k, v)
+							sm.buffer.push(k, ts, v)
 						}
 					}
 
 					// publish metrics
-					record := makeStatsRecord(aggregatedMetrics)
+					record := makeStatsRecord(aggregatedMetrics, ts)
 					// ensure that the context is not done before sending the record
 					select {
 					case <-sm.ctx.Done():
@@ -265,7 +277,7 @@ func (sm *SystemMonitor) GetBuffer() map[string]List {
 	}
 	sm.buffer.mutex.RLock()
 	defer sm.buffer.mutex.RUnlock()
-	return sm.buffer.Buffer
+	return sm.buffer.elements
 }
 
 func (sm *SystemMonitor) Stop() {
