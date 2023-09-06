@@ -1,5 +1,6 @@
 """Implementation of KubernetesRunner class for wandb launch."""
 
+import yaml
 import base64
 import json
 import logging
@@ -786,8 +787,10 @@ class KubernetesRunner(AbstractRunner):
                     body=resource_args,
                 )
             except ApiException as e:
+                body = json.loads(e.body)
+                body_yaml = yaml.dump(body)
                 raise LaunchError(
-                    f"Error creating CRD of kind {kind}: {e.status} {e.reason} {e.body} {e.headers}"
+                    f"Error creating CRD of kind {kind}: {e.status} {e.reason}\n{body_yaml}"
                 ) from e
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
