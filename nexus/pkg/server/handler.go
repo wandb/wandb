@@ -497,7 +497,17 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Response) {
 	sm := h.systemMonitor.GetBuffer()
 	fmt.Println(sm)
-	// convert to protobuf
+	// var buffer []*service.SystemMetricsBuffer
+	// var response *service.Response_GetSystemMetricsResponse
+	//
+	// for key, samples := range sm {
+	// 	// convert samples to buffer:
+	// 	buffer = append(buffer, &service.SystemMetricsSample{
+	// 		timestamp
+	// 	}
+	// 	// add key to response
+	// }
+
 	// response.ResponseType = &service.Response_GetSystemMetricsResponse{
 	// 	GetSystemMetricsResponse: h.systemMonitor.GetBuffer(),
 	// }

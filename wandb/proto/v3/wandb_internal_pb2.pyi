@@ -1886,16 +1886,35 @@ class GetSystemMetricsRequest(google.protobuf.message.Message):
 
 global___GetSystemMetricsRequest = GetSystemMetricsRequest
 
+class SystemMetricSample(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    TIMESTAMP_FIELD_NUMBER: builtins.int
+    VALUE_FIELD_NUMBER: builtins.int
+    @property
+    def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    value: builtins.float
+    def __init__(
+        self,
+        *,
+        timestamp: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        value: builtins.float = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["timestamp", b"timestamp"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["timestamp", b"timestamp", "value", b"value"]) -> None: ...
+
+global___SystemMetricSample = SystemMetricSample
+
 class SystemMetricsBuffer(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     RECORD_FIELD_NUMBER: builtins.int
     @property
-    def record(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___StatsRecord]: ...
+    def record(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___SystemMetricSample]: ...
     def __init__(
         self,
         *,
-        record: collections.abc.Iterable[global___StatsRecord] | None = ...,
+        record: collections.abc.Iterable[global___SystemMetricSample] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["record", b"record"]) -> None: ...
 

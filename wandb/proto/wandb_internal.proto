@@ -616,8 +616,13 @@ message GetSystemMetricsRequest {
   _RequestInfo _info = 200;
 }
 
+message SystemMetricSample {
+  google.protobuf.Timestamp timestamp = 1;
+  float value = 2;
+}
+
 message SystemMetricsBuffer {
-  repeated StatsRecord record = 1;
+  repeated SystemMetricSample record = 1;
 }
 
 message GetSystemMetricsResponse{
