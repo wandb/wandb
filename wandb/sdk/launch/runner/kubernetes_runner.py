@@ -1,6 +1,5 @@
 """Implementation of KubernetesRunner class for wandb launch."""
 
-import yaml
 import base64
 import json
 import logging
@@ -10,6 +9,7 @@ from threading import Lock, Thread
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import urllib3
+import yaml
 
 import wandb
 from wandb.apis.internal import Api
