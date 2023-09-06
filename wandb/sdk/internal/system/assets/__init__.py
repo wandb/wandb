@@ -17,7 +17,7 @@ from .asset_registry import asset_registry
 from .cpu import CPU
 from .disk import Disk
 from .gpu import GPU
-#from .gpu_amd import GPUAMD
+from .gpu_amd import GPUAMD
 from .gpu_apple import GPUApple
 from .ipu import IPU
 from .memory import Memory

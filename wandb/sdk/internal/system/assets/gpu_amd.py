@@ -25,14 +25,10 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-print("gpu_amd.py"*30)
 ROCM_SMI_CMD: Final[str] = shutil.which("rocm-smi") or "/usr/bin/rocm-smi"
-print(ROCM_SMI_CMD)
+
 
 def get_rocm_smi_stats() -> Dict[str, Any]:
-    print("gpu_amd.py"*30)
-    print(ROCM_SMI_CMD)
     command = [str(ROCM_SMI_CMD), "-a", "--json"]
     output = (
         subprocess.check_output(command, universal_newlines=True).strip().split("\n")
@@ -55,7 +51,7 @@ _InfoDict = Dict[str, Union[int, List[Dict[str, Any]]]]
 
 class GPUAMDStats:
     """Stats for AMD GPU devices."""
-    print("GPUAMDStats"*30)
+
     name = "gpu.{gpu_id}.{key}"
     samples: "Deque[List[_Stats]]"
 
@@ -170,7 +166,6 @@ class GPUAMD:
     @classmethod
     def is_available(cls) -> bool:
         rocm_smi_available = shutil.which(ROCM_SMI_CMD) is not None
-        print("rocm_smi_available"*30 , rocm_smi_available)
         if rocm_smi_available:
             try:
                 _ = get_rocm_smi_stats()
