@@ -3102,7 +3102,7 @@ class Run:
         Returns:
             None
         """
-        self.log_artifact(
+        self._log_artifact(
             artifact_or_path=local_path, name=model_name, type="model", aliases=aliases
         )
         return None
@@ -3157,7 +3157,7 @@ class Run:
         project = "model-registry"
         target_path = self.entity + "/" + project + "/" + linked_model_name
 
-        artifact = self.log_artifact(
+        artifact = self._log_artifact(
             artifact_or_path=local_path, name=model_name, type="model"
         )
         self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
