@@ -32,7 +32,7 @@
 * feat(integrations): visualize images with bbox overlays for `ultralytics` by @soumik12345 in https://github.com/wandb/wandb/pull/5867
 * feat(sdk): add exponential decay sampling utility for line_plot by @dmitryduev in https://github.com/wandb/wandb/pull/6228
 * feat(sdk): always print the traceback inside of the `wandb.init` context manager by @kptkin in https://github.com/wandb/wandb/pull/4603
-* feat(sdk): add setting to to disable automatic machine info capture by @kptkin in https://github.com/wandb/wandb/pull/6230
+* feat(sdk): add setting to disable automatic machine info capture by @kptkin in https://github.com/wandb/wandb/pull/6230
 ### :hammer: Fixes
 * fix(launch): Extend try in agent loop to cover all job handling by @KyleGoyette in https://github.com/wandb/wandb/pull/5923
 * fix(sdk): guard against undefined filestream timeout by @dmitryduev in https://github.com/wandb/wandb/pull/5997
