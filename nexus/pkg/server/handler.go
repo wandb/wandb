@@ -393,10 +393,11 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		h.systemInfo.Metadata.StartedAt = run.StartTime
 		// todo: probe system assets & update metadata
 		// publish system info
-		err := h.systemInfo.Publish()
+		info, err := h.systemInfo.GetInfo()
 		if err != nil {
 			return
 		}
+		h.loopbackChan <- info
 	}
 }
 

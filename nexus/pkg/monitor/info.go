@@ -58,10 +58,15 @@ func (s *SystemInfo) saveCode() (*string, error) {
 	return &savedProgram, nil
 }
 
-func (s *SystemInfo) Publish() error {
+func (s *SystemInfo) GetInfo() (*service.Record, error) {
 	if s.settings.GetSaveCode().GetValue() {
+		record := service.Record{
+			RecordType: &service.Record_Files{
+				Files: &service.FilesRecord{},
+			},
+		}
 		if program, err := s.saveCode(); err != nil {
-			return err
+			return nil, err
 		} else {
 			savedProgram := filepath.Join("code", *program)
 			fileItem := []*service.FilesItem{
@@ -71,11 +76,15 @@ func (s *SystemInfo) Publish() error {
 				},
 			}
 			fmt.Println(fileItem)
-			// files := *service.FilesRecord{}
 			// files.Files = append(files.Files, fileItem...)
+			record.RecordType.(*service.Record_Files).Files.Files = append(
+				record.RecordType.(*service.Record_Files).Files.Files,
+				fileItem...,
+			)
 		}
+		return &record, nil
 	}
-	return nil
+	return nil, nil
 }
 
 // Helper function to copy a file
