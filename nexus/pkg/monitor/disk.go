@@ -96,28 +96,18 @@ func (d *Disk) ClearMetrics() {
 
 func (d *Disk) IsAvailable() bool { return true }
 
-func (d *Disk) Probe() map[string]map[string]interface{} {
-	info := make(map[string]map[string]interface{})
-	usage, err := disk.Usage("/")
-	if err == nil {
-		info["disk"]["total"] = usage.Total / 1024 / 1024 / 1024
-		info["disk"]["used"] = usage.Used / 1024 / 1024 / 1024
+func (d *Disk) Probe() interface{} {
+	info := make(map[string]map[string]map[string]interface{})
+	info["disk"] = make(map[string]map[string]interface{})
+	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+		usage, err := disk.Usage(diskPath)
+		if err == nil {
+			info["disk"][diskPath] = map[string]interface{}{
+				"total": usage.Total / 1024 / 1024 / 1024,
+				"used":  usage.Used / 1024 / 1024 / 1024,
+			}
+		}
 	}
+
 	return info
 }
-
-// func (d *Disk) Probe() map[string]map[string]map[string]interface{} {
-// 	info := make(map[string]map[string]map[string]interface{})
-// 	info["disk"] = make(map[string]map[string]interface{})
-// 	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
-// 		usage, err := disk.Usage(diskPath)
-// 		if err == nil {
-// 			info["disk"][diskPath] = map[string]interface{}{
-// 				"total": usage.Total / 1024 / 1024 / 1024,
-// 				"used":  usage.Used / 1024 / 1024 / 1024,
-// 			}
-// 		}
-// 	}
-//
-// 	return info
-// }

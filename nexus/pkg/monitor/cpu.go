@@ -99,7 +99,7 @@ func (c *CPU) ClearMetrics() {
 
 func (c *CPU) IsAvailable() bool { return true }
 
-func (c *CPU) Probe() map[string]map[string]interface{} {
+func (c *CPU) Probe() interface{} {
 	info := make(map[string]map[string]interface{})
 	// todo: add cpu info
 	return info

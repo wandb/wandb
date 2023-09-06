@@ -75,7 +75,7 @@ func (n *Network) ClearMetrics() {
 
 func (n *Network) IsAvailable() bool { return true }
 
-func (n *Network) Probe() map[string]map[string]interface{} {
+func (n *Network) Probe() interface{} {
 	info := make(map[string]map[string]interface{})
 	// todo: network info
 	return info

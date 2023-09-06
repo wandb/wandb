@@ -253,7 +253,7 @@ func (g *GPUNvidia) Close() {
 	nvml.Shutdown()
 }
 
-func (g *GPUNvidia) Probe() map[string]map[string]interface{} {
+func (g *GPUNvidia) Probe() interface{} {
 	info := make(map[string]map[string]interface{})
 	// todo: add GPU info
 	return info

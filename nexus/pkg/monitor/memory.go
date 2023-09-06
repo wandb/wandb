@@ -79,9 +79,11 @@ func (m *Memory) ClearMetrics() {
 
 func (m *Memory) IsAvailable() bool { return true }
 
-func (m *Memory) Probe() map[string]map[string]interface{} {
+func (m *Memory) Probe() interface{} {
 	info := make(map[string]map[string]interface{})
 	virtualMem, _ := mem.VirtualMemory()
+	info["memory"] = make(map[string]interface{})
 	info["memory"]["total"] = virtualMem.Total / 1024 / 1024 / 1024
+
 	return info
 }

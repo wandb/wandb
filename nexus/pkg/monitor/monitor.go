@@ -56,7 +56,7 @@ type Asset interface {
 	AggregateMetrics() map[string]float64
 	ClearMetrics()
 	IsAvailable() bool
-	Probe() map[string]map[string]interface{}
+	Probe() interface{}
 }
 
 type SystemMonitor struct {
