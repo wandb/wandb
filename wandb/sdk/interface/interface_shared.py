@@ -124,6 +124,7 @@ class InterfaceShared(InterfaceBase):
         resume: Optional[pb.ResumeRequest] = None,
         status: Optional[pb.StatusRequest] = None,
         stop_status: Optional[pb.StopStatusRequest] = None,
+        internal_messages: Optional[pb.InternalMessagesRequest] = None,
         network_status: Optional[pb.NetworkStatusRequest] = None,
         poll_exit: Optional[pb.PollExitRequest] = None,
         partial_history: Optional[pb.PartialHistoryRequest] = None,
@@ -158,6 +159,8 @@ class InterfaceShared(InterfaceBase):
             request.status.CopyFrom(status)
         elif stop_status:
             request.stop_status.CopyFrom(stop_status)
+        elif internal_messages:
+            request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
@@ -469,6 +472,12 @@ class InterfaceShared(InterfaceBase):
         self, network_status: pb.NetworkStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(network_status=network_status)
+        return self._deliver_record(record)
+
+    def _deliver_internal_messages(
+        self, internal_message: pb.InternalMessagesRequest
+    ) -> MailboxHandle:
+        record = self._make_request(internal_messages=internal_message)
         return self._deliver_record(record)
 
     def _deliver_request_server_info(
