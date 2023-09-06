@@ -3152,26 +3152,15 @@ class Run:
         Returns:
             None
         """
-        temp_run = False
-        if wandb.run is None:
-            run = wandb.init(settings=wandb.Settings(silent="true"))
-            temp_run = True
-        else:
-            run = wandb.run
-
         name_parts = linked_model_name.split("/")
         assert len(name_parts) == 1
         project = "model-registry"
-        target_path = run.entity + "/" + project + "/" + linked_model_name
+        target_path = self.entity + "/" + project + "/" + linked_model_name
 
-        artifact = run.log_artifact(
+        artifact = self.log_artifact(
             artifact_or_path=local_path, name=model_name, type="model"
         )
-        run.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
-
-        if temp_run:
-            run.finish()
-        return None
+        self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
