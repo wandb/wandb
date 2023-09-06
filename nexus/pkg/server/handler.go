@@ -496,21 +496,30 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 
 func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Response) {
 	sm := h.systemMonitor.GetBuffer()
-	fmt.Println(sm)
-	// var buffer []*service.SystemMetricsBuffer
-	// var response *service.Response_GetSystemMetricsResponse
-	//
-	// for key, samples := range sm {
-	// 	// convert samples to buffer:
-	// 	buffer = append(buffer, &service.SystemMetricsSample{
-	// 		timestamp
-	// 	}
-	// 	// add key to response
-	// }
 
-	// response.ResponseType = &service.Response_GetSystemMetricsResponse{
-	// 	GetSystemMetricsResponse: h.systemMonitor.GetBuffer(),
-	// }
+	fmt.Println(sm)
+
+	for key, samples := range sm {
+		buffer := make([]*service.SystemMetricSample, 0, len(samples.GetElements()))
+
+		// convert samples to buffer:
+		for _, sample := range samples.GetElements() {
+			buffer = append(buffer, &service.SystemMetricSample{
+				Timestamp: sample.Timestamp,
+				Value:     float32(sample.Value),
+			})
+		}
+		// add to response as map key: buffer
+		response.ResponseType = &service.Response_GetSystemMetricsResponse{
+			GetSystemMetricsResponse: &service.GetSystemMetricsResponse{
+				SystemMetrics: make(map[string]*service.SystemMetricsBuffer),
+			},
+		}
+		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &service.SystemMetricsBuffer{
+			Record: buffer,
+		}
+	}
+	fmt.Println(response)
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {

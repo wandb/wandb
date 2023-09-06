@@ -45,6 +45,10 @@ func (l *List) Append(element Measurement) {
 	l.elements = append(l.elements, element) // Add the new element
 }
 
+func (l *List) GetElements() []Measurement {
+	return l.elements
+}
+
 // Buffer is the in-memory metrics buffer for the system monitor
 type Buffer struct {
 	elements map[string]List
