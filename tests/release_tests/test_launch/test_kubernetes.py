@@ -66,13 +66,15 @@ def _create_config_files(api_key: str):
         open("tests/release_tests/test_launch/launch-config-patch.yaml"),
         Loader=yaml.Loader,
     )
-    launch_config_patch.append({"stringData": {"password": api_key}})
-    print(launch_config_patch)
     final_launch_config = []
     for original, updated in zip(launch_config, launch_config_patch):
         document = dict(original)
         update_dict(document, dict(updated))
         final_launch_config.append(document)
+    final_launch_config.append(
+        update_dict(launch_config[-1], {"stringData": {"password": api_key}})
+    )
+    print(final_launch_config)
     yaml.dump_all(
         final_launch_config,
         open("tests/release_tests/test_launch/launch-config.yml", "w+"),
