@@ -35,6 +35,7 @@ message Settings {
   google.protobuf.BoolValue _disable_setproctitle = 9;
   google.protobuf.BoolValue _disable_stats = 10;
   google.protobuf.BoolValue _disable_viewer = 11;
+  google.protobuf.BoolValue _disable_machine_info = 158;
   google.protobuf.BoolValue _except_exit = 12;
   google.protobuf.StringValue _executable = 13;
   MapStringKeyStringValue _extra_http_headers = 14;
