@@ -10,6 +10,7 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
     KubernetesRunMonitor,
     KubernetesRunner,
+    _parse_transition_time,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -711,3 +712,20 @@ def test_monitor_running(mock_event_streams, mock_batch_api, mock_core_api):
     pod_event_stream.add(pod_factory("MODIFIED", [""], [""], phase="Running"))
     blink()
     assert monitor.get_status().state == "running"
+
+
+# Test util functions
+
+
+@pytest.mark.parametrize(
+    "transition_time, expected",
+    [
+        ("2023-09-06T20:04:12Z", 1694030652),
+        ("2023-09-06T20:04:12.123Z", 1694030652.123),
+        ("2023-09-06T20:04:12+00:00", 1694030652),
+        ("2023-09-06T20:04:12.123+02:00", 1694030652.123 - 2 * 3600),
+    ],
+)
+def test_parse_transition_time(transition_time, expected):
+    """Test that we parse transition time correctly."""
+    assert _parse_transition_time(transition_time) == expected

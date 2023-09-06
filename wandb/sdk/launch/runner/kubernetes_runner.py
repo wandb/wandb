@@ -4,12 +4,12 @@ import base64
 import json
 import logging
 import time
-from datetime import datetime, timezone
 from threading import Lock, Thread
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import urllib3
 import yaml
+from dateutil import parser
 
 import wandb
 from wandb.apis.internal import Api
@@ -102,10 +102,10 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
-def _iso8601_to_timestamp(iso8601_str: str) -> float:
-    """Convert an ISO8601 string to a timestamp."""
-    dt = datetime.fromisoformat(iso8601_str.replace("Z", "+00:00"))
-    return dt.replace(tzinfo=timezone.utc).timestamp()
+def _parse_transition_time(time_str: str) -> float:
+    """Convert a string representing a time to a timestamp."""
+    dt = parser.parse(time_str)
+    return dt.timestamp()
 
 
 class KubernetesRunMonitor:
@@ -279,7 +279,7 @@ class KubernetesRunMonitor:
                             if len(conditions) > 0:
                                 # sort conditions by lastTransitionTime
                                 conditions.sort(
-                                    key=lambda x: _iso8601_to_timestamp(
+                                    key=lambda x: _parse_transition_time(
                                         x.get("lastTransitionTime", "")
                                     )
                                 )
