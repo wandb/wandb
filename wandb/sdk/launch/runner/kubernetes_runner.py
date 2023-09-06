@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import time
+from datetime import datetime, timezone
 from threading import Lock, Thread
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -98,6 +99,12 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
         ):
             return True
     return False
+
+
+def _iso8601_to_timestamp(iso8601_str):
+    """Convert an ISO8601 string to a timestamp."""
+    dt = datetime.fromisoformat(iso8601_str.replace("Z", "+00:00"))
+    return dt.replace(tzinfo=timezone.utc).timestamp()
 
 
 class KubernetesRunMonitor:
@@ -269,17 +276,22 @@ class KubernetesRunMonitor:
                         conditions = status.get("conditions")
                         if isinstance(conditions, list):
                             if len(conditions) > 0:
+                                # sort conditions by lastTransitionTime
+                                conditions.sort(
+                                    key=lambda x: _iso8601_to_timestamp(
+                                        x.get("lastTransitionTime", "")
+                                    )
+                                )
                                 state = conditions[-1].get("type")
-                            else:
-                                # TODO: Should this ever happen?
-                                pass
                         else:
-                            # TODO: Why would this ever happen?
+                            # This should never happen.
+                            _logger.warning(
+                                f"Unexpected conditions type {type(conditions)} "
+                                f"for CRD {self.job_field_selector}: {conditions}"
+                            )
                             pass
                     if state is None:
-                        raise LaunchError(
-                            f"Failed to get CRD {self.job_field_selector} in namespace {self.namespace}: no state found"
-                        )
+                        continue
                     status = Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
                     self._set_status(status)
                     if status.state in ["finished", "failed"]:
