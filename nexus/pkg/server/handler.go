@@ -495,10 +495,12 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 }
 
 func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Response) {
+	sm := h.systemMonitor.GetBuffer()
+	fmt.Println(sm)
+	// convert to protobuf
 	// response.ResponseType = &service.Response_GetSystemMetricsResponse{
 	// 	GetSystemMetricsResponse: h.systemMonitor.GetMetrics(),
 	// }
-	fmt.Println("handleGetSystemMetrics: not implemented")
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {

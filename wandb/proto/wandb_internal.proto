@@ -536,6 +536,7 @@ message Response {
     StatusResponse         status_response = 66;
     ServerInfoResponse     server_info_response = 67;
     JobInfoResponse        job_info_response = 68;
+    GetSystemMetricsResponse     get_system_metrics_response = 69;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
