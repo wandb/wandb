@@ -55,7 +55,7 @@ func (s *SystemInfo) saveCode() (*string, error) {
 			return nil, err
 		}
 	}
-	return &savedProgram, nil
+	return &programRelative, nil
 }
 
 func (s *SystemInfo) GetInfo() (*service.Record, error) {
