@@ -128,7 +128,7 @@ def set_project_entity_defaults(
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
     wandb.termlog(
-        f"{LOG_PREFIX}{prefix}Launching run into {entity}{'/' if project else ''}{project}"
+        f"{LOG_PREFIX}{prefix}Launching run into {entity}{'/' + project if project else ''}"
     )
     return project, entity
 
