@@ -287,10 +287,10 @@ def panel(request):
 
 
 @pytest.fixture
-def saved_report_and_creating_entity(user):
-    creating_entity = os.getenv("WANDB_ENTITY")
-    report = wr.Report(project="example-project").save()
-    yield report, creating_entity
+def save_new_report(user):
+    report = wr.Report(project="example-project")
+    report.save()
+    yield report
 
 
 _inline_content = [
@@ -414,10 +414,8 @@ class TestReports:
         report.save()
         # check for upsert report mutation
 
-    @pytest.mark.xfail(reason="Not sure why this fails tbh...")
-    def test_load_report(self, saved_report_and_creating_entity):
-        saved_report, creating_entity = saved_report_and_creating_entity
-        os.environ["WANDB_ENTITY"] = creating_entity
+    def test_load_report(self, save_new_report):
+        saved_report = save_new_report
         report = wr.Report.from_url(saved_report.url)
         assert isinstance(report, wr.Report)
 
@@ -572,8 +570,8 @@ class TestBlocks:
     @pytest.mark.parametrize(
         "ids",
         [
-            ["VmlldzoxMjc5Njkz"],
-            ["Code-Compare-Panel--VmlldzoxMjc5Njkz"],
+            ["test-title--VmlldzoxMjc5Njkz"],
+            ["Code-Compare-Panel--VmlldzoxMjc5Njkz?query=hi"],
             [
                 "https://wandb.ai/stacey/deep-drive/reports/Code-Compare-Panel--VmlldzoxMjc5Njkz"
             ],
@@ -1036,44 +1034,105 @@ class TestRunsets:
 @pytest.mark.usefixtures("user")
 class TestNameMappings:
     @pytest.mark.parametrize(
-        "url",
+        "url,expected",
         [
-            "sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "https://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
-            "this-is-a-title--VmlldzoxMjkwMzEy",
-            "VmlldzoxMjkwMzEy",
+            # No padding needed for `View:1290312` (base64 decoded), `VmlldzoxMjkwMzEy` (base64 encoded)
+            (
+                "sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "https://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            ("this-is-a-title--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
+            ("another-one-with-=--VmlldzoxMjkwMzEy=", "VmlldzoxMjkwMzEy"),
+            ("    another-one-with-whitespace--VmlldzoxMjkwMzEy", "VmlldzoxMjkwMzEy"),
+            (" i-am-title --    VmlldzoxMjkwMzEy=     ", "VmlldzoxMjkwMzEy"),
             # three dashes too for some reason
-            "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
-            "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
-            "https://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
-            "site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
-            "http://site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
-            "https://site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
-            "entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
-            "this-is-a-title---VmlldzoxMjkwMzEy",
+            (
+                "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+                "VmlldzoxMjkwMzEy",
+            ),
             # sites with queries
-            "sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
-            "http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
-            "https://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
-            "site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
-            "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
-            "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
-            "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
-            "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
-            "https://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
-            "site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
-            "http://site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
-            "https://site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
+            (
+                "sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+                "VmlldzoxMjkwMzEy",
+            ),
+            (
+                "site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something&query2=hi",
+                "VmlldzoxMjkwMzEy",
+            ),
+            # Add "==" padding to `View:13` (base64 decoded), `VmlldzoxMw` (base64 encoded)
+            ("imatitle--VmlldzoxMw", "VmlldzoxMw=="),
+            ("entity/project/reports/this-is-a-title--VmlldzoxMw==", "VmlldzoxMw=="),
+            # Add "=" padding to " `View:144` (base64 decoded), `VmlldzoxNDQ` (base64 encoded)
+            ("imatitle--VmlldzoxNDQ", "VmlldzoxNDQ="),
         ],
     )
-    def test_url_to_report_id(self, url):
+    def test_url_to_valid_report_id(self, url, expected):
         id = wr.Report._url_to_report_id(url)
-        assert id == "VmlldzoxMjkwMzEy"
+        assert id == expected
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "",
+            "--",
+            "---",
+            "=",
+            "==",
+            "===",
+            "this-is-a-title--",
+            "entity/project/reports/this-is-a-title",
+            "this-is-a-title--",
+            "https://site.tld/entity/project/reports/this-is-a-title--",
+            "sub.site.tld/entity/project/reports",
+            "http://sub.site.tld/entity/project/reports/",
+            "https://sub.site.tld/entity/project/reports/this-is-a-",
+            "site.tld/entity/project/reports/this-is-a-title---",
+            # sites with queries
+            "sub.site.tld/entity/project/reports/this-is-a-title?query=something",
+            "http://sub.site.tld/entity/project/reports/this-is-a-title---?query=something",
+            "https://sub.site.tld/entity/project/reports/this-is-a-title--?query=something&query2=hi",
+            "site.tld/entity/project/reports/this-is-a-?query=something",
+        ],
+    )
+    def test_url_with_invalid_report_id(self, url):
+        with pytest.raises(ValueError):
+            wr.Report._url_to_report_id(url)
 
     # For Scatter and ParallelCoords
     @pytest.mark.parametrize(

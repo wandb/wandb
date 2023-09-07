@@ -69,7 +69,6 @@ def line_series(
 
     if keys is not None:
         assert len(keys) == len(ys), "Number of keys and y-lines must match"
-
     data = [
         [x, f"key_{i}" if keys is None else keys[i], y]
         for i, (xx, yy) in enumerate(zip(xs, ys))
