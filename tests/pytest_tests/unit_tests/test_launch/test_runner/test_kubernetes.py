@@ -6,12 +6,13 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-import wandb
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
-    CrdSubmittedRun,
+    CRD_STATE_DICT,
     KubernetesRunMonitor,
     KubernetesRunner,
+    _parse_transition_time,
+    _state_from_conditions,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -144,77 +145,6 @@ def volcano_spec():
     }
 
 
-def test_launch_custom(mocker, test_settings, volcano_spec):
-    """Test that we can launch a custom k8s spec."""
-    mock_custom_api = MagicMock()
-    mock_custom_api.create_namespaced_custom_object.return_value = {
-        "metadata": {"name": "test-job"}
-    }
-    mock_custom_api.delete_namespaced_custom_object.return_value = {
-        "metadata": {"name": "test-job"}
-    }
-    mock_custom_api.read_namespaced_custom_object.return_value = {
-        "status": {"state": "Succeeded"}
-    }
-    mock_custom_api.get_namespaced_custom_object_status.side_effect = [
-        {"status": {"state": {"phase": "Pending"}}},
-        {"status": {"state": {"phase": "Running"}}},
-        {"status": {"state": {"phase": "Running"}}},
-        {"status": {"state": {"phase": "Completed"}}},
-    ]
-    mock_core_api = MagicMock()
-    mock_pod_list_response = MagicMock()
-    mock_pod_list_response.items = [
-        {
-            "metadata": {
-                "name": "test-job",
-                "labels": {"app": "wandb"},
-            }
-        }
-    ]
-    mock_core_api.list_namespaced_pod.return_value = mock_pod_list_response
-    mocker.patch(
-        "wandb.sdk.launch.runner.kubernetes_runner.get_kube_context_and_api_client",
-        return_value=(None, None),
-    )
-    mocker.patch(
-        "wandb.sdk.launch.runner.kubernetes_runner.client.CoreV1Api",
-        return_value=mock_core_api,
-    )
-    mocker.patch(
-        "wandb.sdk.launch.runner.kubernetes_runner.client.CustomObjectsApi",
-        return_value=mock_custom_api,
-    )
-    project = LaunchProject(
-        docker_config={"docker_image": "test_image"},
-        target_entity="test_entity",
-        target_project="test_project",
-        resource_args={"kubernetes": volcano_spec},
-        launch_spec={},
-        overrides={
-            "args": ["--test_arg", "test_value"],
-            "command": ["test_entry"],
-        },
-        resource="kubernetes",
-        api=None,
-        git_info={},
-        job="",
-        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
-        run_id="test_run_id",
-        name="test_run",
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings(), load_settings=False
-    )
-    runner = KubernetesRunner(api, {}, MagicMock(), MagicMock())
-    runner.wait_job_launch = MagicMock()
-    submitted_run = runner.run(project, MagicMock())
-    assert isinstance(submitted_run, CrdSubmittedRun)
-    assert str(submitted_run.get_status()) == "starting"
-    assert str(submitted_run.get_status()) == "running"
-    assert submitted_run.wait()
-
-
 class MockDict(dict):
     # use a dict to mock an object
     __getattr__ = dict.get
@@ -290,6 +220,35 @@ class MockCoreV1Api:
         pass
 
 
+class MockCustomObjectsApi:
+    def __init__(self):
+        self.jobs = dict()
+
+    def create_namespaced_custom_object(self, group, version, namespace, plural, body):
+        self.jobs[body["metadata"]["name"]] = body
+        return body
+
+    def delete_namespaced_custom_object(
+        self, group, version, namespace, plural, name, body
+    ):
+        del self.jobs[name]
+
+    def read_namespaced_custom_object(
+        self, group, version, namespace, plural, name, body
+    ):
+        return self.jobs[name]
+
+    def get_namespaced_custom_object_status(
+        self, group, version, namespace, plural, name, body
+    ):
+        return self.jobs[name]
+
+    def list_namespaced_custom_object(
+        self, group, version, namespace, plural, field_selector=None
+    ):
+        return [self.jobs[name] for name in self.jobs]
+
+
 @pytest.fixture
 def mock_event_streams(monkeypatch):
     """Patches the kubernetes event stream with a mock and returns it."""
@@ -300,6 +259,8 @@ def mock_event_streams(monkeypatch):
         if api_call.__name__ == "list_namespaced_pod":
             return pod_stream
         elif api_call.__name__ == "list_namespaced_job":
+            return job_stream
+        elif api_call.__name__ == "list_namespaced_custom_object":
             return job_stream
         raise Exception(
             f"Event stream requested for unsupported API call: {api_call.__name__} "
@@ -332,6 +293,17 @@ def mock_core_api(monkeypatch):
         lambda *args, **kwargs: core_api,
     )
     return core_api
+
+
+@pytest.fixture
+def mock_custom_api(monkeypatch):
+    """Patches the kubernetes custom api with a mock and returns it."""
+    custom_api = MockCustomObjectsApi()
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.client.CustomObjectsApi",
+        lambda *args, **kwargs: custom_api,
+    )
+    return custom_api
 
 
 @pytest.fixture
@@ -395,7 +367,6 @@ def test_launch_kube_works(
     runner = KubernetesRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
     )
-    runner.wait_job_launch = MagicMock()
     submitted_run = runner.run(project, MagicMock())
 
     def _wait():
@@ -452,6 +423,107 @@ def test_launch_kube_works(
     )
 
 
+def test_launch_crd_works(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_custom_api,
+    mock_kube_context_and_api_client,
+    mock_create_from_yaml,
+    test_api,
+    volcano_spec,
+):
+    """Test that we can launch a kubernetes job."""
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        lambda *args, **kwargs: None,
+    )
+    mock_batch_api.jobs = {"test-job": MockDict(volcano_spec)}
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": volcano_spec},
+        launch_spec={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    submitted_run = runner.run(project, MagicMock())
+
+    def _wait():
+        submitted_run.wait()
+
+    thread = threading.Thread(target=_wait, daemon=True)
+    thread.start()
+    blink()
+    assert str(submitted_run.get_status()) == "starting"
+    job_stream, pod_stream = mock_event_streams
+    # add container creating event
+    pod_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict({"status": MockDict({"phase": "Running"})}),
+            }
+        )
+    )
+    blink()
+    assert str(submitted_run.get_status()) == "running"
+    job_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict(
+                    {
+                        "metadata": MockDict({"name": "test-job"}),
+                        "status": {"state": {"phase": "Running"}},
+                    }
+                ),
+            }
+        )
+    )
+    blink()
+    assert str(submitted_run.get_status()) == "running"
+    job_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict(
+                    {
+                        "metadata": MockDict({"name": "test-job"}),
+                        "status": {
+                            "conditions": [
+                                MockDict(
+                                    {
+                                        "type": "Succeeded",
+                                        "status": "True",
+                                        "lastTransitionTime": "2021-09-06T20:04:12Z",
+                                    }
+                                )
+                            ]
+                        },
+                    }
+                ),
+            }
+        )
+    )
+    blink()
+    assert str(submitted_run.get_status()) == "finished"
+    thread.join()
+
+
 @pytest.mark.timeout(320)
 def test_launch_kube_failed(
     monkeypatch,
@@ -485,7 +557,6 @@ def test_launch_kube_failed(
     runner = KubernetesRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
     )
-    runner.wait_job_launch = MagicMock()
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
         lambda *args, **kwargs: None,
@@ -668,3 +739,70 @@ def test_monitor_running(mock_event_streams, mock_batch_api, mock_core_api):
     pod_event_stream.add(pod_factory("MODIFIED", [""], [""], phase="Running"))
     blink()
     assert monitor.get_status().state == "running"
+
+
+# Test util functions
+
+
+@pytest.mark.parametrize(
+    "transition_time, expected",
+    [
+        ("2023-09-06T20:04:12Z", 1694030652),
+        ("2023-09-06T20:04:12.123Z", 1694030652.123),
+        ("2023-09-06T20:04:12+00:00", 1694030652),
+        ("2023-09-06T20:04:12.123+02:00", 1694030652.123 - 2 * 3600),
+    ],
+)
+def test_parse_transition_time(transition_time, expected):
+    """Test that we parse transition time correctly."""
+    assert _parse_transition_time(transition_time) == expected
+
+
+def condition_factory(
+    condition_type, condition_status, condition_reason, transition_time
+):
+    """Factory for creating conditions."""
+    return MockDict(
+        {
+            "type": condition_type,
+            "status": condition_status,
+            "reason": condition_reason,
+            "lastTransitionTime": transition_time,
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "conditions, expected",
+    [
+        (
+            [
+                condition_factory("PodScheduled", "True", "", "2023-09-06T20:04:11Z"),
+                condition_factory("Initialized", "True", "", "2023-09-06T20:04:12Z"),
+                condition_factory(
+                    "ContainersReady", "True", "", "2023-09-06T20:04:13Z"
+                ),
+                condition_factory("Running", "True", "", "2023-09-06T20:04:14Z"),
+            ],
+            "running",
+        ),
+        (
+            [
+                condition_factory("PodScheduled", "True", "", "2023-09-06T20:04:11Z"),
+                condition_factory("Initialized", "True", "", "2023-09-06T20:04:12Z"),
+                condition_factory(
+                    "ContainersReady", "True", "", "2023-09-06T20:04:13Z"
+                ),
+                condition_factory("Running", "False", "", "2023-09-06T20:04:14Z"),
+            ],
+            None,
+        ),
+    ],
+)
+def test_state_from_conditions(conditions, expected):
+    """Test that we extract CRD state from conditions correctly."""
+    state = _state_from_conditions(conditions)
+    if isinstance(state, str):
+        assert CRD_STATE_DICT[state.lower()] == expected
+    else:
+        assert state == expected is None
