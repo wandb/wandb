@@ -408,19 +408,24 @@ func (h *Handler) handleCodeSave() {
 		return
 	}
 
-	rootDir := h.settings.GetRootDir().GetValue()
 	programRelative := h.settings.GetProgramRelpath().GetValue()
-	programAbsolute := filepath.Join(rootDir, programRelative)
-	if _, err := os.Stat(programAbsolute); err != nil {
+	if programRelative == "" {
+		h.logger.Warn("handleCodeSave: program relative path is empty")
 		return
 	}
 
-	filesDir := h.settings.GetFilesDir().GetValue()
-	codeDir := filepath.Join(filesDir, "code", filepath.Dir(programRelative))
-	if err := os.MkdirAll(codeDir, os.ModePerm); err != nil {
+	rootDir := h.settings.GetRootDir().GetValue()
+	programAbsolute := filepath.Join(rootDir, programRelative)
+	if _, err := os.Stat(programAbsolute); err != nil {
+		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
 		return
 	}
-	savedProgram := filepath.Join(filesDir, "code", programRelative)
+
+	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
+	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
+		return
+	}
+	savedProgram := filepath.Join(codeDir, programRelative)
 	if _, err := os.Stat(savedProgram); err != nil {
 		if err = copyFile(programAbsolute, savedProgram); err != nil {
 			return
