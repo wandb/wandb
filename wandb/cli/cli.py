@@ -1291,6 +1291,11 @@ def launch(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
 
+    if queue and docker_image and not project:
+        raise LaunchError(
+            "Cannot use -q and -d tother without a project. Please specify a project with -p."
+        )
+
     if resource_args is not None:
         resource_args = util.load_json_yaml_dict(resource_args)
         if resource_args is None:
