@@ -1,5 +1,3 @@
-import time
-
 import pytest
 from utils import run_cmd_async
 from wandb.sdk.launch.launch_add import launch_add
@@ -20,11 +18,5 @@ def test_vertex_works():
         job=f"{ENTITY}/{PROJECT}/{JOB_NAME}",
     )
     assert queued_run
-    pipe = run_cmd_async(f"wandb launch-agent -q {QUEUE} -e {ENTITY}")
-    while True:
-        if pipe.returncode is not None:
-            raise AssertionError("Launch agent exited early")
-        time.sleep(5)
-        assert False
-        if queued_run.state == "finished":
-            break
+    run_cmd_async(f"wandb launch-agent -q {QUEUE} -e {ENTITY}")
+    queued_run.wait_until_finished()
