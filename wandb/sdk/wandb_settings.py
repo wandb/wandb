@@ -1209,8 +1209,8 @@ class Settings(SettingsData):
         if not self._colab:
             return None
         if self._jupyter_path and self._jupyter_path.startswith("fileId="):
-                unescaped = unquote(self._jupyter_path)
-                return "https://colab.research.google.com/notebook#" + unescaped
+            unescaped = unquote(self._jupyter_path)
+            return "https://colab.research.google.com/notebook#" + unescaped
 
     def _get_program(self, program: Optional[str]) -> Optional[str]:
         if program is not None and program != "<python with no main file>":
