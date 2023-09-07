@@ -3144,7 +3144,7 @@ class Run:
         """
 
         def pb_to_dict(
-            system_metrics_pb: wandb.proto.wandb_internal_pb2.GetSystemMetricsResponse
+            system_metrics_pb: wandb.proto.wandb_internal_pb2.GetSystemMetricsResponse,
         ) -> Dict[str, List[Tuple[datetime, float]]]:
             res = {}
 
@@ -3152,7 +3152,9 @@ class Run:
                 measurements = []
                 for record in records.record:
                     # Convert timestamp to datetime
-                    dt = datetime.fromtimestamp(record.timestamp.seconds, tz=timezone.utc)
+                    dt = datetime.fromtimestamp(
+                        record.timestamp.seconds, tz=timezone.utc
+                    )
                     dt = dt.replace(microsecond=record.timestamp.nanos // 1000)
 
                     measurements.append((dt, record.value))
