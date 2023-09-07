@@ -102,6 +102,19 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
+def _state_from_conditions(conditions: List[Dict[str, Any]]) -> str:
+    """Get the status from the pod conditions."""
+    if len(conditions) > 0:
+        # sort conditions by lastTransitionTime
+        conditions.sort(
+            key=lambda x: _parse_transition_time(x.get("lastTransitionTime", ""))
+        )
+        delta_condition = conditions[-1]
+        if delta_condition.get("status") == "True":
+            return delta_condition.get("type")
+    return None
+
+
 def _parse_transition_time(time_str: str) -> float:
     """Convert a string representing a time to a timestamp."""
     dt = parser.parse(time_str)
@@ -276,14 +289,8 @@ class KubernetesRunMonitor:
                     else:
                         conditions = status.get("conditions")
                         if isinstance(conditions, list):
-                            if len(conditions) > 0:
-                                # sort conditions by lastTransitionTime
-                                conditions.sort(
-                                    key=lambda x: _parse_transition_time(
-                                        x.get("lastTransitionTime", "")
-                                    )
-                                )
-                                state = conditions[-1].get("type")
+                            status = _state_from_conditions(conditions)
+                            state = status.state
                         else:
                             # This should never happen.
                             _logger.warning(

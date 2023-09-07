@@ -8,9 +8,11 @@ from unittest.mock import MagicMock
 import pytest
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import (
+    CRD_STATE_DICT,
     KubernetesRunMonitor,
     KubernetesRunner,
     _parse_transition_time,
+    _state_from_conditions,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -729,3 +731,53 @@ def test_monitor_running(mock_event_streams, mock_batch_api, mock_core_api):
 def test_parse_transition_time(transition_time, expected):
     """Test that we parse transition time correctly."""
     assert _parse_transition_time(transition_time) == expected
+
+
+def condition_factory(
+    condition_type, condition_status, condition_reason, transition_time
+):
+    """Factory for creating conditions."""
+    return MockDict(
+        {
+            "type": condition_type,
+            "status": condition_status,
+            "reason": condition_reason,
+            "lastTransitionTime": transition_time,
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "conditions, expected",
+    [
+        (
+            [
+                condition_factory("PodScheduled", "True", "", "2023-09-06T20:04:11Z"),
+                condition_factory("Initialized", "True", "", "2023-09-06T20:04:12Z"),
+                condition_factory(
+                    "ContainersReady", "True", "", "2023-09-06T20:04:13Z"
+                ),
+                condition_factory("Running", "True", "", "2023-09-06T20:04:14Z"),
+            ],
+            "running",
+        ),
+        (
+            [
+                condition_factory("PodScheduled", "True", "", "2023-09-06T20:04:11Z"),
+                condition_factory("Initialized", "True", "", "2023-09-06T20:04:12Z"),
+                condition_factory(
+                    "ContainersReady", "True", "", "2023-09-06T20:04:13Z"
+                ),
+                condition_factory("Running", "False", "", "2023-09-06T20:04:14Z"),
+            ],
+            None,
+        ),
+    ],
+)
+def test_state_from_conditions(conditions, expected):
+    """Test that we extract CRD state from conditions correctly."""
+    state = _state_from_conditions(conditions)
+    if isinstance(state, str):
+        assert CRD_STATE_DICT[state.lower()] == expected
+    else:
+        assert state == expected is None
