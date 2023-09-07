@@ -3207,7 +3207,7 @@ class MetadataRequest(google.protobuf.message.Message):
     ARGS_FIELD_NUMBER: builtins.int
     STATE_FIELD_NUMBER: builtins.int
     PROGRAM_FIELD_NUMBER: builtins.int
-    CODEPATH_FIELD_NUMBER: builtins.int
+    CODE_PATH_FIELD_NUMBER: builtins.int
     GIT_FIELD_NUMBER: builtins.int
     EMAIL_FIELD_NUMBER: builtins.int
     ROOT_FIELD_NUMBER: builtins.int
@@ -3219,6 +3219,7 @@ class MetadataRequest(google.protobuf.message.Message):
     DISK_FIELD_NUMBER: builtins.int
     GPUAPPLE_FIELD_NUMBER: builtins.int
     MEMORY_FIELD_NUMBER: builtins.int
+    CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
     @property
@@ -3231,7 +3232,7 @@ class MetadataRequest(google.protobuf.message.Message):
     def args(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     state: builtins.str
     program: builtins.str
-    codePath: builtins.str
+    code_path: builtins.str
     @property
     def git(self) -> global___GitRepoRecord: ...
     email: builtins.str
@@ -3247,6 +3248,7 @@ class MetadataRequest(google.protobuf.message.Message):
     def gpuapple(self) -> global___MetaGpuAppleInfo: ...
     @property
     def memory(self) -> global___MetaMemInfo: ...
+    code_path_local: builtins.str
     def __init__(
         self,
         *,
@@ -3259,7 +3261,7 @@ class MetadataRequest(google.protobuf.message.Message):
         args: collections.abc.Iterable[builtins.str] | None = ...,
         state: builtins.str = ...,
         program: builtins.str = ...,
-        codePath: builtins.str = ...,
+        code_path: builtins.str = ...,
         git: global___GitRepoRecord | None = ...,
         email: builtins.str = ...,
         root: builtins.str = ...,
@@ -3271,8 +3273,9 @@ class MetadataRequest(google.protobuf.message.Message):
         disk: global___MetaDiskInfo | None = ...,
         gpuapple: global___MetaGpuAppleInfo | None = ...,
         memory: global___MetaMemInfo | None = ...,
+        code_path_local: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["disk", b"disk", "git", b"git", "gpuapple", b"gpuapple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "codePath", b"codePath", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpuapple", b"gpuapple", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpuapple", b"gpuapple", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest
