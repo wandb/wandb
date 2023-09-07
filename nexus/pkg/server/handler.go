@@ -414,8 +414,7 @@ func (h *Handler) handleCodeSave() {
 		return
 	}
 
-	rootDir := h.settings.GetRootDir().GetValue()
-	programAbsolute := filepath.Join(rootDir, programRelative)
+	programAbsolute := h.settings.GetProgramAbspath().GetValue()
 	if _, err := os.Stat(programAbsolute); err != nil {
 		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
 		return

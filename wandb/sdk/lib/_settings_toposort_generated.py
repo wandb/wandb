@@ -121,6 +121,7 @@ _Setting = Literal[
     "notebook_name",
     "problem",
     "program",
+    "program_abspath",
     "program_relpath",
     "project",
     "project_url",

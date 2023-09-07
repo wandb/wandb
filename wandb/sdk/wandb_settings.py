@@ -415,7 +415,8 @@ class SettingsData:
     notebook_name: str
     problem: str
     program: str
-    program_relpath: Optional[str]
+    program_abspath: str
+    program_relpath: str
     project: str
     project_url: str
     quiet: bool
@@ -1731,10 +1732,17 @@ class Settings(SettingsData):
         program = self.program or _get_program()
         if program is not None:
             repo = GitRepo()
+            root = repo.root or os.getcwd()
+
             program_relpath = self.program_relpath or _get_program_relpath(
                 program, repo.root, _logger=_logger
             )
             settings["program_relpath"] = program_relpath
+            program_abspath = os.path.abspath(
+                os.path.join(root, os.path.relpath(os.getcwd(), root), program)
+            )
+            if os.path.exists(program_abspath):
+                settings["program_abspath"] = program_abspath
         else:
             program = "<python with no main file>"
 

@@ -134,6 +134,7 @@ message Settings {
   google.protobuf.StringValue notebook_name = 93;
   google.protobuf.StringValue problem = 94;
   google.protobuf.StringValue program = 95;
+  google.protobuf.StringValue program_abspath = 159;
   google.protobuf.StringValue program_relpath = 96;
   google.protobuf.StringValue project = 97;
   google.protobuf.StringValue project_url = 98;
