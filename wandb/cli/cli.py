@@ -1293,7 +1293,7 @@ def launch(
 
     if queue and docker_image and not project:
         raise LaunchError(
-            "Cannot use -q and -d tother without a project. Please specify a project with -p."
+            "Cannot use --queue and --docker together without a project. Please specify a project with --project or -p."
         )
 
     if resource_args is not None:
