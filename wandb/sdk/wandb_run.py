@@ -14,7 +14,7 @@ import traceback
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
 from typing import (
@@ -3136,23 +3136,45 @@ class Run:
     @property
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
-    def system_metrics(self) -> Dict[str, Any]:
+    def _system_metrics(self) -> Dict[str, List[Tuple[datetime, float]]]:
         """Returns a dictionary of system metrics.
 
         Returns:
             A dictionary of system metrics.
         """
-        if self._backend and self._backend.interface:
-            handle = self._backend.interface.deliver_get_system_metrics()
-            result = handle.wait(
-                timeout=1,
-                # on_progress=self._on_progress_init,
-                cancel=True,
-            )
-            print("result", result)
-            # if result:
-            #     system_metrics = result.system_metrics_result
-            #     return system_metrics
+
+        def pb_to_dict(
+            system_metrics_pb: wandb.proto.wandb_internal_pb2.GetSystemMetricsResponse
+        ) -> Dict[str, List[Tuple[datetime, float]]]:
+            res = {}
+
+            for metric, records in system_metrics_pb.system_metrics.items():
+                measurements = []
+                for record in records.record:
+                    # Convert timestamp to datetime
+                    dt = datetime.fromtimestamp(record.timestamp.seconds, tz=timezone.utc)
+                    dt = dt.replace(microsecond=record.timestamp.nanos // 1000)
+
+                    measurements.append((dt, record.value))
+
+                res[metric] = measurements
+
+            return res
+
+        if not self._backend or not self._backend.interface:
+            return {}
+
+        handle = self._backend.interface.deliver_get_system_metrics()
+        result = handle.wait(timeout=1, cancel=True)
+
+        if result:
+            try:
+                response = result.response.get_system_metrics_response
+                if response:
+                    print(type(response))
+                    return pb_to_dict(response)
+            except Exception as e:
+                logger.error("Error getting system metrics: %s", e)
         return {}
 
     # ------------------------------------------------------------------------------
