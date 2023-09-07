@@ -378,12 +378,6 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 
-	// TODO: this is a hack, we should not be sending metadata from here,
-	//  it should arrive as a proper request from the client.
-	//  attempting to do this before the run start request arrives in the sender
-	//  will cause a segfault because the sender's uploader is not initialized yet.
-	h.handleMetadata(record, request)
-
 	// start the system monitor
 	h.systemMonitor.Do()
 
@@ -393,11 +387,13 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		h.systemInfo.Metadata.StartedAt = run.StartTime
 		// todo: probe system assets & update metadata
 		// publish system info
-		info, err := h.systemInfo.GetInfo()
-		if err != nil {
-			return
+		if info := h.systemInfo.GetFileInfo(); info != nil {
+			h.handleFiles(info)
 		}
-		h.loopbackChan <- info
+
+		if metadata := h.systemInfo.GetMetadata(); metadata != nil {
+			h.handleMetadata(metadata, request)
+		}
 	}
 }
 
@@ -424,28 +420,11 @@ func (h *Handler) handleResume() {
 	h.systemMonitor.Do()
 }
 
-func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
+func (h *Handler) handleMetadata(record *service.Record, req *service.RunStartRequest) {
 	// Sending metadata as a request for now, eventually this should be turned into
 	// a record and stored in the transaction log
-	record := &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{RequestType: &service.Request_Metadata{
-				Metadata: &service.MetadataRequest{
-					Os:            h.settings.GetXOs().GetValue(),
-					Python:        h.settings.GetXPython().GetValue(),
-					Host:          h.settings.GetHost().GetValue(),
-					Cuda:          h.settings.GetXCuda().GetValue(),
-					Program:       h.settings.GetProgram().GetValue(),
-					CodePath:      h.settings.GetProgram().GetValue(),
-					CodePathLocal: h.settings.GetProgram().GetValue(),
-					Email:         h.settings.GetEmail().GetValue(),
-					Root:          h.settings.GetRootDir().GetValue(),
-					Username:      h.settings.GetUsername().GetValue(),
-					Docker:        h.settings.GetDocker().GetValue(),
-					Executable:    h.settings.GetXExecutable().GetValue(),
-					Args:          h.settings.GetXArgs().GetValue(),
-					StartedAt:     req.Run.StartTime,
-				}}}}}
+	metadata := record.GetRequest().GetMetadata()
+	metadata.StartedAt = req.Run.StartTime
 	h.sendRecord(record)
 }
 

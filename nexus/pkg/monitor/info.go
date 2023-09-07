@@ -34,6 +34,27 @@ func NewSystemInfo(settings *service.Settings) *SystemInfo {
 	}
 }
 
+// Helper function to copy a file
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (si *SystemInfo) saveCode() (*service.FilesRecord, error) {
 	rootDir := si.settings.GetRootDir().GetValue()
 	programRelative := si.settings.GetProgramRelpath().GetValue()
@@ -53,22 +74,22 @@ func (si *SystemInfo) saveCode() (*service.FilesRecord, error) {
 			return nil, err
 		}
 	}
-	path := filepath.Join("code", programRelative)
-	file := &service.FilesItem{
-		Path: path,
-	}
 	files := service.FilesRecord{
-		Files: []*service.FilesItem{file},
+		Files: []*service.FilesItem{
+			{
+				Path: filepath.Join("code", programRelative),
+			},
+		},
 	}
 	return &files, nil
 }
 
-func (si *SystemInfo) GetInfo() (*service.Record, error) {
+func (si *SystemInfo) GetFileInfo() *service.Record {
 
 	if si.settings.GetSaveCode().GetValue() {
 		fileItem, err := si.saveCode()
 		if err != nil {
-			return nil, err
+			return nil
 		}
 		if fileItem != nil {
 			record := service.Record{
@@ -76,29 +97,39 @@ func (si *SystemInfo) GetInfo() (*service.Record, error) {
 					Files: fileItem,
 				},
 			}
-			return &record, nil
+			return &record
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-// Helper function to copy a file
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
+func (si *SystemInfo) GetMetadata() *service.Record {
+	if si.settings.GetXDisableMeta().GetValue() {
+		return nil
 	}
-	defer sourceFile.Close()
-
-	destinationFile, err := os.Create(dst)
-	if err != nil {
-		return err
+	record := service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_Metadata{
+					Metadata: &service.MetadataRequest{
+						Os:            si.settings.GetXOs().GetValue(),
+						Python:        si.settings.GetXPython().GetValue(),
+						Host:          si.settings.GetHost().GetValue(),
+						Cuda:          si.settings.GetXCuda().GetValue(),
+						Program:       si.settings.GetProgram().GetValue(),
+						CodePath:      si.settings.GetProgram().GetValue(),
+						CodePathLocal: si.settings.GetProgram().GetValue(),
+						Email:         si.settings.GetEmail().GetValue(),
+						Root:          si.settings.GetRootDir().GetValue(),
+						Username:      si.settings.GetUsername().GetValue(),
+						Docker:        si.settings.GetDocker().GetValue(),
+						Executable:    si.settings.GetXExecutable().GetValue(),
+						Args:          si.settings.GetXArgs().GetValue(),
+						// StartedAt:     si.settings.GetXStartTime().GetValue(),
+					},
+				},
+			},
+		},
 	}
-	defer destinationFile.Close()
-
-	_, err = io.Copy(destinationFile, sourceFile)
-	if err != nil {
-		return err
-	}
-	return nil
+	return &record
 }
