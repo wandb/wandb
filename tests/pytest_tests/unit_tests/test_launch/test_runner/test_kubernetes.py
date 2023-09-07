@@ -488,7 +488,32 @@ def test_launch_crd_works(
                 "object": MockDict(
                     {
                         "metadata": MockDict({"name": "test-job"}),
-                        "status": {"state": {"phase": "Succeeded"}},
+                        "status": {"state": {"phase": "Running"}},
+                    }
+                ),
+            }
+        )
+    )
+    blink()
+    assert str(submitted_run.get_status()) == "running"
+    job_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict(
+                    {
+                        "metadata": MockDict({"name": "test-job"}),
+                        "status": {
+                            "conditions": [
+                                MockDict(
+                                    {
+                                        "type": "Succeeded",
+                                        "status": "True",
+                                        "lastTransitionTime": "2021-09-06T20:04:12Z",
+                                    }
+                                )
+                            ]
+                        },
                     }
                 ),
             }
