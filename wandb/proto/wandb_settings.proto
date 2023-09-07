@@ -98,6 +98,7 @@ message Settings {
   google.protobuf.StringValue base_url = 57;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;
+  google.protobuf.StringValue colab_url = 160;
   google.protobuf.StringValue console = 60;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;

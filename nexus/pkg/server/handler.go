@@ -455,10 +455,14 @@ func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest
 			Request: &service.Request{
 				RequestType: &service.Request_Metadata{
 					Metadata: &service.MetadataRequest{
-						Os:       h.settings.GetXOs().GetValue(),
-						Python:   h.settings.GetXPython().GetValue(),
-						Host:     h.settings.GetHost().GetValue(),
-						Cuda:     h.settings.GetXCuda().GetValue(),
+						Os:     h.settings.GetXOs().GetValue(),
+						Python: h.settings.GetXPython().GetValue(),
+						Host:   h.settings.GetHost().GetValue(),
+						Cuda:   h.settings.GetXCuda().GetValue(),
+						Git: &service.GitRepoRecord{
+							RemoteUrl: req.Run.Git.RemoteUrl,
+							Commit:    req.Run.Git.Commit,
+						},
 						Program:  h.settings.GetProgram().GetValue(),
 						CodePath: h.settings.GetProgramAbspath().GetValue(),
 						// CodePathLocal: h.settings.GetProgramAbspath().GetValue(),  // todo(launch): add this
@@ -468,6 +472,7 @@ func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest
 						Docker:     h.settings.GetDocker().GetValue(),
 						Executable: h.settings.GetXExecutable().GetValue(),
 						Args:       h.settings.GetXArgs().GetValue(),
+						Colab:      h.settings.GetColabUrl().GetValue(),
 						StartedAt:  req.Run.StartTime,
 					},
 				},

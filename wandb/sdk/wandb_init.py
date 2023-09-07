@@ -429,8 +429,8 @@ class _WandbInit:
         # Attempt to save the code on every execution
         if self.notebook.save_ipynb():  # type: ignore
             assert self.run is not None
-            res = self.run.log_code(root=None)
-            logger.info("saved code: %s", res)  # type: ignore
+            # res = self.run.log_code(root=None)
+            # logger.info("saved code: %s", res)  # type: ignore
         if self.backend.interface is not None:
             logger.info("pausing backend")  # type: ignore
             self.backend.interface.publish_pause()
@@ -447,8 +447,8 @@ class _WandbInit:
         self.notebook.save_history()
         if self.notebook.save_ipynb():
             assert self.run is not None
-            res = self.run.log_code(root=None)
-            logger.info("saved code and history: %s", res)  # type: ignore
+            # res = self.run.log_code(root=None)
+            # logger.info("saved code and history: %s", res)  # type: ignore
         logger.info("cleaning up jupyter logic")  # type: ignore
         # because of how we bind our methods we manually find them to unregister
         for hook in ipython.events.callbacks["pre_run_cell"]:

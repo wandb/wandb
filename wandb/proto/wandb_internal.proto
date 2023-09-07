@@ -134,7 +134,7 @@ message RunRecord {
 }
 
 message GitRepoRecord {
-  string remote_url = 1;
+  string remote_url = 1 [json_name="remote"];
   string commit = 2;
 }
 
@@ -1011,4 +1011,5 @@ message MetadataRequest {
   MetaGpuAppleInfo gpuapple = 20;
   MetaMemInfo memory = 21;
   string code_path_local = 22 [json_name="codePathLocal"];
+  string colab = 23;
 }

@@ -32,7 +32,7 @@ from typing import (
     Union,
     no_type_check,
 )
-from urllib.parse import quote, urlencode, urlparse, urlsplit
+from urllib.parse import quote, unquote, urlencode, urlparse, urlsplit
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 
@@ -377,6 +377,7 @@ class SettingsData:
     azure_account_url_to_access_key: Dict[str, str]
     base_url: str  # The base url for the wandb api
     code_dir: str
+    colab_url: str
     config_paths: Sequence[str]
     console: str
     deployment: str
@@ -748,6 +749,10 @@ class Settings(SettingsData):
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
+            colab_url={
+                "hook": lambda _: self._get_colab_url(),
+                "auto_hook": True,
+            },
             config_paths={"preprocessor": _str_as_tuple},
             console={
                 "value": "auto",
@@ -827,6 +832,9 @@ class Settings(SettingsData):
             login_timeout={"preprocessor": lambda x: float(x)},
             mode={"value": "online", "validator": self._validate_mode},
             problem={"value": "fatal", "validator": self._validate_problem},
+            program={
+                "hook": lambda x: self._get_program(x),
+            },
             project={"validator": self._validate_project},
             project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
@@ -1196,6 +1204,31 @@ class Settings(SettingsData):
             else:
                 console = "redirect"
         return console
+
+    def _get_colab_url(self) -> Optional[str]:
+        if not self._colab:
+            return None
+        if self._jupyter_path and self._jupyter_path.startswith("fileId="):
+                unescaped = unquote(self._jupyter_path)
+                return "https://colab.research.google.com/notebook#" + unescaped
+
+    def _get_program(self, program: Optional[str]) -> Optional[str]:
+        if program is not None and program != "<python with no main file>":
+            return program
+
+        if not self._jupyter:
+            return program
+
+        if self.notebook_name:
+            return self.notebook_name
+
+        if not self._jupyter_path:
+            return program
+
+        if self._jupyter_path.startswith("fileId="):
+            return self._jupyter_name
+        else:
+            return self._jupyter_path
 
     def _get_url_query_string(self) -> str:
         # TODO(settings) use `wandb_setting` (if self.anonymous != "true":)
