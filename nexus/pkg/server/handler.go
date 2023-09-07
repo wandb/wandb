@@ -450,19 +450,24 @@ func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest
 	if h.settings.GetXDisableMeta().GetValue() {
 		return
 	}
+	fmt.Println(req.Run)
+	var git *service.GitRepoRecord
+	if req.Run.GetGit() != nil {
+		git = &service.GitRepoRecord{
+			RemoteUrl: req.Run.GetGit().GetRemoteUrl(),
+			Commit:    req.Run.GetGit().GetCommit(),
+		}
+	}
 	record := service.Record{
 		RecordType: &service.Record_Request{
 			Request: &service.Request{
 				RequestType: &service.Request_Metadata{
 					Metadata: &service.MetadataRequest{
-						Os:     h.settings.GetXOs().GetValue(),
-						Python: h.settings.GetXPython().GetValue(),
-						Host:   h.settings.GetHost().GetValue(),
-						Cuda:   h.settings.GetXCuda().GetValue(),
-						Git: &service.GitRepoRecord{
-							RemoteUrl: req.Run.Git.RemoteUrl,
-							Commit:    req.Run.Git.Commit,
-						},
+						Os:       h.settings.GetXOs().GetValue(),
+						Python:   h.settings.GetXPython().GetValue(),
+						Host:     h.settings.GetHost().GetValue(),
+						Cuda:     h.settings.GetXCuda().GetValue(),
+						Git:      git,
 						Program:  h.settings.GetProgram().GetValue(),
 						CodePath: h.settings.GetProgramAbspath().GetValue(),
 						// CodePathLocal: h.settings.GetProgramAbspath().GetValue(),  // todo(launch): add this
@@ -473,7 +478,7 @@ func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest
 						Executable: h.settings.GetXExecutable().GetValue(),
 						Args:       h.settings.GetXArgs().GetValue(),
 						Colab:      h.settings.GetColabUrl().GetValue(),
-						StartedAt:  req.Run.StartTime,
+						StartedAt:  req.Run.GetStartTime(),
 					},
 				},
 			},
