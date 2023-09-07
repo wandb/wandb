@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
@@ -103,9 +105,6 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
-
-	// systemInfo is the metadata / system info for the stream
-	systemInfo *monitor.SystemInfo
 }
 
 // NewHandler creates a new handler
@@ -127,9 +126,6 @@ func NewHandler(
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
-	}
-	if !settings.GetXDisableMeta().GetValue() {
-		h.systemInfo = monitor.NewSystemInfo(settings)
 	}
 	return h
 }
@@ -316,7 +312,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
 	}
-	// Need to clone the record to avoide race condition with the writer
+	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*service.Record)
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -380,21 +376,8 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 
 	// start the system monitor
 	h.systemMonitor.Do()
-
-	// capture system info
-	if h.systemInfo != nil {
-		// update with runtime
-		h.systemInfo.Metadata.StartedAt = run.StartTime
-		// todo: probe system assets & update metadata
-		// publish system info
-		if info := h.systemInfo.GetFileInfo(); info != nil {
-			h.handleFiles(info)
-		}
-
-		if metadata := h.systemInfo.GetMetadata(); metadata != nil {
-			h.handleMetadata(metadata, request)
-		}
-	}
+	h.handleCodeSave()
+	h.handleMetadata(record, request)
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -420,12 +403,74 @@ func (h *Handler) handleResume() {
 	h.systemMonitor.Do()
 }
 
-func (h *Handler) handleMetadata(record *service.Record, req *service.RunStartRequest) {
+func (h *Handler) handleCodeSave() {
+	if !h.settings.GetSaveCode().GetValue() {
+		return
+	}
+
+	rootDir := h.settings.GetRootDir().GetValue()
+	programRelative := h.settings.GetProgramRelpath().GetValue()
+	programAbsolute := filepath.Join(rootDir, programRelative)
+	if _, err := os.Stat(programAbsolute); err != nil {
+		return
+	}
+
+	filesDir := h.settings.GetFilesDir().GetValue()
+	codeDir := filepath.Join(filesDir, "code", filepath.Dir(programRelative))
+	if err := os.MkdirAll(codeDir, os.ModePerm); err != nil {
+		return
+	}
+	savedProgram := filepath.Join(filesDir, "code", programRelative)
+	if _, err := os.Stat(savedProgram); err != nil {
+		if err = copyFile(programAbsolute, savedProgram); err != nil {
+			return
+		}
+	}
+	record := service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: filepath.Join("code", programRelative),
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(&record)
+}
+
+func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
 	// Sending metadata as a request for now, eventually this should be turned into
 	// a record and stored in the transaction log
-	metadata := record.GetRequest().GetMetadata()
-	metadata.StartedAt = req.Run.StartTime
-	h.sendRecord(record)
+	if h.settings.GetXDisableMeta().GetValue() {
+		return
+	}
+	record := service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_Metadata{
+					Metadata: &service.MetadataRequest{
+						Os:            h.settings.GetXOs().GetValue(),
+						Python:        h.settings.GetXPython().GetValue(),
+						Host:          h.settings.GetHost().GetValue(),
+						Cuda:          h.settings.GetXCuda().GetValue(),
+						Program:       h.settings.GetProgram().GetValue(),
+						CodePath:      h.settings.GetProgram().GetValue(),
+						CodePathLocal: h.settings.GetProgram().GetValue(),
+						Email:         h.settings.GetEmail().GetValue(),
+						Root:          h.settings.GetRootDir().GetValue(),
+						Username:      h.settings.GetUsername().GetValue(),
+						Docker:        h.settings.GetDocker().GetValue(),
+						Executable:    h.settings.GetXExecutable().GetValue(),
+						Args:          h.settings.GetXArgs().GetValue(),
+						StartedAt:     req.Run.StartTime,
+					},
+				},
+			},
+		},
+	}
+	h.sendRecord(&record)
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
