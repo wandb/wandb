@@ -3173,7 +3173,6 @@ class Run:
             try:
                 response = result.response.get_system_metrics_response
                 if response:
-                    print(type(response))
                     return pb_to_dict(response)
             except Exception as e:
                 logger.error("Error getting system metrics: %s", e)
