@@ -102,7 +102,7 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
-def _state_from_conditions(conditions: List[Dict[str, Any]]) -> str:
+def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
     """Get the status from the pod conditions."""
     if len(conditions) > 0:
         # sort conditions by lastTransitionTime
