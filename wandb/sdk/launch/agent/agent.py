@@ -475,12 +475,11 @@ class LaunchAgent:
 
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
-                if self._ticks % 2 == 0:
+                if self._ticks % 8 == 0:
                     if len(self.thread_ids) == 0:
                         self.update_status(AGENT_POLLING)
                     else:
                         self.update_status(AGENT_RUNNING)
-                    self.print_status()
 
                 if (
                     self.num_running_jobs == self._max_jobs
