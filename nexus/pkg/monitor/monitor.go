@@ -66,12 +66,12 @@ func NewBuffer(maxSize int32) *Buffer {
 func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
 	mb.mutex.Lock()
 	defer mb.mutex.Unlock()
-	if _, ok := mb.elements[metricName]; !ok {
+	buf, ok := mb.elements[metricName]
+	if !ok {
 		mb.elements[metricName] = List{
 			maxSize: mb.maxSize,
 		}
 	}
-	buf := mb.elements[metricName]
 	buf.Append(Measurement{
 		Timestamp: timeStamp,
 		Value:     metricValue,
