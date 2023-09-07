@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -35,54 +34,50 @@ func NewSystemInfo(settings *service.Settings) *SystemInfo {
 	}
 }
 
-func (s *SystemInfo) saveCode() (*string, error) {
-	root := s.settings.GetRootDir().GetValue()
-	programRelative := s.settings.GetProgramRelpath().GetValue()
-	filesDir := s.settings.GetFilesDir().GetValue()
+func (si *SystemInfo) saveCode() (*service.FilesRecord, error) {
+	rootDir := si.settings.GetRootDir().GetValue()
+	programRelative := si.settings.GetProgramRelpath().GetValue()
+	programAbsolute := filepath.Join(rootDir, programRelative)
+	if _, err := os.Stat(programAbsolute); err != nil {
+		return nil, err
+	}
+
+	filesDir := si.settings.GetFilesDir().GetValue()
 	codeDir := filepath.Join(filesDir, "code", filepath.Dir(programRelative))
 	if err := os.MkdirAll(codeDir, os.ModePerm); err != nil {
 		return nil, err
 	}
-	programAbsolute := filepath.Join(root, programRelative)
-	_, err := os.Stat(programAbsolute)
-	if err != nil {
-		return nil, err
-	}
 	savedProgram := filepath.Join(filesDir, "code", programRelative)
-	_, err = os.Stat(savedProgram)
-	if err != nil {
-		if err := copyFile(programAbsolute, savedProgram); err != nil {
+	if _, err := os.Stat(savedProgram); err != nil {
+		if err = copyFile(programAbsolute, savedProgram); err != nil {
 			return nil, err
 		}
 	}
-	return &programRelative, nil
+	path := filepath.Join("code", programRelative)
+	file := &service.FilesItem{
+		Path: path,
+	}
+	files := service.FilesRecord{
+		Files: []*service.FilesItem{file},
+	}
+	return &files, nil
 }
 
-func (s *SystemInfo) GetInfo() (*service.Record, error) {
-	if s.settings.GetSaveCode().GetValue() {
-		record := service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{},
-			},
-		}
-		if program, err := s.saveCode(); err != nil {
+func (si *SystemInfo) GetInfo() (*service.Record, error) {
+
+	if si.settings.GetSaveCode().GetValue() {
+		fileItem, err := si.saveCode()
+		if err != nil {
 			return nil, err
-		} else {
-			savedProgram := filepath.Join("code", *program)
-			fileItem := []*service.FilesItem{
-				{
-					Path:   savedProgram,
-					Policy: service.FilesItem_NOW,
+		}
+		if fileItem != nil {
+			record := service.Record{
+				RecordType: &service.Record_Files{
+					Files: fileItem,
 				},
 			}
-			fmt.Println(fileItem)
-			// files.Files = append(files.Files, fileItem...)
-			record.RecordType.(*service.Record_Files).Files.Files = append(
-				record.RecordType.(*service.Record_Files).Files.Files,
-				fileItem...,
-			)
+			return &record, nil
 		}
-		return &record, nil
 	}
 	return nil, nil
 }
@@ -105,6 +100,5 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
