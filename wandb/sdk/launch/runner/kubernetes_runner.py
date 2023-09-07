@@ -289,8 +289,7 @@ class KubernetesRunMonitor:
                     else:
                         conditions = status.get("conditions")
                         if isinstance(conditions, list):
-                            status = _state_from_conditions(conditions)
-                            state = status.state
+                            state = _state_from_conditions(conditions)
                         else:
                             # This should never happen.
                             _logger.warning(
