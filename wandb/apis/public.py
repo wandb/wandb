@@ -2619,8 +2619,6 @@ class QueuedRun:
     def wait_until_running(self):
         if self._run is not None:
             return self._run
-        if self.container_job:
-            raise LaunchError("Container jobs cannot be waited on")
 
         while True:
             # sleep here to hide an ugly warning
