@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/wandb/wandb/nexus/internal/watcher"
 	"os"
 	"path/filepath"
 	"time"
@@ -105,6 +106,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	// watcher is the file watcher for the stream
+	watcher *watcher.Watcher
 }
 
 // NewHandler creates a new handler

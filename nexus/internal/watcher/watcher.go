@@ -2,12 +2,15 @@ package watcher
 
 import (
 	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/service"
 
 	"github.com/fsnotify/fsnotify"
 )
 
 type Watcher struct {
 	*fsnotify.Watcher
+	outChan   chan *service.FilesRecord
+	watchlist map[string]*service.FilesItem
 }
 
 func (w *Watcher) Start() {
@@ -30,5 +33,14 @@ func NewWatcher() *Watcher {
 	if err != nil {
 		fmt.Println("ERROR", err)
 	}
-	return &Watcher{watcher}
+	return &Watcher{
+		Watcher:   watcher,
+		outChan:   make(chan *service.FilesRecord),
+		watchlist: make(map[string]*service.FilesItem),
+	}
+}
+
+func (w *Watcher) Add(item *service.FilesItem) error {
+	w.watchlist[item.Path] = item
+	return w.Watcher.Add(item.Path)
 }
