@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
@@ -310,7 +312,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
 	}
-	// Need to clone the record to avoide race condition with the writer
+	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*service.Record)
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -372,14 +374,10 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 
-	// TODO: this is a hack, we should not be sending metadata from here,
-	//  it should arrive as a proper request from the client.
-	//  attempting to do this before the run start request arrives in the sender
-	//  will cause a segfault because the sender's uploader is not initialized yet.
-	h.handleMetadata(record, request)
-
 	// start the system monitor
 	h.systemMonitor.Do()
+	h.handleCodeSave()
+	h.handleMetadata(record, request)
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -405,27 +403,87 @@ func (h *Handler) handleResume() {
 	h.systemMonitor.Do()
 }
 
+func (h *Handler) handleCodeSave() {
+	if !h.settings.GetSaveCode().GetValue() {
+		return
+	}
+
+	programRelative := h.settings.GetProgramRelpath().GetValue()
+	if programRelative == "" {
+		h.logger.Warn("handleCodeSave: program relative path is empty")
+		return
+	}
+
+	programAbsolute := h.settings.GetProgramAbspath().GetValue()
+	if _, err := os.Stat(programAbsolute); err != nil {
+		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
+		return
+	}
+
+	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
+	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
+		return
+	}
+	savedProgram := filepath.Join(codeDir, programRelative)
+	if _, err := os.Stat(savedProgram); err != nil {
+		if err = copyFile(programAbsolute, savedProgram); err != nil {
+			return
+		}
+	}
+	record := service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: filepath.Join("code", programRelative),
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(&record)
+}
+
 func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
 	// Sending metadata as a request for now, eventually this should be turned into
 	// a record and stored in the transaction log
-	record := &service.Record{
+	if h.settings.GetXDisableMeta().GetValue() {
+		return
+	}
+	var git *service.GitRepoRecord
+	if req.Run.GetGit() != nil {
+		git = &service.GitRepoRecord{
+			RemoteUrl: req.Run.GetGit().GetRemoteUrl(),
+			Commit:    req.Run.GetGit().GetCommit(),
+		}
+	}
+	record := service.Record{
 		RecordType: &service.Record_Request{
-			Request: &service.Request{RequestType: &service.Request_Metadata{
-				Metadata: &service.MetadataRequest{
-					Os:         h.settings.GetXOs().GetValue(),
-					Python:     h.settings.GetXPython().GetValue(),
-					Host:       h.settings.GetHost().GetValue(),
-					Cuda:       h.settings.GetXCuda().GetValue(),
-					Program:    h.settings.GetProgram().GetValue(),
-					Email:      h.settings.GetEmail().GetValue(),
-					Root:       h.settings.GetRootDir().GetValue(),
-					Username:   h.settings.GetUsername().GetValue(),
-					Docker:     h.settings.GetDocker().GetValue(),
-					Executable: h.settings.GetXExecutable().GetValue(),
-					Args:       h.settings.GetXArgs().GetValue(),
-					StartedAt:  req.Run.StartTime,
-				}}}}}
-	h.sendRecord(record)
+			Request: &service.Request{
+				RequestType: &service.Request_Metadata{
+					Metadata: &service.MetadataRequest{
+						Os:       h.settings.GetXOs().GetValue(),
+						Python:   h.settings.GetXPython().GetValue(),
+						Host:     h.settings.GetHost().GetValue(),
+						Cuda:     h.settings.GetXCuda().GetValue(),
+						Git:      git,
+						Program:  h.settings.GetProgram().GetValue(),
+						CodePath: h.settings.GetProgramAbspath().GetValue(),
+						// CodePathLocal: h.settings.GetProgramAbspath().GetValue(),  // todo(launch): add this
+						Email:      h.settings.GetEmail().GetValue(),
+						Root:       h.settings.GetRootDir().GetValue(),
+						Username:   h.settings.GetUsername().GetValue(),
+						Docker:     h.settings.GetDocker().GetValue(),
+						Executable: h.settings.GetXExecutable().GetValue(),
+						Args:       h.settings.GetXArgs().GetValue(),
+						Colab:      h.settings.GetColabUrl().GetValue(),
+						StartedAt:  req.Run.GetStartTime(),
+					},
+				},
+			},
+		},
+	}
+	h.sendRecord(&record)
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
