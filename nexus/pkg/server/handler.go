@@ -554,6 +554,10 @@ func (h *Handler) handleFiles(record *service.Record) {
 
 	var files []*service.FilesItem
 	for _, item := range record.GetFiles().GetFiles() {
+		// TODO: support live policy?
+		if item.Policy == service.FilesItem_LIVE {
+			fmt.Printf("live policy is not supported yet, the file %s will be saved as end policy\n", item.Path)
+		}
 		if item.Policy == service.FilesItem_END || item.Policy == service.FilesItem_LIVE {
 			if _, ok := h.savedFiles[item.Path]; !ok {
 				h.savedFiles[item.Path] = nil
