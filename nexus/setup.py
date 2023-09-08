@@ -36,9 +36,9 @@ NEXUS_VERSION = "0.0.1a3"
 
 PACKAGE: str = "wandb_core"
 ALL_PLATFORMS = (
-    ("darwin", "arm64", True),
+    ("darwin", "arm64", False),
     ("darwin", "amd64", False),
-    ("linux", "amd64", True),
+    ("linux", "amd64", False),
     ("windows", "amd64", False),
 )
 
