@@ -1,10 +1,3 @@
-"""
-Unit tests for the parse_sm_config function of the wandb.integration.sagemaker module.
-
-This module tests the behavior of the parse_sm_config function ensuring correct
-configuration parsing, especially with the SM_TRAINING_ENV environment variable.
-"""
-
 import io
 import json
 import os
