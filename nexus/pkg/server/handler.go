@@ -538,7 +538,6 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 }
 
 func (h *Handler) handleFiles(record *service.Record) {
-	fmt.Printf("handleFiles: %v\n", record)
 	if record.GetFiles() == nil {
 		return
 	}
