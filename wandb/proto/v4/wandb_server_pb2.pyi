@@ -256,97 +256,104 @@ class ServerInformTeardownResponse(google.protobuf.message.Message):
 global___ServerInformTeardownResponse = ServerInformTeardownResponse
 
 @typing_extensions.final
-class ServerInformConsoleDataRequest(google.protobuf.message.Message):
+class ServerInformBroadcastRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    OUTPUT_TYPE_FIELD_NUMBER: builtins.int
-    OUTPUT_DATA_FIELD_NUMBER: builtins.int
+    SUBSCRIPTION_KEY_FIELD_NUMBER: builtins.int
+    RECORD_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
-    output_type: builtins.str
-    output_data: builtins.str
+    subscription_key: builtins.str
+    @property
+    def record(self) -> wandb.proto.wandb_internal_pb2.Record: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        output_type: builtins.str = ...,
-        output_data: builtins.str = ...,
+        subscription_key: builtins.str = ...,
+        record: wandb.proto.wandb_internal_pb2.Record | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "output_data", b"output_data", "output_type", b"output_type"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "record", b"record"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "record", b"record", "subscription_key", b"subscription_key"]) -> None: ...
 
-global___ServerInformConsoleDataRequest = ServerInformConsoleDataRequest
+global___ServerInformBroadcastRequest = ServerInformBroadcastRequest
 
 @typing_extensions.final
-class ServerInformConsoleDataResponse(google.protobuf.message.Message):
+class ServerInformBroadcastResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     def __init__(
         self,
     ) -> None: ...
 
-global___ServerInformConsoleDataResponse = ServerInformConsoleDataResponse
+global___ServerInformBroadcastResponse = ServerInformBroadcastResponse
 
 @typing_extensions.final
-class ServerInformConsoleStartRequest(google.protobuf.message.Message):
+class ServerInformSubscribeRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    SUBSCRIPTION_KEY_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
+    subscription_key: builtins.str
     run_id: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
+        subscription_key: builtins.str = ...,
         run_id: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "run_id", b"run_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "run_id", b"run_id", "subscription_key", b"subscription_key"]) -> None: ...
 
-global___ServerInformConsoleStartRequest = ServerInformConsoleStartRequest
+global___ServerInformSubscribeRequest = ServerInformSubscribeRequest
 
 @typing_extensions.final
-class ServerInformConsoleStartResponse(google.protobuf.message.Message):
+class ServerInformSubscribeResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     def __init__(
         self,
     ) -> None: ...
 
-global___ServerInformConsoleStartResponse = ServerInformConsoleStartResponse
+global___ServerInformSubscribeResponse = ServerInformSubscribeResponse
 
 @typing_extensions.final
-class ServerInformConsoleStopRequest(google.protobuf.message.Message):
+class ServerInformUnsubscribeRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    SUBSCRIPTION_KEY_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
+    subscription_key: builtins.str
     run_id: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
+        subscription_key: builtins.str = ...,
         run_id: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "run_id", b"run_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "run_id", b"run_id", "subscription_key", b"subscription_key"]) -> None: ...
 
-global___ServerInformConsoleStopRequest = ServerInformConsoleStopRequest
+global___ServerInformUnsubscribeRequest = ServerInformUnsubscribeRequest
 
 @typing_extensions.final
-class ServerInformConsoleStopResponse(google.protobuf.message.Message):
+class ServerInformUnsubscribeResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     def __init__(
         self,
     ) -> None: ...
 
-global___ServerInformConsoleStopResponse = ServerInformConsoleStopResponse
+global___ServerInformUnsubscribeResponse = ServerInformUnsubscribeResponse
 
 @typing_extensions.final
 class ServerRequest(google.protobuf.message.Message):
@@ -364,9 +371,9 @@ class ServerRequest(google.protobuf.message.Message):
     INFORM_DETACH_FIELD_NUMBER: builtins.int
     INFORM_TEARDOWN_FIELD_NUMBER: builtins.int
     INFORM_START_FIELD_NUMBER: builtins.int
-    INFORM_CONSOLE_DATA_FIELD_NUMBER: builtins.int
-    INFORM_CONSOLE_START_FIELD_NUMBER: builtins.int
-    INFORM_CONSOLE_STOP_FIELD_NUMBER: builtins.int
+    INFORM_BROADCAST_FIELD_NUMBER: builtins.int
+    INFORM_SUBSCRIBE_FIELD_NUMBER: builtins.int
+    INFORM_UNSUBSCRIBE_FIELD_NUMBER: builtins.int
     @property
     def record_publish(self) -> wandb.proto.wandb_internal_pb2.Record: ...
     @property
@@ -384,11 +391,11 @@ class ServerRequest(google.protobuf.message.Message):
     @property
     def inform_start(self) -> global___ServerInformStartRequest: ...
     @property
-    def inform_console_data(self) -> global___ServerInformConsoleDataRequest: ...
+    def inform_broadcast(self) -> global___ServerInformBroadcastRequest: ...
     @property
-    def inform_console_start(self) -> global___ServerInformConsoleStartRequest: ...
+    def inform_subscribe(self) -> global___ServerInformSubscribeRequest: ...
     @property
-    def inform_console_stop(self) -> global___ServerInformConsoleStopRequest: ...
+    def inform_unsubscribe(self) -> global___ServerInformUnsubscribeRequest: ...
     def __init__(
         self,
         *,
@@ -400,13 +407,13 @@ class ServerRequest(google.protobuf.message.Message):
         inform_detach: global___ServerInformDetachRequest | None = ...,
         inform_teardown: global___ServerInformTeardownRequest | None = ...,
         inform_start: global___ServerInformStartRequest | None = ...,
-        inform_console_data: global___ServerInformConsoleDataRequest | None = ...,
-        inform_console_start: global___ServerInformConsoleStartRequest | None = ...,
-        inform_console_stop: global___ServerInformConsoleStopRequest | None = ...,
+        inform_broadcast: global___ServerInformBroadcastRequest | None = ...,
+        inform_subscribe: global___ServerInformSubscribeRequest | None = ...,
+        inform_unsubscribe: global___ServerInformUnsubscribeRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_console_data", b"inform_console_data", "inform_console_start", b"inform_console_start", "inform_console_stop", b"inform_console_stop", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_console_data", b"inform_console_data", "inform_console_start", b"inform_console_start", "inform_console_stop", b"inform_console_stop", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_request_type", b"server_request_type"]) -> typing_extensions.Literal["record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "inform_start", "inform_console_data", "inform_console_start", "inform_console_stop"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_broadcast", b"inform_broadcast", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_subscribe", b"inform_subscribe", "inform_teardown", b"inform_teardown", "inform_unsubscribe", b"inform_unsubscribe", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_broadcast", b"inform_broadcast", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_subscribe", b"inform_subscribe", "inform_teardown", b"inform_teardown", "inform_unsubscribe", b"inform_unsubscribe", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_request_type", b"server_request_type"]) -> typing_extensions.Literal["record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "inform_start", "inform_broadcast", "inform_subscribe", "inform_unsubscribe"] | None: ...
 
 global___ServerRequest = ServerRequest
 
@@ -421,9 +428,9 @@ class ServerResponse(google.protobuf.message.Message):
     INFORM_DETACH_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_TEARDOWN_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_START_RESPONSE_FIELD_NUMBER: builtins.int
-    INFORM_CONSOLE_DATA_RESPONSE_FIELD_NUMBER: builtins.int
-    INFORM_CONSOLE_START_RESPONSE_FIELD_NUMBER: builtins.int
-    INFORM_CONSOLE_STOP_RESPONSE_FIELD_NUMBER: builtins.int
+    INFORM_BROADCAST_RESPONSE_FIELD_NUMBER: builtins.int
+    INFORM_SUBSCRIBE_RESPONSE_FIELD_NUMBER: builtins.int
+    INFORM_UNSUBSCRIBE_RESPONSE_FIELD_NUMBER: builtins.int
     @property
     def result_communicate(self) -> wandb.proto.wandb_internal_pb2.Result: ...
     @property
@@ -439,11 +446,11 @@ class ServerResponse(google.protobuf.message.Message):
     @property
     def inform_start_response(self) -> global___ServerInformStartResponse: ...
     @property
-    def inform_console_data_response(self) -> global___ServerInformConsoleDataResponse: ...
+    def inform_broadcast_response(self) -> global___ServerInformBroadcastResponse: ...
     @property
-    def inform_console_start_response(self) -> global___ServerInformConsoleStartResponse: ...
+    def inform_subscribe_response(self) -> global___ServerInformSubscribeResponse: ...
     @property
-    def inform_console_stop_response(self) -> global___ServerInformConsoleStopResponse: ...
+    def inform_unsubscribe_response(self) -> global___ServerInformUnsubscribeResponse: ...
     def __init__(
         self,
         *,
@@ -454,12 +461,12 @@ class ServerResponse(google.protobuf.message.Message):
         inform_detach_response: global___ServerInformDetachResponse | None = ...,
         inform_teardown_response: global___ServerInformTeardownResponse | None = ...,
         inform_start_response: global___ServerInformStartResponse | None = ...,
-        inform_console_data_response: global___ServerInformConsoleDataResponse | None = ...,
-        inform_console_start_response: global___ServerInformConsoleStartResponse | None = ...,
-        inform_console_stop_response: global___ServerInformConsoleStopResponse | None = ...,
+        inform_broadcast_response: global___ServerInformBroadcastResponse | None = ...,
+        inform_subscribe_response: global___ServerInformSubscribeResponse | None = ...,
+        inform_unsubscribe_response: global___ServerInformUnsubscribeResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_console_data_response", b"inform_console_data_response", "inform_console_start_response", b"inform_console_start_response", "inform_console_stop_response", b"inform_console_stop_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_console_data_response", b"inform_console_data_response", "inform_console_start_response", b"inform_console_start_response", "inform_console_stop_response", b"inform_console_stop_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_response_type", b"server_response_type"]) -> typing_extensions.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "inform_start_response", "inform_console_data_response", "inform_console_start_response", "inform_console_stop_response"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_broadcast_response", b"inform_broadcast_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_subscribe_response", b"inform_subscribe_response", "inform_teardown_response", b"inform_teardown_response", "inform_unsubscribe_response", b"inform_unsubscribe_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_broadcast_response", b"inform_broadcast_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_subscribe_response", b"inform_subscribe_response", "inform_teardown_response", b"inform_teardown_response", "inform_unsubscribe_response", b"inform_unsubscribe_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_response_type", b"server_response_type"]) -> typing_extensions.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "inform_start_response", "inform_broadcast_response", "inform_subscribe_response", "inform_unsubscribe_response"] | None: ...
 
 global___ServerResponse = ServerResponse

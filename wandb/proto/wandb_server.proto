@@ -67,29 +67,31 @@ message ServerInformTeardownRequest {
 message ServerInformTeardownResponse {
 }
 
-message ServerInformConsoleDataRequest {
-  string output_type = 1;
-  string output_data = 2;
+message ServerInformBroadcastRequest {
+  string subscription_key = 1;
+  Record record = 2;
   _RecordInfo _info = 200;
 }
 
-message ServerInformConsoleDataResponse {
+message ServerInformBroadcastResponse {
 }
 
-message ServerInformConsoleStartRequest {
-  string run_id = 1;
+message ServerInformSubscribeRequest {
+  string subscription_key = 1;
+  string run_id = 2;
   _RecordInfo _info = 200;
 }
 
-message ServerInformConsoleStartResponse {
+message ServerInformSubscribeResponse {
 }
 
-message ServerInformConsoleStopRequest {
-  string run_id = 1;
+message ServerInformUnsubscribeRequest {
+  string subscription_key = 1;
+  string run_id = 2;
   _RecordInfo _info = 200;
 }
 
-message ServerInformConsoleStopResponse {
+message ServerInformUnsubscribeResponse {
 }
 
 /*
@@ -106,9 +108,9 @@ message ServerRequest {
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
-    ServerInformConsoleDataRequest inform_console_data = 9;
-    ServerInformConsoleStartRequest inform_console_start = 10;
-    ServerInformConsoleStopRequest inform_console_stop = 11;
+    ServerInformBroadcastRequest inform_broadcast = 9;
+    ServerInformSubscribeRequest inform_subscribe = 10;
+    ServerInformUnsubscribeRequest inform_unsubscribe = 11;
 
   }
 }
@@ -122,9 +124,9 @@ message ServerResponse {
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
-    ServerInformConsoleDataResponse inform_console_data_response = 9;
-    ServerInformConsoleStartResponse inform_console_start_response = 10;
-    ServerInformConsoleStopResponse inform_console_stop_response = 11;
+    ServerInformBroadcastResponse inform_broadcast_response = 9;
+    ServerInformSubscribeResponse inform_subscribe_response = 10;
+    ServerInformUnsubscribeResponse inform_unsubscribe_response = 11;
 
   }
 }

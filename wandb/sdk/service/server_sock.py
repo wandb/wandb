@@ -141,47 +141,27 @@ class SockServerReadThread(threading.Thread):
         self._mux.update_stream(stream_id, settings=settings)
         self._mux.start_stream(stream_id)
 
-    def _make_output_record(
-        self, console_req: "spb.ServerInformConsoleDataRequest"
-    ) -> "pb.OutputRecord":
-        name = console_req.output_type
-        data = console_req.output_data
-        if name == "stdout":
-            otype = pb.OutputRecord.OutputType.STDOUT
-        elif name == "stderr":
-            otype = pb.OutputRecord.OutputType.STDERR
-        else:
-            raise Exception(f"Invalid console name: {name}")
-
-        output_record = pb.OutputRecord(output_type=otype, line=data)
-        output_record.timestamp.GetCurrentTime()
-        return output_record
-
-    def server_inform_console_data(self, sreq: "spb.ServerRequest") -> None:
-        console_stream_ids = self._mux.get_subscribed_stream_ids("console")
+    def server_inform_broadcast(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_broadcast
+        console_stream_ids = self._mux.get_subscribed_stream_ids(request.subscription_key)
         if not console_stream_ids:
             return
-        request = sreq.inform_console_data
-        output_record = self._make_output_record(request)
         for stream_id in console_stream_ids:
-            record = pb.Record()
-            record.output.CopyFrom(output_record)
-
             try:
                 iface = self._mux.get_stream(stream_id).interface
             except Exception:
                 # TODO this might happen at shutdown, handle this better
                 continue
             assert iface.record_q
-            iface.record_q.put(record)
+            iface.record_q.put(request.record)
 
-    def server_inform_console_start(self, sreq: "spb.ServerRequest") -> None:
-        request = sreq.inform_console_start
+    def server_inform_subscribe(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_subscribe
         stream_id = request.run_id
         self._mux.subscribe_stream(stream_id, "console")
 
-    def server_inform_console_stop(self, sreq: "spb.ServerRequest") -> None:
-        request = sreq.inform_console_stop
+    def server_inform_unsubscribe(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_unsubscribe
         stream_id = request.run_id
         self._mux.unsubscribe_stream(stream_id, "console")
 

@@ -2057,7 +2057,7 @@ class Run:
         if console == "redirect":
             manager = self._wl and self._wl._get_manager()
             if manager:
-                manager._inform_console_start(run_id=self._settings.run_id)
+                manager._inform_subscribe(run_id=self._settings.run_id, subscription_key="console")
                 return
 
         out_redir: redirect.RedirectBase
@@ -2221,7 +2221,7 @@ class Run:
             manager = self._wl and self._wl._get_manager()
             if manager:
                 run_id = self._settings.run_id
-                manager._inform_console_stop(run_id=run_id)
+                manager._inform_unsubscribe(run_id=run_id, subscription_key="console")
                 return
 
         self._restore()

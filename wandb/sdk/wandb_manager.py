@@ -12,6 +12,7 @@ import psutil
 import wandb
 from wandb import env, trigger
 from wandb.errors import Error
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import redirect
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
@@ -160,9 +161,24 @@ class _Manager:
         self._atexit_setup()
         self._console_setup()
 
+    def _make_output_record(self, name: str, data: str) -> "pb.Record":
+        if name == "stdout":
+            otype = pb.OutputRecord.OutputType.STDOUT
+        elif name == "stderr":
+            otype = pb.OutputRecord.OutputType.STDERR
+        else:
+            raise Exception(f"Invalid console name: {name}")
+
+        output = pb.OutputRecord(output_type=otype, line=data)
+        output.timestamp.GetCurrentTime()
+        record = pb.Record()
+        record.output.CopyFrom(output)
+        return record
+
     def _redirect_cb(self, name: str, data: str) -> None:
         try:
-            self._inform_console_data(name, data)
+            record = self._make_output_record(name, data)
+            self._inform_broadcast(record=record, subscription_key="console")
         except Exception:
             # console data is opportunistically saved, it should be safe
             # but we dont want to crash if there is an issue
@@ -280,16 +296,16 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_teardown(exit_code)
 
-    def _inform_console_data(self, name: str, data: str) -> None:
+    def _inform_broadcast(self, record: pb.Record, subscription_key: str) -> None:
         svc_iface = self._get_service_interface()
-        svc_iface._svc_inform_console_data(name, data)
+        svc_iface._svc_inform_broadcast(record=record, subscription_key=subscription_key)
 
-    def _inform_console_start(self, run_id: str) -> None:
+    def _inform_subscribe(self, run_id: str, subscription_key: str) -> None:
         self._flush_console()
         svc_iface = self._get_service_interface()
-        svc_iface._svc_inform_console_start(run_id=run_id)
+        svc_iface._svc_inform_subscribe(run_id=run_id, subscription_key=subscription_key)
 
-    def _inform_console_stop(self, run_id: str) -> None:
+    def _inform_unsubscribe(self, run_id: str, subscription_key: str) -> None:
         self._flush_console()
         svc_iface = self._get_service_interface()
-        svc_iface._svc_inform_console_stop(run_id=run_id)
+        svc_iface._svc_inform_unsubscribe(run_id=run_id, subscription_key=subscription_key)

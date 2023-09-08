@@ -7,6 +7,7 @@ abstract methods.
 from abc import abstractmethod
 from typing import Optional
 
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.wandb_settings import Settings
 
@@ -40,15 +41,15 @@ class ServiceInterface:
         raise NotImplementedError
 
     @abstractmethod
-    def _svc_inform_console_data(self, name: str, data: str) -> None:
+    def _svc_inform_broadcast(self, record: pb.Record, subscription_key: str) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def _svc_inform_console_start(self, run_id: str) -> None:
+    def _svc_inform_subscribe(self, run_id: str, subscription_key: str) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def _svc_inform_console_stop(self, run_id: str) -> None:
+    def _svc_inform_unsubscribe(self, run_id: str, subscription_key: str) -> None:
         raise NotImplementedError
 
     @abstractmethod
