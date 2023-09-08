@@ -266,12 +266,13 @@ class S3Handler(StorageHandler):
         etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         return etag
 
-    @staticmethod
-    def _extra_from_obj(obj: "boto3.s3.Object") -> Dict[str, str]:
+    def _extra_from_obj(self, obj: "boto3.s3.Object") -> Dict[str, str]:
         extra = {
             "etag": obj.e_tag[1:-1],  # escape leading and trailing quote
         }
-        # ObjectSummary will never have version_id
+        if not hasattr(obj, "version_id"):
+            # Convert ObjectSummary to Object to get the version_id.
+            obj = self._s3.Object(obj.bucket_name, obj.key)  # type: ignore[union-attr]
         if hasattr(obj, "version_id") and obj.version_id != "null":
             extra["versionID"] = obj.version_id
         return extra
