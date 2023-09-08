@@ -1,13 +1,17 @@
-"""Unit tests for the parse_sm_config function of the
-wandb.integration.sagemaker module. This module tests
+"""
+Unit tests for the parse_sm_config function of the
+wandb.
+
+integration.sagemaker module. This module tests
 the behavior of the parse_sm_config function ensuring correct
 configuration parsing, especially with the SM_TRAINING_ENV
 environment variable.
 """
-from unittest import mock
+
 import os
 import json
 import io
+from unittest import mock
 from wandb.integration.sagemaker.config import parse_sm_config
 
 
@@ -20,12 +24,13 @@ from wandb.integration.sagemaker.config import parse_sm_config
     read_data=json.dumps({"param1": "2022-04-01"}),
 )
 def test_parse_sm_config(mock_open, mock_json_load, mock_getenv, mock_path_exists):
-    """Test that the parse_sm_config function returns
+    """
+    Test that the parse_sm_config function returns
     the correct config both cases when the
     SM_TRAINING_ENV environment variable is not
     set and when it is set.
-    The function should return the correct config in both cases."""
-
+    The function should return the correct config in both cases.
+    """
     mock_getenv.return_value = "2022-07-21"
     mock_path_exists.return_value = True
     mock_file = mock.MagicMock(spec_set=io.IOBase)
@@ -120,9 +125,6 @@ def test_parse_sm_config(mock_open, mock_json_load, mock_getenv, mock_path_exist
     # such as if this is just a string ""{.../.../...}""
 
     training_env = os.getenv("SM_TRAINING_ENV")
-
-    assert training_env is not None, "SM_TRAINING_ENV not set!"
-
     # Deserialize it to ensure it's a valid JSON
     try:
         training_env_data = json.loads(training_env)

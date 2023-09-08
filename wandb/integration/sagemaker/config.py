@@ -1,10 +1,9 @@
 import json
 import os
 import re
-from typing import Any, Dict
 import warnings
-
 from . import files as sm_files
+from typing import Any, Dict
 
 
 def parse_sm_config() -> Dict[str, Any]:
@@ -27,7 +26,7 @@ def parse_sm_config() -> Dict[str, Any]:
     ):
         conf["sagemaker_training_job_name"] = os.getenv("TRAINING_JOB_NAME")
         # Hyperparameter searches quote configs...
-        with open(sm_files.SM_PARAM_CONFIG, "r", encoding="utf-8") as fid:
+        with open(sm_files.SM_PARAM_CONFIG, "r") as fid:
             for key, val in json.load(fid).items():
                 cast = val.strip('"')
                 if re.match(r"^-?[\d]+$", cast):
@@ -41,9 +40,7 @@ def parse_sm_config() -> Dict[str, Any]:
         except json.JSONDecodeError:
             warnings.warn(
                 """
-                Failed to parse SM_TRAINING_ENV --
-                either not valid JSON string, running in local mode,
-                and will not be included in your wandb config
+                Failed to parse SM_TRAINING_ENV not valid JSON string
                 """
             )
     return conf
