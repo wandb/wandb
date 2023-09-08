@@ -217,7 +217,7 @@ class StreamMux:
             stream = self._streams[stream_id]
             return stream
 
-    def get_subscribed_stream_ids(self, subscription_type: str) -> Tuple[str]:
+    def get_subscribed_stream_ids(self, subscription_type: str) -> Tuple[str, ...]:
         with self._streams_lock:
             stream_ids = self._subscription_stream_ids[subscription_type]
             return tuple(stream_ids)

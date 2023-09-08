@@ -186,9 +186,9 @@ class _Manager:
         self._out_redir = out_redir
         self._err_redir = err_redir
         if self._out_redir:
-            self._out_redir.install()
+            self._out_redir.install()  # type: ignore
         if self._err_redir:
-            self._err_redir.install()
+            self._err_redir.install()  # type: ignore
 
     def _redirect_uninstall(self) -> None:
         if self._out_redir:
