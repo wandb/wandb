@@ -1,5 +1,5 @@
-from netrc import netrc
 import os
+from netrc import netrc
 
 import boto3
 import botocore

@@ -1,4 +1,5 @@
 from typing import Optional
+
 import pytest
 import yaml
 from utils import (
