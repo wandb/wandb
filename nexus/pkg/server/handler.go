@@ -564,6 +564,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 			files = append(files, item)
 		}
 	}
+	// TODO: should we replace clone with somethign lighter?
 	rec := proto.Clone(record).(*service.Record)
 	rec.GetFiles().Files = files
 	h.sendRecord(rec)
