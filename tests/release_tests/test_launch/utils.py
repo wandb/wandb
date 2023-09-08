@@ -112,7 +112,7 @@ def update_dict(original, updated):
             original[key] = value
 
 
-def create_config_files():
+def create_config_files(api_key: str, agent_image: Optional[str]):
     """Create a launch-config.yml and launch-agent.yml."""
     launch_config = yaml.load_all(
         open("wandb/sdk/launch/deploys/kubernetes/launch-config.yaml"),
@@ -127,6 +127,7 @@ def create_config_files():
         document = dict(original)
         update_dict(document, dict(updated))
         final_launch_config.append(document)
+    final_launch_config[-1]["stringData"]["password"] = api_key
     yaml.dump_all(
         final_launch_config,
         open("tests/release_tests/test_launch/launch-config.yml", "w+"),
@@ -135,25 +136,29 @@ def create_config_files():
         open("wandb/sdk/launch/deploys/kubernetes/launch-agent.yaml"),
         Loader=yaml.Loader,
     )
-    launch_agent_patch = yaml.load(
-        open("tests/release_tests/test_launch/launch-agent-patch.yaml"),
-        Loader=yaml.Loader,
+    launch_agent_patch = dict(
+        yaml.load(
+            open("tests/release_tests/test_launch/launch-agent-patch.yaml"),
+            Loader=yaml.Loader,
+        )
     )
+    if agent_image:
+        launch_agent_patch["spec"]["template"]["spec"]["containers"][0][
+            "image"
+        ] = agent_image
     launch_agent_dict = dict(launch_agent)
-    update_dict(launch_agent_dict, dict(launch_agent_patch))
+    update_dict(launch_agent_dict, launch_agent_patch)
     yaml.dump(
         launch_agent_dict,
         open("tests/release_tests/test_launch/launch-agent.yml", "w+"),
     )
 
 
-def init_agent_in_launch_cluster(namespace: str):
-    """Build and deploy the agent in provided cluster namespace."""
-    create_config_files()
-    # Comment out if launch agent image is already built locally
-    run_cmd(
-        "python tools/build_launch_agent.py --tag wandb-launch-agent:release-testing"
-    )
+def init_agent_in_launch_cluster(
+    namespace: str, api_key: str, agent_image: Optional[str]
+):
+    """Deploy the agent in provided cluster namespace."""
+    create_config_files(api_key, agent_image)
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml")
     setup_cleanup_on_exit(namespace)

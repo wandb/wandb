@@ -41,3 +41,8 @@ data:
     environment:
       type: aws
       region: us-east-2
+---
+metadata:
+  namespace: wandb-release-testing
+stringData:
+  password: "" # Placeholder

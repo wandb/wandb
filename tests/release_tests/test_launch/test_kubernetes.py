@@ -1,3 +1,4 @@
+from typing import Optional
 import pytest
 import yaml
 from utils import (
@@ -59,8 +60,8 @@ def test_kubernetes_agent_on_local_process():
 
 
 @pytest.mark.timeout(180)
-def test_kubernetes_agent_in_cluster():
-    init_agent_in_launch_cluster(NAMESPACE)
+def test_kubernetes_agent_in_cluster(api_key: str, agent_image: Optional[str]):
+    init_agent_in_launch_cluster(NAMESPACE, api_key, agent_image)
     try:
         # Start run
         queued_run = launch_add(
