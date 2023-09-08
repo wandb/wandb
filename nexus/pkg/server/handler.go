@@ -176,6 +176,10 @@ func (h *Handler) close() {
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
+	if record == nil {
+		return
+	}
+
 	if record.GetControl() == nil {
 		record.Control = &service.Control{}
 	}
@@ -188,6 +192,9 @@ func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions .
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
+	if record == nil {
+		return
+	}
 	h.fwdChan <- record
 }
 
