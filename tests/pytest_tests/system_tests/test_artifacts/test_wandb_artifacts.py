@@ -12,8 +12,8 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
+import wandb.sdk.artifacts.artifacts_cache as artifacts_cache
 from wandb import util
-from wandb.sdk.artifacts import artifacts_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (

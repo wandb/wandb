@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wandb/wandb/nexus/internal/clients"
+
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/internal/uploader"
@@ -25,7 +27,7 @@ import (
 const (
 	MetaFilename = "wandb-metadata.json"
 	NexusVersion = "0.0.1a3"
-	// Modified from time.RFC3339Nano
+	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 )
 
@@ -100,9 +102,60 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
 	}
 	if !settings.GetXOffline().GetValue() {
+		baseHeaders := map[string]string{
+			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
+			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
+		}
+		graphqlRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientHttpAuthTransport(
+				settings.GetApiKey().GetValue(),
+				baseHeaders,
+				settings.GetXExtraHttpHeaders().GetValue(),
+			),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXGraphqlTimeoutSeconds().GetValue()*int32(time.Second))),
+		)
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		apiKey := settings.GetApiKey().GetValue()
-		sender.graphqlClient = newGraphqlClient(url, apiKey, logger)
+		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
+
+		fileStreamRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+			// retryClient.BackOff = fs.GetBackoffFunc()
+			// TODO(nexus:beta): add custom retry function
+			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
+		)
+		sender.fileStream = fs.NewFileStream(
+			fs.WithSettings(settings),
+			fs.WithLogger(logger),
+			fs.WithHttpClient(fileStreamRetryClient),
+		)
+		uploaderRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileUploaderRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileUploaderRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileUploaderTimeoutSeconds().GetValue()*int32(time.Second))),
+		)
+		defaultUploader := uploader.NewDefaultUploader(
+			logger,
+			uploaderRetryClient,
+		)
+		sender.uploadManager = uploader.NewUploadManager(
+			uploader.WithLogger(logger),
+			uploader.WithSettings(settings),
+			uploader.WithUploader(defaultUploader),
+		)
+
 	}
 	return sender
 }
@@ -147,6 +200,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
+	case *service.Record_LinkArtifact:
+		s.sendLinkArtifact(record)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -177,38 +232,14 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
-	if !s.settings.GetXOffline().GetValue() {
-		fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-			s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-		retryClient := NewRetryClient(s.settings.GetApiKey().GetValue(), s.logger)
-		retryClient.RetryWaitMin = 2 * time.Second
-		retryClient.RetryWaitMax = 60 * time.Second
-		// Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
-		// retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
-		//             = 7200 / 60 + ceil(log2(60/2))
-		//             = 120 + 5
-		retryClient.RetryMax = 125
-		// Set a 3 minute timeout for all filestream post requests
-		retryClient.HTTPClient.Timeout = time.Minute * 3
-		// TODO(nexus:beta): add jitter to DefaultBackoff scheme
-		// retryClient.BackOff = fs.GetBackoffFunc()
-		// TODO(nexus:beta): add custom retry function
-		// retryClient.CheckRetry = fs.GetCheckRetryFunc()
-		s.fileStream = fs.NewFileStream(
-			fs.WithPath(fsPath),
-			fs.WithSettings(s.settings),
-			fs.WithLogger(s.logger),
-			fs.WithHttpClient(retryClient),
-			fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
-		)
-		s.fileStream.Start()
-		s.uploadManager = uploader.NewUploadManager(
-			uploader.WithLogger(s.logger),
-			uploader.WithSettings(s.settings),
-		)
-		s.uploadManager.Start()
-	}
+	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
+		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 
+	fs.WithPath(fsPath)(s.fileStream)
+	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
+
+	s.fileStream.Start()
+	s.uploadManager.Start()
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -302,6 +333,25 @@ func (s *Sender) sendPreempting(record *service.Record) {
 	s.fileStream.StreamRecord(record)
 }
 
+func (s *Sender) sendLinkArtifact(record *service.Record) {
+	linker := artifacts.ArtifactLinker{
+		Ctx:           s.ctx,
+		Logger:        s.logger,
+		LinkArtifact:  record.GetLinkArtifact(),
+		GraphqlClient: s.graphqlClient,
+	}
+	err := linker.Link()
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
+	}
+
+	result := &service.Result{
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
 // updateConfig updates the config map with the config record
 func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 	// TODO: handle nested key updates and deletes
@@ -392,8 +442,11 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 
 		program := s.settings.GetProgram().GetValue()
+		// start a new context with an additional argument from the parent context
+		// this is used to pass the retry function to the graphql client
+		ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
-			s.ctx,                        // ctx
+			ctx,                          // ctx
 			s.graphqlClient,              // client
 			nil,                          // id
 			&run.RunId,                   // name
@@ -504,9 +557,9 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	}
 
 	config := s.serializeConfig()
-
+	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
-		s.ctx,                            // ctx
+		ctx,                              // ctx
 		s.graphqlClient,                  // client
 		nil,                              // id
 		&s.RunRecord.RunId,               // name
@@ -552,7 +605,7 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
-	// generate compatible timestamp to python isoformat (microseconds without Z)
+	// generate compatible timestamp to python iso-format (microseconds without Z)
 	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {

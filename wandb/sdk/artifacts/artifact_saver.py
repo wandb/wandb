@@ -130,24 +130,17 @@ class ArtifactSaver:
             history_step=history_step,
         )
 
-        # TODO(artifacts):
-        #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily
-        #   correct. It may be better to poll until it's committed or failed, and then decided what to
-        #   do
         assert self._server_artifact is not None  # mypy optionality unwrapper
         artifact_id = self._server_artifact["id"]
         if base_id is None and latest:
             base_id = latest["id"]
-        if (
-            self._server_artifact["state"] == "COMMITTED"
-            or self._server_artifact["state"] == "COMMITTING"
-        ):
-            # TODO: update aliases, description etc?
+        if self._server_artifact["state"] == "COMMITTED":
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
             return self._server_artifact
-        elif (
+        if (
             self._server_artifact["state"] != "PENDING"
+            # For old servers, see https://github.com/wandb/wandb/pull/6190
             and self._server_artifact["state"] != "DELETED"
         ):
             raise Exception(

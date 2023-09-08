@@ -199,7 +199,7 @@ class Api:
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = env.get_http_timeout(30)
+    HTTP_TIMEOUT = env.get_http_timeout(20)
     FILE_PUSHER_TIMEOUT = env.get_file_pusher_timeout()
     _global_context: context.Context
     _local_data: _ThreadLocalData
@@ -3391,12 +3391,7 @@ class Api:
                 }) {
                     artifact {
                         id
-                        digest
                         state
-                        aliases {
-                            artifactCollectionName
-                            alias
-                        }
                         artifactSequence {
                             id
                             latestArtifact {
@@ -3473,13 +3468,6 @@ class Api:
             },
         )
         av = response["createArtifact"]["artifact"]
-        # TODO: make this a part of the graph
-        av["version"] = "latest"
-        for alias in av["aliases"]:
-            if alias["artifactCollectionName"] == artifact_collection_name and re.match(
-                r"^v\d+$", alias["alias"]
-            ):
-                av["version"] = alias["alias"]
         latest = response["createArtifact"]["artifact"]["artifactSequence"].get(
             "latestArtifact"
         )

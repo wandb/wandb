@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wandb/wandb/nexus/internal/clients"
+
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/wandb/wandb/nexus/pkg/filestream"
@@ -144,9 +146,10 @@ func NewFilestreamTest(tName string, fn func(fs *filestream.FileStream)) *filest
 		filestream.WithPath(tserver.hserver.URL+fstreamPath),
 		filestream.WithSettings(tserver.settings),
 		filestream.WithLogger(tserver.logger),
-		filestream.WithHttpClient(server.NewRetryClient(
-			tserver.settings.GetApiKey().GetValue(),
-			tserver.logger)))
+		filestream.WithHttpClient(clients.NewRetryClient(
+			clients.WithRetryClientHttpAuthTransport(tserver.settings.GetApiKey().GetValue()),
+			clients.WithRetryClientLogger(tserver.logger))),
+	)
 	fs.Start()
 	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tserver.mux, fs: fs, tserver: tserver}
 	defer fsTest.finish()

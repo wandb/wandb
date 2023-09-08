@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 import wandb
 from wandb import util
+from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -20,7 +20,6 @@ class WBLocalArtifactHandler(StorageHandler):
 
     def __init__(self) -> None:
         self._scheme = "wandb-client-artifact"
-        self._cache = get_artifacts_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
         return parsed_url.scheme == self._scheme
@@ -54,7 +53,7 @@ class WBLocalArtifactHandler(StorageHandler):
         """
         client_id = util.host_from_path(path)
         target_path = util.uri_from_path(path)
-        target_artifact = self._cache.get_client_artifact(client_id)
+        target_artifact = artifact_cache.get(client_id)
         if not isinstance(target_artifact, wandb.Artifact):
             raise RuntimeError("Local Artifact not found - invalid reference")
         target_entry = target_artifact._manifest.entries[target_path]

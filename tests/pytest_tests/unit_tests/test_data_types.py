@@ -2,7 +2,6 @@ import glob
 import io
 import os
 import platform
-import tempfile
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -1530,7 +1529,7 @@ def test_numpy_arrays_to_list():
 
 
 def test_log_uint8_image():
-    with tempfile.NamedTemporaryFile(suffix=".png") as temp:
+    with open("temp.png", "wb") as temp:
         # Create and save image
         imarray = np.random.rand(100, 100, 3) * 255
         im = Image.fromarray(imarray.astype("uint8")).convert("RGBA")
