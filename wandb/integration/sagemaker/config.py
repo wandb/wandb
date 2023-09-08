@@ -26,7 +26,7 @@ def parse_sm_config() -> Dict[str, Any]:
     ):
         conf["sagemaker_training_job_name"] = os.getenv("TRAINING_JOB_NAME")
         # Hyperparameter searches quote configs...
-        with open(sm_files.SM_PARAM_CONFIG, "r") as fid:
+        with open(sm_files.SM_PARAM_CONFIG) as fid:
             for key, val in json.load(fid).items():
                 cast = val.strip('"')
                 if re.match(r"^-?[\d]+$", cast):

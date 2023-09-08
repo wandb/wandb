@@ -1,17 +1,15 @@
 """
-Unit tests for the parse_sm_config function of the
-wandb.
+Unit tests for the parse_sm_config function of the wandb.integration.sagemaker module.
 
-integration.sagemaker module. This module tests
-the behavior of the parse_sm_config function ensuring correct
-configuration parsing, especially with the SM_TRAINING_ENV
-environment variable.
+This module tests the behavior of the parse_sm_config function ensuring correct
+configuration parsing, especially with the SM_TRAINING_ENV environment variable.
 """
 
-import os
-import json
 import io
+import json
+import os
 from unittest import mock
+
 from wandb.integration.sagemaker.config import parse_sm_config
 
 
@@ -24,12 +22,10 @@ from wandb.integration.sagemaker.config import parse_sm_config
     read_data=json.dumps({"param1": "2022-04-01"}),
 )
 def test_parse_sm_config(mock_open, mock_json_load, mock_getenv, mock_path_exists):
-    """
-    Test that the parse_sm_config function returns
-    the correct config both cases when the
-    SM_TRAINING_ENV environment variable is not
-    set and when it is set.
-    The function should return the correct config in both cases.
+    """Test that the parse_sm_config function returns the correct config.
+
+    It tests in both cases: when the SM_TRAINING_ENV environment variable is not
+    set and when it is set. The function should return the correct config in both cases.
     """
     mock_getenv.return_value = "2022-07-21"
     mock_path_exists.return_value = True
@@ -120,16 +116,11 @@ def test_parse_sm_config(mock_open, mock_json_load, mock_getenv, mock_path_exist
     # Mock getenv to return the environment variable value
     mock_getenv.side_effect = lambda key, dflt=None: os.environ.get(key, dflt)
 
-    # Check if SM_TRAINING_ENV exists -- should there be future
-    # changes to integration that manipulate this
-    # such as if this is just a string ""{.../.../...}""
-
-    training_env = os.getenv("SM_TRAINING_ENV")
     # Deserialize it to ensure it's a valid JSON
     try:
-        training_env_data = json.loads(training_env)
+        training_env_data = json.loads(os.getenv("SM_TRAINING_ENV"))
     except json.JSONDecodeError:
-        assert False, "SM_TRAINING_ENV is not a valid JSON string!"
+        raise AssertionError("SM_TRAINING_ENV is not a valid JSON string!")
 
     conf = parse_sm_config()
     expected_conf.update(training_env_data)
