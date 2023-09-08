@@ -88,7 +88,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_settings import Settings
+from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:

@@ -11,8 +11,8 @@ import psutil
 
 import wandb
 from wandb import env, trigger
-from wandb.sdk.lib import redirect
 from wandb.errors import Error
+from wandb.sdk.lib import redirect
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 

@@ -705,9 +705,7 @@ _WSCH = _WindowSizeChangeHandler()
 
 
 class RedirectRaw(RedirectBase):
-    """
-    Redirects low level file descriptors without an emulator.
-    """
+    """Redirects low level file descriptors without an emulator."""
 
     def __init__(self, src, cbs=()):
         super().__init__(src=src, cbs=cbs)
