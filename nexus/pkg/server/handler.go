@@ -450,7 +450,6 @@ func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest
 	if h.settings.GetXDisableMeta().GetValue() {
 		return
 	}
-	fmt.Println(req.Run)
 	var git *service.GitRepoRecord
 	if req.Run.GetGit() != nil {
 		git = &service.GitRepoRecord{
