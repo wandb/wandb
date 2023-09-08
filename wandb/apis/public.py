@@ -255,7 +255,7 @@ class Api:
             You can also set defaults for `entity`, `project`, and `run`.
     """
 
-    _HTTP_TIMEOUT = env.get_http_timeout(29)
+    _HTTP_TIMEOUT = env.get_http_timeout(19)
     VIEWER_QUERY = gql(
         """
         query Viewer{
@@ -2619,8 +2619,6 @@ class QueuedRun:
     def wait_until_running(self):
         if self._run is not None:
             return self._run
-        if self.container_job:
-            raise LaunchError("Container jobs cannot be waited on")
 
         while True:
             # sleep here to hide an ugly warning
