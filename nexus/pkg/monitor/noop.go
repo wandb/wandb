@@ -1,5 +1,3 @@
-//go:build !linux || libwandb_core
-
 package monitor
 
 import (
