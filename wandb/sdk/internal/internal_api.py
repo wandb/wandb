@@ -423,7 +423,11 @@ class Api:
                 }
         """
         result = self.default_settings.copy()
+        print("1. result: ", result.get("entity"))
         result.update(self._settings.items(section=section))  # type: ignore
+        print("2. result: ", result.get("entity"))
+        # if result.get("entity") is not None:
+        #     breakpoint()
         result.update(
             {
                 "entity": env.get_entity(
@@ -460,6 +464,7 @@ class Api:
                 ),
             }
         )
+        print("3. result: ", result.get("entity"))
 
         return result if key is None else result[key]  # type: ignore
 
@@ -1966,7 +1971,7 @@ class Api:
         kwargs = {}
         if num_retries is not None:
             kwargs["num_retries"] = num_retries
-
+        breakpoint()
         variable_values = {
             "id": id,
             "entity": entity or self.settings("entity"),

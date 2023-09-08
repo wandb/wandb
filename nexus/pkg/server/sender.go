@@ -489,9 +489,18 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			return
 		}
 
+		fmt.Println(run)
+
 		s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
-		s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
-		s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
+		if data.UpsertBucket.Bucket.Project != nil {
+			s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
+			if &data.UpsertBucket.Bucket.Project.Entity != nil {
+				s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
+			}
+		} else {
+			s.RunRecord.Project = run.Project
+			// s.RunRecord.Entity = run.Entity
+		}
 	}
 
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {

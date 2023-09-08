@@ -750,7 +750,7 @@ class _WandbInit:
         run_init_handle = backend.interface.deliver_run(run)
         result = run_init_handle.wait(
             timeout=timeout,
-            on_progress=self._on_progress_init,
+            # on_progress=self._on_progress_init,
             cancel=True,
         )
         if result:
