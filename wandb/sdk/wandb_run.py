@@ -88,7 +88,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_settings import Settings, SettingsConsole
+from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -2054,7 +2054,7 @@ class Run:
         logger.info("redirect: %s", console)
 
         # redirect is handled by the service manager
-        if console == SettingsConsole.REDIRECT:
+        if console == "redirect":
             manager = self._wl and self._wl._get_manager()
             if manager:
                 manager._inform_console_start(run_id=self._settings.run_id)

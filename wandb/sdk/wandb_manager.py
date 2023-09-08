@@ -198,10 +198,8 @@ class _Manager:
 
     def _console_setup(self) -> None:
         # avoid circular import. fix this
-        from wandb.sdk.wandb_settings import SettingsConsole
-
-        console = self._settings._console
-        if console != SettingsConsole.REDIRECT:
+        console = self._settings.console
+        if console != "redirect":
             return
         self._redirect_install()
 
