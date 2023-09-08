@@ -2,12 +2,14 @@ import pytest
 import yaml
 from utils import (
     cleanup_deployment,
+    get_sweep_id_from_proc,
+    init_agent_in_launch_cluster,
     run_cmd,
     run_cmd_async,
-    setup_cleanup_on_exit,
-    update_dict,
-    wait_for_image_job_completion,
+    wait_for_queued_image_job_completion,
+    wait_for_run_completion,
 )
+from wandb.apis.public import Api, Sweep
 from wandb.sdk.launch.launch_add import launch_add
 
 NAMESPACE = "wandb-release-testing"
@@ -37,7 +39,7 @@ def test_kubernetes_agent_on_local_process():
             config=LAUNCH_JOB_CONFIG,
         )
 
-        status, completed_run = wait_for_image_job_completion(
+        status, completed_run = wait_for_queued_image_job_completion(
             NAMESPACE, ENTITY, PROJECT, queued_run
         )
 
@@ -56,49 +58,9 @@ def test_kubernetes_agent_on_local_process():
         run_cmd("rm -r artifacts")
 
 
-def _create_config_files():
-    """Create a launch-config.yml and launch-agent.yml."""
-    launch_config = yaml.load_all(
-        open("wandb/sdk/launch/deploys/kubernetes/launch-config.yaml")
-    )
-    launch_config_patch = yaml.load_all(
-        open("tests/release_tests/test_launch/launch-config-patch.yaml")
-    )
-    final_launch_config = []
-    for original, updated in zip(launch_config, launch_config_patch):
-        document = dict(original)
-        update_dict(document, dict(updated))
-        final_launch_config.append(document)
-    yaml.dump_all(
-        final_launch_config,
-        open("tests/release_tests/test_launch/launch-config.yml", "w+"),
-    )
-    launch_agent = yaml.load(
-        open("wandb/sdk/launch/deploys/kubernetes/launch-agent.yaml")
-    )
-    launch_agent_patch = yaml.load(
-        open("tests/release_tests/test_launch/launch-agent-patch.yaml")
-    )
-    launch_agent_dict = dict(launch_agent)
-    update_dict(launch_agent_dict, dict(launch_agent_patch))
-    yaml.dump(
-        launch_agent_dict,
-        open("tests/release_tests/test_launch/launch-agent.yml", "w+"),
-    )
-
-
 @pytest.mark.timeout(180)
 def test_kubernetes_agent_in_cluster():
-    _create_config_files()
-
-    run_cmd(
-        "python tools/build_launch_agent.py --tag wandb-launch-agent:release-testing"
-    )
-    run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
-    run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml")
-
-    setup_cleanup_on_exit(NAMESPACE)
-
+    init_agent_in_launch_cluster(NAMESPACE)
     try:
         # Start run
         queued_run = launch_add(
@@ -108,7 +70,7 @@ def test_kubernetes_agent_in_cluster():
             config=LAUNCH_JOB_CONFIG,
         )
 
-        status, completed_run = wait_for_image_job_completion(
+        status, completed_run = wait_for_queued_image_job_completion(
             NAMESPACE, ENTITY, PROJECT, queued_run
         )
 
@@ -126,3 +88,64 @@ def test_kubernetes_agent_in_cluster():
     finally:
         # Cleanup
         cleanup_deployment(NAMESPACE)
+
+
+@pytest.mark.timeout(360)
+def test_kubernetes_agent_on_local_process_sweep():
+    run_cap = 4
+    try:
+        agent_process = run_cmd_async(
+            f"wandb launch-agent -q {QUEUE} -e {ENTITY} -c tests/release_tests/test_launch/local-agent-config.yml"
+        )
+        sweep_config = {
+            "job": f"{ENTITY}/{PROJECT}/{JOB_NAME}",
+            "project": PROJECT,
+            "entity": ENTITY,
+            "run_cap": run_cap,
+            "method": "bayes",
+            "metric": {
+                "name": "avg",
+                "goal": "maximize",
+            },
+            "parameters": {
+                "param1": {
+                    "min": 0,
+                    "max": 8,
+                }
+            },
+        }
+
+        yaml.dump(sweep_config, open("tests/release_tests/test_launch/c.yaml", "w"))
+
+        proc = run_cmd_async(
+            f"wandb launch-sweep tests/release_tests/test_launch/c.yaml -e {ENTITY} -p {PROJECT} -q {QUEUE}"
+        )
+
+        # Poll process.stdout to show stdout live
+        sweep_id = get_sweep_id_from_proc(proc)
+        assert sweep_id
+
+        # poll on sweep scheduler run
+        run = wait_for_run_completion(f"{ENTITY}/{PROJECT}/{sweep_id}")
+        assert run
+
+        api = Api()
+        sweep: Sweep = api.sweep(f"{ENTITY}/{PROJECT}/{sweep_id}")
+        sweep.load(force=True)
+
+        assert len(sweep.runs) == run_cap
+        for run in sweep.runs:
+            assert run.config["param1"] in list(range(0, 8 + 1))
+            assert run.state == "finished"
+
+            summary = run.summary
+            history = run.history(pandas=False)
+
+            assert summary["time_elapsed"]
+            assert summary["avg"]
+            assert len(history) == 50
+            assert history[-1]["steps"] == 49
+
+    finally:
+        agent_process.kill()
+        proc.kill()
