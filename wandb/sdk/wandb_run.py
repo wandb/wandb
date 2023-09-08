@@ -2216,8 +2216,8 @@ class Run:
 
     def _console_stop(self) -> None:
         # redirect is handled by the service manager
-        console = self._settings._console
-        if console == SettingsConsole.REDIRECT:
+        console = self._settings.console
+        if console == "redirect":
             manager = self._wl and self._wl._get_manager()
             if manager:
                 run_id = self._settings.run_id
