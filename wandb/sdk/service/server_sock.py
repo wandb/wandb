@@ -4,6 +4,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -154,7 +155,9 @@ class SockServerReadThread(threading.Thread):
                 # TODO this might happen at shutdown, handle this better
                 continue
             assert iface.record_q
-            iface.record_q.put(request.record)
+            record = pb.Record()
+            record.CopyFrom(request.record)
+            iface.record_q.put(record)
 
     def server_inform_subscribe(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_subscribe
