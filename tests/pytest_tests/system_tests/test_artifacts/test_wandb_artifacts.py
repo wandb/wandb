@@ -32,6 +32,7 @@ def mock_boto(artifact, path=False, content_type=None):
         def __init__(self, name="my_object.pb", metadata=None, version_id=None):
             self.metadata = metadata or {"md5": "1234567890abcde"}
             self.e_tag = '"1234567890abcde"'
+            self.bucket_name = "my-bucket"
             self.version_id = version_id or "1"
             self.name = name
             self.key = name
@@ -51,9 +52,16 @@ def mock_boto(artifact, path=False, content_type=None):
                     "HeadObject",
                 )
 
+    class S3ObjectSummary:
+        def __init__(self, name=None, size=10):
+            self.e_tag = '"1234567890abcde"'
+            self.bucket_name = "my-bucket"
+            self.key = name or "my_object.pb"
+            self.size = size
+
     class Filtered:
         def limit(self, *args, **kwargs):
-            return [S3Object(), S3Object(name="my_other_object.pb")]
+            return [S3ObjectSummary(), S3ObjectSummary(name="my_other_object.pb")]
 
     class S3Objects:
         def filter(self, **kwargs):
@@ -65,7 +73,7 @@ def mock_boto(artifact, path=False, content_type=None):
 
     class S3Resource:
         def Object(self, bucket, key):  # noqa: N802
-            return S3Object()
+            return S3Object(name=key)
 
         def ObjectVersion(self, bucket, key, version):  # noqa: N802
             class Version:
