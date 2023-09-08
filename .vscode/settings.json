@@ -21,12 +21,9 @@
   "python.testing.pytestEnabled": true,
   "python.testing.nosetestsEnabled": false,
 
-  "python.formatting.provider": "none",
+  "python.formatting.provider": "black",
   "python.formatting.autopep8Args": ["--max-line-length", "120"],
   "python.testing.pytestArgs": ["."],
   "python.linting.pylintEnabled": false,
-  "jupyter.jupyterServerType": "local",
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.autopep8"
-  }
+  "jupyter.jupyterServerType": "local"
 }
