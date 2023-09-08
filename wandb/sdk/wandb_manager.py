@@ -298,14 +298,20 @@ class _Manager:
 
     def _inform_broadcast(self, record: pb.Record, subscription_key: str) -> None:
         svc_iface = self._get_service_interface()
-        svc_iface._svc_inform_broadcast(record=record, subscription_key=subscription_key)
+        svc_iface._svc_inform_broadcast(
+            record=record, subscription_key=subscription_key
+        )
 
     def _inform_subscribe(self, run_id: str, subscription_key: str) -> None:
         self._flush_console()
         svc_iface = self._get_service_interface()
-        svc_iface._svc_inform_subscribe(run_id=run_id, subscription_key=subscription_key)
+        svc_iface._svc_inform_subscribe(
+            run_id=run_id, subscription_key=subscription_key
+        )
 
     def _inform_unsubscribe(self, run_id: str, subscription_key: str) -> None:
         self._flush_console()
         svc_iface = self._get_service_interface()
-        svc_iface._svc_inform_unsubscribe(run_id=run_id, subscription_key=subscription_key)
+        svc_iface._svc_inform_unsubscribe(
+            run_id=run_id, subscription_key=subscription_key
+        )

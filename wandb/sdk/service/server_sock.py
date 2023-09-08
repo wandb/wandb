@@ -4,7 +4,6 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -143,7 +142,9 @@ class SockServerReadThread(threading.Thread):
 
     def server_inform_broadcast(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_broadcast
-        console_stream_ids = self._mux.get_subscribed_stream_ids(request.subscription_key)
+        console_stream_ids = self._mux.get_subscribed_stream_ids(
+            request.subscription_key
+        )
         if not console_stream_ids:
             return
         for stream_id in console_stream_ids:
