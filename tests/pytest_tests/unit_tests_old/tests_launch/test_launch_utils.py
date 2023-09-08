@@ -2,7 +2,7 @@ import random
 from typing import List
 
 import pytest
-from wandb.errors import LaunchError
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import diff_pip_requirements, parse_wandb_uri
 
 REQUIREMENT_FILE_BASIC: List[str] = [
@@ -25,7 +25,6 @@ REQUIREMENT_FILE_GIT: List[str] = [
 
 
 def test_diff_pip_requirements():
-
     # Order in requirements file should not matter
     _shuffled = REQUIREMENT_FILE_BASIC.copy()
     random.shuffle(_shuffled)

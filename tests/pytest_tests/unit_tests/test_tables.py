@@ -194,11 +194,12 @@ def test_fk_from_pk_local_draft():
 
 
 def test_loading_from_json_with_mixed_types():
-    """
-    When a Table was saved with `allow_mixed_types=True`, the correct datatype
-    was saved to the serialized json object. However, loading that Table
-    caused an error; that datatype was never used in Table instantiation.
-    This unit test makes sure this path runs correctly.
+    """Test loading a Table from json instantiates the correct types.
+
+    When a Table was saved with `allow_mixed_types=True`, the correct datatype was saved
+    to the serialized json object. However, loading that Table caused an error; that
+    datatype was never used in Table instantiation. This unit test makes sure this path
+    runs correctly.
     """
     json_obj = {
         "_type": "table",

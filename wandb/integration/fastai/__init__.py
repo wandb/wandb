@@ -1,5 +1,5 @@
-"""
-This module hooks fast.ai v1 Learners to Weights & Biases through a callback.
+"""Hooks that add fast.ai v1 Learners to Weights & Biases through a callback.
+
 Requested logged data can be configured through the callback constructor.
 
 Examples:
@@ -61,8 +61,8 @@ except ImportError:
 
 
 class WandbCallback(TrackerCallback):
-    """
-    Automatically saves model topology, losses & metrics.
+    """Callback for saving model topology, losses & metrics.
+
     Optionally logs weights, gradients, sample predictions and best trained model.
 
     Arguments:
@@ -92,7 +92,6 @@ class WandbCallback(TrackerCallback):
         predictions: int = 36,
         seed: int = 12345,
     ) -> None:
-
         # Check if wandb.init has been called
         if wandb.run is None:
             raise ValueError("You must call wandb.init() before WandbCallback()")
@@ -119,8 +118,7 @@ class WandbCallback(TrackerCallback):
             self.validation_data = [learn.data.valid_ds[i] for i in indices]
 
     def on_train_begin(self, **kwargs: Any) -> None:
-        """Call watch method to log model topology, gradients & weights"""
-
+        """Call watch method to log model topology, gradients & weights."""
         # Set self.best, method inherited from "TrackerCallback" by "SaveModelCallback"
         super().on_train_begin()
 
@@ -134,8 +132,7 @@ class WandbCallback(TrackerCallback):
     def on_epoch_end(
         self, epoch: int, smooth_loss: float, last_metrics: list, **kwargs: Any
     ) -> None:
-        """Logs training loss, validation loss and custom metrics & log prediction samples & save model"""
-
+        """Log training loss, validation loss and custom metrics & log prediction samples & save model."""
         if self.save_model:
             # Adapted from fast.ai "SaveModelCallback"
             current = self.get_monitor_value()
@@ -174,7 +171,6 @@ class WandbCallback(TrackerCallback):
 
     def on_train_end(self, **kwargs: Any) -> None:
         """Load the best model."""
-
         if self.save_model:
             # Adapted from fast.ai "SaveModelCallback"
             if self.model_path.is_file():
@@ -183,8 +179,7 @@ class WandbCallback(TrackerCallback):
                     print(f"Loaded best saved model from {self.model_path}")
 
     def _wandb_log_predictions(self) -> None:
-        """Log prediction samples"""
-
+        """Log prediction samples."""
         pred_log = []
 
         if self.validation_data is None:
@@ -234,7 +229,6 @@ class WandbCallback(TrackerCallback):
             elif hasattr(y, "shape") and (
                 (len(y.shape) == 2) or (len(y.shape) == 3 and y.shape[0] in [1, 3, 4])
             ):
-
                 pred_log.extend(
                     [
                         wandb.Image(x.data, caption="Input data", grouping=3),

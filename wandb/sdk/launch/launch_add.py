@@ -4,12 +4,9 @@ from typing import Any, Dict, List, Optional
 import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
-from wandb.sdk.launch._project_spec import (
-    compute_command_args,
-    create_project_from_spec,
-)
+from wandb.sdk.launch._project_spec import create_project_from_spec
 from wandb.sdk.launch.builder.build import build_image_from_project
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
@@ -41,13 +38,13 @@ def launch_add(
     name: Optional[str] = None,
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
-    params: Optional[Dict[str, Any]] = None,
     project_queue: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
-    cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    sweep_id: Optional[str] = None,
+    author: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -65,11 +62,8 @@ def launch_add(
     name: Name run under which to launch the run.
     version: For Git-based projects, either a commit hash or a branch name.
     docker_image: The name of the docker image to use for the run.
-    params: Parameters (dictionary) for the entry point command. Defaults to using the
-        the parameters used to run the original run.
     resource_args: Resource related arguments for launching runs onto a remote backend.
         Will be stored on the constructed launch config under ``resource_args``.
-    cuda: Whether to build a CUDA-enabled docker image or not
     run_id: optional string indicating the id of the launched run
     build: optional flag defaulting to false, requires queue to be set
         if build, an image is created, creates a job artifact, pushes a reference
@@ -113,13 +107,13 @@ def launch_add(
         name,
         version,
         docker_image,
-        params,
         project_queue,
         resource_args,
-        cuda,
         run_id=run_id,
         build=build,
         repository=repository,
+        sweep_id=sweep_id,
+        author=author,
     )
 
 
@@ -136,13 +130,13 @@ def _launch_add(
     name: Optional[str],
     version: Optional[str],
     docker_image: Optional[str],
-    params: Optional[Dict[str, Any]],
     project_queue: Optional[str],
     resource_args: Optional[Dict[str, Any]] = None,
-    cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    sweep_id: Optional[str] = None,
+    author: Optional[str] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -155,12 +149,12 @@ def _launch_add(
         resource,
         entry_point,
         version,
-        params,
         resource_args,
         config,
-        cuda,
         run_id,
         repository,
+        author,
+        sweep_id,
     )
 
     if build:
@@ -174,15 +168,16 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(launch_project, api, config)
+        docker_image_uri = build_image_from_project(launch_project, api, config or {})
         run = wandb.run or wandb.init(
             project=launch_spec["project"],
             entity=launch_spec["entity"],
             job_type="launch_job",
         )
 
-        args = compute_command_args(launch_project.override_args)
-        job_artifact = run._log_job_artifact_with_image(docker_image_uri, args)
+        job_artifact = run._log_job_artifact_with_image(
+            docker_image_uri, launch_project.override_args
+        )
         job_name = job_artifact.wait().name
 
         job = f"{launch_spec['entity']}/{launch_spec['project']}/{job_name}"
@@ -207,13 +202,16 @@ def _launch_add(
         if updated_spec.get("resource"):
             launch_spec["resource"] = updated_spec.get("resource")
 
-    wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
+    if project_queue == LAUNCH_DEFAULT_PROJECT:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+    else:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     container_job = False
     if job:
         job_artifact = public_api.job(job)
-        if job_artifact._source_info.get("source_type") == "image":
+        if job_artifact._job_info.get("source_type") == "image":
             container_job = True
 
     queued_run = public_api.queued_run(

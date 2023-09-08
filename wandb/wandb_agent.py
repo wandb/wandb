@@ -1,4 +1,3 @@
-import json
 import logging
 import multiprocessing
 import os
@@ -11,7 +10,7 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import yaml
 
@@ -19,6 +18,7 @@ import wandb
 from wandb import util, wandb_lib, wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
+from wandb.sdk.launch.sweeps import utils as sweep_utils
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +169,11 @@ class Agent:
             os.environ["WANDB_DIR"] = os.path.abspath(os.getcwd())
 
     def is_flapping(self):
-        """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
-        exit codes in the first FLAPPING_MAX_SECONDS"""
+        """Determine if the process is flapping.
+
+        Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0 exit codes in
+        the first FLAPPING_MAX_SECONDS.
+        """
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
@@ -183,7 +186,6 @@ class Agent:
         )
 
     def run(self):  # noqa: C901
-
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
@@ -340,64 +342,6 @@ class Agent:
 
         return response
 
-    @staticmethod
-    def _create_command_args(command: Dict) -> Dict[str, Any]:
-        """Create various formats of command arguments for the agent.
-
-        Raises:
-            ValueError: improperly formatted command dict
-
-        """
-        if "args" not in command:
-            raise ValueError('No "args" found in command: %s' % command)
-        # four different formats of command args
-        # (1) standard command line flags (e.g. --foo=bar)
-        flags: List[str] = []
-        # (2) flags without hyphens (e.g. foo=bar)
-        flags_no_hyphens: List[str] = []
-        # (3) flags with false booleans ommited  (e.g. --foo)
-        flags_no_booleans: List[str] = []
-        # (4) flags as a dictionary (used for constructing a json)
-        flags_dict: Dict[str, Any] = {}
-        for param, config in command["args"].items():
-            _value: Any = config.get("value", None)
-            if _value is None:
-                raise ValueError('No "value" found for command["args"]["%s"]' % param)
-            _flag: str = f"{param}={_value}"
-            flags.append("--" + _flag)
-            flags_no_hyphens.append(_flag)
-            if isinstance(_value, bool):
-                # omit flags if they are boolean and false
-                if _value:
-                    flags_no_booleans.append("--" + param)
-            else:
-                flags_no_booleans.append("--" + _flag)
-            flags_dict[param] = _value
-        return {
-            "args": flags,
-            "args_no_hyphens": flags_no_hyphens,
-            "args_no_boolean_flags": flags_no_booleans,
-            "args_json": [json.dumps(flags_dict)],
-            "args_dict": flags_dict,
-        }
-
-    @staticmethod
-    def _create_sweep_command(command: Optional[List] = None) -> List:
-        """Returns sweep command, filling in environment variable macros."""
-        # Start from default sweep command
-        command = command or Agent.DEFAULT_SWEEP_COMMAND
-        for i, chunk in enumerate(command):
-            # Replace environment variable macros
-            # Search a str(chunk), but allow matches to be of any (ex: int) type
-            if Agent.SWEEP_COMMAND_ENV_VAR_REGEX.search(str(chunk)):
-                # Replace from backwards forwards
-                matches = list(Agent.SWEEP_COMMAND_ENV_VAR_REGEX.finditer(chunk))
-                for m in matches[::-1]:
-                    # Default to just leaving as is if environment variable does not exist
-                    _var: str = os.environ.get(m.group(1), m.group(1))
-                    command[i] = f"{command[i][:m.start()]}{_var}{command[i][m.end():]}"
-        return command
-
     def _command_run(self, command):
         logger.info(
             "Agent starting run with config:\n"
@@ -419,7 +363,7 @@ class Agent:
             )
 
         # Setup sweep command
-        sweep_command: List[str] = Agent._create_sweep_command(self._sweep_command)
+        sweep_command: List[str] = sweep_utils.create_sweep_command(self._sweep_command)
 
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
@@ -442,7 +386,7 @@ class Agent:
 
         env = dict(os.environ)
 
-        sweep_vars: Dict[str, Any] = Agent._create_command_args(command)
+        sweep_vars: Dict[str, Any] = sweep_utils.create_sweep_command_args(command)
 
         if "${args_json_file}" in sweep_command:
             with open(json_file, "w") as fp:
@@ -543,7 +487,7 @@ def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
     parts = dict(entity=entity, project=project, name=sweep_id)
-    err = util.parse_sweep_id(parts)
+    err = sweep_utils.parse_sweep_id(parts)
     if err:
         wandb.termerror(err)
         return
@@ -588,11 +532,9 @@ def run_agent(
 
 
 def agent(sweep_id, function=None, entity=None, project=None, count=None):
-    """
-    Generic agent entrypoint, used for CLI or jupyter.
+    """Run a function or program with configuration parameters specified by server.
 
-    Will run a function or program with configuration parameters specified
-    by server.
+    Generic agent entrypoint, used for CLI or jupyter.
 
     Arguments:
         sweep_id: (dict) Sweep ID generated by CLI or sweep API

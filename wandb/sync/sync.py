@@ -1,6 +1,4 @@
-"""
-sync.
-"""
+"""sync."""
 
 import datetime
 import fnmatch
@@ -16,6 +14,7 @@ import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context, datastore, handler, sender, tb_watcher
+from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import filesystem
 from wandb.util import check_and_warn_old
 
@@ -121,7 +120,7 @@ class SyncThread(threading.Thread):
         return tb_event_files, tb_logdirs, tb_root
 
     def _setup_tensorboard(self, tb_root, tb_logdirs, tb_event_files, sync_item):
-        """Returns true if this sync item can be synced as tensorboard"""
+        """Return true if this sync item can be synced as tensorboard."""
         if tb_root is not None:
             if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
                 wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
@@ -138,12 +137,13 @@ class SyncThread(threading.Thread):
 
     def _send_tensorboard(self, tb_root, tb_logdirs, send_manager):
         if self._entity is None:
-            viewer, server_info = send_manager._api.viewer_server_info()
+            viewer, _ = send_manager._api.viewer_server_info()
             self._entity = viewer.get("entity")
         proto_run = wandb_internal_pb2.RunRecord()
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
+        proto_run.telemetry.feature.sync_tfevents = True
 
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
@@ -175,8 +175,10 @@ class SyncThread(threading.Thread):
             _start_time=time.time(),
         )
 
+        settings_static = SettingsStatic(settings.to_proto())
+
         handle_manager = handler.HandleManager(
-            settings=settings,
+            settings=settings_static,
             record_q=record_q,
             result_q=None,
             stopped=False,
@@ -218,7 +220,7 @@ class SyncThread(threading.Thread):
         send_manager.finish()
 
     def _robust_scan(self, ds):
-        """Attempt to scan data, handling incomplete files"""
+        """Attempt to scan data, handling incomplete files."""
         try:
             return ds.scan_data()
         except AssertionError as e:

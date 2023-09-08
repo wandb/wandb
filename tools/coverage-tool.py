@@ -1,23 +1,25 @@
 #!/usr/bin/env python
-"""Helper for codecov at wandb
+"""Helper for codecov at wandb.
+
+First run the following to install the circleci tool:
+    curl -fLSs https://circle.ci/cli | bash
 
 Usage:
     ./tools/coverage-tool.py jobs
-    ./tools/coverage-tool.py jobs | wc -l
     ./tools/coverage-tool.py check
 """
 
 import argparse
 import configparser
-import copy
-import itertools
+import re
+import subprocess
 import sys
 
 import yaml
 
 
 def find_list_of_key_locations_and_dicts(data, search_key: str, root=None):
-    """Search for a dict with key search_key and value containing search_v
+    """Search for a dict with key search_key and value containing search_v.
 
     Returns:
        # location - list of indexes representing where to find the key
@@ -44,110 +46,15 @@ def find_list_of_key_locations_and_dicts(data, search_key: str, root=None):
             found.extend(
                 find_list_of_key_locations_and_dicts(val, search_key, root=find_root)
             )
-    elif isinstance(data, (str, int, float)) or data is None:
+    elif isinstance(data, (str, int, float, type(None))):
         pass
     else:
         raise RuntimeError(f"unknown type: type={type(data)} data={data}")
     return found
 
 
-def find_parallelism_defaults(loc_dict_tuple):
-    _, containing_dict = loc_dict_tuple
-    parallelism = containing_dict.get("parallelism")
-    if not isinstance(parallelism, dict):
-        return False
-    default = parallelism.get("default")
-    return isinstance(default, int) and default > 1
-
-
-def matrix_expand(loc_dict_tuple_list):
-    ret = []
-    loc_dict_tuple_list = list(loc_dict_tuple_list)
-    for location, containing_dict in loc_dict_tuple_list:
-        matrix = containing_dict.get("matrix")
-        if matrix:
-            # assume any block referencing a matrix is using all parameters
-            # could check <<>> and expand syntax
-            parameters = matrix.get("parameters")
-            groups = []
-            for k, v in parameters.items():
-                groups.append([(k, i) for i in v])
-
-            product = itertools.product(*groups)
-            product = list(product)
-            for subs in product:
-                data = copy.deepcopy(containing_dict)
-                toxenv = data["toxenv"]
-                for k, v in subs:
-                    replace = f"<<matrix.{k}>>"
-                    assert replace in toxenv, f"Cant find {replace} in {toxenv}"
-                    toxenv = toxenv.replace(replace, str(v))
-                data["toxenv"] = toxenv
-                ret.append((location, data))
-        else:
-            ret.append((location, containing_dict))
-    return ret
-
-
-def create_parallelism_defaults_dict(par_defaults_list):
-    ret = {}
-    for location, containing_dict in par_defaults_list:
-        assert len(location) == 3
-        jobs, job_name, parameters = location
-        assert jobs == "jobs"
-        assert parameters == "parameters"
-        default = containing_dict["parallelism"]["default"]
-        ret[job_name] = default
-    return ret
-
-
-def parallelism_expand(cov_list, par_dict):
-    ret = []
-    for location, containing_dict in cov_list:
-        parallelism = containing_dict.get("parallelism")
-        if parallelism:
-            count = parallelism
-        else:
-            # see if we can find counts in defaults
-            # look up by last element in location
-            lookup = location[-1]
-            count = par_dict.get(lookup, 1)
-
-        for i in range(count):
-            loc = location[:]
-            if count > 1:
-                loc.append(i)
-            ret.append((loc, containing_dict))
-    return ret
-
-
-def coverage_tasks(args: argparse.Namespace):
-
-    ci_fname = args.circleci_yaml
-
-    with open(ci_fname) as file:
-        data = yaml.safe_load(file)
-
-        parallelism = find_list_of_key_locations_and_dicts(data, "parallelism")
-        parallelism_defaults = filter(find_parallelism_defaults, parallelism)
-        toxenv = find_list_of_key_locations_and_dicts(data, "toxenv")
-        toxenv_cov = filter(lambda x: "covercircle" in x[1]["toxenv"], toxenv)
-        toxenv_cov_matrix = matrix_expand(toxenv_cov)
-        par_default_dict = create_parallelism_defaults_dict(parallelism_defaults)
-        toxenv_cov_matrix_parallelism = parallelism_expand(
-            toxenv_cov_matrix, par_default_dict
-        )
-        tasks = [
-            (".".join(map(str, x[0])), x[1]["toxenv"])
-            for x in toxenv_cov_matrix_parallelism
-        ]
-    return tasks
-
-
-def coverage_config_check(jobs_count, args):
-    ci_fname = args.codecov_yaml
-
-    with open(ci_fname) as file:
+def coverage_config_check(jobs_count, codecov_yaml):
+    with open(codecov_yaml) as file:
         data = yaml.safe_load(file)
         num_builds_tuple_list = find_list_of_key_locations_and_dicts(
             data, "after_n_builds"
@@ -159,42 +66,58 @@ def coverage_config_check(jobs_count, args):
                 sys.exit(1)
 
 
-def coverage_coveragerc_check(toxenv_list, args):
-    py = "py"
-    cononical = "wandb/"
-    cov_fname = args.coveragerc
-
+def coveragerc_file_check(tox_envs, coveragerc):
     cf = configparser.ConfigParser()
-    cf.read(cov_fname)
+    cf.read(coveragerc)
 
-    paths = cf.get("paths", "canonicalsrc")
-    paths = paths.split()
-
-    toxenv_list = list(set(toxenv_list))
-    toxenv_list.sort()
+    paths = cf.get("paths", "canonicalsrc").split()
 
     # lets generate what paths should look like
-    expected_paths = [cononical]
-    for toxenv in toxenv_list:
-        toxenv = toxenv.split(",")[0]
-        _func, shard, py_ver = toxenv.split("-")
+    expected_paths = ["wandb/"]
+    for tox_env in sorted(tox_envs):
+        modified_toxenv = tox_env.split("-")
+        py_version = modified_toxenv[-1]
+        modified_toxenv.pop(1)
+        modified_toxenv = "-".join(modified_toxenv)
+        assert py_version.startswith("py")
+        python = "".join(("python", py_version[2], ".", py_version[3:]))
 
-        assert py_ver.startswith(py)
-        py_ver = py_ver[len(py) :]
-
-        python = "".join(("python", py_ver[0], ".", py_ver[1:]))
-        path = f".tox/{toxenv}/lib/{python}/site-packages/wandb/"
+        path = f".tox/{modified_toxenv}/lib/{python}/site-packages/wandb/"
         expected_paths.append(path)
 
     if paths != expected_paths:
-        print("Mismatch .coveragerc!")
-        print("Seen:")
+        print("Mismatch .coveragerc!\nSeen:")
         for path in paths:
-            print(f"    {path}")
+            print(f"\t{path}")
         print("Expected:")
         for path in expected_paths:
-            print(f"    {path}")
+            print(f"\t{path}")
         sys.exit(1)
+
+
+def find_num_coverage_jobs(circleci_yaml):
+    config_process = subprocess.run(
+        f"circleci config process {circleci_yaml}",
+        shell=True,
+        stdout=subprocess.PIPE,
+        check=True,
+    )
+    config_yaml = yaml.safe_load(config_process.stdout)
+
+    jobs = {}
+    for job_name, job_config in config_yaml["jobs"].items():
+        parallelism = job_config.get("parallelism", 1)
+        # exclude windows jobs since they are disabled
+        # for non-main and release branches right now
+        if "-win-" in job_name:
+            continue
+        if "steps" in job_config:
+            for step in job_config["steps"][1:]:
+                if "run" in step and re.search(
+                    "cover-.*-circle", step["run"]["command"]
+                ):
+                    jobs[job_name] = parallelism
+    return jobs
 
 
 def process_args():
@@ -213,22 +136,31 @@ def process_args():
     return parser, args
 
 
+def print_coverage_jobs(args):
+    tasks = find_num_coverage_jobs(args.circleci_yaml)
+    max_key_len = max(len(t) for t in tasks)
+    for k, v in tasks.items():
+        print(f"{k:{max_key_len}} {v}")
+    print("-" * (max_key_len + 1 + 3))
+    print(f"{'Total':{max_key_len}} {sum(tasks.values())}")
+
+
+def check_coverage(args):
+    tasks = find_num_coverage_jobs(args.circleci_yaml)
+    # let's only count the main workflow
+    num_tasks = sum(tasks.values())
+    func_tasks = filter(lambda x: x.startswith("func-"), tasks.keys())
+    coverage_config_check(num_tasks, args.codecov_yaml)
+    coveragerc_file_check(func_tasks, args.coveragerc)
+    print("All checks passed!")
+
+
 def main():
     parser, args = process_args()
-
     if args.action == "jobs":
-        tasks = coverage_tasks(args)
-        max_key_len = max(len(t) for t, _ in tasks)
-        for k, v in tasks:
-            print(f"{k:{max_key_len}} {v}")
+        print_coverage_jobs(args)
     elif args.action == "check":
-        tasks = coverage_tasks(args)
-        # let's only count the main workflow
-        main_tasks = list(filter(lambda x: x[0].split(".")[1] == "main", tasks))
-        func_tasks = filter(lambda x: x[1].startswith("func-"), main_tasks)
-        func_toxenvs = list(map(lambda x: x[1], func_tasks))
-        coverage_config_check(len(main_tasks), args)
-        coverage_coveragerc_check(func_toxenvs, args)
+        check_coverage(args)
     else:
         parser.print_help()
 

@@ -1,14 +1,13 @@
-"""
-sender.
-"""
-
+"""sender."""
 
 import json
 import logging
 import os
 import queue
+import sys
 import threading
 import time
+import traceback
 from collections import defaultdict
 from datetime import datetime
 from queue import Queue
@@ -21,6 +20,7 @@ from typing import (
     NewType,
     Optional,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -29,33 +29,45 @@ import requests
 
 import wandb
 from wandb import util
-from wandb.errors import ContextCancelledError
+from wandb.errors import CommError, UsageError
+from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.sdk.lib import redirect
-
-from ..interface import interface
-from ..interface.interface_queue import InterfaceQueue
-from ..lib import (
+from wandb.sdk.artifacts.artifact_saver import ArtifactSaver
+from wandb.sdk.interface import interface
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import (
+    context,
+    datastore,
+    file_stream,
+    internal_api,
+    job_builder,
+    update,
+)
+from wandb.sdk.internal.file_pusher import FilePusher
+from wandb.sdk.internal.job_builder import JobBuilder
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib import (
     config_util,
     filenames,
     filesystem,
     printer,
     proto_util,
+    redirect,
     telemetry,
     tracelog,
 )
-from ..lib.proto_util import message_to_dict
-from ..wandb_settings import Settings
-from . import artifacts, context, datastore, file_stream, internal_api, update
-from .file_pusher import FilePusher
-from .job_builder import JobBuilder
-from .settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.lib.mailbox import ContextCancelledError
+from wandb.sdk.lib.proto_util import message_to_dict
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 if TYPE_CHECKING:
-    import sys
-
     from wandb.proto.wandb_internal_pb2 import (
+        ArtifactManifest,
         ArtifactRecord,
         HttpResponse,
         LocalInfo,
@@ -65,11 +77,6 @@ if TYPE_CHECKING:
         RunRecord,
         SummaryRecord,
     )
-
-    if sys.version_info >= (3, 8):
-        from typing import Literal
-    else:
-        from typing_extensions import Literal
 
     StreamLiterals = Literal["stdout", "stderr"]
 
@@ -99,6 +106,37 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
         ("tensorflow", "tensorflow"),
         ("sklearn", "sklearn"),
     ]
+
+
+def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
+    if manifest.version == 1:
+        contents = {
+            content.path: {
+                "digest": content.digest,
+                "birthArtifactID": content.birth_artifact_id
+                if content.birth_artifact_id
+                else None,
+                "ref": content.ref if content.ref else None,
+                "size": content.size if content.size is not None else None,
+                "local_path": content.local_path if content.local_path else None,
+                "extra": {
+                    extra.key: json.loads(extra.value_json) for extra in content.extra
+                },
+            }
+            for content in manifest.contents
+        }
+    else:
+        raise ValueError(f"unknown artifact manifest version: {manifest.version}")
+
+    return {
+        "version": manifest.version,
+        "storagePolicy": manifest.storage_policy,
+        "storagePolicyConfig": {
+            config.key: json.loads(config.value_json)
+            for config in manifest.storage_policy_config
+        },
+        "contents": contents,
+    }
 
 
 class ResumeState:
@@ -248,7 +286,7 @@ class SendManager:
         self._api_settings = dict()
 
         # queue filled by retry_callback
-        self._retry_q: "Queue[HttpResponse]" = queue.Queue()
+        self._retry_q: Queue[HttpResponse] = queue.Queue()
 
         # do we need to debounce?
         self._config_needs_debounce: bool = False
@@ -270,40 +308,30 @@ class SendManager:
         self._debounce_status_time = time_now
 
     @classmethod
-    def setup(cls, root_dir: str, resume: Union[None, bool, str]) -> "SendManager":
-        """This is a helper class method to set up a standalone SendManager.
+    def setup(
+        cls,
+        root_dir: str,
+        resume: Union[None, bool, str],
+    ) -> "SendManager":
+        """Set up a standalone SendManager.
+
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
-        # TODO(settings) replace with wandb.Settings
-        sd: SettingsDict = dict(
+        settings = wandb.Settings(
             files_dir=files_dir,
             root_dir=root_dir,
-            _start_time=0,
-            git_remote=None,
+            # _start_time=0,
             resume=resume,
-            program=None,
-            ignore_globs=(),
-            run_id=None,
-            entity=None,
-            project=None,
-            run_group=None,
-            job_type=None,
-            run_tags=None,
-            run_name=None,
-            run_notes=None,
-            save_code=None,
-            email=None,
-            silent=None,
-            _offline=None,
+            # ignore_globs=(),
             _sync=True,
-            _live_policy_rate_limit=None,
-            _live_policy_wait_time=None,
             disable_job_creation=False,
+            _async_upload_concurrency_limit=None,
+            _file_stream_timeout_seconds=0,
         )
-        settings = SettingsStatic(sd)
-        record_q: "Queue[Record]" = queue.Queue()
-        result_q: "Queue[Result]" = queue.Queue()
+        settings = SettingsStatic(settings.to_proto())
+        record_q: Queue[Record] = queue.Queue()
+        result_q: Queue[Result] = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
@@ -316,6 +344,21 @@ class SendManager:
 
     def __len__(self) -> int:
         return self._record_q.qsize()
+
+    def __enter__(self) -> "SendManager":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[traceback.TracebackException],
+    ) -> Literal[False]:
+        while self:
+            data = next(self)
+            self.send(data)
+        self.finish()
+        return False
 
     def retry_callback(self, status: int, response_text: str) -> None:
         response = wandb_internal_pb2.HttpResponse()
@@ -347,11 +390,11 @@ class SendManager:
         finally:
             self._api.clear_local_context()
 
-    def send_preempting(self, record: "Record") -> None:
+    def send_preempting(self, _: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_request_sender_mark(self, record: "Record") -> None:
+    def send_request_sender_mark(self, _: "Record") -> None:
         self._maybe_report_status(always=True)
 
     def send_request(self, record: "Record") -> None:
@@ -371,9 +414,9 @@ class SendManager:
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
-        if type(dictionary) == dict:
+        if isinstance(dictionary, dict):
             for k, v in list(dictionary.items()):
-                if type(v) == dict:
+                if isinstance(v, dict):
                     self._flatten(v)
                     dictionary.pop(k)
                     for k2, v2 in v.items():
@@ -445,24 +488,6 @@ class SendManager:
             delete_message = messages.get("delete_message")
             if delete_message:
                 result.response.check_version_response.delete_message = delete_message
-        self._respond_result(result)
-
-    def _send_request_attach(
-        self,
-        req: wandb_internal_pb2.AttachRequest,
-        resp: wandb_internal_pb2.AttachResponse,
-    ) -> None:
-        attach_id = req.attach_id
-        assert attach_id
-        assert self._run
-        resp.run.CopyFrom(self._run)
-
-    def send_request_attach(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
-        result = proto_util._result_from_record(record)
-        self._send_request_attach(
-            record.request.attach, result.response.attach_response
-        )
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
@@ -707,11 +732,21 @@ class SendManager:
             )
         self._respond_result(result)
 
+    def send_request_job_info(self, record: "Record") -> None:
+        """Respond to a request for a job link."""
+        result = proto_util._result_from_record(record)
+        result.response.job_info_response.sequenceId = (
+            self._job_builder._job_seq_id or ""
+        )
+        result.response.job_info_response.version = (
+            self._job_builder._job_version_alias or ""
+        )
+        self._respond_result(result)
+
     def _maybe_setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
-        """This maybe queries the backend for a run and fails if the settings are
-        incompatible."""
+        """Queries the backend for a run; fail if the settings are incompatible."""
         if not self._settings.resume:
             return None
 
@@ -730,8 +765,13 @@ class SendManager:
         if not resume_status:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
-                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-                error.message = "resume='must' but run (%s) doesn't exist" % run.run_id
+                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+                error.message = (
+                    "You provided an invalid value for the `resume` argument."
+                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
+                    " Please check your inputs and try again with a valid run ID."
+                    " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
+                )
                 return error
             return None
 
@@ -740,8 +780,12 @@ class SendManager:
         #
         if self._settings.resume == "never":
             error = wandb_internal_pb2.ErrorInfo()
-            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-            error.message = "resume='never' but run (%s) exists" % run.run_id
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+            error.message = (
+                "You provided an invalid value for the `resume` argument."
+                f" The value 'never' is not a valid option for resuming a run ({run.run_id}) that already exists."
+                " Please check your inputs and try again with a valid value for the `resume` argument."
+            )
             return error
 
         history = {}
@@ -769,7 +813,7 @@ class SendManager:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
-                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
+                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
                 error.message = "resume='must' but could not resume (%s) " % run.run_id
                 return error
 
@@ -850,7 +894,7 @@ class SendManager:
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
     def _sync_spell(self) -> None:
-        """Syncs this run with spell"""
+        """Sync this run with spell."""
         if not self._run:
             return
         try:
@@ -926,7 +970,18 @@ class SendManager:
             config_value_dict = self._config_format(None)
             self._config_save(config_value_dict)
 
-        self._init_run(run, config_value_dict)
+        try:
+            self._init_run(run, config_value_dict)
+        except (CommError, UsageError) as e:
+            logger.error(e, exc_info=True)
+            if record.control.req_resp or record.control.mailbox_slot:
+                result = proto_util._result_from_record(record)
+                result.run_result.run.CopyFrom(run)
+                error = ProtobufErrorHandler.from_exception(e)
+                result.run_result.error.CopyFrom(error)
+                self._respond_result(result)
+            return
+
         assert self._run  # self._run is configured in _init_run()
 
         if record.control.req_resp or record.control.mailbox_slot:
@@ -971,8 +1026,8 @@ class SendManager:
             commit=run.git.commit or None,
         )
         # TODO: we don't want to create jobs in sweeps, since the
-        # executable doesn't appear to be consistent
-        if hasattr(self._settings, "sweep_id") and self._settings.sweep_id:
+        #  executable doesn't appear to be consistent
+        if run.sweep_id:
             self._job_builder.disable = True
 
         self._server_messages = server_messages or []
@@ -1035,6 +1090,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
+            timeout=self._settings._file_stream_timeout_seconds,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
@@ -1055,15 +1111,13 @@ class SendManager:
         # hack to merge run_settings and self._settings object together
         # so that fields like entity or project are available to be attached to Sentry events.
         run_settings = message_to_dict(self._run)
-        self._settings = SettingsStatic({**dict(self._settings), **run_settings})
-        util.sentry_set_scope(
-            settings_dict=self._settings,
-        )
+        _settings = dict(self._settings)
+        _settings.update(run_settings)
+        wandb._sentry.configure_scope(tags=_settings, process_context="internal")
+
         self._fs.start()
-        self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(
-            cast(Settings, self._settings), self._pusher, file_dir
-        )
+        self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
+        self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
@@ -1190,7 +1244,7 @@ class SendManager:
         if not self._fs:
             return
         out = record.output
-        stream: "StreamLiterals" = "stdout"
+        stream: StreamLiterals = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
@@ -1200,7 +1254,7 @@ class SendManager:
         if not self._fs:
             return
         out = record.output_raw
-        stream: "StreamLiterals" = "stdout"
+        stream: StreamLiterals = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRawRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
@@ -1360,13 +1414,19 @@ class SendManager:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
 
     def send_use_artifact(self, record: "Record") -> None:
-        """
-        This function doesn't actually send anything, it is just used
-        internally
+        """Pretend to send a used artifact.
+
+        This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
-        if use.type == "job":
+
+        if use.type == "job" and not use.partial.job_name:
             self._job_builder.disable = True
+        elif use.partial.job_name:
+            # job is partial, let job builder rebuild job, set job source dict
+            self._job_builder._partial_source = (
+                job_builder.convert_use_artifact_to_job_source(record.use_artifact)
+            )
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1381,34 +1441,10 @@ class SendManager:
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
-                'error logging artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+                f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
         self._respond_result(result)
-
-    def send_request_artifact_send(self, record: "Record") -> None:
-        # TODO: combine and eventually remove send_request_log_artifact()
-
-        # for now, we are using req/resp uuid for transaction id
-        # in the future this should be part of the message to handle idempotency
-        xid = record.uuid
-
-        done_msg = wandb_internal_pb2.ArtifactDoneRequest(xid=xid)
-        artifact = record.request.artifact_send.artifact
-        try:
-            res = self._send_artifact(artifact)
-            assert res, "Unable to send artifact"
-            done_msg.artifact_id = res["id"]
-            logger.info(f"logged artifact {artifact.name} - {res}")
-        except Exception as e:
-            done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
-            )
-
-        logger.info("send artifact done")
-        self._interface._publish_artifact_done(done_msg)
 
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
@@ -1428,10 +1464,10 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifacts.ArtifactSaver(
+        saver = ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
-            manifest_json=artifacts._manifest_json_from_proto(artifact.manifest),
+            manifest_json=_manifest_json_from_proto(artifact.manifest),
             file_pusher=self._pusher,
             is_user_created=artifact.user_created,
         )
@@ -1454,16 +1490,18 @@ class SendManager:
             client_id=artifact.client_id,
             sequence_client_id=artifact.sequence_client_id,
             metadata=metadata,
-            description=artifact.description,
+            ttl_duration_seconds=artifact.ttl_duration_seconds or None,
+            description=artifact.description or None,
             aliases=artifact.aliases,
             use_after_commit=artifact.use_after_commit,
             distributed_id=artifact.distributed_id,
             finalize=artifact.finalize,
             incremental=artifact.incremental_beta1,
             history_step=history_step,
+            base_id=artifact.base_id or None,
         )
 
-        self._job_builder._set_logged_code_artifact(res, artifact)
+        self._job_builder._handle_server_artifact(res, artifact)
         return res
 
     def send_alert(self, record: "Record") -> None:
@@ -1504,6 +1542,7 @@ class SendManager:
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+        wandb._sentry.end_session()
 
     def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()
@@ -1530,10 +1569,11 @@ class SendManager:
         return self._cached_server_info
 
     def get_local_info(self) -> "LocalInfo":
-        """
-        This is a helper function that queries the server to get the local version information.
-        First, we perform an introspection, if it returns empty we deduce that the docker image is
-        out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
+        """Queries the server to get the local version information.
+
+        First, we perform an introspection, if it returns empty we deduce that the
+        docker image is out-of-date. Otherwise, we use the returned values to deduce the
+        state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
         if self._settings._offline:
@@ -1556,7 +1596,7 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
-        if self._job_builder.disable or self._settings.get("_offline", False):
+        if self._job_builder.disable or self._settings._offline:
             return
         self._job_builder.set_config(
             {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
@@ -1573,6 +1613,10 @@ class SendManager:
             # TODO: this should be removed when the latest tag is handled
             # by the backend (WB-12116)
             proto_artifact.aliases.append("latest")
+            # add docker image tag
+            for alias in self._job_builder._aliases:
+                proto_artifact.aliases.append(alias)
+
             proto_artifact.user_created = True
             proto_artifact.use_after_commit = True
             proto_artifact.finalize = True

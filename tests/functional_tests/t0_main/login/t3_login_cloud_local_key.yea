@@ -2,7 +2,7 @@ id: 0.login.03-login-cloud-local-key
 plugin:
   - wandb
 tag:
-  skip: true
+  skip: true  # todo: unskip once local api_key validation is restored
 depend:
   requirements:
     - pytest

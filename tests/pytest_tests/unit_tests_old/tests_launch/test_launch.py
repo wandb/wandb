@@ -1,6 +1,6 @@
 import json
+import multiprocessing
 import os
-import platform
 import sys
 from unittest import mock
 from unittest.mock import MagicMock
@@ -11,11 +11,15 @@ import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
 import yaml
 from wandb.apis import PublicApi
-from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.builder.build import pull_docker_image
-from wandb.sdk.launch.builder.docker import DockerBuilder
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, PROJECT_SYNCHRONOUS
+from wandb.sdk.launch.builder.build import _inject_wandb_config_env_vars
+from wandb.sdk.launch.builder.docker_builder import DockerBuilder
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    PROJECT_SYNCHRONOUS,
+    pull_docker_image,
+)
 from wandb.sdk.lib import runid
 
 from tests.pytest_tests.unit_tests_old.utils import fixture_open, notebook_path
@@ -25,15 +29,20 @@ EMPTY_BACKEND_CONFIG = {
 }
 
 
+class MockBranch:
+    def __init__(self, name):
+        self.name = name
+
+
 @pytest.fixture
 def mocked_fetchable_git_repo():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "master"
+        reference = MockBranch("master")
         repo.references = [reference]
+        repo.refs = {"master": mock.Mock()}
 
         def create_remote(o, r):
             origin = mock.Mock()
@@ -60,13 +69,25 @@ def mocked_fetchable_git_repo_conda():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "environment.yml"), "w") as f:
             f.write(fixture_open("environment.yml").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -78,13 +99,25 @@ def mocked_fetchable_git_repo_ipython():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
             f.write(open(notebook_path("one_cell.ipynb")).read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -96,11 +129,23 @@ def mocked_fetchable_git_repo_nodeps():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -112,6 +157,18 @@ def mocked_fetchable_git_repo_shell():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
@@ -122,7 +179,7 @@ def mocked_fetchable_git_repo_shell():
             f.write("python train.py")
         with open(os.path.join(dst_dir, "unknown.unk"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -137,7 +194,7 @@ def mock_load_backend():
         mock_props.kwargs = kwargs
         return mock_props
 
-    with mock.patch("wandb.sdk.launch.launch.loader.load_backend") as mock_load_backend:
+    with mock.patch("wandb.sdk.launch.loader.runner_from_config") as mock_load_backend:
         m = mock.Mock(side_effect=side_effect)
         m.run = mock.Mock(side_effect=side_effect)
         mock_load_backend.return_value = m
@@ -157,31 +214,6 @@ def mock_load_backend_agent():
         m.run = mock.Mock(side_effect=side_effect)
         mock_load_backend.return_value = m
         yield mock_load_backend
-
-
-@pytest.fixture
-def mock_cuda_run_info(monkeypatch):
-    run_info = {
-        "program": "train.py",
-        "args": {},
-        "os": platform.system(),
-        "python": platform.python_version(),
-        "colab": None,
-        "executable": None,
-        "codeSaved": False,
-        "cpuCount": 12,
-        "gpuCount": 0,
-        "git": {
-            "remote": "https://foo:bar@github.com/FooTest/Foo.git",
-            "commit": "HEAD",
-        },
-        "cudaVersion": "10.0.0",
-    }
-    monkeypatch.setattr(
-        wandb.sdk.launch.utils,
-        "fetch_wandb_project_run_info",
-        lambda *args, **kwargs: run_info,
-    )
 
 
 def code_download_func(dst_dir):
@@ -295,7 +327,6 @@ def test_launch_base_case(
     mock_load_backend,
     monkeypatch,
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -332,7 +363,6 @@ def test_launch_base_case(
 def test_launch_resource_args(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -405,36 +435,6 @@ def test_launch_run_config_in_spec(
     expected_runner_config = {}
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
-
-
-def test_launch_args_supersede_config_vals(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "project": "new_test_project",
-        "entity": "mock_server_entity",
-        "config": {
-            "project": "not-this-project",
-            "overrides": {
-                "run_config": {"epochs": 3},
-                "args": ["--epochs=2", "--heavy"],
-            },
-        },
-        "parameters": {"epochs": 5},
-    }
-    input_kwargs = kwargs.copy()
-    input_kwargs["parameters"] = ["epochs", 5]
-    mock_with_run_info = launch.run(**kwargs)
-    for arg in mock_with_run_info.args:
-        if isinstance(arg, _project_spec.LaunchProject):
-            assert arg.override_args["epochs"] == 5
-            assert arg.override_config.get("epochs") is None
-            assert arg.target_project == "new_test_project"
 
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
@@ -560,7 +560,6 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
 def test_launch_code_artifact(
     runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
 ):
-
     run_with_artifacts = mock.MagicMock()
     code_artifact = mock.MagicMock()
     code_artifact.type = "code"
@@ -658,7 +657,7 @@ def test_run_in_launch_context_with_artifacts_api(
         assert arti_info["used_name"] == "old_name:v0"
         _, err = capsys.readouterr()
         assert (
-            "Swapping artifacts is not supported when using an instance of `public.Artifact`."
+            "Swapping artifacts is not supported when using a non-draft artifact."
             in err
         )
 
@@ -710,9 +709,19 @@ def test_launch_agent_runs(
         "pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
+
+    def mock_raise_exception():
+        raise Exception
+
+    monkeypatch.setattr(
+        multiprocessing.pool.Pool,
+        "apply_async",
+        lambda x, y: mock_raise_exception(),
+    )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.entity_is_team = MagicMock(return_value=False)
     config = {
         "entity": "mock_server_entity",
         "project": "test",
@@ -720,7 +729,6 @@ def test_launch_agent_runs(
     launch.create_and_run_agent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
-    assert ctx["num_acked"] == 1
     assert len(ctx["launch_agents"].keys()) == 1
 
 
@@ -728,6 +736,7 @@ def test_launch_agent_instance(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.entity_is_team = MagicMock(return_value=False)
     config = {
         "entity": "mock_server_entity",
         "project": "test_project",
@@ -765,6 +774,7 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.entity_is_team = MagicMock(return_value=False)
     config = {
         "entity": "mock_server_entity",
         "project": "test_project",
@@ -791,6 +801,7 @@ def test_agent_inf_jobs(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.entity_is_team = MagicMock(return_value=False)
     config = {
         "entity": "mock_server_entity",
         "project": "test_project",
@@ -802,9 +813,11 @@ def test_agent_inf_jobs(test_settings, live_mock_server):
 
 
 @pytest.mark.timeout(320)
+@pytest.mark.skip(reason="The nb tests are now run against the unmock server.")
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython, monkeypatch
 ):
+    # TODO: make this test work with the unmock server
     live_mock_server.set_ctx({"run_script_type": "notebook"})
 
     api = wandb.sdk.internal.internal_api.Api(
@@ -814,24 +827,6 @@ def test_launch_notebook(
         api=api,
         uri="https://wandb.ai/mock_server_entity/test/runs/jupyter1",
         project="new-test",
-    )
-    assert str(run.get_status()) == "finished"
-
-
-# this test includes building a docker container which can take some time.
-# hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(320)
-def test_launch_full_build_new_image(
-    live_mock_server, test_settings, mocked_fetchable_git_repo
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    random_id = runid.generate_id()
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/1",
-        project=f"new-test-{random_id}",
     )
     assert str(run.get_status()) == "finished"
 
@@ -853,7 +848,7 @@ def test_launch_no_server_info(
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
             project="new-test",
         )
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
@@ -891,7 +886,7 @@ def patched_pop_from_queue(self, queue):
 def test_fail_pull_docker_image():
     try:
         pull_docker_image("not an image")
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Docker server returned error" in str(e)
 
 
@@ -902,7 +897,6 @@ def test_fail_pull_docker_image():
 def test_bare_wandb_uri(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -939,8 +933,9 @@ def test_launch_project_spec_docker_image(
 
 
 def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
+    monkeypatch.setattr("wandb.sdk.launch.utils.docker_image_exists", lambda x: True)
     monkeypatch.setattr(
-        "wandb.sdk.launch.builder.build.docker_image_exists", lambda x: True
+        "wandb.sdk.launch.runner.local_container.pull_docker_image", lambda x: True
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
@@ -967,6 +962,7 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
                 "t": True,
             }
         },
+        "run_id": "p5leu4a7",
     }
     expected_command = [
         "docker",
@@ -982,6 +978,8 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "WANDB_ENTITY=mock_server_entity",
         "-e",
         "WANDB_LAUNCH=True",
+        "-e",
+        "WANDB_RUN_ID=p5leu4a7",
         "-e",
         f"WANDB_DOCKER={image_name}",
         "-e",
@@ -1021,6 +1019,21 @@ def test_run_in_launch_context_with_config_env_var(
     with runner.isolated_filesystem():
         config_env_var = json.dumps({"epochs": 10})
         monkeypatch.setenv("WANDB_CONFIG", config_env_var)
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        run.finish()
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+
+
+def test_run_in_launch_context_with_multi_config_env_var(
+    runner, live_mock_server, test_settings, monkeypatch
+):
+    with runner.isolated_filesystem():
+        config_env_vars = {}
+        _inject_wandb_config_env_vars({"epochs": 10}, config_env_vars, 5)
+        for k in config_env_vars.keys():
+            monkeypatch.setenv(k, config_env_vars[k])
         test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         run.finish()
@@ -1091,136 +1104,6 @@ def test_run_in_launch_context_with_malformed_env_vars(
         assert "Malformed WANDB_ARTIFACTS, using original artifacts" in err
 
 
-@pytest.mark.timeout(240)
-def test_launch_local_cuda_command(
-    live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
-):
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container._run_entry_point",
-        lambda cmd, _: cmd,
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "entity": "mock_server_entity",
-        "project": "test",
-        "synchronous": False,
-        "cuda": True,
-    }
-
-    returned_command = launch.run(**kwargs)
-    assert "--gpus all" in returned_command
-
-
-@pytest.mark.timeout(320)
-def test_launch_local_cuda_config(
-    live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
-):
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container._run_entry_point",
-        lambda cmd, _: cmd,
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "entity": "mock_server_entity",
-        "project": "test",
-        "synchronous": False,
-        "config": {"cuda": True},
-    }
-
-    returned_command = launch.run(**kwargs)
-    assert "--gpus all" in returned_command
-
-
-@pytest.mark.timeout(120)
-def test_launch_cuda_prev_run_cuda(
-    live_mock_server,
-    test_settings,
-    monkeypatch,
-    mocked_fetchable_git_repo,
-    mock_cuda_run_info,
-):
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container._run_entry_point",
-        lambda cmd, _: cmd,
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "entity": "mock_server_entity",
-        "project": "test",
-        "synchronous": False,
-    }
-
-    returned_command = launch.run(**kwargs)
-    assert "--gpus all" in returned_command
-
-
-@pytest.mark.timeout(120)
-def test_launch_cuda_false_prev_run_cuda(
-    live_mock_server,
-    test_settings,
-    monkeypatch,
-    mocked_fetchable_git_repo,
-    mock_cuda_run_info,
-):
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container._run_entry_point",
-        lambda cmd, _: cmd,
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "entity": "mock_server_entity",
-        "project": "test",
-        "synchronous": False,
-        "cuda": False,
-    }
-
-    returned_command = launch.run(**kwargs)
-    assert "--gpus all" not in returned_command
-
-
-def test_launch_cuda_config_false_prev_run_cuda(
-    live_mock_server,
-    test_settings,
-    monkeypatch,
-    mocked_fetchable_git_repo,
-    mock_cuda_run_info,
-):
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container._run_entry_point",
-        lambda cmd, _: cmd,
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "entity": "mock_server_entity",
-        "project": "test",
-        "synchronous": False,
-        "config": {"cuda": False},
-    }
-
-    returned_command = launch.run(**kwargs)
-    assert "--gpus all" not in returned_command
-
-
 def test_launch_entrypoint(test_settings):
     entry_point = ["python", "main.py"]
     api = wandb.sdk.internal.internal_api.Api(
@@ -1239,29 +1122,11 @@ def test_launch_entrypoint(test_settings):
         {},
         "local-container",
         {},
-        None,
         None,  # run_id
     )
-    launch_project.add_entry_point(entry_point)
-    calced_ep = launch_project.get_single_entry_point().compute_command({"blah": 2})
+    launch_project.set_entry_point(entry_point)
+    calced_ep = launch_project.get_single_entry_point().compute_command(["--blah", "2"])
     assert calced_ep == ["python", "main.py", "--blah", "2"]
-
-
-@pytest.mark.timeout(320)
-def test_launch_shell_script(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
-):
-    live_mock_server.set_ctx({"run_script_type": "shell"})
-
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
-        project="new-test",
-    )
-    assert str(run.get_status()) == "finished"
 
 
 def test_launch_unknown_entrypoint(
@@ -1283,48 +1148,7 @@ def test_launch_unknown_entrypoint(
     assert "Unsupported entrypoint:" in str(e_info.value)
 
 
-def test_launch_build_config_file(
-    runner, mocked_fetchable_git_repo, test_settings, monkeypatch
-):
-    monkeypatch.setattr(
-        wandb.sdk.launch.runner.local_container.LocalContainerRunner,
-        "run",
-        lambda *args, **kwargs: (args, kwargs),
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "LAUNCH_CONFIG_FILE",
-        "./config/wandb/launch-config.yaml",
-    )
-    launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-
-    with runner.isolated_filesystem():
-        os.makedirs("./config/wandb")
-        with open("./config/wandb/launch-config.yaml", "w") as f:
-            json.dump(launch_config, f)
-
-        kwargs = {
-            "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-            "api": api,
-            "entity": "mock_server_entity",
-            "project": "test",
-            "synchronous": False,
-            "config": {"cuda": False},
-        }
-        args, _ = launch.run(**kwargs)
-        _, _, builder, registry_config = args
-        assert builder.builder_config == {"type": "docker"}
-        assert isinstance(builder, DockerBuilder)
-        assert registry_config == {"url": "test"}
-
-
-def test_resolve_agent_config(test_settings, monkeypatch, runner):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
+def test_resolve_agent_config(monkeypatch, runner):
     monkeypatch.setattr(
         "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
@@ -1342,7 +1166,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
                 f,
             )
         config, returned_api = launch.resolve_agent_config(
-            api, None, None, -1, ["diff-queue"]
+            None, None, -1, ["diff-queue"], None
         )
 
         assert config["registry"] == {"url": "test"}
@@ -1362,11 +1186,11 @@ def test_launch_url_and_job(
     api.get_run_info = MagicMock(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
-    with pytest.raises(wandb.errors.LaunchError) as e_info:
+    with pytest.raises(LaunchError) as e_info:
         launch.run(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
-            job="test-job:v0",
+            job="test/test/test-job:v0",
             project="new-test",
         )
     assert "Must specify exactly one of uri, job or image" in str(e_info)
@@ -1390,7 +1214,7 @@ def test_launch_no_url_job_or_docker_image(
             job=None,
             project="new-test",
         )
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Must specify a uri, job or docker image" in str(e)
 
 
@@ -1401,8 +1225,7 @@ def mocked_fetchable_git_repo_main():
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "main"
+        reference = MockBranch("main")
         repo.references = [reference]
 
         def create_remote(o, r):
@@ -1477,7 +1300,7 @@ def test_noop_builder(
     runner,
     monkeypatch,
 ):
-    launch_config = {"build": {"type": "noop"}, "registry": {"url": "test"}}
+    launch_config = {"builder": {"type": "noop"}, "registry": {"url": "test"}}
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -1498,12 +1321,11 @@ def test_noop_builder(
             "entity": "mock_server_entity",
             "project": "test",
             "synchronous": False,
-            "config": {"cuda": False},
         }
-        with pytest.raises(LaunchError) as e:
-            launch.run(**kwargs)
-
-        assert (
-            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
-            in str(e)
+        expected = (
+            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml.\n"
+            "Note: Jobs sourced from git repos and code artifacts require a builder, while jobs sourced from Docker images do not.\n"
+            "See https://docs.wandb.ai/guides/launch/create-job."
         )
+        with pytest.raises(LaunchError, match=expected):
+            launch.run(**kwargs)

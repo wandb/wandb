@@ -7,7 +7,7 @@ if platform.system() == "Windows":
     pytest.skip("metaflow does not support native Windows", allow_module_level=True)
 
 import pandas as pd
-from metaflow import FlowSpec, step  # noqa: I100, I202
+from metaflow import FlowSpec, step
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
 

@@ -15,6 +15,7 @@ import pytest
 import requests
 import tensorflow as tf
 import wandb
+import wandb.errors as errors
 from wandb import util
 
 try:
@@ -35,9 +36,7 @@ def pt_variable(nested_list, requires_grad=True):
 
 
 def nested_list(*shape):
-    """Makes a nested list of lists with a "shape" argument like numpy,
-    TensorFlow, etc.
-    """
+    """Make a nested list of lists with a "shape" argument like numpy, TensorFlow, etc."""
     if not shape:
         # reduce precision so we can use == for comparison regardless
         # of conversions between other libraries
@@ -162,6 +161,41 @@ def test_bfloat16_to_float():
 
 
 ###############################################################################
+# Test util.json_friendly_val
+###############################################################################
+
+
+def test_dataclass():
+    from dataclasses import dataclass
+
+    @dataclass
+    class TestDataClass:
+        test: bool
+
+    test_dataclass = TestDataClass(True)
+    converted = util.json_friendly_val({"test": test_dataclass})
+    assert isinstance(converted["test"], dict)
+
+
+def test_nested_dataclasses():
+    from dataclasses import dataclass
+
+    @dataclass
+    class TestDataClass:
+        test: bool
+
+    @dataclass
+    class TestDataClassHolder:
+        test_dataclass: TestDataClass
+
+    nested_dataclass = TestDataClassHolder(TestDataClass(False))
+    converted = util.json_friendly_val({"nested_dataclass": nested_dataclass})
+    assert isinstance(converted["nested_dataclass"], dict)
+    assert isinstance(converted["nested_dataclass"]["test_dataclass"], dict)
+    assert converted["nested_dataclass"]["test_dataclass"]["test"] is False
+
+
+###############################################################################
 # Test util.make_json_if_not_number
 ###############################################################################
 
@@ -271,17 +305,6 @@ def test_find_runner():
 
 
 ###############################################################################
-# Test util.parse_sweep_id
-###############################################################################
-
-
-def test_parse_sweep_id():
-    parts = {"name": "test/test/test"}
-    util.parse_sweep_id(parts)
-    assert parts == {"name": "test", "entity": "test", "project": "test"}
-
-
-###############################################################################
 # Test util.from_human_size and util.to_human_size
 ###############################################################################
 
@@ -312,7 +335,7 @@ def test_to_human_size():
 
 
 def matplotlib_with_image():
-    """Creates a matplotlib figure with an image"""
+    """Create a matplotlib figure with an image."""
     fig, ax = plt.subplots(3)
     ax[0].plot([1, 2, 3])
     ax[1].imshow(np.random.rand(200, 200, 3))
@@ -321,7 +344,7 @@ def matplotlib_with_image():
 
 
 def matplotlib_without_image():
-    """Creates a matplotlib figure without an image"""
+    """Create a matplotlib figure without an image."""
     fig, ax = plt.subplots(2)
     ax[0].plot([1, 2, 3])
     ax[1].plot([1, 2, 3])
@@ -329,8 +352,7 @@ def matplotlib_without_image():
 
 
 def test_matplotlib_contains_images():
-    """Ensures that the utility function can properly detect if immages are in a
-    matplotlib figure"""
+    """Test detecting images in a matplotlib figure."""
     # fig true
     fig = matplotlib_with_image()
     assert util.matplotlib_contains_images(fig)
@@ -353,8 +375,7 @@ def test_matplotlib_contains_images():
 
 
 def test_matplotlib_to_plotly():
-    """Ensures that the utility function can properly transform a pyplot object to a
-    plotly object (not the wandb.* versions"""
+    """Test transforming a pyplot object to a plotly object (not the wandb.* versions)."""
     fig = matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(fig)) == plotly.graph_objs._figure.Figure
     plt.close()
@@ -486,9 +507,11 @@ def test_no_retry_auth():
         e.response.status_code = status_code
         assert not util.no_retry_auth(e)
     e.response.status_code = 401
-    with pytest.raises(wandb.CommError):
+    e.response.reason = "Unauthorized"
+    with pytest.raises(errors.AuthenticationError):
         util.no_retry_auth(e)
     e.response.status_code = 403
+    e.response.reason = "Forbidden"
     with mock.patch("wandb.run", mock.MagicMock()):
         with pytest.raises(wandb.CommError):
             util.no_retry_auth(e)
@@ -737,3 +760,14 @@ def test_make_docker_image_name_safe():
         == "abc.123__def-456"
     )
     assert util.make_docker_image_name_safe("......") == "image"
+
+
+def test_sampling_weights():
+    xs = np.arange(0, 100)
+    ys = np.arange(100, 200)
+    sample_size = 1000
+    sampled_xs, _, _ = util.sample_with_exponential_decay_weights(
+        xs, ys, sample_size=sample_size
+    )
+    # Expect more samples from the start of the list
+    assert np.mean(sampled_xs) < np.mean(xs)

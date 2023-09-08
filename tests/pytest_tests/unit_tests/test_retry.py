@@ -1,4 +1,4 @@
-"""retry tests"""
+"""retry tests."""
 
 import asyncio
 import dataclasses

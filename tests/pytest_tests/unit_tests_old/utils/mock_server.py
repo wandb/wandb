@@ -1,5 +1,6 @@
 """Mock Server for simple calls the cli and public api make"""
 
+import base64
 import functools
 import gzip
 import json
@@ -114,14 +115,20 @@ def mock_server(mocker):
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
     sdk_path = "wandb.sdk"
+    # From previous wandb_gql transport library.
     mocker.patch("wandb_gql.transport.requests.requests", mock)
+
+    mocker.patch("wandb.sdk.artifacts.artifact.requests", mock)
+    mocker.patch(
+        "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.requests", mock
+    )
+    mocker.patch("wandb.wandb_sdk.lib.gql_request.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
-    mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
     mocker.patch("azure.core.pipeline.transport._requests_basic.requests", mock)
     print("Patched requests everywhere", os.getpid())
     return mock
@@ -263,6 +270,50 @@ def artifact(
     }
 
 
+def artifact2(
+    ctx,
+    _id=None,
+    entity="FAKE_ENTITY",
+    project="FAKE_PROJECT",
+    name="mnist",
+    _type="dataset",
+):
+    return {
+        "id": _id or str(ctx["page_count"]),
+        "artifactSequence": {
+            "project": {
+                "entityName": entity,
+                "name": project,
+            },
+            "name": name,
+        },
+        "versionIndex": ctx["page_count"],
+        "artifactType": {
+            "name": _type,
+        },
+        "description": None,
+        "metadata": None,
+        "ttlDurationSeconds": None,
+        "aliases": [
+            {
+                "artifactCollection": {
+                    "project": {
+                        "entityName": entity,
+                        "name": project,
+                    },
+                    "name": name,
+                },
+                "alias": "v%i" % ctx["page_count"],
+            },
+        ],
+        "state": "COMMITTED",
+        "commitHash": "FAKE_HASH",
+        "fileCount": 10,
+        "createdAt": "2023-05-17T00:00:00",
+        "updatedAt": "2023-05-17T00:00:00",
+    }
+
+
 def paginated(node, ctx, extra={}):
     next_page = False
     ctx["page_count"] += 1
@@ -372,7 +423,6 @@ class HttpException(Exception):
 
 
 class SnoopRelay:
-
     _inject_count: int
     _inject_time: float
 
@@ -383,7 +433,6 @@ class SnoopRelay:
     def relay(self, func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-
             # Normal mockserver mode, disable live relay and call next function
             if not os.environ.get("MOCKSERVER_RELAY"):
                 return func(*args, **kwargs)
@@ -567,9 +616,36 @@ def create_app(user_ctx=None):
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
 
+        # fixup body query to be more compatible with other graphql implementations
+        # lets start by changing any mutation or query that has a space after the
+        # graphql request name
+        if re.match(r"^\s*(mutation|query)\s(\w+)\s\(", body["query"]):
+            body["query"] = body["query"].replace(" (", "(")
+
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
 
+        if "mutation CreateRunFiles" in body["query"]:
+            requested_file = body["variables"]["files"][0]
+            upload_url = base_url + "/storage?file={}&run={}".format(
+                requested_file, ctx["current_run"]
+            )
+            data = {
+                "data": {
+                    "createRunFiles": {
+                        "runID": "UnVuOnYxOmtoMXFsdmIwOnVuY2F0ZWdvcml6ZWQ6amVmZnI=",
+                        "uploadHeaders": [],
+                        "files": [
+                            {
+                                "name": requested_file,
+                                "uploadUrl": upload_url,
+                            }
+                        ],
+                    }
+                }
+            }
+            r = json.dumps(data)
+            return r
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
@@ -796,7 +872,7 @@ def create_app(user_ctx=None):
                 "name": "foo",
                 "uploadUrl": "",
                 "storagePath": "x/y/z",
-                "uploadheaders": [],
+                "uploadHeaders": [],
                 "artifact": {"id": "1"},
             }
             if "storagePath" not in body["query"]:
@@ -1097,7 +1173,7 @@ def create_app(user_ctx=None):
                             "displayName": file_spec["name"],
                             "digest": "null",
                             "uploadUrl": url,
-                            "uploadHeaders": "",
+                            "uploadHeaders": [],
                         }
                     }
                 )
@@ -1140,6 +1216,76 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+
+        if "query ProbeServerArtifact" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "ArtifactInfoType": {
+                            "fields": [
+                                {"name": "id"},
+                                {"name": "digest"},
+                                {"name": "description"},
+                                {"name": "commitHash"},
+                                {"name": "versionIndex"},
+                                {"name": "aliases"},
+                                {"name": "labels"},
+                                {"name": "metadata"},
+                                {"name": "state"},
+                                {"name": "size"},
+                                {"name": "storageBytes"},
+                                {"name": "fileCount"},
+                                {"name": "artifactType"},
+                                {"name": "artifactCollections"},
+                                {"name": "artifactMemberships"},
+                                {"name": "artifactSequence"},
+                                {"name": "createdAt"},
+                                {"name": "updatedAt"},
+                                {"name": "createdBy"},
+                                {"name": "usedCount"},
+                                {"name": "usedBy"},
+                                {"name": "currentManifest"},
+                                {"name": "files"},
+                                {"name": "historyStep"},
+                                {"name": "artifactLineageDag"},
+                                {"name": "ttlDurationSeconds"},
+                                {"name": "ttlIsInherited"},
+                            ]
+                        },
+                    }
+                }
+            )
+
+        if "query ProbeServerCreateArtifactInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "CreateArtifactInputInfoType": {
+                            "inputFields": [
+                                {"name": "entityName"},
+                                {"name": "projectName"},
+                                {"name": "artifactTypeName"},
+                                {"name": "artifactCollectionName"},
+                                {"name": "artifactCollectionNames"},
+                                {"name": "digest"},
+                                {"name": "digestAlgorithm"},
+                                {"name": "description"},
+                                {"name": "labels"},
+                                {"name": "aliases"},
+                                {"name": "metadata"},
+                                {"name": "ttlDurationSeconds"},
+                                {"name": "historyStep"},
+                                {"name": "enableDigestDeduplication"},
+                                {"name": "distributedID"},
+                                {"name": "clientID"},
+                                {"name": "sequenceClientID"},
+                                {"name": "clientMutationId"},
+                            ]
+                        },
+                    }
+                }
+            )
+
         if "mutation updateArtifact" in body["query"]:
             id = body["variables"]["artifactID"]
             ctx["latest_arti_id"] = id
@@ -1161,18 +1307,18 @@ def create_app(user_ctx=None):
             }
         if "mutation CreateArtifactManifest(" in body["query"]:
             manifest = {
-                "id": 1,
+                "id": "1",
                 "type": "INCREMENTAL"
                 if "incremental" in body.get("variables", {}).get("name", "")
                 else "FULL",
                 "file": {
-                    "id": 1,
+                    "id": "1",
                     "directUrl": base_url
                     + "/storage?file=wandb_manifest.json&name={}".format(
                         body.get("variables", {}).get("name", "")
                     ),
                     "uploadUrl": base_url + "/storage?file=wandb_manifest.json",
-                    "uploadHeaders": "",
+                    "uploadHeaders": [],
                 },
             }
             run_name = body.get("variables", {}).get("runName", "unknown")
@@ -1199,7 +1345,7 @@ def create_app(user_ctx=None):
                         body.get("variables", {}).get("name", "")
                     ),
                     "uploadUrl": base_url + "/storage?file=wandb_manifest.json",
-                    "uploadHeaders": "",
+                    "uploadHeaders": [],
                 },
             }
             return {
@@ -1209,6 +1355,24 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "query ProbeServerCreateArtifactFileSpecInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "CreateArtifactFileSpecInputInfoType": {
+                            "inputFields": [
+                                {"name": "artifactID"},
+                                {"name": "name"},
+                                {"name": "md5"},
+                                {"name": "mimetype"},
+                                {"name": "artifactManifestID"},
+                                {"name": "uploadPartsInput"},
+                            ]
+                        },
+                    }
+                }
+            )
+
         if "mutation CreateArtifactFiles" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create_files(variables=body["variables"])
@@ -1220,7 +1384,7 @@ def create_app(user_ctx=None):
                                 "id": idx,
                                 "name": file["name"],
                                 "uploadUrl": "",
-                                "uploadheaders": [],
+                                "uploadHeaders": [],
                                 "artifact": {"id": file["artifactID"]},
                             }
                             for idx, file in enumerate(
@@ -1234,7 +1398,7 @@ def create_app(user_ctx=None):
             return {
                 "data": {
                     "commitArtifact": {
-                        "artifact": {"id": 1, "digest": "0000===================="}
+                        "artifact": {"id": "1", "digest": "0000===================="}
                     }
                 }
             }
@@ -1400,16 +1564,38 @@ def create_app(user_ctx=None):
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {key: artifacts}}}}
         if "query RunInputArtifacts(" in body["query"]:
-            artifacts = paginated(artifact(ctx), ctx)
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {"inputArtifacts": artifacts}}}}
         if "query RunOutputArtifacts(" in body["query"]:
-            artifacts = paginated(artifact(ctx), ctx)
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {"outputArtifacts": artifacts}}}}
         if "query Artifacts(" in body["query"]:
             version = "v%i" % ctx["page_count"]
-            artifacts = paginated(artifact(ctx), ctx, {"version": version})
+            artifacts = paginated(
+                artifact2(
+                    ctx,
+                    entity=body["variables"]["entity"],
+                    project=body["variables"]["project"],
+                ),
+                ctx,
+                {"version": version},
+            )
             artifacts["totalCount"] = ctx["page_times"]
             return {
                 "data": {
@@ -1424,9 +1610,7 @@ def create_app(user_ctx=None):
                 }
             }
         for query_name in [
-            "Artifact",
             "ArtifactType",
-            "ArtifactWithCurrentManifest",
             "ArtifactUsedBy",
             "ArtifactCreatedBy",
         ]:
@@ -1478,6 +1662,35 @@ def create_app(user_ctx=None):
                 if "model" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 6, "name": "model"}
                 return {"data": {"project": {"artifact": art}}}
+        if "query ArtifactByName(" in body["query"]:
+            _id = "QXJ0aWZhY3Q6NTI1MDk4"
+            _type = "dataset"
+            if "job" in body["variables"]["name"]:
+                _type = "job"
+            if body["variables"]["name"] == "dummy:v0":
+                _id = "DUMMY_V0"
+            art = artifact2(
+                ctx,
+                _id=_id,
+                entity=body["variables"]["entityName"],
+                project=body["variables"]["projectName"],
+                name=body["variables"]["name"].split(":")[0],
+                _type=_type,
+            )
+            return {"data": {"project": {"artifact": art}}}
+        if (
+            "query ArtifactByID(" in body["query"]
+            or "query ArtifactByIDShort(" in body["query"]
+        ):
+            _id = body["variables"]["id"]
+            art = artifact2(ctx, _id=_id)
+            art["currentManifest"] = {
+                "file": {
+                    "directUrl": base_url
+                    + f"/storage?file=wandb_manifest.json&id={_id}"
+                },
+            }
+            return {"data": {"artifact": art}}
         if "query ArtifactManifest(" in body["query"]:
             if ART_EMU:
                 res = ART_EMU.query(
@@ -1496,6 +1709,39 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query ArtifactFileURLs(" in body["query"]:
+            _id = body["variables"]["id"]
+            response = app.test_client().get(
+                f"/storage?file=wandb_manifest.json&id={_id}"
+            )
+            manifest = json.loads(response.text)
+            edges = [
+                {
+                    "node": {
+                        "name": name,
+                        "directUrl": (
+                            base_url
+                            + "/artifacts/entity/"
+                            + base64.standard_b64decode(entry["digest"]).hex()
+                        ),
+                    }
+                }
+                for name, entry in manifest["contents"].items()
+                if entry.get("ref") is None
+            ]
+            return {
+                "data": {
+                    "artifact": {
+                        "files": {
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": "DUMMY_CURSOR",
+                            },
+                            "edges": edges,
+                        }
+                    }
+                }
+            }
         # Project() is backward compatible for 0.12.10 and below
         if ("query Project(" in body["query"] and "runQueues" in body["query"]) or (
             "query ProjectRunQueues(" in body["query"] and "runQueues" in body["query"]
@@ -1659,7 +1905,6 @@ def create_app(user_ctx=None):
                 c["alerts"].append(adict)
             return {"data": {"notifyScriptableRunAlert": {"success": True}}}
         if "query SearchUsers" in body["query"]:
-
             return {
                 "data": {
                     "users": {
@@ -1782,6 +2027,29 @@ def create_app(user_ctx=None):
                 }
             }
 
+        if "query ProbeServerCreateLaunchAgentInput" in body["query"]:
+            return {
+                "data": {
+                    "CreateLaunchAgentInputInfoType": {
+                        "inputFields": [
+                            {"name": "id"},
+                            {"name": "created_at"},
+                            {"name": "updated_at"},
+                            {"name": "name"},
+                            {"name": "entity_id"},
+                            {"name": "project_id"},
+                            {"name": "runqueue_ids"},
+                            {"name": "agent_status"},
+                            {"name": "stop_polling"},
+                            {"name": "heartbeat_at"},
+                            {"name": "hostname"},
+                            {"name": "created_by"},
+                            {"name": "agent_config"},
+                        ]
+                    }
+                }
+            }
+
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
@@ -1831,7 +2099,12 @@ def create_app(user_ctx=None):
         if request.method == "PUT":
             for c in ctx, run_ctx:
                 c["file_bytes"].setdefault(file, 0)
-                c["file_bytes"][file] += request.content_length
+                # NOTE: if content length is not set we will check the actual data for len
+                content_length = request.content_length
+                if request.content_length is None:
+                    data = request.get_data()
+                    content_length = len(data)
+                c["file_bytes"][file] += content_length
         if ART_EMU:
             res = ART_EMU.storage(request=request, arti_id=ctx["latest_arti_id"])
             return res
@@ -1970,10 +2243,7 @@ def create_app(user_ctx=None):
                         },
                     },
                 }
-            elif (
-                len(ctx.get("graphql", [])) >= 3
-                and ctx["graphql"][2].get("variables", {}).get("name", "") == "dummy:v0"
-            ) or request.args.get("name") == "dummy:v0":
+            elif _id == "DUMMY_V0" or request.args.get("name") == "dummy:v0":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",

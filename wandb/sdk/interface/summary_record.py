@@ -8,7 +8,7 @@ import typing as t
 
 
 class SummaryRecord:
-    """Encodes a diff -- analogous to the SummaryRecord protobuf message"""
+    """Encodes a diff -- analogous to the SummaryRecord protobuf message."""
 
     update: t.List["SummaryItem"]
     remove: t.List["SummaryItem"]

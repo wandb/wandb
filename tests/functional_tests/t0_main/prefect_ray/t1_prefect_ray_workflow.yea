@@ -1,0 +1,21 @@
+id: 0.prefect_ray_workflow.01-ray-task-runner
+plugin:
+  - wandb
+tag:
+  skips:
+    - platform: win
+depend:
+  requirements:
+    - "matplotlib"
+    - "numpy"
+    - "prefect"
+    - "prefect-ray"
+assert:
+    - :wandb:runs_len: 11
+    - :wandb:runs[0][exitcode]: 0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][2]  # imports finish
+        - 89  # prefect
+    - :op:contains:
+        - :wandb:runs[0][telemetry][2]  # imports finish
+        - 90  # prefect-ray

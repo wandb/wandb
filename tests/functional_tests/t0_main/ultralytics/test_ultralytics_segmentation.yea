@@ -1,0 +1,80 @@
+id: 0.yolov8.segmentation
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: test_ultralytics_segmentation.py
+depend:
+    requirements:
+        - "ultralytics>=8.0.167"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][batch]: 64
+    - :wandb:runs[0][config][task]: segment
+    - :wandb:runs[0][config][epochs]: 2
+    - :wandb:runs[0][summary][model/parameters]: 3409968
+    - :wandb:runs[0][summary][Validation-Table][_type]: table-file
+    - :wandb:runs[0][summary][Validation-Table][nrows]: 126
+    - :wandb:runs[0][summary][Train-Validation-Table][_type]: table-file
+    - :wandb:runs[0][summary][Train-Validation-Table][nrows]: 378
+    - :op:>=:
+        - :wandb:runs[0][summary][model/GFLOPs]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][model/speed_PyTorch(ms)]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/dfl_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/seg_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/box_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/cls_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/dfl_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/seg_loss]
+        - 0.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/mAP50(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/mAP50-95(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/precision(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/recall(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/mAP50(M)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/mAP50-95(M)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/precision(M)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/recall(M)]
+        - 1.0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 47  # yolov8 used
+    - :wandb:runs[0][exitcode]: 0

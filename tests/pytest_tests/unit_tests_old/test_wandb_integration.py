@@ -93,19 +93,12 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
         assert num_runs == 2
 
 
-def test_resume_must_failure(live_mock_server, test_settings):
-    with pytest.raises(wandb.Error) as e:
-        wandb.init(reinit=True, resume="must", settings=test_settings)
-        assert "resume='must' but run" in e.value.message
-
-
 def test_resume_never_failure(runner, live_mock_server, test_settings):
     with runner.isolation():
         live_mock_server.set_ctx({"resume": True})
         print("CTX", live_mock_server.get_ctx())
-        with pytest.raises(wandb.Error) as e:
+        with pytest.raises(wandb.UsageError):
             wandb.init(reinit=True, resume="never", settings=test_settings)
-            assert "resume='never' but run" in e.value.message
 
 
 def test_resume_auto_failure(live_mock_server, test_settings):

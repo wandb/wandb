@@ -9,7 +9,8 @@ from .._private import MEDIA_TMP
 from .media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ...wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ...wandb_run import Run as LocalRun
 
 
@@ -21,9 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class JSONMetadata(Media):
-    """
-    JSONMetadata is a type for encoding arbitrary metadata as files.
-    """
+    """JSONMetadata is a type for encoding arbitrary metadata as files."""
 
     def __init__(self, val: dict) -> None:
         super().__init__()
@@ -41,7 +40,7 @@ class JSONMetadata(Media):
     def get_media_subdir(cls: Type["JSONMetadata"]) -> str:
         return os.path.join("media", "metadata", cls.type_name())
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self.type_name()
 

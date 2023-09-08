@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
 
 class ProcessMemoryRSS:
-    """
-    Memory resident set size (RSS) in MB.
+    """Memory resident set size (RSS) in MB.
+
     RSS is the portion of memory occupied by a process that is held in main memory (RAM).
     """
 
@@ -49,9 +49,7 @@ class ProcessMemoryRSS:
 
 
 class ProcessMemoryPercent:
-    """
-    Process memory usage in percent.
-    """
+    """Process memory usage in percent."""
 
     # name = "process_memory_percent"
     name = "proc.memory.percent"
@@ -79,9 +77,7 @@ class ProcessMemoryPercent:
 
 
 class MemoryPercent:
-    """
-    Total system memory usage in percent.
-    """
+    """Total system memory usage in percent."""
 
     # name = "memory_percent"
     name = "memory"
@@ -104,9 +100,7 @@ class MemoryPercent:
 
 
 class MemoryAvailable:
-    """
-    Total system memory available in MB.
-    """
+    """Total system memory available in MB."""
 
     # name = "memory_available"
     name = "proc.memory.availableMB"
@@ -134,7 +128,7 @@ class Memory:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
@@ -159,11 +153,11 @@ class Memory:
 
     @classmethod
     def is_available(cls) -> bool:
-        """Return a new instance of the CPU metrics"""
+        """Return a new instance of the CPU metrics."""
         return psutil is not None
 
     def probe(self) -> dict:
-        """Return a dict of the hardware information"""
+        """Return a dict of the hardware information."""
         # total available memory in gigabytes
         return {
             "memory": {

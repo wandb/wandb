@@ -74,20 +74,21 @@ class WandbCallback(xgb.callback.TrainingCallback):
     Example:
         ```python
         bst_params = dict(
-            objective ='reg:squarederror',
-            colsample_bytree = 0.3,
-            learning_rate = 0.1,
-            max_depth = 5,
-            alpha = 10,
-            n_estimators = 10,
-            tree_method = 'hist'
+            objective="reg:squarederror",
+            colsample_bytree=0.3,
+            learning_rate=0.1,
+            max_depth=5,
+            alpha=10,
+            n_estimators=10,
+            tree_method="hist",
         )
 
         xg_reg = xgb.XGBRegressor(**bst_params)
-        xg_reg.fit(X_train,
+        xg_reg.fit(
+            X_train,
             y_train,
             eval_set=[(X_test, y_test)],
-            callbacks=[WandbCallback()])
+            callbacks=[WandbCallback()],
         )
         ```
     """
@@ -99,7 +100,6 @@ class WandbCallback(xgb.callback.TrainingCallback):
         importance_type: str = "gain",
         define_metric: bool = True,
     ):
-
         self.log_model: bool = log_model
         self.log_feature_importance: bool = log_feature_importance
         self.importance_type: str = importance_type

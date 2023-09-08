@@ -21,7 +21,7 @@ def decorated_objective(config, checkpoint_dir=None):
 
 
 def tune_decorated(api_key_file):
-    """Example for using the @wandb_mixin decorator with the function API"""
+    """Example for using the @wandb_mixin decorator with the function API."""
     tuner = tune.Tuner(
         decorated_objective,
         tune_config=tune.TuneConfig(

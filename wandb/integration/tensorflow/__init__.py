@@ -1,6 +1,4 @@
-"""
-api.
-"""
+"""api."""
 
 from wandb.integration.tensorboard import log  # noqa: F401
 

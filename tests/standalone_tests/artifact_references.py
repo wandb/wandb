@@ -33,15 +33,11 @@ def update_versions(version=1):
 
 def sync_buckets(root):
     # Sync up
-    gs = (root, GCS_REMOTE)
-    s3 = (root, S3_REMOTE)
-    os.system("gsutil rsync %s %s" % gs)
-    os.system("aws s3 sync %s %s" % s3)
+    os.system(f"gsutil rsync {root} {GCS_REMOTE}")
+    os.system(f"aws s3 sync {root} {S3_REMOTE}")
     # Sync down
-    gs = (GCS_REMOTE, root)
-    s3 = (S3_REMOTE, root)
-    os.system("gsutil rsync %s %s" % gs)
-    os.system("aws s3 sync %s %s" % s3)
+    os.system(f"gsutil rsync {GCS_REMOTE} {root}")
+    os.system(f"aws s3 sync {S3_REMOTE} {root}")
 
 
 def log_artifacts():

@@ -1,4 +1,4 @@
-"""dir_watcher tests"""
+"""dir_watcher tests."""
 
 import os
 import tempfile
@@ -62,9 +62,7 @@ def test_dirwatcher_update_policy_live_calls_file_changed_iff_file_nonempty(
     write_file: Callable[[Path], None],
     expect_called: bool,
 ):
-    """
-    Test that if a file exists, the update policy is called
-    """
+    """Test that if a file exists, the update policy is called."""
     f = tempdir / "my-file.txt"
     write_file(f)
     dir_watcher.update_policy(str(f), "live")

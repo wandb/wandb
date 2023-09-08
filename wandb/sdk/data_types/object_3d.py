@@ -23,15 +23,17 @@ else:
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
+from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np  # type: ignore
+    import numpy as np
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
     numeric = Union[int, float, np.integer, np.float_]
@@ -75,8 +77,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Object3D(BatchableMedia):
-    """
-    Wandb class for 3D point clouds.
+    """Wandb class for 3D point clouds.
 
     Arguments:
         data_or_path: (numpy array, string, io)
@@ -199,10 +200,12 @@ class Object3D(BatchableMedia):
 
             if len(np_data.shape) != 2 or np_data.shape[1] not in {3, 4, 6}:
                 raise ValueError(
-                    """The shape of the numpy array must be one of either
+                    """
+                    The shape of the numpy array must be one of either
                                     [[x y z],       ...] nx3
                                      [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-                                     [x y z r g b], ...] nx4 where is rgb is color"""
+                                     [x y z r g b], ...] nx6 where rgb is color
+                    """
                 )
 
             list_data = np_data.tolist()
@@ -225,6 +228,13 @@ class Object3D(BatchableMedia):
         data_or_path: Union["TextIO", str],
         file_type: Optional["FileFormat3D"] = None,
     ) -> "Object3D":
+        """Initializes Object3D from a file or stream.
+
+        Arguments:
+            data_or_path (Union["TextIO", str]): A path to a file or a `TextIO` stream.
+            file_type (str): Specifies the data format passed to `data_or_path`. Required when `data_or_path` is a
+                `TextIO` stream. This parameter is ignored if a file path is provided. The type is taken from the file extension.
+        """
         # if file_type is not None and file_type not in cls.SUPPORTED_TYPES:
         #     raise ValueError(
         #         f"Unsupported file type: {file_type}. Supported types are: {cls.SUPPORTED_TYPES}"
@@ -233,15 +243,31 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def from_numpy(cls, data: "np.ndarray") -> "Object3D":
+        """Initializes Object3D from a numpy array.
+
+        Arguments:
+            data (numpy array): Each entry in the array will
+                represent one point in the point cloud.
+
+
+        The shape of the numpy array must be one of either:
+        ```
+        [[x y z],       ...]  # nx3.
+        [[x y z c],     ...]  # nx4 where c is a category with supported range [1, 14].
+        [[x y z r g b], ...]  # nx6 where is rgb is color.
+        ```
+        """
         if not util.is_numpy_array(data):
             raise ValueError("`data` must be a numpy array")
 
         if len(data.shape) != 2 or data.shape[1] not in {3, 4, 6}:
             raise ValueError(
-                """The shape of the numpy array must be one of either
+                """
+                The shape of the numpy array must be one of either:
                                 [[x y z],       ...] nx3
                                  [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-                                 [x y z r g b], ...] nx4 where is rgb is color"""
+                                 [x y z r g b], ...] nx6 where rgb is color
+                """
             )
 
         return cls(data)
@@ -255,6 +281,16 @@ class Object3D(BatchableMedia):
         point_cloud_type: "PointCloudType" = "lidar/beta",
         # camera: Optional[Camera] = None,
     ) -> "Object3D":
+        """Initializes Object3D from a python object.
+
+        Arguments:
+            points (Sequence["Point"]): The points in the point cloud.
+            boxes (Sequence["Box3D"]): 3D bounding boxes for labeling the point cloud. Boxes
+            are displayed in point cloud visualizations.
+            vectors (Optional[Sequence["Vector3D"]]): Each vector is displayed in the point cloud
+                visualization. Can be used to indicate directionality of bounding boxes. Defaults to None.
+            point_cloud_type ("lidar/beta"): At this time, only the "lidar/beta" type is supported. Defaults to "lidar/beta".
+        """
         if point_cloud_type not in cls.SUPPORTED_POINT_CLOUD_TYPES:
             raise ValueError("Point cloud type not supported")
 
@@ -276,11 +312,11 @@ class Object3D(BatchableMedia):
     def get_media_subdir(cls: Type["Object3D"]) -> str:
         return os.path.join("media", "object3D")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, wandb.Artifact):
             if self._path is None or not self._path.endswith(".pts.json"):
                 raise ValueError(
                     "Non-point cloud 3D objects are not yet supported with Artifacts"
@@ -301,7 +337,7 @@ class Object3D(BatchableMedia):
         jsons = [obj.to_json(run) for obj in seq]
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            expected = LogicalPath(cls.get_media_subdir())
             if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Object3D's must be in the {} directory, not {}".format(

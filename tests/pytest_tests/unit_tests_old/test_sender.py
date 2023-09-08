@@ -4,6 +4,7 @@ import threading
 
 import pytest
 import wandb
+import wandb.proto.wandb_internal_pb2 as pb
 from wandb.sdk.lib.printer import INFO
 
 from tests.pytest_tests.unit_tests_old import utils
@@ -13,9 +14,11 @@ def test_send_status_request_stopped(mock_server, backend_interface):
     mock_server.ctx["stopped"] = True
 
     with backend_interface() as interface:
-        status_resp = interface.communicate_stop_status()
-        assert status_resp is not None
-        assert status_resp.run_should_stop
+        handle = interface.deliver_stop_status()
+        result = handle.wait(timeout=5)
+        stop_status = result.response.stop_status_response
+        assert result is not None
+        assert stop_status.run_should_stop
 
 
 def test_parallel_requests(mock_server, backend_interface):
@@ -27,13 +30,17 @@ def test_parallel_requests(mock_server, backend_interface):
         def send_sync_request(i):
             work_queue.get()
             if i % 3 == 0:
-                status_resp = interface.communicate_stop_status()
-                assert status_resp is not None
-                assert status_resp.run_should_stop
+                handle = interface.deliver_stop_status()
+                result = handle.wait(timeout=5)
+                stop_status = result.response.stop_status_response
+                assert stop_status is not None
+                assert stop_status.run_should_stop
             elif i % 3 == 2:
-                summary_resp = interface.communicate_get_summary()
-                assert summary_resp is not None
-                assert hasattr(summary_resp, "item")
+                handle = interface.deliver_get_summary()
+                result = handle.wait(timeout=5)
+                summary = result.response.get_summary_response
+                assert summary is not None
+                assert hasattr(summary, "item")
             work_queue.task_done()
 
         for i in range(10):
@@ -51,17 +58,21 @@ def test_send_status_request_network(mock_server, backend_interface):
     with backend_interface() as interface:
         interface.publish_files({"files": [("test.txt", "live")]})
 
-        status_resp = interface.communicate_network_status()
-        assert status_resp is not None
-        assert len(status_resp.network_responses) > 0
-        assert status_resp.network_responses[0].http_status_code == 429
+        handle = interface.deliver_network_status()
+        result = handle.wait(timeout=5)
+        assert result is not None
+        network = result.response.network_status_response
+        assert len(network.network_responses) > 0
+        assert network.network_responses[0].http_status_code == 429
 
 
 def test_resume_success(mocked_run, test_settings, mock_server, backend_interface):
     test_settings.update(resume="allow", source=wandb.sdk.wandb_settings.Source.INIT)
     mock_server.ctx["resume"] = True
     with backend_interface(initial_run=False) as interface:
-        run_result = interface.communicate_run(mocked_run)
+        handle = interface.deliver_run(mocked_run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
         assert run_result.HasField("error") is False
         assert run_result.run.starting_step == 16
 
@@ -70,24 +81,22 @@ def test_resume_error_never(mocked_run, test_settings, mock_server, backend_inte
     test_settings.update(resume="never", source=wandb.sdk.wandb_settings.Source.INIT)
     mock_server.ctx["resume"] = True
     with backend_interface(initial_run=False) as interface:
-        run_result = interface.communicate_run(mocked_run)
+        handle = interface.deliver_run(mocked_run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
         assert run_result.HasField("error")
-        assert (
-            run_result.error.message
-            == "resume='never' but run (%s) exists" % mocked_run.id
-        )
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.USAGE
 
 
 def test_resume_error_must(mocked_run, test_settings, mock_server, backend_interface):
     test_settings.update(resume="must", source=wandb.sdk.wandb_settings.Source.INIT)
     mock_server.ctx["resume"] = False
     with backend_interface(initial_run=False) as interface:
-        run_result = interface.communicate_run(mocked_run)
+        handle = interface.deliver_run(mocked_run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
         assert run_result.HasField("error")
-        assert (
-            run_result.error.message
-            == "resume='must' but run (%s) doesn't exist" % mocked_run.id
-        )
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.USAGE
 
 
 def test_output(mocked_run, mock_server, backend_interface):

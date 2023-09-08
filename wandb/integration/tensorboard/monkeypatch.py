@@ -1,4 +1,4 @@
-"""monkeypatch: patch code to add tensorboard hooks"""
+"""monkeypatch: patch code to add tensorboard hooks."""
 
 import os
 import re
@@ -17,7 +17,7 @@ TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 def unpatch() -> None:
     for module, method in wandb.patched["tensorboard"]:
-        writer = wandb.util.get_module(module)
+        writer = wandb.util.get_module(module, lazy=False)
         setattr(writer, method, getattr(writer, f"orig_{method}"))
     wandb.patched["tensorboard"] = []
 
@@ -36,12 +36,14 @@ def patch(
 
     # TODO: Some older versions of tensorflow don't require tensorboard to be present.
     # we may want to lift this requirement, but it's safer to have it for now
-    wandb.util.get_module("tensorboard", required="Please install tensorboard package")
-    c_writer = wandb.util.get_module(TENSORBOARD_C_MODULE)
-    py_writer = wandb.util.get_module(TENSORFLOW_PY_MODULE)
-    tb_writer = wandb.util.get_module(TENSORBOARD_WRITER_MODULE)
-    pt_writer = wandb.util.get_module(TENSORBOARD_PYTORCH_MODULE)
-    tbx_writer = wandb.util.get_module(TENSORBOARD_X_MODULE)
+    wandb.util.get_module(
+        "tensorboard", required="Please install tensorboard package", lazy=False
+    )
+    c_writer = wandb.util.get_module(TENSORBOARD_C_MODULE, lazy=False)
+    py_writer = wandb.util.get_module(TENSORFLOW_PY_MODULE, lazy=False)
+    tb_writer = wandb.util.get_module(TENSORBOARD_WRITER_MODULE, lazy=False)
+    pt_writer = wandb.util.get_module(TENSORBOARD_PYTORCH_MODULE, lazy=False)
+    tbx_writer = wandb.util.get_module(TENSORBOARD_X_MODULE, lazy=False)
 
     if not pytorch and not tensorboard_x and c_writer:
         _patch_tensorflow2(
@@ -140,7 +142,7 @@ def _patch_file_writer(
     # This configures non-TensorFlow Tensorboard logging, or tensorflow <= 1.15
     logdir_hist = []
 
-    class TBXEventFileWriter(writer.EventFileWriter):  # type: ignore
+    class TBXEventFileWriter(writer.EventFileWriter):
         def __init__(self, logdir: str, *args: Any, **kwargs: Any) -> None:
             logdir_hist.append(logdir)
             root_logdir_arg = root_logdir

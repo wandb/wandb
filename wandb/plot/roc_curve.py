@@ -6,9 +6,7 @@ from wandb.plots.utils import test_missing, test_types
 def roc_curve(
     y_true=None, y_probas=None, labels=None, classes_to_plot=None, title=None
 ):
-    """
-    Calculates receiver operating characteristic scores and visualizes them as the
-    ROC curve.
+    """Calculate and visualize receiver operating characteristic (ROC) scores.
 
     Arguments:
         y_true (arr): true sparse labels

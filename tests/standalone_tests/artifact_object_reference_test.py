@@ -9,7 +9,7 @@ from math import cos, pi, sin
 import numpy as np
 import wandb
 from bokeh.plotting import figure
-from wandb.sdk.interface import artifacts
+from wandb.sdk import artifacts
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:
@@ -176,9 +176,10 @@ def _make_html():
 
 
 def _make_video():
+    # time, channel, height, width
     return wandb.Video(
-        np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)
-    )  # 1 second video of 10x10 pixels
+        np.random.randint(0, high=255, size=(4, 3, 10, 10), dtype=np.uint8)
+    )
 
 
 vid1 = _make_video()
@@ -297,10 +298,13 @@ def _b64_to_hex_id(id_string):
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
 def test_artifact_add_reference_via_url():
-    """This test creates three artifacts. The middle artifact references the first artifact's file,
-    and the last artifact references the middle artifact's reference. The end result of downloading
-    the last artifact in a fresh, forth run, should be that all 3 artifacts are downloaded and that
-    the file in the last artifact is actually a symlink to the first artifact's file.
+    """Test adding a reference to an artifact via a URL.
+
+    This test creates three artifacts. The middle artifact references the first
+    artifact's file, and the last artifact references the middle artifact's reference.
+    The end result of downloading the last artifact in a fresh, forth run, should be
+    that all 3 artifacts are downloaded and that the file in the last artifact is
+    actually a symlink to the first artifact's file.
     """
     upstream_artifact_name = "upstream_artifact"
     middle_artifact_name = "middle_artifact"
@@ -366,9 +370,11 @@ def test_artifact_add_reference_via_url():
 
 # # Artifact1.add_reference(artifact2.get_path(file_name))
 def test_add_reference_via_artifact_entry():
-    """This test is the same as test_artifact_add_reference_via_url, but rather
-    than passing the direct URL, we pass an Artifact entry, which will automatically
-    resolve to the correct URL
+    """Test adding a reference to an artifact via an ArtifactEntry.
+
+    This test is the same as test_artifact_add_reference_via_url, but rather than
+    passing the direct URL, we pass an Artifact entry, which will automatically resolve
+    to the correct URL.
     """
     upstream_artifact_name = "upstream_artifact"
     middle_artifact_name = "middle_artifact"
@@ -440,12 +446,11 @@ def test_add_reference_via_artifact_entry():
 
 # # Artifact1.get(MEDIA_NAME) => media obj
 def test_get_artifact_obj_by_name():
-    """Tests tests the ability to instantiate a wandb Media object when passed
-    the name of such object. This is the logical inverse of Artifact.add(name).
-    TODO: test more robustly for every Media type, nested objects (eg. Table -> Image),
-    and references
-    """
+    """Test the ability to instantiate a wandb Media object from the name of the object.
 
+    This is the logical inverse of Artifact.add(name).
+    """
+    # TODO: test more robustly for every Media type, nested objects (eg. Table -> Image), and references.
     with wandb.init() as run:
         artifact = wandb.Artifact("A2", "database")
         image = _make_wandb_image()
@@ -469,9 +474,7 @@ def test_get_artifact_obj_by_name():
 
 # # Artifact1.add(artifact2.get(MEDIA_NAME))
 def test_adding_artifact_by_object():
-    """This test validates that we can add wandb Media objects
-    to an artifact by passing the object itself.
-    """
+    """Test adding wandb Media objects to an artifact by passing the object itself."""
     # Create an artifact with such file stored
     with wandb.init() as run:
         artifact = wandb.Artifact("upstream_media", "database")
@@ -496,7 +499,7 @@ def test_adding_artifact_by_object():
 
 
 def _cleanup():
-    artifacts.get_artifacts_cache()._artifacts_by_id = {}
+    artifacts.artifacts_cache.get_artifacts_cache()._artifacts_by_id = {}
     if os.path.isdir("wandb"):
         shutil.rmtree("wandb")
     if os.path.isdir("artifacts"):

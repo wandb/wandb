@@ -123,12 +123,13 @@ def patch_kfp():
         patch("wandb.integration.kfp", wandb_log)
 
 
-def wandb_log(  # noqa: C901
+def wandb_log(
     func=None,
     # /,  # py38 only
     log_component_file=True,
 ):
-    """Wrap a standard python function and log to W&B
+    """Wrap a standard python function and log to W&B.
+
     NOTE: Because patching failed, this decorator is a no-op.
     """
     from functools import wraps
@@ -147,10 +148,11 @@ def wandb_log(  # noqa: C901
 
 
 def _get_function_source_definition(func: Callable) -> str:
-    """This function is modified from KFP.  The original source is below:
-    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L300-L319
-    """
+    """Get the source code of a function.
 
+    This function is modified from KFP.  The original source is below:
+    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L300-L319.
+    """
     func_code = inspect.getsource(func)
 
     # Function might be defined in some indented scope (e.g. in another
@@ -167,8 +169,8 @@ def _get_function_source_definition(func: Callable) -> str:
 
     if not func_code_lines:
         raise ValueError(
-            'Failed to dedent and clean up the source of function "{}". '
-            "It is probably not properly indented.".format(func.__name__)
+            f'Failed to dedent and clean up the source of function "{func.__name__}". '
+            "It is probably not properly indented."
         )
 
     return "\n".join(func_code_lines)
@@ -181,11 +183,12 @@ def create_component_from_func(
     packages_to_install: Optional[List[str]] = None,
     annotations: Optional[Mapping[str, str]] = None,
 ):
-    '''This function is modified from KFP.  The original source is below:
-    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L998-L1110
+    '''Convert a Python function to a component and returns a task factory.
 
-    Converts a Python function to a component and returns a task factory
-    (a function that accepts arguments and returns a task object).
+    The returned task factory accepts arguments and returns a task object.
+
+    This function is modified from KFP.  The original source is below:
+    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L998-L1110.
 
     Args:
         func: The python function to convert
@@ -202,7 +205,7 @@ def create_component_from_func(
         The function name and docstring are used as component name and description. Argument and return annotations are used as component input/output types::
 
             def add(a: float, b: float) -> float:
-                """Returns sum of two arguments"""
+                """Return sum of two arguments"""
                 return a + b
 
             # add_op is a task factory function that creates a task object when given arguments
@@ -231,7 +234,7 @@ def create_component_from_func(
 
             @create_component_from_func
             def add_op(a: float, b: float) -> float:
-                """Returns sum of two arguments"""
+                """Return sum of two arguments"""
                 return a + b
 
         To declare a function with multiple return values, use the :code:`NamedTuple` return annotation syntax::
@@ -239,7 +242,7 @@ def create_component_from_func(
             from typing import NamedTuple
 
             def add_multiply_two_numbers(a: float, b: float) -> NamedTuple('Outputs', [('sum', float), ('product', float)]):
-                """Returns sum and product of two arguments"""
+                """Return sum and product of two arguments"""
                 return (a + b, a * b)
 
             add_multiply_op = create_component_from_func(add_multiply_two_numbers)
@@ -271,12 +274,11 @@ def create_component_from_func(
                 ('Precision', float), # Small output of type "Float"
                 ('JobUri', 'URI'),    # Small output of type "URI"
             ]):
-                """Trains CatBoost classification model"""
+                """Train CatBoost classification model"""
                 ...
 
                 return (accuracy, precision, recall)
     '''
-
     core_packages = ["wandb", "kfp"]
 
     if not packages_to_install:
@@ -302,10 +304,11 @@ def create_component_from_func(
 
 
 def strip_type_hints(source_code: str) -> str:
-    """This function is modified from KFP.  The original source is below:
-    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L237-L248
-    """
+    """Strip type hints from source code.
 
+    This function is modified from KFP.  The original source is below:
+    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L237-L248.
+    """
     # For wandb, do not strip type hints
 
     #     try:

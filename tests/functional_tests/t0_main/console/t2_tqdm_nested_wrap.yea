@@ -1,6 +1,12 @@
 id: 0.console.t2_tqdm_nested_wrap
 plugin:
   - wandb
+depend:
+  requirements:
+    - tqdm
+tag:
+  skips:
+    - platform: win
 command:
   program: test_tqdm_nested.py
 env:

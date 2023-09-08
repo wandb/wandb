@@ -170,7 +170,6 @@ class TestWithMockedTime(TestCase):
 
     def test_keepalive(self):
         """Make sure mock keepalive is called."""
-
         with self._patch_mailbox() as (event_mock, _):
             mailbox = Mailbox()
             mailbox.enable_keepalive()

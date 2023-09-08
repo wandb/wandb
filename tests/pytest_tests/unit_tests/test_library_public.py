@@ -1,9 +1,8 @@
-"""
-Library public tests.
+"""Library public tests.
 
 *NOTE*: If you need to add a symbol, make sure this has been discussed and the name of the object or method is agreed upon.
 
-TODO:
+Todo:
     - clean up / hide symbols, which shouldn't be public
     - deprecate ones that were public but we want to remove
 
@@ -28,6 +27,7 @@ SYMBOLS_ROOT_DATATYPES = {
 }
 
 SYMBOLS_ROOT_SDK = {
+    "ArtifactTTL",
     "login",
     "init",
     "log",
@@ -144,6 +144,8 @@ SYMBOLS_TYPING = {
 
 SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
 
+SYMBOLS_ANALYTICS = {"analytics", "_Sentry", "_sentry"}
+
 
 def test_library_root():
     symbol_list = dir(wandb)
@@ -156,6 +158,7 @@ def test_library_root():
         - SYMBOLS_ROOT_OTHER
         - SYMBOLS_TYPING
         - SYMBOLS_SERVICE
+        - SYMBOLS_ANALYTICS
     )
     assert symbol_unknown == set()
 

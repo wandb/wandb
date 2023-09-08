@@ -112,8 +112,7 @@ class DataStore:
         return offset
 
     def in_last_block(self):
-        """When reading, we want to know if we're in the last block to
-        handle in progress writes"""
+        """Determine if we're in the last block to handle in-progress writes."""
         return self._index > self._size_bytes - LEVELDBLOG_DATA_LEN
 
     def scan_record(self):
@@ -173,9 +172,7 @@ class DataStore:
                 break
             assert (
                 dtype == LEVELDBLOG_MIDDLE
-            ), "expected record to be type {} but found {}".format(
-                LEVELDBLOG_MIDDLE, dtype
-            )
+            ), f"expected record to be type {LEVELDBLOG_MIDDLE} but found {dtype}"
             data += new_data
         return data
 
@@ -188,9 +185,7 @@ class DataStore:
         )
         assert (
             len(data) == LEVELDBLOG_HEADER_LEN
-        ), "header size is {} bytes, expected {}".format(
-            len(data), LEVELDBLOG_HEADER_LEN
-        )
+        ), f"header size is {len(data)} bytes, expected {LEVELDBLOG_HEADER_LEN}"
         self._fp.write(data)
         self._index += len(data)
 
@@ -260,7 +255,7 @@ class DataStore:
             # write middles (if any)
             while data_left > LEVELDBLOG_DATA_LEN:
                 self._write_record(
-                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],  # noqa: E203
+                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],
                     LEVELDBLOG_MIDDLE,
                 )
                 data_used += LEVELDBLOG_DATA_LEN

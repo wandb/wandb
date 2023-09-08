@@ -1,4 +1,4 @@
-"""MessageFuturePoll - Derived from MessageFuture but implementing polling loop
+"""MessageFuturePoll - Derived from MessageFuture but implementing polling loop.
 
 MessageFuture represents a message result of an asynchronous operation.
 

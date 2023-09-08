@@ -13,9 +13,10 @@ from .base_types.media import BatchableMedia
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
-    import numpy as np  # type: ignore
+    import numpy as np
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
 
@@ -132,7 +133,7 @@ class Video(BatchableMedia):
             required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"',
         )
         tensor = self._prepare_video(self.data)
-        _, self._height, self._width, self._channels = tensor.shape
+        _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
         # encode sequence of images into gif string
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
@@ -169,7 +170,7 @@ class Video(BatchableMedia):
     def get_media_subdir(cls: Type["Video"]) -> str:
         return os.path.join("media", "videos")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
 
@@ -183,7 +184,7 @@ class Video(BatchableMedia):
         return json_dict
 
     def _prepare_video(self, video: "np.ndarray") -> "np.ndarray":
-        """This logic was mostly taken from tensorboardX"""
+        """This logic was mostly taken from tensorboardX."""
         np = util.get_module(
             "numpy",
             required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".',

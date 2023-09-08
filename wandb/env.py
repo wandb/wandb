@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""All of W&B's environment variables
+"""All of W&B's environment variables.
 
 Getters and putters for all of them should go here. That
 way it'll be easier to avoid typos with names and be
@@ -14,6 +14,7 @@ import json
 import os
 import sys
 from distutils.util import strtobool
+from pathlib import Path
 from typing import List, MutableMapping, Optional, Union
 
 import appdirs
@@ -50,6 +51,7 @@ RUN_GROUP = "WANDB_RUN_GROUP"
 RUN_DIR = "WANDB_RUN_DIR"
 SWEEP_ID = "WANDB_SWEEP_ID"
 HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
+FILE_PUSHER_TIMEOUT = "WANDB_FILE_PUSHER_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
@@ -71,10 +73,10 @@ ANONYMOUS = "WANDB_ANONYMOUS"
 JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 DATA_DIR = "WANDB_DATA_DIR"
+ARTIFACT_DIR = "WANDB_ARTIFACT_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
-REQUIRE_SERVICE = "WANDB_REQUIRE_SERVICE"
 _DISABLE_SERVICE = "WANDB_DISABLE_SERVICE"
 SENTRY_DSN = "WANDB_SENTRY_DSN"
 INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
@@ -87,8 +89,10 @@ USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
 
 def immutable_keys() -> List[str]:
-    """These are env keys that shouldn't change within a single process.  We use this to maintain
-    certain values between multiple calls to wandb.init within a single process."""
+    """These are env keys that shouldn't change within a single process.
+
+    We use this to maintain certain values between multiple calls to wandb.init within a single process.
+    """
     return [
         DIR,
         ENTITY,
@@ -117,6 +121,7 @@ def immutable_keys() -> List[str]:
         HTTP_TIMEOUT,
         HOST,
         DATA_DIR,
+        ARTIFACT_DIR,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
         DISABLE_SSL,
@@ -188,11 +193,22 @@ def get_docker(
     return env.get(DOCKER, default)
 
 
-def get_http_timeout(default: int = 10, env: Optional[Env] = None) -> int:
+def get_http_timeout(default: int = 30, env: Optional[Env] = None) -> int:
     if env is None:
         env = os.environ
 
     return int(env.get(HTTP_TIMEOUT, default))
+
+
+def get_file_pusher_timeout(
+    default: Optional[int] = None,
+    env: Optional[Env] = None,
+) -> Optional[int]:
+    if env is None:
+        env = os.environ
+
+    timeout = env.get(FILE_PUSHER_TIMEOUT, default)
+    return int(timeout) if timeout else None
 
 
 def get_ignore(
@@ -356,12 +372,17 @@ def get_data_dir(env: Optional[Env] = None) -> str:
     return val
 
 
-def get_cache_dir(env: Optional[Env] = None) -> str:
-    default_dir = appdirs.user_cache_dir("wandb")
+def get_artifact_dir(env: Optional[Env] = None) -> str:
+    default_dir = os.path.join(".", "artifacts")
     if env is None:
         env = os.environ
-    val = env.get(CACHE_DIR, default_dir)
+    val = env.get(ARTIFACT_DIR, default_dir)
     return val
+
+
+def get_cache_dir(env: Optional[Env] = None) -> Path:
+    env = env or os.environ
+    return Path(env.get(CACHE_DIR, appdirs.user_cache_dir("wandb")))
 
 
 def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:

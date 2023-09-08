@@ -1,4 +1,4 @@
-"""test profiler track and sync `pt.trace.json` files functionality"""
+"""Test profiler track and sync `pt.trace.json` files functionality."""
 
 import torch
 import wandb
@@ -6,12 +6,11 @@ from torch.nn.functional import log_softmax, max_pool2d, relu
 
 
 def test_profiler():
-    """
-    This test simulates a typical use-case for PyTorch Profiler: training performance.
-    It generates random noise and trains a simple conv net on this noise
-    using the torch profiler api.
-    Doing so dumps a "pt.trace.json" file in the given logdir.
-    This test then ensures that these trace files are sent to the backend.
+    """Simulate a typical use-case for PyTorch Profiler: training performance.
+
+    Generate random noise and train a simple conv net on this noise using the torch
+    profiler api. Doing so dumps a "pt.trace.json" file in the given logdir. This test
+    then ensures that these trace files are sent to the backend.
     """
 
     def random_batch_generator():

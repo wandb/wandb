@@ -1,6 +1,4 @@
-"""
-summary test.
-"""
+"""summary test."""
 
 from typing import TYPE_CHECKING, Any, Dict, Tuple
 

@@ -1,24 +1,28 @@
-"""
+"""Script for testing loading artifact tables.
+
+Use:
+```sh
 pip uninstall wandb > /dev/null -y && \
-pip install wandb > /dev/null && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 --clear_cache && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 --clear_cache && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 --clear_cache && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 --clear_cache && \
-pip uninstall wandb -y > /dev/null && \
-pip install git+git://github.com/wandb/wandb.git@tim/artifacts/table_eager_download > /dev/null && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 --clear_cache && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 --clear_cache && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 --clear_cache && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 --clear_cache
+  pip install wandb > /dev/null && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 --clear_cache && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 --clear_cache && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 --clear_cache && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 --clear_cache && \
+  pip uninstall wandb -y > /dev/null && \
+  pip install git+git://github.com/wandb/wandb.git@tim/artifacts/table_eager_download > /dev/null && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 --clear_cache && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 --clear_cache && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 --clear_cache && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 && \
+  WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 --clear_cache.
+```
 """
 
 import argparse

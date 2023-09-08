@@ -4,8 +4,7 @@ import wandb
 
 
 def bar(table: wandb.Table, label: str, value: str, title: Optional[str] = None):
-    """
-    Construct a bar plot.
+    """Construct a bar plot.
 
     Arguments:
         table (wandb.Table): Table of data.

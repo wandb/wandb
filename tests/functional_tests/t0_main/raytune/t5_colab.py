@@ -1,7 +1,7 @@
 """ray-tune test.
 
 Based on:
-    https://docs.wandb.ai/guides/integrations/other/ray-tune
+    https://docs.wandb.ai/guides/integrations/ray-tune
     https://colab.research.google.com/github/wandb/examples/blob/master/colabs/raytune/RayTune_with_wandb.ipynb
 """
 
@@ -18,7 +18,6 @@ from ray.tune.integration.wandb import WandbLogger, wandb_mixin
 
 @wandb_mixin
 def train_mnist(config):
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_loader, test_loader = get_data_loaders()
 
@@ -29,7 +28,7 @@ def train_mnist(config):
         model.parameters(), lr=config["lr"], momentum=config["momentum"]
     )
 
-    for _i in range(10):
+    for _i in range(5):
         train(model, optimizer, train_loader, device=device)
         acc = test(model, test_loader, device=device)
 
@@ -55,6 +54,8 @@ def run():
         train_mnist,
         loggers=[WandbLogger],
         resources_per_trial={"gpu": 0},
+        time_budget_s=5 * 60,
+        max_concurrent_trials=1,
         config={
             # wandb dict accepts all arguments that can be passed in wandb.init()
             "wandb": wandb_init,

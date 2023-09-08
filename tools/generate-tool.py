@@ -12,9 +12,10 @@ import argparse
 import contextlib
 import filecmp
 import os
-import pathlib
 import subprocess
 import tempfile
+from pathlib import Path, PurePath
+from typing import Iterator, List
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--generate", action="store_true", help="generate files")
@@ -36,23 +37,23 @@ GENERATE_SUFFIX = "_generate.py"
 GENERATED_SUFFIX = "_generated.py"
 
 
-def get_paths():
-    paths = []
+def get_paths() -> List[PurePath]:
+    paths: List[PurePath] = []
     if not args.files:
         exclude_dirs = {"vendor", "__pycache__"}
-        root_dir = pathlib.Path(__file__).resolve().parent.parent / "wandb"
+        root_dir = Path(__file__).resolve().parent.parent / "wandb"
         for base, subdirs, files in os.walk(root_dir):
-            # Dont walk into excluded subdirs
+            # Don't walk into excluded subdirectories
             subdirs[:] = list(set(subdirs) - exclude_dirs)
             for fname in files:
                 if fname.endswith(GENERATE_SUFFIX):
-                    paths.append(pathlib.PurePath(base, fname))
+                    paths.append(PurePath(base, fname))
     for f in args.files:
-        paths.append(pathlib.Path(f))
+        paths.append(Path(f))
     return paths
 
 
-def generate_file(generate_path, output_path):
+def generate_file(generate_path: Path, output_path: Path) -> None:
     status, output = subprocess.getstatusoutput(f"python {generate_path}")
     assert status == 0, f"Error: {output}"
     with open(output_path, "w") as f:
@@ -60,19 +61,19 @@ def generate_file(generate_path, output_path):
         f.write(output)
 
 
-def generate_files(paths):
+def generate_files(paths: List[PurePath]) -> None:
     for p in paths:
         output_path = p.parent / str(p).replace(GENERATE_SUFFIX, GENERATED_SUFFIX)
         print(f"INFO: Generating {output_path}...")
         generate_file(p, output_path)
 
 
-def format_file(filename):
+def format_file(filename: Path) -> None:
     status, output = subprocess.getstatusoutput(f"black {filename}")
     assert status == 0, f"Error: {output}"
 
 
-def format_files(paths):
+def format_files(paths: List[PurePath]) -> None:
     for p in paths:
         output_path = p.parent / str(p).replace(GENERATE_SUFFIX, GENERATED_SUFFIX)
         print(f"INFO: Formatting {output_path}...")
@@ -80,17 +81,17 @@ def format_files(paths):
 
 
 @contextlib.contextmanager
-def temp_fname():
+def temp_fname() -> Iterator[PurePath]:
     try:
         f = tempfile.NamedTemporaryFile(delete=False)
         tmp_name = f.name
         f.close()
-        yield tmp_name
+        yield Path(tmp_name)
     finally:
         os.unlink(tmp_name)
 
 
-def check_files(paths):
+def check_files(paths: List[PurePath]) -> None:
     for p in paths:
         generated_path = p.parent / str(p).replace(GENERATE_SUFFIX, GENERATED_SUFFIX)
         print(f"INFO: Checking {generated_path}...")
@@ -102,7 +103,7 @@ def check_files(paths):
             ), f"expected: {open(temp_file).read()}"
 
 
-def main():
+def main() -> None:
     path_list = get_paths()
 
     if args.generate:

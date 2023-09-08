@@ -1,4 +1,4 @@
-"""Router - handle message router (relay)
+"""Router - handle message router (relay).
 
 Router to manage responses from a queue with relay.
 

@@ -1,9 +1,12 @@
+import copy
 import os
 import platform
+import unittest.mock as mock
 
 import numpy as np
 import pytest
 import wandb
+import wandb.errors
 from wandb import wandb_sdk
 
 
@@ -174,10 +177,14 @@ def test_deprecated_run_log_sync(mock_run, capsys):
     )
 
 
-def test_run_log_mp_warn(mock_run, capsys):
-    run = mock_run()
-    run._init_pid += 1
-    run.log(dict(this=1))
+def test_run_log_mp_warn(mock_run, test_settings, capsys):
+    test_settings = test_settings()
+    with mock.patch.dict("os.environ", {"WANDB_DISABLE_SERVICE": "true"}):
+        test_settings._apply_env_vars(os.environ)
+        run = mock_run(settings=test_settings)
+        run._init_pid = os.getpid()
+        run._init_pid += 1
+        run.log(dict(this=1))
     _, stderr = capsys.readouterr()
     assert (
         f"`log` ignored (called from pid={os.getpid()}, "
@@ -194,9 +201,27 @@ def test_use_artifact_offline(mock_run):
 
 def test_run_basic():
     s = wandb.Settings()
-    c = dict(param1=2, param2=4)
+    c = dict(
+        param1=2,
+        param2=4,
+        param3=set(range(10)),
+        param4=list(range(10, 20)),
+        param5=tuple(range(20, 30)),
+        dict_param=dict(
+            a=list(range(10)), b=tuple(range(10, 20)), c=set(range(20, 30))
+        ),
+    )
     run = wandb_sdk.wandb_run.Run(settings=s, config=c)
-    assert dict(run.config) == dict(param1=2, param2=4)
+    assert dict(run.config) == dict(
+        param1=2,
+        param2=4,
+        param3=list(range(10)),
+        param4=list(range(10, 20)),
+        param5=list(range(20, 30)),
+        dict_param=dict(
+            a=list(range(10)), b=list(range(10, 20)), c=list(range(20, 30))
+        ),
+    )
 
 
 def test_run_sweep():
@@ -213,3 +238,81 @@ def test_run_sweep_overlap():
     sw = dict(param2=8, param3=9)
     run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=8, param3=9)
+
+
+def test_run_deepcopy():
+    s = wandb.Settings()
+    c = dict(param1=2, param2=4)
+    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
+    run2 = copy.deepcopy(run)
+    assert id(run) == id(run2)
+
+
+@pytest.mark.parametrize(
+    "settings, expected",
+    [
+        ({}, False),
+        ({"resume": True}, True),
+        ({"resume": "auto"}, True),
+        ({"resume": "allow"}, True),
+        ({"resume": "never"}, True),
+        ({"resume": "must"}, True),
+        ({"resume": "run_id"}, True),
+    ],
+)
+def test_resumed_run_resume_file_state(mock_run, tmp_path, settings, expected):
+    tmp_file = tmp_path / "test_resume.json"
+    tmp_file.write_text("{'run_id': 'test'}")
+
+    run = mock_run(
+        use_magic_mock=True, settings={"resume_fname": str(tmp_file), **settings}
+    )
+    run._on_ready()
+
+    assert tmp_file.exists() == expected
+
+
+@pytest.mark.parametrize(
+    "method, args",
+    [
+        ("alert", ["test", "test"]),
+        ("define_metric", ["test"]),
+        ("log", [{"test": 2}]),
+        ("log_code", []),
+        ("mark_preempting", []),
+        ("save", []),
+        ("status", []),
+        ("link_artifact", [wandb.Artifact("test", type="dataset"), "input"]),
+        ("use_artifact", ["test"]),
+        ("log_artifact", ["test"]),
+        ("upsert_artifact", ["test"]),
+        ("finish_artifact", ["test"]),
+    ],
+)
+def test_error_when_using_methods_of_finished_run(mock_run, method, args):
+    run = mock_run(use_magic_mock=True)
+    run.finish()
+    assert run._is_finished
+    with pytest.raises(wandb.errors.UsageError):
+        getattr(run, method)(*args)
+
+
+@pytest.mark.parametrize(
+    "attribute, value",
+    [
+        ("config", ["test", 2]),
+        ("summary", ["test", 2]),
+        ("name", "test"),
+        ("notes", "test"),
+        ("tags", "test"),
+    ],
+)
+def test_error_when_using_attributes_of_finished_run(mock_run, attribute, value):
+    run = mock_run(use_magic_mock=True)
+    run.finish()
+    assert run._is_finished
+    with pytest.raises(wandb.errors.UsageError):
+        if isinstance(value, list):
+            setattr(getattr(run, attribute), *value)
+        else:
+            setattr(run, attribute, value)

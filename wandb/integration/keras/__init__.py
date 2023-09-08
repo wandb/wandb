@@ -1,6 +1,6 @@
-"""
-Tools for integrating `wandb` with [`Keras`](https://keras.io/),
-a deep learning API for [`TensorFlow`](https://www.tensorflow.org/).
+"""Tools for integrating `wandb` with [`Keras`](https://keras.io/).
+
+Keras is a deep learning API for [`TensorFlow`](https://www.tensorflow.org/).
 """
 __all__ = (
     "WandbCallback",

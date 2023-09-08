@@ -1,6 +1,4 @@
-"""
-progress.
-"""
+"""progress."""
 
 import os
 import sys
@@ -20,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class Progress:
-    """A helper class for displaying progress"""
+    """A helper class for displaying progress."""
 
     ITER_BYTES = 1024 * 1024
 
@@ -35,12 +33,12 @@ class Progress:
 
             callback = callback_
 
-        self.callback: "ProgressFn" = callback
+        self.callback: ProgressFn = callback
         self.bytes_read = 0
         self.len = os.fstat(file.fileno()).st_size
 
     def read(self, size=-1):
-        """Read bytes and call the callback"""
+        """Read bytes and call the callback."""
         bites = self.file.read(size)
         self.bytes_read += len(bites)
         if not bites and self.bytes_read < self.len:
@@ -54,7 +52,7 @@ class Progress:
                 )
             )
         # Growing files are also likely to be bad, but our code didn't break
-        # on those in the past so it's riskier to make that an error now.
+        # on those in the past, so it's riskier to make that an error now.
         self.callback(len(bites), self.bytes_read)
         return bites
 
@@ -64,7 +62,7 @@ class Progress:
         self.file.seek(0)
 
     def __getattr__(self, name):
-        """Fallback to the file object for attrs not defined here"""
+        """Fallback to the file object for attrs not defined here."""
         if hasattr(self.file, name):
             return getattr(self.file, name)
         else:
@@ -83,3 +81,31 @@ class Progress:
         return self.len
 
     next = __next__
+
+
+class AsyncProgress:
+    """Wrapper around Progress, to make it async iterable.
+
+    httpx, for streaming uploads, requires the data source to be an async iterable.
+    If we pass in a sync iterable (like a bare `Progress` instance), httpx will
+    get confused, think we're trying to make a synchronous request, and raise.
+    So we need this wrapper class to be an async iterable but *not* a sync iterable.
+    """
+
+    def __init__(self, progress: Progress) -> None:
+        self._progress = progress
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._progress)
+        except StopIteration:
+            raise StopAsyncIteration
+
+    def __len__(self):
+        return len(self._progress)
+
+    def rewind(self) -> None:
+        self._progress.rewind()

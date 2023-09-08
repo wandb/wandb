@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""WB-7940: test that we can change env vars after wandb.login()"""
+"""WB-7940: test that we can change env vars after wandb.login()."""
 
 import os
 from unittest import mock
