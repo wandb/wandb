@@ -20,7 +20,7 @@ jobs: # update the docs.
       - uses: wandb/docugen@v0.4.1
         with:
           docodile-branch: main
-          wandb-branch: ${{ github.event.inputs.ref || github.ref }}
+          wandb-branch: ${{ replace(github.event.inputs.ref, 'refs/tags/', '') || github.ref }}
           generate-sdk-docs: true
           generate-weave-docs: false
           access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}

@@ -571,6 +571,7 @@ class _WandbInit:
         logger.info(
             f"wandb.init called with sweep_config: {self.sweep_config}\nconfig: {self.config}"
         )
+
         if self.settings._noop:
             return self._make_run_disabled()
         if self.settings.reinit or (

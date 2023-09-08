@@ -9,7 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 )
 
 // globals to keep track of the wandb session and any runs
@@ -23,7 +23,7 @@ func wandbcoreSetup() {
 	}
 	var err error
 	wandbSession, err = gowandb.NewSession(
-		session.WithCoreBinary(coreBinary),
+		sessionopts.WithCoreBinary(coreBinary),
 	)
 	if err != nil {
 		panic(err)

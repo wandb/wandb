@@ -1,0 +1,44 @@
+id: 0.yolov8.classification
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: test_ultralytics_classification.py
+depend:
+    requirements:
+        - "ultralytics>=8.0.167"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][batch]: 64
+    - :wandb:runs[0][config][task]: classify
+    - :wandb:runs[0][config][epochs]: 2
+    - :wandb:runs[0][summary][model/parameters]: 1451098
+    - :wandb:runs[0][summary][Validation-Table][_type]: table-file
+    - :wandb:runs[0][summary][Validation-Table][nrows]: 128
+    - :wandb:runs[0][summary][Train-Validation-Table][_type]: table-file
+    - :wandb:runs[0][summary][Train-Validation-Table][nrows]: 512
+    - :op:>=:
+        - :wandb:runs[0][summary][model/GFLOPs]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][model/speed_PyTorch(ms)]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/loss]
+        - 0.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/accuracy_top1]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/accuracy_top5]
+        - 1.0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 47  # yolov8 used
+    - :wandb:runs[0][exitcode]: 0
