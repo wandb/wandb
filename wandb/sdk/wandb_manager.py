@@ -106,8 +106,8 @@ class _Manager:
     _atexit_lambda: Optional[Callable[[], None]]
     _hooks: Optional[ExitHooks]
     _settings: "Settings"
-    _out_redir: Optional[redirect.Redirect]
-    _err_redir: Optional[redirect.Redirect]
+    _out_redir: Optional[redirect.RedirectRaw]
+    _err_redir: Optional[redirect.RedirectRaw]
     _service: "service._Service"
 
     def _service_connect(self) -> None:
@@ -197,9 +197,7 @@ class _Manager:
         self._err_redir = None
 
     def _console_setup(self) -> None:
-        # avoid circular import. fix this
-        console = self._settings.console
-        if console != "redirect":
+        if self._settings.console != "redirect":
             return
         self._redirect_install()
 
