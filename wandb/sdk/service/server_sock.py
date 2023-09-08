@@ -1,4 +1,5 @@
 import queue
+import os
 import socket
 import threading
 import time
@@ -81,7 +82,6 @@ class SockServerReadThread(threading.Thread):
     _mux: StreamMux
     _stopped: "Event"
     _clients: ClientDict
-    _console_run_ids: Set[str]
 
     def __init__(
         self, conn: socket.socket, mux: StreamMux, clients: ClientDict
@@ -94,7 +94,6 @@ class SockServerReadThread(threading.Thread):
         self._sock_client = sock_client
         self._stopped = mux._get_stopped_event()
         self._clients = clients
-        self._console_run_ids = set()
 
     def run(self) -> None:
         while not self._stopped.is_set():
@@ -160,11 +159,12 @@ class SockServerReadThread(threading.Thread):
         return output_record
 
     def server_inform_console_data(self, sreq: "spb.ServerRequest") -> None:
-        if not self._console_run_ids:
+        console_stream_ids = self._mux.get_subscribed_stream_ids("console")
+        if not console_stream_ids:
             return
         request = sreq.inform_console_data
         output_record = self._make_output_record(request)
-        for stream_id in self._console_run_ids:
+        for stream_id in console_stream_ids:
             record = pb.Record()
             record.output.CopyFrom(output_record)
 
@@ -179,12 +179,12 @@ class SockServerReadThread(threading.Thread):
     def server_inform_console_start(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_console_start
         stream_id = request.run_id
-        self._console_run_ids.add(stream_id)
+        self._mux.subscribe_stream(stream_id, "console")
 
     def server_inform_console_stop(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_console_stop
         stream_id = request.run_id
-        self._console_run_ids.discard(stream_id)
+        self._mux.unsubscribe_stream(stream_id, "console")
 
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach

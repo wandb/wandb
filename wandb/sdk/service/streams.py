@@ -5,13 +5,14 @@ StreamRecord: All the external state for the internal thread (queues, etc)
 StreamAction: Lightweight record for stream ops for thread safety
 StreamMux: Container for dictionary of stream threads per runid
 """
+from collections import defaultdict
 import functools
 import multiprocessing
 import queue
 import threading
 import time
 from threading import Event
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, DefaultDict, Dict, List, Optional, Set, Tuple
 
 import psutil
 
@@ -134,6 +135,7 @@ class StreamAction:
 class StreamMux:
     _streams_lock: threading.Lock
     _streams: Dict[str, StreamRecord]
+    _subscription_stream_ids: DefaultDict[str, Set[str]]
     _port: Optional[int]
     _pid: Optional[int]
     _action_q: "queue.Queue[StreamAction]"
@@ -144,6 +146,7 @@ class StreamMux:
     def __init__(self) -> None:
         self._streams_lock = threading.Lock()
         self._streams = dict()
+        self._subscription_stream_ids = defaultdict(set)
         self._port = None
         self._pid = None
         self._stopped = Event()
@@ -192,6 +195,14 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
+    def subscribe_stream(self, stream_id: str, subscription_type: str) -> None:
+        with self._streams_lock:
+            self._subscription_stream_ids[subscription_type].add(stream_id)
+
+    def unsubscribe_stream(self, stream_id: str, subscription_type: str) -> None:
+        with self._streams_lock:
+            self._subscription_stream_ids[subscription_type].discard(stream_id)
+
     def stream_names(self) -> List[str]:
         with self._streams_lock:
             names = list(self._streams.keys())
@@ -205,6 +216,11 @@ class StreamMux:
         with self._streams_lock:
             stream = self._streams[stream_id]
             return stream
+
+    def get_subscribed_stream_ids(self, subscription_type: str) -> Tuple[str]:
+        with self._streams_lock:
+            stream_ids = self._subscription_stream_ids[subscription_type]
+            return tuple(stream_ids)
 
     def _process_add(self, action: StreamAction) -> None:
         stream = StreamRecord(action._data, mailbox=self._mailbox)

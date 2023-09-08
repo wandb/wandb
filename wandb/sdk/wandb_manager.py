@@ -183,10 +183,14 @@ class _Manager:
                 # self._output_writer.write,  # type: ignore
             ],
         )
+        # FIXME: remove this next line
+        out_redir = None
         self._out_redir = out_redir
         self._err_redir = err_redir
-        self._out_redir.install()  # type: ignore
-        self._err_redir.install()  # type: ignore
+        if self._out_redir:
+            self._out_redir.install()
+        if self._err_redir:
+            self._err_redir.install()
 
     def _redirect_uninstall(self) -> None:
         if self._out_redir:
