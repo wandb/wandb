@@ -2,6 +2,7 @@ import itertools
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
@@ -790,7 +791,10 @@ class WandbImporter:
         )
 
     def _projects(
-        self, entity: str, project: Optional[str], api: Optional[wandb.Api] = None
+        self,
+        entity: str,
+        project: Optional[str] = None,
+        api: Optional[wandb.Api] = None,
     ) -> List[wandb.apis.public.Project]:
         if api is None:
             api = self.src_api
@@ -1013,6 +1017,15 @@ class WandbImporter:
                         progress.subtask_pbar.advance(task, 1)
                 progress.subtask_pbar.remove_task(task)
 
+    def _validate_run(self):
+        ...
+
+    def _validate_artifact_sequence(self, sequence):
+        ...
+
+    def _validate_report(self):
+        ...
+
 
 def get_art_name_ver(art: wandb.Artifact) -> Tuple[str, int]:
     name, ver = art.name.split(":v")
@@ -1063,3 +1076,58 @@ def fill_with_dummy_arts(arts):
                 ]
         yield [a]
         prev_ver = ver
+
+
+@dataclass(frozen=True)
+class ImportValidator:
+    importer: WandbImporter
+
+    def collect_dst_artifact_sequence(self, sequence):
+        dst_sequence = []
+        for art in sequence:
+            try:
+                dst_art = self.importer.dst_api.artifact(art.qualified_name, art.type)
+            except Exception as e:
+                dst_sequence.append(e)
+                continue
+
+            dst_sequence.append(dst_art)
+        return dst_sequence
+
+    def _compare_artifacts(self, src_art, dst_art):
+        problems = []
+        if isinstance(dst_art, wandb.CommError):
+            return ["commError"]
+
+        if src_art.digest != dst_art.digest:
+            problems.append(f"digest mismatch {src_art.digest=}, {dst_art.digest=}")
+
+        for name, src_entry in src_art.manifest.entries.items():
+            if name not in dst_art.manifest.entries:
+                problems.append(f"missing manifest entry {name=}, {src_entry=}")
+
+            dst_entry = dst_art.manifest.entries[name]
+            for attr in ["path", "digest", "size"]:
+                if getattr(src_entry, attr) != getattr(dst_entry, attr):
+                    problems.append(
+                        f"manifest entry {attr} mismatch, {getattr(src_entry, attr)=}, {getattr(dst_entry, attr)=}"
+                    )
+
+        return problems
+
+    def compare_artifact_sequence(self, src_sequence, dst_sequence):
+        if len(src_sequence) != len(dst_sequence):
+            return False
+
+        results = []
+        for src, dst in zip(src_sequence, dst_sequence):
+            result = self._compare_artifacts(src, dst)
+            results.append(result)
+        return results
+
+    def collect_dst_artifact_sequences(self, sequences):
+        dst_sequences = []
+        for sequence in sequences:
+            result = self.collect_dst_artifact_sequence(sequence)
+            dst_sequences.append(result)
+        return dst_sequences
