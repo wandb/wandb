@@ -151,9 +151,9 @@ def init_agent_in_launch_cluster(namespace: str):
     """Build and deploy the agent in provided cluster namespace."""
     create_config_files()
     # Comment out if launch agent image is already built locally
-    # run_cmd(
-    #     "python tools/build_launch_agent.py --tag wandb-launch-agent:release-testing"
-    # )
+    run_cmd(
+        "python tools/build_launch_agent.py --tag wandb-launch-agent:release-testing"
+    )
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-config.yml")
     run_cmd("kubectl apply -f tests/release_tests/test_launch/launch-agent.yml")
     setup_cleanup_on_exit(namespace)
