@@ -204,7 +204,9 @@ class S3Handler(StorageHandler):
             )
         return entries
 
-    def _size_from_obj(self, obj: "boto3.s3.Object") -> int:
+    def _size_from_obj(
+        self, obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]
+    ) -> int:
         # ObjectSummary has size, Object has content_length
         size: int
         if hasattr(obj, "size"):
@@ -215,7 +217,7 @@ class S3Handler(StorageHandler):
 
     def _entry_from_obj(
         self,
-        obj: "boto3.s3.Object",
+        obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"],
         path: str,
         name: Optional[StrPath] = None,
         prefix: str = "",
@@ -261,12 +263,14 @@ class S3Handler(StorageHandler):
         )
 
     @staticmethod
-    def _etag_from_obj(obj: "boto3.s3.Object") -> ETag:
+    def _etag_from_obj(obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]) -> ETag:
         etag: ETag
         etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         return etag
 
-    def _extra_from_obj(self, obj: "boto3.s3.Object") -> Dict[str, str]:
+    def _extra_from_obj(
+        self, obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]
+    ) -> Dict[str, str]:
         extra = {
             "etag": obj.e_tag[1:-1],  # escape leading and trailing quote
         }
