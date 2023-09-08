@@ -105,6 +105,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	savedFiles       map[string]interface{}
+	filesRecordFinal *service.Record
 }
 
 // NewHandler creates a new handler
@@ -123,6 +126,7 @@ func NewHandler(
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
 		loopbackChan:        loopbackChan,
+		savedFiles:          make(map[string]interface{}),
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
@@ -303,6 +307,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
+		h.sendRecord(h.filesRecordFinal)
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
@@ -533,7 +538,36 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 }
 
 func (h *Handler) handleFiles(record *service.Record) {
-	h.sendRecord(record)
+	fmt.Printf("handleFiles: %v\n", record)
+	if record.GetFiles() == nil {
+		return
+	}
+
+	if h.filesRecordFinal == nil {
+		h.filesRecordFinal = &service.Record{
+			RecordType: &service.Record_Files{
+				Files: &service.FilesRecord{
+					Files: []*service.FilesItem{},
+				},
+			},
+		}
+	}
+
+	var files []*service.FilesItem
+	for _, item := range record.GetFiles().GetFiles() {
+		if item.Policy == service.FilesItem_END || item.Policy == service.FilesItem_LIVE {
+			if _, ok := h.savedFiles[item.Path]; !ok {
+				h.savedFiles[item.Path] = nil
+				// TODO should we remove the policy from the item?
+				h.filesRecordFinal.GetFiles().Files = append(h.filesRecordFinal.GetFiles().Files, item)
+			}
+		} else {
+			files = append(files, item)
+		}
+	}
+	rec := proto.Clone(record).(*service.Record)
+	rec.GetFiles().Files = files
+	h.sendRecord(rec)
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
