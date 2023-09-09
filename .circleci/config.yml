@@ -1340,7 +1340,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 9
-          toxenv: "proto3-check,proto4-check,black-check,ruff-check,mypy,mypy-report,codecov-check,auto-codegen-check"
+          toxenv: "proto-3-check,proto-4-check,black-check,ruff-check,mypy,mypy-report,codecov-check,auto-codegen-check"
 
       #
       # Prep jobs
