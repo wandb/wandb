@@ -395,12 +395,10 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	// the latter will start its filestream and uploader
 
 	if request.Run.GetGit() != nil {
-		var git *service.GitRepoRecord
-		git = &service.GitRepoRecord{
+		h.runMetadata.Git = &service.GitRepoRecord{
 			RemoteUrl: run.GetGit().GetRemoteUrl(),
 			Commit:    run.GetGit().GetCommit(),
 		}
-		h.runMetadata.Git = git
 	}
 	h.runMetadata.StartedAt = run.GetStartTime()
 
