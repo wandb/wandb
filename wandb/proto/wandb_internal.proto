@@ -988,6 +988,11 @@ message MemoryInfo {
   uint64 total = 1;
 }
 
+message CpuInfo {
+  uint32 cpu_count = 1;
+  uint32 cpu_count_logical = 2;
+}
+
 message MetadataRequest {
   string os = 1;
   string python = 2;
@@ -1005,11 +1010,12 @@ message MetadataRequest {
   string host = 14;
   string username = 15;
   string executable = 16;
-  int32 cpu_count = 17 [json_name="cpu_count"];
-  int32 cpu_count_logical = 18 [json_name="cpu_count_logical"];
+  uint32 cpu_count = 17 [json_name="cpu_count"];
+  uint32 cpu_count_logical = 18 [json_name="cpu_count_logical"];
   map<string, DiskInfo> disk = 19;
   GpuAppleInfo gpu_apple = 20 [json_name="gpuapple"];
   MemoryInfo memory = 21;
-  string code_path_local = 22 [json_name="codePathLocal"];
-  string colab = 23;
+  CpuInfo cpu = 22;
+  string code_path_local = 23 [json_name="codePathLocal"];
+  string colab = 24;
 }
