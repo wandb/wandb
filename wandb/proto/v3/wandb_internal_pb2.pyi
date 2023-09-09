@@ -3038,23 +3038,6 @@ class DiskInfo(google.protobuf.message.Message):
 
 global___DiskInfo = DiskInfo
 
-class GpuAppleInfo(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    GPUTYPE_FIELD_NUMBER: builtins.int
-    VENDOR_FIELD_NUMBER: builtins.int
-    gpuType: builtins.str
-    vendor: builtins.str
-    def __init__(
-        self,
-        *,
-        gpuType: builtins.str = ...,
-        vendor: builtins.str = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["gpuType", b"gpuType", "vendor", b"vendor"]) -> None: ...
-
-global___GpuAppleInfo = GpuAppleInfo
-
 class MemoryInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -3085,6 +3068,40 @@ class CpuInfo(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal["cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical"]) -> None: ...
 
 global___CpuInfo = CpuInfo
+
+class GpuAppleInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    GPUTYPE_FIELD_NUMBER: builtins.int
+    VENDOR_FIELD_NUMBER: builtins.int
+    gpuType: builtins.str
+    vendor: builtins.str
+    def __init__(
+        self,
+        *,
+        gpuType: builtins.str = ...,
+        vendor: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["gpuType", b"gpuType", "vendor", b"vendor"]) -> None: ...
+
+global___GpuAppleInfo = GpuAppleInfo
+
+class GpuNvidiaInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    GPU_FIELD_NUMBER: builtins.int
+    GPU_COUNT_FIELD_NUMBER: builtins.int
+    gpu: builtins.str
+    gpu_count: builtins.str
+    def __init__(
+        self,
+        *,
+        gpu: builtins.str = ...,
+        gpu_count: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["gpu", b"gpu", "gpu_count", b"gpu_count"]) -> None: ...
+
+global___GpuNvidiaInfo = GpuNvidiaInfo
 
 class MetadataRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -3122,14 +3139,15 @@ class MetadataRequest(google.protobuf.message.Message):
     HOST_FIELD_NUMBER: builtins.int
     USERNAME_FIELD_NUMBER: builtins.int
     EXECUTABLE_FIELD_NUMBER: builtins.int
+    CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
+    COLAB_FIELD_NUMBER: builtins.int
     CPU_COUNT_FIELD_NUMBER: builtins.int
     CPU_COUNT_LOGICAL_FIELD_NUMBER: builtins.int
     DISK_FIELD_NUMBER: builtins.int
-    GPU_APPLE_FIELD_NUMBER: builtins.int
     MEMORY_FIELD_NUMBER: builtins.int
     CPU_FIELD_NUMBER: builtins.int
-    CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
-    COLAB_FIELD_NUMBER: builtins.int
+    GPU_APPLE_FIELD_NUMBER: builtins.int
+    GPU_NVIDIA_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
     @property
@@ -3150,18 +3168,20 @@ class MetadataRequest(google.protobuf.message.Message):
     host: builtins.str
     username: builtins.str
     executable: builtins.str
+    code_path_local: builtins.str
+    colab: builtins.str
     cpu_count: builtins.int
     cpu_count_logical: builtins.int
     @property
     def disk(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___DiskInfo]: ...
     @property
-    def gpu_apple(self) -> global___GpuAppleInfo: ...
-    @property
     def memory(self) -> global___MemoryInfo: ...
     @property
     def cpu(self) -> global___CpuInfo: ...
-    code_path_local: builtins.str
-    colab: builtins.str
+    @property
+    def gpu_apple(self) -> global___GpuAppleInfo: ...
+    @property
+    def gpu_nvidia(self) -> global___GpuNvidiaInfo: ...
     def __init__(
         self,
         *,
@@ -3181,16 +3201,17 @@ class MetadataRequest(google.protobuf.message.Message):
         host: builtins.str = ...,
         username: builtins.str = ...,
         executable: builtins.str = ...,
+        code_path_local: builtins.str = ...,
+        colab: builtins.str = ...,
         cpu_count: builtins.int = ...,
         cpu_count_logical: builtins.int = ...,
         disk: collections.abc.Mapping[builtins.str, global___DiskInfo] | None = ...,
-        gpu_apple: global___GpuAppleInfo | None = ...,
         memory: global___MemoryInfo | None = ...,
         cpu: global___CpuInfo | None = ...,
-        code_path_local: builtins.str = ...,
-        colab: builtins.str = ...,
+        gpu_apple: global___GpuAppleInfo | None = ...,
+        gpu_nvidia: global___GpuNvidiaInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "gpu_nvidia", b"gpu_nvidia", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_apple", b"gpu_apple", "gpu_nvidia", b"gpu_nvidia", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest
