@@ -8610,7 +8610,7 @@ func (*CancelResponse) Descriptor() ([]byte, []int) {
 }
 
 // MetadataRequest
-type MetaDiskInfo struct {
+type DiskInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -8619,8 +8619,8 @@ type MetaDiskInfo struct {
 	Used  float32 `protobuf:"fixed32,2,opt,name=used,proto3" json:"used,omitempty"`
 }
 
-func (x *MetaDiskInfo) Reset() {
-	*x = MetaDiskInfo{}
+func (x *DiskInfo) Reset() {
+	*x = DiskInfo{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -8628,13 +8628,13 @@ func (x *MetaDiskInfo) Reset() {
 	}
 }
 
-func (x *MetaDiskInfo) String() string {
+func (x *DiskInfo) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MetaDiskInfo) ProtoMessage() {}
+func (*DiskInfo) ProtoMessage() {}
 
-func (x *MetaDiskInfo) ProtoReflect() protoreflect.Message {
+func (x *DiskInfo) ProtoReflect() protoreflect.Message {
 	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -8646,36 +8646,35 @@ func (x *MetaDiskInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MetaDiskInfo.ProtoReflect.Descriptor instead.
-func (*MetaDiskInfo) Descriptor() ([]byte, []int) {
+// Deprecated: Use DiskInfo.ProtoReflect.Descriptor instead.
+func (*DiskInfo) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{122}
 }
 
-func (x *MetaDiskInfo) GetTotal() float32 {
+func (x *DiskInfo) GetTotal() float32 {
 	if x != nil {
 		return x.Total
 	}
 	return 0
 }
 
-func (x *MetaDiskInfo) GetUsed() float32 {
+func (x *DiskInfo) GetUsed() float32 {
 	if x != nil {
 		return x.Used
 	}
 	return 0
 }
 
-type MetaGpuAppleInfo struct {
+type MemoryInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	GpuType string `protobuf:"bytes,1,opt,name=gpuType,proto3" json:"gpuType,omitempty"`
-	Vendor  string `protobuf:"bytes,2,opt,name=vendor,proto3" json:"vendor,omitempty"`
+	Total uint64 `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
 }
 
-func (x *MetaGpuAppleInfo) Reset() {
-	*x = MetaGpuAppleInfo{}
+func (x *MemoryInfo) Reset() {
+	*x = MemoryInfo{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -8683,13 +8682,13 @@ func (x *MetaGpuAppleInfo) Reset() {
 	}
 }
 
-func (x *MetaGpuAppleInfo) String() string {
+func (x *MemoryInfo) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MetaGpuAppleInfo) ProtoMessage() {}
+func (*MemoryInfo) ProtoMessage() {}
 
-func (x *MetaGpuAppleInfo) ProtoReflect() protoreflect.Message {
+func (x *MemoryInfo) ProtoReflect() protoreflect.Message {
 	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -8701,35 +8700,29 @@ func (x *MetaGpuAppleInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MetaGpuAppleInfo.ProtoReflect.Descriptor instead.
-func (*MetaGpuAppleInfo) Descriptor() ([]byte, []int) {
+// Deprecated: Use MemoryInfo.ProtoReflect.Descriptor instead.
+func (*MemoryInfo) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{123}
 }
 
-func (x *MetaGpuAppleInfo) GetGpuType() string {
+func (x *MemoryInfo) GetTotal() uint64 {
 	if x != nil {
-		return x.GpuType
+		return x.Total
 	}
-	return ""
+	return 0
 }
 
-func (x *MetaGpuAppleInfo) GetVendor() string {
-	if x != nil {
-		return x.Vendor
-	}
-	return ""
-}
-
-type MetaMemInfo struct {
+type CpuInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Total float32 `protobuf:"fixed32,1,opt,name=total,proto3" json:"total,omitempty"`
+	CpuCount        uint32 `protobuf:"varint,1,opt,name=cpu_count,json=cpuCount,proto3" json:"cpu_count,omitempty"`
+	CpuCountLogical uint32 `protobuf:"varint,2,opt,name=cpu_count_logical,json=cpuCountLogical,proto3" json:"cpu_count_logical,omitempty"`
 }
 
-func (x *MetaMemInfo) Reset() {
-	*x = MetaMemInfo{}
+func (x *CpuInfo) Reset() {
+	*x = CpuInfo{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -8737,13 +8730,13 @@ func (x *MetaMemInfo) Reset() {
 	}
 }
 
-func (x *MetaMemInfo) String() string {
+func (x *CpuInfo) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MetaMemInfo) ProtoMessage() {}
+func (*CpuInfo) ProtoMessage() {}
 
-func (x *MetaMemInfo) ProtoReflect() protoreflect.Message {
+func (x *CpuInfo) ProtoReflect() protoreflect.Message {
 	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -8755,16 +8748,133 @@ func (x *MetaMemInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MetaMemInfo.ProtoReflect.Descriptor instead.
-func (*MetaMemInfo) Descriptor() ([]byte, []int) {
+// Deprecated: Use CpuInfo.ProtoReflect.Descriptor instead.
+func (*CpuInfo) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{124}
 }
 
-func (x *MetaMemInfo) GetTotal() float32 {
+func (x *CpuInfo) GetCpuCount() uint32 {
 	if x != nil {
-		return x.Total
+		return x.CpuCount
 	}
 	return 0
+}
+
+func (x *CpuInfo) GetCpuCountLogical() uint32 {
+	if x != nil {
+		return x.CpuCountLogical
+	}
+	return 0
+}
+
+type GpuAppleInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GpuType string `protobuf:"bytes,1,opt,name=gpuType,proto3" json:"gpuType,omitempty"`
+	Vendor  string `protobuf:"bytes,2,opt,name=vendor,proto3" json:"vendor,omitempty"`
+}
+
+func (x *GpuAppleInfo) Reset() {
+	*x = GpuAppleInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GpuAppleInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GpuAppleInfo) ProtoMessage() {}
+
+func (x *GpuAppleInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GpuAppleInfo.ProtoReflect.Descriptor instead.
+func (*GpuAppleInfo) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{125}
+}
+
+func (x *GpuAppleInfo) GetGpuType() string {
+	if x != nil {
+		return x.GpuType
+	}
+	return ""
+}
+
+func (x *GpuAppleInfo) GetVendor() string {
+	if x != nil {
+		return x.Vendor
+	}
+	return ""
+}
+
+type GpuNvidiaInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Gpu      string `protobuf:"bytes,1,opt,name=gpu,proto3" json:"gpu,omitempty"`
+	GpuCount string `protobuf:"bytes,2,opt,name=gpu_count,json=gpuCount,proto3" json:"gpu_count,omitempty"`
+}
+
+func (x *GpuNvidiaInfo) Reset() {
+	*x = GpuNvidiaInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GpuNvidiaInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GpuNvidiaInfo) ProtoMessage() {}
+
+func (x *GpuNvidiaInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GpuNvidiaInfo.ProtoReflect.Descriptor instead.
+func (*GpuNvidiaInfo) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{126}
+}
+
+func (x *GpuNvidiaInfo) GetGpu() string {
+	if x != nil {
+		return x.Gpu
+	}
+	return ""
+}
+
+func (x *GpuNvidiaInfo) GetGpuCount() string {
+	if x != nil {
+		return x.GpuCount
+	}
+	return ""
 }
 
 type MetadataRequest struct {
@@ -8788,19 +8898,21 @@ type MetadataRequest struct {
 	Host            string                 `protobuf:"bytes,14,opt,name=host,proto3" json:"host,omitempty"`
 	Username        string                 `protobuf:"bytes,15,opt,name=username,proto3" json:"username,omitempty"`
 	Executable      string                 `protobuf:"bytes,16,opt,name=executable,proto3" json:"executable,omitempty"`
-	CpuCount        int32                  `protobuf:"varint,17,opt,name=cpu_count,proto3" json:"cpu_count,omitempty"`
-	CpuCountLogical int32                  `protobuf:"varint,18,opt,name=cpu_count_logical,proto3" json:"cpu_count_logical,omitempty"`
-	Disk            *MetaDiskInfo          `protobuf:"bytes,19,opt,name=disk,proto3" json:"disk,omitempty"`
-	Gpuapple        *MetaGpuAppleInfo      `protobuf:"bytes,20,opt,name=gpuapple,proto3" json:"gpuapple,omitempty"`
-	Memory          *MetaMemInfo           `protobuf:"bytes,21,opt,name=memory,proto3" json:"memory,omitempty"`
-	CodePathLocal   string                 `protobuf:"bytes,22,opt,name=code_path_local,json=codePathLocal,proto3" json:"code_path_local,omitempty"`
-	Colab           string                 `protobuf:"bytes,23,opt,name=colab,proto3" json:"colab,omitempty"`
+	CodePathLocal   string                 `protobuf:"bytes,17,opt,name=code_path_local,json=codePathLocal,proto3" json:"code_path_local,omitempty"`
+	Colab           string                 `protobuf:"bytes,18,opt,name=colab,proto3" json:"colab,omitempty"`
+	CpuCount        uint32                 `protobuf:"varint,19,opt,name=cpu_count,proto3" json:"cpu_count,omitempty"`
+	CpuCountLogical uint32                 `protobuf:"varint,20,opt,name=cpu_count_logical,proto3" json:"cpu_count_logical,omitempty"`
+	Disk            map[string]*DiskInfo   `protobuf:"bytes,21,rep,name=disk,proto3" json:"disk,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Memory          *MemoryInfo            `protobuf:"bytes,22,opt,name=memory,proto3" json:"memory,omitempty"`
+	Cpu             *CpuInfo               `protobuf:"bytes,23,opt,name=cpu,proto3" json:"cpu,omitempty"`
+	GpuApple        *GpuAppleInfo          `protobuf:"bytes,24,opt,name=gpu_apple,json=gpuapple,proto3" json:"gpu_apple,omitempty"`
+	GpuNvidia       *GpuNvidiaInfo         `protobuf:"bytes,25,opt,name=gpu_nvidia,json=gpunvidia,proto3" json:"gpu_nvidia,omitempty"`
 }
 
 func (x *MetadataRequest) Reset() {
 	*x = MetadataRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8813,7 +8925,7 @@ func (x *MetadataRequest) String() string {
 func (*MetadataRequest) ProtoMessage() {}
 
 func (x *MetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8826,7 +8938,7 @@ func (x *MetadataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetadataRequest.ProtoReflect.Descriptor instead.
 func (*MetadataRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{125}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *MetadataRequest) GetOs() string {
@@ -8941,41 +9053,6 @@ func (x *MetadataRequest) GetExecutable() string {
 	return ""
 }
 
-func (x *MetadataRequest) GetCpuCount() int32 {
-	if x != nil {
-		return x.CpuCount
-	}
-	return 0
-}
-
-func (x *MetadataRequest) GetCpuCountLogical() int32 {
-	if x != nil {
-		return x.CpuCountLogical
-	}
-	return 0
-}
-
-func (x *MetadataRequest) GetDisk() *MetaDiskInfo {
-	if x != nil {
-		return x.Disk
-	}
-	return nil
-}
-
-func (x *MetadataRequest) GetGpuapple() *MetaGpuAppleInfo {
-	if x != nil {
-		return x.Gpuapple
-	}
-	return nil
-}
-
-func (x *MetadataRequest) GetMemory() *MetaMemInfo {
-	if x != nil {
-		return x.Memory
-	}
-	return nil
-}
-
 func (x *MetadataRequest) GetCodePathLocal() string {
 	if x != nil {
 		return x.CodePathLocal
@@ -8988,6 +9065,55 @@ func (x *MetadataRequest) GetColab() string {
 		return x.Colab
 	}
 	return ""
+}
+
+func (x *MetadataRequest) GetCpuCount() uint32 {
+	if x != nil {
+		return x.CpuCount
+	}
+	return 0
+}
+
+func (x *MetadataRequest) GetCpuCountLogical() uint32 {
+	if x != nil {
+		return x.CpuCountLogical
+	}
+	return 0
+}
+
+func (x *MetadataRequest) GetDisk() map[string]*DiskInfo {
+	if x != nil {
+		return x.Disk
+	}
+	return nil
+}
+
+func (x *MetadataRequest) GetMemory() *MemoryInfo {
+	if x != nil {
+		return x.Memory
+	}
+	return nil
+}
+
+func (x *MetadataRequest) GetCpu() *CpuInfo {
+	if x != nil {
+		return x.Cpu
+	}
+	return nil
+}
+
+func (x *MetadataRequest) GetGpuApple() *GpuAppleInfo {
+	if x != nil {
+		return x.GpuApple
+	}
+	return nil
+}
+
+func (x *MetadataRequest) GetGpuNvidia() *GpuNvidiaInfo {
+	if x != nil {
+		return x.GpuNvidia
+	}
+	return nil
 }
 
 var File_wandb_proto_wandb_internal_proto protoreflect.FileDescriptor
@@ -10209,66 +10335,87 @@ var file_wandb_proto_wandb_internal_proto_rawDesc = []byte{
 	0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52, 0x65, 0x71, 0x75,
 	0x65, 0x73, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x10, 0x0a,
 	0x0e, 0x43, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22,
-	0x38, 0x0a, 0x0c, 0x4d, 0x65, 0x74, 0x61, 0x44, 0x69, 0x73, 0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x12,
-	0x14, 0x0a, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x02, 0x52, 0x05,
-	0x74, 0x6f, 0x74, 0x61, 0x6c, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x73, 0x65, 0x64, 0x18, 0x02, 0x20,
-	0x01, 0x28, 0x02, 0x52, 0x04, 0x75, 0x73, 0x65, 0x64, 0x22, 0x44, 0x0a, 0x10, 0x4d, 0x65, 0x74,
-	0x61, 0x47, 0x70, 0x75, 0x41, 0x70, 0x70, 0x6c, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x18, 0x0a,
+	0x34, 0x0a, 0x08, 0x44, 0x69, 0x73, 0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x14, 0x0a, 0x05, 0x74,
+	0x6f, 0x74, 0x61, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x02, 0x52, 0x05, 0x74, 0x6f, 0x74, 0x61,
+	0x6c, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x73, 0x65, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x02, 0x52,
+	0x04, 0x75, 0x73, 0x65, 0x64, 0x22, 0x22, 0x0a, 0x0a, 0x4d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x49,
+	0x6e, 0x66, 0x6f, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x04, 0x52, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x22, 0x52, 0x0a, 0x07, 0x43, 0x70, 0x75,
+	0x49, 0x6e, 0x66, 0x6f, 0x12, 0x1b, 0x0a, 0x09, 0x63, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x75, 0x6e,
+	0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x08, 0x63, 0x70, 0x75, 0x43, 0x6f, 0x75, 0x6e,
+	0x74, 0x12, 0x2a, 0x0a, 0x11, 0x63, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x6c,
+	0x6f, 0x67, 0x69, 0x63, 0x61, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x0f, 0x63, 0x70,
+	0x75, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x4c, 0x6f, 0x67, 0x69, 0x63, 0x61, 0x6c, 0x22, 0x40, 0x0a,
+	0x0c, 0x47, 0x70, 0x75, 0x41, 0x70, 0x70, 0x6c, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x18, 0x0a,
 	0x07, 0x67, 0x70, 0x75, 0x54, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07,
 	0x67, 0x70, 0x75, 0x54, 0x79, 0x70, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x76, 0x65, 0x6e, 0x64, 0x6f,
 	0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x76, 0x65, 0x6e, 0x64, 0x6f, 0x72, 0x22,
-	0x23, 0x0a, 0x0b, 0x4d, 0x65, 0x74, 0x61, 0x4d, 0x65, 0x6d, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x14,
-	0x0a, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x02, 0x52, 0x05, 0x74,
-	0x6f, 0x74, 0x61, 0x6c, 0x22, 0x98, 0x06, 0x0a, 0x0f, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74,
-	0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x6f, 0x73, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x6f, 0x73, 0x12, 0x16, 0x0a, 0x06, 0x70, 0x79, 0x74, 0x68,
-	0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x70, 0x79, 0x74, 0x68, 0x6f, 0x6e,
-	0x12, 0x3c, 0x0a, 0x0b, 0x68, 0x65, 0x61, 0x72, 0x74, 0x62, 0x65, 0x61, 0x74, 0x41, 0x74, 0x18,
-	0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d,
-	0x70, 0x52, 0x0b, 0x68, 0x65, 0x61, 0x72, 0x74, 0x62, 0x65, 0x61, 0x74, 0x41, 0x74, 0x12, 0x38,
-	0x0a, 0x09, 0x73, 0x74, 0x61, 0x72, 0x74, 0x65, 0x64, 0x41, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28,
-	0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x09, 0x73,
-	0x74, 0x61, 0x72, 0x74, 0x65, 0x64, 0x41, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x63, 0x6b,
-	0x65, 0x72, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x63, 0x6b, 0x65, 0x72,
-	0x12, 0x12, 0x0a, 0x04, 0x63, 0x75, 0x64, 0x61, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
-	0x63, 0x75, 0x64, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x61, 0x72, 0x67, 0x73, 0x18, 0x07, 0x20, 0x03,
-	0x28, 0x09, 0x52, 0x04, 0x61, 0x72, 0x67, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74,
-	0x65, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x18,
-	0x0a, 0x07, 0x70, 0x72, 0x6f, 0x67, 0x72, 0x61, 0x6d, 0x18, 0x09, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x07, 0x70, 0x72, 0x6f, 0x67, 0x72, 0x61, 0x6d, 0x12, 0x1b, 0x0a, 0x09, 0x63, 0x6f, 0x64, 0x65,
-	0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x0a, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x63, 0x6f, 0x64,
-	0x65, 0x50, 0x61, 0x74, 0x68, 0x12, 0x2f, 0x0a, 0x03, 0x67, 0x69, 0x74, 0x18, 0x0b, 0x20, 0x01,
+	0x3e, 0x0a, 0x0d, 0x47, 0x70, 0x75, 0x4e, 0x76, 0x69, 0x64, 0x69, 0x61, 0x49, 0x6e, 0x66, 0x6f,
+	0x12, 0x10, 0x0a, 0x03, 0x67, 0x70, 0x75, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x67,
+	0x70, 0x75, 0x12, 0x1b, 0x0a, 0x09, 0x67, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x67, 0x70, 0x75, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x22,
+	0xdd, 0x07, 0x0a, 0x0f, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x6f, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x02, 0x6f, 0x73, 0x12, 0x16, 0x0a, 0x06, 0x70, 0x79, 0x74, 0x68, 0x6f, 0x6e, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x06, 0x70, 0x79, 0x74, 0x68, 0x6f, 0x6e, 0x12, 0x3c, 0x0a, 0x0b, 0x68,
+	0x65, 0x61, 0x72, 0x74, 0x62, 0x65, 0x61, 0x74, 0x41, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62,
+	0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x0b, 0x68, 0x65,
+	0x61, 0x72, 0x74, 0x62, 0x65, 0x61, 0x74, 0x41, 0x74, 0x12, 0x38, 0x0a, 0x09, 0x73, 0x74, 0x61,
+	0x72, 0x74, 0x65, 0x64, 0x41, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67,
+	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54,
+	0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x09, 0x73, 0x74, 0x61, 0x72, 0x74, 0x65,
+	0x64, 0x41, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x63, 0x6b, 0x65, 0x72, 0x18, 0x05, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x63, 0x6b, 0x65, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x63,
+	0x75, 0x64, 0x61, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x63, 0x75, 0x64, 0x61, 0x12,
+	0x12, 0x0a, 0x04, 0x61, 0x72, 0x67, 0x73, 0x18, 0x07, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x61,
+	0x72, 0x67, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x18, 0x08, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x70, 0x72, 0x6f,
+	0x67, 0x72, 0x61, 0x6d, 0x18, 0x09, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x70, 0x72, 0x6f, 0x67,
+	0x72, 0x61, 0x6d, 0x12, 0x1b, 0x0a, 0x09, 0x63, 0x6f, 0x64, 0x65, 0x5f, 0x70, 0x61, 0x74, 0x68,
+	0x18, 0x0a, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x63, 0x6f, 0x64, 0x65, 0x50, 0x61, 0x74, 0x68,
+	0x12, 0x2f, 0x0a, 0x03, 0x67, 0x69, 0x74, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d, 0x2e,
+	0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x47,
+	0x69, 0x74, 0x52, 0x65, 0x70, 0x6f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x52, 0x03, 0x67, 0x69,
+	0x74, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x6d, 0x61, 0x69, 0x6c, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x05, 0x65, 0x6d, 0x61, 0x69, 0x6c, 0x12, 0x12, 0x0a, 0x04, 0x72, 0x6f, 0x6f, 0x74, 0x18,
+	0x0d, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x72, 0x6f, 0x6f, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x68,
+	0x6f, 0x73, 0x74, 0x18, 0x0e, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x12,
+	0x1a, 0x0a, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x0f, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1e, 0x0a, 0x0a, 0x65,
+	0x78, 0x65, 0x63, 0x75, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x10, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x0a, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x26, 0x0a, 0x0f, 0x63,
+	0x6f, 0x64, 0x65, 0x5f, 0x70, 0x61, 0x74, 0x68, 0x5f, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x18, 0x11,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x63, 0x6f, 0x64, 0x65, 0x50, 0x61, 0x74, 0x68, 0x4c, 0x6f,
+	0x63, 0x61, 0x6c, 0x12, 0x14, 0x0a, 0x05, 0x63, 0x6f, 0x6c, 0x61, 0x62, 0x18, 0x12, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x05, 0x63, 0x6f, 0x6c, 0x61, 0x62, 0x12, 0x1c, 0x0a, 0x09, 0x63, 0x70, 0x75,
+	0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x13, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x09, 0x63, 0x70,
+	0x75, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x2c, 0x0a, 0x11, 0x63, 0x70, 0x75, 0x5f, 0x63,
+	0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x61, 0x6c, 0x18, 0x14, 0x20, 0x01,
+	0x28, 0x0d, 0x52, 0x11, 0x63, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x6c, 0x6f,
+	0x67, 0x69, 0x63, 0x61, 0x6c, 0x12, 0x3d, 0x0a, 0x04, 0x64, 0x69, 0x73, 0x6b, 0x18, 0x15, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x29, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65,
+	0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x2e, 0x44, 0x69, 0x73, 0x6b, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x04,
+	0x64, 0x69, 0x73, 0x6b, 0x12, 0x32, 0x0a, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x18, 0x16,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74,
+	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x4d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x49, 0x6e, 0x66, 0x6f,
+	0x52, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x12, 0x29, 0x0a, 0x03, 0x63, 0x70, 0x75, 0x18,
+	0x17, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e,
+	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x43, 0x70, 0x75, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x03,
+	0x63, 0x70, 0x75, 0x12, 0x39, 0x0a, 0x09, 0x67, 0x70, 0x75, 0x5f, 0x61, 0x70, 0x70, 0x6c, 0x65,
+	0x18, 0x18, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69,
+	0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x47, 0x70, 0x75, 0x41, 0x70, 0x70, 0x6c, 0x65,
+	0x49, 0x6e, 0x66, 0x6f, 0x52, 0x08, 0x67, 0x70, 0x75, 0x61, 0x70, 0x70, 0x6c, 0x65, 0x12, 0x3c,
+	0x0a, 0x0a, 0x67, 0x70, 0x75, 0x5f, 0x6e, 0x76, 0x69, 0x64, 0x69, 0x61, 0x18, 0x19, 0x20, 0x01,
 	0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72,
-	0x6e, 0x61, 0x6c, 0x2e, 0x47, 0x69, 0x74, 0x52, 0x65, 0x70, 0x6f, 0x52, 0x65, 0x63, 0x6f, 0x72,
-	0x64, 0x52, 0x03, 0x67, 0x69, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x6d, 0x61, 0x69, 0x6c, 0x18,
-	0x0c, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x6d, 0x61, 0x69, 0x6c, 0x12, 0x12, 0x0a, 0x04,
-	0x72, 0x6f, 0x6f, 0x74, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x72, 0x6f, 0x6f, 0x74,
-	0x12, 0x12, 0x0a, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x18, 0x0e, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
-	0x68, 0x6f, 0x73, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65,
-	0x18, 0x0f, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65,
-	0x12, 0x1e, 0x0a, 0x0a, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x10,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x61, 0x62, 0x6c, 0x65,
-	0x12, 0x1c, 0x0a, 0x09, 0x63, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x11, 0x20,
-	0x01, 0x28, 0x05, 0x52, 0x09, 0x63, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x2c,
-	0x0a, 0x11, 0x63, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x6c, 0x6f, 0x67, 0x69,
-	0x63, 0x61, 0x6c, 0x18, 0x12, 0x20, 0x01, 0x28, 0x05, 0x52, 0x11, 0x63, 0x70, 0x75, 0x5f, 0x63,
-	0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x61, 0x6c, 0x12, 0x30, 0x0a, 0x04,
-	0x64, 0x69, 0x73, 0x6b, 0x18, 0x13, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x77, 0x61, 0x6e,
-	0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x4d, 0x65, 0x74, 0x61,
-	0x44, 0x69, 0x73, 0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x64, 0x69, 0x73, 0x6b, 0x12, 0x3c,
-	0x0a, 0x08, 0x67, 0x70, 0x75, 0x61, 0x70, 0x70, 0x6c, 0x65, 0x18, 0x14, 0x20, 0x01, 0x28, 0x0b,
-	0x32, 0x20, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61,
-	0x6c, 0x2e, 0x4d, 0x65, 0x74, 0x61, 0x47, 0x70, 0x75, 0x41, 0x70, 0x70, 0x6c, 0x65, 0x49, 0x6e,
-	0x66, 0x6f, 0x52, 0x08, 0x67, 0x70, 0x75, 0x61, 0x70, 0x70, 0x6c, 0x65, 0x12, 0x33, 0x0a, 0x06,
-	0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x18, 0x15, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77,
-	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x4d, 0x65,
-	0x74, 0x61, 0x4d, 0x65, 0x6d, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72,
-	0x79, 0x12, 0x26, 0x0a, 0x0f, 0x63, 0x6f, 0x64, 0x65, 0x5f, 0x70, 0x61, 0x74, 0x68, 0x5f, 0x6c,
-	0x6f, 0x63, 0x61, 0x6c, 0x18, 0x16, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x63, 0x6f, 0x64, 0x65,
-	0x50, 0x61, 0x74, 0x68, 0x4c, 0x6f, 0x63, 0x61, 0x6c, 0x12, 0x14, 0x0a, 0x05, 0x63, 0x6f, 0x6c,
-	0x61, 0x62, 0x18, 0x17, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x63, 0x6f, 0x6c, 0x61, 0x62, 0x62,
+	0x6e, 0x61, 0x6c, 0x2e, 0x47, 0x70, 0x75, 0x4e, 0x76, 0x69, 0x64, 0x69, 0x61, 0x49, 0x6e, 0x66,
+	0x6f, 0x52, 0x09, 0x67, 0x70, 0x75, 0x6e, 0x76, 0x69, 0x64, 0x69, 0x61, 0x1a, 0x51, 0x0a, 0x09,
+	0x44, 0x69, 0x73, 0x6b, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x2e, 0x0a, 0x05, 0x76,
+	0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x77, 0x61, 0x6e,
+	0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x44, 0x69, 0x73, 0x6b,
+	0x49, 0x6e, 0x66, 0x6f, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x62,
 	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
@@ -10285,7 +10432,7 @@ func file_wandb_proto_wandb_internal_proto_rawDescGZIP() []byte {
 }
 
 var file_wandb_proto_wandb_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_wandb_proto_wandb_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 126)
+var file_wandb_proto_wandb_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 129)
 var file_wandb_proto_wandb_internal_proto_goTypes = []interface{}{
 	(ErrorInfo_ErrorCode)(0),         // 0: wandb_internal.ErrorInfo.ErrorCode
 	(OutputRecord_OutputType)(0),     // 1: wandb_internal.OutputRecord.OutputType
@@ -10416,15 +10563,18 @@ var file_wandb_proto_wandb_internal_proto_goTypes = []interface{}{
 	(*UseArtifactResult)(nil),        // 126: wandb_internal.UseArtifactResult
 	(*CancelRequest)(nil),            // 127: wandb_internal.CancelRequest
 	(*CancelResponse)(nil),           // 128: wandb_internal.CancelResponse
-	(*MetaDiskInfo)(nil),             // 129: wandb_internal.MetaDiskInfo
-	(*MetaGpuAppleInfo)(nil),         // 130: wandb_internal.MetaGpuAppleInfo
-	(*MetaMemInfo)(nil),              // 131: wandb_internal.MetaMemInfo
-	(*MetadataRequest)(nil),          // 132: wandb_internal.MetadataRequest
-	(*TelemetryRecord)(nil),          // 133: wandb_internal.TelemetryRecord
-	(*XRecordInfo)(nil),              // 134: wandb_internal._RecordInfo
-	(*XResultInfo)(nil),              // 135: wandb_internal._ResultInfo
-	(*timestamppb.Timestamp)(nil),    // 136: google.protobuf.Timestamp
-	(*XRequestInfo)(nil),             // 137: wandb_internal._RequestInfo
+	(*DiskInfo)(nil),                 // 129: wandb_internal.DiskInfo
+	(*MemoryInfo)(nil),               // 130: wandb_internal.MemoryInfo
+	(*CpuInfo)(nil),                  // 131: wandb_internal.CpuInfo
+	(*GpuAppleInfo)(nil),             // 132: wandb_internal.GpuAppleInfo
+	(*GpuNvidiaInfo)(nil),            // 133: wandb_internal.GpuNvidiaInfo
+	(*MetadataRequest)(nil),          // 134: wandb_internal.MetadataRequest
+	nil,                              // 135: wandb_internal.MetadataRequest.DiskEntry
+	(*TelemetryRecord)(nil),          // 136: wandb_internal.TelemetryRecord
+	(*XRecordInfo)(nil),              // 137: wandb_internal._RecordInfo
+	(*XResultInfo)(nil),              // 138: wandb_internal._ResultInfo
+	(*timestamppb.Timestamp)(nil),    // 139: google.protobuf.Timestamp
+	(*XRequestInfo)(nil),             // 140: wandb_internal._RequestInfo
 }
 var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	24,  // 0: wandb_internal.Record.history:type_name -> wandb_internal.HistoryRecord
@@ -10436,7 +10586,7 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	47,  // 6: wandb_internal.Record.artifact:type_name -> wandb_internal.ArtifactRecord
 	55,  // 7: wandb_internal.Record.tbrecord:type_name -> wandb_internal.TBRecord
 	57,  // 8: wandb_internal.Record.alert:type_name -> wandb_internal.AlertRecord
-	133, // 9: wandb_internal.Record.telemetry:type_name -> wandb_internal.TelemetryRecord
+	136, // 9: wandb_internal.Record.telemetry:type_name -> wandb_internal.TelemetryRecord
 	31,  // 10: wandb_internal.Record.metric:type_name -> wandb_internal.MetricRecord
 	29,  // 11: wandb_internal.Record.output_raw:type_name -> wandb_internal.OutputRawRecord
 	13,  // 12: wandb_internal.Record.run:type_name -> wandb_internal.RunRecord
@@ -10449,7 +10599,7 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	125, // 19: wandb_internal.Record.use_artifact:type_name -> wandb_internal.UseArtifactRecord
 	59,  // 20: wandb_internal.Record.request:type_name -> wandb_internal.Request
 	8,   // 21: wandb_internal.Record.control:type_name -> wandb_internal.Control
-	134, // 22: wandb_internal.Record._info:type_name -> wandb_internal._RecordInfo
+	137, // 22: wandb_internal.Record._info:type_name -> wandb_internal._RecordInfo
 	15,  // 23: wandb_internal.Result.run_result:type_name -> wandb_internal.RunUpdateResult
 	18,  // 24: wandb_internal.Result.exit_result:type_name -> wandb_internal.RunExitResult
 	26,  // 25: wandb_internal.Result.log_result:type_name -> wandb_internal.HistoryResult
@@ -10458,59 +10608,59 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	38,  // 28: wandb_internal.Result.config_result:type_name -> wandb_internal.ConfigResult
 	60,  // 29: wandb_internal.Result.response:type_name -> wandb_internal.Response
 	8,   // 30: wandb_internal.Result.control:type_name -> wandb_internal.Control
-	135, // 31: wandb_internal.Result._info:type_name -> wandb_internal._ResultInfo
-	134, // 32: wandb_internal.FinalRecord._info:type_name -> wandb_internal._RecordInfo
-	134, // 33: wandb_internal.HeaderRecord._info:type_name -> wandb_internal._RecordInfo
-	134, // 34: wandb_internal.FooterRecord._info:type_name -> wandb_internal._RecordInfo
+	138, // 31: wandb_internal.Result._info:type_name -> wandb_internal._ResultInfo
+	137, // 32: wandb_internal.FinalRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 33: wandb_internal.HeaderRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 34: wandb_internal.FooterRecord._info:type_name -> wandb_internal._RecordInfo
 	36,  // 35: wandb_internal.RunRecord.config:type_name -> wandb_internal.ConfigRecord
 	39,  // 36: wandb_internal.RunRecord.summary:type_name -> wandb_internal.SummaryRecord
 	21,  // 37: wandb_internal.RunRecord.settings:type_name -> wandb_internal.SettingsRecord
-	136, // 38: wandb_internal.RunRecord.start_time:type_name -> google.protobuf.Timestamp
-	133, // 39: wandb_internal.RunRecord.telemetry:type_name -> wandb_internal.TelemetryRecord
+	139, // 38: wandb_internal.RunRecord.start_time:type_name -> google.protobuf.Timestamp
+	136, // 39: wandb_internal.RunRecord.telemetry:type_name -> wandb_internal.TelemetryRecord
 	14,  // 40: wandb_internal.RunRecord.git:type_name -> wandb_internal.GitRepoRecord
-	134, // 41: wandb_internal.RunRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 41: wandb_internal.RunRecord._info:type_name -> wandb_internal._RecordInfo
 	13,  // 42: wandb_internal.RunUpdateResult.run:type_name -> wandb_internal.RunRecord
 	16,  // 43: wandb_internal.RunUpdateResult.error:type_name -> wandb_internal.ErrorInfo
 	0,   // 44: wandb_internal.ErrorInfo.code:type_name -> wandb_internal.ErrorInfo.ErrorCode
-	134, // 45: wandb_internal.RunExitRecord._info:type_name -> wandb_internal._RecordInfo
-	134, // 46: wandb_internal.RunPreemptingRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 45: wandb_internal.RunExitRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 46: wandb_internal.RunPreemptingRecord._info:type_name -> wandb_internal._RecordInfo
 	22,  // 47: wandb_internal.SettingsRecord.item:type_name -> wandb_internal.SettingsItem
-	134, // 48: wandb_internal.SettingsRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 48: wandb_internal.SettingsRecord._info:type_name -> wandb_internal._RecordInfo
 	25,  // 49: wandb_internal.HistoryRecord.item:type_name -> wandb_internal.HistoryItem
 	23,  // 50: wandb_internal.HistoryRecord.step:type_name -> wandb_internal.HistoryStep
-	134, // 51: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 51: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
 	1,   // 52: wandb_internal.OutputRecord.output_type:type_name -> wandb_internal.OutputRecord.OutputType
-	136, // 53: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
-	134, // 54: wandb_internal.OutputRecord._info:type_name -> wandb_internal._RecordInfo
+	139, // 53: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
+	137, // 54: wandb_internal.OutputRecord._info:type_name -> wandb_internal._RecordInfo
 	2,   // 55: wandb_internal.OutputRawRecord.output_type:type_name -> wandb_internal.OutputRawRecord.OutputType
-	136, // 56: wandb_internal.OutputRawRecord.timestamp:type_name -> google.protobuf.Timestamp
-	134, // 57: wandb_internal.OutputRawRecord._info:type_name -> wandb_internal._RecordInfo
+	139, // 56: wandb_internal.OutputRawRecord.timestamp:type_name -> google.protobuf.Timestamp
+	137, // 57: wandb_internal.OutputRawRecord._info:type_name -> wandb_internal._RecordInfo
 	33,  // 58: wandb_internal.MetricRecord.options:type_name -> wandb_internal.MetricOptions
 	35,  // 59: wandb_internal.MetricRecord.summary:type_name -> wandb_internal.MetricSummary
 	3,   // 60: wandb_internal.MetricRecord.goal:type_name -> wandb_internal.MetricRecord.MetricGoal
 	34,  // 61: wandb_internal.MetricRecord._control:type_name -> wandb_internal.MetricControl
-	134, // 62: wandb_internal.MetricRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 62: wandb_internal.MetricRecord._info:type_name -> wandb_internal._RecordInfo
 	37,  // 63: wandb_internal.ConfigRecord.update:type_name -> wandb_internal.ConfigItem
 	37,  // 64: wandb_internal.ConfigRecord.remove:type_name -> wandb_internal.ConfigItem
-	134, // 65: wandb_internal.ConfigRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 65: wandb_internal.ConfigRecord._info:type_name -> wandb_internal._RecordInfo
 	40,  // 66: wandb_internal.SummaryRecord.update:type_name -> wandb_internal.SummaryItem
 	40,  // 67: wandb_internal.SummaryRecord.remove:type_name -> wandb_internal.SummaryItem
-	134, // 68: wandb_internal.SummaryRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 68: wandb_internal.SummaryRecord._info:type_name -> wandb_internal._RecordInfo
 	43,  // 69: wandb_internal.FilesRecord.files:type_name -> wandb_internal.FilesItem
-	134, // 70: wandb_internal.FilesRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 70: wandb_internal.FilesRecord._info:type_name -> wandb_internal._RecordInfo
 	4,   // 71: wandb_internal.FilesItem.policy:type_name -> wandb_internal.FilesItem.PolicyType
 	5,   // 72: wandb_internal.StatsRecord.stats_type:type_name -> wandb_internal.StatsRecord.StatsType
-	136, // 73: wandb_internal.StatsRecord.timestamp:type_name -> google.protobuf.Timestamp
+	139, // 73: wandb_internal.StatsRecord.timestamp:type_name -> google.protobuf.Timestamp
 	46,  // 74: wandb_internal.StatsRecord.item:type_name -> wandb_internal.StatsItem
-	134, // 75: wandb_internal.StatsRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 75: wandb_internal.StatsRecord._info:type_name -> wandb_internal._RecordInfo
 	48,  // 76: wandb_internal.ArtifactRecord.manifest:type_name -> wandb_internal.ArtifactManifest
-	134, // 77: wandb_internal.ArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 77: wandb_internal.ArtifactRecord._info:type_name -> wandb_internal._RecordInfo
 	51,  // 78: wandb_internal.ArtifactManifest.storage_policy_config:type_name -> wandb_internal.StoragePolicyConfigItem
 	49,  // 79: wandb_internal.ArtifactManifest.contents:type_name -> wandb_internal.ArtifactManifestEntry
 	50,  // 80: wandb_internal.ArtifactManifestEntry.extra:type_name -> wandb_internal.ExtraItem
-	134, // 81: wandb_internal.LinkArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	134, // 82: wandb_internal.TBRecord._info:type_name -> wandb_internal._RecordInfo
-	134, // 83: wandb_internal.AlertRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 81: wandb_internal.LinkArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 82: wandb_internal.TBRecord._info:type_name -> wandb_internal._RecordInfo
+	137, // 83: wandb_internal.AlertRecord._info:type_name -> wandb_internal._RecordInfo
 	72,  // 84: wandb_internal.Request.stop_status:type_name -> wandb_internal.StopStatusRequest
 	74,  // 85: wandb_internal.Request.network_status:type_name -> wandb_internal.NetworkStatusRequest
 	61,  // 86: wandb_internal.Request.defer:type_name -> wandb_internal.DeferRequest
@@ -10527,7 +10677,7 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	116, // 97: wandb_internal.Request.keepalive:type_name -> wandb_internal.KeepaliveRequest
 	106, // 98: wandb_internal.Request.run_status:type_name -> wandb_internal.RunStatusRequest
 	127, // 99: wandb_internal.Request.cancel:type_name -> wandb_internal.CancelRequest
-	132, // 100: wandb_internal.Request.metadata:type_name -> wandb_internal.MetadataRequest
+	134, // 100: wandb_internal.Request.metadata:type_name -> wandb_internal.MetadataRequest
 	77,  // 101: wandb_internal.Request.internal_messages:type_name -> wandb_internal.InternalMessagesRequest
 	94,  // 102: wandb_internal.Request.shutdown:type_name -> wandb_internal.ShutdownRequest
 	96,  // 103: wandb_internal.Request.attach:type_name -> wandb_internal.AttachRequest
@@ -10560,48 +10710,48 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	113, // 130: wandb_internal.Response.job_info_response:type_name -> wandb_internal.JobInfoResponse
 	99,  // 131: wandb_internal.Response.test_inject_response:type_name -> wandb_internal.TestInjectResponse
 	6,   // 132: wandb_internal.DeferRequest.state:type_name -> wandb_internal.DeferRequest.DeferState
-	137, // 133: wandb_internal.PauseRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 134: wandb_internal.ResumeRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 135: wandb_internal.LoginRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 136: wandb_internal.GetSummaryRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 133: wandb_internal.PauseRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 134: wandb_internal.ResumeRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 135: wandb_internal.LoginRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 136: wandb_internal.GetSummaryRequest._info:type_name -> wandb_internal._RequestInfo
 	40,  // 137: wandb_internal.GetSummaryResponse.item:type_name -> wandb_internal.SummaryItem
-	137, // 138: wandb_internal.StatusRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 139: wandb_internal.StopStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 140: wandb_internal.NetworkStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 138: wandb_internal.StatusRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 139: wandb_internal.StopStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 140: wandb_internal.NetworkStatusRequest._info:type_name -> wandb_internal._RequestInfo
 	76,  // 141: wandb_internal.NetworkStatusResponse.network_responses:type_name -> wandb_internal.HttpResponse
-	137, // 142: wandb_internal.InternalMessagesRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 142: wandb_internal.InternalMessagesRequest._info:type_name -> wandb_internal._RequestInfo
 	79,  // 143: wandb_internal.InternalMessagesResponse.messages:type_name -> wandb_internal.InternalMessages
-	137, // 144: wandb_internal.PollExitRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 144: wandb_internal.PollExitRequest._info:type_name -> wandb_internal._RequestInfo
 	18,  // 145: wandb_internal.PollExitResponse.exit_result:type_name -> wandb_internal.RunExitResult
 	92,  // 146: wandb_internal.PollExitResponse.pusher_stats:type_name -> wandb_internal.FilePusherStats
 	91,  // 147: wandb_internal.PollExitResponse.file_counts:type_name -> wandb_internal.FileCounts
-	136, // 148: wandb_internal.StatusReportRequest.sync_time:type_name -> google.protobuf.Timestamp
+	139, // 148: wandb_internal.StatusReportRequest.sync_time:type_name -> google.protobuf.Timestamp
 	39,  // 149: wandb_internal.SummaryRecordRequest.summary:type_name -> wandb_internal.SummaryRecord
-	133, // 150: wandb_internal.TelemetryRecordRequest.telemetry:type_name -> wandb_internal.TelemetryRecord
-	137, // 151: wandb_internal.ServerInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	136, // 150: wandb_internal.TelemetryRecordRequest.telemetry:type_name -> wandb_internal.TelemetryRecord
+	140, // 151: wandb_internal.ServerInfoRequest._info:type_name -> wandb_internal._RequestInfo
 	93,  // 152: wandb_internal.ServerInfoResponse.local_info:type_name -> wandb_internal.LocalInfo
 	89,  // 153: wandb_internal.ServerInfoResponse.server_messages:type_name -> wandb_internal.ServerMessages
 	90,  // 154: wandb_internal.ServerMessages.item:type_name -> wandb_internal.ServerMessage
-	137, // 155: wandb_internal.ShutdownRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 156: wandb_internal.AttachRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 155: wandb_internal.ShutdownRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 156: wandb_internal.AttachRequest._info:type_name -> wandb_internal._RequestInfo
 	13,  // 157: wandb_internal.AttachResponse.run:type_name -> wandb_internal.RunRecord
 	16,  // 158: wandb_internal.AttachResponse.error:type_name -> wandb_internal.ErrorInfo
-	137, // 159: wandb_internal.TestInjectRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 159: wandb_internal.TestInjectRequest._info:type_name -> wandb_internal._RequestInfo
 	25,  // 160: wandb_internal.PartialHistoryRequest.item:type_name -> wandb_internal.HistoryItem
 	23,  // 161: wandb_internal.PartialHistoryRequest.step:type_name -> wandb_internal.HistoryStep
 	100, // 162: wandb_internal.PartialHistoryRequest.action:type_name -> wandb_internal.HistoryAction
-	137, // 163: wandb_internal.PartialHistoryRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 164: wandb_internal.SampledHistoryRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 163: wandb_internal.PartialHistoryRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 164: wandb_internal.SampledHistoryRequest._info:type_name -> wandb_internal._RequestInfo
 	104, // 165: wandb_internal.SampledHistoryResponse.item:type_name -> wandb_internal.SampledHistoryItem
-	137, // 166: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	136, // 167: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
+	140, // 166: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	139, // 167: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
 	13,  // 168: wandb_internal.RunStartRequest.run:type_name -> wandb_internal.RunRecord
-	137, // 169: wandb_internal.RunStartRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 170: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 171: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 169: wandb_internal.RunStartRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 170: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 171: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
 	47,  // 172: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
-	137, // 173: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	137, // 174: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 173: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	140, // 174: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
 	119, // 175: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
 	120, // 176: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
 	118, // 177: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
@@ -10609,19 +10759,22 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	122, // 179: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
 	123, // 180: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
 	124, // 181: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
-	134, // 182: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	137, // 183: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
-	136, // 184: wandb_internal.MetadataRequest.heartbeatAt:type_name -> google.protobuf.Timestamp
-	136, // 185: wandb_internal.MetadataRequest.startedAt:type_name -> google.protobuf.Timestamp
+	137, // 182: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	140, // 183: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
+	139, // 184: wandb_internal.MetadataRequest.heartbeatAt:type_name -> google.protobuf.Timestamp
+	139, // 185: wandb_internal.MetadataRequest.startedAt:type_name -> google.protobuf.Timestamp
 	14,  // 186: wandb_internal.MetadataRequest.git:type_name -> wandb_internal.GitRepoRecord
-	129, // 187: wandb_internal.MetadataRequest.disk:type_name -> wandb_internal.MetaDiskInfo
-	130, // 188: wandb_internal.MetadataRequest.gpuapple:type_name -> wandb_internal.MetaGpuAppleInfo
-	131, // 189: wandb_internal.MetadataRequest.memory:type_name -> wandb_internal.MetaMemInfo
-	190, // [190:190] is the sub-list for method output_type
-	190, // [190:190] is the sub-list for method input_type
-	190, // [190:190] is the sub-list for extension type_name
-	190, // [190:190] is the sub-list for extension extendee
-	0,   // [0:190] is the sub-list for field type_name
+	135, // 187: wandb_internal.MetadataRequest.disk:type_name -> wandb_internal.MetadataRequest.DiskEntry
+	130, // 188: wandb_internal.MetadataRequest.memory:type_name -> wandb_internal.MemoryInfo
+	131, // 189: wandb_internal.MetadataRequest.cpu:type_name -> wandb_internal.CpuInfo
+	132, // 190: wandb_internal.MetadataRequest.gpu_apple:type_name -> wandb_internal.GpuAppleInfo
+	133, // 191: wandb_internal.MetadataRequest.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
+	129, // 192: wandb_internal.MetadataRequest.DiskEntry.value:type_name -> wandb_internal.DiskInfo
+	193, // [193:193] is the sub-list for method output_type
+	193, // [193:193] is the sub-list for method input_type
+	193, // [193:193] is the sub-list for extension type_name
+	193, // [193:193] is the sub-list for extension extendee
+	0,   // [0:193] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_internal_proto_init() }
@@ -12097,7 +12250,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[122].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetaDiskInfo); i {
+			switch v := v.(*DiskInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12109,7 +12262,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[123].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetaGpuAppleInfo); i {
+			switch v := v.(*MemoryInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12121,7 +12274,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[124].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetaMemInfo); i {
+			switch v := v.(*CpuInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12133,6 +12286,30 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[125].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GpuAppleInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_internal_proto_msgTypes[126].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GpuNvidiaInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_internal_proto_msgTypes[127].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*MetadataRequest); i {
 			case 0:
 				return &v.state
@@ -12235,7 +12412,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_wandb_proto_wandb_internal_proto_rawDesc,
 			NumEnums:      7,
-			NumMessages:   126,
+			NumMessages:   129,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

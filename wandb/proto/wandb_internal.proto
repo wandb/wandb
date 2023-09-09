@@ -974,18 +974,28 @@ message CancelResponse {
 /*
  * MetadataRequest
  */
-message MetaDiskInfo {
+message DiskInfo {
   float total = 1;
   float used = 2;
 }
 
-message MetaGpuAppleInfo {
+message MemoryInfo {
+  uint64 total = 1;
+}
+
+message CpuInfo {
+  uint32 cpu_count = 1;
+  uint32 cpu_count_logical = 2;
+}
+
+message GpuAppleInfo {
   string gpuType = 1;
   string vendor = 2;
 }
 
-message MetaMemInfo {
-  float total = 1;
+message GpuNvidiaInfo {
+  string gpu = 1;
+  string gpu_count = 2;
 }
 
 message MetadataRequest {
@@ -1005,11 +1015,13 @@ message MetadataRequest {
   string host = 14;
   string username = 15;
   string executable = 16;
-  int32 cpu_count = 17 [json_name="cpu_count"];
-  int32 cpu_count_logical = 18 [json_name="cpu_count_logical"];
-  MetaDiskInfo disk = 19;
-  MetaGpuAppleInfo gpuapple = 20;
-  MetaMemInfo memory = 21;
-  string code_path_local = 22 [json_name="codePathLocal"];
-  string colab = 23;
+  string code_path_local = 17 [json_name="codePathLocal"];
+  string colab = 18;
+  uint32 cpu_count = 19 [json_name="cpu_count"];
+  uint32 cpu_count_logical = 20 [json_name="cpu_count_logical"];
+  map<string, DiskInfo> disk = 21;
+  MemoryInfo memory = 22;
+  CpuInfo cpu = 23;
+  GpuAppleInfo gpu_apple = 24 [json_name="gpuapple"];
+  GpuNvidiaInfo gpu_nvidia = 25 [json_name="gpunvidia"];
 }
