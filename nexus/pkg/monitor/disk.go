@@ -96,18 +96,19 @@ func (d *Disk) ClearMetrics() {
 
 func (d *Disk) IsAvailable() bool { return true }
 
-func (d *Disk) Probe() interface{} {
-	info := make(map[string]map[string]map[string]interface{})
-	info["disk"] = make(map[string]map[string]interface{})
-	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
-		usage, err := disk.Usage(diskPath)
-		if err == nil {
-			info["disk"][diskPath] = map[string]interface{}{
-				"total": usage.Total / 1024 / 1024 / 1024,
-				"used":  usage.Used / 1024 / 1024 / 1024,
-			}
-		}
-	}
-
-	return info
+func (d *Disk) Probe() *service.MetadataRequest {
+	// info := make(map[string]map[string]map[string]interface{})
+	// info["disk"] = make(map[string]map[string]interface{})
+	// for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+	// 	usage, err := disk.Usage(diskPath)
+	// 	if err == nil {
+	// 		info["disk"][diskPath] = map[string]interface{}{
+	// 			"total": usage.Total / 1024 / 1024 / 1024,
+	// 			"used":  usage.Used / 1024 / 1024 / 1024,
+	// 		}
+	// 	}
+	// }
+	//
+	// return info
+	return nil
 }

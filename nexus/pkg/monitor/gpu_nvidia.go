@@ -253,8 +253,7 @@ func (g *GPUNvidia) Close() {
 	nvml.Shutdown()
 }
 
-func (g *GPUNvidia) Probe() interface{} {
-	info := make(map[string]map[string]interface{})
+func (g *GPUNvidia) Probe() *service.MetadataRequest {
 	// todo: add GPU info
-	return info
+	return nil
 }

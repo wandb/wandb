@@ -3017,7 +3017,7 @@ class CancelResponse(google.protobuf.message.Message):
 
 global___CancelResponse = CancelResponse
 
-class MetaDiskInfo(google.protobuf.message.Message):
+class DiskInfo(google.protobuf.message.Message):
     """
     MetadataRequest
     """
@@ -3036,9 +3036,9 @@ class MetaDiskInfo(google.protobuf.message.Message):
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["total", b"total", "used", b"used"]) -> None: ...
 
-global___MetaDiskInfo = MetaDiskInfo
+global___DiskInfo = DiskInfo
 
-class MetaGpuAppleInfo(google.protobuf.message.Message):
+class GpuAppleInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     GPUTYPE_FIELD_NUMBER: builtins.int
@@ -3053,21 +3053,21 @@ class MetaGpuAppleInfo(google.protobuf.message.Message):
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["gpuType", b"gpuType", "vendor", b"vendor"]) -> None: ...
 
-global___MetaGpuAppleInfo = MetaGpuAppleInfo
+global___GpuAppleInfo = GpuAppleInfo
 
-class MetaMemInfo(google.protobuf.message.Message):
+class MemoryInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     TOTAL_FIELD_NUMBER: builtins.int
-    total: builtins.float
+    total: builtins.int
     def __init__(
         self,
         *,
-        total: builtins.float = ...,
+        total: builtins.int = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["total", b"total"]) -> None: ...
 
-global___MetaMemInfo = MetaMemInfo
+global___MemoryInfo = MemoryInfo
 
 class MetadataRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -3091,7 +3091,7 @@ class MetadataRequest(google.protobuf.message.Message):
     CPU_COUNT_FIELD_NUMBER: builtins.int
     CPU_COUNT_LOGICAL_FIELD_NUMBER: builtins.int
     DISK_FIELD_NUMBER: builtins.int
-    GPUAPPLE_FIELD_NUMBER: builtins.int
+    GPU_APPLE_FIELD_NUMBER: builtins.int
     MEMORY_FIELD_NUMBER: builtins.int
     CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
     COLAB_FIELD_NUMBER: builtins.int
@@ -3118,11 +3118,11 @@ class MetadataRequest(google.protobuf.message.Message):
     cpu_count: builtins.int
     cpu_count_logical: builtins.int
     @property
-    def disk(self) -> global___MetaDiskInfo: ...
+    def disk(self) -> global___DiskInfo: ...
     @property
-    def gpuapple(self) -> global___MetaGpuAppleInfo: ...
+    def gpu_apple(self) -> global___GpuAppleInfo: ...
     @property
-    def memory(self) -> global___MetaMemInfo: ...
+    def memory(self) -> global___MemoryInfo: ...
     code_path_local: builtins.str
     colab: builtins.str
     def __init__(
@@ -3146,13 +3146,13 @@ class MetadataRequest(google.protobuf.message.Message):
         executable: builtins.str = ...,
         cpu_count: builtins.int = ...,
         cpu_count_logical: builtins.int = ...,
-        disk: global___MetaDiskInfo | None = ...,
-        gpuapple: global___MetaGpuAppleInfo | None = ...,
-        memory: global___MetaMemInfo | None = ...,
+        disk: global___DiskInfo | None = ...,
+        gpu_apple: global___GpuAppleInfo | None = ...,
+        memory: global___MemoryInfo | None = ...,
         code_path_local: builtins.str = ...,
         colab: builtins.str = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["disk", b"disk", "git", b"git", "gpuapple", b"gpuapple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpuapple", b"gpuapple", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["disk", b"disk", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest
