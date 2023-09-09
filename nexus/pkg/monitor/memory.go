@@ -79,9 +79,13 @@ func (m *Memory) ClearMetrics() {
 
 func (m *Memory) IsAvailable() bool { return true }
 
-func (m *Memory) Probe() map[string]map[string]interface{} {
-	info := make(map[string]map[string]interface{})
+func (m *Memory) Probe() *service.MetadataRequest {
 	virtualMem, _ := mem.VirtualMemory()
-	info["memory"]["total"] = virtualMem.Total / 1024 / 1024 / 1024
-	return info
+	total := virtualMem.Total / 1024 / 1024 / 1024
+
+	return &service.MetadataRequest{
+		Memory: &service.MemoryInfo{
+			Total: total,
+		},
+	}
 }
