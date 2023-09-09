@@ -106,8 +106,8 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	savedFiles       map[string]interface{}
-	filesRecordFinal *service.Record
+	// fh is the file handler for the stream
+	fh *FileHandler
 }
 
 // NewHandler creates a new handler
@@ -126,7 +126,6 @@ func NewHandler(
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
 		loopbackChan:        loopbackChan,
-		savedFiles:          make(map[string]interface{}),
 	}
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
@@ -314,7 +313,8 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
-		h.sendRecord(h.filesRecordFinal)
+		rec := h.fh.Final()
+		h.sendRecord(rec)
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
@@ -549,32 +549,11 @@ func (h *Handler) handleFiles(record *service.Record) {
 		return
 	}
 
-	if h.filesRecordFinal == nil {
-		h.filesRecordFinal = &service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{
-					Files: []*service.FilesItem{},
-				},
-			},
-		}
+	if h.fh == nil {
+		h.fh = NewFileHandler()
 	}
 
-	var files []*service.FilesItem
-	for _, item := range record.GetFiles().GetFiles() {
-		// TODO: support live policy?
-		if item.Policy == service.FilesItem_END || item.Policy == service.FilesItem_LIVE {
-			if _, ok := h.savedFiles[item.Path]; !ok {
-				h.savedFiles[item.Path] = nil
-				// TODO should we remove the policy from the item?
-				h.filesRecordFinal.GetFiles().Files = append(h.filesRecordFinal.GetFiles().Files, item)
-			}
-		} else {
-			files = append(files, item)
-		}
-	}
-	// TODO: should we replace clone with something lighter?
-	rec := proto.Clone(record).(*service.Record)
-	rec.GetFiles().Files = files
+	rec := h.fh.Handle(record)
 	h.sendRecord(rec)
 }
 
