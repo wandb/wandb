@@ -105,6 +105,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	// fh is the file handler for the stream
+	fh *FileHandler
 }
 
 // NewHandler creates a new handler
@@ -172,6 +175,10 @@ func (h *Handler) close() {
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
+	if record == nil {
+		return
+	}
+
 	if record.GetControl() == nil {
 		record.Control = &service.Control{}
 	}
@@ -184,6 +191,9 @@ func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions .
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
+	if record == nil {
+		return
+	}
 	h.fwdChan <- record
 }
 
@@ -303,6 +313,8 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
+		rec := h.fh.Final()
+		h.sendRecord(rec)
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
@@ -533,7 +545,16 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 }
 
 func (h *Handler) handleFiles(record *service.Record) {
-	h.sendRecord(record)
+	if record.GetFiles() == nil {
+		return
+	}
+
+	if h.fh == nil {
+		h.fh = NewFileHandler()
+	}
+
+	rec := h.fh.Handle(record)
+	h.sendRecord(rec)
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
