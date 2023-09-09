@@ -1007,8 +1007,8 @@ message MetadataRequest {
   string executable = 16;
   int32 cpu_count = 17 [json_name="cpu_count"];
   int32 cpu_count_logical = 18 [json_name="cpu_count_logical"];
-  DiskInfo disk = 19;
-  GpuAppleInfo gpu_apple = 20;
+  map<string, DiskInfo> disk = 19;
+  GpuAppleInfo gpu_apple = 20 [json_name="gpuapple"];
   MemoryInfo memory = 21;
   string code_path_local = 22 [json_name="codePathLocal"];
   string colab = 23;
