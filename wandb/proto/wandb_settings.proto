@@ -23,6 +23,16 @@ message OpenMetricsFilters{
   }
 }
 
+message SystemMonitorSettings{
+  google.protobuf.Int32Value _pid = 1;
+  google.protobuf.DoubleValue sampling_interval_seconds = 2;
+  google.protobuf.Int32Value samples_to_average = 3;
+  google.protobuf.StringValue neuron_monitor_config_path = 4;
+  MapStringKeyStringValue open_metrics_endpoints = 5;
+  OpenMetricsFilters open_metrics_filters = 6;
+  ListStringValue disk_paths = 7;
+}
+
 message Settings {
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
@@ -176,8 +186,7 @@ message Settings {
   google.protobuf.StringValue sync_dir = 133;
   google.protobuf.StringValue sync_file = 134;
   google.protobuf.StringValue sync_symlink_latest = 135;
-  google.protobuf.Int32Value system_sample = 136;
-  google.protobuf.Int32Value system_sample_seconds = 137;
+  SystemMonitorSettings system_monitor = 136;
   google.protobuf.BoolValue table_raise_on_max_row_limit_exceeded = 138;
   google.protobuf.StringValue timespec = 139;
   google.protobuf.StringValue tmp_dir = 140;

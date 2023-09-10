@@ -1,3 +1,10 @@
+__all__ = (
+    "Settings",
+    "SettingsData",
+    "Source",
+    "SystemMonitorSettings",
+)
+
 import collections.abc
 import configparser
 import enum
@@ -294,6 +301,26 @@ ConsoleValue = {
 
 
 @dataclass()
+class SystemMonitorSettings:
+    _pid: int = -1  # (internal) base pid for system monitor
+
+    # path to place config file for neuron-monitor (AWS Trainium)
+    neuron_monitor_config_path: Optional[str] = None
+
+    # open metrics endpoint names/urls
+    open_metrics_endpoints: Optional[Mapping[str, str]] = None
+    # open metrics filters in one of the two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]], None] = None
+
+    disk_paths: Sequence[str] = ("/",)  # paths to monitor disk usage
+
+    sampling_interval_seconds: float = 1.0
+    samples_to_average: int = 1
+
+
+@dataclass()
 class SettingsData:
     """Settings for the W&B SDK."""
 
@@ -458,8 +485,7 @@ class SettingsData:
     sync_dir: str
     sync_file: str
     sync_symlink_latest: str
-    system_sample: int
-    system_sample_seconds: int
+    system_monitor: SystemMonitorSettings
     table_raise_on_max_row_limit_exceeded: bool
     timespec: str
     tmp_dir: str
@@ -602,6 +628,7 @@ class Property:
 
 class Settings(SettingsData):
     """A class to represent modifiable settings."""
+    __modification_order = SETTINGS_TOPOLOGICALLY_SORTED
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -906,8 +933,6 @@ class Settings(SettingsData):
                 "value": "latest-run",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
-            system_sample={"value": 15},
-            system_sample_seconds={"value": 2},
             table_raise_on_max_row_limit_exceeded={
                 "value": False,
                 "preprocessor": _str_as_bool,
@@ -1293,8 +1318,6 @@ class Settings(SettingsData):
     def __init__(self, **kwargs: Any) -> None:
         self.__frozen: bool = False
         self.__initialized: bool = False
-
-        self.__modification_order = SETTINGS_TOPOLOGICALLY_SORTED
 
         # Set default settings values
         # We start off with the class attributes and `default_props` dicts
