@@ -4,6 +4,7 @@ package monitor
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/shirou/gopsutil/v3/process"
