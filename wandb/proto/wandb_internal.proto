@@ -994,8 +994,8 @@ message GpuAppleInfo {
 }
 
 message GpuNvidiaInfo {
-  string gpu = 1;
-  string gpu_count = 2;
+  string name = 1;
+  uint64 memory_total = 2;
 }
 
 message MetadataRequest {
@@ -1019,9 +1019,11 @@ message MetadataRequest {
   string colab = 18;
   uint32 cpu_count = 19 [json_name="cpu_count"];
   uint32 cpu_count_logical = 20 [json_name="cpu_count_logical"];
-  map<string, DiskInfo> disk = 21;
-  MemoryInfo memory = 22;
-  CpuInfo cpu = 23;
-  GpuAppleInfo gpu_apple = 24 [json_name="gpuapple"];
-  GpuNvidiaInfo gpu_nvidia = 25 [json_name="gpunvidia"];
+  string gpu_type = 21 [json_name="gpu"];
+  uint32 gpu_count = 22;
+  map<string, DiskInfo> disk = 23;
+  MemoryInfo memory = 24;
+  CpuInfo cpu = 25;
+  GpuAppleInfo gpu_apple = 26 [json_name="gpuapple"];
+  repeated GpuNvidiaInfo gpu_nvidia = 27;
 }

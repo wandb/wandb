@@ -254,6 +254,42 @@ func (g *GPUNvidia) Close() {
 }
 
 func (g *GPUNvidia) Probe() *service.MetadataRequest {
-	// todo: add GPU info
-	return nil
+	if g.nvmlInit != nvml.SUCCESS {
+		return nil
+	}
+
+	info := service.MetadataRequest{
+		GpuNvidia: []*service.GpuNvidiaInfo{},
+	}
+
+	count, ret := nvml.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return nil
+	}
+
+	info.GpuCount = uint32(count)
+	names := make([]string, count)
+
+	for di := 0; di < count; di++ {
+		device, ret := nvml.DeviceGetHandleByIndex(di)
+		gpuInfo := &service.GpuNvidiaInfo{}
+		if ret == nvml.SUCCESS {
+			name, ret := device.GetName()
+			if ret == nvml.SUCCESS {
+				gpuInfo.Name = name
+				names[di] = name
+			}
+			memoryInfo, ret := device.GetMemoryInfo()
+			if ret == nvml.SUCCESS {
+				gpuInfo.MemoryTotal = memoryInfo.Total
+			}
+		}
+		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
+	}
+
+	if names != nil {
+		info.GpuType = fmt.Sprintf("%s", names)
+	}
+
+	return &info
 }
