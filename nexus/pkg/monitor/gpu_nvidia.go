@@ -288,9 +288,7 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
 	}
 
-	if names != nil {
-		info.GpuType = "[" + strings.Join(names, ", ") + "]"
-	}
+	info.GpuType = "[" + strings.Join(names, ", ") + "]"
 
 	return &info
 }
