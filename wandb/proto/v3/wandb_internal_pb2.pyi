@@ -3026,13 +3026,13 @@ class DiskInfo(google.protobuf.message.Message):
 
     TOTAL_FIELD_NUMBER: builtins.int
     USED_FIELD_NUMBER: builtins.int
-    total: builtins.float
-    used: builtins.float
+    total: builtins.int
+    used: builtins.int
     def __init__(
         self,
         *,
-        total: builtins.float = ...,
-        used: builtins.float = ...,
+        total: builtins.int = ...,
+        used: builtins.int = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["total", b"total", "used", b"used"]) -> None: ...
 

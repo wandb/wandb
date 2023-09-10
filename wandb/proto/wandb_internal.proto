@@ -975,8 +975,8 @@ message CancelResponse {
  * MetadataRequest
  */
 message DiskInfo {
-  float total = 1;
-  float used = 2;
+  uint64 total = 1;
+  uint64 used = 2;
 }
 
 message MemoryInfo {
