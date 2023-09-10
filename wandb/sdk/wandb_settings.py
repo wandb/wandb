@@ -312,7 +312,9 @@ class SystemMonitorSettings:
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
-    open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]], None] = None
+    open_metrics_filters: Union[
+        Sequence[str], Mapping[str, Mapping[str, str]], None
+    ] = None
 
     disk_paths: Sequence[str] = ("/",)  # paths to monitor disk usage
 
@@ -628,6 +630,7 @@ class Property:
 
 class Settings(SettingsData):
     """A class to represent modifiable settings."""
+
     __modification_order = SETTINGS_TOPOLOGICALLY_SORTED
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
