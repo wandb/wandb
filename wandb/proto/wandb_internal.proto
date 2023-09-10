@@ -1025,5 +1025,5 @@ message MetadataRequest {
   MemoryInfo memory = 24;
   CpuInfo cpu = 25;
   GpuAppleInfo gpu_apple = 26 [json_name="gpuapple"];
-  repeated GpuNvidiaInfo gpu_nvidia = 27;
+  repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name="gpu_nvidia"];
 }
