@@ -288,7 +288,7 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 	}
 
 	if names != nil {
-		info.GpuType = fmt.Sprintf("%s", names)
+		info.GpuType = "[" + strings.Join(names, ", ") + "]"
 	}
 
 	return &info

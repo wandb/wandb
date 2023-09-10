@@ -3055,17 +3055,17 @@ global___MemoryInfo = MemoryInfo
 class CpuInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    CPU_COUNT_FIELD_NUMBER: builtins.int
-    CPU_COUNT_LOGICAL_FIELD_NUMBER: builtins.int
-    cpu_count: builtins.int
-    cpu_count_logical: builtins.int
+    COUNT_FIELD_NUMBER: builtins.int
+    COUNT_LOGICAL_FIELD_NUMBER: builtins.int
+    count: builtins.int
+    count_logical: builtins.int
     def __init__(
         self,
         *,
-        cpu_count: builtins.int = ...,
-        cpu_count_logical: builtins.int = ...,
+        count: builtins.int = ...,
+        count_logical: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["count", b"count", "count_logical", b"count_logical"]) -> None: ...
 
 global___CpuInfo = CpuInfo
 

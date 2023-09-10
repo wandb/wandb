@@ -984,8 +984,8 @@ message MemoryInfo {
 }
 
 message CpuInfo {
-  uint32 cpu_count = 1;
-  uint32 cpu_count_logical = 2;
+  uint32 count = 1;
+  uint32 count_logical = 2;
 }
 
 message GpuAppleInfo {
@@ -1020,7 +1020,7 @@ message MetadataRequest {
   uint32 cpu_count = 19 [json_name="cpu_count"];
   uint32 cpu_count_logical = 20 [json_name="cpu_count_logical"];
   string gpu_type = 21 [json_name="gpu"];
-  uint32 gpu_count = 22;
+  uint32 gpu_count = 22 [json_name="gpu_count"];
   map<string, DiskInfo> disk = 23;
   MemoryInfo memory = 24;
   CpuInfo cpu = 25;
