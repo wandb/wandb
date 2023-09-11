@@ -61,6 +61,8 @@ class SafeWatch:
                         "object"
                     ).metadata.resource_version
                     yield event
+                # If the stream ends naturally we can break out of the loop.
+                break
             except urllib3.exceptions.ProtocolError as e:
                 _logger.warning(f"Broken event stream: {e}")
             except ApiException as e:
