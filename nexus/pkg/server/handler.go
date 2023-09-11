@@ -422,7 +422,6 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	if systemInfo != nil {
 		proto.Merge(h.runMetadata, systemInfo)
 	}
-	fmt.Println(systemInfo)
 
 	h.handleMetadata()
 }

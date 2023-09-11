@@ -106,8 +106,8 @@ func (d *Disk) Probe() *service.MetadataRequest {
 			continue
 		}
 		info.Disk[diskPath] = &service.DiskInfo{
-			Total: float32(usage.Total) / 1024 / 1024 / 1024,
-			Used:  float32(usage.Used) / 1024 / 1024 / 1024,
+			Total: usage.Total,
+			Used:  usage.Used,
 		}
 	}
 	return info
