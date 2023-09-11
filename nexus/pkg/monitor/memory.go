@@ -81,7 +81,8 @@ func (m *Memory) IsAvailable() bool { return true }
 
 func (m *Memory) Probe() *service.MetadataRequest {
 	virtualMem, _ := mem.VirtualMemory()
-	total := virtualMem.Total / 1024 / 1024 / 1024
+	// total := virtualMem.Total / 1024 / 1024 / 1024
+	total := virtualMem.Total
 
 	return &service.MetadataRequest{
 		Memory: &service.MemoryInfo{
