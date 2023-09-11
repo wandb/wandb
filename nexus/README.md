@@ -62,6 +62,7 @@ or has not entered development yet.
 |            | `init`                | ✅          |
 |            | `log`                 | ✅[^R.0]    |
 |            | `config`              | ✅          |
+|            | `log_artifact`        | 🚧         |
 |            | `summary`             | 🚧[^R.1]   |
 |            | `define_metric`       | 🚧[^R.2]   |
 |            | multiprocessing       | ✅          |
