@@ -53,24 +53,30 @@ The following table shows the current status of feature parity between the curre
 
 Status legend:
 ✅: Available: The feature is relatively stable and ready for use
-🚧: In Development: The feature is either available, but lacking some functionality
+🚧: In Development: The feature is either available, but lacking some functionality,
 or has not entered development yet.
 
 | Category   | Feature               | Status     |
 |------------|-----------------------|------------|
 | Run        |                       |            |
 |            | `init`                | ✅          |
-|            | `log`                 | ✅          |
+|            | `log`                 | ✅[^R.0]    |
 |            | `config`              | ✅          |
 |            | `summary`             | 🚧[^R.1]   |
 |            | `define_metric`       | 🚧[^R.2]   |
 |            | multiprocessing       | ✅          |
 |            | console logging       | 🚧[^R.3]   |
 |            | system metrics        | 🚧[^R.4]   |
+|            | system info           | ✅          |
 |            | code saving           | 🚧[^R.5]   |
 |            | offline mode          | ✅          |
 |            | tags & notes          | ✅          |
 |            | alerts                | ✅[^R.6]    |
+|            | settings              | ✅[^R.7]    |
+|            | resume                | ✅          |
+|            | save/restore          | ✅          |
+|            | TensorBoard sync      | 🚧         |
+|            | mark preempting       | ✅          |
 | Login      |                       |            |
 |            | default entity        | ✅          |
 |            | team entity           | ✅          |
@@ -84,13 +90,16 @@ or has not entered development yet.
 | Launch     |                       | 🚧         |
 | Sweeps     |                       | 🚧         |
 
+[^R.0]: TODO: check if Tables work.
 [^R.1]: TODO
 [^R.2]: TODO
 [^R.3]: TODO
 [^R.4]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
 [^R.5]: Automatic code saving in Notebooks is not yet supported.
 [^R.6]: It worked, need to verify.
+[^R.7]: TODO: list unsupported settings.
+    (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^PA.1]: The public API works, but uses the current Python backend under the hood.
-         Expect the public API to be rewritten to use the new backend.
+    Expect the public API to be rewritten to use the new backend.
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
-          commands. Expect the CLI to be rewritten to use the new backend.
+    commands. Expect the CLI to be rewritten to use the new backend.
