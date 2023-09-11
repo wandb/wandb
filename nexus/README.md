@@ -1,11 +1,12 @@
-# W&B Nexus: the new "bones" for the W&B SDK
+# W&B Nexus: the New "Bones" for the W&B SDK
 
 ## What is Nexus
 
-Greetings, developers! Let's dive right in!
+Greetings, developers!
 
-What is W&B Nexus? At the highest level, Nexus is the new "bones" for the W&B SDK.
-Why would anyone care and want to use it? There are numerous reasons, but here are just two:
+*What is W&B Nexus?* At the highest level, Nexus is the new "bones" for the W&B SDK.
+
+*Why would anyone care and want to use it?* There are numerous reasons, but here are just two:
 - It's faster. A lot faster. We're talking 10x faster for some operations.
 - It enables clean multi-language support.
 
@@ -47,20 +48,38 @@ The following table shows the current status of feature parity between the curre
 
 Status legend:
 ✅: Available: The feature is relatively stable and ready for use
-🚧: In Development: The feature is available, but might lack some functionality
-📝: Todo: The feature has not entered development yet.
+🚧: In Development: The feature is either available, but lacking some functionality
+or has not entered development yet.
 
 | Category   | Feature               | Status     |
 |------------|-----------------------|------------|
 | Run        |                       |            |
-|            | init                  | ✅          |
-|            | log                   | ✅          |
-|            | config                | ✅          |
+|            | `init`                | ✅          |
+|            | `log`                 | ✅          |
+|            | `config`              | ✅          |
+|            | `summary`             | 🚧[^R.1]   |
+|            | `define_metric`       | 🚧[^R.2]   |
+|            | multiprocessing       | ✅          |
+|            | console logging       | 🚧[^R.3]   |
+|            | system metrics        | 🚧[^R.4]   |
+| Login      |                       |            |
+|            | default entity        | ✅          |
+|            | team entity           | ✅          |
+|            | service account       | ✅          |
 | Artifacts  |                       |            |
 |            | basic artifacts       | 🚧         |
-|            | incremental artifacts | 📝         |
-|            | reference artifacts   | 📝         |
-| Public API |                       | 📝[^PA.1]  |
+|            | incremental artifacts | 🚧         |
+|            | reference artifacts   | 🚧         |
+| Public API |                       | 🚧[^PA.1]  |
+| CLI        |                       | 🚧[^CLI.1] |
+| Launch     |                       | 🚧         |
+| Sweeps     |                       | 🚧         |
 
+[^R.1]: TODO
+[^R.2]: TODO
+[^R.3]: TODO
+[^R.4]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
 [^PA.1]: The public API works, but uses the current Python backend under the hood.
          Expect the public API to be rewritten to use the new backend.
+[^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
+          commands. Expect the CLI to be rewritten to use the new backend.
