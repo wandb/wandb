@@ -52,6 +52,7 @@ class SafeWatch:
     def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         """Stream the watcher."""
         while True:
+            # TODO: IF the stream really can't be resumed what should we do?
             try:
                 for event in self._watcher.stream(func, *args, **kwargs):
                     # Save the resource version so that we can resume the stream

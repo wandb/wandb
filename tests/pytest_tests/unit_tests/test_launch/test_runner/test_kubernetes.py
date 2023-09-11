@@ -269,7 +269,7 @@ def mock_event_streams(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.kubernetes_monitor.watch.Watch.stream",
+        "wandb.sdk.launch.runner.kubernetes_monitor.SafeWatch.stream",
         _select_stream,
     )
     return job_stream, pod_stream
