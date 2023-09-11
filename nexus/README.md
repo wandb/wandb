@@ -42,6 +42,11 @@ your platform, and we will prioritize adding support for it.
 Please read our [contributing guide](docs/contributing.md) to learn to set up
 your development environment and how to contribute to the codebase.
 
+## Feedback
+We are very much looking forward for your feedback, especially bug reports!
+Please open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
+if you encounter an error.
+
 ## Feature Parity Status
 
 The following table shows the current status of feature parity between the current W&B SDK.
@@ -62,6 +67,10 @@ or has not entered development yet.
 |            | multiprocessing       | ✅          |
 |            | console logging       | 🚧[^R.3]   |
 |            | system metrics        | 🚧[^R.4]   |
+|            | code saving           | 🚧[^R.5]   |
+|            | offline mode          | ✅          |
+|            | tags & notes          | ✅          |
+|            | alerts                | ✅[^R.6]    |
 | Login      |                       |            |
 |            | default entity        | ✅          |
 |            | team entity           | ✅          |
@@ -79,6 +88,8 @@ or has not entered development yet.
 [^R.2]: TODO
 [^R.3]: TODO
 [^R.4]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
+[^R.5]: Automatic code saving in Notebooks is not yet supported.
+[^R.6]: It worked, need to verify.
 [^PA.1]: The public API works, but uses the current Python backend under the hood.
          Expect the public API to be rewritten to use the new backend.
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some

@@ -427,6 +427,7 @@ class _WandbInit:
             return None
 
         # Attempt to save the code on every execution
+        # todo: check if using nexus
         if self.notebook.save_ipynb():  # type: ignore
             assert self.run is not None
             res = self.run.log_code(root=None)
