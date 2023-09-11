@@ -31,3 +31,22 @@ To install Nexus in development mode, you will need to run the following command
 ```
 This script will also allow you to unset the Nexus path if you no longer want to use
 the development version of Nexus. Follow the instructions in the script to do that.
+
+## Running System Tests Locally
+Install the test requirements into the current Python environment:
+```bash
+pip install -r requirements_test.txt  # Install test dependencies, if needed
+```
+
+A number of tests are not currently passing due to feature incompleteness.
+These tests are marked with the `@pytest.mark.nexus_failure` decorator.
+To list all tests that are currently failing, run the following command:
+```bash
+nox -s list-failing-tests-nexus
+```
+
+To run the tests excluding the failing ones locally, you will need to run the following
+commands in your active Python environment (assuming you are in the root of the repository):
+```bash
+WANDB_REQUIRE_NEXUS=true pytest -m "not nexus_failure" tests/pytest_tests/system_tests/test_core
+```
