@@ -19,7 +19,7 @@ message TelemetryRecord {
   Labels  label = 9;
   Deprecated deprecated = 10;
   Issues issues = 11;
-  string  core_version = 12;
+  string core_version = 12;
   string platform = 13;
   _RecordInfo _info = 200;
 }
