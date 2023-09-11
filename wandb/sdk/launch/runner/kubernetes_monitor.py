@@ -211,20 +211,6 @@ class KubernetesRunMonitor:
                 f"Exception when calling CoreV1Api.list_namespaced_pod with selector {self.pod_label_selector}: {e}"
             )
 
-        # # This can happen if the stream starts and gets broken, typically because
-        # # a thread is hanging. The kubernetes SDK is already implementing a
-        # # retry loop so if we get here it means that the pods cannot be monitored.
-        # except urllib3.exceptions.ProtocolError as e:
-        #     state = self.get_status().state
-        #     if state in ["failed", "finished", "preempted"]:
-        #         _logger.warning(
-        #             f"Hanging pod monitor thread with selector {self.pod_label_selector}: {e}"
-        #         )
-        #         return
-        #     raise LaunchError(
-        #         f"Broken event stream for pod watcher in state '{state}' and selector {self.pod_label_selector}: {e}"
-        #     )
-
     def _watch_job(self) -> None:
         """Watch for job matching the jobname."""
         try:
