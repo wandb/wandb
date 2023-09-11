@@ -2,8 +2,9 @@ import sys
 from typing import Any, Dict, Optional, Union
 
 import keras_core as keras
-import wandb
 from keras_core.callbacks import Callback
+
+import wandb
 from wandb.sdk.lib import telemetry
 
 tf_backend_available = False
@@ -119,7 +120,7 @@ class WandbMetricsLogger(Callback):
             elif jax_backend_available:
                 try:
                     return float(np.array(self.model.optimizer.learning_rate).item())
-                except Exception as e:
+                except Exception:
                     wandb.termerror("Unable to log learning rate.", repeat=False)
                     return None
 
