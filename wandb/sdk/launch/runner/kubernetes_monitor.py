@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional
 
 import urllib3
 from dateutil import parser
-from kubernetes import watch
-from kubernetes.client import (
+from kubernetes import watch  # type: ignore # noqa: F401
+from kubernetes.client import (  # type: ignore # noqa: F401
     ApiException,
     BatchV1Api,
     CoreV1Api,
