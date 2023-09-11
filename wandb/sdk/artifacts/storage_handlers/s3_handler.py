@@ -277,7 +277,7 @@ class S3Handler(StorageHandler):
         if not hasattr(obj, "version_id"):
             # Convert ObjectSummary to Object to get the version_id.
             obj = self._s3.Object(obj.bucket_name, obj.key)  # type: ignore[union-attr]
-        if hasattr(obj, "version_id") and obj.version_id != "null":
+        if hasattr(obj, "version_id") and obj.version_id and obj.version_id != "null":
             extra["versionID"] = obj.version_id
         return extra
 
