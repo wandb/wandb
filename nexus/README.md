@@ -25,20 +25,20 @@ Status legend:
 🚧: In Development: The feature is available, but might lack some functionality
 📝: Todo: The feature has not entered development yet.
 
-| Category   | Feature               | Status | Notes         |
-|------------|-----------------------|--------|---------------|
-| Run        |                       |        |               |
-|            | init                  | ✅      |               |
-|            | log                   | ✅      |               |
-|            | config                | ✅      |               |
-| Artifacts  |                       |        |               |
-|            | basic artifacts       | 🚧     |               |
-|            | incremental artifacts | 📝     |               |
-|            | reference artifacts   | 📝     |               |
-| Public API |                       | 📝     | [PA.1](#PA.1) |
+| Category   | Feature               | Status     |
+|------------|-----------------------|------------|
+| Run        |                       |            |
+|            | init                  | ✅          |
+|            | log                   | ✅          |
+|            | config                | ✅          |
+| Artifacts  |                       |            |
+|            | basic artifacts       | 🚧         |
+|            | incremental artifacts | 📝         |
+|            | reference artifacts   | 📝         |
+| Public API |                       | 📝[^PA.1]  |
 
-<a name="PA.1">[PA.1]</a> The public API works, but uses the current Python backend under the hood.
-    Expect the public API to be rewritten to use the new backend.
+[^PA.1]: The public API works, but uses the current Python backend under the hood.
+         Expect the public API to be rewritten to use the new backend.
 
 ## Contributing
 
