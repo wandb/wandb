@@ -136,6 +136,8 @@ class _WandbInit:
 
         self.deprecated_features_used: Dict[str, str] = dict()
 
+        self._require_nexus = os.environ.get("WANDB_REQUIRE_NEXUS") == "True"
+
     def _setup_printer(self, settings: Settings) -> None:
         if self.printer:
             return
@@ -427,8 +429,8 @@ class _WandbInit:
             return None
 
         # Attempt to save the code on every execution
-        # todo: check if using nexus
-        if self.notebook.save_ipynb():  # type: ignore
+        # todo(nexus): remove nexus check once incremental artifact is supported
+        if not self._require_nexus and self.notebook.save_ipynb():  # type: ignore
             assert self.run is not None
             res = self.run.log_code(root=None)
             logger.info("saved code: %s", res)  # type: ignore
@@ -446,7 +448,8 @@ class _WandbInit:
         assert self.notebook
         ipython = self.notebook.shell
         self.notebook.save_history()
-        if self.notebook.save_ipynb():
+        # todo(nexus): remove nexus check once incremental artifact is supported
+        if not self._require_nexus and self.notebook.save_ipynb():
             assert self.run is not None
             res = self.run.log_code(root=None)
             logger.info("saved code and history: %s", res)  # type: ignore
