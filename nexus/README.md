@@ -15,6 +15,31 @@ but starting from a clean slate.
 
 ## Installation
 
+To install Nexus, you will need to run the following commands:
+
+```bash
+pip install wandb[nexus]
+```
+
+### Supported Platforms
+
+Nexus is currently supported on the following platforms:
+
+- Linux (x86_64)
+- macOS (x86_64)
+- macOS (arm64)
+- Windows (x86_64)
+
+If you are using a different platform, you can build Nexus from source by following the
+instructions in the [contributing guide](docs/contributing.md#installing-nexus).
+Please also open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
+to let us know that you are interested in using Nexus on
+your platform, and we will prioritize adding support for it.
+
+## Contributing
+
+Please read our [contributing guide](docs/contributing.md) to learn to set up
+your development environment and how to contribute to the codebase.
 
 ## Feature Parity Status
 
@@ -39,8 +64,3 @@ Status legend:
 
 [^PA.1]: The public API works, but uses the current Python backend under the hood.
          Expect the public API to be rewritten to use the new backend.
-
-## Contributing
-
-Please read our [contributing guide](docs/contributing.md) to learn to set up
-your development environment and how to contribute to the codebase.
