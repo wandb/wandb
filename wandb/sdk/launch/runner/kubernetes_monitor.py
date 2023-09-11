@@ -1,20 +1,21 @@
 import logging
 from threading import Lock, Thread
+from typing import Any, Dict, List, Optional
+
 import urllib3
 from dateutil import parser
-from typing import Dict, List, Optional, Any
-
 from kubernetes import watch
 from kubernetes.client import (
+    ApiException,
     BatchV1Api,
     CoreV1Api,
     CustomObjectsApi,
     V1PodStatus,
-    ApiException,
 )
 
 from wandb.sdk.launch.errors import LaunchError
-from .abstract import Status, State
+
+from .abstract import State, Status
 
 # Dict for mapping possible states of custom objects to the states we want to report
 # to the agent.

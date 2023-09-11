@@ -14,7 +14,7 @@ from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
-from wandb.sdk.launch.runner.abstract import State, Status
+from wandb.sdk.launch.runner.abstract import Status
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
