@@ -24,8 +24,8 @@ func NewStreamMux() *StreamMux {
 
 // AddStream adds a stream to the mux if it doesn't already exist.
 func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
 	if _, ok := sm.mux[streamId]; !ok {
 		sm.mux[streamId] = stream
 		return nil

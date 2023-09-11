@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -110,7 +112,7 @@ type Asset interface {
 	AggregateMetrics() map[string]float64
 	ClearMetrics()
 	IsAvailable() bool
-	Probe() map[string]map[string]interface{}
+	Probe() *service.MetadataRequest
 }
 
 type SystemMonitor struct {
@@ -196,6 +198,20 @@ func (sm *SystemMonitor) Do() {
 		sm.wg.Add(1)
 		go sm.Monitor(asset)
 	}
+}
+
+func (sm *SystemMonitor) Probe() *service.MetadataRequest {
+	if sm == nil {
+		return nil
+	}
+	systemInfo := service.MetadataRequest{}
+	for _, asset := range sm.assets {
+		probeResponse := asset.Probe()
+		if probeResponse != nil {
+			proto.Merge(&systemInfo, probeResponse)
+		}
+	}
+	return &systemInfo
 }
 
 func (sm *SystemMonitor) Monitor(asset Asset) {
