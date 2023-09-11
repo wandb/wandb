@@ -7,12 +7,14 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.sdk.launch.runner.kubernetes_monitor import CRD_STATE_DICT
+from wandb.sdk.launch.runner.kubernetes_monitor import (
+    CRD_STATE_DICT,
+    _parse_transition_time,
+    _state_from_conditions,
+)
 from wandb.sdk.launch.runner.kubernetes_runner import (
     KubernetesRunMonitor,
     KubernetesRunner,
-    _parse_transition_time,
-    _state_from_conditions,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
