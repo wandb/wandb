@@ -48,7 +48,7 @@ class SafeWatch:
     def __init__(self, watcher: "watch.Watch") -> None:
         """Initialize the SafeWatch."""
         self._watcher = watcher
-        self._stopped = False
+        self._last_seen_resource_version: Optional[str] = None
 
     def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         """Stream the watcher."""
@@ -59,9 +59,10 @@ class SafeWatch:
                 ):
                     # Save the resource version so that we can resume the stream
                     # if it breaks.
-                    kwargs["resource_version"] = event.get(
+                    self._last_seen_resource_version = event.get(
                         "object"
                     ).metadata.resource_version
+                    kwargs["resource_version"] = self._last_seen_resource_version
                     yield event
                 # If stream ends after stop just break
                 if self._stopped:
@@ -72,6 +73,7 @@ class SafeWatch:
                 if e.status == 410:
                     # If resource version is too old we need to start over.
                     del kwargs["resource_version"]
+                    self._last_seen_resource_version = None
             except Exception as E:
                 wandb.termerror(f"Unknown exception in event stream: {E}")
 
