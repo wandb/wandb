@@ -374,10 +374,9 @@ def test_image_type(assets_path):
             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
         },file_type=file_type
     ))
-        
     wb_type_annot_with_fid = [
         data_types._ImageFileType.from_obj(img) for img in annotated_with_files
-        ] 
+        ]
     image_annotated_differently = data_types.Image(
         np.random.rand(10, 10),
         boxes={
