@@ -26,10 +26,10 @@ pip install wandb[nexus]
 
 Nexus is currently supported on the following platforms:
 
-- Linux (x86_64)
-- macOS (x86_64)
-- macOS (arm64)
-- Windows (x86_64)
+- Linux (`x86_64`)
+- macOS (`x86_64`)
+- macOS (`arm64`)
+- Windows (`x86_64`)
 
 If you are using a different platform, you can build Nexus from source by following the
 instructions in the [contributing guide](docs/contributing.md#installing-nexus).
@@ -43,49 +43,53 @@ Please read our [contributing guide](docs/contributing.md) to learn to set up
 your development environment and how to contribute to the codebase.
 
 ## Feedback
-We are very much looking forward for your feedback, especially bug reports!
+Please give Nexus a try and let us know what you think, we believe it is worth it!
+
+We are very much looking forward for your feedback, especially bug reports.
 Please open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
-if you encounter an error.
+if you encounter an error and mention that you are using Nexus.
 
 ## Feature Parity Status
 
-The following table shows the current status of feature parity between the current W&B SDK.
+The following table shows the current status of feature parity
+between the current W&B SDK and Nexus.
 
 Status legend:
-- ✅: Available: The feature is relatively stable and ready for use
+- ✅: Available: The feature is relatively stable and ready for use.
 - 🚧: In Development: The feature is available, but may be unstable or incomplete.
 - ❌: Not Available: The feature is not yet available.
 
 | Category    | Feature           | Status     |
 |-------------|-------------------|------------|
 | Experiments |                   |            |
-|             | `init`            | ✅          |
-|             | `log`             | 🚧[^E.1]   |
-|             | `log_artifact`    | ❌[^E.2]    |
-|             | `log_code`        | ❌[^E.3]    |
+|             | `init`            | ✅[^E.1]    |
+|             | `log`             | ✅[^E.2]    |
+|             | `log_artifact`    | ❌[^E.3]    |
+|             | `log_code`        | ❌[^E.4]    |
 |             | `config`          | ✅          |
-|             | `summary`         | 🚧[^E.4]   |
-|             | `define_metric`   | 🚧[^E.5]   |
+|             | `summary`         | 🚧[^E.5]   |
+|             | `define_metric`   | 🚧[^E.6]   |
 |             | `tags`            | ✅          |
 |             | `notes`           | ✅          |
 |             | `name`            | ✅          |
 |             | `alert`           | ✅          |
-|             | `save`            | 🚧[^E.6]   |
+|             | `save`            | 🚧[^E.7]   |
 |             | `restore`         | ✅          |
 |             | `mark_preempting` | ✅          |
 |             | resume            | ✅          |
 |             | reinit            | ✅          |
+|             | Media             | 🚧[^E.8]   |
 |             | Grouping          | ✅          |
 |             | anonymous mode    | ?          |
 |             | offline mode      | ✅          |
 |             | disabled mode     | ✅          |
 |             | multiprocessing   | ✅          |
 |             | TensorBoard sync  | ❌          |
-|             | console logging   | 🚧[^E.7]   |
-|             | system metrics    | 🚧[^E.8]   |
+|             | console logging   | 🚧[^E.9]   |
+|             | system metrics    | 🚧[^E.10]  |
 |             | system info       | ✅          |
-|             | code saving       | 🚧[^E.9]   |
-|             | Settings          | 🚧[^E.10]  |
+|             | code saving       | 🚧[^E.11]  |
+|             | Settings          | 🚧[^E.12]  |
 | Login       |                   |            |
 |             | default entity    | ✅          |
 |             | team entity       | ✅          |
@@ -96,16 +100,19 @@ Status legend:
 | Launch      |                   | ❌[^L.1]    |
 | Sweeps      |                   | 🚧[^S.1]   |
 
-[^E.1]: `wandb.Table` is not supported. Requires Artifacts support.
-[^E.2]: `log_artifact` is not yet supported. Requires Artifacts support.
-[^E.3]: `log_code` is not yet supported. Requires Artifacts support.
-[^E.4]: TODO
-[^E.5]: `define_metric` only supports default summary.
+[^E.1]: `sync_tensorboard` requires TensorBoard support.
+[^E.2]: `wandb.Table` is not supported. Requires Artifacts support.
+[^E.3]: `log_artifact` is not yet supported. Requires Artifacts support.
+[^E.4]: `log_code` is not yet supported. Requires Artifacts support.
+[^E.5]: Nested summary objects are not yet supported.
+[^E.6]: `define_metric` only supports default summary.
 [^E.6]: `save` only support `now` and `end` policy. `live` policy will be treated as `end`.
-[^E.7]: TODO
-[^E.8]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
-[^E.9]: Automatic code saving in Notebooks is not yet supported. Requires Artifacts support.
-[^E.10]: TODO: list unsupported settings.
+[^E.7]: The "live" policy is not yet supported, it will be treated as "end".
+[^E.8]: `wandb.Table` is not supported. Requires Artifacts support.
+[^E.9]: Only raw console logging is supported.
+[^E.10]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
+[^E.11]: Automatic code saving in Notebooks is not yet supported. Requires Artifacts support.
+[^E.12]: TODO: list unsupported settings.
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^PA.1]: The public API works, but uses the current Python backend under the hood.
     Expect the public API to be rewritten to use the new backend.
@@ -113,4 +120,4 @@ Status legend:
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
     commands. Expect the CLI to be rewritten to use the new backend.
 [^L.1]: Launch is not yet supported. Requires Artifacts support.
-[^S.1]: TODO
+[^S.1]: Requires verification.
