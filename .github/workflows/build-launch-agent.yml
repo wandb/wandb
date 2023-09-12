@@ -15,7 +15,7 @@ on:
 
 defaults:
   run:
-    working-directory: ./launch
+    working-directory: ./tools/launch
 
 jobs:
   build:
