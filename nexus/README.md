@@ -63,54 +63,54 @@ if you encounter an error and mention that you are using Nexus.
 
 ## Feature Parity Status
 
-The following table shows the current status of feature parity
-between the current W&B SDK and Nexus.
+The following table shows the status of feature parity
+between the current W&B SDK and Nexus for version `0.16.0beta1`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
 - 🚧: In Development: The feature is available, but may be unstable or incomplete.
 - ❌: Not Available: The feature is not yet available.
 
-| Category    | Feature           | Status                |
-|-------------|-------------------|-----------------------|
-| Experiments |                   |                       |
+| Category    | Feature           | Status         |
+|-------------|-------------------|----------------|
+| Experiments |                   |                |
 |             | `init`            | ✅[^E.1][^E.10][^E.11] |
-|             | `log`             | ✅[^E.2]               |
-|             | `log_artifact`    | ❌[^E.3]               |
-|             | `log_code`        | ❌[^E.4]               |
-|             | `config`          | ✅                     |
-|             | `summary`         | ✅                     |
-|             | `define_metric`   | 🚧[^E.5]              |
-|             | `tags`            | ✅                     |
-|             | `notes`           | ✅                     |
-|             | `name`            | ✅                     |
-|             | `alert`           | ✅                     |
-|             | `save`            | 🚧[^E.6]              |
-|             | `restore`         | ✅                     |
-|             | `mark_preempting` | ✅                     |
-|             | resume            | ✅                     |
-|             | reinit            | ✅                     |
-|             | Media             | 🚧[^E.7]              |
-|             | Grouping          | ✅                     |
-|             | anonymous mode    | ✅                     |
-|             | offline mode      | ✅                     |
-|             | disabled mode     | ✅                     |
-|             | multiprocessing   | ✅                     |
-|             | TensorBoard sync  | ❌                     |
-|             | console logging   | 🚧[^E.8]              |
-|             | system metrics    | 🚧[^E.9]              |
-|             | system info       | ✅                     |
-|             | code saving       | 🚧[^E.10][^E.11]      |
-|             | Settings          | 🚧[^E.12]             |
-| Login       |                   |                       |
-|             | default entity    | ✅                     |
-|             | team entity       | ✅                     |
-|             | service account   | ✅                     |
-| Public API  |                   | 🚧[^PA.1]             |
-| CLI         |                   | 🚧[^CLI.1]            |
-| Artifacts   |                   | ❌[^A.1]               |
-| Launch      |                   | ❌[^L.1]               |
-| Sweeps      |                   | 🚧[^S.1]              |
+|             | `log`             | ✅[^E.2]        |
+|             | `log_artifact`    | ❌[^E.3]        |
+|             | `log_code`        | ❌[^E.4]        |
+|             | `config`          | ✅              |
+|             | `summary`         | ✅              |
+|             | `define_metric`   | 🚧[^E.5]       |
+|             | `tags`            | ✅              |
+|             | `notes`           | ✅              |
+|             | `name`            | ✅              |
+|             | `alert`           | ✅              |
+|             | `save`            | 🚧[^E.6]       |
+|             | `restore`         | ✅              |
+|             | `mark_preempting` | ✅              |
+|             | resume            | ✅              |
+|             | reinit            | ✅              |
+|             | Media             | 🚧[^E.7]       |
+|             | Grouping          | ✅              |
+|             | anonymous mode    | ✅              |
+|             | offline mode      | ✅              |
+|             | disabled mode     | ✅              |
+|             | multiprocessing   | ✅              |
+|             | TensorBoard sync  | ❌              |
+|             | console logging   | 🚧[^E.8]       |
+|             | system metrics    | 🚧[^E.9]       |
+|             | system info       | ✅              |
+|             | code saving       | 🚧[^E.11]      |
+|             | Settings          | 🚧[^E.12]      |
+| Login       |                   |                |
+|             | default entity    | ✅              |
+|             | team entity       | ✅              |
+|             | service account   | ✅              |
+| Public API  |                   | 🚧[^PA.1]      |
+| CLI         |                   | 🚧[^CLI.1]     |
+| Artifacts   |                   | ❌[^A.1]        |
+| Launch      |                   | ❌[^L.1]        |
+| Sweeps      |                   | 🚧[^S.1]       |
 
 [^E.1]: `sync_tensorboard` requires TensorBoard support.
 [^E.2]: `wandb.Table` is not supported. Requires Artifacts support.
