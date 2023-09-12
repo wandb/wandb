@@ -37,6 +37,18 @@ Please also open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choo
 to let us know that you are interested in using Nexus on
 your platform, and we will prioritize adding support for it.
 
+## Usage example
+
+While Nexus is still in development, you need to explicitly opt-in to use it.
+
+```python
+import wandb
+
+wandb.require("nexus")
+
+# Your code here using the W&B SDK
+```
+
 ## Contributing
 
 Please read our [contributing guide](docs/contributing.md) to learn to set up
