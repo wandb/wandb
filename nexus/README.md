@@ -53,54 +53,58 @@ The following table shows the current status of feature parity between the curre
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use
-- 🚧: In Development: The feature is either available, but lacking some functionality,
-or has not entered development yet.
+- 🚧: In Development: The feature is available, but may be unstable or incomplete.
+- ❌: Not Available: The feature is not yet available.
 
 | Category    | Feature           | Status     |
 |-------------|-------------------|------------|
 | Experiments |                   |            |
 |             | `init`            | ✅          |
-|             | `log`             | ✅[^E.1]    |
-|             | `log_artifact`    | 🚧         |
-|             | `log_code`        | 🚧         |
+|             | `log`             | 🚧[^E.1]   |
+|             | `log_artifact`    | ❌[^E.2]    |
+|             | `log_code`        | ❌[^E.3]    |
 |             | `config`          | ✅          |
-|             | `summary`         | 🚧[^R.1]   |
-|             | `define_metric`   | 🚧[^R.2]   |
+|             | `summary`         | 🚧[^E.4]   |
+|             | `define_metric`   | 🚧[^E.5]   |
 |             | `tags`            | ✅          |
 |             | `notes`           | ✅          |
-|             | `alert`           | ✅[^R.6]    |
-|             | `save`            | ✅          |
+|             | `alert`           | ✅          |
+|             | `save`            | 🚧[^E.6]   |
 |             | `restore`         | ✅          |
 |             | `mark_preempting` | ✅          |
 |             | multiprocessing   | ✅          |
-|             | console logging   | 🚧[^R.3]   |
-|             | system metrics    | 🚧[^R.4]   |
+|             | console logging   | 🚧[^E.7]   |
+|             | system metrics    | 🚧[^E.8]   |
 |             | system info       | ✅          |
-|             | code saving       | 🚧[^R.5]   |
+|             | code saving       | 🚧[^E.9]   |
 |             | offline mode      | ✅          |
 |             | resume            | ✅          |
-|             | settings          | 🚧[^R.7]   |
-|             | TensorBoard sync  | 🚧         |
+|             | settings          | 🚧[^E.10]  |
+|             | TensorBoard sync  | ❌          |
 | Login       |                   |            |
 |             | default entity    | ✅          |
 |             | team entity       | ✅          |
 |             | service account   | ✅          |
 | Public API  |                   | 🚧[^PA.1]  |
 | CLI         |                   | 🚧[^CLI.1] |
-| Artifacts   |                   | 🚧         |
-| Launch      |                   | 🚧         |
+| Artifacts   |                   | ❌[^A.1]    |
+| Launch      |                   | ❌[^L.1]    |
 | Sweeps      |                   | 🚧         |
 
-[^E.1] TODO: check if Tables work.
-[^R.1]: TODO
-[^R.2]: TODO
-[^R.3]: TODO
-[^R.4]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
-[^R.5]: Automatic code saving in Notebooks is not yet supported.
-[^R.6]: It worked, need to verify.
-[^R.7]: TODO: list unsupported settings.
+[^E.1]: `wandb.Table` is not supported. Requires Artifacts support.
+[^E.2]: `log_artifact` is not yet supported. Requires Artifacts support.
+[^E.3]: `log_code` is not yet supported. Requires Artifacts support.
+[^E.4]: TODO
+[^E.5]: `define_metric` does not support only supports default summary.
+[^E.6]: `save` only support `now` and `end` policy. `live` policy will be treated as `end`.
+[^E.7]: TODO
+[^E.8]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
+[^E.9]: Automatic code saving in Notebooks is not yet supported. Requires Artifacts support.
+[^E.10]: TODO: list unsupported settings.
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^PA.1]: The public API works, but uses the current Python backend under the hood.
     Expect the public API to be rewritten to use the new backend.
+[^A.1]: Artifacts support is not yet available.
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
     commands. Expect the CLI to be rewritten to use the new backend.
+[^L.1]: Launch is not yet supported. Requires Artifacts support.
