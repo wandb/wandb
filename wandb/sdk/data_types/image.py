@@ -124,6 +124,7 @@ class Image(BatchableMedia):
     _classes: Optional["Classes"]
     _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
     _masks: Optional[Dict[str, "ImageMask"]]
+    _file_type: Optional[str]
 
     def __init__(
         self,
@@ -134,6 +135,7 @@ class Image(BatchableMedia):
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
+        file_type: Optional[str] = None,
     ) -> None:
         super().__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
@@ -147,6 +149,7 @@ class Image(BatchableMedia):
         self._classes = None
         self._boxes = None
         self._masks = None
+        self._file_type = None
 
         # Allows the user to pass an Image object as the first parameter and have a perfect copy,
         # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
@@ -158,9 +161,8 @@ class Image(BatchableMedia):
             else:
                 self._initialize_from_path(data_or_path)
         else:
-            self._initialize_from_data(data_or_path, mode)
-
-        self._set_initialization_meta(grouping, caption, classes, boxes, masks)
+            self._initialize_from_data(data_or_path, mode, file_type)
+        self._set_initialization_meta(grouping, caption, classes, boxes, masks, file_type)
 
     def _set_initialization_meta(
         self,
@@ -169,6 +171,7 @@ class Image(BatchableMedia):
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
+        file_type: Optional[str] = None,
     ) -> None:
         if grouping is not None:
             self._grouping = grouping
@@ -224,7 +227,9 @@ class Image(BatchableMedia):
             )
         if self.image is not None:
             self._width, self._height = self.image.size
-        self._free_ram()
+        self._free_ram()  
+        if self.format is not None and self.format not in ['png', 'jpg', 'bmp','gif']:
+            raise ValueError(f"file_type: {file_type} is not supported. Please use png, jpg, bmp or gif.")     
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
@@ -241,6 +246,7 @@ class Image(BatchableMedia):
         self.format = wbimage.format
         self._artifact_source = wbimage._artifact_source
         self._artifact_target = wbimage._artifact_target
+        self._file_type = wbimage._file_type
 
         # We do not want to implicitly copy boxes or masks, just the image-related data.
         # self._boxes = wbimage._boxes
@@ -270,6 +276,7 @@ class Image(BatchableMedia):
         self,
         data: "ImageDataType",
         mode: Optional[str] = None,
+        file_type: Optional[str] = None
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
@@ -301,11 +308,17 @@ class Image(BatchableMedia):
             self._image = pil_image.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
-
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".png")
-        self.format = "png"
         assert self._image is not None
-        self._image.save(tmp_path, transparency=None)
+        if file_type is None:
+            self.format = 'png'
+        else:
+            self.format = file_type
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+        if self.format == 'gif':
+            #self._image = self._image.convert('P')
+            self._image.save(tmp_path,format='GIF', save_all=True, append_images=[self._image])
+        else:
+            self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
