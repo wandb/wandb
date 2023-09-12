@@ -7,7 +7,6 @@ import yaml
 
 import wandb
 from wandb import util
-
 from wandb.sdk.launch.errors import LaunchError
 
 if TYPE_CHECKING:

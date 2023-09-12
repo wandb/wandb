@@ -15,7 +15,6 @@ import click
 import yaml
 
 import wandb
-
 from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.launch_add import launch_add
@@ -101,7 +100,7 @@ class Scheduler(ABC):
 
     def __init__(
         self,
-        api: "wandb.apis.internal.Api",
+        api: "Api",
         *args: Optional[Any],
         polling_sleep: Optional[float] = None,
         sweep_id: Optional[str] = None,
