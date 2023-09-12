@@ -195,68 +195,41 @@ class KubernetesRunMonitor:
 
     def _watch_pods(self) -> None:
         """Watch for pods created matching the jobname."""
-        try:
-            # Stream with no timeout polling for pod status updates
-            for event in self._pod_watcher.stream(
-                self.core_api.list_namespaced_pod,
-                namespace=self.namespace,
-                label_selector=self.pod_label_selector,
-            ):
-                type = event.get("type")
-                object = event.get("object")
+        # Stream with no timeout polling for pod status updates
+        for event in self._pod_watcher.stream(
+            self.core_api.list_namespaced_pod,
+            namespace=self.namespace,
+            label_selector=self.pod_label_selector,
+        ):
+            type = event.get("type")
+            object = event.get("object")
 
-                if type == "MODIFIED":
-                    if object.status.phase == "Running":
-                        self._set_status(Status("running"))
-                if _is_preempted(object.status):
-                    self._set_status(Status("preempted"))
-                    self.stop()
-                    break
-                if _is_container_creating(object.status):
-                    self._set_status(Status("starting"))
-
-        # This can happen if the initial cluster connection fails.
-        except ApiException as e:
-            raise LaunchError(
-                f"Exception when calling CoreV1Api.list_namespaced_pod with selector {self.pod_label_selector}: {e}"
-            )
+            if type == "MODIFIED":
+                if object.status.phase == "Running":
+                    self._set_status(Status("running"))
+            if _is_preempted(object.status):
+                self._set_status(Status("preempted"))
+                self.stop()
+                break
+            if _is_container_creating(object.status):
+                self._set_status(Status("starting"))
 
     def _watch_job(self) -> None:
         """Watch for job matching the jobname."""
-        try:
-            for event in self._job_watcher.stream(
-                self.batch_api.list_namespaced_job,
-                namespace=self.namespace,
-                field_selector=self.job_field_selector,
-            ):
-                object = event.get("object")
-                if object.status.succeeded == 1:
-                    self._set_status(Status("finished"))
-                    self.stop()
-                    break
-                elif object.status.failed is not None and object.status.failed >= 1:
-                    self._set_status(Status("failed"))
-                    self.stop()
-                    break
-
-        # This can happen if the initial cluster connection fails.
-        except ApiException as e:
-            raise LaunchError(
-                f"Exception when calling CoreV1Api.list_namespaced_job with selector {self.job_field_selector}: {e}"
-            )
-
-        # This can happen if the connection is lost to the Kubernetes API server
-        # and cannot be re-established.
-        except urllib3.exceptions.ProtocolError as e:
-            state = self.get_status().state
-            if state in ["finished", "failed"]:
-                _logger.warning(
-                    f"Hanging job monitor thread with select {self.job_field_selector}: {e}"
-                )
-                return
-            raise LaunchError(
-                f"Broken event stream for job watcher in state {state} with selector {self.job_field_selector}: {e}"
-            )
+        for event in self._job_watcher.stream(
+            self.batch_api.list_namespaced_job,
+            namespace=self.namespace,
+            field_selector=self.job_field_selector,
+        ):
+            object = event.get("object")
+            if object.status.succeeded == 1:
+                self._set_status(Status("finished"))
+                self.stop()
+                break
+            elif object.status.failed is not None and object.status.failed >= 1:
+                self._set_status(Status("failed"))
+                self.stop()
+                break
 
     def _watch_crd(self) -> None:
         """Watch for CRD matching the jobname."""
