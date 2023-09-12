@@ -195,25 +195,23 @@ def _launch(
 
 def launch(
     api: Api,
-    uri: Optional[str] = None,
     job: Optional[str] = None,
     entry_point: Optional[List[str]] = None,
     version: Optional[str] = None,
     name: Optional[str] = None,
-    resource: Optional[str] = None,
+    resource: Optional[str] = "local-container",
     resource_args: Optional[Dict[str, Any]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     docker_image: Optional[str] = None,
-    config: Optional[Dict[str, Any]] = None,
+    config: Optional[Dict[str, Any]] = {},
     synchronous: Optional[bool] = True,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
 ) -> AbstractRun:
-    """Launch a W&B launch experiment. The project can be wandb uri or a Git URI.
+    """Launch a W&B launch experiment.
 
     Arguments:
-    uri: URI of experiment to run. A wandb run uri or a Git repository URI.
     job: string reference to a wandb.Job eg: wandb/test/my-job:latest
     api: An instance of a wandb Api from wandb.apis.internal.
     entry_point: Entry point to run within the project. Defaults to using the entry point used
@@ -239,12 +237,12 @@ def launch(
 
     Example:
         import wandb
-        project_uri = "https://github.com/wandb/examples"
+        job = "wandb/jobs/Hello World:latest"
         params = {"alpha": 0.5, "l1_ratio": 0.01}
         # Run W&B project and create a reproducible docker environment
         # on a local host
         api = wandb.apis.internal.Api()
-        wandb.launch(project_uri, api, parameters=params)
+        wandb.launch(job, api, parameters=params)
 
 
     Returns:
@@ -255,15 +253,10 @@ def launch(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-    if config is None:
-        config = {}
-
-    # default to local container for runs without a queue
-    if resource is None:
-        resource = "local-container"
 
     submitted_run_obj = _launch(
-        uri=uri,
+        # TODO: fully deprecate URI path
+        uri=None,
         job=job,
         name=name,
         project=project,

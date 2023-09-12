@@ -1336,7 +1336,6 @@ def launch(
         try:
             run = wandb_launch.launch(
                 api,
-                uri,
                 job,
                 entry_point,
                 git_version,
