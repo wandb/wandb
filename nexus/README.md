@@ -67,13 +67,13 @@ or has not entered development yet.
 |            | `define_metric`       | 🚧[^R.2]   |
 |            | `tags`                | ✅          |
 |            | `notes`               | ✅          |
+|            | `alert`               | ✅[^R.6]    |
 |            | multiprocessing       | ✅          |
 |            | console logging       | 🚧[^R.3]   |
 |            | system metrics        | 🚧[^R.4]   |
 |            | system info           | ✅          |
 |            | code saving           | 🚧[^R.5]   |
 |            | offline mode          | ✅          |
-|            | alerts                | ✅[^R.6]    |
 |            | settings              | ✅[^R.7]    |
 |            | resume                | ✅          |
 |            | save/restore          | ✅          |
