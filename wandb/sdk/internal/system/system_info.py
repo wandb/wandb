@@ -88,7 +88,7 @@ class SystemInfo:
 
     def _save_code(self) -> None:
         logger.debug("Saving code")
-        if self.settings.program_relpath is None:
+        if not self.settings.program_relpath:
             logger.warning("unable to save code -- program entry not found")
             return None
 
@@ -215,7 +215,7 @@ class SystemInfo:
             # of code execution, even when in a git repo
             data["codePathLocal"] = _get_program_relpath(self.settings.program)
         if not self.settings.disable_code:
-            if self.settings.program_relpath is not None:
+            if self.settings.program_relpath:
                 data["codePath"] = self.settings.program_relpath
             elif self.settings._jupyter:
                 if self.settings.notebook_name:

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 )
@@ -40,4 +41,25 @@ func writePortFile(portFile string, port int) {
 		LogError(slog.Default(), "fail rename", err)
 	}
 	// slog.Info("wrote port file", "file", portFile, "port", port)
+}
+
+// Helper function to copy a file
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	if err != nil {
+		return err
+	}
+	return nil
 }
