@@ -1,4 +1,3 @@
-import wandb
 import logging
 from threading import Lock, Thread
 from typing import Any, Dict, List, Optional
@@ -14,7 +13,7 @@ from kubernetes.client import (  # type: ignore # noqa: F401
     V1PodStatus,
 )
 
-from wandb.sdk.launch.errors import LaunchError
+import wandb
 
 from .abstract import State, Status
 
@@ -187,7 +186,6 @@ class KubernetesRunMonitor:
 
     def get_status(self) -> Status:
         """Get the run status."""
-
         with self._status_lock:
             # Each time this is called we verify that our watchers are active.
             if self._status.state in ["running", "starting"]:
@@ -268,28 +266,24 @@ class KubernetesRunMonitor:
                 version=self.version,
                 plural=self.plural,
             ):
-                event_type = event.get("type")
-                # This check is needed because CRDs will often not have a status
-                # on the ADDED event, and the status at that time is not useful
-                # in any case.
-                # TODO: Use a constant for these event types.
-                if event_type == "MODIFIED":
-                    object = event.get("object")
-                    status = object.get("status")
-                    state = status.get("state")
-                    if isinstance(state, dict):
-                        state = state.get("phase")
+                object = event.get("object")
+                status = object.get("status")
+                if status is None:
+                    continue
+                state = status.get("state")
+                if isinstance(state, dict):
+                    state = state.get("phase")
+                else:
+                    conditions = status.get("conditions")
+                    if isinstance(conditions, list):
+                        state = _state_from_conditions(conditions)
                     else:
-                        conditions = status.get("conditions")
-                        if isinstance(conditions, list):
-                            state = _state_from_conditions(conditions)
-                        else:
-                            # This should never happen.
-                            _logger.warning(
-                                f"Unexpected conditions type {type(conditions)} "
-                                f"for CRD {self.job_field_selector}: {conditions}"
-                            )
-                            pass
+                        # This should never happen.
+                        _logger.warning(
+                            f"Unexpected conditions type {type(conditions)} "
+                            f"for CRD {self.job_field_selector}: {conditions}"
+                        )
+                        pass
                     if state is None:
                         continue
                     status = Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
