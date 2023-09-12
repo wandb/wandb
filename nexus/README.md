@@ -80,7 +80,7 @@ Status legend:
 |             | reinit            | ✅          |
 |             | Media             | 🚧[^E.8]   |
 |             | Grouping          | ✅          |
-|             | anonymous mode    | ?          |
+|             | anonymous mode    | ✅          |
 |             | offline mode      | ✅          |
 |             | disabled mode     | ✅          |
 |             | multiprocessing   | ✅          |
