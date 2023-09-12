@@ -1,3 +1,1 @@
-import wandb
-
-launch = wandb.sdk.launch
+from wandb.sdk.launch import launch
