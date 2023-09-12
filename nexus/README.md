@@ -52,44 +52,44 @@ if you encounter an error.
 The following table shows the current status of feature parity between the current W&B SDK.
 
 Status legend:
-✅: Available: The feature is relatively stable and ready for use
-🚧: In Development: The feature is either available, but lacking some functionality,
+- ✅: Available: The feature is relatively stable and ready for use
+- 🚧: In Development: The feature is either available, but lacking some functionality,
 or has not entered development yet.
 
-| Category   | Feature           | Status     |
-|------------|-------------------|------------|
-| Run        |                   |            |
-|            | `init`            | ✅          |
-|            | `log`             | ✅[^R.0]    |
-|            | `log_artifact`    | 🚧         |
-|            | `log_code`        | 🚧         |
-|            | `config`          | ✅          |
-|            | `summary`         | 🚧[^R.1]   |
-|            | `define_metric`   | 🚧[^R.2]   |
-|            | `tags`            | ✅          |
-|            | `notes`           | ✅          |
-|            | `alert`           | ✅[^R.6]    |
-|            | `save`            | ✅          |
-|            | `restore`         | ✅          |
-|            | `mark_preempting` | ✅          |
-|            | multiprocessing   | ✅          |
-|            | console logging   | 🚧[^R.3]   |
-|            | system metrics    | 🚧[^R.4]   |
-|            | system info       | ✅          |
-|            | code saving       | 🚧[^R.5]   |
-|            | offline mode      | ✅          |
-|            | resume            | ✅          |
-|            | settings          | 🚧[^R.7]   |
-|            | TensorBoard sync  | 🚧         |
-| Login      |                   |            |
-|            | default entity    | ✅          |
-|            | team entity       | ✅          |
-|            | service account   | ✅          |
-| Artifacts  |                   | 🚧         |
-| Public API |                   | 🚧[^PA.1]  |
-| CLI        |                   | 🚧[^CLI.1] |
-| Launch     |                   | 🚧         |
-| Sweeps     |                   | 🚧         |
+| Category    | Feature           | Status     |
+|-------------|-------------------|------------|
+| Experiments |                   |            |
+|             | `init`            | ✅          |
+|             | `log`             | ✅[^R.0]    |
+|             | `log_artifact`    | 🚧         |
+|             | `log_code`        | 🚧         |
+|             | `config`          | ✅          |
+|             | `summary`         | 🚧[^R.1]   |
+|             | `define_metric`   | 🚧[^R.2]   |
+|             | `tags`            | ✅          |
+|             | `notes`           | ✅          |
+|             | `alert`           | ✅[^R.6]    |
+|             | `save`            | ✅          |
+|             | `restore`         | ✅          |
+|             | `mark_preempting` | ✅          |
+|             | multiprocessing   | ✅          |
+|             | console logging   | 🚧[^R.3]   |
+|             | system metrics    | 🚧[^R.4]   |
+|             | system info       | ✅          |
+|             | code saving       | 🚧[^R.5]   |
+|             | offline mode      | ✅          |
+|             | resume            | ✅          |
+|             | settings          | 🚧[^R.7]   |
+|             | TensorBoard sync  | 🚧         |
+| Login       |                   |            |
+|             | default entity    | ✅          |
+|             | team entity       | ✅          |
+|             | service account   | ✅          |
+| Public API  |                   | 🚧[^PA.1]  |
+| CLI         |                   | 🚧[^CLI.1] |
+| Artifacts   |                   | 🚧         |
+| Launch      |                   | 🚧         |
+| Sweeps      |                   | 🚧         |
 
 [^R.0]: TODO: check if Tables work.
 [^R.1]: TODO
