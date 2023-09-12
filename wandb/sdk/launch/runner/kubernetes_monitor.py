@@ -49,24 +49,29 @@ class SafeWatch:
     def __init__(self, watcher: "watch.Watch") -> None:
         """Initialize the SafeWatch."""
         self._watcher = watcher
+        self._stopped = False
 
     def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         """Stream the watcher."""
         while True:
-            # TODO: IF the stream really can't be resumed what should we do?
             try:
-                for event in self._watcher.stream(func, *args, **kwargs):
+                for event in self._watcher.stream(
+                    func, *args, **kwargs, timeout_seconds=15
+                ):
                     # Save the resource version so that we can resume the stream
                     # if it breaks.
                     kwargs["resource_version"] = event.get(
                         "object"
                     ).metadata.resource_version
                     yield event
+                # If stream ends after stop just break
+                if self._stopped:
+                    break
             except urllib3.exceptions.ProtocolError as e:
                 wandb.termwarn(f"Broken event stream: {e}")
             except ApiException as e:
-                if e.reason == "Expired":
-                    wandb.termwarn(f"Expired event stream: {e}")
+                if e.status == 410:
+                    # If resource version is too old we need to start over.
                     del kwargs["resource_version"]
             except Exception as E:
                 wandb.termerror(f"Unknown exception in event stream: {E}")
@@ -74,6 +79,7 @@ class SafeWatch:
     def stop(self) -> None:
         """Stop the watcher."""
         self._watcher.stop()
+        self._stopped = True
 
 
 def _is_preempted(status: "V1PodStatus") -> bool:
@@ -181,16 +187,36 @@ class KubernetesRunMonitor:
 
     def get_status(self) -> Status:
         """Get the run status."""
+
         with self._status_lock:
+            # Each time this is called we verify that our watchers are active.
             if self._status.state in ["running", "starting"]:
-                if not self._watch_job_thread.is_alive():
-                    wandb.termwarn(
-                        f"Job watcher thread is dead for {self.job_field_selector}"
-                    )
+                if self.custom_api is None:
+                    if not self._watch_job_thread.is_alive():
+                        wandb.termwarn(
+                            f"Job watcher thread is dead for {self.job_field_selector}"
+                        )
+                        self._watch_job_thread = Thread(
+                            target=self._watch_job, daemon=True
+                        )
+                        self._watch_job_thread.start()
+                else:
+                    if not self._watch_crd_thread.is_alive():
+                        wandb.termwarn(
+                            f"CRD watcher thread is dead for {self.job_field_selector}"
+                        )
+                        self._watch_crd_thread = Thread(
+                            target=self._watch_crd, daemon=True
+                        )
+                        self._watch_crd_thread.start()
                 if not self._watch_pods_thread.is_alive():
                     wandb.termwarn(
                         f"Pod watcher thread is dead for {self.pod_label_selector}"
                     )
+                    self._watch_pods_thread = Thread(
+                        target=self._watch_pods, daemon=True
+                    )
+                    self._watch_pods_thread.start()
             return self._status
 
     def _watch_pods(self) -> None:
