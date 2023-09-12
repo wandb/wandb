@@ -91,7 +91,7 @@ or has not entered development yet.
 | Launch      |                   | 🚧         |
 | Sweeps      |                   | 🚧         |
 
-[^E.1]: TODO: check if Tables work.
+[^E.1] TODO: check if Tables work.
 [^R.1]: TODO
 [^R.2]: TODO
 [^R.3]: TODO
