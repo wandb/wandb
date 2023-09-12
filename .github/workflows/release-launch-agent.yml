@@ -38,7 +38,7 @@ jobs:
             exit 1
           fi
 
-          PRERELEASE_STRING=${{ github.event.inputs.preReleaseString }} 
+          PRERELEASE_STRING=${{ github.event.inputs.preReleaseString }}
           length=${#PRERELEASE_STRING}
           isPrerelease=$((length > 0))
           if [ "$isPrerelease" -eq 1 ]
