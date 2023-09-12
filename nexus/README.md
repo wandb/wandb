@@ -61,13 +61,16 @@ or has not entered development yet.
 | Run        |                       |            |
 |            | `init`                | ✅          |
 |            | `log`                 | ✅[^R.0]    |
-|            | `config`              | ✅          |
 |            | `log_artifact`        | 🚧         |
+|            | `config`              | ✅          |
 |            | `summary`             | 🚧[^R.1]   |
 |            | `define_metric`       | 🚧[^R.2]   |
 |            | `tags`                | ✅          |
 |            | `notes`               | ✅          |
 |            | `alert`               | ✅[^R.6]    |
+|            | `save`                | ✅          |
+|            | `restore`             | ✅          |
+|            | `mark_preempting`     | ✅          |
 |            | multiprocessing       | ✅          |
 |            | console logging       | 🚧[^R.3]   |
 |            | system metrics        | 🚧[^R.4]   |
@@ -76,9 +79,7 @@ or has not entered development yet.
 |            | offline mode          | ✅          |
 |            | settings              | ✅[^R.7]    |
 |            | resume                | ✅          |
-|            | save/restore          | ✅          |
 |            | TensorBoard sync      | 🚧         |
-|            | mark preempting       | ✅          |
 | Login      |                       |            |
 |            | default entity        | ✅          |
 |            | team entity           | ✅          |
