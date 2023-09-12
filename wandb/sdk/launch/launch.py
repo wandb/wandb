@@ -133,7 +133,7 @@ def _launch(
     docker_image: Optional[str],
     entry_point: Optional[List[str]],
     version: Optional[str],
-    resource: str,
+    resource: Optional[str],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
@@ -142,6 +142,10 @@ def _launch(
     repository: Optional[str],
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
+    if launch_config is None:
+        launch_config = {}
+    if resource is None:
+        resource = "local-container"
     launch_spec = construct_launch_spec(
         uri,
         job,
@@ -199,12 +203,12 @@ def launch(
     entry_point: Optional[List[str]] = None,
     version: Optional[str] = None,
     name: Optional[str] = None,
-    resource: Optional[str] = "local-container",
+    resource: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     docker_image: Optional[str] = None,
-    config: Optional[Dict[str, Any]] = {},
+    config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
@@ -253,7 +257,6 @@ def launch(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-
     submitted_run_obj = _launch(
         # TODO: fully deprecate URI path
         uri=None,

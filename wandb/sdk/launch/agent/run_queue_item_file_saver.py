@@ -28,7 +28,7 @@ class RunQueueItemFileSaver:
     def save_contents(
         self, contents: str, fname: str, file_sub_type: FileSubtypes
     ) -> Optional[List[str]]:
-        if not isinstance(self.run, Run):
+        if not isinstance(self.run, wandb.sdk.wandb_run.Run):
             wandb.termwarn("Not saving file contents because agent has no run")
             return None
         root_dir = self.run._settings.files_dir

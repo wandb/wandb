@@ -9,17 +9,13 @@ import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import click
 import yaml
 
 import wandb
 
-# import wandb.apis.public as public
-# from wandb.apis.internal import Api
-
-# from wandb.apis.public import QueuedRun, Run
 from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.launch_add import launch_add
@@ -29,6 +25,11 @@ from wandb.sdk.launch.sweeps.utils import (
     make_launch_sweep_entrypoint,
 )
 from wandb.sdk.lib.runid import generate_id
+
+if TYPE_CHECKING:
+    import wandb.apis.public as public
+    from wandb.apis.internal import Api
+    from wandb.apis.public import QueuedRun, Run
 
 # from wandb.sdk.wandb_run import Run as SdkRun
 
