@@ -227,9 +227,9 @@ class Image(BatchableMedia):
             )
         if self.image is not None:
             self._width, self._height = self.image.size
-        self._free_ram()  
-        if self.format is not None and self.format not in ['png', 'jpg', 'bmp','gif']:
-            raise ValueError(f"file_type: {file_type} is not supported. Please use png, jpg, bmp or gif.")     
+        self._free_ram()
+        if self.format is not None and self.format not in ['png', 'jpg', 'bmp', 'gif']:
+            raise ValueError(f"file_type: {file_type} is not supported. Please use png, jpg, bmp or gif.")
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
