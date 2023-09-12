@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 from dockerpycreds.utils import find_executable  # type: ignore
 
 import wandb
-from wandb import Settings
+
 from wandb.apis.internal import Api
 from wandb.sdk.lib import runid
 
@@ -136,7 +136,6 @@ class AbstractRunner(ABC):
         api: Api,
         backend_config: Dict[str, Any],
     ) -> None:
-        self._settings = Settings()
         self._api = api
         self.backend_config = backend_config
         self._cwd = os.getcwd()

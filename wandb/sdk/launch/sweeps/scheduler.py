@@ -15,10 +15,11 @@ import click
 import yaml
 
 import wandb
-import wandb.apis.public as public
-from wandb.apis.internal import Api
-from wandb.apis.public import Api as PublicApi
-from wandb.apis.public import QueuedRun, Run
+
+# import wandb.apis.public as public
+# from wandb.apis.internal import Api
+
+# from wandb.apis.public import QueuedRun, Run
 from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.launch_add import launch_add
@@ -28,7 +29,8 @@ from wandb.sdk.launch.sweeps.utils import (
     make_launch_sweep_entrypoint,
 )
 from wandb.sdk.lib.runid import generate_id
-from wandb.sdk.wandb_run import Run as SdkRun
+
+# from wandb.sdk.wandb_run import Run as SdkRun
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
@@ -84,7 +86,7 @@ class SweepRun:
     id: str
     worker_id: int
     state: RunState = RunState.RUNNING
-    queued_run: Optional[public.QueuedRun] = None
+    queued_run: Optional["public.QueuedRun"] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
 
@@ -98,7 +100,7 @@ class Scheduler(ABC):
 
     def __init__(
         self,
-        api: Api,
+        api: "wandb.apis.internal.Api",
         *args: Optional[Any],
         polling_sleep: Optional[float] = None,
         sweep_id: Optional[str] = None,
@@ -108,6 +110,8 @@ class Scheduler(ABC):
         num_workers: Optional[Union[int, str]] = None,
         **kwargs: Optional[Any],
     ):
+        from wandb.apis.public import Api as PublicApi
+
         self._api = api
         self._public_api = PublicApi()
         self._entity = (
@@ -244,10 +248,10 @@ class Scheduler(ABC):
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
 
-    def _init_wandb_run(self) -> SdkRun:
+    def _init_wandb_run(self) -> "wandb.sdk.wandb_run.Run":
         """Controls resume or init logic for a scheduler wandb run."""
         _type = self._kwargs.get("sweep_type", "sweep")
-        run: SdkRun = wandb.init(
+        run: wandb.sdk.wandb_run.Run = wandb.init(
             name=f"{_type}-scheduler-{self._sweep_id}",
             job_type=self.SWEEP_JOB_TYPE,
             # WANDB_RUN_ID = sweep_id for scheduler

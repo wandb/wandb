@@ -95,7 +95,7 @@ class LocalContainerRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: wandb.apis.internal.Api,
+        api: "wandb.apis.internal.Api",
         backend_config: Dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,

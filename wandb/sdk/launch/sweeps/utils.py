@@ -7,7 +7,8 @@ import yaml
 
 import wandb
 from wandb import util
-from wandb.apis.public import Api as PublicApi
+
+# from wandb.apis.public import Api as PublicApi
 from wandb.sdk.launch.errors import LaunchError
 
 DEFAULT_SWEEP_COMMAND: List[str] = [
@@ -276,7 +277,9 @@ def make_launch_sweep_entrypoint(
     return entry_point, macro_args
 
 
-def check_job_exists(public_api: PublicApi, job: Optional[str]) -> bool:
+def check_job_exists(
+    public_api: "wandb.apis.public.PublicApi", job: Optional[str]
+) -> bool:
     """Check if the job exists using the public api.
 
     Returns: True if no job is passed, or if the job exists.
