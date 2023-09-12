@@ -62,6 +62,7 @@ or has not entered development yet.
 |            | `init`                | ✅          |
 |            | `log`                 | ✅[^R.0]    |
 |            | `log_artifact`        | 🚧         |
+|            | `log_code`            | 🚧         |
 |            | `config`              | ✅          |
 |            | `summary`             | 🚧[^R.1]   |
 |            | `define_metric`       | 🚧[^R.2]   |
@@ -77,8 +78,8 @@ or has not entered development yet.
 |            | system info           | ✅          |
 |            | code saving           | 🚧[^R.5]   |
 |            | offline mode          | ✅          |
-|            | settings              | ✅[^R.7]    |
 |            | resume                | ✅          |
+|            | settings              | 🚧[^R.7]   |
 |            | TensorBoard sync      | 🚧         |
 | Login      |                       |            |
 |            | default entity        | ✅          |
