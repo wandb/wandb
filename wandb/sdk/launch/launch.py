@@ -124,7 +124,7 @@ def create_and_run_agent(
     agent.loop()
 
 
-def _run(
+def _launch(
     uri: Optional[str],
     job: Optional[str],
     name: Optional[str],
@@ -193,7 +193,7 @@ def _run(
         )
 
 
-def run(
+def launch(
     api: Api,
     uri: Optional[str] = None,
     job: Optional[str] = None,
@@ -210,7 +210,7 @@ def run(
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
 ) -> AbstractRun:
-    """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
+    """Launch a W&B launch experiment. The project can be wandb uri or a Git URI.
 
     Arguments:
     uri: URI of experiment to run. A wandb run uri or a Git repository URI.
@@ -262,7 +262,7 @@ def run(
     if resource is None:
         resource = "local-container"
 
-    submitted_run_obj = _run(
+    submitted_run_obj = _launch(
         uri=uri,
         job=job,
         name=name,
