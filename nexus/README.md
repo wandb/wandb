@@ -60,7 +60,7 @@ or has not entered development yet.
 |-------------|-------------------|------------|
 | Experiments |                   |            |
 |             | `init`            | ✅          |
-|             | `log`             | ✅[^R.0]    |
+|             | `log`             | ✅[^E.1]    |
 |             | `log_artifact`    | 🚧         |
 |             | `log_code`        | 🚧         |
 |             | `config`          | ✅          |
@@ -91,7 +91,7 @@ or has not entered development yet.
 | Launch      |                   | 🚧         |
 | Sweeps      |                   | 🚧         |
 
-[^R.0]: TODO: check if Tables work.
+[^E.1]: TODO: check if Tables work.
 [^R.1]: TODO
 [^R.2]: TODO
 [^R.3]: TODO
