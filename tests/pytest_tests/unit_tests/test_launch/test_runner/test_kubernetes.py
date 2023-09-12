@@ -743,6 +743,22 @@ def test_monitor_running(mock_event_streams, mock_batch_api, mock_core_api):
     assert monitor.get_status().state == "running"
 
 
+def test_monitor_thread_restart(mock_event_streams, mock_batch_api, mock_core_api):
+    """Test that getting the status triggers the watch threads to be started."""
+    monitor = KubernetesRunMonitor(
+        job_field_selector="foo=bar",
+        pod_label_selector="foo=bar",
+        batch_api=mock_batch_api,
+        core_api=mock_core_api,
+        namespace="wandb",
+    )
+    assert not monitor._watch_job_thread.is_alive()
+    assert not monitor._watch_pods_thread.is_alive()
+    assert monitor.get_status().state == "starting"
+    assert monitor._watch_job_thread.is_alive()
+    assert monitor._watch_pods_thread.is_alive()
+
+
 # Test util functions
 
 
