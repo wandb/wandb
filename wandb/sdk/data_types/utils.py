@@ -29,25 +29,6 @@ if TYPE_CHECKING:  # pragma: no cover
     ]
 
 
-def history_dict_to_weave(run: Optional["LocalRun"], payload: dict) -> dict:
-    # We use list here because we were still seeing cases of RuntimeError dict changed size
-    for key in list(payload):
-        val = payload[key]
-        if isinstance(val, dict):
-            payload[key] = history_dict_to_weave(run, val)
-        else:
-            if isinstance(val, WBValue):
-                if not hasattr(val, "to_weave"):
-                    wandb.termwarn(
-                        f"ignoring unsupported type for StreamTable[{key}]: {type(val)}",
-                        repeat=False,
-                    )
-                    payload[key] = None
-                else:
-                    payload[key] = val.to_weave(run)
-    return payload
-
-
 def history_dict_to_json(
     run: Optional["LocalRun"],
     payload: dict,

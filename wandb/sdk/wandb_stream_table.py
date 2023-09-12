@@ -1,8 +1,10 @@
 import atexit
 import json
+import math
 import threading
 import typing
 import uuid
+from datetime import date, datetime, timedelta
 
 import wandb
 from wandb import errors
@@ -11,6 +13,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from .lib.ipython import _get_python_type
 from .lib.printer import get_printer
 from .wandb_lite_run import _InMemoryLazyLiteRun, wandb_public_api
+from .wandb_run import AbstractRun
 
 ROW_TYPE = typing.Union[dict, typing.List[dict]]
 
@@ -91,17 +94,15 @@ class StreamTable:
     def _ensure_remote_initialized(self) -> None:
         with self._lock:
             self._lite_run.ensure_run()
-            print_url = False
             self._artifact = self._stream_table_artifact()
-            if print_url:
-                base_url = wandb_public_api().settings["base_url"]
-                if base_url.endswith("api.wandb.ai"):
-                    base_url = base_url.replace("api", "weave.")
-                url = f"{base_url}/?exp=get%28%0A++++%22wandb-artifact%3A%2F%2F%2F{self._entity_name}%2F{self._project_name}%2F{self._table_name}%3Alatest%2Fobj%22%29%0A++.rows"
-                printer = get_printer(_get_python_type() != "python")
-                printer.display(
-                    f'{printer.emoji("star")} View data at {printer.link(url)}'
-                )
+            base_url = wandb_public_api().settings["base_url"]
+            if base_url.endswith("api.wandb.ai"):
+                base_url = base_url.replace("api", "weave.")
+            else:
+                base_url = base_url + "/weave"
+            url = f"{base_url}/wandb/{self._entity_name}/{self._project_name}/table/{self._table_name}"
+            printer = get_printer(_get_python_type() != "python")
+            printer.display(f'{printer.emoji("star")} View data at {printer.link(url)}')
 
     def _stream_table_artifact(self) -> "Artifact":
         if self._artifact is None:
@@ -154,7 +155,7 @@ class StreamTable:
         if wandb.run is not None:
             row_copy["_run"] = wandb.run.path
         row_copy["_client_id"] = self._client_id
-        self._lite_run.log(row_copy)
+        self._lite_run.log(obj_to_weave(row_copy))
 
     def finish(self) -> None:
         with self._lock:
@@ -173,3 +174,49 @@ class StreamTable:
 
     def _at_exit(self) -> None:
         self.finish()
+
+
+def leaf_to_weave(obj: typing.Any, key: str, run: AbstractRun) -> typing.Any:
+    """The wandb sdk currently doesn't support complex weave types, we warn and return None."""
+    wandb.termwarn(
+        f"ignoring unsupported type for StreamTable[{key}]: {type(obj)}",
+        repeat=False,
+    )
+    return None
+
+
+def obj_to_weave(obj: typing.Any, key: str, run: AbstractRun) -> typing.Any:
+    def recurse(obj: typing.Any, key: str) -> typing.Any:
+        return obj_to_weave(obj, key, run)
+
+    # primitives
+    if isinstance(obj, (int, str, bool, type(None))):
+        return obj
+    # basic special cases
+    elif isinstance(obj, float):
+        if math.isnan(obj):
+            return "NaN"
+        elif obj == float("+inf"):
+            return "Infinity"
+        elif obj == float("-inf"):
+            return "-Infinity"
+        return obj
+    elif isinstance(obj, bytes):
+        obj = obj.decode("utf-8")
+    elif isinstance(obj, (datetime, date)):
+        obj = obj.isoformat()
+    elif isinstance(obj, timedelta):
+        obj = str(obj)
+    else:
+        if isinstance(obj, dict):
+            return {k: recurse(value, k) for k, value in obj.items()}
+        elif isinstance(obj, list):
+            return [recurse(value, key) for value in obj]
+        elif isinstance(obj, tuple):
+            return [recurse(value, key) for value in obj]
+        elif isinstance(obj, set):
+            return [recurse(value, key) for value in obj]
+        elif isinstance(obj, frozenset):
+            return [recurse(value, key) for value in obj]
+        else:
+            return leaf_to_weave(obj, key, run)

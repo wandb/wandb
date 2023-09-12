@@ -6,13 +6,12 @@ import platform
 import tempfile
 import typing
 
-from wandb import __version__, util
+from wandb import __version__
 from wandb import errors as wandb_errors
 from wandb.apis import public
 
 from .artifacts import artifact_saver
 from .artifacts.artifact import Artifact
-from .data_types.utils import history_dict_to_weave
 from .interface.interface import InterfaceBase
 from .internal import file_stream
 from .internal.file_pusher import FilePusher
@@ -103,9 +102,6 @@ class _InMemoryLazyLiteRun:
     ):
         assert_wandb_authenticated()
 
-        # Technically, we could use the default entity and project here, but
-        # heeding Shawn's advice, we should be explicit about what we're doing.
-        # We can always move to the default later, but we can't go back.
         if entity_name == "":
             raise ValueError("Must specify entity_name")
         elif project_name == "":
@@ -308,13 +304,12 @@ class _InMemoryLazyLiteRun:
         commit: typing.Optional[bool] = None,
         sync: typing.Optional[bool] = None,
     ) -> None:
-        stream = self.stream
+        """WARNING: this implementation of log assumes row_dict can be dumped to json."""
         row_dict = {
             **row_dict,
             "_timestamp": datetime.datetime.utcnow().timestamp(),
         }
-        processed_dict = history_dict_to_weave(self, row_dict)
-        stream.push("wandb-history.jsonl", util.json_dumps_weave(processed_dict))
+        self.stream.push("wandb-history.jsonl", json.dumps(row_dict))
 
     def finish(
         self,
