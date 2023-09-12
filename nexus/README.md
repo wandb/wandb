@@ -68,19 +68,24 @@ Status legend:
 |             | `define_metric`   | 🚧[^E.5]   |
 |             | `tags`            | ✅          |
 |             | `notes`           | ✅          |
+|             | `name`            | ✅          |
 |             | `alert`           | ✅          |
 |             | `save`            | 🚧[^E.6]   |
 |             | `restore`         | ✅          |
 |             | `mark_preempting` | ✅          |
+|             | resume            | ✅          |
+|             | reinit            | ✅          |
+|             | Grouping          | ✅          |
+|             | anonymous mode    | ?          |
+|             | offline mode      | ✅          |
+|             | disabled mode     | ✅          |
 |             | multiprocessing   | ✅          |
+|             | TensorBoard sync  | ❌          |
 |             | console logging   | 🚧[^E.7]   |
 |             | system metrics    | 🚧[^E.8]   |
 |             | system info       | ✅          |
 |             | code saving       | 🚧[^E.9]   |
-|             | offline mode      | ✅          |
-|             | resume            | ✅          |
-|             | settings          | 🚧[^E.10]  |
-|             | TensorBoard sync  | ❌          |
+|             | Settings          | 🚧[^E.10]  |
 | Login       |                   |            |
 |             | default entity    | ✅          |
 |             | team entity       | ✅          |
@@ -89,13 +94,13 @@ Status legend:
 | CLI         |                   | 🚧[^CLI.1] |
 | Artifacts   |                   | ❌[^A.1]    |
 | Launch      |                   | ❌[^L.1]    |
-| Sweeps      |                   | 🚧         |
+| Sweeps      |                   | 🚧[^S.1]   |
 
 [^E.1]: `wandb.Table` is not supported. Requires Artifacts support.
 [^E.2]: `log_artifact` is not yet supported. Requires Artifacts support.
 [^E.3]: `log_code` is not yet supported. Requires Artifacts support.
 [^E.4]: TODO
-[^E.5]: `define_metric` does not support only supports default summary.
+[^E.5]: `define_metric` only supports default summary.
 [^E.6]: `save` only support `now` and `end` policy. `live` policy will be treated as `end`.
 [^E.7]: TODO
 [^E.8]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
@@ -108,3 +113,4 @@ Status legend:
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
     commands. Expect the CLI to be rewritten to use the new backend.
 [^L.1]: Launch is not yet supported. Requires Artifacts support.
+[^S.1]: TODO
