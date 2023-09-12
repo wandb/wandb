@@ -1,3 +1,4 @@
+import wandb
 import logging
 from threading import Lock, Thread
 from typing import Any, Dict, List, Optional
@@ -61,14 +62,14 @@ class SafeWatch:
                         "object"
                     ).metadata.resource_version
                     yield event
-                # If the stream ends naturally we can break out of the loop.
-                break
             except urllib3.exceptions.ProtocolError as e:
-                _logger.warning(f"Broken event stream: {e}")
+                wandb.termwarn(f"Broken event stream: {e}")
             except ApiException as e:
-                _logger.warning(f"Exception when calling {func}: {e}")
-            except Exception as e:
-                raise e
+                if e.reason == "Expired":
+                    wandb.termwarn(f"Expired event stream: {e}")
+                    del kwargs["resource_version"]
+            except Exception as E:
+                wandb.termerror(f"Unknown exception in event stream: {E}")
 
     def stop(self) -> None:
         """Stop the watcher."""
@@ -181,6 +182,15 @@ class KubernetesRunMonitor:
     def get_status(self) -> Status:
         """Get the run status."""
         with self._status_lock:
+            if self._status.state in ["running", "starting"]:
+                if not self._watch_job_thread.is_alive():
+                    wandb.termwarn(
+                        f"Job watcher thread is dead for {self.job_field_selector}"
+                    )
+                if not self._watch_pods_thread.is_alive():
+                    wandb.termwarn(
+                        f"Pod watcher thread is dead for {self.pod_label_selector}"
+                    )
             return self._status
 
     def _watch_pods(self) -> None:
