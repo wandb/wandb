@@ -41,3 +41,8 @@ data:
     environment:
       type: aws
       region: us-east-2
+---
+metadata:
+  namespace: wandb-release-testing
+stringData:
+  password: "" # Placeholder, set to wandb api key in utils.create_config_files()
