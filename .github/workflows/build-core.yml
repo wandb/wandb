@@ -29,6 +29,7 @@ jobs:
           CIBW_BEFORE_ALL_MACOS: python nexus/scripts/build/install_go.py
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
           CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
+          CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v3
