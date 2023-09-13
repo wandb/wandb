@@ -1344,7 +1344,7 @@ def launch(
                 name=name,
                 resource=resource,
                 resource_args=resource_args,
-                config=config,
+                launch_config=config,
                 synchronous=(not run_async),
                 run_id=run_id,
                 repository=repository,

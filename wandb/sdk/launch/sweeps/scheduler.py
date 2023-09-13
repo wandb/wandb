@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from wandb.apis.internal import Api
     from wandb.apis.public import QueuedRun, Run
 
-# from wandb.sdk.wandb_run import Run as SdkRun
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
