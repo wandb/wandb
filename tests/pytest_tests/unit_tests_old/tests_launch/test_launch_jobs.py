@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 import wandb
 import wandb.sdk.launch._project_spec as _project_spec
-import wandb.sdk.launch.launch as launch
+import wandb.sdk.launch._launch as _launch
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch._launch_add import launch_add
@@ -121,7 +121,7 @@ def test_launch_job_artifact(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -167,7 +167,7 @@ def test_launch_job_repo(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -207,7 +207,7 @@ def test_launch_job_container(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 import wandb.sdk.launch._project_spec as _project_spec
-import wandb.sdk.launch.launch as launch
+import wandb.sdk.launch._launch as _launch
 import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
@@ -352,7 +352,7 @@ def test_launch_base_case(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -375,7 +375,7 @@ def test_launch_resource_args(
         "resource": "local-container",
         "resource_args": {"a": "b", "c": "d"},
     }
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -398,7 +398,7 @@ def test_launch_specified_project(
         "project": "new_test_project",
         "entity": "mock_server_entity",
     }
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -414,7 +414,7 @@ def test_launch_unowned_project(
         "project": "new_test_project",
         "entity": "mock_server_entity",
     }
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -433,7 +433,7 @@ def test_launch_run_config_in_spec(
     }
 
     expected_runner_config = {}
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
 
 
@@ -581,7 +581,7 @@ def test_launch_code_artifact(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -726,7 +726,7 @@ def test_launch_agent_runs(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    launch.create_and_run_agent(api, config)
+    _launch.create_and_run_agent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
     assert len(ctx["launch_agents"].keys()) == 1
@@ -761,7 +761,7 @@ def test_agent_queues_notfound(test_settings, live_mock_server):
         "queues": ["nonexistent_queue"],
     }
     try:
-        launch.create_and_run_agent(api, config)
+        _launch.create_and_run_agent(api, config)
     except Exception as e:
         assert (
             "Could not start launch agent: Not all of requested queues (nonexistent_queue) found"
@@ -823,7 +823,7 @@ def test_launch_notebook(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    run = launch.launch(
+    run = _launch.launch(
         api=api,
         uri="https://wandb.ai/mock_server_entity/test/runs/jupyter1",
         project="new-test",
@@ -843,7 +843,7 @@ def test_launch_no_server_info(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
     try:
-        launch.launch(
+        _launch.launch(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
             project="new-test",
@@ -866,7 +866,7 @@ def test_launch_metadata(
     api.download_url = mock_download_url
     api.download_file = mock_file_download_request
 
-    run = launch.launch(
+    run = _launch.launch(
         api=api,
         uri="https://wandb.ai/mock_server_entity/test/runs/1",
         project="test-another-new-project",
@@ -908,7 +908,7 @@ def test_bare_wandb_uri(
         "project": "test",
     }
 
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     kwargs["uri"] = live_mock_server.base_url + uri
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
@@ -927,7 +927,7 @@ def test_launch_project_spec_docker_image(
         "docker_image": "my-image:v0",
     }
 
-    mock_with_run_info = launch.launch(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
 
     check_mock_run_info(mock_with_run_info, {}, kwargs)
 
@@ -1002,7 +1002,7 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         expected_command += ["--add-host", "host.docker.internal:host-gateway"]
     expected_command += [image_name]
 
-    returned_command, project_dir = launch.launch(**kwargs)
+    returned_command, project_dir = _launch.launch(**kwargs)
     assert project_dir is None
 
     list_command = returned_command.split(" ")
@@ -1140,7 +1140,7 @@ def test_launch_unknown_entrypoint(
         default_settings=test_settings, load_settings=False
     )
     with pytest.raises(LaunchError) as e_info:
-        launch.launch(
+        _launch.launch(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
             project="new-test",
@@ -1165,7 +1165,7 @@ def test_resolve_agent_config(monkeypatch, runner):
                 },
                 f,
             )
-        config, returned_api = launch.resolve_agent_config(
+        config, returned_api = _launch.resolve_agent_config(
             None, None, -1, ["diff-queue"], None
         )
 
@@ -1187,7 +1187,7 @@ def test_launch_url_and_job(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
     with pytest.raises(LaunchError) as e_info:
-        launch.launch(
+        _launch.launch(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
             job="test/test/test-job:v0",
@@ -1208,7 +1208,7 @@ def test_launch_no_url_job_or_docker_image(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
     try:
-        launch.launch(
+        _launch.launch(
             api=api,
             uri=None,
             job=None,
@@ -1255,7 +1255,7 @@ def test_launch_git_version_branch_set(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    mock_with_run_info = launch.launch(
+    mock_with_run_info = _launch.launch(
         api=api, uri="https://foo:bar@github.com/FooTest/Foo.git", version="foobar"
     )
 
@@ -1268,7 +1268,7 @@ def test_launch_git_version_default_master(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    mock_with_run_info = launch.launch(
+    mock_with_run_info = _launch.launch(
         api=api,
         uri="https://foo:bar@github.com/FooTest/Foo.git",
     )
@@ -1285,7 +1285,7 @@ def test_launch_git_version_default_main(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    mock_with_run_info = launch.launch(
+    mock_with_run_info = _launch.launch(
         api=api,
         uri="https://foo:bar@github.com/FooTest/Foo.git",
     )
@@ -1328,4 +1328,4 @@ def test_noop_builder(
             "See https://docs.wandb.ai/guides/launch/create-job."
         )
         with pytest.raises(LaunchError, match=expected):
-            launch.launch(**kwargs)
+            _launch.launch(**kwargs)

@@ -7,7 +7,7 @@ from wandb.errors import CommError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.builder.build import EntryPoint
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.launch import run
+from wandb.sdk.launch._launch import run
 
 
 def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_settings):
