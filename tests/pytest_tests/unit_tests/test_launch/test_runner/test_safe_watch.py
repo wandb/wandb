@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 import pytest
 from kubernetes.client import ApiException
 from urllib3.exceptions import ProtocolError
-
 from wandb.sdk.launch.runner.kubernetes_monitor import SafeWatch
 
 

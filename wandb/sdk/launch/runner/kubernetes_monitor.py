@@ -119,9 +119,10 @@ def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
     """Get the status from the pod conditions."""
     true_conditions = [c.get("type") for c in conditions if c.get("status") == "True"]
     for condition in true_conditions:
-        condition = condition.lower()
-        if condition in CRD_STATE_DICT:
-            return condition
+        if isinstance(condition, str):
+            condition = condition.lower()
+            if condition in CRD_STATE_DICT:
+                return condition
     return None
 
 
