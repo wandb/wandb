@@ -22,7 +22,7 @@ def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_se
     api = InternalApi()
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch.fetch_and_validate_project",
+        "wandb.sdk.launch._launch.fetch_and_validate_project",
         lambda _1, _2: launch_project,
     )
 

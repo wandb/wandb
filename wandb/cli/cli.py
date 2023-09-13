@@ -1448,11 +1448,11 @@ def launch_agent(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
         )
 
-    from wandb.sdk.launch import launch as wandb_launch
+    import wandb.sdk.launch._launch as _launch
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
-    agent_config, api = wandb_launch.resolve_agent_config(
+    agent_config, api = _launch.resolve_agent_config(
         entity, project, max_jobs, queues, config
     )
     if agent_config.get("project") is None:
@@ -1469,7 +1469,7 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
     try:
-        wandb_launch.create_and_run_agent(api, agent_config)
+        _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
         wandb._sentry.exception(e)
         raise e

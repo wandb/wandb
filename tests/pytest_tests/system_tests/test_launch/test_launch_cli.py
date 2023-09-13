@@ -199,7 +199,7 @@ def test_launch_repository_arg(
         return launch_project
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch.fetch_and_validate_project",
+        "wandb.sdk.launch._launch.fetch_and_validate_project",
         lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
     )
 
