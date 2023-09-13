@@ -1,5 +1,3 @@
-import platform
-
 import nox
 
 NEXUS_VERSION = "0.16.0beta1"
