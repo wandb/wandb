@@ -11,3 +11,4 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :wandb:artifacts[test_model][type]: model
   - :wandb:portfolio_links[test_portfolio][num]: 1
+  
