@@ -24,7 +24,7 @@ jobs:
            output-dir: "nexus/wheelhouse"
 #           config-file: "{package}/pyproject.toml"
         env:
-          GOROOT: "/opt/hostedtoolcache/go/1.21.0/x64"
+          PATH: $PATH:/usr/local/go/bin
           CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py
 
       - uses: actions/upload-artifact@v3
