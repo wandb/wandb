@@ -378,6 +378,14 @@ def test_launch_kube_works(
     blink()
     assert str(submitted_run.get_status()) == "starting"
     job_stream, pod_stream = mock_event_streams
+    pod_stream.add(  # This event does nothing. Added for code coverage of the path where there is no status.
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": None,
+            }
+        )
+    )
     pod_stream.add(
         MockDict(
             {
@@ -393,6 +401,39 @@ def test_launch_kube_works(
     )
     blink()
     assert str(submitted_run.get_status()) == "starting"
+    pod_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict(
+                    {
+                        "metadata": MockDict({"name": "test-pod"}),
+                        "status": MockDict(
+                            {
+                                "phase": "Pending",
+                                "container_statuses": [
+                                    MockDict(
+                                        {
+                                            "name": "master",
+                                            "state": MockDict(
+                                                {
+                                                    "waiting": MockDict(
+                                                        {"reason": "ContainerCreating"}
+                                                    )
+                                                }
+                                            ),
+                                        }
+                                    )
+                                ],
+                            }
+                        ),
+                    }
+                ),
+            }
+        )
+    )
+    blink()
+    assert str(submitted_run.get_status()) == "running"
     job_stream.add(
         MockDict(
             {

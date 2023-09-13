@@ -236,7 +236,7 @@ class KubernetesRunMonitor:
                 self.stop()
                 break
             if _is_container_creating(object.status):
-                self._set_status(Status("starting"))
+                self._set_status(Status("running"))
 
     def _watch_job(self) -> None:
         """Watch for job matching the jobname."""
