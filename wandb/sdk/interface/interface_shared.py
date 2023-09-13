@@ -385,7 +385,7 @@ class InterfaceShared(InterfaceBase):
 
     def _download_artifact(self, download_artifact: pb.DownloadArtifactRequest) -> Any:
         rec = self._make_request(download_artifact=download_artifact)
-        self._publish(rec)
+        return self._communicate(rec)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         rec = self._make_record(artifact=proto_artifact)
