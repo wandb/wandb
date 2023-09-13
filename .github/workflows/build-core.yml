@@ -25,7 +25,7 @@ jobs:
 #           config-file: "{package}/pyproject.toml"
         env:
           GOROOT: "/opt/hostedtoolcache/go/1.21.0/x64"
-          CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/install_go.py
+          CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py
 
       - uses: actions/upload-artifact@v3
         with:
