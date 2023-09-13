@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '>=1.21.0'
+          go-version: '==1.21.0'
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
@@ -24,7 +24,7 @@ jobs:
            output-dir: "nexus/wheelhouse"
 #           config-file: "{package}/pyproject.toml"
         env:
-          GOPATH: "/home/runner/go"
+          GOROOT: "/opt/hostedtoolcache/go/1.21.0/x64"
 #         CIBW_SOME_OPTION: value
 
       - uses: actions/upload-artifact@v3
