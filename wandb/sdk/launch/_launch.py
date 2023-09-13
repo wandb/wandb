@@ -125,21 +125,21 @@ def create_and_run_agent(
 
 
 def _launch(
-    uri: Optional[str],
-    job: Optional[str],
-    name: Optional[str],
-    project: Optional[str],
-    entity: Optional[str],
-    docker_image: Optional[str],
-    entry_point: Optional[List[str]],
-    version: Optional[str],
-    resource: Optional[str],
-    resource_args: Optional[Dict[str, Any]],
-    launch_config: Optional[Dict[str, Any]],
-    synchronous: Optional[bool],
     api: Api,
-    run_id: Optional[str],
-    repository: Optional[str],
+    uri: Optional[str] = None,
+    job: Optional[str] = None,
+    name: Optional[str] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    docker_image: Optional[str] = None,
+    entry_point: Optional[List[str]] = None,
+    version: Optional[str] = None,
+    resource: Optional[str] = None,
+    resource_args: Optional[Dict[str, Any]] = None,
+    launch_config: Optional[Dict[str, Any]] = None,
+    synchronous: Optional[bool] = None,
+    run_id: Optional[str] = None,
+    repository: Optional[str] = None,
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     if launch_config is None:
