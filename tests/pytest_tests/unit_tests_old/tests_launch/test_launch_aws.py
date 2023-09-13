@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch._launch as _launch
+import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.sagemaker_runner import SagemakerSubmittedRun

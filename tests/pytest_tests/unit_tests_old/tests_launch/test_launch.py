@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch._launch as _launch
+import wandb.sdk.launch._project_spec as _project_spec
 import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent

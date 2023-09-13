@@ -16,8 +16,8 @@ import yaml
 
 import wandb
 from wandb.errors import CommError
-from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch._launch_add import launch_add
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.utils import (
     create_sweep_command_args,

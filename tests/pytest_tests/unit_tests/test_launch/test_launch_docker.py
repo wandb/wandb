@@ -1,9 +1,7 @@
 import os
 from unittest.mock import MagicMock
 
-from wandb.sdk.launch._project_spec import (
-    EntryPoint,
-)
+from wandb.sdk.launch._project_spec import EntryPoint
 from wandb.sdk.launch.builder.build import generate_dockerfile
 
 

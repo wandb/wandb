@@ -1,4 +1,4 @@
-from unittest.mock import mock_open, patch, MagicMock
+from unittest.mock import MagicMock, mock_open, patch
 
 import wandb
 from wandb.docker import DockerError
