@@ -1,6 +1,6 @@
 import nox
 
-NEXUS_VERSION = "0.16.0beta1"
+NEXUS_VERSION = "0.16.0b1"
 
 
 @nox.session(python=False, name="build-nexus")
@@ -38,7 +38,7 @@ def install_nexus(session):
         "pip",
         "install",
         "--force-reinstall",
-        f"./nexus/dist/wandb_core-{NEXUS_VERSION}-py3-none-any.whl",
+        f"./nexus/dist/wandb_core-{NEXUS_VERSION}-py3-none-macosx_12_0_arm64.whl",
         external=True,
     )
 
