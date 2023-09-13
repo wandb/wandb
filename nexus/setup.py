@@ -8,7 +8,6 @@ from setuptools import setup
 from setuptools.command.develop import develop
 from wheel.bdist_wheel import bdist_wheel, get_platform
 
-
 # Package naming
 # --------------
 #   wandb-core:         Package containing architecture specific code
@@ -37,12 +36,16 @@ class NexusBase:
         base = Path(__file__).parent / PACKAGE
         return base
 
-    def _build_nexus(self, goos: str=None, goarch: str=None, cgo_enabled=False):
+    def _build_nexus(self, goos: str = None, goarch: str = None, cgo_enabled=False):
         nexus_path = self._get_package_path()
 
         src_dir = Path(__file__).parent
 
-        env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1" if cgo_enabled else "0"}
+        env = {
+            "GOOS": goos,
+            "GOARCH": goarch,
+            "CGO_ENABLED": "1" if cgo_enabled else "0",
+        }
         # cgo is needed on:
         #  - arm macs to build the gopsutil dependency,
         #    otherwise several system metrics will be unavailable.
@@ -67,7 +70,7 @@ class NexusBase:
             str(nexus_path / "wandb-nexus"),
             "cmd/nexus/main.go",
         )
-        log.info(f"Building for current platform")
+        log.info("Building for current platform")
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir)
 
