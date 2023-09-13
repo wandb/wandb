@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     import wandb.apis.public as public
     from wandb.apis.internal import Api
     from wandb.apis.public import QueuedRun, Run
+    from wandb.sdk.wandb_run import Run as SdkRun
 
 
 _logger = logging.getLogger(__name__)
@@ -247,10 +248,10 @@ class Scheduler(ABC):
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
 
-    def _init_wandb_run(self) -> "wandb.sdk.wandb_run.Run":
+    def _init_wandb_run(self) -> "SdkRun":
         """Controls resume or init logic for a scheduler wandb run."""
         _type = self._kwargs.get("sweep_type", "sweep")
-        run: wandb.sdk.wandb_run.Run = wandb.init(
+        run: SdkRun = wandb.init(
             name=f"{_type}-scheduler-{self._sweep_id}",
             job_type=self.SWEEP_JOB_TYPE,
             # WANDB_RUN_ID = sweep_id for scheduler
