@@ -14,6 +14,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry
+from wandb.env import error_reporting_enabled
 from wandb.errors import Error
 from wandb.util import get_module
 
@@ -176,6 +177,8 @@ class _Service:
                     )
                     nexus_path = wandb_nexus.get_nexus_path()
                 service_args.extend([nexus_path])
+                if not error_reporting_enabled():
+                    service_args.append("--no-observability")
                 exec_cmd_list = []
             else:
                 service_args.extend(["wandb", "service"])
