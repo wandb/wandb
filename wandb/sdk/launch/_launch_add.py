@@ -77,6 +77,7 @@ def launch_add(
     Example:
     ```python
     from wandb.sdk.launch import launch_add
+
     project_uri = "https://github.com/wandb/examples"
     params = {"alpha": 0.5, "l1_ratio": 0.01}
     # Run W&B project and create a reproducible docker environment

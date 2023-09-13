@@ -242,6 +242,7 @@ def launch(
     Example:
         ```python
         from wandb.sdk.launch import launch
+
         job = "wandb/jobs/Hello World:latest"
         params = {"epochs": 5}
         # Run W&B project and create a reproducible docker environment
