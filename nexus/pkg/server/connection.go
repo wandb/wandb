@@ -11,9 +11,10 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/auth"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -62,7 +63,7 @@ func NewConnection(
 		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
-		teardownChan: teardown, //TODO: should we trigger teardown from a connection?
+		teardownChan: teardown, // TODO: should we trigger teardown from a connection?
 	}
 	return nc
 }
@@ -226,7 +227,6 @@ func (nc *Connection) handleServerRequest() {
 // to the server, to start a new stream
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	settings := msg.GetSettings()
-
 	func(s *service.Settings) {
 		if s.GetApiKey().GetValue() != "" {
 			return
@@ -247,7 +247,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 			panic(err)
 		}
 		s.ApiKey = &wrapperspb.StringValue{Value: password}
-	}(settings) // TODO: this is a hack, we should not be modifying the settings
+	}(settings)
 
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
