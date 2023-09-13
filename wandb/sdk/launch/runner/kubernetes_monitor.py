@@ -119,7 +119,7 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
 def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
     """Get the status from the pod conditions."""
     true_conditions = [
-        c.get("type").lower() for c in conditions if c.get("status") == "True"
+        c.get("type", "").lower() for c in conditions if c.get("status") == "True"
     ]
     detected_states = {
         CRD_STATE_DICT[c] for c in true_conditions if c in CRD_STATE_DICT
@@ -308,7 +308,7 @@ class KubernetesRunMonitor:
                 continue
             state = status.get("state")
             if isinstance(state, dict):
-                raw_state = state.get("phase")
+                raw_state = state.get("phase", "")
                 state = CRD_STATE_DICT.get(raw_state)
             else:
                 conditions = status.get("conditions")
