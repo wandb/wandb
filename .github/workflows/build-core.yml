@@ -23,7 +23,8 @@ jobs:
            package-dir: "nexus"
            output-dir: "nexus/wheelhouse"
 #           config-file: "{package}/pyproject.toml"
-      # env:
+       env:
+         - GOPATH="/home/runner/go"
       #   CIBW_SOME_OPTION: value
       #    ...
 
