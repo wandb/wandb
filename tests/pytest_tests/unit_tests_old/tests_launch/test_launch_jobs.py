@@ -121,7 +121,7 @@ def test_launch_job_artifact(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -167,7 +167,7 @@ def test_launch_job_repo(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -207,7 +207,7 @@ def test_launch_job_container(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 

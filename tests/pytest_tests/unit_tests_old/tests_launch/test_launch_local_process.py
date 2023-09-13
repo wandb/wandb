@@ -37,7 +37,7 @@ def test_launch_local_process_base_case(
         "project": "test",
         "resource": "local-process",
     }
-    run = launch.run(**kwargs)
+    run = launch.launch(**kwargs)
     run.wait()
     assert str(run.get_status()) == "finished"
     # # TODO: Why does this not work?
