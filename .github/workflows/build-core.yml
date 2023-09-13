@@ -27,7 +27,8 @@ jobs:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
           CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py
           CIBW_BEFORE_ALL_MACOS: python nexus/scripts/build/install_go.py
-          CIBW_BUILD: "{cp37-manylinux_x86_64,cp38-manylinux_x86_64,cp39-manylinux_x86_64}"
+          CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
+          CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
           CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v3
