@@ -266,7 +266,7 @@ def check_project_spec(
     job=None,
     project=None,
     entity=None,
-    config=None,
+    launch_config=None,
     resource="local-container",
     resource_args=None,
     docker_image=None,
@@ -278,13 +278,14 @@ def check_project_spec(
     expected_target_entity = entity or api.default_entity
     assert project_spec.target_entity == expected_target_entity
     if (
-        config
-        and config.get("config")
-        and config["config"].get("overrides")
-        and config["config"]["overrides"].get("run_config")
+        launch_config
+        and launch_config.get("config")
+        and launch_config["config"].get("overrides")
+        and launch_config["config"]["overrides"].get("run_config")
     ):
         assert (
-            project_spec.override_config == config["config"]["overrides"]["run_config"]
+            project_spec.override_config
+            == launch_config["config"]["overrides"]["run_config"]
         )
     assert project_spec.resource == resource
     if resource_args:
