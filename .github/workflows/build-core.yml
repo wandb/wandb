@@ -22,12 +22,11 @@ jobs:
         with:
            package-dir: "nexus"
            output-dir: "nexus/wheelhouse"
-#           config-file: "nexus/pyproject.toml"
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
-          CIBW_BUILD: cp38-manylinux_x86_64
           CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py
           CIBW_BEFORE_ALL_MACOS: python nexus/scripts/build/install_go.py
+      #          CIBW_BUILD: cp38-manylinux_x86_64
 
       - uses: actions/upload-artifact@v3
         with:
