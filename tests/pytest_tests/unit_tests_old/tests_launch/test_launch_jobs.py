@@ -9,7 +9,7 @@ import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch._launch_add import launch_add
 
 from tests.pytest_tests.unit_tests_old import utils
 
