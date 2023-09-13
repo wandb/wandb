@@ -241,7 +241,7 @@ def launch(
 
     Example:
         import wandb
-        job = "wandb/jobs/Hello World:latest"
+        job = 'wandb/jobs/Hello World:latest'
         params = {"alpha": 0.5, "l1_ratio": 0.01}
         # Run W&B project and create a reproducible docker environment
         # on a local host
