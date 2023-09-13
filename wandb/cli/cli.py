@@ -1281,7 +1281,7 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    from wandb.sdk.launch._launch import launch
+    from wandb.sdk.launch._launch import _launch
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_cli")
@@ -1334,8 +1334,9 @@ def launch(
     if queue is None:
         # direct launch
         try:
-            run = launch(
+            run = _launch(
                 api,
+                uri,
                 job,
                 entry_point,
                 git_version,

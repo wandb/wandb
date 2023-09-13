@@ -429,7 +429,7 @@ def test_launch_run_config_in_spec(
         "api": api,
         "project": "new_test_project",
         "entity": "mock_server_entity",
-        "config": {"overrides": {"run_config": {"epochs": 3}}},
+        "launch_config": {"overrides": {"run_config": {"epochs": 3}}},
     }
 
     expected_runner_config = {}
@@ -1150,7 +1150,7 @@ def test_launch_unknown_entrypoint(
 
 def test_resolve_agent_config(monkeypatch, runner):
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE",
+        "wandb.sdk.launch._launch.LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
     monkeypatch.setenv("WANDB_ENTITY", "diffentity")
