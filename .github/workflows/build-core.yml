@@ -23,10 +23,9 @@ jobs:
            package-dir: "nexus"
            output-dir: "nexus/wheelhouse"
 #           config-file: "{package}/pyproject.toml"
-       env:
-         - GOPATH="/home/runner/go"
-      #   CIBW_SOME_OPTION: value
-      #    ...
+        env:
+          GOPATH: "/home/runner/go"
+#         CIBW_SOME_OPTION: value
 
       - uses: actions/upload-artifact@v3
         with:
