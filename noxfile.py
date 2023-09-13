@@ -29,7 +29,7 @@ def build_nexus(session):
         "-n",  # disable building the project in an isolated virtual environment
         "-x",  # do not check that build dependencies are installed
         "./nexus",
-        f"-C--build-option=bdist_wheel --nexus-build={target_system}",
+        # f"-C--build-option=bdist_wheel --nexus-build={target_system}",
         external=True,
     )
 
