@@ -138,10 +138,40 @@ class KubernetesRunMonitor:
         version: Optional[str] = None,
         plural: Optional[str] = None,
     ) -> None:
-        """Initial KubernetesRunMonitor.
+        """Initialize KubernetesRunMonitor.
+
+        If a custom api is provided, the group, version, and plural arguments must also
+        be provided. These are used to query the custom api for a launched custom
+        object (CRD). Group, version, and plural in this context refer to the
+        Kubernetes API group, version, and plural for the CRD. For more information
+        see: https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definitions/
+
+        The run monitor starts two threads to watch for pods and jobs/crds matching the
+        provided selectors. The status is set to "starting" when the run monitor is
+        initialized. The status is set to "running" when a pod matching the pod selector
+        is found with a status of "Running" or has a container with a status of
+        "ContainerCreating". The status is set to "finished" when a job matching the job
+        selector is found with a status of "Succeeded". The status is set to "failed"
+        when a job matching the job selector is found with a status of "Failed" or a pod
+        matching the pod selector is found with a status of "Failed". The status is set
+        to "preempted" when a pod matching the pod selector is found with a condition
+        type of "DisruptionTarget" and a reason of "EvictionByEvictionAPI",
+        "PreemptionByScheduler", or "TerminationByKubelet".
+
+        The logic for the CRD is similar to the logic for the job, but we inspect
+        both the phase of the CRD and the conditions since some CRDs do not have a
+        phase field.
 
         Arguments:
-            jobname: Name of the job.
+            job_field_selector: The field selector for the job or crd.
+            pod_label_selector: The label selector for the pods.
+            namespace: The namespace to monitor.
+            batch_api: The batch api client.
+            core_api: The core api client.
+            custom_api: The custom api client.
+            group: The group of the CRD.
+            version: The version of the CRD.
+            plural: The plural of the CRD.
 
         Returns:
             None.
@@ -159,9 +189,11 @@ class KubernetesRunMonitor:
         self._status_lock = Lock()
         self._status = Status("starting")
 
+        # Only one of the job or crd watchers will be used.
         self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
-        self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
         self._watch_crd_thread = Thread(target=self._watch_crd, daemon=True)
+
+        self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
 
         self._job_watcher = SafeWatch(watch.Watch())
         self._pod_watcher = SafeWatch(watch.Watch())
