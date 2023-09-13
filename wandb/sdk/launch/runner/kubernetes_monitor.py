@@ -3,7 +3,6 @@ from threading import Lock, Thread
 from typing import Any, Dict, List, Optional
 
 import urllib3
-from dateutil import parser
 from kubernetes import watch  # type: ignore # noqa: F401
 from kubernetes.client import (  # type: ignore # noqa: F401
     ApiException,
@@ -124,12 +123,6 @@ def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
             if condition in CRD_STATE_DICT:
                 return condition
     return None
-
-
-def _parse_transition_time(time_str: str) -> float:
-    """Convert a string representing a time to a timestamp."""
-    dt = parser.parse(time_str)
-    return dt.timestamp()
 
 
 class KubernetesRunMonitor:

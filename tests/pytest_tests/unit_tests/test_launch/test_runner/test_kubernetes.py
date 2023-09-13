@@ -9,7 +9,6 @@ import pytest
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     CRD_STATE_DICT,
-    _parse_transition_time,
     _state_from_conditions,
 )
 from wandb.sdk.launch.runner.kubernetes_runner import (
@@ -760,20 +759,6 @@ def test_monitor_thread_restart(mock_event_streams, mock_batch_api, mock_core_ap
 
 
 # Test util functions
-
-
-@pytest.mark.parametrize(
-    "transition_time, expected",
-    [
-        ("2023-09-06T20:04:12Z", 1694030652),
-        ("2023-09-06T20:04:12.123Z", 1694030652.123),
-        ("2023-09-06T20:04:12+00:00", 1694030652),
-        ("2023-09-06T20:04:12.123+02:00", 1694030652.123 - 2 * 3600),
-    ],
-)
-def test_parse_transition_time(transition_time, expected):
-    """Test that we parse transition time correctly."""
-    assert _parse_transition_time(transition_time) == expected
 
 
 def condition_factory(
