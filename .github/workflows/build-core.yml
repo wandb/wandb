@@ -22,7 +22,7 @@ jobs:
         with:
            package-dir: "nexus"
            output-dir: "nexus/wheelhouse"
-           config-file: "nexus/pyproject.toml"
+#           config-file: "nexus/pyproject.toml"
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
           CIBW_BUILD: cp38-manylinux_x86_64
