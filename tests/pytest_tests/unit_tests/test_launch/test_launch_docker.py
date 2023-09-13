@@ -15,6 +15,7 @@ def test_buildx_not_installed(monkeypatch, tmp_path):
     mock_project = MagicMock()
     mock_project.deps_type = "pip"
     mock_project.project_dir = tmp_path
+    mock_project.override_entrypoint = None
     with open(os.path.join(tmp_path, "requirements.txt"), "w") as fp:
         fp.write("wandb")
 
