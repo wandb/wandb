@@ -15,12 +15,11 @@ def build_nexus(session):
                    Use format: <system>-<arch> (e.g. linux-amd64, darwin-arm64)
                    Use "all" to build for all known platforms.
     """
-    if session.posargs:
-        target_system = session.posargs[0]
-    else:
-        system = platform.system().lower()
-        arch = "amd64" if platform.machine() == "x86_64" else platform.machine()
-        target_system = f"{system}-{arch}"
+    # if session.posargs:
+    #     session.posargs[0]
+    # else:
+    #     platform.system().lower()
+    #     "amd64" if platform.machine() == "x86_64" else platform.machine()
     session.run(
         "python",
         "-m",
