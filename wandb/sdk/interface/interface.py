@@ -476,14 +476,13 @@ class InterfaceBase:
 
     def download_artifact(
         self,
-        artifact: "Artifact",
+        qualified_name: str,
         download_root: Optional[str],
         recursive: bool,
         allow_missing_references: bool,
     ) -> MessageFuture:
-        proto_artifact = self._make_artifact(artifact)
         download_artifact = pb.DownloadArtifactRequest()
-        download_artifact.artifact.CopyFrom(proto_artifact)
+        download_artifact.qualified_name = qualified_name
         if download_root is not None:
             download_artifact.download_root = download_root
         download_artifact.recursive = recursive

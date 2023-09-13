@@ -1665,7 +1665,7 @@ class Artifact:
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         return wandb.run._download_artifact(
-            self, root, recursive, allow_missing_references
+            self.qualified_name, root, recursive, allow_missing_references
         )
         # return self._download(root, recursive, allow_missing_references)
 

@@ -1447,26 +1447,25 @@ class SendManager:
         self._respond_result(result)
 
     def send_request_download_artifact(self, record: "Record") -> None:
-        assert record.control.req_resp
+        # assert record.control.req_resp
         result = proto_util._result_from_record(record)
-        proto_artifact = record.request.download_artifact.artifact
+        qualified_name = record.request.download_artifact.qualified_name
         download_root = record.request.download_artifact.download_root
         recursive = record.request.download_artifact.recursive
         allow_missing_references = (
             record.request.download_artifact.allow_missing_references
         )
 
-        # make python artifact to call ._download()
-
-        # log_artifact code unchanged
         try:
-            res = artifact._download(download_root, recursive, allow_missing_references)
-            assert res, "Unable to send artifact"
-            result.response.log_artifact_response.artifact_id = res["id"]
-            logger.info(f"logged artifact {artifact.name} - {res}")
+            artifact = wandb.Api().artifact(qualified_name)
+            path = artifact._download(
+                download_root, recursive, allow_missing_references
+            )
+            result.response.download_artifact_response.file_download_path = path
+            logger.info(f"downloaded artifact {artifact.name} to {path}")
         except Exception as e:
-            result.response.log_artifact_response.error_message = (
-                f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
+            result.response.download_artifact_response.error_message = (
+                f'error downloading artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
         self._respond_result(result)
