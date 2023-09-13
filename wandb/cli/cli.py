@@ -1338,8 +1338,6 @@ def launch(
                 api,
                 uri,
                 job,
-                entry_point,
-                git_version,
                 project=project,
                 entity=entity,
                 docker_image=docker_image,
@@ -1350,6 +1348,8 @@ def launch(
                 synchronous=(not run_async),
                 run_id=run_id,
                 repository=repository,
+                entry_point=entry_point,
+                git_version=git_version,
             )
             if run.get_status().state in ["failed", "stopped", "preempted"]:
                 wandb.termerror("Launched run exited with non-zero status")

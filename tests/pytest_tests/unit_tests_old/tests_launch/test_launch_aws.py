@@ -419,7 +419,7 @@ def test_no_OuputDataConfig(
         lambda *args: None,
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE", "./random-nonexistant-file.yaml"
+        "wandb.sdk.launch._launch.LAUNCH_CONFIG_FILE", "./random-nonexistant-file.yaml"
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
