@@ -514,7 +514,7 @@ def test_display_updated_runspec(
         return res
 
     monkeypatch.setattr(
-        wandb.sdk.launch.launch_add,
+        wandb.sdk.launch._launch_add,
         "push_to_queue",
         lambda *args, **kwargs: push_with_drc(*args, **kwargs),
     )

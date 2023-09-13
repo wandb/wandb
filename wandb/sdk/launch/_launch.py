@@ -212,6 +212,7 @@ def launch(
     synchronous: Optional[bool] = True,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
+    uri: Optional[str] = None,
 ) -> AbstractRun:
     """Launch a W&B launch experiment.
 
