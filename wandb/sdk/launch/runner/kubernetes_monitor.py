@@ -57,6 +57,8 @@ class SafeWatch:
                 for event in self._watcher.stream(
                     func, *args, **kwargs, timeout_seconds=15
                 ):
+                    if self._stopped:
+                        break
                     # Save the resource version so that we can resume the stream
                     # if it breaks.
                     object = event.get("object")
@@ -116,12 +118,15 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
 
 def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
     """Get the status from the pod conditions."""
-    true_conditions = [c.get("type") for c in conditions if c.get("status") == "True"]
-    for condition in true_conditions:
-        if isinstance(condition, str):
-            condition = condition.lower()
-            if condition in CRD_STATE_DICT:
-                return condition
+    true_conditions = [
+        c.get("type").lower() for c in conditions if c.get("status") == "True"
+    ]
+    detected_states = {
+        CRD_STATE_DICT[c] for c in true_conditions if c in CRD_STATE_DICT
+    }
+    for state in ["finished", "failed", "stopping", "running", "starting"]:
+        if state in detected_states:
+            return state
     return None
 
 
@@ -289,40 +294,36 @@ class KubernetesRunMonitor:
 
     def _watch_crd(self) -> None:
         """Watch for CRD matching the jobname."""
-        try:
-            for event in self._job_watcher.stream(
-                self.custom_api.list_namespaced_custom_object,
-                namespace=self.namespace,
-                field_selector=self.job_field_selector,
-                group=self.group,
-                version=self.version,
-                plural=self.plural,
-            ):
-                object = event.get("object")
-                status = object.get("status")
-                if status is None:
-                    continue
-                state = status.get("state")
-                if isinstance(state, dict):
-                    state = state.get("phase")
+        for event in self._job_watcher.stream(
+            self.custom_api.list_namespaced_custom_object,
+            namespace=self.namespace,
+            field_selector=self.job_field_selector,
+            group=self.group,
+            version=self.version,
+            plural=self.plural,
+        ):
+            object = event.get("object")
+            status = object.get("status")
+            if status is None:
+                continue
+            state = status.get("state")
+            if isinstance(state, dict):
+                raw_state = state.get("phase")
+                state = CRD_STATE_DICT.get(raw_state)
+            else:
+                conditions = status.get("conditions")
+                if isinstance(conditions, list):
+                    state = _state_from_conditions(conditions)
                 else:
-                    conditions = status.get("conditions")
-                    if isinstance(conditions, list):
-                        state = _state_from_conditions(conditions)
-                    else:
-                        # This should never happen.
-                        _logger.warning(
-                            f"Unexpected conditions type {type(conditions)} "
-                            f"for CRD {self.job_field_selector}: {conditions}"
-                        )
-                if state is None:
-                    continue
-                status = Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
-                self._set_status(status)
-                if status.state in ["finished", "failed", "preempted"]:
-                    self.stop()
-                    break
-
-        # Handle exceptions here.
-        except Exception as e:
-            raise e
+                    # This should never happen.
+                    _logger.warning(
+                        f"Unexpected conditions type {type(conditions)} "
+                        f"for CRD {self.job_field_selector}: {conditions}"
+                    )
+            if state is None:
+                continue
+            status = Status(state)
+            self._set_status(status)
+            if status.state in ["finished", "failed", "preempted"]:
+                self.stop()
+                break
