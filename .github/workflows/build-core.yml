@@ -13,9 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v4
-        with:
-          go-version: '==1.21.0'
+#      - uses: actions/setup-go@v4
+#        with:
+#          go-version: '==1.21.0'
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
@@ -25,7 +25,7 @@ jobs:
 #           config-file: "{package}/pyproject.toml"
         env:
           GOROOT: "/opt/hostedtoolcache/go/1.21.0/x64"
-#         CIBW_SOME_OPTION: value
+          CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/install_go.py
 
       - uses: actions/upload-artifact@v3
         with:
