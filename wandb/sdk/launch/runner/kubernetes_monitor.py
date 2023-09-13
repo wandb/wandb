@@ -49,6 +49,7 @@ class SafeWatch:
         """Initialize the SafeWatch."""
         self._watcher = watcher
         self._last_seen_resource_version: Optional[str] = None
+        self._stopped = False
 
     def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         """Stream the watcher."""
@@ -59,9 +60,15 @@ class SafeWatch:
                 ):
                     # Save the resource version so that we can resume the stream
                     # if it breaks.
-                    self._last_seen_resource_version = event.get(
-                        "object"
-                    ).metadata.resource_version
+                    object = event.get("object")
+                    if isinstance(object, dict):
+                        self._last_seen_resource_version = object.get(
+                            "metadata", dict()
+                        ).get("resourceVersion")
+                    else:
+                        self._last_seen_resource_version = (
+                            object.metadata.resource_version
+                        )
                     kwargs["resource_version"] = self._last_seen_resource_version
                     yield event
                 # If stream ends after stop just break
@@ -110,14 +117,11 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
 
 def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
     """Get the status from the pod conditions."""
-    if len(conditions) > 0:
-        # sort conditions by lastTransitionTime
-        conditions.sort(
-            key=lambda x: _parse_transition_time(x.get("lastTransitionTime", ""))
-        )
-        delta_condition = conditions[-1]
-        if delta_condition.get("status") == "True":
-            return delta_condition.get("type")
+    true_conditions = [c.get("type") for c in conditions if c.get("status") == "True"]
+    for condition in true_conditions:
+        condition = condition.lower()
+        if condition in CRD_STATE_DICT:
+            return condition
     return None
 
 
@@ -285,14 +289,13 @@ class KubernetesRunMonitor:
                             f"Unexpected conditions type {type(conditions)} "
                             f"for CRD {self.job_field_selector}: {conditions}"
                         )
-                        pass
-                    if state is None:
-                        continue
-                    status = Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
-                    self._set_status(status)
-                    if status.state in ["finished", "failed", "preempted"]:
-                        self.stop()
-                        break
+                if state is None:
+                    continue
+                status = Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
+                self._set_status(status)
+                if status.state in ["finished", "failed", "preempted"]:
+                    self.stop()
+                    break
 
         # Handle exceptions here.
         except Exception as e:
