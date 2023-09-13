@@ -24,8 +24,7 @@ jobs:
            output-dir: "nexus/wheelhouse"
 #           config-file: "{package}/pyproject.toml"
         env:
-          PATH: $PATH:/usr/local/go/bin
-          CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py
+          CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py && export PATH=$PATH:/usr/local/go/bin
 
       - uses: actions/upload-artifact@v3
         with:
