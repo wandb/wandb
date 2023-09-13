@@ -227,12 +227,12 @@ class KubernetesRunMonitor:
             namespace=self.namespace,
             label_selector=self.pod_label_selector,
         ):
-            type = event.get("type")
             object = event.get("object")
-
-            if type == "MODIFIED":
-                if object.status.phase == "Running":
-                    self._set_status(Status("running"))
+            # Sometimes ADDED events will be missing field.
+            if not hasattr(object, "status"):
+                continue
+            if object.status.phase == "Running":
+                self._set_status(Status("running"))
             if _is_preempted(object.status):
                 self._set_status(Status("preempted"))
                 self.stop()
