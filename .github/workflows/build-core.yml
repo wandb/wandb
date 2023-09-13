@@ -6,6 +6,7 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -13,10 +14,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
-#      - uses: actions/setup-go@v4
-#        with:
-#          go-version: '==1.21.0'
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
@@ -26,10 +23,10 @@ jobs:
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
           CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py
-          CIBW_BEFORE_ALL_MACOS: python nexus/scripts/build/install_go.py
+          CIBW_BEFORE_ALL_MACOS: brew install wget && python nexus/scripts/build/install_go.py
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
           CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
-          CIBW_ARCHS_LINUX: "x86_64 aarch64"
+          CIBW_ARCHS_LINUX: "x86_64"  # todo: add aarch64
           CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v3
