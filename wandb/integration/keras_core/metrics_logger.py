@@ -9,8 +9,7 @@ try:
     from keras_core.callbacks import Callback
 except:
     error_message = "KerasCore must be installed for this integration"
-    wandb.termerror(error_message)
-    raise ImportError(error_message)
+    wandb.Error(error_message)
 
 tf_backend_available = False
 torch_backend_available = False

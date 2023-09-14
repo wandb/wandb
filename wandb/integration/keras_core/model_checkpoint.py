@@ -10,8 +10,7 @@ try:
     from keras_core.callbacks import ModelCheckpoint
 except:
     error_message = "KerasCore must be installed for this integration"
-    wandb.termerror(error_message)
-    raise ImportError(error_message)
+    wandb.Error(error_message)
 
 if sys.version_info >= (3, 8):
     from typing import Literal
