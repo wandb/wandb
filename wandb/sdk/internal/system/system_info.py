@@ -55,10 +55,25 @@ class SystemInfo:
         try:
             import pkg_resources
 
-            installed_packages = [d for d in iter(pkg_resources.working_set)]
-            installed_packages_list = sorted(
-                f"{i.key}=={i.version}" for i in installed_packages
-            )
+            # installed_packages = [d for d in iter(pkg_resources.working_set)]
+            # installed_packages_list = sorted(
+            #     f"{i.key}=={i.version}" for i in installed_packages
+            # )
+            open("/tmp/bla.txt", "w").write("HERE")
+            # installed_packages_list = []
+            # for d in pkg_resources.working_set:
+            #     if d.key and d.version:
+            #         print("D", d.key, d.version, d.location)
+            #         if "git+" in d.location:
+            #             version_str = f"{d.project_name} @ {d.location}"
+            #         else:
+            #             version_str = f"{d.project_name}=={d.version}"
+            #         installed_packages_list.append(version_str)
+
+            # installed_packages_list = sorted(installed_packages_list)
+            result = subprocess.run(["pip", "freeze"], stdout=subprocess.PIPE)
+            installed_packages_list = sorted(result.stdout.decode("utf-8").splitlines())
+            open("/tmp/packages.txt", "w").write("\n".join(installed_packages_list))
             with open(
                 os.path.join(self.settings.files_dir, REQUIREMENTS_FNAME), "w"
             ) as f:

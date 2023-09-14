@@ -129,6 +129,8 @@ RUN python -m venv /env
 # make sure we install into the env
 ENV PATH="/env/bin:$PATH"
 
+RUN echo 6
+
 COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
 """

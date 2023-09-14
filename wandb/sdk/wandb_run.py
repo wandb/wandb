@@ -2302,6 +2302,26 @@ class Run:
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         import pkg_resources
 
+        # installed_packages_list = []
+        # for d in pkg_resources.working_set:
+        #     if d.egg_name() and d._version:
+        #         version_str = f"{d.egg_name()}=={d._version}"
+        #         if d._parsed_version.is_postrelease:
+        #             version_str = f"{d.egg_name()} @ {d.location}"
+        #         installed_packages_list.append(version_str)
+
+        # installed_packages_list = sorted(installed_packages_list)
+        installed_packages_list = []
+        for d in pkg_resources.working_set:
+            if d.key and d.version:
+                version_str = f"{d.key}=={d.version}"
+                if d._parsed_version.is_postrelease:
+                    version_str = f"{d.key} @ {d.location}"
+                installed_packages_list.append(version_str)
+
+        installed_packages_list = sorted(installed_packages_list)
+        open("/tmp/packages.txt", "w").write("\n".join(installed_packages_list))
+
         installed_packages_list = sorted(
             f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
         )

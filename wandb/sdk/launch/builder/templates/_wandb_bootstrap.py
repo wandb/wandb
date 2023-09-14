@@ -39,12 +39,12 @@ def install_deps(
         deps (str[], None): The dependencies that failed to install
     """
     try:
-        # Include only uri if @ is present
-        clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
+        clean_deps = [f'"{d}"' if " " in d else d for d in deps]
         index_args = ["--extra-index-url", extra_index] if extra_index else []
         print("installing {}...".format(", ".join(clean_deps)))
         opts = opts or []
         args = ["pip", "install"] + opts + clean_deps + index_args
+        print("RUN ARGS", args)
         sys.stdout.flush()
         subprocess.check_output(args, stderr=subprocess.STDOUT)
         return failed
@@ -53,6 +53,7 @@ def install_deps(
             failed = set()
         num_failed = len(failed)
         current_pkg = None
+        print("ERROR", e.output)
         for line in e.output.decode("utf8").splitlines():
             # Since the name of the package might not be on the same line as
             # the error msg, keep track of the currently installing package
@@ -93,6 +94,7 @@ def main() -> None:
             print("Installing frozen dependencies...")
             reqs = []
             for req in f:
+                print("PROCESSING REQ", req)
                 if (
                     len(ONLY_INCLUDE) == 0
                     or req in ONLY_INCLUDE
@@ -111,9 +113,9 @@ def main() -> None:
                             extra_index = (
                                 f"https://download.pytorch.org/whl/{variant[1:]}"
                             )
-                        torch_reqs.append(req.strip().replace(" ", ""))
+                        torch_reqs.append(req.strip())
                     else:
-                        reqs.append(req.strip().replace(" ", ""))
+                        reqs.append(req.strip())
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
             failed = install_deps(reqs, opts=OPTS) or set()
