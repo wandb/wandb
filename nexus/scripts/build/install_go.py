@@ -9,7 +9,7 @@ def go_get_go():
     system = platform.system().lower()
     machine = platform.machine().lower().replace("x86_64", "amd64")
     extension = "tar.gz" if system != "windows" else "msi"
-    out_path = "/usr/local" if system == "Linux" else "/tmp/go"
+    out_path = "/usr/local" if system == "linux" else "/tmp/go"
 
     file_name = f"go{VERSION}.{system}-{machine}.{extension}"
 
