@@ -22,11 +22,9 @@ NEXUS_VERSION = "0.16.0b1"
 
 
 PACKAGE: str = "wandb_core"
-ALL_PLATFORMS = (
-    ("darwin", "arm64", True),
-    ("darwin", "amd64", False),
-    ("linux", "amd64", True),
-    ("windows", "amd64", False),
+PLATFORMS_TO_BUILD_WITH_CGO = (
+    "darwin-arm64",
+    "linux-amd64",
 )
 
 
@@ -36,23 +34,28 @@ class NexusBase:
         base = Path(__file__).parent / PACKAGE
         return base
 
-    def _build_nexus(self, goos: str = None, goarch: str = None, cgo_enabled=False):
+    def _build_nexus(self):
         nexus_path = self._get_package_path()
 
         src_dir = Path(__file__).parent
 
-        env = {
-            "GOOS": goos,
-            "GOARCH": goarch,
-            "CGO_ENABLED": "1" if cgo_enabled else "0",
-        }
+        env = os.environ.copy()
+
+        goos = platform.system().lower()
+        goarch = platform.machine().lower()
+        if goarch == "x86_64":
+            goarch = "amd64"
+        elif goarch == "aarch64":
+            goarch = "arm64"
+        elif goarch == "armv7l":
+            goarch = "armv6l"
+
         # cgo is needed on:
         #  - arm macs to build the gopsutil dependency,
         #    otherwise several system metrics will be unavailable.
         #  - linux to build the dependencies needed to get GPU metrics.
-        # todo: temporary hack to get the build working on linux for the darwin-arm64 wheel
-        if goos == "darwin" and goarch == "arm64" and platform.system() == "Linux":
-            env["CGO_ENABLED"] = "0"
+        if f"{goos}-{goarch}" in PLATFORMS_TO_BUILD_WITH_CGO:
+            env["CGO_ENABLED"] = "1"
 
         os.makedirs(nexus_path, exist_ok=True)
         commit = (
@@ -72,7 +75,7 @@ class NexusBase:
         )
         log.info("Building for current platform")
         log.info(f"Running command: {' '.join(cmd)}")
-        subprocess.check_call(cmd, cwd=src_dir)
+        subprocess.check_call(cmd, cwd=src_dir, env=env)
 
 
 class WrapDevelop(develop, NexusBase):
