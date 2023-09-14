@@ -74,4 +74,4 @@ jobs:
 
           echo "Applying agent version to image $TAG and pushing"
           echo "TAG $TAG"
-          docker buildx build --platform linux/amd64,linux/arm64 -f ./Dockerfile.release  --build-arg image=$IMAGE --build-arg release_tag=tester  -t $REPO:$TAG -t $REPO:latest -t $REPO:$SDK_OR_PREVIEW_TAG . --push
+          docker buildx build --platform linux/amd64,linux/arm64 -f ./Dockerfile.release  --build-arg image=$IMAGE --build-arg release_tag=$TAG  -t $REPO:$TAG -t $REPO:latest -t $REPO:$SDK_OR_PREVIEW_TAG . --push
