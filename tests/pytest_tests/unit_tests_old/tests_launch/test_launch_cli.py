@@ -88,7 +88,7 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
 
 def test_agent_queues_config(runner, test_settings, live_mock_server, monkeypatch):
     monkeypatch.setattr(
-        wandb.sdk.launch.launch,
+        wandb.sdk.launch._launch,
         "LAUNCH_CONFIG_FILE",
         os.path.join("./config/wandb/launch-config.yaml"),
     )
