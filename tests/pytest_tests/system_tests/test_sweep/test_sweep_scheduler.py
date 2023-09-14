@@ -110,7 +110,7 @@ def test_sweep_scheduler_runcap(user, monkeypatch):
         return mock
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch_add._launch_add",
+        "wandb.sdk.launch._launch_add._launch_add",
         mock_launch_add,
     )
 
@@ -375,7 +375,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
         return mock
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch_add._launch_add",
+        "wandb.sdk.launch._launch_add._launch_add",
         mock_launch_add,
     )
 
@@ -591,7 +591,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
         return Mock(spec=public.QueuedRun)
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch_add._launch_add",
+        "wandb.sdk.launch._launch_add._launch_add",
         mock_launch_add,
     )
 
@@ -754,7 +754,7 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
         return mock
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch_add._launch_add",
+        "wandb.sdk.launch._launch_add._launch_add",
         mock_launch_add,
     )
 
