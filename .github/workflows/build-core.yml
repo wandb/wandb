@@ -21,6 +21,13 @@ jobs:
         with:
           platforms: all
 
+      - name: Install Go 1.21 on Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco upgrade golang
+          refreshenv
+          go version
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
         with:
