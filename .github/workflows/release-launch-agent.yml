@@ -76,5 +76,5 @@ jobs:
             SDK_OR_PREVIEW_TAG=sdk
           fi
 
-          echo "Applying agent version to image $RELEASE_TAG and pushing"
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg RELEASE_TAG=$TAG --build-arg IMAGE=$IMAGE -f ./Dockerfile.release  -t $REPO:$TAG -t $REPO:latest -t $REPO:$SDK_OR_PREVIEW . --push
+          echo "Applying agent version to image $TAG and pushing"
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg RELEASE_TAG=$TAG --build-arg IMAGE=$IMAGE -f ./Dockerfile.release  -t $REPO:$TAG -t $REPO:latest -t $REPO:$SDK_OR_PREVIEW_TAG . --push
