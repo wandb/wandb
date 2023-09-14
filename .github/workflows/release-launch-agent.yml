@@ -38,6 +38,9 @@ jobs:
 
       - name: Push to official repo
         run: |
+          docker context create builder
+          docker buildx create --use
+
           # TODO: CHANGE BACK TO wandb/launch-agent
           REPO=wandb/launch-agent-dev
           IMAGE=wandb/launch-agent-dev:72dcb521 #${{ github.event.inputs.candidateTag }}
