@@ -2,5 +2,5 @@ ARG release_tag=test-release-tag
 
 ARG image=wandb/launch-agent-dev:latest
 
-FROM $(image)
-ENV WANDB_AGENT_VERSION=$(release_tag)
+FROM ${image}
+ENV WANDB_AGENT_VERSION=${release_tag}
