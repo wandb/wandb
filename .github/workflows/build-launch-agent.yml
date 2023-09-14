@@ -19,13 +19,18 @@ on:
 
 defaults:
   run:
-    working-directory: ../tools/launch
+    working-directory: ./tools/launch
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
+      # TODO: REMOVE WHEN DONE TESTING
+      - uses: actions/checkout@v3
+        with:
+          ref: launch/agent-release-process
+
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
