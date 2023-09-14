@@ -8,9 +8,8 @@ from wandb.sdk.lib.paths import StrPath
 
 try:
     from keras_core.callbacks import ModelCheckpoint
-except:
-    error_message = "KerasCore must be installed for this integration"
-    wandb.Error(error_message)
+except Exception as e:
+    wandb.Error(e)
 
 if sys.version_info >= (3, 8):
     from typing import Literal

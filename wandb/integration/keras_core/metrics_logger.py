@@ -7,9 +7,8 @@ from wandb.sdk.lib import telemetry
 try:
     import keras_core as keras
     from keras_core.callbacks import Callback
-except:
-    error_message = "KerasCore must be installed for this integration"
-    wandb.Error(error_message)
+except Exception as e:
+    wandb.Error(e)
 
 tf_backend_available = False
 torch_backend_available = False
