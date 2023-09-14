@@ -22,7 +22,8 @@ jobs:
           platforms: all
 
       - name: Remove specific Go version
-        run: rmdir /s /q "C:\hostedtoolcache\windows\go"
+        if: runner.os == 'Windows'
+        run: Remove-Item -Path "C:\hostedtoolcache\windows\go" -Recurse -Force
 
       - name: Install Go 1.21 on Windows
         if: runner.os == 'Windows'
