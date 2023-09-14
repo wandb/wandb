@@ -38,7 +38,8 @@ def install_nexus(session):
     """Installs the nexus wheel into the current environment."""
     # get the wheel file in ./nexus/dist/:
     wheel_file = [
-        f for f in os.listdir("./nexus/dist/")
+        f
+        for f in os.listdir("./nexus/dist/")
         if f.startswith(f"wandb_core-{NEXUS_VERSION}") and f.endswith(".whl")
     ][0]
     session.run(
