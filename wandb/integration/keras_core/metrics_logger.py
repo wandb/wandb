@@ -1,8 +1,13 @@
 import sys
 from typing import Any, Dict, Optional, Union
 
-import keras_core as keras
-from keras_core.callbacks import Callback
+try:
+    import keras_core as keras
+    from keras_core.callbacks import Callback
+except:
+    error_message = "KerasCore must be installed for this integration"
+    wandb.termerror(error_message)
+    raise ImportError(error_message)
 
 import wandb
 from wandb.sdk.lib import telemetry
