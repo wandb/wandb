@@ -15,6 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
         with:
@@ -25,10 +31,11 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: python nexus/scripts/build/install_go.py
           CIBW_BEFORE_ALL_MACOS: brew update && rm -f /usr/local/bin/go* && brew install go@1.21
           CIBW_BEFORE_ALL_WINDOWS: choco upgrade golang && refreshenv
-          CIBW_BEFORE_BUILD_WINDOWS: refreshenv && GOROOT=C:\Program Files\Go && PATH=%GOROOT%\bin;%PATH%
+          CIBW_BEFORE_BUILD_WINDOWS: refreshenv && set "GOROOT=C:\Program Files\Go" && set "PATH=%GOROOT%\bin;%PATH%"
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
           CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
-          CIBW_ARCHS_LINUX: "x86_64"  # todo: add aarch64
+          CIBW_ARCHS_LINUX: "x86_64 aarch64"
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v3
