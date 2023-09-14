@@ -22,7 +22,7 @@ jobs:
            output-dir: "nexus/wheelhouse"
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
-          CIWN_ENVIRONMENT_WINDOWS: GOROOT=C:\Program Files\Go
+          CIWN_ENVIRONMENT_WINDOWS: GOROOT=C:\Program Files\Go && PATH=%GOROOT%\bin;%PATH%
           CIBW_BEFORE_ALL_LINUX: python nexus/scripts/build/install_go.py
           CIBW_BEFORE_ALL_MACOS: brew update && rm -f /usr/local/bin/go* && brew install go@1.21
           CIBW_BEFORE_ALL_WINDOWS: choco upgrade golang && refreshenv
