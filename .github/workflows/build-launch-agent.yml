@@ -43,7 +43,10 @@ jobs:
           docker context create builder
           docker buildx create --use
 
-          REF={{ github.event.inputs.ref }}
+          #REF={{ github.event.inputs.ref }}
+          REF=launch/agent-release-process
 
-          echo Building launch agent image for version $NEW_TAG
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg REF=$REF . -t wandb/launch-agent-dev:${{ github.event.inputs.tagName }} -t wandb/launch-agent-dev:latest
+          TAG=test#${{ github.event.inputs.tagName }}
+
+          echo Building launch agent image for version $TAG
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg REF=$REF . -t wandb/launch-agent-dev:$TAG -t wandb/launch-agent-dev:latest
