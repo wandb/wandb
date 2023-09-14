@@ -64,10 +64,10 @@ class WandbCallback(xgb.callback.TrainingCallback):
     Passing `WandbCallback` to XGBoost will:
 
     - log the booster model configuration to Weights & Biases
-    - log evaluation metrics collected by XGBoost, such as rmse, accuracy etc to Weights & Biases
+    - log evaluation metrics collected by XGBoost, such as rmse, accuracy etc. to Weights & Biases
     - log training metric collected by XGBoost (if you provide training data to eval_set)
     - log the best score and the best iteration
-    - save and upload your trained model to to Weights & Biases Artifacts (when `log_model = True`)
+    - save and upload your trained model to Weights & Biases Artifacts (when `log_model = True`)
     - log feature importance plot when `log_feature_importance=True` (default).
     - Capture the best eval metric in `wandb.summary` when `define_metric=True` (default).
 
@@ -81,6 +81,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
             alpha=10,
             n_estimators=10,
             tree_method="hist",
+            callbacks=[WandbCallback()],
         )
 
         xg_reg = xgb.XGBRegressor(**bst_params)
@@ -88,7 +89,6 @@ class WandbCallback(xgb.callback.TrainingCallback):
             X_train,
             y_train,
             eval_set=[(X_test, y_test)],
-            callbacks=[WandbCallback()],
         )
         ```
     """

@@ -103,6 +103,7 @@ launch = [
 models = ["cloudpickle"]
 async = ["httpx>=0.22.0"] # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 perf = ["orjson"]
+nexus = ["wandb-core"]  # todo: sync versions
 
 [tool.setuptools]
 zip-safe = false
