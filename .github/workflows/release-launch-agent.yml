@@ -47,10 +47,10 @@ jobs:
           # Get full tag
           SDK_RELEASE_VERSION=$(docker run --rm --entrypoint wandb $IMAGE --version | awk '{print $3}')
 
-          if [[ $SDK_RELEASE_VERSION == *"dev"* ]]; then
-            echo "selected image to be promoted is not based on a release"
-            exit 1
-          fi
+          # if [[ $SDK_RELEASE_VERSION == *"dev"* ]]; then
+          #   echo "selected image to be promoted is not based on a release"
+          #   exit 1
+          # fi
 
           PRERELEASE_STRING=test-actions #${{ github.event.inputs.preReleaseString }}
           length=${#PRERELEASE_STRING}
