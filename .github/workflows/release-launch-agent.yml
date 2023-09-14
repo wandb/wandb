@@ -61,20 +61,16 @@ jobs:
           if [ "$isPrerelease" -eq 1 ]
           then
             TAG="$SDK_RELEASE_VERSION-$PRERELEASE_STRING"
-          else
-            TAG=$SDK_RELEASE_VERSION
-          fi
-
-          echo "Tagging image $REPO:$TAG"
-
-          if [ "$isPrerelease" -eq 1 ]
-          then
             echo "Tagging image $REPO:sdk-preview"
             SDK_OR_PREVIEW_TAG=sdk-preview
           else
+            TAG=$SDK_RELEASE_VERSION
             echo "Tagging image $REPO:sdk"
             SDK_OR_PREVIEW_TAG=sdk
           fi
 
+          echo "Tagging image $REPO:$TAG"
+
           echo "Applying agent version to image $TAG and pushing"
+          echo "TAG $TAG"
           docker buildx build --platform linux/amd64,linux/arm64 --build-arg RELEASE_TAG=$TAG --build-arg IMAGE=$IMAGE -f ./Dockerfile.release  -t $REPO:$TAG -t $REPO:latest -t $REPO:$SDK_OR_PREVIEW_TAG . --push
