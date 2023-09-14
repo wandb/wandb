@@ -23,10 +23,10 @@ jobs:
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
 #          CIBW_ENVIRONMENT_MACOS: GOROOT=/tmp/go
-          CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py
+          CIBW_BEFORE_ALL_LINUX: python nexus/scripts/build/install_go.py
 #          CIBW_BEFORE_ALL_MACOS: python3 nexus/scripts/build/install_go.py
           CIBW_BEFORE_ALL_MACOS: brew update && rm -f /usr/local/bin/go* && brew install go@1.21
-          CIBW_BEFORE_ALL_WINDOWS: python nexus/scripts/build/install_go.py
+          CIBW_BEFORE_ALL_WINDOWS: choco upgrade golang
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
           CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
           CIBW_ARCHS_LINUX: "x86_64"  # todo: add aarch64
