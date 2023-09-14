@@ -1,3 +1,5 @@
+import os
+
 import nox
 
 NEXUS_VERSION = "0.16.0b1"
@@ -34,11 +36,16 @@ def build_nexus(session):
 @nox.session(python=False, name="install-nexus")
 def install_nexus(session):
     """Installs the nexus wheel into the current environment."""
+    # get the wheel file in ./nexus/dist/:
+    wheel_file = [
+        f for f in os.listdir("./nexus/dist/")
+        if f.startswith(f"wandb_core-{NEXUS_VERSION}") and f.endswith(".whl")
+    ][0]
     session.run(
         "pip",
         "install",
         "--force-reinstall",
-        f"./nexus/dist/wandb_core-{NEXUS_VERSION}-py3-none-macosx_12_0_arm64.whl",
+        f"./nexus/dist/{wheel_file}",
         external=True,
     )
 
