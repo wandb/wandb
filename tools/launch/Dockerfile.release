@@ -1,0 +1,4 @@
+ARG IMAGE="wandb/launch-agent-dev:latest"
+ARG RELEASE_TAG=""
+FROM $IMAGE
+ENV WANDB_AGENT_VERSION=$RELEASE_TAG
