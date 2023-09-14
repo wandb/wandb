@@ -29,7 +29,6 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           choco upgrade golang
-          go version
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
