@@ -18,7 +18,8 @@ def go_get_go():
         [
             "curl",
             f"https://golang.org/dl/{file_name}",
-            "-o", file_name,
+            "-o",
+            file_name,
         ]
     )
 
