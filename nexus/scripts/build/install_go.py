@@ -13,13 +13,16 @@ def go_get_go():
 
     file_name = f"go{VERSION}.{system}-{machine}.{extension}"
 
+    print(f"Downloading {file_name}")
     subprocess.check_call(["wget", f"https://golang.org/dl/{file_name}"])
 
     if system != "windows":
         if not os.path.exists(out_path):
             os.makedirs(out_path)
+        print(f"Extracting {file_name}")
         subprocess.check_call(["tar", "-C", out_path, "-xzf", file_name])
     else:
+        print(f"Installing {file_name}")
         subprocess.check_call(["msiexec", "/i", file_name, "/quiet"])
 
 
