@@ -21,11 +21,13 @@ jobs:
         with:
           platforms: all
 
+      - name: Remove specific Go version
+        run: rmdir /s /q "C:\hostedtoolcache\windows\go"
+
       - name: Install Go 1.21 on Windows
         if: runner.os == 'Windows'
         run: |
           choco upgrade golang
-          refreshenv
           go version
 
       - name: Build wheels

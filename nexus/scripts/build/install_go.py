@@ -7,7 +7,13 @@ VERSION = "1.21.1"
 
 def go_get_go():
     system = platform.system().lower()
-    machine = platform.machine().lower().replace("x86_64", "amd64")
+    machine = platform.machine().lower()
+    if machine == "x86_64":
+        machine = "amd64"
+    elif machine == "aarch64":
+        machine = "arm64"
+    elif machine == "armv7l":
+        machine = "armv6l"
     extension = "tar.gz" if system != "windows" else "msi"
     out_path = "/usr/local" if system != "windows" else "C:\\Go"
 
