@@ -23,7 +23,7 @@ jobs:
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
           CIBW_BEFORE_ALL_LINUX: yum install -y wget && python nexus/scripts/build/install_go.py
-          CIBW_BEFORE_ALL_MACOS: python nexus/scripts/build/install_go.py
+          CIBW_BEFORE_ALL_MACOS: python3 nexus/scripts/build/install_go.py
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
           CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
           CIBW_ARCHS_LINUX: "x86_64"  # todo: add aarch64
