@@ -9,7 +9,7 @@ def go_get_go():
     system = platform.system().lower()
     machine = platform.machine().lower().replace("x86_64", "amd64")
     extension = "tar.gz" if system != "windows" else "msi"
-    out_path = "/usr/local" if system == "linux" else "/tmp/go"
+    out_path = "/usr/local" if system != "windows" else "C:\\Go"
 
     file_name = f"go{VERSION}.{system}-{machine}.{extension}"
 
@@ -24,9 +24,10 @@ def go_get_go():
         ]
     )
 
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
     if system != "windows":
-        if not os.path.exists(out_path):
-            os.makedirs(out_path)
         print(f"Extracting {file_name}")
         subprocess.check_call(["tar", "-C", out_path, "-xzf", file_name])
     else:
