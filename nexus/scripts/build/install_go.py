@@ -11,18 +11,12 @@ def go_get_go():
 
     file_name = f"go{VERSION}.{system}-{machine}.{extension}"
 
-    subprocess.check_call(
-        ["wget", f"https://golang.org/dl/{file_name}"]
-    )
+    subprocess.check_call(["wget", f"https://golang.org/dl/{file_name}"])
 
     if system != "windows":
-        subprocess.check_call(
-            ["tar", "-C", "/usr/local", "-xzf", file_name]
-        )
+        subprocess.check_call(["tar", "-C", "/usr/local", "-xzf", file_name])
     else:
-        subprocess.check_call(
-            ["unzip", file_name, "-d", "/usr/local"]
-        )
+        subprocess.check_call(["unzip", file_name, "-d", "/usr/local"])
 
 
 if __name__ == "__main__":
