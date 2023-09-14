@@ -1,4 +1,4 @@
-ARG IMAGE="wandb/launch-agent-dev:latest"
-ARG RELEASE_TAG="test-release-tag"
-FROM "$IMAGE"
-ENV WANDB_AGENT_VERSION="$RELEASE_TAG"
+ARG image="wandb/launch-agent-dev:latest"
+ARG release_tag="test-release-tag"
+FROM $image
+ENV WANDB_AGENT_VERSION=$release_tag

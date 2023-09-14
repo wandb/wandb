@@ -17,6 +17,6 @@ USER launch_agent
 WORKDIR /home/launch_agent
 RUN chown -R launch_agent /home/launch_agent
 
-ENV WANDB_AGENT_VERSION=$REF
+ENV WANDB_AGENT_VERSION="$REF"
 
 ENTRYPOINT ["wandb", "launch-agent"]
