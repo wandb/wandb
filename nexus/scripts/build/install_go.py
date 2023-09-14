@@ -17,6 +17,7 @@ def go_get_go():
     subprocess.check_call(
         [
             "curl",
+            "-L",
             f"https://golang.org/dl/{file_name}",
             "-o",
             file_name,
