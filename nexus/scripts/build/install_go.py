@@ -14,7 +14,7 @@ def go_get_go():
     file_name = f"go{VERSION}.{system}-{machine}.{extension}"
 
     print(f"Downloading {file_name}")
-    subprocess.check_call(["curl", "-L", f"https://golang.org/dl/{file_name}"])
+    subprocess.check_call(["curl", f"https://golang.org/dl/{file_name}"])
 
     if system != "windows":
         if not os.path.exists(out_path):
