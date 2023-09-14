@@ -19,7 +19,7 @@ on:
 
 defaults:
   run:
-    working-directory: ./tools/launch
+    working-directory: ../tools/launch
 
 jobs:
   build:
