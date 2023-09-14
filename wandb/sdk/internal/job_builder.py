@@ -217,7 +217,7 @@ class JobBuilder:
         return source, name
 
     def _build_artifact_job_source(
-        self, program_relpath: str
+        self, program_relpath: str, runtime: Optional[str] = None
     ) -> Tuple[Optional[ArtifactSourceDict], Optional[str]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
@@ -234,7 +234,9 @@ class JobBuilder:
         else:
             full_program_relpath = program_relpath
         entrypoint = [
-            os.path.basename(sys.executable),
+            f"python{runtime.split('.')[0]}"
+            if runtime
+            else os.path.basename(sys.executable),
             full_program_relpath,
         ]
         # TODO: update executable to a method that supports pex
@@ -334,7 +336,7 @@ class JobBuilder:
                 )
             elif source_type == "artifact":
                 assert program_relpath
-                source, name = self._build_artifact_job_source(program_relpath)
+                source, name = self._build_artifact_job_source(program_relpath, runtime)
             elif source_type == "image" and self._has_image_job_ingredients(metadata):
                 source, name = self._build_image_job_source(metadata)
             else:
