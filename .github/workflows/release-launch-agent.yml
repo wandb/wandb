@@ -1,6 +1,10 @@
 name: Release Launch Agent
 
 on:
+  #TODO: REMOVE ONCE TESTING COMPLETE
+  push:
+    branches:
+      - launch/agent-release-process
   workflow_dispatch:
     inputs:
       preReleaseString:
@@ -25,8 +29,9 @@ jobs:
 
       - name: Push to official repo
         run: |
-          REPO=wandb/launch-agent
-          IMAGE=wandb/launch-agent-dev:${{ github.event.inputs.candidateTag }}
+          # TODO: CHANGE BACK TO wandb/launch-agent
+          REPO=wandb/launch-agent-dev
+          IMAGE=wandb/launch-agent-dev:72dcb521 #${{ github.event.inputs.candidateTag }}
           echo "Pulling image $IMAGE"
           docker pull $IMAGE
 
@@ -38,7 +43,7 @@ jobs:
             exit 1
           fi
 
-          PRERELEASE_STRING=${{ github.event.inputs.preReleaseString }}
+          PRERELEASE_STRING=test-actions #${{ github.event.inputs.preReleaseString }}
           length=${#PRERELEASE_STRING}
           isPrerelease=$((length > 0))
           if [ "$isPrerelease" -eq 1 ]
@@ -49,24 +54,15 @@ jobs:
           fi
 
           echo "Tagging image $REPO:$FULL_TAG"
-          docker tag $IMAGE $REPO:$FULL_TAG
-          echo "Pushing image $REPO:$FULL_TAG"
-          docker push $REPO:$FULL_TAG
 
           if [ "$isPrerelease" -eq 1 ]
           then
             echo "Tagging image $REPO:sdk-preview"
-            docker tag $IMAGE $REPO:sdk-preview
-            echo "Pushing image $REPO:sdk-preview"
-            docker push $REPO:sdk-preview
+            SDK_OR_PREVIEW_TAG=sdk-preview
           else
             echo "Tagging image $REPO:sdk"
-            docker tag $IMAGE $REPO:sdk
-            echo "Pushing image $REPO:sdk"
-            docker push $REPO:sdk
+            SDK_OR_PREVIEW_TAG=sdk
           fi
 
-          echo "Tagging image $REPO:latest"
-          docker tag $IMAGE $REPO:latest
-          echo "Pushing image $REPO:latest"
-          docker push $REPO:latest
+          echo "Applying agent version to image $RELEASE_TAG and pushing"
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg RELEASE_TAG=$FULL_TAG --build-arg IMAGE=$IMAGE -f ./Dockerfile.release  -t $REPO:$TAG -t $REPO:latest -t $REPO:$SDK_OR_PREVIEW --push

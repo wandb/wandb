@@ -1,6 +1,7 @@
 name: Build Launch Agent
 
 on:
+  #TODO: REMOVE ONCE TESTING COMPLETE
   push:
     branches:
       - launch/agent-release-process
@@ -46,7 +47,8 @@ jobs:
           #REF={{ github.event.inputs.ref }}
           REF=launch/agent-release-process
 
-          TAG=test #${{ github.event.inputs.tagName }}
+          TAG=test-build #${{ github.event.inputs.tagName }}
 
           echo Building launch agent image for version $TAG
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg REF=$REF . -t wandb/launch-agent-dev:$TAG -t wandb/launch-agent-dev:latest
+          # TODO: PUT PUSH BACK
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg REF=$REF . -t wandb/launch-agent-dev:$TAG -t wandb/launch-agent-dev:latest --push
