@@ -1,4 +1,6 @@
-ARG image=wandb/launch-agent-dev:latest
 ARG release_tag=test-release-tag
+
+ARG image=wandb/launch-agent-dev:latest
+
 FROM $image
-ENV WANDB_AGENT_VERSION="hard-coded-string"
+ENV WANDB_AGENT_VERSION=$release_tag
