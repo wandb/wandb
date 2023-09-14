@@ -7,12 +7,13 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.sdk.launch.runner.kubernetes_runner import (
+from wandb.sdk.launch.runner.kubernetes_monitor import (
     CRD_STATE_DICT,
+    _state_from_conditions,
+)
+from wandb.sdk.launch.runner.kubernetes_runner import (
     KubernetesRunMonitor,
     KubernetesRunner,
-    _parse_transition_time,
-    _state_from_conditions,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -267,7 +268,7 @@ def mock_event_streams(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.kubernetes_runner.watch.Watch.stream",
+        "wandb.sdk.launch.runner.kubernetes_monitor.SafeWatch.stream",
         _select_stream,
     )
     return job_stream, pod_stream
@@ -377,6 +378,14 @@ def test_launch_kube_works(
     blink()
     assert str(submitted_run.get_status()) == "starting"
     job_stream, pod_stream = mock_event_streams
+    pod_stream.add(  # This event does nothing. Added for code coverage of the path where there is no status.
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": None,
+            }
+        )
+    )
     pod_stream.add(
         MockDict(
             {
@@ -392,6 +401,39 @@ def test_launch_kube_works(
     )
     blink()
     assert str(submitted_run.get_status()) == "starting"
+    pod_stream.add(
+        MockDict(
+            {
+                "type": "MODIFIED",
+                "object": MockDict(
+                    {
+                        "metadata": MockDict({"name": "test-pod"}),
+                        "status": MockDict(
+                            {
+                                "phase": "Pending",
+                                "container_statuses": [
+                                    MockDict(
+                                        {
+                                            "name": "master",
+                                            "state": MockDict(
+                                                {
+                                                    "waiting": MockDict(
+                                                        {"reason": "ContainerCreating"}
+                                                    )
+                                                }
+                                            ),
+                                        }
+                                    )
+                                ],
+                            }
+                        ),
+                    }
+                ),
+            }
+        )
+    )
+    blink()
+    assert str(submitted_run.get_status()) == "running"
     job_stream.add(
         MockDict(
             {
@@ -741,21 +783,23 @@ def test_monitor_running(mock_event_streams, mock_batch_api, mock_core_api):
     assert monitor.get_status().state == "running"
 
 
+def test_monitor_thread_restart(mock_event_streams, mock_batch_api, mock_core_api):
+    """Test that getting the status triggers the watch threads to be started."""
+    monitor = KubernetesRunMonitor(
+        job_field_selector="foo=bar",
+        pod_label_selector="foo=bar",
+        batch_api=mock_batch_api,
+        core_api=mock_core_api,
+        namespace="wandb",
+    )
+    assert not monitor._watch_job_thread.is_alive()
+    assert not monitor._watch_pods_thread.is_alive()
+    assert monitor.get_status().state == "starting"
+    assert monitor._watch_job_thread.is_alive()
+    assert monitor._watch_pods_thread.is_alive()
+
+
 # Test util functions
-
-
-@pytest.mark.parametrize(
-    "transition_time, expected",
-    [
-        ("2023-09-06T20:04:12Z", 1694030652),
-        ("2023-09-06T20:04:12.123Z", 1694030652.123),
-        ("2023-09-06T20:04:12+00:00", 1694030652),
-        ("2023-09-06T20:04:12.123+02:00", 1694030652.123 - 2 * 3600),
-    ],
-)
-def test_parse_transition_time(transition_time, expected):
-    """Test that we parse transition time correctly."""
-    assert _parse_transition_time(transition_time) == expected
 
 
 def condition_factory(
