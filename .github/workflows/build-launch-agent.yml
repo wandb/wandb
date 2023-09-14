@@ -1,10 +1,6 @@
 name: Build Launch Agent
 
 on:
-  #TODO: REMOVE ONCE TESTING COMPLETE
-  push:
-    branches:
-      - launch/agent-release-process
   workflow_dispatch:
     inputs:
       ref:
@@ -16,22 +12,16 @@ on:
         type: string
         required: true
         description: Tag Name for the launch agent
-        default: "test"
 
 defaults:
   run:
-    working-directory: ./tools/launch
+    working-directory: ./tools/launch/build
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      # TODO: REMOVE WHEN DONE TESTING
-      - uses: actions/checkout@v3
-        with:
-          ref: launch/agent-release-process
-
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -44,11 +34,9 @@ jobs:
           docker context create builder
           docker buildx create --use
 
-          #REF={{ github.event.inputs.ref }}
-          REF=launch/agent-release-process
+          REF={{ github.event.inputs.ref }}
 
-          TAG=test-build #${{ github.event.inputs.tagName }}
+          TAG=${{ github.event.inputs.tagName }}
 
           echo Building launch agent image for version $TAG
-          # TODO: PUT PUSH BACK
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg REF=$REF . -t wandb/launch-agent-dev:$TAG -t wandb/launch-agent-dev:latest --push
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg REF=$REF -t wandb/launch-agent-dev:$TAG -t wandb/launch-agent-dev:latest . --push
