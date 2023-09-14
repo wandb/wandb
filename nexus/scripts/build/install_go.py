@@ -1,3 +1,4 @@
+import os
 import platform
 import subprocess
 
@@ -15,6 +16,8 @@ def go_get_go():
     subprocess.check_call(["wget", f"https://golang.org/dl/{file_name}"])
 
     if system != "windows":
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
         subprocess.check_call(["tar", "-C", out_path, "-xzf", file_name])
     else:
         subprocess.check_call(["msiexec", "/i", file_name, "/quiet"])
