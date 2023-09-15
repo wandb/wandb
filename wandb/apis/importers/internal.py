@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 from google.protobuf.json_format import ParseDict
+from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from wandb import Artifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_settings_pb2
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
+from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context, sender, settings_static
@@ -19,6 +21,16 @@ from wandb.util import cast_dictlike_to_dict, coalesce
 
 from . import progress
 from .protocols import ImporterRun
+
+exp_retry = retry(
+    wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
+)
+
+
+class AlternateSendManager(sender.SendManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._send_artifact = exp_retry(self._send_artifact)
 
 
 @dataclass
@@ -166,8 +178,16 @@ class RecordMaker:
         proto.use_after_commit = use_artifact
         proto.finalize = True
 
-        for tag in ["latest", "imported"]:
-            proto.aliases.append(tag)
+        aliases = []
+        try:
+            aliases = artifact.aliases
+        except ArtifactNotLoggedError:
+            aliases = []
+        finally:
+            aliases += ["latest", "importer"]
+
+        for alias in aliases:
+            proto.aliases.append(alias)
         return self.interface._make_record(artifact=proto)
 
     def _make_telem_record(self) -> pb.Record:
@@ -428,7 +448,7 @@ def send_artifacts_with_send_manager(
     interface = InterfaceQueue(record_q=record_q)
     context_keeper = context.ContextKeeper()
 
-    with sender.SendManager(
+    with AlternateSendManager(
         settings, record_q, result_q, interface, context_keeper
     ) as sm:
         _handle_run_record(sm, rm)

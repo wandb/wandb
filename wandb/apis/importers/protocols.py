@@ -1,6 +1,7 @@
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import wandb
 
@@ -9,10 +10,23 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Protocol, runtime_checkable
 
-from . import progress
-from .config import ImportConfig
+import traceback
 
-ArtifactSequence = Iterable[wandb.Artifact]
+from . import progress
+from .config import Namespace
+
+
+@dataclass
+class ArtifactSequence:
+    artifacts: Iterable[wandb.Artifact]
+    entity: str
+    project: str
+
+    def __post_init__(self):
+        self.artifacts = list(self.artifacts)
+
+    def __iter__(self) -> Iterator:
+        return iter(self.artifacts)
 
 
 @runtime_checkable
@@ -130,14 +144,14 @@ class Importer(Protocol):
     def collect_runs(self, *args: Any, **kwargs: Any) -> Iterable[ImporterRun]:
         ...
 
-    def import_run(self, run: ImporterRun, config: Optional[ImportConfig]) -> None:
+    def import_run(self, run: ImporterRun, config: Optional[Namespace]) -> None:
         ...
 
 
 def import_runs(
     importer,
     runs: Iterable[ImporterRun],
-    config: Optional[ImportConfig] = None,
+    namespace: Optional[Namespace] = None,
     max_workers: Optional[int] = None,
 ) -> None:
     """Import a collection of runs.
@@ -147,15 +161,46 @@ def import_runs(
     Optional:
     - `max_workers` -- set number of worker threads
     """
-    with progress.live:
-        with ThreadPoolExecutor(max_workers) as exc:
-            futures = {
-                exc.submit(importer.import_run, run, config): run for run in runs
-            }
-            for future in progress.task_pbar.track(
-                as_completed(futures), description="Runs", total=len(futures)
-            ):
-                try:
-                    future.result()
-                except Exception:
-                    continue
+    parallelize(
+        importer._import_run,
+        runs,
+        namespace=namespace,
+        max_workers=max_workers,
+        description="Runs",
+    )
+
+
+def parallelize(
+    func,
+    iterable: Iterable,
+    *args,
+    description: str,
+    max_workers: Optional[int] = 64,
+    **kwargs,
+):
+    results = []
+    progress.live.start()
+    with ThreadPoolExecutor(max_workers) as exc:
+        futures = {exc.submit(func, x, *args, **kwargs): x for x in iterable}
+        task = progress.task_pbar.add_task(description, total=len(futures))
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+            except Exception as e:
+                run = futures[future]
+                _, _, exc_traceback = sys.exc_info()
+                traceback_details = traceback.extract_tb(exc_traceback)
+                filename = traceback_details[-1].filename
+                lineno = traceback_details[-1].lineno
+
+                print(
+                    f"Exception: {run.entity()=}, {run.project()=}, {run.run_id()=}, {e=} {filename=} {lineno=}. "
+                )
+                continue
+            else:
+                results.append(result)
+            finally:
+                progress.task_pbar.update(task, advance=1, refresh=True)
+        progress.task_pbar.update(task, completed=len(futures), refresh=True)
+
+    return results

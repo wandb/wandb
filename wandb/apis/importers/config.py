@@ -3,12 +3,11 @@ from typing import Optional
 
 
 @dataclass(frozen=True)
-class ImportConfig:
+class Namespace:
     """Configure an alternate entity/project at the dst server your data will end up in."""
 
-    entity: Optional[str] = None
-    project: Optional[str] = None
-    debug_mode: bool = False
+    entity: str
+    project: str
 
     @property
     def send_manager_overrides(self):
