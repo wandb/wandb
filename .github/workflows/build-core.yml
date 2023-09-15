@@ -67,3 +67,28 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           path: ./nexus/wheelhouse/*.whl
+
+  publish:
+    name: Publish to PyPI
+    needs: build_wheels
+    runs-on: ubuntu-latest
+
+#    environment:
+#      name: testpypi
+#      url: https://test.pypi.org/p/wandb-core
+#
+#    permissions:
+#      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+      - name: Download all the wheels
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package-distributions
+          path: nexus/wheelhouse/
+      - name: Publish distribution to TestPyPI
+        run: ls -l nexus/wheelhouse
+
+#        uses: pypa/gh-action-pypi-publish@release/v1
+#        with:
+#          repository-url: https://test.pypi.org/legacy/
