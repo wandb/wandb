@@ -633,6 +633,8 @@ def request_with_retry(
                 span.set_tag("traceback", "".join(traceback.format_stack()))
                 span.set_tag("args", args)
                 span.set_tag("kwargs", kwargs)
+                span.set_tag("parent_pid", os.getppid())
+                span.set_tag("is_orphaned", os.getppid() == 1)
                 response: requests.Response = func(*args, **kwargs)
             response.raise_for_status()
             return response
