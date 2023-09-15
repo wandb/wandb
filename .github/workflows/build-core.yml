@@ -84,8 +84,9 @@ jobs:
         with:
           name: wandb-core-distributions
           path: dist/
+      - name: List wheels
+        run: ls dist/
       - name: Publish distribution to TestPyPI
-        run: ls -l dist/
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
