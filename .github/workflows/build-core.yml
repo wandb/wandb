@@ -66,10 +66,12 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
+          name: wandb-core-distributions
           path: ./nexus/wheelhouse/*.whl
 
   publish:
     name: Publish to PyPI
+    environment: release
     needs: build_wheels
     runs-on: ubuntu-latest
 
@@ -84,10 +86,10 @@ jobs:
       - name: Download all the wheels
         uses: actions/download-artifact@v3
         with:
-          name: python-package-distributions
-          path: nexus/wheelhouse/
+          name: wandb-core-distributions
+          path: dist/
       - name: Publish distribution to TestPyPI
-        run: ls -l nexus/wheelhouse
+        run: ls -l dist/
 
 #        uses: pypa/gh-action-pypi-publish@release/v1
 #        with:
