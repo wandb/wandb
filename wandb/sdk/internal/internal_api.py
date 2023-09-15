@@ -294,6 +294,7 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
+        print(self.default_settings)
         self._upload_file_session = requests.Session()
         if self.FILE_PUSHER_TIMEOUT:
             self._upload_file_session.put = functools.partial(  # type: ignore

@@ -313,6 +313,7 @@ class SettingsData:
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
+    _proxies: Mapping[str, str]
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
     _file_stream_retry_wait_min_seconds: int  # min wait time between retries
