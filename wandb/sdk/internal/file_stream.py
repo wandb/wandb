@@ -8,6 +8,7 @@ import random
 import sys
 import threading
 import time
+import traceback
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
@@ -46,6 +47,8 @@ from wandb import util
 from wandb.sdk.internal import internal_api
 
 from ..lib import file_stream_utils
+
+import ddtrace
 
 logger = logging.getLogger(__name__)
 
@@ -625,7 +628,12 @@ def request_with_retry(
     retry_count = 0
     while True:
         try:
-            response: requests.Response = func(*args, **kwargs)
+            with ddtrace.tracer.trace("file_stream.request", service="api") as span:
+                span.set_tag("retry_count", retry_count)
+                span.set_tag("traceback", "".join(traceback.format_stack()))
+                span.set_tag("args", args)
+                span.set_tag("kwargs", kwargs)
+                response: requests.Response = func(*args, **kwargs)
             response.raise_for_status()
             return response
         except (
