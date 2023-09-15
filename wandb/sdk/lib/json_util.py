@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import re
 from typing import Any, Union
 
 logger = logging.getLogger(__name__)
@@ -79,10 +78,3 @@ try:
 
 except ImportError:
     from json import dump, dumps, load, loads  # type: ignore[assignment] # noqa: F401
-
-
-def clean_invalid_utf8_and_control_chars(data: str) -> str:
-    # Replace invalid UTF-8 characters
-    cleaned_data = data.encode('utf-8', 'replace').decode('utf-8')
-    # Remove control characters
-    return re.sub(r'[\x00-\x1F]+', '<WANDB:REPLACED_CONTROL_CHARS>', cleaned_data)
