@@ -13,7 +13,7 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from wandb import _sentry, _minimum_nexus_version
+from wandb import _minimum_nexus_version, _sentry
 from wandb.env import error_reporting_enabled
 from wandb.errors import Error
 from wandb.util import get_module
@@ -53,7 +53,6 @@ def _check_nexus_version_compatibility(nexus_version: str) -> None:
             f"Requires wandb-core version {_minimum_nexus_version} or later, "
             f"but you have {nexus_version}. Run `pip install --upgrade wandb[nexus]` to upgrade."
         )
-
 
 
 class _Service:
