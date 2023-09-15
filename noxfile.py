@@ -7,19 +7,7 @@ NEXUS_VERSION = "0.16.0b1"
 
 @nox.session(python=False, name="build-nexus")
 def build_nexus(session):
-    """Builds the nexus binary for the current platform.
-
-    Usage: nox -s build-nexus [target_system]
-
-    target_system: The target system to build for. Defaults to the current system.
-                   Use format: <system>-<arch> (e.g. linux-amd64, darwin-arm64)
-                   Use "all" to build for all known platforms.
-    """
-    # if session.posargs:
-    #     session.posargs[0]
-    # else:
-    #     platform.system().lower()
-    #     "amd64" if platform.machine() == "x86_64" else platform.machine()
+    """Builds the nexus binary for the current platform."""
     session.run(
         "python",
         "-m",
@@ -28,7 +16,6 @@ def build_nexus(session):
         "-n",  # disable building the project in an isolated virtual environment
         "-x",  # do not check that build dependencies are installed
         "./nexus",
-        # f"-C--build-option=bdist_wheel --nexus-build={target_system}",
         external=True,
     )
 
