@@ -13,7 +13,7 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from wandb import _sentry
+from wandb import _sentry, _minimum_nexus_version
 from wandb.env import error_reporting_enabled
 from wandb.errors import Error
 from wandb.util import get_module
@@ -42,6 +42,18 @@ class ServiceStartPortError(Error):
     """Raised when service start fails to find a port."""
 
     pass
+
+
+def _check_nexus_version_compatibility(nexus_version: str) -> None:
+    """Checks if the installed nexus version is compatible with the wandb version."""
+    from pkg_resources import parse_version
+
+    if parse_version(nexus_version) < parse_version(_minimum_nexus_version):
+        raise ImportError(
+            f"Requires wandb-core version {_minimum_nexus_version} or later, "
+            f"but you have {nexus_version}. Run `pip install --upgrade wandb[nexus]` to upgrade."
+        )
+
 
 
 class _Service:
@@ -175,6 +187,7 @@ class _Service:
                         "wandb_core",
                         required="The nexus experiment requires the wandb_core module.",
                     )
+                    _check_nexus_version_compatibility(wandb_nexus.__version__)
                     nexus_path = wandb_nexus.get_nexus_path()
                 service_args.extend([nexus_path])
                 if not error_reporting_enabled():
