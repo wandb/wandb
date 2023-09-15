@@ -64,7 +64,9 @@ class NexusBase:
             .strip()
         )
 
-        ldflags = f"-s -w -X main.commit={commit}"
+        ldflags = f'-s -w -X main.commit={commit}'
+        if f"{goos}-{goarch}" in PLATFORMS_TO_BUILD_WITH_CGO and goos == "linux":
+            ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
         cmd = (
             "go",
             "build",

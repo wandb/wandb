@@ -32,7 +32,9 @@ jobs:
           echo "C:\Program Files\Go\bin" >> $env:GITHUB_PATH
 
       - name: Verify Go Version
-        run: go version
+        run: |
+          go version
+          gcc --version
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
