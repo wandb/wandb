@@ -69,19 +69,15 @@ jobs:
           name: wandb-core-distributions
           path: ./nexus/wheelhouse/*.whl
 
-  publish:
-    name: Publish to PyPI
-    environment: release
+  test-pypi-publish:
+    name: Publish to TestPyPI
     needs: build_wheels
     runs-on: ubuntu-latest
-
-#    environment:
-#      name: testpypi
-#      url: https://test.pypi.org/p/wandb-core
-#
-#    permissions:
-#      id-token: write  # IMPORTANT: mandatory for trusted publishing
-
+    environment:
+      name: release
+      url: https://test.pypi.org/p/wandb-core-alpha
+    permissions:
+      id-token: write  # trusted publishing
     steps:
       - name: Download all the wheels
         uses: actions/download-artifact@v3
@@ -90,7 +86,6 @@ jobs:
           path: dist/
       - name: Publish distribution to TestPyPI
         run: ls -l dist/
-
-#        uses: pypa/gh-action-pypi-publish@release/v1
-#        with:
-#          repository-url: https://test.pypi.org/legacy/
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
