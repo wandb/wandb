@@ -66,7 +66,8 @@ class NexusBase:
 
         ldflags = f"-s -w -X main.commit={commit}"
         if f"{goos}-{goarch}" == "linux-amd64":
-            ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
+            # ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
+            ldflags += ' -extldflags "-fuse-ld=lld"'
         cmd = (
             "go",
             "build",
