@@ -252,6 +252,11 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
+                  # install go
+                  wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+                  export PATH=$PATH:/usr/local/go/bin
+                  go version
             - run:
                 name: Setup environment
                 command: |
@@ -333,6 +338,11 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
+                  # install go
+                  wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+                  export PATH=$PATH:/usr/local/go/bin
+                  go version
             - run:
                 name: Install python dependencies
                 command: |
@@ -343,6 +353,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
+                  export PATH=$PATH:/usr/local/go/bin
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
@@ -409,6 +420,11 @@ jobs:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
+            # install go
+            wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
       - run:
           name: Install Python dependencies
           command: |
@@ -416,14 +432,6 @@ jobs:
             pip install -U pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
-      - run:
-          name: Install Go
-          command: |
-            wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-            tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
-            PATH=/usr/local/go/bin:$PATH
-            go version
-          no_output_timeout: 1m
       - run:
           name: Run tests
           no_output_timeout: 10m
@@ -475,6 +483,11 @@ jobs:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
+            # install go
+            wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
       - run:
           name: Check protobuf version compatibility
           command: |
@@ -665,7 +678,13 @@ jobs:
           steps:
             - run:
                 name: Install system deps
-                command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
+                command: |
+                  sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
+                  # install go
+                  wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+                  export PATH=$PATH:/usr/local/go/bin
+                  go version
             - run:
                 name: Use py37
                 command: |
