@@ -12,7 +12,7 @@ from utils import (
     wait_for_run_completion,
 )
 from wandb.apis.public import Api, Sweep
-from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch._launch_add import launch_add
 
 NAMESPACE = "wandb-release-testing"
 ENTITY = "launch-release-testing"

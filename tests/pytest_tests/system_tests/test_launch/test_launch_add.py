@@ -6,7 +6,7 @@ import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
@@ -514,7 +514,7 @@ def test_display_updated_runspec(
         return res
 
     monkeypatch.setattr(
-        wandb.sdk.launch.launch_add,
+        wandb.sdk.launch._launch_add,
         "push_to_queue",
         lambda *args, **kwargs: push_with_drc(*args, **kwargs),
     )

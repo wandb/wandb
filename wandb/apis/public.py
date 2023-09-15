@@ -4828,7 +4828,7 @@ class Job:
         resource_args=None,
         project_queue=None,
     ):
-        from wandb.sdk.launch import launch_add
+        from wandb.sdk.launch import _launch_add
 
         run_config = {}
         for key, item in config.items():
@@ -4848,7 +4848,7 @@ class Job:
             if isinstance(assigned_config_type, InvalidType):
                 raise TypeError(self._input_types.explain(run_config))
 
-        queued_run = launch_add.launch_add(
+        queued_run = _launch_add.launch_add(
             job=self._name,
             config={"overrides": {"run_config": run_config}},
             project=project or self._project,
