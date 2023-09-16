@@ -439,6 +439,32 @@ class Api:
             project, entity, title, description, width, blocks
         ).save()
 
+    def delete_run_queue(self, name: str, entity: Optional[str] = None) -> None:
+        """Delete a run queue (launch).
+
+        Arguments:
+            name: (str) Name of the queue to delete
+            entity: (str) Optional name of the entity to delete the queue. If None, will use the configured or default entity.
+
+        Raises:
+            ValueError if any of the parameters are invalid
+            wandb.Error on wandb API errors
+        """
+        # Get the id of the queue to delete
+        queue = self.run_queue(name, entity)
+        if queue is None:
+            raise wandb.Error("Queue does not exist")
+
+        # Delete the queue
+        api = InternalApi(
+            default_settings={
+                "entity": entity,
+                "project": self.project(LAUNCH_DEFAULT_PROJECT),
+            },
+            retry_timedelta=RETRY_TIMEDELTA,
+        )
+        api.delete_run_queues([queue.id])
+
     def create_run_queue(
         self,
         name: str,
@@ -2670,6 +2696,7 @@ class RunQueue:
         self._default_resource_config = _default_resource_config
         self._type = None
         self._items = None
+        self._id = None
 
     @property
     def name(self):
@@ -2702,12 +2729,23 @@ class RunQueue:
         return self._default_resource_config
 
     @property
+    def id(self):
+        if self._id is None:
+            self._get_metadata()
+        return self._id
+
+    @property
     def items(self) -> List[QueuedRun]:
         """Up to the first 100 queued runs. Modifying this list will not modify the queue or any enqueued items!"""
         # TODO(np): Add a paginated interface
         if self._items is None:
             self._get_items()
         return self._items
+
+    def delete(self):
+        """Delete the run queue from the wandb backend."""
+        public_api = Api()
+        public_api.delete_run_queue([self.id])
 
     def __repr__(self):
         return f"<RunQueue {self._entity}/{self._name}>"
@@ -2719,6 +2757,7 @@ class RunQueue:
             query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueue) {
+                        id
                         access
                         defaultResourceConfigID
                     }
@@ -2732,6 +2771,7 @@ class RunQueue:
             "runQueue": self._name,
         }
         res = self._client.execute(query, variable_values)
+        self._id = res["project"]["runQueue"]["id"]
         self._access = res["project"]["runQueue"]["access"]
         self._default_resource_config_id = res["project"]["runQueue"][
             "defaultResourceConfigID"
