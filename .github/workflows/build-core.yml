@@ -1,6 +1,7 @@
 name: Build W&B SDK Core
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
 
 jobs:
   build_wheels:
@@ -90,3 +91,42 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+
+  verify-test-pypi:
+    name: Verify TestPyPI upload
+    needs: test-pypi-publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install wandb-core from TestPyPI
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://test.pypi.org/simple/ --pre wandb-core
+      - name: Install wandb from source
+        run: |
+          python -m pip install .
+      - name: Smoke-test wandb-core TestPyPI install
+        env:
+          WANDB_REQUIRE_NEXUS: true
+        run: |
+          python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
+
+  pypi-publish:
+    name: Publish to PyPI
+    needs: test-pypi-publish
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://pypi.org/p/wandb-core
+    permissions:
+      id-token: write  # trusted publishing
+    steps:
+      - name: Download all the wheels
+        uses: actions/download-artifact@v3
+        with:
+          name: wandb-core-distributions
+          path: dist/
+      - name: List wheels
+        run: ls dist/
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

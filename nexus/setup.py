@@ -107,7 +107,9 @@ if __name__ == "__main__":
     setup(
         name="wandb-core" if not _is_wandb_core_alpha else "wandb-core-alpha",
         version=NEXUS_VERSION,
-        description="Wandb core",
+        description="W&B Core Library",
+        long_description=open("README.md").read(),
+        long_description_content_type="text/markdown",
         packages=[PACKAGE],
         zip_safe=False,
         include_package_data=True,
