@@ -107,8 +107,6 @@ class _Manager:
     _settings: "Settings"
     _service: "service._Service"
 
-    __max_connection_attempts = 5
-
     def _service_connect(self) -> None:
         port = self._token.port
         svc_iface = self._get_service_interface()
