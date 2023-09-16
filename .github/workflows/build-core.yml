@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: release
-      url: https://test.pypi.org/p/wandb-core-alpha
+      url: https://test.pypi.org/p/wandb-core
     permissions:
       id-token: write  # trusted publishing
     steps:
