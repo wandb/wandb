@@ -107,6 +107,8 @@ class _Manager:
     _settings: "Settings"
     _service: "service._Service"
 
+    __max_connection_attempts = 5
+
     def _service_connect(self) -> None:
         port = self._token.port
         svc_iface = self._get_service_interface()
@@ -134,7 +136,8 @@ class _Manager:
 
         self._service = service._Service(settings=self._settings)
         token = _ManagerToken.from_environment()
-        if not token:
+        # if token exists, check if the corresponding process exists
+        if not token or not psutil.pid_exists(token.pid):
             self._service.start()
             host = "localhost"
             transport = "tcp"
