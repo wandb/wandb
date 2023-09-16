@@ -193,7 +193,7 @@ def get_docker(
     return env.get(DOCKER, default)
 
 
-def get_http_timeout(default: int = 30, env: Optional[Env] = None) -> int:
+def get_http_timeout(default: int = 20, env: Optional[Env] = None) -> int:
     if env is None:
         env = os.environ
 
