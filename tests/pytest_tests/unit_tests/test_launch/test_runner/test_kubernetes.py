@@ -6,7 +6,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from kubernetes.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     CRD_STATE_DICT,
     _state_from_conditions,
@@ -463,6 +465,18 @@ def test_launch_kube_works(
         ]
         == "IfNotPresent"
     )
+
+    # Test cancel
+    assert "test-job" in mock_batch_api.jobs
+    submitted_run.cancel()
+    assert "test-job" not in mock_batch_api.jobs
+
+    def _raise_api_exception(*args, **kwargs):
+        raise ApiException()
+
+    mock_batch_api.delete_namespaced_job = _raise_api_exception
+    with pytest.raises(LaunchError):
+        submitted_run.cancel()
 
 
 def test_launch_crd_works(
