@@ -4,7 +4,6 @@
 import multiprocessing as mp
 import sys
 
-import time
 import wandb
 import yea
 
