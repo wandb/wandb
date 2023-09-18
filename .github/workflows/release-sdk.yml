@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
       - name: Set up Python
@@ -27,60 +27,81 @@ jobs:
           name: wandb-sdk-distributions
           path: ./dist
 
-  test-pypi-publish:
-    name: Publish to TestPyPI
-    needs: build
+#  test-pypi-publish:
+#    name: Publish to TestPyPI
+#    needs: build
+#    runs-on: ubuntu-latest
+#    environment:
+#      name: release
+#      url: https://test.pypi.org/p/wandb
+#    permissions:
+#      id-token: write  # trusted publishing
+#    steps:
+#      - name: Download distribution
+#        uses: actions/download-artifact@v3
+#        with:
+#          name: wandb-sdk-distributions
+#          path: dist/
+#      - name: List distribution
+#        run: ls dist/
+#      - name: Publish distribution to TestPyPI
+#        uses: pypa/gh-action-pypi-publish@release/v1
+#        with:
+#          repository-url: https://test.pypi.org/legacy/
+
+  get-wandb-version:
+    name: Get wandb version from current branch
     runs-on: ubuntu-latest
-    environment:
-      name: release
-      url: https://test.pypi.org/p/wandb
-    permissions:
-      id-token: write  # trusted publishing
+    timeout-minutes: 10
     steps:
-      - name: Download distribution
-        uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
         with:
-          name: wandb-sdk-distributions
-          path: dist/
-      - name: List distribution
-        run: ls dist/
-      - name: Publish distribution to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+          ref: ${{ github.ref }}
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          repository-url: https://test.pypi.org/legacy/
+          python-version: "3.9"
+      - name: Install dependencies
+        run: pip install .
+      - name: Get wandb version
+        id: get_version
+        run: |
+          echo "WANDB_VERSION=$(python -c 'import wandb; print(wandb.__version__)')" >> "$GITHUB_ENV"
 
   verify-test-pypi:
     name: Verify TestPyPI upload
-    needs: test-pypi-publish
+#    needs: test-pypi-publish
+    needs: get-wandb-version
     runs-on: ubuntu-latest
     steps:
       - name: Install wandb from TestPyPI
         run: |
+          echo $WANDB_VERSION
           python -m pip install --upgrade pip
-          python -m pip install --index-url https://test.pypi.org/simple/ --pre wandb
+          python -m pip install --index-url https://test.pypi.org/simple/ wandb==$WANDB_VERSION
       - name: Smoke-test wandb TestPyPI install
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
 
-  pypi-publish:
-    name: Publish to PyPI
-    needs: test-pypi-publish
-    runs-on: ubuntu-latest
-    environment:
-      name: release
-      url: https://pypi.org/p/wandb
-# todo: add
-#    permissions:
-#      id-token: write  # trusted publishing
-    steps:
-      - name: Download distribution
-        uses: actions/download-artifact@v3
-        with:
-          name: wandb-sdk-distributions
-          path: dist/
-      - name: List distribution
-        run: ls dist/
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_TOKEN }}
+#  pypi-publish:
+#    name: Publish to PyPI
+#    needs: test-pypi-publish
+#    runs-on: ubuntu-latest
+#    environment:
+#      name: release
+#      url: https://pypi.org/p/wandb
+## todo: add
+##    permissions:
+##      id-token: write  # trusted publishing
+#    steps:
+#      - name: Download distribution
+#        uses: actions/download-artifact@v3
+#        with:
+#          name: wandb-sdk-distributions
+#          path: dist/
+#      - name: List distribution
+#        run: ls dist/
+#      - name: Publish distribution to PyPI
+#        uses: pypa/gh-action-pypi-publish@release/v1
+#        with:
+#          password: ${{ secrets.PYPI_TOKEN }}
