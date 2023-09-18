@@ -40,7 +40,7 @@ def _get_python_type() -> PythonType:
     except ImportError:
         return "python"
 
-    # jupyter-based environments (e.g. jupyter itself, kaggle, etc) have a connection file
+    # jupyter-based environments (e.g. jupyter itself, colab, kaggle, etc) have a connection file
     ip_kernel_app_connection_file = (
         (
             get_ipython().config.get(
