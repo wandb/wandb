@@ -255,3 +255,18 @@ def test_run_metadata(wandb_init):
 
     metadata = Api().run(f"{run.entity}/{project}/{run.id}").metadata
     assert len(metadata)
+
+
+def test_run_queue():
+    api = Api()
+    queue = api.create_run_queue(
+        name="test-queue",
+        access="project",
+        type="local-container",
+    )
+    try:
+        assert queue.name == "test-queue"
+        assert queue.access == "PROJECT"
+        assert queue.type == "local-container"
+    finally:
+        queue.delete()
