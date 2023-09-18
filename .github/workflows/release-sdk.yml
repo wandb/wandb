@@ -4,28 +4,28 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build wheels
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-      - name: Install dependencies
-        run: pip install -U -r requirements_build.txt
-      - name: Build source and wheels
-        run: |
-          python -m build -n
-          ls -l dist
-      - uses: actions/upload-artifact@v3
-        with:
-          name: wandb-sdk-distributions
-          path: ./dist
+#  build:
+#    name: Build wheels
+#    runs-on: ubuntu-latest
+#    timeout-minutes: 10
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          ref: ${{ github.ref }}
+#      - name: Set up Python
+#        uses: actions/setup-python@v4
+#        with:
+#          python-version: "3.9"
+#      - name: Install dependencies
+#        run: pip install -U -r requirements_build.txt
+#      - name: Build source and wheels
+#        run: |
+#          python -m build -n
+#          ls -l dist
+#      - uses: actions/upload-artifact@v3
+#        with:
+#          name: wandb-sdk-distributions
+#          path: ./dist
 
 #  test-pypi-publish:
 #    name: Publish to TestPyPI
@@ -49,36 +49,16 @@ jobs:
 #        with:
 #          repository-url: https://test.pypi.org/legacy/
 
-  get-wandb-version:
-    name: Get wandb version from current branch
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-      - name: Install dependencies
-        run: pip install .
-      - name: Get wandb version
-        id: get_version
-        run: |
-          echo "WANDB_VERSION=$(python -c 'import wandb; print(wandb.__version__)')" >> "$GITHUB_ENV"
-
   verify-test-pypi:
     name: Verify TestPyPI upload
 #    needs: test-pypi-publish
-    needs: get-wandb-version
     runs-on: ubuntu-latest
     steps:
       - name: Install wandb from TestPyPI
         run: |
-          echo $WANDB_VERSION
+          sleep 10
           python -m pip install --upgrade pip
-          python -m pip install --index-url https://test.pypi.org/simple/ wandb==$WANDB_VERSION
+          python -m pip install --index-url https://test.pypi.org/simple/ --pre wandb
       - name: Smoke-test wandb TestPyPI install
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
