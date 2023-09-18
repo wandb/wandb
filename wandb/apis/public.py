@@ -255,7 +255,7 @@ class Api:
             You can also set defaults for `entity`, `project`, and `run`.
     """
 
-    _HTTP_TIMEOUT = env.get_http_timeout(29)
+    _HTTP_TIMEOUT = env.get_http_timeout(19)
     VIEWER_QUERY = gql(
         """
         query Viewer{
@@ -1992,11 +1992,18 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
-        self._attrs["summaryMetrics"] = (
-            json.loads(self._attrs["summaryMetrics"])
-            if self._attrs.get("summaryMetrics")
-            else {}
-        )
+        try:
+            self._attrs["summaryMetrics"] = (
+                json.loads(self._attrs["summaryMetrics"])
+                if self._attrs.get("summaryMetrics")
+                else {}
+            )
+        except json.decoder.JSONDecodeError:
+            # ignore invalid utf-8 or control characters
+            self._attrs["summaryMetrics"] = json.loads(
+                self._attrs["summaryMetrics"],
+                strict=False,
+            )
         self._attrs["systemMetrics"] = (
             json.loads(self._attrs["systemMetrics"])
             if self._attrs.get("systemMetrics")
@@ -2619,8 +2626,6 @@ class QueuedRun:
     def wait_until_running(self):
         if self._run is not None:
             return self._run
-        if self.container_job:
-            raise LaunchError("Container jobs cannot be waited on")
 
         while True:
             # sleep here to hide an ugly warning
@@ -4830,7 +4835,7 @@ class Job:
         resource_args=None,
         project_queue=None,
     ):
-        from wandb.sdk.launch import launch_add
+        from wandb.sdk.launch import _launch_add
 
         run_config = {}
         for key, item in config.items():
@@ -4850,7 +4855,7 @@ class Job:
             if isinstance(assigned_config_type, InvalidType):
                 raise TypeError(self._input_types.explain(run_config))
 
-        queued_run = launch_add.launch_add(
+        queued_run = _launch_add.launch_add(
             job=self._name,
             config={"overrides": {"run_config": run_config}},
             project=project or self._project,

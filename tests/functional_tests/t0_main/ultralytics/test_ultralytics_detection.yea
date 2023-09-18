@@ -6,21 +6,25 @@ tag:
   platforms:
     - linux
 command:
-    program: test_yolov8_detection.py
+    program: test_ultralytics_detection.py
 depend:
     requirements:
-        - "ultralytics>=8.0.43"
+        - "ultralytics>=8.0.167"
 assert:
     - :wandb:runs_len: 1
-    - :wandb:runs[0][config][batch]: 16
+    - :wandb:runs[0][config][batch]: 64
     - :wandb:runs[0][config][task]: detect
-    - :wandb:runs[0][summary][epoch]: 2
+    - :wandb:runs[0][config][epochs]: 2
     - :wandb:runs[0][summary][model/parameters]: 3157200
+    - :wandb:runs[0][summary][Validation-Table][_type]: table-file
+    - :wandb:runs[0][summary][Validation-Table][nrows]: 126
+    - :wandb:runs[0][summary][Train-Validation-Table][_type]: table-file
+    - :wandb:runs[0][summary][Train-Validation-Table][nrows]: 378
     - :op:>=:
         - :wandb:runs[0][summary][model/GFLOPs]
         - 0
     - :op:>=:
-        - :wandb:runs[0][summary][model/speed(ms/img)]
+        - :wandb:runs[0][summary][model/speed_PyTorch(ms)]
         - 0
     - :op:>=:
         - :wandb:runs[0][summary][train/box_loss]
@@ -41,16 +45,16 @@ assert:
         - :wandb:runs[0][summary][val/dfl_loss]
         - 0.0
     - :op:<=:
-        - :wandb:runs[0][summary][best/metrics/mAP50(B)]
+        - :wandb:runs[0][summary][metrics/mAP50(B)]
         - 1.0
     - :op:<=:
-        - :wandb:runs[0][summary][best/metrics/mAP50-95(B)]
+        - :wandb:runs[0][summary][metrics/mAP50-95(B)]
         - 1.0
     - :op:<=:
-        - :wandb:runs[0][summary][best/metrics/precision(B)]
+        - :wandb:runs[0][summary][metrics/precision(B)]
         - 1.0
     - :op:<=:
-        - :wandb:runs[0][summary][best/metrics/recall(B)]
+        - :wandb:runs[0][summary][metrics/recall(B)]
         - 1.0
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature

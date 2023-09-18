@@ -32,7 +32,6 @@ func (g *GPUNvidia) ClearMetrics() {}
 
 func (g *GPUNvidia) IsAvailable() bool { return false }
 
-func (g *GPUNvidia) Probe() map[string]map[string]interface{} {
-	info := make(map[string]map[string]interface{})
-	return info
+func (g *GPUNvidia) Probe() *service.MetadataRequest {
+	return nil
 }

@@ -1,5 +1,5 @@
 [build-system]
-requires = ['setuptools']
+requires = ['setuptools>61']
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -98,10 +98,14 @@ launch = [
     "nbconvert",
     "nbformat",
     "typing_extensions",
+    "PyYAML>=6.0.0",
 ]
 models = ["cloudpickle"]
 async = ["httpx>=0.22.0"] # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 perf = ["orjson"]
+nexus = [
+    "wandb-core>=0.16.0b1"
+]
 
 [tool.setuptools]
 zip-safe = false

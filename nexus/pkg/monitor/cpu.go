@@ -99,8 +99,24 @@ func (c *CPU) ClearMetrics() {
 
 func (c *CPU) IsAvailable() bool { return true }
 
-func (c *CPU) Probe() map[string]map[string]interface{} {
-	info := make(map[string]map[string]interface{})
-	// todo: add cpu info
-	return info
+func (c *CPU) Probe() *service.MetadataRequest {
+	info := service.MetadataRequest{
+		Cpu: &service.CpuInfo{},
+	}
+
+	// todo: add more info from cpuInfo
+	// cpuInfo, err := cpu.Info()
+
+	cpuCount, err := cpu.Counts(false)
+	if err == nil {
+		info.CpuCount = uint32(cpuCount)
+		info.Cpu.Count = uint32(cpuCount)
+	}
+	cpuCountLogical, err2 := cpu.Counts(true)
+	if err2 == nil {
+		info.CpuCountLogical = uint32(cpuCountLogical)
+		info.Cpu.CountLogical = uint32(cpuCountLogical)
+	}
+	// todo: add cpu frequency info per core
+	return &info
 }
