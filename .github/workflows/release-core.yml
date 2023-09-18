@@ -1,4 +1,4 @@
-name: Build W&B SDK Core
+name: Build and Release W&B SDK Core
 
 on:
   workflow_dispatch:
