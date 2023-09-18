@@ -91,7 +91,7 @@ jobs:
           password: ${{ secrets.PYPI_TOKEN }}
 
   slack:
-    name: Verify TestPyPI upload
+    name: Post to Slack
     needs: pypi-publish
     runs-on: ubuntu-latest
     steps:
