@@ -1,25 +1,12 @@
-"""Nexus setup.
-
-To build the nexus wheel only for a specific platform, run:
-python -m build -w -n ./nexus --config-setting=--build-option=--nexus-build=darwin-arm64,linux-amd64
-
-To build the nexus wheel for all platforms, run:
-python -m build -w -n ./nexus
-
-To install the nexus wheel, run:
-pip install --force-reinstall ./nexus/dist/wandb_core-*-py3-none-any.whl
-"""
-
 import os
 import platform
 import subprocess
 from distutils import log
-from distutils.command.install import install
 from pathlib import Path
 
 from setuptools import setup
 from setuptools.command.develop import develop
-from wheel.bdist_wheel import bdist_wheel
+from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # Package naming
 # --------------
@@ -31,170 +18,86 @@ _is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
 
 # Nexus version
 # -------------
-NEXUS_VERSION = "0.0.1a3"
+NEXUS_VERSION = "0.16.0b1"
 
 
 PACKAGE: str = "wandb_core"
-ALL_PLATFORMS = (
-    ("darwin", "arm64", True),
-    ("darwin", "amd64", False),
-    ("linux", "amd64", True),
-    ("windows", "amd64", False),
+PLATFORMS_TO_BUILD_WITH_CGO = (
+    "darwin-arm64",
+    "linux-amd64",
 )
 
 
 class NexusBase:
-    def _get_package_path(self):
-        base = Path(self.install_platlib) / PACKAGE
+    @staticmethod
+    def _get_package_path():
+        base = Path(__file__).parent / PACKAGE
         return base
 
-    def _get_wheel_nexus_path(self, path=None, goos=None, goarch=None):
-        path = path or self._get_package_path()
-        goos = goos or platform.system().lower()
-        goarch = goarch or platform.machine().lower().replace("x86_64", "amd64")
-        path = (path / f"bin-{goos}-{goarch}" / "wandb-nexus").resolve()
-        return path
-
-    def _build_nexus(self, path=None, goos=None, goarch=None, cgo_enabled=False):
-        nexus_path = self._get_wheel_nexus_path(path=path, goos=goos, goarch=goarch)
+    def _build_nexus(self):
+        nexus_path = self._get_package_path()
 
         src_dir = Path(__file__).parent
-        env = {}
-        if goos:
-            env["GOOS"] = goos
-        if goarch:
-            env["GOARCH"] = goarch
+
+        env = os.environ.copy()
+
+        goos = platform.system().lower()
+        goarch = platform.machine().lower()
+        if goarch == "x86_64":
+            goarch = "amd64"
+        elif goarch == "aarch64":
+            goarch = "arm64"
+        elif goarch == "armv7l":
+            goarch = "armv6l"
+
         # cgo is needed on:
         #  - arm macs to build the gopsutil dependency,
         #    otherwise several system metrics will be unavailable.
         #  - linux to build the dependencies needed to get GPU metrics.
-        env["CGO_ENABLED"] = "1" if cgo_enabled else "0"
-        # todo: temporary hack to get the build working on linux for the darwin-arm64 wheel
-        if goos == "darwin" and goarch == "arm64" and platform.system() == "Linux":
-            env["CGO_ENABLED"] = "0"
-        os.makedirs(nexus_path.parent, exist_ok=True)
+        if f"{goos}-{goarch}" in PLATFORMS_TO_BUILD_WITH_CGO:
+            env["CGO_ENABLED"] = "1"
 
-        # Sentry only allows 12 characters for release names, the full commit hash won't fit
+        os.makedirs(nexus_path, exist_ok=True)
         commit = (
             subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
             .decode("utf-8")
             .strip()
         )
 
-        # build linux binary with docker on mac
-        if goos == "linux" and platform.system() != "Linux":
-            # build docker image
-            cmd = (
-                "docker",
-                "build",
-                "-t",
-                "wheel_builder",
-                "--platform",
-                f"linux/{goarch}",
-                ".",
-            )
-            subprocess.check_call(
-                cmd,
-                cwd=src_dir / "scripts" / "build",
-                env=dict(os.environ, **env),
-            )
-
-            # build wheels
-            cmd = (
-                "docker",
-                "run",
-                "--rm",
-                "--platform",
-                f"linux/{goarch}",
-                "-v",
-                f"{src_dir.parent}:/project",
-                "-v",
-                f"{src_dir.parent}/.cache/go-build:/root/.cache/go-build",
-                "-e",
-                f"COMMIT={commit}",
-                "-e",
-                f"NEXUS_PATH={str(nexus_path.relative_to(src_dir))}",
-                "-e",
-                f"CGO_ENABLED={env['CGO_ENABLED']}",
-                "wheel_builder",
-            )
-            log.info(f"Building wheel for {goos}-{goarch}")
-            log.info(f"Running command: {' '.join(cmd)}")
-
-            subprocess.check_call(
-                cmd,
-                cwd=src_dir.parent,
-                env=dict(os.environ, **env),
-            )
-        else:
-            ldflags = f"-s -w -X main.commit={commit}"
-            cmd = (
-                "go",
-                "build",
-                f"-ldflags={ldflags}",
-                "-o",
-                str(nexus_path),
-                "cmd/nexus/main.go",
-            )
-            log.info(f"Building wheel for {goos}-{goarch}")
-            log.info(f"Running command: {' '.join(cmd)}")
-            subprocess.check_call(cmd, cwd=src_dir, env=dict(os.environ, **env))
-
-
-class WrapInstall(install, NexusBase):
-    def initialize_options(self):
-        install.initialize_options(self)
-        self.nexus_build = None
-
-    def finalize_options(self):
-        install.finalize_options(self)
-        self.set_undefined_options("bdist_wheel", ("nexus_build", "nexus_build"))
-
-    def run(self):
-        install.run(self)
-
-        nexus_wheel_path = self._get_wheel_nexus_path()
-        if self.nexus_build is None and not nexus_wheel_path.exists():
-            self._build_nexus()
-            return
-
-        if self.nexus_build == "all":
-            for goos, goarch, cgo_enabled in ALL_PLATFORMS:
-                self._build_nexus(goos=goos, goarch=goarch, cgo_enabled=cgo_enabled)
-
-        else:
-            for build in self.nexus_build.split(","):
-                goos, goarch = build.split("-")
-                # get the cgo_enabled flag from the ALL_PLATFORMS list
-                cgo_enabled = [
-                    x[2] for x in ALL_PLATFORMS if x[0] == goos and x[1] == goarch
-                ][0]
-                self._build_nexus(goos=goos, goarch=goarch, cgo_enabled=cgo_enabled)
+        ldflags = f"-s -w -X main.commit={commit}"
+        if f"{goos}-{goarch}" == "linux-amd64":
+            # todo: try llvm's lld linker
+            ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
+        cmd = (
+            "go",
+            "build",
+            f"-ldflags={ldflags}",
+            "-o",
+            str(nexus_path / "wandb-nexus"),
+            "cmd/nexus/main.go",
+        )
+        log.info("Building for current platform")
+        log.info(f"Running command: {' '.join(cmd)}")
+        subprocess.check_call(cmd, cwd=src_dir, env=env)
 
 
 class WrapDevelop(develop, NexusBase):
     def run(self):
         develop.run(self)
-        self._build_nexus(path=Path("wandb_core"))
+        self._build_nexus()
 
 
 class WrapBdistWheel(bdist_wheel, NexusBase):
-    user_options = [
-        (
-            "nexus-build=",
-            None,
-            "nexus binaries to build comma separated (e.g. darwin-arm64,linux-amd64)",
-        ),
-    ] + bdist_wheel.user_options
-
-    def initialize_options(self):
-        bdist_wheel.initialize_options(self)
-        self.nexus_build = "all"
-
-    def finalize_options(self):
-        bdist_wheel.finalize_options(self)
+    def get_tag(self):
+        # Use the default implementation to get python and abi tags
+        python, abi = bdist_wheel.get_tag(self)[:2]
+        # Use the wheel package function to determine platform tag
+        plat_name = get_platform(self.bdist_dir)
+        # todo: add MACOSX_DEPLOYMENT_TARGET to support older macs
+        return python, abi, plat_name
 
     def run(self):
+        self._build_nexus()
         bdist_wheel.run(self)
 
 
@@ -204,14 +107,15 @@ if __name__ == "__main__":
     setup(
         name="wandb-core" if not _is_wandb_core_alpha else "wandb-core-alpha",
         version=NEXUS_VERSION,
-        description="Wandb core",
+        description="W&B Core Library",
+        long_description=open("README.md", encoding="utf-8").read(),
+        long_description_content_type="text/markdown",
         packages=[PACKAGE],
         zip_safe=False,
         include_package_data=True,
         license="MIT license",
         python_requires=">=3.6",
         cmdclass={
-            "install": WrapInstall,
             "develop": WrapDevelop,
             "bdist_wheel": WrapBdistWheel,
         },
