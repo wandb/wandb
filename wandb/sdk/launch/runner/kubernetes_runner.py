@@ -89,9 +89,6 @@ class KubernetesSubmittedRun(AbstractRun):
         self.core_api = core_api
         self.name = name
         self.namespace = namespace
-        self.job = self.batch_api.read_namespaced_job(
-            name=self.name, namespace=self.namespace
-        )
         self._fail_count = 0
         self.pod_names = pod_names
         self.secret = secret
@@ -154,35 +151,18 @@ class KubernetesSubmittedRun(AbstractRun):
     def get_status(self) -> Status:
         return self.monitor.get_status()
 
-    def suspend(self) -> None:
-        """Suspend the run."""
-        self.job.spec.suspend = True
-        self.batch_api.patch_namespaced_job(
-            name=self.name, namespace=self.namespace, body=self.job
-        )
-        timeout = TIMEOUT
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
-        while job_response.status.conditions is None and timeout > 0:
-            time.sleep(1)
-            timeout -= 1
-            job_response = self.batch_api.read_namespaced_job_status(
-                name=self.name, namespace=self.namespace
-            )
-
-        if timeout == 0 or job_response.status.conditions[0].type != "Suspended":
-            raise LaunchError(
-                "Failed to suspend job {}. Check Kubernetes dashboard for more info.".format(
-                    self.name
-                )
-            )
-
     def cancel(self) -> None:
         """Cancel the run."""
-        self.suspend()
         self.monitor.stop()
-        self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
+        try:
+            self.batch_api.delete_namespaced_job(
+                namespace=self.namespace,
+                name=self.name,
+            )
+        except ApiException as e:
+            raise LaunchError(
+                f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
+            ) from e
 
 
 class CrdSubmittedRun(AbstractRun):
