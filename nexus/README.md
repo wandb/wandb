@@ -19,7 +19,7 @@ but starting from a clean slate.
 To install Nexus, you will need to run the following commands:
 
 ```bash
-pip install "wandb[nexus]==0.16.0b1"
+pip install "wandb[nexus]" --pre
 ```
 
 ### Supported Platforms
