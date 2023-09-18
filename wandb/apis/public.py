@@ -439,32 +439,6 @@ class Api:
             project, entity, title, description, width, blocks
         ).save()
 
-    def delete_run_queue(self, name: str, entity: Optional[str] = None) -> None:
-        """Delete a run queue (launch).
-
-        Arguments:
-            name: (str) Name of the queue to delete
-            entity: (str) Optional name of the entity to delete the queue. If None, will use the configured or default entity.
-
-        Raises:
-            ValueError if any of the parameters are invalid
-            wandb.Error on wandb API errors
-        """
-        # Get the id of the queue to delete
-        queue = self.run_queue(name, entity)
-        if queue is None:
-            raise wandb.Error("Queue does not exist")
-
-        # Delete the queue
-        api = InternalApi(
-            default_settings={
-                "entity": entity,
-                "project": self.project(LAUNCH_DEFAULT_PROJECT),
-            },
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.delete_run_queues([queue.id])
-
     def create_run_queue(
         self,
         name: str,
