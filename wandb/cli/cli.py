@@ -923,6 +923,7 @@ def launch_sweep(
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_sweep")
     parsed_user_config = sweep_utils.load_launch_sweep_config(config)
+    env = os.environ
     entity = (
         entity
         or parsed_user_config.get("entity")
@@ -944,6 +945,7 @@ def launch_sweep(
         return
 
     sweep_id = _launch_sweep(
+        api,
         entity=entity,
         project=project,
         queue=queue,
@@ -957,6 +959,88 @@ def launch_sweep(
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
     wandb.termlog(f"Scheduler added to launch queue ({queue})")
+
+
+@cli.command(
+    context_settings=RUN_CONTEXT,
+    help="Run a W&B launch sweep scheduler (Experimental)",
+    hidden=True,
+)
+@click.pass_context
+@click.option(
+    "--queue",
+    default=None,
+    help="The name of a queue to push the sweep to",
+)
+@click.option(
+    "--project",
+    default=None,
+    help="Name of the project which the agent will watch. "
+    "If passed in, will override the project value passed in using a config file",
+)
+@click.option(
+    "--author",
+    default=None,
+    help="The author of the sweep",
+)
+@click.option(
+    "--job",
+    default=None,
+    help="Execution point of the sweep, when launching a job",
+)
+@click.option(
+    "--image_uri",
+    default=None,
+    help="Execution point of the sweep, when launching a raw image",
+)
+@click.option(
+    "--sweep_type",
+    default="wandb",
+    help="Type of scheduler, default to wandb",
+)
+@click.option(
+    "--num_workers",
+    default=None,
+    help="Number of concurrent runs the scheduler will manage",
+)
+@click.argument("sweep_id")
+@display_error
+def scheduler(
+    ctx,
+    queue,
+    project,
+    author,
+    job,
+    image_uri,
+    sweep_type,
+    num_workers,
+    sweep_id,
+):
+    api = InternalApi()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep scheduler feature")
+        ctx.invoke(login, no_offline=True)
+        api = InternalApi(reset=True)
+
+    wandb._sentry.configure_scope(process_context="sweep_scheduler")
+    wandb.termlog("Starting a Launch Scheduler 🚀")
+    from wandb.sdk.launch.sweeps import load_scheduler
+
+    try:
+        _scheduler = load_scheduler(scheduler_type=sweep_type)(
+            api,
+            queue=queue,
+            num_workers=num_workers,
+            project=project,
+            author=author,
+            job=job,
+            image_uri=image_uri,
+            sweep_id=sweep_id,
+        )
+        _scheduler.start()
+    except Exception as e:
+        wandb._sentry.exception(e)
+        raise e
 
 
 @cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
@@ -1336,50 +1420,6 @@ def agent(ctx, project, entity, count, sweep_id):
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
     #                'args': ['--max_epochs=10']})
-
-
-@cli.command(
-    context_settings=RUN_CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
-)
-@click.pass_context
-@click.argument("sweep_id")
-@display_error
-def scheduler(
-    ctx,
-    sweep_id,
-):
-    api = InternalApi()
-    if api.api_key is None:
-        wandb.termlog("Login to W&B to use the sweep scheduler feature")
-        ctx.invoke(login, no_offline=True)
-        api = InternalApi(reset=True)
-
-    wandb._sentry.configure_scope(process_context="sweep_scheduler")
-    wandb.termlog("Starting a Launch Scheduler 🚀")
-    from wandb.sdk.launch.sweeps import load_scheduler
-
-    # TODO(gst): remove this monstrosity
-    # Future-proofing hack to pull any kwargs that get passed in through the CLI
-    kwargs = {}
-    for i, _arg in enumerate(ctx.args):
-        if isinstance(_arg, str) and _arg.startswith("--"):
-            # convert input kwargs from hyphens to underscores
-            _key = _arg[2:].replace("-", "_")
-            _args = ctx.args[i + 1]
-            if str.isdigit(_args):
-                _args = int(_args)
-            kwargs[_key] = _args
-    try:
-        sweep_type = kwargs.get("sweep_type", "wandb")
-        _scheduler = load_scheduler(scheduler_type=sweep_type)(
-            api,
-            sweep_id=sweep_id,
-            **kwargs,
-        )
-        _scheduler.start()
-    except Exception as e:
-        wandb._sentry.exception(e)
-        raise e
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs")

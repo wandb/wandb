@@ -170,8 +170,6 @@ def construct_scheduler_args(
         f"{queue!r}",
         "--project",
         f"{project!r}",
-        "--sweep_type",
-        f"{sweep_type}",
     ]
     if author:
         args += [

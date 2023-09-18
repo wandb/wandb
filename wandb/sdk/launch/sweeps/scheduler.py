@@ -101,9 +101,8 @@ class Scheduler(ABC):
     def __init__(
         self,
         api: "Api",
-        *args: Optional[Any],
+        sweep_id: str,
         polling_sleep: Optional[float] = None,
-        sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
         project_queue: Optional[str] = None,
@@ -123,7 +122,7 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
-        self._sweep_id: str = sweep_id or "empty-sweep-id"
+        self._sweep_id: str = sweep_id
         self._state: SchedulerState = SchedulerState.PENDING
 
         # Make sure the provided sweep_id corresponds to a valid sweep

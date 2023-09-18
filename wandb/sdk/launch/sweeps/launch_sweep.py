@@ -20,7 +20,7 @@ def launch_sweep(
     entity: str,
     project: str,
     queue: str,
-    parsed_user_config: Optional[Dict[str, Any]] = None,
+    config: Optional[Dict[str, Any]] = None,
     resume_id: Optional[str] = None,
 ) -> Optional[str]:
     """Create a sweep and launch it on a remote resource queue.
@@ -29,7 +29,7 @@ def launch_sweep(
         entity (str): The entity to launch the sweep under
         project (str): The project to launch the sweep under
         queue (str): The queue name to launch the sweep to
-        parsed_user_config (Optional[Dict[str, Any]]): a dictionary of sweep and launch config parameters
+        config (Optional[Dict[str, Any]]): a dictionary of sweep and launch config parameters
         resume_id (Optional[str]): The id of the sweep to resume
 
     Returns:
@@ -60,6 +60,13 @@ def launch_sweep(
                 }
             }
         }
+
+        sweep_id = launch_sweep(
+            entity="wandb",
+            project="fashion-mnist",
+            queue="aks-x64-CPU-gigantic",
+            config=config
+        )
     """
     api = InternalApi()
 
@@ -68,7 +75,7 @@ def launch_sweep(
         entity=entity,
         project=project,
         queue=queue,
-        parsed_user_config=parsed_user_config,
+        parsed_user_config=config,
         resume_id=resume_id,
     )
 
@@ -81,7 +88,6 @@ def _launch_sweep(
     parsed_user_config: Optional[Dict[str, Any]] = None,
     resume_id: Optional[str] = None,
 ) -> Optional[str]:
-    # if not sweep_config XOR resume_id
     if not (parsed_user_config or resume_id):
         wandb.termerror("'config' and/or 'resume_id' required")
         return None
