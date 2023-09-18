@@ -62,7 +62,7 @@ jobs:
         run: |
           sleep 10
           python -m pip install --upgrade pip
-          python -m pip install --index-url https://test.pypi.org/simple/ --pre wandb
+          python -m pip install --extra-index-url https://test.pypi.org/simple/ --pre wandb
       - name: Smoke-test wandb TestPyPI install
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
