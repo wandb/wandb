@@ -53,5 +53,9 @@ class ServiceInterface:
         raise NotImplementedError
 
     @abstractmethod
+    def _svc_notify_read(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def _svc_connect(self, port: int) -> None:
         raise NotImplementedError

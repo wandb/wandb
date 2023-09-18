@@ -60,6 +60,11 @@ class ServiceSockInterface(ServiceInterface):
         response = self._sock_client.send_and_recv(inform_attach=inform_attach)
         return response.inform_attach_response
 
+    def _svc_notify_loop(self) -> None:
+        while True:
+            response = self._sock_client.read_server_response(timeout=1)
+            print("GOT", response)
+
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)
 
@@ -90,3 +95,8 @@ class ServiceSockInterface(ServiceInterface):
 
         assert self._sock_client
         self._sock_client.send(inform_unsubscribe=inform_unsubscribe)
+
+    def _svc_notify_read(self) -> None:
+        assert self._sock_client
+        response = self._sock_client.read_server_response(timeout=1)
+        return response

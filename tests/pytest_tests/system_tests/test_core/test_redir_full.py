@@ -61,6 +61,8 @@ def test_offline_compression(wandb_init, capfd, console):
         binary_log_file = (
             os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
         )
+        import shutil
+        shutil.copyfile(binary_log_file, "/tmp/debug.wandb")
         binary_log = (
             CliRunner()
             .invoke(cli.sync, ["--view", "--verbose", binary_log_file])

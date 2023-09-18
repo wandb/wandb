@@ -5,6 +5,7 @@ Create a manager channel.
 
 import atexit
 import os
+import threading
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import psutil
@@ -102,6 +103,28 @@ class _ManagerToken:
         return self._port
 
 
+class _NotifyWatcher:
+    _manager: "_Manager"
+    _thread: threading.Thread
+
+    def __init__(self, manager: "_Manager"):
+        self._manager = manager
+        self._thread = threading.Thread(target=self._run)
+
+    def _run(self):
+        print("RUN")
+        while True:
+            response = self._manager._notify_read()
+            print("GOT RESPONSE", response)
+
+    def start(self):
+        print("WATCHER START")
+        self._thread.start()
+
+    def stop(self):
+        self._thread.join()
+
+
 class _Manager:
     _token: _ManagerToken
     _atexit_lambda: Optional[Callable[[], None]]
@@ -109,6 +132,7 @@ class _Manager:
     _settings: "Settings"
     _out_redir: Optional[redirect.RedirectRaw]
     _err_redir: Optional[redirect.RedirectRaw]
+    _notify_watcher: Optional[_NotifyWatcher]
     _service: "service._Service"
 
     def _service_connect(self) -> None:
@@ -137,6 +161,7 @@ class _Manager:
         self._hooks = None
         self._out_redir = None
         self._err_redir = None
+        self._notify_watcher = None
 
         self._service = service._Service(settings=self._settings)
         token = _ManagerToken.from_environment()
@@ -205,14 +230,19 @@ class _Manager:
             self._out_redir.install()  # type: ignore
         if self._err_redir:
             self._err_redir.install()  # type: ignore
+        self._notify_watcher = _NotifyWatcher(manager=self)
+        self._notify_watcher.start()
 
     def _redirect_uninstall(self) -> None:
         if self._out_redir:
             self._out_redir.uninstall()  # type: ignore
+            self._out_redir = None
         if self._err_redir:
             self._err_redir.uninstall()  # type: ignore
-        self._out_redir = None
-        self._err_redir = None
+            self._err_redir = None
+        if self._notify_watcher:
+            self._notify_watcher.stop()
+            self._notify_watcher = None
 
     def _console_setup(self) -> None:
         if self._settings.console != "redirect":
@@ -315,3 +345,8 @@ class _Manager:
         svc_iface._svc_inform_unsubscribe(
             run_id=run_id, subscription_key=subscription_key
         )
+
+    def _notify_read(self) -> None:
+        svc_iface = self._get_service_interface()
+        response = svc_iface._svc_notify_read()
+        return response
