@@ -190,7 +190,7 @@ def _launch_sweep(
         return None
 
     # set name of scheduler
-    name = scheduler_args.get("name") or "scheduler.WANDB_SWEEP_ID"
+    name = scheduler_args.get("name") or "Scheduler.WANDB_SWEEP_ID"
     if scheduler_args.get("name"):
         settings["name"] = name
 
