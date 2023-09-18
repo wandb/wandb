@@ -2018,11 +2018,18 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
-        self._attrs["summaryMetrics"] = (
-            json.loads(self._attrs["summaryMetrics"])
-            if self._attrs.get("summaryMetrics")
-            else {}
-        )
+        try:
+            self._attrs["summaryMetrics"] = (
+                json.loads(self._attrs["summaryMetrics"])
+                if self._attrs.get("summaryMetrics")
+                else {}
+            )
+        except json.decoder.JSONDecodeError:
+            # ignore invalid utf-8 or control characters
+            self._attrs["summaryMetrics"] = json.loads(
+                self._attrs["summaryMetrics"],
+                strict=False,
+            )
         self._attrs["systemMetrics"] = (
             json.loads(self._attrs["systemMetrics"])
             if self._attrs.get("systemMetrics")
