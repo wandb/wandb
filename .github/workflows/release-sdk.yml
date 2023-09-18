@@ -1,0 +1,24 @@
+name: Build and Release W&B SDK Core
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      - name: Install dependencies
+        run: pip install -U -r requirements_build.txt
+      - name: Build source and wheels
+        run: |
+          python -m build -n
+          ls -l dist
