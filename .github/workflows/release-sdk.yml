@@ -54,6 +54,10 @@ jobs:
 #    needs: test-pypi-publish
     runs-on: ubuntu-latest
     steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
       - name: Install wandb from TestPyPI
         run: |
           sleep 10
