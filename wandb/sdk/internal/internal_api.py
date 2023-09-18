@@ -1427,25 +1427,6 @@ class Api:
         return result
 
     @normalize_exceptions
-    def delete_run_queues(self, queue_ids: List[str]) -> Optional[Dict[str, Any]]:
-        """Delete run queues."""
-        print("FDAFDA")
-        mutation = gql(
-            """
-        mutation deleteRunQueues($queueIDs: [ID!]!) {
-            deleteRunQueues(input: { queueIDs: $queueIDs }) {
-                success
-            }
-        }
-        """
-        )
-        variable_values = {"queueIDs": queue_ids}
-        result: Optional[Dict[str, Any]] = self.gql(mutation, variable_values)[
-            "deleteRunQueues"
-        ]
-        return result
-
-    @normalize_exceptions
     def push_to_run_queue_by_name(
         self, entity: str, project: str, queue_name: str, run_spec: str
     ) -> Optional[Dict[str, Any]]:

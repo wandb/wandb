@@ -2729,7 +2729,7 @@ class RunQueue:
         return self._default_resource_config
 
     @property
-    def id(self):
+    def id(self) -> str:
         if self._id is None:
             self._get_metadata()
         return self._id
@@ -2742,10 +2742,21 @@ class RunQueue:
             self._get_items()
         return self._items
 
+    @normalize_exceptions
     def delete(self):
         """Delete the run queue from the wandb backend."""
-        public_api = Api()
-        public_api.delete_run_queue([self.id])
+        query = gql(
+            """
+            mutation DeleteRunQueue($id: ID!) {
+                deleteRunQueues(input: {queueIDs: [$id]}) {
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        variable_values = {"id": self.id}
+        self._client.execute(query, variable_values)
 
     def __repr__(self):
         return f"<RunQueue {self._entity}/{self._name}>"
