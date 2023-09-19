@@ -13,7 +13,7 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from wandb import _minimum_nexus_version, _sentry
+from wandb import _minimum_nexus_version, _sentry, termlog
 from wandb.env import error_reporting_enabled
 from wandb.errors import Error
 from wandb.util import get_module
@@ -205,9 +205,6 @@ class _Service:
             service_args.append("--serve-sock")
 
             if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
-                # enable memory profiling with memray
-                import wandb
-
                 _ = get_module(
                     "memray",
                     required=(
@@ -215,6 +212,7 @@ class _Service:
                         "install with `pip install memray`"
                     ),
                 )
+
                 time_tag = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 output_file = f"wandb_service.memray.{time_tag}.bin"
                 cli_executable = (
@@ -231,10 +229,10 @@ class _Service:
                     output_file,
                 ]
                 service_args[0] = str(cli_executable)
-                wandb.termlog(
+                termlog(
                     f"wandb service memory profiling enabled, output file: {output_file}"
                 )
-                wandb.termlog(
+                termlog(
                     f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
                 )
 
