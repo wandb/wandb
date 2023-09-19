@@ -2737,7 +2737,15 @@ class RunQueue:
             """
         )
         variable_values = {"id": self.id}
-        self._client.execute(query, variable_values)
+        res = self._client.execute(query, variable_values)
+        if res["deleteRunQueues"]["success"]:
+            self._id = None
+            self._access = None
+            self._default_resource_config_id = None
+            self._default_resource_config = None
+            self._items = None
+        else:
+            raise CommError(f"Failed to delete run queue {self.name}")
 
     def __repr__(self):
         return f"<RunQueue {self._entity}/{self._name}>"
