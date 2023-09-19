@@ -35,11 +35,7 @@ def cleanup_deployment(namespace: str):
         core_api.delete_namespaced_pod(name=pod.metadata.name, namespace=namespace)
 
 
-def wait_for_queued_image_job_completion(
-    namespace: str, entity: str, project: str, queued_run
-) -> Tuple[str, str]:
-    status = wait_for_k8s_job_completion(namespace, entity, project, 1)
-
+def wait_for_queued_image_job_completion(entity: str, project: str, queued_run) -> str:
     item = queued_run._get_item()
     tries = 0
     while not item["associatedRunId"] and tries < 5:
@@ -48,12 +44,12 @@ def wait_for_queued_image_job_completion(
         item = queued_run._get_item()
     run_id = item["associatedRunId"]
     run = wait_for_run_completion(f"{entity}/{project}/{run_id}")
-    return status, run
+    return run
 
 
 def wait_for_k8s_job_completion(
     namespace: str, entity: str, project: str, num_jobs: int
-) -> Tuple[str, str]:
+) -> str:
     """W&B's wait_until_finished() doesn't work for image based jobs, so poll the k8s output for job completion."""
     config.load_kube_config()
     v1 = client.CoreV1Api()
