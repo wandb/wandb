@@ -395,6 +395,9 @@ class Api:
         auth = None
         if not _thread_local_api_settings.cookies:
             auth = ("api", self.api_key)
+        proxies = self.settings.get("_proxies") or json.loads(
+            os.environ.get("WANDB__PROXIES", "{}")
+        )
         self._base_client = Client(
             transport=GraphQLSession(
                 headers={
@@ -409,6 +412,7 @@ class Api:
                 auth=auth,
                 url="%s/graphql" % self.settings["base_url"],
                 cookies=_thread_local_api_settings.cookies,
+                proxies=proxies,
             )
         )
         self._client = RetryingClient(self._base_client)
