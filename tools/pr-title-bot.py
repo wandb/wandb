@@ -12,7 +12,7 @@ import openai
 from github import Github
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_TOKEN = os.environ.get("GITHUB_API_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 openai.api_key = OPENAI_API_KEY
