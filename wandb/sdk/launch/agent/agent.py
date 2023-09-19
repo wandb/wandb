@@ -301,10 +301,6 @@ class LaunchAgent:
                 job_and_run_status.err_stage,
                 fnames,
             )
-        elif job_and_run_status.completed_status not in ["stopped", "failed"]:
-            _logger.info(
-                "Skipping check for completed run status because run was successful"
-            )
         elif job_and_run_status.run is not None:
             run_info = None
             # sweep runs exist but have no info before they are started
