@@ -1,5 +1,4 @@
-import sys
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 import wandb
 from wandb.sdk.lib import telemetry
@@ -26,11 +25,6 @@ elif keras.backend.backend() == "jax":
     import numpy as np
 
     jax_backend_available = True
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 
 LogStrategy = Literal["epoch", "batch"]

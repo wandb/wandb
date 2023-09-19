@@ -1,6 +1,5 @@
 import os
-import sys
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 import wandb
 from wandb.sdk.lib import telemetry
@@ -11,23 +10,22 @@ try:
 except Exception as e:
     wandb.Error(e)
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
 
 Mode = Literal["auto", "min", "max"]
 SaveStrategy = Literal["epoch"]
 
 
 def _log_artifact(
-    filepath: StrPath, aliases: Optional[List] = None, metadata: Optional[Dict] = None
-):
+    filepath: StrPath,
+    artifact_type: str,
+    aliases: Optional[List] = None,
+    metadata: Optional[Dict] = None,
+) -> None:
+    """Log an artifact to Weights & Biases"""
     aliases = ["latest"] if aliases is None else aliases + ["latest"]
     metadata = wandb.run.config.as_dict() if metadata is None else metadata
     model_checkpoint_artifact = wandb.Artifact(
-        f"run_{wandb.run.id}_model", type="model", metadata=metadata
+        f"run_{wandb.run.id}_model", type=artifact_type, metadata=metadata
     )
     if os.path.isfile(filepath):
         model_checkpoint_artifact.add_file(filepath)
@@ -87,6 +85,9 @@ class WandbModelCheckpoint(ModelCheckpoint):
             end of an epoch.
         initial_value_threshold: (Optional[float]) Floating point initial "best" value of
             the metric to be monitored.
+        artifact_type: (Optional[str]) Type of the artifact to be logged. It is set to
+            `"model"` if `save_weights_only` is set to `False` and `"weights"` otherwise
+            by default.
     """
 
     def __init__(
@@ -99,6 +100,7 @@ class WandbModelCheckpoint(ModelCheckpoint):
         mode: Mode = "auto",
         save_freq: Union[SaveStrategy, int] = "epoch",
         initial_value_threshold: Optional[float] = None,
+        artifact_type: Optional[str] = None,
     ):
         if wandb.run is None:
             raise wandb.Error(
@@ -106,6 +108,11 @@ class WandbModelCheckpoint(ModelCheckpoint):
             )
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.keras_model_checkpoint = True
+
+        if artifact_type is None:
+            self.artifact_type = "weights" if save_weights_only else "model"
+        else:
+            self.artifact_type = artifact_type
 
         super().__init__(
             filepath,
@@ -121,9 +128,17 @@ class WandbModelCheckpoint(ModelCheckpoint):
     def on_train_batch_end(self, batch, logs=None):
         super().on_train_batch_end(batch, logs)
         if self._should_save_on_batch(batch):
-            _log_artifact(self.filepath, aliases=[f"batch_{batch}"])
+            _log_artifact(
+                self.filepath,
+                artifact_type=self.artifact_type,
+                aliases=[f"batch_{batch}"],
+            )
 
     def on_epoch_end(self, epoch, logs=None):
         super().on_epoch_end(epoch, logs)
         if self.save_freq == "epoch":
-            _log_artifact(self.filepath, aliases=[f"epoch_{epoch}"])
+            _log_artifact(
+                self.filepath,
+                artifact_type=self.artifact_type,
+                aliases=[f"epoch_{epoch}"],
+            )
