@@ -7,6 +7,8 @@
 /setup.cfg @wandb/sdk-team
 /setup.py @wandb/sdk-team
 /requirements.txt @wandb/sdk-team
+# Nexus changes need extra scrutiny during the initial rollout
+/nexus/ @wandb/sdk-team
 
 /tests/pytest_tests/unit_tests/test_launch/ @wandb/mlw-team
 /tests/pytest_tests/unit_tests_old/tests_launch/ @wandb/mlw-team
