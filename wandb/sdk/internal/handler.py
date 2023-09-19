@@ -511,6 +511,7 @@ class HandleManager:
         self._history_update(record.history, history_dict)
         self._dispatch_record(record)
         self._save_history(record.history)
+        # update summary from history
         updated_keys = self._update_summary(history_dict)
         if updated_keys:
             updated_items = {k: self._consolidated_summary[k] for k in updated_keys}
