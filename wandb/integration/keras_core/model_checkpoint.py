@@ -37,7 +37,8 @@ def _log_artifact(
 
 
 class WandbModelCheckpoint(ModelCheckpoint):
-    """`WandbModelCheckpoint` automatically logs model checkpoints to W&B and versions
+    """
+    `WandbModelCheckpoint` automatically logs model checkpoints to W&B and versions
     them as [W&B artifacts](https://docs.wandb.ai/guides/artifacts).
 
     Since this callback is subclassed from
