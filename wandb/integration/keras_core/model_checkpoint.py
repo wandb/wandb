@@ -129,21 +129,47 @@ class WandbModelCheckpoint(ModelCheckpoint):
     def on_train_batch_end(self, batch, logs=None):
         super().on_train_batch_end(batch, logs)
         if self._should_save_on_batch(batch):
-            _log_artifact(
-                self.filepath,
-                artifact_type=self.artifact_type,
-                aliases=[f"batch_{batch}"],
-                metadata={f"batch/{k}": v for k, v in logs.items()} if logs else {},
-            )
+            if self.save_best_only:
+                current = logs.get(self.monitor)
+                if current is not None:
+                    if self.monitor_op(current, self.best):
+                        _log_artifact(
+                            self.filepath,
+                            artifact_type=self.artifact_type,
+                            aliases=[f"batch_{batch}", "best"],
+                            metadata={f"batch/{k}": v for k, v in logs.items()}
+                            if logs
+                            else {},
+                        )
+            else:
+                _log_artifact(
+                    self.filepath,
+                    artifact_type=self.artifact_type,
+                    aliases=[f"batch_{batch}"],
+                    metadata={f"batch/{k}": v for k, v in logs.items()} if logs else {},
+                )
 
     def on_epoch_end(self, epoch, logs=None):
         super().on_epoch_end(epoch, logs)
         if self.save_freq == "epoch":
-            _log_artifact(
-                self.filepath,
-                artifact_type=self.artifact_type,
-                aliases=[f"epoch_{epoch}"],
-                metadata=dict()
-                if logs is None
-                else {f"epoch/{k}": v for k, v in logs.items()},
-            )
+            if self.save_best_only:
+                current = logs.get(self.monitor)
+                if current is not None:
+                    if self.monitor_op(current, self.best):
+                        _log_artifact(
+                            self.filepath,
+                            artifact_type=self.artifact_type,
+                            aliases=[f"epoch_{epoch}", "best"],
+                            metadata=dict()
+                            if logs is None
+                            else {f"epoch/{k}": v for k, v in logs.items()},
+                        )
+            else:
+                _log_artifact(
+                    self.filepath,
+                    artifact_type=self.artifact_type,
+                    aliases=[f"epoch_{epoch}"],
+                    metadata=dict()
+                    if logs is None
+                    else {f"epoch/{k}": v for k, v in logs.items()},
+                )
