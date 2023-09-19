@@ -44,18 +44,18 @@ class WandbModelCheckpoint(ModelCheckpoint):
     [`keras_core.callbacks.ModelCheckpoint`](https://keras.io/keras_core/api/callbacks/model_checkpoint/),
     the checkpointing logic is taken care of by the parent callback.
 
-    This callback is to be used in conjunction with training using `model.fit()` to save
+    This callback is to be used in conjunction with `model.fit()` to save
     a model or weights (in a checkpoint file) at some interval. The model checkpoints
     will be logged as W&B Artifacts. You can learn more here:
     https://docs.wandb.ai/guides/artifacts
 
-    This callback provides the following features:
+    This callback provides the following configurable features:
         - Save the model that has achieved "best performance" based on "monitor".
         - Save the model at the end of every epoch regardless of the performance.
         - Save the model at the end of epoch or after a fixed number of training
             batches.
         - Save only model weights, or save the whole model.
-        - Save the model either in SavedModel format or in `.h5` format.
+        - Save the model either in `.keras`, `.h5` or SavedModel format.
 
     Arguments:
         filepath: (Union[str, os.PathLike]) path to save the model file. `filepath`
