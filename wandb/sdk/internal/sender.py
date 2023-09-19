@@ -268,7 +268,7 @@ class SendManager:
         self._cached_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
-        self._consolidated_summary = dict()
+        self._consolidated_summary: Dict[str, Any] = dict()
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
