@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
       - name: Set up Python
@@ -54,10 +54,15 @@ jobs:
     needs: test-pypi-publish
     runs-on: ubuntu-latest
     steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
       - name: Install wandb from TestPyPI
         run: |
+          sleep 5
           python -m pip install --upgrade pip
-          python -m pip install --index-url https://test.pypi.org/simple/ --pre wandb
+          python -m pip install --extra-index-url https://test.pypi.org/simple/ --pre wandb
       - name: Smoke-test wandb TestPyPI install
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
@@ -84,3 +89,28 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_TOKEN }}
+
+  slack:
+    name: Post to Slack
+    needs: pypi-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install from PyPI and get version
+        id: get_version
+        run: |
+          sleep 5
+          python -m pip install --upgrade pip
+          python -m pip install --pre wandb
+          echo "WANDB_VERSION=$(python -c 'import wandb; print(wandb.__version__)')" >> "$GITHUB_ENV"
+      - name: Post to Slack
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          # Slack channel id, channel name, or user id to post message.
+          # See also: https://api.slack.com/methods/chat.postMessage#channels
+          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
+          channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+          # For posting a simple plain text message
+          slack-message: "W&B SDK ${{ env.WANDB_VERSION }} released :tada:: https://pypi.org/project/wandb/${{ env.WANDB_VERSION }}/"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
