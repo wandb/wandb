@@ -21,7 +21,7 @@ def _log_artifact(
     aliases: Optional[List] = None,
     metadata: Optional[Dict] = None,
 ) -> None:
-    """Log an artifact to Weights & Biases"""
+    """Log an artifact to Weights & Biases."""
     aliases = ["latest"] if aliases is None else aliases + ["latest"]
     metadata = wandb.run.config.as_dict() if metadata is None else metadata
     model_checkpoint_artifact = wandb.Artifact(
