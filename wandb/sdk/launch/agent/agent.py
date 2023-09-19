@@ -329,7 +329,7 @@ class LaunchAgent:
                     job_and_run_status.run_queue_item_id, _msg, "run", fnames
                 )
         else:
-            _logger.info("Finish thread id had no exception, ror run")
+            _logger.info("Finish thread id had no exception and no run")
             wandb._sentry.exception(
                 "launch agent called finish thread id on thread without run or exception"
             )
