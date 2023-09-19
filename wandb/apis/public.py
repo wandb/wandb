@@ -2677,6 +2677,7 @@ class RunQueue:
         self._default_resource_config = _default_resource_config
         self._type = None
         self._items = None
+        self._id = None
 
     @property
     def name(self):
@@ -2709,12 +2710,42 @@ class RunQueue:
         return self._default_resource_config
 
     @property
+    def id(self) -> str:
+        if self._id is None:
+            self._get_metadata()
+        return self._id
+
+    @property
     def items(self) -> List[QueuedRun]:
         """Up to the first 100 queued runs. Modifying this list will not modify the queue or any enqueued items!"""
         # TODO(np): Add a paginated interface
         if self._items is None:
             self._get_items()
         return self._items
+
+    @normalize_exceptions
+    def delete(self):
+        """Delete the run queue from the wandb backend."""
+        query = gql(
+            """
+            mutation DeleteRunQueue($id: ID!) {
+                deleteRunQueues(input: {queueIDs: [$id]}) {
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        variable_values = {"id": self.id}
+        res = self._client.execute(query, variable_values)
+        if res["deleteRunQueues"]["success"]:
+            self._id = None
+            self._access = None
+            self._default_resource_config_id = None
+            self._default_resource_config = None
+            self._items = None
+        else:
+            raise CommError(f"Failed to delete run queue {self.name}")
 
     def __repr__(self):
         return f"<RunQueue {self._entity}/{self._name}>"
@@ -2726,6 +2757,7 @@ class RunQueue:
             query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueue) {
+                        id
                         access
                         defaultResourceConfigID
                     }
@@ -2739,6 +2771,7 @@ class RunQueue:
             "runQueue": self._name,
         }
         res = self._client.execute(query, variable_values)
+        self._id = res["project"]["runQueue"]["id"]
         self._access = res["project"]["runQueue"]["access"]
         self._default_resource_config_id = res["project"]["runQueue"][
             "defaultResourceConfigID"
