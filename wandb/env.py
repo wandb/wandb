@@ -74,6 +74,7 @@ JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 DATA_DIR = "WANDB_DATA_DIR"
 ARTIFACT_DIR = "WANDB_ARTIFACT_DIR"
+ARTIFACT_FETCH_FILE_URL_BATCH_SIZE = "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
@@ -377,6 +378,14 @@ def get_artifact_dir(env: Optional[Env] = None) -> str:
     if env is None:
         env = os.environ
     val = env.get(ARTIFACT_DIR, default_dir)
+    return val
+
+
+def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> str:
+    default_batch_size = 5000
+    if env is None:
+        env = os.environ
+    val = env.get(ARTIFACT_FETCH_FILE_URL_BATCH_SIZE, default_batch_size)
     return val
 
 
