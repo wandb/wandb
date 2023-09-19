@@ -315,9 +315,11 @@ class LaunchAgent:
             except CommError:
                 pass
             if run_info is None:
-                _msg = "The submitted run was not successfully started"
                 fnames = None
-
+                if job_and_run_status.completed_status == "finished":
+                    _msg = "The submitted job exited successfully but failed to call wandb.init"
+                else:
+                    _msg = "The submitted run was not successfuly started"
                 logs = job_and_run_status.run.get_logs()
                 if logs:
                     fnames = job_and_run_status.saver.save_contents(
