@@ -452,6 +452,7 @@ def send_artifacts_with_send_manager(
         settings, record_q, result_q, interface, context_keeper
     ) as sm:
         _handle_run_record(sm, rm)
+
         for art in arts:
             _handle_use_specific_artifact(sm, rm, art, config)
             _handle_log_specific_artifact(sm, rm, art, config)

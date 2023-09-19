@@ -1541,15 +1541,11 @@ class SendManager:
             self._dir_watcher.finish()
             self._dir_watcher = None
         if self._pusher:
-            print(f">>> START PUSHER FINISH {self._pusher=}")
             self._pusher.finish(transition)
-            print(f">>> WAITING FOR EVENT.WAIT() {self._pusher=}")
             event.wait()
             # wait until pusher is done via callback
-            print(f">>> START PUSHER JOIN {self._pusher=}")
             self._pusher.join()
             # also need to inspect pusher contents
-            print(f">>> DONE {self._pusher=}")
             self._pusher = None
         if self._fs:
             self._fs.finish(self._exit_code)
