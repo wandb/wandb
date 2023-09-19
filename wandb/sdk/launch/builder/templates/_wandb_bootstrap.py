@@ -39,7 +39,7 @@ def install_deps(
         deps (str[], None): The dependencies that failed to install
     """
     try:
-        clean_deps = [f'"{d}"' if " " in d else d for d in deps]
+        clean_deps = deps
         index_args = ["--extra-index-url", extra_index] if extra_index else []
         print("installing {}...".format(", ".join(clean_deps)))
         opts = opts or []
