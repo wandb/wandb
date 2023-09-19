@@ -132,6 +132,7 @@ class WandbModelCheckpoint(ModelCheckpoint):
                 self.filepath,
                 artifact_type=self.artifact_type,
                 aliases=[f"batch_{batch}"],
+                metadata={f"batch/{k}": v for k, v in logs.items()} if logs else {},
             )
 
     def on_epoch_end(self, epoch, logs=None):
@@ -141,4 +142,7 @@ class WandbModelCheckpoint(ModelCheckpoint):
                 self.filepath,
                 artifact_type=self.artifact_type,
                 aliases=[f"epoch_{epoch}"],
+                metadata=dict()
+                if logs is None
+                else {f"epoch/{k}": v for k, v in logs.items()},
             )
