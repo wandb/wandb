@@ -313,7 +313,6 @@ class SettingsData:
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
-    _proxies: Mapping[str, str]
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
     _file_stream_retry_wait_min_seconds: int  # min wait time between retries
@@ -349,6 +348,7 @@ class SettingsData:
     _sync: bool
     _os: str
     _platform: str
+    _proxies: Mapping[str, str]  # dedicated global proxy servers [scheme -> url]
     _python: str
     _runqueue_item_id: str
     _require_nexus: bool
@@ -700,6 +700,9 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
+            _proxies={
+                "preprocessor": _str_as_json,
+            },
             _require_nexus={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={

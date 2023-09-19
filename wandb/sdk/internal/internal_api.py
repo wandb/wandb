@@ -115,6 +115,7 @@ if TYPE_CHECKING:
         entity: Optional[str]
         project: Optional[str]
         _extra_http_headers: Optional[Mapping[str, str]]
+        _proxies: Optional[Mapping[str, str]]
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
@@ -234,6 +235,7 @@ class Api:
             "entity": None,
             "project": None,
             "_extra_http_headers": None,
+            "_proxies": None,
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
@@ -252,10 +254,13 @@ class Api:
             "heartbeat_seconds": 30,
         }
 
-        # todo: remove this hacky hack after settings refactor is complete
+        # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
         extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
+        )
+        proxies = self.settings("_proxies") or json.loads(
+            self._environ.get("WANDB__PROXIES", "{}")
         )
 
         auth = None
@@ -277,6 +282,7 @@ class Api:
                 auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
                 cookies=_thread_local_api_settings.cookies,
+                proxies=proxies,
             )
         )
 
@@ -294,13 +300,14 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
-        print(self.default_settings)
         self._upload_file_session = requests.Session()
         if self.FILE_PUSHER_TIMEOUT:
             self._upload_file_session.put = functools.partial(  # type: ignore
                 self._upload_file_session.put,
                 timeout=self.FILE_PUSHER_TIMEOUT,
             )
+        if proxies:
+            self._upload_file_session.proxies.update(proxies)
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
