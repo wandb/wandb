@@ -2,7 +2,7 @@ import signal
 import subprocess
 import sys
 from time import sleep
-from typing import Optional, Tuple
+from typing import Optional
 
 import wandb
 import yaml

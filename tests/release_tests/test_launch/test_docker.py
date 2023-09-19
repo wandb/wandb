@@ -1,11 +1,6 @@
 import pytest
-from utils import (
-    run_cmd,
-    run_cmd_async,
-    wait_for_queued_image_job_completion,
-)
+from utils import run_cmd, run_cmd_async, wait_for_queued_image_job_completion
 from wandb.sdk.launch._launch_add import launch_add
-
 
 NAMESPACE = "wandb-release-testing"
 ENTITY = "launch-release-testing"

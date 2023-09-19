@@ -8,9 +8,9 @@ from utils import (
     init_agent_in_launch_cluster,
     run_cmd,
     run_cmd_async,
+    wait_for_k8s_job_completion,
     wait_for_queued_image_job_completion,
     wait_for_run_completion,
-    wait_for_k8s_job_completion,
 )
 from wandb.apis.public import Api, Sweep
 from wandb.sdk.launch._launch_add import launch_add
