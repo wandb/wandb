@@ -104,6 +104,7 @@ def test_keras_telemetry_deprecated(relay_server, wandb_init):
     assert telemetry and 8 in telemetry.get("3", []) and 1 in telemetry.get("10", [])
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_image_binary(dummy_model, dummy_data, relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -113,7 +114,10 @@ def test_keras_image_binary(dummy_model, dummy_data, relay_server, wandb_init):
             batch_size=36,
             validation_data=dummy_data,
             callbacks=[
-                WandbCallback(data_type="image"),
+                WandbCallback(
+                    input_type="image",
+                    validation_data=dummy_data,
+                ),
             ],
         )
         run.finish()
@@ -122,6 +126,7 @@ def test_keras_image_binary(dummy_model, dummy_data, relay_server, wandb_init):
     assert len(history["examples"][0]["captions"]) == 36
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_image_binary_captions(dummy_model, dummy_data, relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -131,7 +136,12 @@ def test_keras_image_binary_captions(dummy_model, dummy_data, relay_server, wand
             batch_size=36,
             validation_data=dummy_data,
             callbacks=[
-                WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice"])
+                WandbCallback(
+                    input_type="image",
+                    predictions=10,
+                    labels=["Rad", "Nice"],
+                    validation_data=dummy_data,
+                )
             ],
         )
         run.finish()
@@ -141,6 +151,7 @@ def test_keras_image_binary_captions(dummy_model, dummy_data, relay_server, wand
 
 
 @pytest.mark.multiclass
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_image_multiclass(dummy_model, dummy_data, relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -149,7 +160,13 @@ def test_keras_image_multiclass(dummy_model, dummy_data, relay_server, wandb_ini
             epochs=2,
             batch_size=36,
             validation_data=dummy_data,
-            callbacks=[WandbCallback(data_type="image", predictions=10)],
+            callbacks=[
+                WandbCallback(
+                    input_type="image",
+                    predictions=10,
+                    validation_data=dummy_data,
+                )
+            ],
         )
         run.finish()
 
@@ -158,6 +175,7 @@ def test_keras_image_multiclass(dummy_model, dummy_data, relay_server, wandb_ini
 
 
 @pytest.mark.multiclass
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_image_multiclass_captions(
     dummy_model, dummy_data, relay_server, wandb_init
 ):
@@ -170,7 +188,7 @@ def test_keras_image_multiclass_captions(
             validation_data=dummy_data,
             callbacks=[
                 WandbCallback(
-                    data_type="image",
+                    input_type="image",
                     predictions=10,
                     labels=[
                         "Rad",
@@ -184,6 +202,7 @@ def test_keras_image_multiclass_captions(
                         "Fun",
                         "Rad",
                     ],
+                    validation_data=dummy_data,
                 )
             ],
         )
@@ -198,6 +217,7 @@ def test_keras_image_multiclass_captions(
 
 
 @pytest.mark.image_output
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_image_output(dummy_model, dummy_data, relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -208,8 +228,9 @@ def test_keras_image_output(dummy_model, dummy_data, relay_server, wandb_init):
             validation_data=dummy_data,
             callbacks=[
                 WandbCallback(
-                    data_type="image",
+                    input_type="image",
                     predictions=10,
+                    validation_data=dummy_data,
                 ),
             ],
         )
@@ -252,6 +273,7 @@ def test_dataset_functional(relay_server, wandb_init):
     )
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_log_weights(dummy_model, dummy_data, relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -273,6 +295,7 @@ def test_keras_log_weights(dummy_model, dummy_data, relay_server, wandb_init):
     assert history["parameters/dense.weights"][0]["_type"] == "histogram"
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_log_gradients(dummy_model, dummy_data, relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -296,6 +319,7 @@ def test_keras_log_gradients(dummy_model, dummy_data, relay_server, wandb_init):
     assert history["gradients/dense/bias.gradient"][0]["_type"] == "histogram"
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_save_model(dummy_model, dummy_data, wandb_init):
     run = wandb_init()
     dummy_model.fit(
@@ -316,6 +340,7 @@ def test_keras_save_model(dummy_model, dummy_data, wandb_init):
 
 
 @pytest.mark.timeout(300)
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_dsviz(dummy_model, dummy_data, wandb_init):
     run = wandb_init()
     dummy_model.fit(
@@ -326,6 +351,7 @@ def test_keras_dsviz(dummy_model, dummy_data, wandb_init):
         callbacks=[
             WandbCallback(
                 log_evaluation=True,
+                validation_data=dummy_data,
             ),
         ],
     )

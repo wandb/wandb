@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import kubernetes
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
+from wandb.sdk.launch.runner import kubernetes_runner
 from wandb.sdk.launch.utils import make_name_dns_safe
 
 
@@ -37,21 +38,27 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project.target_project = project_name
         project.override_config = {}
         project.job = "testjob"
+        project.launch_spec = {"_resume_count": 0}
+        project.fill_macros = lambda _: project.resource_args
 
         environment = loader.environment_from_config({})
-        registry = loader.registry_from_config({}, environment)
-        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
         api = Api()
         runner = loader.runner_from_config(
             runner_name="kubernetes",
             api=api,
             runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
             environment=environment,
+            registry=MagicMock(),
         )
-        run = runner.run(launch_project=project, builder=builder)
+        monkeypatch.setattr(
+            kubernetes_runner,
+            "maybe_create_imagepull_secret",
+            lambda *args, **kwargs: None,
+        )
+        run = runner.run(project, project.docker_image)
 
     assert run.name == expected_run_name
-    assert run.job["metadata"]["generateName"] == expected_generate_name
+    assert run.get_job()["metadata"]["generateName"] == expected_generate_name
 
 
 def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path):
@@ -68,14 +75,13 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
     with relay_server():
         api = Api()
         environment = loader.environment_from_config({})
-        registry = loader.registry_from_config({}, environment)
-        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
         api = Api()
         runner = loader.runner_from_config(
             runner_name="kubernetes",
             api=api,
             runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
             environment=environment,
+            registry=MagicMock(),
         )
 
         entity_name = "testentity"
@@ -99,11 +105,21 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
         project.override_config = {}
         project.override_args = ["-a", "2"]
         project.job = "testjob"
-        run = runner.run(launch_project=project, builder=builder)
+        project.fill_macros = lambda _: project.resource_args
+        monkeypatch.setattr(
+            kubernetes_runner,
+            "maybe_create_imagepull_secret",
+            lambda *args, **kwargs: None,
+        )
+        project.launch_spec = {"_resume_count": 0}
+        run = runner.run(image_uri="hello-world", launch_project=project)
     assert run.name == expected_run_name
-    assert run.job["metadata"]["generateName"] == expected_generate_name
-    assert run.job["metadata"]["annotations"] == {"x": "y"}
-    assert run.job["spec"]["template"]["spec"]["containers"][0]["args"] == ["-a", "2"]
+    assert run.get_job()["metadata"]["generateName"] == expected_generate_name
+    assert run.get_job()["metadata"]["annotations"] == {"x": "y"}
+    assert run.get_job()["spec"]["template"]["spec"]["containers"][0]["args"] == [
+        "-a",
+        "2",
+    ]
 
 
 class MockDict(dict):

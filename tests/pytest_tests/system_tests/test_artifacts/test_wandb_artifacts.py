@@ -2,8 +2,8 @@ import os
 import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
 
 import numpy as np
@@ -12,25 +12,28 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
-import wandb.sdk.interface as wandb_interface
-from wandb import util, wandb_sdk
-from wandb.sdk import wandb_artifacts
-from wandb.sdk.lib.hashutil import md5_string
-from wandb.sdk.wandb_artifacts import (
+import wandb.sdk.artifacts.artifacts_cache as artifacts_cache
+from wandb import util
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
+from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
-    GCSHandler,
-    HTTPHandler,
-    S3Handler,
 )
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
+from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
+from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
+from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
+from wandb.sdk.lib.hashutil import md5_string
 
 
-def mock_boto(artifact, path=False, content_type=None):
+def mock_boto(artifact, path=False, content_type=None, version_id="1"):
     class S3Object:
-        def __init__(self, name="my_object.pb", metadata=None, version_id=None):
+        def __init__(self, name="my_object.pb", metadata=None, version_id=version_id):
             self.metadata = metadata or {"md5": "1234567890abcde"}
             self.e_tag = '"1234567890abcde"'
-            self.version_id = version_id or "1"
+            self.bucket_name = "my-bucket"
+            self.version_id = version_id
             self.name = name
             self.key = name
             self.content_length = 10
@@ -49,9 +52,16 @@ def mock_boto(artifact, path=False, content_type=None):
                     "HeadObject",
                 )
 
+    class S3ObjectSummary:
+        def __init__(self, name=None, size=10):
+            self.e_tag = '"1234567890abcde"'
+            self.bucket_name = "my-bucket"
+            self.key = name or "my_object.pb"
+            self.size = size
+
     class Filtered:
         def limit(self, *args, **kwargs):
-            return [S3Object(), S3Object(name="my_other_object.pb")]
+            return [S3ObjectSummary(), S3ObjectSummary(name="my_other_object.pb")]
 
     class S3Objects:
         def filter(self, **kwargs):
@@ -63,7 +73,7 @@ def mock_boto(artifact, path=False, content_type=None):
 
     class S3Resource:
         def Object(self, bucket, key):  # noqa: N802
-            return S3Object()
+            return S3Object(name=key)
 
         def ObjectVersion(self, bucket, key, version):  # noqa: N802
             class Version:
@@ -201,7 +211,8 @@ def mock_azure_handler():
         raise NotImplementedError
 
     with unittest.mock.patch(
-        "wandb.sdk.wandb_artifacts.AzureHandler._get_module", new=_get_module
+        "wandb.sdk.artifacts.storage_handlers.azure_handler.AzureHandler._get_module",
+        new=_get_module,
     ):
         yield
 
@@ -240,17 +251,13 @@ def test_unsized_manifest_entry_real_file():
     f = Path("some/file.txt")
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text("hello")
-    entry = wandb_artifacts.ArtifactManifestEntry(
-        path="foo", digest="123", local_path="some/file.txt"
-    )
+    entry = ArtifactManifestEntry(path="foo", digest="123", local_path="some/file.txt")
     assert entry.size == 5
 
 
 def test_unsized_manifest_entry():
     with pytest.raises(FileNotFoundError) as e:
-        wandb_artifacts.ArtifactManifestEntry(
-            path="foo", digest="123", local_path="some/file.txt"
-        )
+        ArtifactManifestEntry(path="foo", digest="123", local_path="some/file.txt")
     assert "No such file" in str(e.value)
 
 
@@ -300,7 +307,7 @@ def test_add_after_finalize():
     artifact.finalize()
     with pytest.raises(ArtifactFinalizedError) as e:
         artifact.add_file("file1.txt")
-    assert "Can't add to finalized artifact" in str(e.value)
+    assert "Can't modify finalized artifact" in str(e.value)
 
 
 def test_add_new_file_encode_error(capsys):
@@ -530,6 +537,21 @@ def test_add_s3_reference_object():
         "digest": "1234567890abcde",
         "ref": "s3://my-bucket/my_object.pb",
         "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "size": 10,
+    }
+
+
+def test_add_s3_reference_object_no_version():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact, version_id=None)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "s3://my-bucket/my_object.pb",
+        "extra": {"etag": "1234567890abcde"},
         "size": 10,
     }
 
@@ -888,6 +910,69 @@ def test_add_reference_unknown_handler():
     }
 
 
+@pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
+def test_remove_file(name_type):
+    file1 = Path("file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
+    file1.write_text("hello")
+    file2 = Path("file2.txt")
+    file2.write_text("hello")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_file(file1)
+    artifact.add_file(file2, name="renamed.txt")
+
+    artifact.remove(name_type(file1))
+    artifact.remove(name_type("renamed.txt"))
+
+    assert artifact.manifest.entries == {}
+
+
+@pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
+def test_remove_directory(name_type):
+    file1 = Path("bar/foo/file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
+    file1.write_text("hello")
+    file2 = Path("bar/foo/file2.txt")
+    file2.write_text("hello2")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_dir("bar")
+
+    print(artifact.manifest.entries)
+
+    assert len(artifact.manifest.entries) == 2
+
+    artifact.remove(name_type("foo"))
+
+    assert artifact.manifest.entries == {}
+
+
+def test_remove_non_existent():
+    file1 = Path("baz/foo/file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
+    file1.write_text("hello")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_dir("baz")
+
+    with pytest.raises(FileNotFoundError):
+        artifact.remove("file1.txt")
+    with pytest.raises(FileNotFoundError):
+        artifact.remove("bar/")
+
+    assert len(artifact.manifest.entries) == 1
+
+
+def test_remove_manifest_entry():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    entry = artifact.add_reference(Path(__file__).as_uri())[0]
+
+    artifact.remove(entry)
+
+    assert artifact.manifest.entries == {}
+
+
 def test_artifact_table_deserialize_timestamp_column():
     artifact_json = {
         "_type": "table",
@@ -1022,24 +1107,6 @@ def test_add_obj_using_brackets(assets_path):
 
     with pytest.raises(ArtifactNotLoggedError):
         _ = artifact["my-image"]
-
-
-def test_artifact_interface_link():
-    art = wandb_interface.artifacts.Artifact()
-    with pytest.raises(NotImplementedError):
-        _ = art.link("boom")
-
-
-def test_artifact_interface_get_item():
-    art = wandb_interface.artifacts.Artifact()
-    with pytest.raises(NotImplementedError):
-        _ = art["my-image"]
-
-
-def test_artifact_interface_set_item():
-    art = wandb_interface.artifacts.Artifact()
-    with pytest.raises(NotImplementedError):
-        art["my-image"] = 1
 
 
 def test_duplicate_wbimage_from_file(assets_path):
@@ -1253,12 +1320,6 @@ def test_add_partition_folder():
     }
 
 
-def test_interface_commit_hash():
-    artifact = wandb_interface.artifacts.Artifact()
-    with pytest.raises(NotImplementedError):
-        artifact.commit_hash()
-
-
 @pytest.mark.parametrize(
     "headers,expected_digest",
     [
@@ -1278,7 +1339,7 @@ def test_http_storage_handler_uses_etag_for_digest(
             json={"result": 1},
             headers=headers,
         )
-        handler = wandb_artifacts.HTTPHandler(session)
+        handler = HTTPHandler(session)
 
         art = wandb.Artifact("test", type="dataset")
         [entry] = handler.store_path(
@@ -1289,20 +1350,70 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
+def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
+    # Create an artifact that references a non-existent S3 object.
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Patch the S3 handler to return a 404 error when checking the ETag.
+    def bad_request(*args, **kwargs):
+        raise util.get_module("botocore").exceptions.ClientError(
+            operation_name="HeadObject",
+            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+        )
+
+    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+
+    with pytest.raises(FileNotFoundError, match="Unable to find"):
+        artifact.download()
+
+
+def test_s3_storage_handler_load_path_missing_reference_allowed(
+    monkeypatch, wandb_init, capsys
+):
+    # Create an artifact that references a non-existent S3 object.
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    with wandb_init(project="test") as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Patch the S3 handler to return a 404 error when checking the ETag.
+    def bad_request(*args, **kwargs):
+        raise util.get_module("botocore").exceptions.ClientError(
+            operation_name="HeadObject",
+            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
+        )
+
+    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+
+    artifact.download(allow_missing_references=True)
+
+    # It should still log a warning about skipping the missing reference.
+    assert "Unable to find my_object.pb" in capsys.readouterr().err
+
+
 def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    cache = wandb_artifacts.ArtifactsCache(tmp_path)
+    cache = artifacts_cache.ArtifactsCache(tmp_path)
     path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_artifacts.S3Handler()
+    handler = S3Handler()
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb_artifacts.ArtifactManifestEntry(
+        ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -1314,8 +1425,8 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
 
 
 def test_tracking_storage_handler():
-    art = wandb_artifacts.Artifact("test", "dataset")
-    handler = wandb_artifacts.TrackingHandler()
+    art = wandb.Artifact("test", "dataset")
+    handler = TrackingHandler()
     [entry] = handler.store_path(art, path="/path/to/file.txt", name="some-file")
     assert entry.path == "some-file"
     assert entry.ref == "/path/to/file.txt"
@@ -1359,9 +1470,9 @@ def test_manifest_json_invalid_version(version):
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
 def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
-    cache = wandb_sdk.wandb_artifacts.ArtifactsCache(tmp_path)
-    monkeypatch.setattr(wandb.sdk.interface.artifacts, "_artifacts_cache", cache)
-    assert cache == wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    cache = artifacts_cache.ArtifactsCache(tmp_path)
+    monkeypatch.setattr(artifacts_cache, "_artifacts_cache", cache)
+    assert cache == artifacts_cache.get_artifacts_cache()
     cache.cleanup(0)
 
     artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
@@ -1388,3 +1499,39 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
     # Even though this works in production, the test often fails. I don't know why :(.
     assert found
     assert cache.cleanup(0) == 2**20
+
+
+def test_artifact_ttl_setter_getter():
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed is False
+    assert art._ttl_is_inherited
+
+    art = wandb.Artifact("test", type="test")
+    art.ttl = None
+    assert art.ttl is None
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ArtifactTTL.INHERIT
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited
+
+    ttl_timedelta = timedelta(days=100)
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ttl_timedelta
+    assert art.ttl == ttl_timedelta
+    assert art._ttl_duration_seconds == int(ttl_timedelta.total_seconds())
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ValueError):
+        art.ttl = timedelta(days=-1)

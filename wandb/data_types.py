@@ -47,6 +47,7 @@ from .sdk.data_types.molecule import Molecule
 from .sdk.data_types.object_3d import Object3D
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
+from .sdk.data_types.trace_tree import WBTraceTree
 from .sdk.data_types.video import Video
 from .sdk.lib import runid
 
@@ -67,6 +68,7 @@ __all__ = [
     "Object3D",
     "Plotly",
     "Video",
+    "WBTraceTree",
     "_SavedModel",
     # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
@@ -298,13 +300,13 @@ class Table(Media):
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
-        assert type(columns) is list, "columns argument expects a `list` object"
+        assert isinstance(columns, list), "columns argument expects a `list` object"
         assert len(columns) == 0 or all(
             [type(col) in valid_col_types for col in columns]
         ), "columns argument expects list of strings or ints"
 
     def _init_from_list(self, data, columns, optional=True, dtype=None):
-        assert type(data) is list, "data argument expects a `list` object"
+        assert isinstance(data, list), "data argument expects a `list` object"
         self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
@@ -633,7 +635,7 @@ class Table(Media):
                 }
             )
 
-        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -654,7 +656,7 @@ class Table(Media):
                 is_1d_array = (
                     ndarray_type is not None
                     and "shape" in ndarray_type._params
-                    and type(ndarray_type._params["shape"]) == list
+                    and isinstance(ndarray_type._params["shape"], list)
                     and len(ndarray_type._params["shape"]) == 1
                     and ndarray_type._params["shape"][0]
                     <= self._MAX_EMBEDDING_DIMENSIONS
@@ -1252,7 +1254,7 @@ class JoinedTable(Media):
     def _validate_table_input(table):
         """Helper method to validate that the table input is one of the 3 supported types."""
         return (
-            (type(table) == str and table.endswith(".table.json"))
+            (isinstance(table, str) and table.endswith(".table.json"))
             or isinstance(table, Table)
             or isinstance(table, PartitionedTable)
             or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))

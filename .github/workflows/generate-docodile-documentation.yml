@@ -7,12 +7,20 @@ env:
 on: # Whenever a release is published,
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Reference (tag or commit sha) to generate docs from'
+        required: false
 
 jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: wandb/docugen@v0.2.0-docodile-beta-0
+      - uses: wandb/docugen@v0.4.1
         with:
           docodile-branch: main
+          wandb-branch: ${{ replace(github.event.inputs.ref, 'refs/tags/', '') || github.ref }}
+          generate-sdk-docs: true
+          generate-weave-docs: false
           access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}

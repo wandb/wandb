@@ -28,6 +28,9 @@ def toggle_button(what="run"):
 
 
 def _get_python_type() -> PythonType:
+    if "IPython" not in sys.modules:
+        return "python"
+
     try:
         from IPython import get_ipython  # type: ignore
 
@@ -40,6 +43,10 @@ def _get_python_type() -> PythonType:
     # jupyter-based environments (e.g. jupyter itself, colab, kaggle, etc) have a connection file
     ip_kernel_app_connection_file = (
         (get_ipython().config.get("IPKernelApp", {}) or {})
+        .get("connection_file", "")
+        .lower()
+    ) or (
+        (get_ipython().config.get("ColabKernelApp", {}) or {})
         .get("connection_file", "")
         .lower()
     )

@@ -12,11 +12,10 @@ from pkg_resources import parse_version
 from wandb_gql import gql
 
 import wandb
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.lib import runid
 
 from ...apis.internal import Api
-from ...apis.public import Artifact as ArtifactAPI
-from ..wandb_artifacts import Artifact
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
@@ -224,7 +223,7 @@ def verify_manifest(
 
 
 def verify_digest(
-    downloaded: "ArtifactAPI", computed: "ArtifactAPI", fails_list: List[str]
+    downloaded: "Artifact", computed: "Artifact", fails_list: List[str]
 ) -> None:
     if downloaded.digest != computed.digest:
         fails_list.append(
@@ -268,7 +267,7 @@ def log_use_download_artifact(
     download_dir: str,
     failed_test_strings: List[str],
     add_extra_file: bool,
-) -> Tuple[bool, Optional["ArtifactAPI"], List[str]]:
+) -> Tuple[bool, Optional["Artifact"], List[str]]:
     with wandb.init(
         id=nice_id("log_artifact"),
         reinit=True,
@@ -315,7 +314,7 @@ def check_artifacts() -> bool:
     # test checksum
     sing_art_dir = "./verify_sing_art"
     alias = "sing_art1"
-    name = "sing-artys"
+    name = nice_id("sing-artys")
     singular_art = artifact_with_path_or_paths(name, singular=True)
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         singular_art, alias, name, sing_art_dir, failed_test_strings, False
@@ -333,7 +332,7 @@ def check_artifacts() -> bool:
     # test manifest and digest
     multi_art_dir = "./verify_art"
     alias = "art1"
-    name = "my-artys"
+    name = nice_id("my-artys")
     art1 = artifact_with_path_or_paths(name, "./verify_art_dir", singular=False)
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         art1, alias, name, multi_art_dir, failed_test_strings, True
@@ -357,9 +356,7 @@ def check_artifacts() -> bool:
     verify_digest(download_artifact, computed, failed_test_strings)
 
     computed_manifest = computed.manifest.to_manifest_json()["contents"]
-    downloaded_manifest = download_artifact._load_manifest().to_manifest_json()[
-        "contents"
-    ]
+    downloaded_manifest = download_artifact.manifest.to_manifest_json()["contents"]
     verify_manifest(downloaded_manifest, computed_manifest, failed_test_strings)
 
     print_results(failed_test_strings, False)

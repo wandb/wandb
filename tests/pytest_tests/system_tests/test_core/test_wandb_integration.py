@@ -68,6 +68,7 @@ def test_include_exclude_config_keys(wandb_init):
         )
 
 
+@pytest.mark.nexus_failure(feature="file_uploader")
 def test_ignore_globs_wandb_files(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))
@@ -91,9 +92,7 @@ def test_dir_on_import():
     # Test for the base case
     _remove_dir_if_exists(default_path)
     reload_fn(wandb)
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-        default_path
-    )
+    assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
 
     # test for the case that the env variable is set
     with mock.patch.dict(os.environ, {"WANDB_DIR": custom_env_path}):
@@ -120,9 +119,7 @@ def test_dir_on_init(wandb_init):
         _remove_dir_if_exists(default_path)
         run = wandb_init()
         run.finish()
-        assert os.path.isdir(default_path), "Expected directory at {}".format(
-            default_path
-        )
+        assert os.path.isdir(default_path), f"Expected directory at {default_path}"
 
 
 def test_dir_on_init_env(wandb_init):
@@ -169,22 +166,14 @@ def test_dir_on_init_dir(wandb_init):
         os.makedirs(custom_dir_path)
     run = wandb_init(dir="./" + dir_name)
     run.finish()
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-        default_path
-    )
-    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(
-        custom_dir_path
-    )
+    assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
+    assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
     # And for the duplicate-run case
     _remove_dir_if_exists(default_path)
     run = wandb_init(dir="./" + dir_name)
     run.finish()
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-        default_path
-    )
-    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(
-        custom_dir_path
-    )
+    assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
+    assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
 
 
 @pytest.mark.parametrize(
@@ -195,13 +184,16 @@ def test_dir_on_init_dir(wandb_init):
         ("0.9.0", "ERROR wandb version 0.9.0 has been retired"),
     ],
 )  # TODO should we mock pypi?
+@pytest.mark.nexus_failure(feature="terminal_ui")
 def test_versions_messages(wandb_init, capsys, version, message):
     with mock.patch("wandb.__version__", version):
         run = wandb_init(settings=dict(console="off"))
-        assert message in capsys.readouterr().err
         run.finish()
+        assert message in capsys.readouterr().err
 
 
+# todo(nexus): debug how the record is sent in the file stream
+@pytest.mark.nexus_failure(feature="mark_preempting")
 def test_end_to_end_preempting(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))
@@ -213,10 +205,12 @@ def test_end_to_end_preempting(relay_server, wandb_init):
             if preempting:
                 break
             time.sleep(1)
+        print(relay.context.raw_data)
         assert any(preempting)
         run.finish()
 
 
+@pytest.mark.nexus_failure(feature="mark_preempting")
 def test_end_to_end_preempting_via_module_func(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))

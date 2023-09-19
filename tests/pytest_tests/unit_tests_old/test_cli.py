@@ -54,24 +54,16 @@ def test_artifact_download(runner, git_repo, mock_server):
     assert os.path.exists(path)
 
 
-def test_artifact_upload(runner, git_repo, mock_server, mocker, mocked_run):
+def test_artifact_upload(runner, git_repo, mock_server, mocked_run):
     with open("artifact.txt", "w") as f:
         f.write("My Artifact")
-    mocker.patch("wandb.init", lambda *args, **kwargs: mocked_run)
-    mocker.patch(
-        "wandb.Artifact.wait",
-        lambda *args, **kwargs: wandb_internal_pb2.LogArtifactResponse(
-            artifact_id="some-artifact-id",
-        ),
-    )
     result = runner.invoke(cli.artifact, ["put", "artifact.txt", "-n", "test/simple"])
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "Uploading file artifact.txt to:" in result.output
-    #  TODO: one of the tests above is setting entity to y
-    assert "test/simple:v0" in result.output
+    assert "FAKE_ENTITY/FAKE_PROJECT/mnist:v0" in result.output
 
 
 def test_artifact_ls(runner, git_repo, mock_server):
@@ -80,7 +72,7 @@ def test_artifact_ls(runner, git_repo, mock_server):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "10.0KB" in result.output
+    assert "81.3KB" in result.output
     assert "mnist:v2" in result.output
 
 
