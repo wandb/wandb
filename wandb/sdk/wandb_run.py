@@ -2678,10 +2678,7 @@ class Run:
                     entity,
                     project,
                 )
-                if (
-                    artifact._ttl_duration_seconds is not None
-                    or artifact._ttl_is_inherited
-                ):
+                if artifact._ttl_duration_seconds is not None:
                     wandb.termwarn(
                         "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
                     )
@@ -3028,7 +3025,7 @@ class Run:
         if expected_type is not None and artifact.type != expected_type:
             raise ValueError(
                 f"Artifact {artifact.name} already exists with type '{expected_type}'; "
-                f"cannot create another with type {artifact.type}"
+                f"cannot create another with type '{artifact.type}'"
             )
         if entity and artifact._source_entity and entity != artifact._source_entity:
             raise ValueError(

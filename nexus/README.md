@@ -19,7 +19,7 @@ but starting from a clean slate.
 To install Nexus, you will need to run the following commands:
 
 ```bash
-pip install "wandb[nexus]==0.16.0b1"
+pip install "wandb[nexus]" --pre
 ```
 
 ### Supported Platforms
@@ -30,7 +30,7 @@ Nexus is currently supported on the following platforms:
 - macOS: `x86_64`, `arm64`
 - Windows `amd64`
 
-If you are using a different platform, you can build Nexus from source by following the
+If you are using a different platform, you can build Nexus from the source by following the
 instructions in the [contributing guide](docs/contributing.md#installing-nexus).
 Please also open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
 to let us know that you are interested in using Nexus on
@@ -38,7 +38,7 @@ your platform, and we will prioritize adding support for it.
 
 ## Usage example
 
-While Nexus is still in development, you need to explicitly opt in to use it.
+While Nexus is still in development, you need to explicitly opt-in to use it.
 
 ```python
 import wandb
@@ -56,13 +56,13 @@ your development environment and how to contribute to the codebase.
 ## Feedback
 Please give Nexus a try and let us know what you think, we believe it is worth it!
 
-We are very much looking forward for your feedback, especially bug reports.
+We are very much looking forward to your feedback, especially bug reports.
 Please open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
-if you encounter an error and mention that you are using Nexus.
+if you encounter an error, mention that you are using Nexus.
 
 ## Feature Parity Status
 
-The following table shows the status of feature parity
+The following table shows the status of the feature parity
 between the current W&B SDK and Nexus for version `0.16.0b1`.
 
 Status legend:
