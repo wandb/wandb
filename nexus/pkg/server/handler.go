@@ -287,6 +287,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
 	case *service.Request_ServerInfo:
+		err := fmt.Errorf("just having some fun")
+		h.logger.CaptureError("Just chillin'", err)
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
 		shutdown = true

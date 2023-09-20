@@ -30,6 +30,7 @@ func InitSentry(disabled bool, commit string) {
 		Dsn:              s.Dsn,
 		AttachStacktrace: true,
 		Release:          version.Version,
+		Dist:             s.Commit,
 	})
 
 	if err != nil {
