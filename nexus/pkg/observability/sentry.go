@@ -1,9 +1,10 @@
 package observability
 
 import (
-	"github.com/wandb/wandb/nexus/internal/version"
 	"log/slog"
 	"time"
+
+	"github.com/wandb/wandb/nexus/internal/version"
 
 	"github.com/getsentry/sentry-go"
 )
