@@ -486,7 +486,7 @@ class HandleManager:
         #  if syncing an old run, we can skip this logic
         # if history_dict.get("_step") is None:
         #     self._history_assign_step(history, history_dict)
-        self._step += 1
+        # self._step += 1
 
         update_history: Dict[str, Any] = {}
         # Look for metric matches
@@ -530,8 +530,9 @@ class HandleManager:
             item = history.item.add()
             item.key = k
             item.value_json = json.dumps(v)
-        if step is not None:
-            history.step.num = step
+        # if step is not None:
+        #     history.step.num = step
+        print("flushing partial history", history)
         self.handle_history(Record(history=history))
         self._partial_history = {}
 
@@ -544,31 +545,34 @@ class HandleManager:
     def handle_request_partial_history(self, record: Record) -> None:
         partial_history = record.request.partial_history
 
-        flush = None
         if partial_history.HasField("action"):
-            flush = partial_history.action.flush
+            pass
 
         step = None
         if partial_history.HasField("step"):
             step = partial_history.step.num
 
+        print("partial history", partial_history)
+
         history_dict = proto_util.dict_from_proto_list(partial_history.item)
-        if step is not None:
-            # if step < self._step:
-            #     logger.warning(
-            #         f"Step {step} < {self._step}. Dropping entry: {history_dict}."
-            #     )
-            #     return
-            if step != self._step:
-                self._flush_partial_history(step)
-                self._step = step
-        elif flush is None:
-            flush = True
+        # if step is not None:
+        #     # if step < self._step:
+        #     #     logger.warning(
+        #     #         f"Step {step} < {self._step}. Dropping entry: {history_dict}."
+        #     #     )
+        #     #     return
+        #     if step != self._step:
+        #         self._flush_partial_history(step)
+        #         self._step = step
+        # elif flush is None:
+        #     flush = True
+
+        history_dict["user_step"] = step
 
         self._partial_history.update(history_dict)
 
-        if flush:
-            self._flush_partial_history(self._step)
+        # if flush:
+        self._flush_partial_history(self._step)
 
     def handle_summary(self, record: Record) -> None:
         summary = record.summary

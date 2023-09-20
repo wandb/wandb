@@ -590,6 +590,8 @@ class Run:
         self._step = 0
         self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None
 
+        self._defined = False
+
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
@@ -1563,6 +1565,11 @@ class Run:
 
         if any(not isinstance(key, str) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
+
+        if not self._defined:
+            self.define_metric("user_step", hidden=True)
+            self.define_metric("*", "user_step")
+            self._defined = True
 
         self._partial_history_callback(data, step, commit)
 
