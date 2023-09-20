@@ -1,10 +1,9 @@
 """Scheduler for classic wandb Sweeps."""
 import logging
-from pprint import pformat as pf
 from typing import Any, Dict, List, Optional
 
 import wandb
-from wandb.sdk.launch.sweeps.scheduler import LOG_PREFIX, RunState, Scheduler, SweepRun
+from wandb.sdk.launch.sweeps.scheduler import RunState, Scheduler, SweepRun
 
 _logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class SweepScheduler(Scheduler):
                 return None
 
             if _run_id in self._runs:
-                wandb.termlog(f"{LOG_PREFIX}Skipping duplicate run: {_run_id}")
+                wandb.termlog(f"{self._log_pre}Skipping duplicate run: {_run_id}")
                 continue
 
             return SweepRun(
@@ -66,14 +65,11 @@ class SweepScheduler(Scheduler):
             if run.worker_id == worker_id and run.state.is_alive:
                 _run_states[run_id] = True
 
-        _logger.debug(f"Sending states: \n{pf(_run_states)}\n")
         commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
             agent_id=self._workers[worker_id].agent_id,
             metrics={},
             run_states=_run_states,
         )
-        _logger.debug(f"AgentHeartbeat commands: \n{pf(commands)}\n")
-
         return commands
 
     def _exit(self) -> None:
