@@ -1652,10 +1652,11 @@ class WandbImporter:
         failed_artifact_sequences: Iterable[ArtifactSequence],
         max_workers: Optional[int] = None,
     ):
+        args = [(a,) for a in failed_artifact_sequences]
+
         parallelize(
-            self._import_artifact_sequence,
-            failed_artifact_sequences,
-            namespace=None,
+            lambda args: self._import_artifact_sequence(*args, namespace=None),
+            args,
             max_workers=max_workers,
             description="Retry Failed Artifact Sequences",
         )
