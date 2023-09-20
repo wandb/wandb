@@ -123,6 +123,7 @@ def immutable_keys() -> List[str]:
         HOST,
         DATA_DIR,
         ARTIFACT_DIR,
+        ARTIFACT_FETCH_FILE_URL_BATCH_SIZE,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
         DISABLE_SSL,
