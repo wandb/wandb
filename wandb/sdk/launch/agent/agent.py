@@ -36,6 +36,8 @@ HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_RESUME_COUNT = 5
 
+RUN_INFO_GRACE_PERIOD = 60
+
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
     try:
@@ -301,27 +303,43 @@ class LaunchAgent:
                 job_and_run_status.err_stage,
                 fnames,
             )
-        elif job_and_run_status.completed_status not in ["stopped", "failed"]:
-            _logger.info(
-                "Skipping check for completed run status because run was successful"
-            )
         elif job_and_run_status.run is not None:
             run_info = None
-            # sweep runs exist but have no info before they are started
-            # so run_info returned will be None
-            # normal runs just throw a comm error
-            # TODO: make more clear
-            try:
-                run_info = self._api.get_run_info(
-                    self._entity, job_and_run_status.project, job_and_run_status.run_id
-                )
+            # We do some weird stuff here getting run info to check for a
+            # created in run in W&B.
+            #
+            # We retry for 60 seconds with an exponential backoff in case
+            # upsert run is taking a while.
+            #
+            # Sweep runs exist but have no info before they are started
+            # so run_info returned will be None, while normal runs just throw a
+            # comm error.
+            start_time = time.time()
+            interval = 1
+            while True:
+                try:
+                    run_info = self._api.get_run_info(
+                        self._entity,
+                        job_and_run_status.project,
+                        job_and_run_status.run_id,
+                    )
+                except CommError:
+                    pass
+                if (
+                    run_info is not None
+                    or time.time() - start_time > RUN_INFO_GRACE_PERIOD
+                ):
+                    break
+                if run_info is None:
+                    time.sleep(interval)
+                    interval *= 2
 
-            except CommError:
-                pass
             if run_info is None:
-                _msg = "The submitted run was not successfully started"
                 fnames = None
-
+                if job_and_run_status.completed_status == "finished":
+                    _msg = "The submitted job exited successfully but failed to call wandb.init"
+                else:
+                    _msg = "The submitted run was not successfully started"
                 logs = job_and_run_status.run.get_logs()
                 if logs:
                     fnames = job_and_run_status.saver.save_contents(
@@ -331,7 +349,7 @@ class LaunchAgent:
                     job_and_run_status.run_queue_item_id, _msg, "run", fnames
                 )
         else:
-            _logger.info("Finish thread id had no exception, ror run")
+            _logger.info(f"Finish thread id {thread_id} had no exception and no run")
             wandb._sentry.exception(
                 "launch agent called finish thread id on thread without run or exception"
             )
