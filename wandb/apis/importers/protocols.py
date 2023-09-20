@@ -1,7 +1,7 @@
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Tuple
 
 import wandb
 
@@ -176,6 +176,7 @@ def parallelize(
     *args,
     description: str,
     max_workers: Optional[int] = None,
+    accumulate: bool = False,
     **kwargs,
 ):
     results = []
@@ -193,9 +194,7 @@ def parallelize(
                 filename = traceback_details[-1].filename
                 lineno = traceback_details[-1].lineno
 
-                print(
-                    f"Exception: {run.entity()=}, {run.project()=}, {run.run_id()=}, {e=} {filename=} {lineno=}. "
-                )
+                print(f"Exception: {run=} {e=} {filename=} {lineno=}. ")
                 exc.shutdown(cancel_futures=True)
                 # continue
             else:

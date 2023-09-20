@@ -90,7 +90,11 @@ class WandbRun:
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)
                 dfs.append(df)
-        return pl.concat(dfs)
+
+        if dfs:
+            return pl.concat(dfs)
+        else:
+            return pl.DataFrame()
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
@@ -512,28 +516,38 @@ class WandbImporter:
 
         # we should send the parquet artifact here too
 
+        run_str = f"{run.entity()}/{run.project()}/{run.run_id()}"
+        t = progress.subsubtask_pbar.add_task(f"Upload history ({run_str})", total=None)
         internal.send_run_with_send_manager(
             run,
             overrides=namespace.send_manager_overrides,
             settings_override=settings_override,
             config=sm_config,
         )
+        progress.subsubtask_pbar.remove_task(t)
 
-        # history = []
-        # for a in run.artifacts():
-        #     if a.type == 'wandb-history':
-        #         name, ver = _get_art_name_ver(a)
-        #         a._name = name
-        #         history.append(a)
+        t = progress.subsubtask_pbar.add_task(
+            f"Collect history artifacts ({run_str})", total=None
+        )
+        history = []
+        for a in run.artifacts():
+            if a.type == "wandb-history":
+                name, ver = _get_art_name_ver(a)
+                a._name = name
+                history.append(a)
+        progress.subsubtask_pbar.remove_task(t)
 
-        # print(f"Now sending history artifacts {history=}")
-        # internal.send_artifacts_with_send_manager(
-        #     history,
-        #     run,
-        #     overrides=namespace.send_manager_overrides,
-        #     settings_override={**settings_override, "resumed": True},
-        #     config=internal.SendManagerConfig(log_artifacts=True),
-        # )
+        t = progress.subsubtask_pbar.add_task(
+            f"Upload history artifacts ({run_str})", total=None
+        )
+        internal.send_artifacts_with_send_manager(
+            history,
+            run,
+            overrides=namespace.send_manager_overrides,
+            settings_override={**settings_override, "resumed": True},
+            config=internal.SendManagerConfig(log_artifacts=True),
+        )
+        progress.subsubtask_pbar.remove_task(t)
 
     def _delete_collection_in_dst(self, src_art, entity=None, project=None):
         entity = coalesce(entity, src_art.entity)
@@ -632,7 +646,7 @@ class WandbImporter:
             else:
                 try:
                     t = progress.subsubtask_pbar.add_task(
-                        f"{base_descr} (Collecting logged by)"
+                        f"{base_descr} (Collecting logged by)", total=None
                     )
                     wandb_run = art.logged_by()
                 except ValueError:
@@ -644,7 +658,7 @@ class WandbImporter:
 
                 try:
                     t = progress.subsubtask_pbar.add_task(
-                        f"{base_descr} (Downloading artifact)"
+                        f"{base_descr} (Downloading artifact)", total=None
                     )
                     path = art.download()
                 except Exception as e:
@@ -661,7 +675,7 @@ class WandbImporter:
                     progress.subsubtask_pbar.remove_task(t)
 
                 t = progress.subsubtask_pbar.add_task(
-                    f"{base_descr} (Make new artifact)"
+                    f"{base_descr} (Make new artifact)", total=None
                 )
                 new_art = _make_new_art(art)
 
@@ -672,7 +686,9 @@ class WandbImporter:
                 run = WandbRun(wandb_run)
                 progress.subsubtask_pbar.remove_task(t)
 
-            t = progress.subsubtask_pbar.add_task(f"{base_descr} (Send new artifact)")
+            t = progress.subsubtask_pbar.add_task(
+                f"{base_descr} (Send new artifact)", total=None
+            )
             internal.send_artifacts_with_send_manager(
                 group,
                 run,
@@ -917,17 +933,30 @@ class WandbImporter:
     def _get_run_problems(self, src_run, dst_run):
         problems = []
 
+        run_str = f"{src_run.entity}/{src_run.project}/{src_run.id}"
+        t = progress.subsubtask_pbar.add_task(
+            f"Compare run metadata ({run_str})", total=None
+        )
         non_matching_metadata = self._compare_run_metadata(src_run, dst_run)
         if non_matching_metadata:
             problems.append(str(non_matching_metadata))
+        progress.subsubtask_pbar.remove_task(t)
 
+        t = progress.subsubtask_pbar.add_task(
+            f"Compare run summary ({run_str})", total=None
+        )
         non_matching_summary = self._compare_run_summary(src_run, dst_run)
         if non_matching_summary:
             problems.append(str(non_matching_summary))
+        progress.subsubtask_pbar.remove_task(t)
 
+        t = progress.subsubtask_pbar.add_task(
+            f"Compare run metrics ({run_str})", total=None
+        )
         non_matching_metrics = self._compare_run_metrics(src_run, dst_run)
         if non_matching_metrics:
             problems.append(str(non_matching_metrics))
+        progress.subsubtask_pbar.remove_task(t)
 
         return problems
 
@@ -946,9 +975,17 @@ class WandbImporter:
 
     def _compare_run_metadata(self, src_run, dst_run):
         fname = "wandb-metadata.json"
-        f = dst_run.file(fname)
+
+        src_f = src_run.file(fname)
+        if src_f.size == 0:
+            # the src was corrupted so no comparisons here will ever work
+            return {}
+
+        dst_f = dst_run.file(fname)
         try:
-            contents = wandb.util.download_file_into_memory(f.url, self.dst_api.api_key)
+            contents = wandb.util.download_file_into_memory(
+                dst_f.url, self.dst_api.api_key
+            )
         except urllib3.exceptions.ReadTimeoutError:
             return {"Error checking": "Timeout"}
         except requests.HTTPError as e:
@@ -1286,7 +1323,17 @@ class WandbImporter:
     def _collect_artifact_sequences_from_namespaces(
         self, namespaces
     ) -> Iterable[ArtifactSequence]:
-        parallelize()
+        args = [(ns.entity, ns.project) for ns in namespaces]
+        results = parallelize(
+            lambda args: list(self._collect_artifact_sequences(*args)),
+            args,
+            description="Collecting artifact sequences",
+        )
+
+        for group in results:
+            yield from group
+
+        # results = [seq for seq in results]
 
         # c = 0
         # task = progress.task_pbar.add_task(
@@ -1340,9 +1387,10 @@ class WandbImporter:
         entity = src_run.entity
         project = src_run.project
         run_id = src_run.id
-        task = progress.subtask_pbar.add_task(
-            f"Validating {entity}/{project}/{run_id}", total=None
-        )
+
+        run_str = f"{entity}/{project}/{run_id}"
+
+        task = progress.subtask_pbar.add_task(f"Validating {run_str}", total=None)
         try:
             dst_run = self._get_dst_run(src_run)
         except wandb.CommError:
@@ -1351,7 +1399,7 @@ class WandbImporter:
             problems = self._get_run_problems(src_run, dst_run)
 
         if problems:
-            print(f"Problem validating run: {src_run=}, {problems=}")
+            print(f"Problem validating run: {run_str=}, {problems=}")
 
         progress.subtask_pbar.remove_task(task)
         return (src_run, problems)
@@ -1434,7 +1482,10 @@ class WandbImporter:
             # print(src_runs)
             descr = "Incrementally validate runs"
 
-        problems = parallelize(self._validate_run, src_runs, description=descr)
+        args = [(a,) for a in src_runs]
+        problems = parallelize(
+            lambda args: list(self._validate_run(*args)), args, description=descr
+        )
 
         with open(RUN_ERRORS_JSONL_FNAME, "a") as f:
             with open(RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME, "a") as f2:
@@ -1526,23 +1577,27 @@ class WandbImporter:
         # artifact_sequences = self._collect_artifact_sequences_from_namespaces(
         #     namespaces
         # )
-        tuples = []
+        args = []
         for seq in seqs:
             for art in seq:
                 tup = (art, seq.entity, seq.project)
-                tuples.append(tup)
+                args.append(tup)
         descr = "Validate artifacts"
 
+        # print(f"{args=}")
+
         if incremental:
-            tuples = list(self._filter_previously_checked_artifacts(tuples))
+            args = list(self._filter_previously_checked_artifacts(args))
+            # print(f"{args=}")
+
             descr = "Incrementally validate artifacts"
 
-        # things = [art.name for art, _, _ in tuples]
+        # things = [art.name for art, _, _ in args]
         # print(f"{things=}")
 
         problems = parallelize(
             lambda args: self._validate_artifact(*args),
-            tuples,
+            args,
             description=descr,
         )
 
@@ -1573,12 +1628,13 @@ class WandbImporter:
         progress.live.start()
         self._clear_errors()
 
-        self._validate_runs_from_namespaces(namespaces)
-        failed_runs = self._collect_failed_runs()
-        self._import_failed_runs(failed_runs)
+        # self._validate_runs_from_namespaces(namespaces, incremental=incremental)
+        # failed_runs = self._collect_failed_runs()
+        # self._import_failed_runs(failed_runs)
 
-        seqs = self._collect_artifact_sequences_from_namespaces(namespaces)
-        self._validate_artifact_sequences(seqs)
+        seqs = list(self._collect_artifact_sequences_from_namespaces(namespaces))
+        # print(f"{len(seqs)=}, {seqs=}")
+        self._validate_artifact_sequences(seqs, incremental=incremental)
         failed_artifact_sequences = self._filter_failed_artifact_sequences(seqs)
 
         # import the largest artifact sequences first becuase they will take the longest
@@ -1670,26 +1726,41 @@ class WandbImporter:
 
         def artifact_sequences():
             namespace_str = f"{entity}/{project}"
+            t = progress.subsubtask_pbar.add_task(
+                f"Get artifact types ({namespace_str})", total=None
+            )
             try:
-                types = api.artifact_types(namespace_str)
+                types = [t for t in api.artifact_types(namespace_str)]
             except Exception as e:
                 print(f"Problem getting artifact type {namespace_str=}, {e=}")
                 types = []
 
             for _type in types:
+                t2 = progress.subsubtask_pbar.add_task(
+                    f"Get artifact collections ({namespace_str})", total=len(types)
+                )
                 try:
-                    collections = _type.collections()
+                    collections = [c for c in _type.collections()]
                 except Exception as e:
                     print(f"Problem getting artifact type {_type=}, {e=}")
                     collections = []
 
+                t3 = progress.subsubtask_pbar.add_task(
+                    f"Iterate collections ({namespace_str})", total=len(collections)
+                )
                 for collection in collections:
                     if collection.is_sequence():
                         yield collection
+                        progress.subsubtask_pbar.advance(t3)
+                progress.subsubtask_pbar.remove_task(t3)
+                progress.subsubtask_pbar.remove_task(t2)
+            progress.subsubtask_pbar.remove_task(t)
 
         unique_sequences_map = {}
         for seq in itertools.islice(artifact_sequences(), limit):
             unique_sequences_map[(seq.entity, seq.project, seq.name, seq.type)] = seq
+
+        # print(f"{len(unique_sequences_map)=}, {unique_sequences_map=}")
 
         unique_sequences = unique_sequences_map.values()
         for seq in unique_sequences:
