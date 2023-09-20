@@ -458,5 +458,5 @@ def test_thread_finish_run_info_backoff(mocker):
     agent._jobs_lock = MagicMock()
     agent.finish_thread_id("thread_1")
     assert mocker.api.fail_run_queue_item.called
-    # we should be able to call get_run_info 4 times, at 0 sec, 10 sec, 30 sec, and 70 sec
-    assert mocker.api.get_run_info.call_count == 4
+    # we should be able to call get_run_info  at 0, 1, 3, 7, 15, 31, 63 seconds
+    assert mocker.api.get_run_info.call_count == 7

@@ -305,10 +305,17 @@ class LaunchAgent:
             )
         elif job_and_run_status.run is not None:
             run_info = None
+            # We do some weird stuff here getting run info to check for a
+            # created in run in W&B.
+            #
             # We retry for 60 seconds with an exponential backoff in case
             # upsert run is taking a while.
+            #
+            # Sweep runs exist but have no info before they are started
+            # so run_info returned will be None, while normal runs just throw a
+            # comm error.
             start_time = time.time()
-            interval = 10
+            interval = 1
             while True:
                 try:
                     run_info = self._api.get_run_info(
