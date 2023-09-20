@@ -326,15 +326,12 @@ class LaunchAgent:
                             job_and_run_status.project,
                             job_and_run_status.run_id,
                         )
-                        if run_info is not None:
-                            break
                     except CommError:
                         pass
-                    finally:
-                        if run_info is not None or time.time() - start_time > 60:
-                            break
-                        time.sleep(interval)
-                        interval *= 2
+                    if run_info is not None or time.time() - start_time > 60:
+                        break
+                    time.sleep(interval)
+                    interval *= 2
             if run_info is None:
                 fnames = None
                 if job_and_run_status.completed_status == "finished":
