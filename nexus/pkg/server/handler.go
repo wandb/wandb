@@ -15,6 +15,15 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+type HandlerError struct {
+	streamId   string
+	recordType string
+}
+
+func (e *HandlerError) Error() string {
+	return fmt.Sprintf("handler: error handling record of type %s for stream %s", e.recordType, e.streamId)
+}
+
 // Timer is used to track the run start and execution times
 type Timer struct {
 	startTime   time.Time
@@ -287,8 +296,11 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
 	case *service.Request_ServerInfo:
-		err := fmt.Errorf("just having some fun")
-		h.logger.CaptureError("Just chillin'", err)
+		// fakeError := &HandlerError{
+		// 	streamId:   h.settings.RunId.GetValue(),
+		// 	recordType: "Request_ServerInfo",
+		// }
+		// h.logger.CaptureError("hello", fakeError)
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
 		shutdown = true

@@ -56,6 +56,12 @@ func (nl *NexusLogger) tagsFromArgs(args ...any) Tags {
 	return tags
 }
 
+func (nl *NexusLogger) SetTags(tags Tags) {
+	for tag := range tags {
+		nl.tags[tag] = tags[tag]
+	}
+}
+
 // CaptureError logs an error and sends it to sentry.
 func (nl *NexusLogger) CaptureError(msg string, err error, args ...interface{}) {
 	nl.Logger.Error(msg, args...)
