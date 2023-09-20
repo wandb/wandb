@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"log/slog"
 	"net"
 	"net/url"
 	"sync"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/wandb/wandb/nexus/pkg/auth"
 	"google.golang.org/protobuf/types/known/wrapperspb"
