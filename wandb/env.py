@@ -381,11 +381,11 @@ def get_artifact_dir(env: Optional[Env] = None) -> str:
     return val
 
 
-def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> str:
+def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:
     default_batch_size = 5000
     if env is None:
         env = os.environ
-    val = env.get(ARTIFACT_FETCH_FILE_URL_BATCH_SIZE, default_batch_size)
+    val = int(env.get(ARTIFACT_FETCH_FILE_URL_BATCH_SIZE, default_batch_size))
     return val
 
 

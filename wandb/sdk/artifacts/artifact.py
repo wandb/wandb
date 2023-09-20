@@ -1730,7 +1730,7 @@ class Artifact:
             has_next_page = True
             cursor = None
             while has_next_page:
-                fetch_url_batch_size = int(env.get_artifact_fetch_file_url_batch_size())
+                fetch_url_batch_size = env.get_artifact_fetch_file_url_batch_size()
                 attrs = self._fetch_file_urls(cursor, fetch_url_batch_size)
                 has_next_page = attrs["pageInfo"]["hasNextPage"]
                 cursor = attrs["pageInfo"]["endCursor"]
