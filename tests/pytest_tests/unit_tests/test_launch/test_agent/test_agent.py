@@ -378,3 +378,29 @@ def test_agent_fails_sweep_state(mocker):
     out = agent._check_run_finished(job, {})
     assert job.completed_status == "failed"
     assert out, "True when status successfully updated"
+
+
+def test_thread_finish_no_run(mocker):
+    """Test that we fail RQI when the job exits 0 but there is no run."""
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    mocker.api.get_run_info.return_value = None
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker(
+        "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
+    )
+    job.run_id = "test_run_id"
+    job.project = MagicMock()
+    job.completed_status = "finished"
+    agent._jobs = {"thread_1": job}
+    agent.finish_thread_id("thread_1")
+    assert mocker.api.fail_run_queue_item.called
+    assert mocker.api.fail_run_queue_item.call_args[0][0] == "run_queue_item_id"
+    assert (
+        mocker.api.fail_run_queue_item.call_args[0][1]
+        == "The submitted job exited successfully but failed to call wandb.init"
+    )
