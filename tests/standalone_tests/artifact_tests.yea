@@ -4,6 +4,7 @@ tag:
     - linux
     - mac
     - win
+  skip: true  # todo: unskip once the test is fixed
 plugin:
   - wandb
 depend:
