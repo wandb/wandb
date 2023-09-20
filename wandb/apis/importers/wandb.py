@@ -1653,7 +1653,6 @@ class WandbImporter:
         max_workers: Optional[int] = None,
     ):
         args = [(a,) for a in failed_artifact_sequences]
-
         parallelize(
             lambda args: self._import_artifact_sequence(*args, namespace=None),
             args,
@@ -1664,10 +1663,10 @@ class WandbImporter:
     def _import_failed_runs(
         self, failed_runs: Iterable[WandbRun], max_workers: Optional[int] = None
     ):
+        args = [(a,) for a in failed_runs]
         parallelize(
-            self._import_run,
-            failed_runs,
-            namespace=None,
+            lambda args: self._import_run(*args, namespace=None),
+            args,
             max_workers=max_workers,
             description="Retry Failed Runs",
         )
