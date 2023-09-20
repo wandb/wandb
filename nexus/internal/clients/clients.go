@@ -16,14 +16,29 @@ func basicAuth(username, password string) string {
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
+// combineHeaders converts a slice of maps to a single map
+func combineHeaders(headers ...map[string]string) map[string]string {
+	result := make(map[string]string)
+	for _, h := range headers {
+		for k, v := range h {
+			result[k] = v
+		}
+	}
+	return result
+}
+
 type authedTransport struct {
 	key     string
+	headers map[string]string
 	wrapped http.RoundTripper
 }
 
 func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
 	req.Header.Set("User-Agent", "wandb-nexus")
+	for k, v := range t.headers {
+		req.Header.Set(k, v)
+	}
 	return t.wrapped.RoundTrip(req)
 }
 
@@ -68,10 +83,11 @@ func WithRetryClientHttpTransport(transport http.RoundTripper) RetryClientOption
 	}
 }
 
-func WithRetryClientHttpAuthTransport(key string) RetryClientOption {
+func WithRetryClientHttpAuthTransport(key string, headers ...map[string]string) RetryClientOption {
 	return func(rc *retryablehttp.Client) {
 		rc.HTTPClient.Transport = &authedTransport{
 			key:     key,
+			headers: combineHeaders(headers...),
 			wrapped: rc.HTTPClient.Transport,
 		}
 	}

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
-from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler

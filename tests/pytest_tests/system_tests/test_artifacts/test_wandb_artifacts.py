@@ -27,12 +27,13 @@ from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandle
 from wandb.sdk.lib.hashutil import md5_string
 
 
-def mock_boto(artifact, path=False, content_type=None):
+def mock_boto(artifact, path=False, content_type=None, version_id="1"):
     class S3Object:
-        def __init__(self, name="my_object.pb", metadata=None, version_id=None):
+        def __init__(self, name="my_object.pb", metadata=None, version_id=version_id):
             self.metadata = metadata or {"md5": "1234567890abcde"}
             self.e_tag = '"1234567890abcde"'
-            self.version_id = version_id or "1"
+            self.bucket_name = "my-bucket"
+            self.version_id = version_id
             self.name = name
             self.key = name
             self.content_length = 10
@@ -51,9 +52,16 @@ def mock_boto(artifact, path=False, content_type=None):
                     "HeadObject",
                 )
 
+    class S3ObjectSummary:
+        def __init__(self, name=None, size=10):
+            self.e_tag = '"1234567890abcde"'
+            self.bucket_name = "my-bucket"
+            self.key = name or "my_object.pb"
+            self.size = size
+
     class Filtered:
         def limit(self, *args, **kwargs):
-            return [S3Object(), S3Object(name="my_other_object.pb")]
+            return [S3ObjectSummary(), S3ObjectSummary(name="my_other_object.pb")]
 
     class S3Objects:
         def filter(self, **kwargs):
@@ -65,7 +73,7 @@ def mock_boto(artifact, path=False, content_type=None):
 
     class S3Resource:
         def Object(self, bucket, key):  # noqa: N802
-            return S3Object()
+            return S3Object(name=key)
 
         def ObjectVersion(self, bucket, key, version):  # noqa: N802
             class Version:
@@ -529,6 +537,21 @@ def test_add_s3_reference_object():
         "digest": "1234567890abcde",
         "ref": "s3://my-bucket/my_object.pb",
         "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "size": 10,
+    }
+
+
+def test_add_s3_reference_object_no_version():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact, version_id=None)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "s3://my-bucket/my_object.pb",
+        "extra": {"etag": "1234567890abcde"},
         "size": 10,
     }
 

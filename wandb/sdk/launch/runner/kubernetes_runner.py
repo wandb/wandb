@@ -4,10 +4,9 @@ import base64
 import json
 import logging
 import time
-from threading import Lock, Thread
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import urllib3
+import yaml
 
 import wandb
 from wandb.apis.internal import Api
@@ -15,7 +14,7 @@ from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
-from wandb.sdk.launch.runner.abstract import State, Status
+from wandb.sdk.launch.runner.abstract import Status
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
@@ -29,202 +28,26 @@ from ..utils import (
     make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner
+from .kubernetes_monitor import KubernetesRunMonitor
 
 get_module(
     "kubernetes",
     required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
 )
 
-from kubernetes import client, watch  # type: ignore # noqa: E402
+from kubernetes import client  # type: ignore # noqa: E402
 from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
 from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
 from kubernetes.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
 from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
-from kubernetes.client.models.v1_pod_status import (  # type: ignore # noqa: E402
-    V1PodStatus,
-)
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
 from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 
 _logger = logging.getLogger(__name__)
-
-
-# Dict for mapping possible states of custom objects to the states we want to report
-# to the agent.
-CRD_STATE_DICT: Dict[str, State] = {
-    "pending": "starting",
-    "running": "running",
-    "completed": "finished",
-    "failed": "failed",
-    "aborted": "failed",
-    "terminating": "stopping",
-    "terminated": "stopped",
-}
-
-
-def _is_preempted(status: "V1PodStatus") -> bool:
-    """Check if this pod has been preempted."""
-    if hasattr(status, "conditions") and status.conditions is not None:
-        for condition in status.conditions:
-            if condition.type == "DisruptionTarget" and condition.reason in [
-                "EvictionByEvictionAPI",
-                "PreemptionByScheduler",
-                "TerminationByKubelet",
-            ]:
-                return True
-    return False
-
-
-def _is_container_creating(status: "V1PodStatus") -> bool:
-    """Check if this pod has started creating containers."""
-    for container_status in status.container_statuses or []:
-        if (
-            container_status.state
-            and container_status.state.waiting
-            and container_status.state.waiting.reason == "ContainerCreating"
-        ):
-            return True
-    return False
-
-
-class KubernetesRunMonitor:
-    def __init__(
-        self,
-        job_field_selector: str,
-        pod_label_selector: str,
-        namespace: str,
-        batch_api: "BatchV1Api",
-        core_api: "CoreV1Api",
-    ) -> None:
-        """Initial KubernetesRunMonitor.
-
-        Arguments:
-            jobname: Name of the job.
-
-        Returns:
-            None.
-        """
-        self.pod_label_selector = pod_label_selector
-        self.job_field_selector = job_field_selector
-        self.namespace = namespace
-        self.batch_api = batch_api
-        self.core_api = core_api
-
-        self._status_lock = Lock()
-        self._status = Status("starting")
-
-        self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
-        self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
-
-        self._job_watcher = watch.Watch()
-        self._pod_watcher = watch.Watch()
-
-    def start(self) -> None:
-        """Start the run monitor."""
-        if self._watch_job_thread.is_alive() or self._watch_pods_thread.is_alive():
-            raise LaunchError(
-                "Attempted to start monitor that has already started"
-            )  # TODO: what should I do here?
-        self._watch_job_thread.start()
-        self._watch_pods_thread.start()
-
-    def stop(self) -> None:
-        """Stop the run monitor."""
-        self._job_watcher.stop()
-        self._pod_watcher.stop()
-
-    def _set_status(self, status: Status) -> None:
-        """Set the run status."""
-        with self._status_lock:
-            self._status = status
-
-    def get_status(self) -> Status:
-        """Get the run status."""
-        with self._status_lock:
-            return self._status
-
-    def _watch_pods(self) -> None:
-        """Watch for pods created matching the jobname."""
-        try:
-            # Stream with no timeout polling for pod status updates
-            for event in self._pod_watcher.stream(
-                self.core_api.list_namespaced_pod,
-                namespace=self.namespace,
-                label_selector=self.pod_label_selector,
-            ):
-                type = event.get("type")
-                object = event.get("object")
-
-                if type == "MODIFIED":
-                    if object.status.phase == "Running":
-                        self._set_status(Status("running"))
-                if _is_preempted(object.status):
-                    self._set_status(Status("preempted"))
-                    self.stop()
-                    break
-                if _is_container_creating(object.status):
-                    self._set_status(Status("starting"))
-
-        # This can happen if the initial cluster connection fails.
-        except ApiException as e:
-            raise LaunchError(
-                f"Exception when calling CoreV1Api.list_namespaced_pod with selector {self.pod_label_selector}: {e}"
-            )
-
-        # This can happen if the stream starts and gets broken, typically because
-        # a thread is hanging. The kubernetes SDK is already implementing a
-        # retry loop so if we get here it means that the pods cannot be monitored.
-        except urllib3.exceptions.ProtocolError as e:
-            state = self.get_status().state
-            if state in ["failed", "finished"]:
-                _logger.warning(
-                    f"Hanging pod monitor thread with selector {self.pod_label_selector}: {e}"
-                )
-                return
-            raise LaunchError(
-                f"Broken event stream for pod watcher in state '{state}' and selector {self.pod_label_selector}: {e}"
-            )
-
-    def _watch_job(self) -> None:
-        """Watch for job matching the jobname."""
-        try:
-            for event in self._job_watcher.stream(
-                self.batch_api.list_namespaced_job,
-                namespace="default",
-                field_selector=self.job_field_selector,
-            ):
-                object = event.get("object")
-                if object.status.succeeded == 1:
-                    self._set_status(Status("finished"))
-                    self.stop()
-                    break
-                elif object.status.failed is not None and object.status.failed >= 1:
-                    self._set_status(Status("failed"))
-                    self.stop()
-                    break
-
-        # This can happen if the initial cluster connection fails.
-        except ApiException as e:
-            raise LaunchError(
-                f"Exception when calling CoreV1Api.list_namespaced_job with selector {self.job_field_selector}: {e}"
-            )
-
-        # This can happen if the connection is lost to the Kubernetes API server
-        # and cannot be re-established.
-        except urllib3.exceptions.ProtocolError as e:
-            state = self.get_status().state
-            if state in ["finished", "failed"]:
-                _logger.warning(
-                    f"Hanging job monitor thread with select {self.job_field_selector}: {e}"
-                )
-                return
-            raise LaunchError(
-                f"Broken event stream for job watcher in state {state} with selector {self.job_field_selector}: {e}"
-            )
 
 
 class KubernetesSubmittedRun(AbstractRun):
@@ -266,9 +89,6 @@ class KubernetesSubmittedRun(AbstractRun):
         self.core_api = core_api
         self.name = name
         self.namespace = namespace
-        self.job = self.batch_api.read_namespaced_job(
-            name=self.name, namespace=self.namespace
-        )
         self._fail_count = 0
         self.pod_names = pod_names
         self.secret = secret
@@ -309,7 +129,7 @@ class KubernetesSubmittedRun(AbstractRun):
         while True:
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            if status.state != "running":
+            if status.state in ["finished", "failed", "preempted"]:
                 break
             time.sleep(5)
         return (
@@ -331,35 +151,18 @@ class KubernetesSubmittedRun(AbstractRun):
     def get_status(self) -> Status:
         return self.monitor.get_status()
 
-    def suspend(self) -> None:
-        """Suspend the run."""
-        self.job.spec.suspend = True
-        self.batch_api.patch_namespaced_job(
-            name=self.name, namespace=self.namespace, body=self.job
-        )
-        timeout = TIMEOUT
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
-        while job_response.status.conditions is None and timeout > 0:
-            time.sleep(1)
-            timeout -= 1
-            job_response = self.batch_api.read_namespaced_job_status(
-                name=self.name, namespace=self.namespace
-            )
-
-        if timeout == 0 or job_response.status.conditions[0].type != "Suspended":
-            raise LaunchError(
-                "Failed to suspend job {}. Check Kubernetes dashboard for more info.".format(
-                    self.name
-                )
-            )
-
     def cancel(self) -> None:
         """Cancel the run."""
-        self.suspend()
         self.monitor.stop()
-        self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
+        try:
+            self.batch_api.delete_namespaced_job(
+                namespace=self.namespace,
+                name=self.name,
+            )
+        except ApiException as e:
+            raise LaunchError(
+                f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
+            ) from e
 
 
 class CrdSubmittedRun(AbstractRun):
@@ -374,7 +177,7 @@ class CrdSubmittedRun(AbstractRun):
         namespace: str,
         core_api: CoreV1Api,
         custom_api: CustomObjectsApi,
-        pod_names: List[str],
+        monitor: KubernetesRunMonitor,
     ) -> None:
         """Create a run object for tracking the progress of a CRD.
 
@@ -386,7 +189,7 @@ class CrdSubmittedRun(AbstractRun):
             namespace: The namespace of the CRD instance.
             core_api: The Kubernetes core API client.
             custom_api: The Kubernetes custom object API client.
-            pod_names: The names of the pods associated with the CRD instance.
+            monitor: The run monitor.
 
         Raises:
             LaunchError: If the CRD instance does not exist.
@@ -398,20 +201,8 @@ class CrdSubmittedRun(AbstractRun):
         self.namespace = namespace
         self.core_api = core_api
         self.custom_api = custom_api
-        self.pod_names = pod_names
         self._fail_count = 0
-        try:
-            self.job = self.custom_api.get_namespaced_custom_object(
-                group=self.group,
-                version=self.version,
-                namespace=self.namespace,
-                plural=self.plural,
-                name=self.name,
-            )
-        except ApiException as e:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
-            ) from e
+        self.monitor = monitor
 
     @property
     def id(self) -> str:
@@ -423,7 +214,11 @@ class CrdSubmittedRun(AbstractRun):
         # TODO: test more carefully once we release multi-node support
         logs: Dict[str, Optional[str]] = {}
         try:
-            for pod_name in self.pod_names:
+            pods = self.core_api.list_namespaced_pod(
+                label_selector=f"wandb/run-id={self.name}", namespace=self.namespace
+            )
+            pod_names = [pi.metadata.name for pi in pods.items]
+            for pod_name in pod_names:
                 logs[pod_name] = self.core_api.read_namespaced_pod_log(
                     name=pod_name, namespace=self.namespace
                 )
@@ -437,30 +232,7 @@ class CrdSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         """Get status of custom object."""
-        try:
-            job_response = self.custom_api.get_namespaced_custom_object_status(
-                group=self.group,
-                version=self.version,
-                namespace=self.namespace,
-                plural=self.plural,
-                name=self.name,
-            )
-        except ApiException as e:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
-            ) from e
-        # Custom objects can technically define whater states and format the
-        # response to the status request however they want. This checks for
-        # the most common cases.
-        status = job_response["status"]
-        state = status.get("state")
-        if isinstance(state, dict):
-            state = state.get("phase")
-        if state is None:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: no state found"
-            )
-        return Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
+        return self.monitor.get_status()
 
     def cancel(self) -> None:
         """Cancel the custom object."""
@@ -482,10 +254,9 @@ class CrdSubmittedRun(AbstractRun):
         while True:
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            if status.state != "running":
-                break
             time.sleep(5)
-        return status.state == "finished"
+            if status.state in ["finished", "failed", "preempted"]:
+                return status.state == "finished"
 
 
 class KubernetesRunner(AbstractRunner):
@@ -511,48 +282,6 @@ class KubernetesRunner(AbstractRunner):
         super().__init__(api, backend_config)
         self.environment = environment
         self.registry = registry
-
-    def wait_job_launch(
-        self,
-        job_name: str,
-        namespace: str,
-        core_api: "CoreV1Api",
-        label: str = "job-name",
-    ) -> List[str]:
-        """Wait for a job to be launched and return the pod names.
-
-        Arguments:
-            job_name: The name of the job.
-            namespace: The namespace of the job.
-            core_api: The Kubernetes core API client.
-            label: The label key to match against job_name.
-
-        Returns:
-            The names of the pods associated with the job.
-        """
-        pods = core_api.list_namespaced_pod(
-            label_selector=f"{label}={job_name}", namespace=namespace
-        )
-        timeout = TIMEOUT
-        while len(pods.items) == 0 and timeout > 0:
-            time.sleep(1)
-            timeout -= 1
-            pods = core_api.list_namespaced_pod(
-                label_selector=f"{label}={job_name}", namespace=namespace
-            )
-
-        if timeout == 0:
-            raise LaunchError(
-                "No pods found for job {}. Check dashboard to see if job was launched successfully.".format(
-                    job_name
-                )
-            )
-
-        pod_names = [pi.metadata.name for pi in pods.items]
-        wandb.termlog(
-            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]} -n {namespace}`."
-        )
-        return pod_names
 
     def get_namespace(
         self, resource_args: Dict[str, Any], context: Dict[str, Any]
@@ -742,16 +471,27 @@ class KubernetesRunner(AbstractRunner):
                     body=resource_args,
                 )
             except ApiException as e:
+                body = json.loads(e.body)
+                body_yaml = yaml.dump(body)
                 raise LaunchError(
-                    f"Error creating CRD of kind {kind}: {e.status} {e.reason}"
+                    f"Error creating CRD of kind {kind}: {e.status} {e.reason}\n{body_yaml}"
                 ) from e
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
             core = client.CoreV1Api(api_client)
-            pod_names = self.wait_job_launch(
-                launch_project.run_id, namespace, core, label="wandb/run-id"
+            run_monitor = KubernetesRunMonitor(
+                job_field_selector=f"metadata.name={name}",
+                pod_label_selector=f"wandb/run-id={launch_project.run_id}",
+                namespace=namespace,
+                batch_api=None,
+                core_api=core,
+                custom_api=api,
+                group=group,
+                version=version,
+                plural=plural,
             )
-            return CrdSubmittedRun(
+            run_monitor.start()
+            submitted_run = CrdSubmittedRun(
                 name=name,
                 group=group,
                 version=version,
@@ -759,8 +499,11 @@ class KubernetesRunner(AbstractRunner):
                 plural=plural,
                 core_api=client.CoreV1Api(api_client),
                 custom_api=api,
-                pod_names=pod_names,
+                monitor=run_monitor,
             )
+            if self.backend_config[PROJECT_SYNCHRONOUS]:
+                submitted_run.wait()
+            return submitted_run
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)

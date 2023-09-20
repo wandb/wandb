@@ -41,7 +41,7 @@ clean-test: ## remove test and coverage artifacts
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
 build: clean ## builds source and wheel package
-	python setup.py sdist bdist_wheel
+	python -m build -n
 	ls -l dist
 
 release-test: build ## package and upload test release
@@ -63,8 +63,9 @@ format:
 	tox -e black
 
 proto:
-	tox -e proto3
-	tox -e proto4
+	tox -e proto-3
+	tox -e proto-4
+	tox -e proto-go
 
 isort:
 	isort -o wandb -o gql --force-sort-within-sections $(args)

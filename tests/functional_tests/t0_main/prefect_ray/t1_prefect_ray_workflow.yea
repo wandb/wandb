@@ -10,7 +10,6 @@ depend:
     - "numpy"
     - "prefect"
     - "prefect-ray"
-    - anyio<4.0.0 # TODO: remove when prefect updates to anyio 4
 assert:
     - :wandb:runs_len: 11
     - :wandb:runs[0][exitcode]: 0

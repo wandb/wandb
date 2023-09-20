@@ -244,6 +244,15 @@ def add_callbacks(
         """,
         repeat=False,
     )
+    wandb.termwarn(
+        """This wandb callback is no longer functional and would be deprecated in the near future.
+        We recommend you to use the updated callback using `from wandb.integration.ultralytics import add_wandb_callback`.
+        The updated callback is tested and supported for ultralytics 8.0.167 and above.
+        You can refer to https://docs.wandb.ai/guides/integrations/ultralytics for the updated documentation.
+        Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.
+        """,
+        repeat=False,
+    )
 
     if RANK in [-1, 0]:
         wandb_logger = WandbCallback(

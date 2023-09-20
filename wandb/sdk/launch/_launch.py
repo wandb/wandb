@@ -124,24 +124,28 @@ def create_and_run_agent(
     agent.loop()
 
 
-def _run(
-    uri: Optional[str],
-    job: Optional[str],
-    name: Optional[str],
-    project: Optional[str],
-    entity: Optional[str],
-    docker_image: Optional[str],
-    entry_point: Optional[List[str]],
-    version: Optional[str],
-    resource: str,
-    resource_args: Optional[Dict[str, Any]],
-    launch_config: Optional[Dict[str, Any]],
-    synchronous: Optional[bool],
+def _launch(
     api: Api,
-    run_id: Optional[str],
-    repository: Optional[str],
+    uri: Optional[str] = None,
+    job: Optional[str] = None,
+    name: Optional[str] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    docker_image: Optional[str] = None,
+    entry_point: Optional[List[str]] = None,
+    version: Optional[str] = None,
+    resource: Optional[str] = None,
+    resource_args: Optional[Dict[str, Any]] = None,
+    launch_config: Optional[Dict[str, Any]] = None,
+    synchronous: Optional[bool] = None,
+    run_id: Optional[str] = None,
+    repository: Optional[str] = None,
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
+    if launch_config is None:
+        launch_config = {}
+    if resource is None:
+        resource = "local-container"
     launch_spec = construct_launch_spec(
         uri,
         job,
@@ -193,9 +197,8 @@ def _run(
         )
 
 
-def run(
+def launch(
     api: Api,
-    uri: Optional[str] = None,
     job: Optional[str] = None,
     entry_point: Optional[List[str]] = None,
     version: Optional[str] = None,
@@ -210,41 +213,43 @@ def run(
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
 ) -> AbstractRun:
-    """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
+    """Launch a W&B launch experiment.
 
     Arguments:
-    uri: URI of experiment to run. A wandb run uri or a Git repository URI.
-    job: string reference to a wandb.Job eg: wandb/test/my-job:latest
-    api: An instance of a wandb Api from wandb.apis.internal.
-    entry_point: Entry point to run within the project. Defaults to using the entry point used
-        in the original run for wandb URIs, or main.py for git repository URIs.
-    version: For Git-based projects, either a commit hash or a branch name.
-    name: Name run under which to launch the run.
-    resource: Execution backend for the run.
-    resource_args: Resource related arguments for launching runs onto a remote backend.
-        Will be stored on the constructed launch config under ``resource_args``.
-    project: Target project to send launched run to
-    entity: Target entity to send launched run to
-    config: A dictionary containing the configuration for the run. May also contain
-    resource specific arguments under the key "resource_args".
-    synchronous: Whether to block while waiting for a run to complete. Defaults to True.
-        Note that if ``synchronous`` is False and ``backend`` is "local-container", this
-        method will return, but the current process will block when exiting until
-        the local run completes. If the current process is interrupted, any
-        asynchronous runs launched via this method will be terminated. If
-        ``synchronous`` is True and the run fails, the current process will
-        error out as well.
-    run_id: ID for the run (To ultimately replace the :name: field)
-    repository: string name of repository path for remote registry
+        job: string reference to a wandb.Job eg: wandb/test/my-job:latest
+        api: An instance of a wandb Api from wandb.apis.internal.
+        entry_point: Entry point to run within the project. Defaults to using the entry point used
+            in the original run for wandb URIs, or main.py for git repository URIs.
+        version: For Git-based projects, either a commit hash or a branch name.
+        name: Name run under which to launch the run.
+        resource: Execution backend for the run.
+        resource_args: Resource related arguments for launching runs onto a remote backend.
+            Will be stored on the constructed launch config under ``resource_args``.
+        project: Target project to send launched run to
+        entity: Target entity to send launched run to
+        config: A dictionary containing the configuration for the run. May also contain
+        resource specific arguments under the key "resource_args".
+        synchronous: Whether to block while waiting for a run to complete. Defaults to True.
+            Note that if ``synchronous`` is False and ``backend`` is "local-container", this
+            method will return, but the current process will block when exiting until
+            the local run completes. If the current process is interrupted, any
+            asynchronous runs launched via this method will be terminated. If
+            ``synchronous`` is True and the run fails, the current process will
+            error out as well.
+        run_id: ID for the run (To ultimately replace the :name: field)
+        repository: string name of repository path for remote registry
 
     Example:
-        import wandb
-        project_uri = "https://github.com/wandb/examples"
-        params = {"alpha": 0.5, "l1_ratio": 0.01}
+        ```python
+        from wandb.sdk.launch import launch
+
+        job = "wandb/jobs/Hello World:latest"
+        params = {"epochs": 5}
         # Run W&B project and create a reproducible docker environment
         # on a local host
         api = wandb.apis.internal.Api()
-        wandb.launch(project_uri, api, parameters=params)
+        launch(api, job, parameters=params)
+        ```
 
 
     Returns:
@@ -255,15 +260,9 @@ def run(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-    if config is None:
-        config = {}
-
-    # default to local container for runs without a queue
-    if resource is None:
-        resource = "local-container"
-
-    submitted_run_obj = _run(
-        uri=uri,
+    submitted_run_obj = _launch(
+        # TODO: fully deprecate URI path
+        uri=None,
         job=job,
         name=name,
         project=project,

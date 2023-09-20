@@ -1,11 +1,12 @@
-package gowandb
+package settings
 
 import (
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/wandb/wandb/nexus/internal/shared"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -14,9 +15,13 @@ type SettingsWrap struct {
 	*service.Settings
 }
 
-func NewSettings(args ...any) *SettingsWrap {
-	runID := shared.ShortID(8)
+func (s *SettingsWrap) Copy() *SettingsWrap {
+	protoSettings := proto.Clone(s.Settings).(*service.Settings)
+	newSettings := &SettingsWrap{protoSettings}
+	return newSettings
+}
 
+func NewSettings(args ...any) *SettingsWrap {
 	rootDir, err := os.Getwd()
 	if err != nil {
 		panic(err)
@@ -36,14 +41,7 @@ func NewSettings(args ...any) *SettingsWrap {
 		runMode = "offline-run"
 	}
 
-	syncDir := filepath.Join(wandbDir, runMode+"-"+timeStamp+"-"+runID)
-	logDir := filepath.Join(syncDir, "logs")
-	tmpDir := filepath.Join(syncDir, "tmp")
-
 	settings := &service.Settings{
-		RunId: &wrapperspb.StringValue{
-			Value: runID,
-		},
 		BaseUrl: &wrapperspb.StringValue{
 			Value: "https://api.wandb.ai",
 		},
@@ -61,30 +59,6 @@ func NewSettings(args ...any) *SettingsWrap {
 		},
 		Timespec: &wrapperspb.StringValue{
 			Value: timeStamp,
-		},
-		SyncDir: &wrapperspb.StringValue{
-			Value: syncDir,
-		},
-		SyncFile: &wrapperspb.StringValue{
-			Value: filepath.Join(syncDir, "run-"+runID+".wandb"),
-		},
-		LogDir: &wrapperspb.StringValue{
-			Value: logDir,
-		},
-		LogInternal: &wrapperspb.StringValue{
-			Value: filepath.Join(logDir, "debug-internal.log"),
-		},
-		LogUser: &wrapperspb.StringValue{
-			Value: filepath.Join(logDir, "debug.log"),
-		},
-		FilesDir: &wrapperspb.StringValue{
-			Value: filepath.Join(syncDir, "files"),
-		},
-		TmpDir: &wrapperspb.StringValue{
-			Value: tmpDir,
-		},
-		XTmpCodeDir: &wrapperspb.StringValue{
-			Value: filepath.Join(tmpDir, "code"),
 		},
 		XDisableStats: &wrapperspb.BoolValue{
 			Value: true,
@@ -106,4 +80,35 @@ func NewSettings(args ...any) *SettingsWrap {
 		},
 	}
 	return &SettingsWrap{settings}
+}
+
+func (s *SettingsWrap) SetRunID(runID string) {
+	wandbDir := s.Settings.WandbDir.Value
+	timeStamp := s.Settings.Timespec.Value
+	runMode := s.Settings.RunMode.Value
+	syncDir := filepath.Join(wandbDir, runMode+"-"+timeStamp+"-"+runID)
+	logDir := filepath.Join(syncDir, "logs")
+	tmpDir := filepath.Join(syncDir, "tmp")
+
+	s.Settings.RunId = &wrapperspb.StringValue{Value: runID}
+	s.Settings.SyncDir = &wrapperspb.StringValue{Value: syncDir}
+	s.Settings.SyncFile = &wrapperspb.StringValue{
+		Value: filepath.Join(syncDir, "run-"+runID+".wandb"),
+	}
+	s.Settings.FilesDir = &wrapperspb.StringValue{
+		Value: filepath.Join(syncDir, "files"),
+	}
+	s.Settings.LogDir = &wrapperspb.StringValue{Value: logDir}
+	s.Settings.LogInternal = &wrapperspb.StringValue{
+		Value: filepath.Join(logDir, "debug-internal.log"),
+	}
+	s.Settings.LogUser = &wrapperspb.StringValue{
+		Value: filepath.Join(logDir, "debug.log"),
+	}
+	s.Settings.TmpDir = &wrapperspb.StringValue{
+		Value: tmpDir,
+	}
+	s.Settings.XTmpCodeDir = &wrapperspb.StringValue{
+		Value: filepath.Join(tmpDir, "code"),
+	}
 }

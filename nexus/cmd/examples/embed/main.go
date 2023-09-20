@@ -4,7 +4,7 @@ import (
 	_ "embed"
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/session"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 )
 
 // Generate the core SDK library.  This is useful if you want to create self-contained binaries.
@@ -15,7 +15,7 @@ var coreBinary []byte
 
 func main() {
 	wandb, err := gowandb.NewSession(
-		session.WithCoreBinary(coreBinary),
+		sessionopts.WithCoreBinary(coreBinary),
 	)
 	if err != nil {
 		panic(err)

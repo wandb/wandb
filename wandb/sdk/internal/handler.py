@@ -23,6 +23,7 @@ from typing import (
 
 from wandb.proto.wandb_internal_pb2 import (
     HistoryRecord,
+    InternalMessages,
     MetricRecord,
     Record,
     Result,
@@ -34,7 +35,7 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import handler_util, proto_util, tracelog
+from ..lib import handler_util, proto_util, tracelog, wburls
 from . import context, sample, tb_watcher
 from .settings_static import SettingsStatic
 from .system.system_monitor import SystemMonitor
@@ -118,6 +119,9 @@ class HandleManager:
         self._metric_globs = defaultdict(MetricRecord)
         self._metric_track = dict()
         self._metric_copy = dict()
+        self._internal_messages = InternalMessages()
+
+        self._dropped_history = False
 
     def __len__(self) -> int:
         return self._record_q.qsize()
@@ -231,7 +235,7 @@ class HandleManager:
             record = Record(summary=summary)
             self._dispatch_record(record)
         elif not self._settings._offline:
-            # Send this summary update as a request since we arent persisting every update
+            # Send this summary update as a request since we aren't persisting every update
             summary_record = SummaryRecordRequest(summary=summary)
             request_record = self._interface._make_request(
                 summary_record=summary_record
@@ -262,7 +266,7 @@ class HandleManager:
         if s.none:
             return False
         if s.copy:
-            # non key list copy already done in _update_summary
+            # non-key list copy already done in _update_summary
             if len(kl) > 1:
                 _dict_nested_set(self._consolidated_summary, kl, v)
                 return True
@@ -354,7 +358,7 @@ class HandleManager:
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
-        # if the dict has _type key, its a wandb table object
+        # if the dict has _type key, it's a wandb table object
         if isinstance(v, dict) and not handler_util.metric_is_wandb_dict(v):
             updated = False
             for nk, nv in v.items():
@@ -370,7 +374,7 @@ class HandleManager:
         return updated
 
     def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
-        # For now, non recursive - just top level
+        # For now, non-recursive - just top level
         for nk, nv in v.items():
             if (
                 isinstance(nv, dict)
@@ -383,17 +387,17 @@ class HandleManager:
                 v[nk] = nv
         return v
 
-    def _update_summary(self, history_dict: Dict[str, Any]) -> bool:
+    def _update_summary(self, history_dict: Dict[str, Any]) -> List[str]:
         # keep old behavior fast path if no define metrics have been used
         if not self._metric_defines:
             history_dict = self._update_summary_media_objects(history_dict)
             self._consolidated_summary.update(history_dict)
-            return True
-        updated = False
+            return list(history_dict.keys())
+        updated_keys = []
         for k, v in history_dict.items():
             if self._update_summary_list(kl=[k], v=v):
-                updated = True
-        return updated
+                updated_keys.append(k)
+        return updated_keys
 
     def _history_assign_step(
         self,
@@ -508,27 +512,28 @@ class HandleManager:
         self._history_update(record.history, history_dict)
         self._dispatch_record(record)
         self._save_history(record.history)
-        updated = self._update_summary(history_dict)
-        if updated:
-            self._save_summary(self._consolidated_summary)
+        # update summary from history
+        updated_keys = self._update_summary(history_dict)
+        if updated_keys:
+            updated_items = {k: self._consolidated_summary[k] for k in updated_keys}
+            self._save_summary(updated_items)
 
     def _flush_partial_history(
         self,
         step: Optional[int] = None,
     ) -> None:
-        if self._partial_history:
-            history = HistoryRecord()
-            for k, v in self._partial_history.items():
-                item = history.item.add()
-                item.key = k
-                item.value_json = json.dumps(v)
+        if not self._partial_history:
+            return
+
+        history = HistoryRecord()
+        for k, v in self._partial_history.items():
             item = history.item.add()
-            item.key = "_user_step"
-            item.value_json = json.dumps(step)
-            # if step is not None:
-            #     history.step.num = step
-            self.handle_history(Record(history=history))
-            self._partial_history = {}
+            item.key = k
+            item.value_json = json.dumps(v)
+        if step is not None:
+            history.step.num = step
+        self.handle_history(Record(history=history))
+        self._partial_history = {}
 
     def handle_request_sender_mark_report(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
@@ -701,6 +706,14 @@ class HandleManager:
 
     def handle_request_network_status(self, record: Record) -> None:
         self._dispatch_record(record)
+
+    def handle_request_internal_messages(self, record: Record) -> None:
+        result = proto_util._result_from_record(record)
+        result.response.internal_messages_response.messages.CopyFrom(
+            self._internal_messages
+        )
+        self._internal_messages.Clear()
+        self._respond_result(result)
 
     def handle_request_status(self, record: Record) -> None:
         # TODO(mempressure): do something better?

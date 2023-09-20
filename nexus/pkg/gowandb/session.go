@@ -6,26 +6,27 @@ import (
 
 	"github.com/wandb/wandb/nexus/internal/execbin"
 	"github.com/wandb/wandb/nexus/internal/launcher"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 )
 
 type Session struct {
-	manager    *Manager
-	CoreBinary []byte
-	execCmd    *execbin.ForkExecCmd
-	Address    string
-	Settings   *SettingsWrap
-}
+	manager *Manager
+	execCmd *execbin.ForkExecCmd
 
-type SessionOption func(*Session)
+	// embed settings parameters which are set by sessionopts options
+	sessionopts.SessionParams
+}
 
 func (s *Session) start() {
 	var execCmd *execbin.ForkExecCmd
 	var err error
 
 	ctx := context.Background()
-	settings := s.Settings
-	if settings == nil {
-		settings = NewSettings()
+	sessionSettings := s.Settings
+	if sessionSettings == nil {
+		sessionSettings = settings.NewSettings()
 	}
 
 	if s.Address == "" {
@@ -47,7 +48,7 @@ func (s *Session) start() {
 		s.Address = fmt.Sprintf("127.0.0.1:%d", port)
 	}
 
-	s.manager = NewManager(ctx, settings, s.Address)
+	s.manager = NewManager(ctx, sessionSettings, s.Address)
 }
 
 func (s *Session) Close() {
@@ -56,4 +57,16 @@ func (s *Session) Close() {
 		_ = s.execCmd.Wait()
 		// TODO(beta): check exit code
 	}
+}
+
+func (s *Session) NewRun(opts ...runopts.RunOption) (*Run, error) {
+	runParams := &runopts.RunParams{}
+	for _, opt := range opts {
+		opt(runParams)
+	}
+	run := s.manager.NewRun()
+	run.setup()
+	run.init()
+	run.start()
+	return run, nil
 }

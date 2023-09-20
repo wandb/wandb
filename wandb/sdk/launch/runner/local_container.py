@@ -5,7 +5,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -25,6 +25,9 @@ from ..utils import (
     sanitize_wandb_api_key,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
+
+if TYPE_CHECKING:
+    from wandb.apis.internal import Api
 
 _logger = logging.getLogger(__name__)
 
@@ -95,7 +98,7 @@ class LocalContainerRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: wandb.apis.internal.Api,
+        api: "Api",
         backend_config: Dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
