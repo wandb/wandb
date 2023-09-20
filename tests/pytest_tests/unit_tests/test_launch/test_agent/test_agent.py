@@ -397,6 +397,7 @@ def test_thread_finish_no_run(mocker):
     job.project = MagicMock()
     job.completed_status = "finished"
     agent._jobs = {"thread_1": job}
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 0)
     agent.finish_thread_id("thread_1")
     assert mocker.api.fail_run_queue_item.called
     assert mocker.api.fail_run_queue_item.call_args[0][0] == "run_queue_item_id"
@@ -423,6 +424,7 @@ def test_thread_failed_no_run(mocker):
     job.project = MagicMock()
     job.completed_status = "failed"
     agent._jobs = {"thread_1": job}
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 0)
     agent.finish_thread_id("thread_1")
     assert mocker.api.fail_run_queue_item.called
     assert mocker.api.fail_run_queue_item.call_args[0][0] == "run_queue_item_id"
@@ -456,5 +458,5 @@ def test_thread_finish_run_info_backoff(mocker):
     agent._jobs_lock = MagicMock()
     agent.finish_thread_id("thread_1")
     assert mocker.api.fail_run_queue_item.called
-    # we should be able to call at least 5 times in 60 seconds
-    assert mocker.api.get_run_info.call_count >= 5
+    # we should be able to call get_run_info 4 times, at 0 sec, 10 sec, 30 sec, and 70 sec
+    assert mocker.api.get_run_info.call_count == 4

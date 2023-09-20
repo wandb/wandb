@@ -36,6 +36,8 @@ HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
 
 MAX_RESUME_COUNT = 5
 
+RUN_INFO_GRACE_PERIOD = 60
+
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
     try:
@@ -303,35 +305,28 @@ class LaunchAgent:
             )
         elif job_and_run_status.run is not None:
             run_info = None
-            # sweep runs exist but have no info before they are started
-            # so run_info returned will be None
-            # normal runs just throw a comm error
-            # TODO: make more clear
-            try:
-                run_info = self._api.get_run_info(
-                    self._entity, job_and_run_status.project, job_and_run_status.run_id
-                )
-
-            except CommError:
-                pass
-            if run_info is None:
-                # We retry for 60 seconds with an exponential backoff in case
-                # upsert run is taking a while.
-                start_time = time.time()
-                interval = 10
-                while True:
-                    try:
-                        run_info = self._api.get_run_info(
-                            self._entity,
-                            job_and_run_status.project,
-                            job_and_run_status.run_id,
-                        )
-                    except CommError:
-                        pass
-                    if run_info is not None or time.time() - start_time > 60:
-                        break
+            # We retry for 60 seconds with an exponential backoff in case
+            # upsert run is taking a while.
+            start_time = time.time()
+            interval = 10
+            while True:
+                try:
+                    run_info = self._api.get_run_info(
+                        self._entity,
+                        job_and_run_status.project,
+                        job_and_run_status.run_id,
+                    )
+                except CommError:
+                    pass
+                if (
+                    run_info is not None
+                    or time.time() - start_time > RUN_INFO_GRACE_PERIOD
+                ):
+                    break
+                if run_info is None:
                     time.sleep(interval)
                     interval *= 2
+
             if run_info is None:
                 fnames = None
                 if job_and_run_status.completed_status == "finished":
