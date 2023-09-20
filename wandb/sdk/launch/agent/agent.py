@@ -318,16 +318,21 @@ class LaunchAgent:
                 # We retry for 60 seconds with an exponential backoff in case
                 # upsert run is taking a while.
                 start_time = time.time()
-                interval = 1
-                while time.time() - start_time < 60:
+                interval = 10
+                while True:
                     try:
                         run_info = self._api.get_run_info(
                             self._entity,
                             job_and_run_status.project,
                             job_and_run_status.run_id,
                         )
-                        break
+                        if run_info is not None:
+                            break
                     except CommError:
+                        pass
+                    finally:
+                        if run_info is not None or time.time() - start_time > 60:
+                            break
                         time.sleep(interval)
                         interval *= 2
             if run_info is None:
