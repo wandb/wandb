@@ -107,7 +107,7 @@ def test_artifact_creation_with_diff_type():
             assert (
                 str(err)
                 == f"Artifact {artifact_name} already exists with type 'artifact_type_1';"
-                   " cannot create another with type 'artifact_type_2'"
+                " cannot create another with type 'artifact_type_2'"
             )
         assert did_err
 
