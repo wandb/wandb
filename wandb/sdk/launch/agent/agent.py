@@ -315,6 +315,22 @@ class LaunchAgent:
             except CommError:
                 pass
             if run_info is None:
+                # We retry for 60 seconds with an exponential backoff in case
+                # upsert run is taking a while.
+                start_time = time.time()
+                interval = 1
+                while time.time() - start_time < 60:
+                    try:
+                        run_info = self._api.get_run_info(
+                            self._entity,
+                            job_and_run_status.project,
+                            job_and_run_status.run_id,
+                        )
+                        break
+                    except CommError:
+                        time.sleep(interval)
+                        interval *= 2
+            if run_info is None:
                 fnames = None
                 if job_and_run_status.completed_status == "finished":
                     _msg = "The submitted job exited successfully but failed to call wandb.init"
@@ -329,7 +345,7 @@ class LaunchAgent:
                     job_and_run_status.run_queue_item_id, _msg, "run", fnames
                 )
         else:
-            _logger.info("Finish thread id had no exception and no run")
+            _logger.info(f"Finish thread id {thread_id} had no exception and no run")
             wandb._sentry.exception(
                 "launch agent called finish thread id on thread without run or exception"
             )

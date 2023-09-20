@@ -430,3 +430,31 @@ def test_thread_failed_no_run(mocker):
         mocker.api.fail_run_queue_item.call_args[0][1]
         == "The submitted run was not successfully started"
     )
+
+
+@pytest.mark.timeout(90)
+def test_thread_finish_run_info_backoff(mocker):
+    """Test that our retry + backoff logic for run info works.
+
+    This test should take at least 60 seconds.
+    """
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    mocker.api.get_run_info.side_effect = CommError("failed")
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker(
+        "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
+    )
+    job.run_id = "test_run_id"
+    job.project = MagicMock()
+    job.completed_status = "failed"
+    agent._jobs = {"thread_1": job}
+    agent._jobs_lock = MagicMock()
+    agent.finish_thread_id("thread_1")
+    assert mocker.api.fail_run_queue_item.called
+    # we should be able to call at least 5 times in 60 seconds
+    assert mocker.api.get_run_info.call_count >= 5
