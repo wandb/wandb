@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/nexus/internal/clients"
-
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/internal/uploader"
+	"github.com/wandb/wandb/nexus/internal/version"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -26,7 +26,6 @@ import (
 
 const (
 	MetaFilename = "wandb-metadata.json"
-	NexusVersion = "0.16.0b1" // todo: handle this automatically with bumpversion
 	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 )
@@ -99,7 +98,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		configMap:    make(map[string]interface{}),
 		loopbackChan: loopbackChan,
 		outChan:      make(chan *service.Result, BufferSize),
-		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
+		telemetry:    &service.TelemetryRecord{CoreVersion: version.Version},
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{

@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"github.com/wandb/wandb/nexus/internal/version"
 	"log/slog"
 	"time"
 
@@ -10,11 +11,14 @@ import (
 const sentryDsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
 
 type SentryClient struct {
-	Dsn string
+	Dsn    string
+	Commit string
 }
 
 func InitSentry(disabled bool, commit string) {
-	s := &SentryClient{}
+	s := &SentryClient{
+		Commit: commit,
+	}
 
 	// The DSN to use. If the DSN is not set, the client is effectively disabled.
 	if !disabled {
@@ -24,7 +28,7 @@ func InitSentry(disabled bool, commit string) {
 	err := sentry.Init(sentry.ClientOptions{
 		Dsn:              s.Dsn,
 		AttachStacktrace: true,
-		Release:          commit,
+		Release:          version.Version,
 	})
 
 	if err != nil {
