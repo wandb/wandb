@@ -52,8 +52,7 @@ def copy_asset(assets_path) -> Generator[Callable, None, None]:
 
 @pytest.fixture(scope="function", autouse=True)
 def filesystem_isolate(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    kwargs = dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    kwargs = dict(temp_dir=tmp_path)
     with CliRunner().isolated_filesystem(**kwargs):
         yield
 
