@@ -172,7 +172,6 @@ class S3Handler(StorageHandler):
                 newline=False,
             )
             objs = self._s3.Bucket(bucket).objects.limit(max_objects)
-            print(objs)
         else:
             try:
                 objs[0].load()
