@@ -228,7 +228,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
     args_no_equals: List[str] = []
     for param, config in command["args"].items():
         _value: Any = config.get("value", None)
-        if _value is None:
+        if _value is None and "value" not in config:
             raise ValueError('No "value" found for command["args"]["%s"]' % param)
         _flag: str = f"{param}={_value}"
         flags.append("--" + _flag)
