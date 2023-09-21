@@ -1036,6 +1036,10 @@ class WandbImporter:
                 if not almost_equal(src_v, dst_v):
                     non_matching[k] = {"src": src_v, "dst": dst_v}
 
+        for k, v in non_matching.items():
+            print(k, v)
+            print(f"{almost_equal(v['src'], v['dst'])=}")
+
         return non_matching
 
     def _compare_run_metrics(self, src_run, dst_run):
