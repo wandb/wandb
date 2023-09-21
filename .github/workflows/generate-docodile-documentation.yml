@@ -20,21 +20,16 @@ jobs: # update the docs.
       - name: Prepare wandb-branch value
         run: |
           REF_VALUE="${{ github.event.inputs.ref }}"
-          REF_VALUE="refs/tags/v0.15.11"
           if [[ "$REF_VALUE" == refs/tags/* ]]; then
           echo "WANDB_BRANCH=${REF_VALUE/refs\/tags\//}" >> "$GITHUB_ENV"
           else
           echo "WANDB_BRANCH=${REF_VALUE}" >> "$GITHUB_ENV"
           fi
 
-      - name: test
-        run: |
-          echo $WANDB_BRANCH
-
-#      - uses: wandb/docugen@v0.4.1
-#        with:
-#          docodile-branch: main
-#          wandb-branch: $REF
-#          generate-sdk-docs: true
-#          generate-weave-docs: false
-#          access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}
+      - uses: wandb/docugen@v0.4.1
+        with:
+          docodile-branch: main
+          wandb-branch: $WANDB_BRANCH
+          generate-sdk-docs: true
+          generate-weave-docs: false
+          access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}
