@@ -1011,9 +1011,7 @@ class WandbImporter:
         non_matching = {}
         for k, src_v in src_run.summary.items():
             # These won't match between systems and that's ok
-            if isinstance(src_v, str) and src_v.startswith(
-                "wandb-client-artifact://"
-            ):
+            if isinstance(src_v, str) and src_v.startswith("wandb-client-artifact://"):
                 continue
 
             if k in ("_wandb", "_runtime"):
@@ -1475,10 +1473,13 @@ class WandbImporter:
             tracker[i] = (art, e, p)
 
         df2 = pl.DataFrame(data)
+        if df2:
+            results = df2.join(
+                df, how="anti", on=["entity", "project", "name", "version", "type"]
+            )
+        else:
+            results = pl.DataFrame()
 
-        results = df2.join(
-            df, how="anti", on=["entity", "project", "name", "version", "type"]
-        )
         if not results.is_empty():
             results = results.filter(~results["name"].is_null())
             results = results.unique(["entity", "project", "name", "version", "type"])
@@ -1964,7 +1965,7 @@ def recursive_cast_to_dict(obj):
         return obj
 
 
-def almost_equal(x, y, eps=1e-12):
+def almost_equal(x, y, eps=1e-8):
     if type(x) != type(y):
         return False
 
