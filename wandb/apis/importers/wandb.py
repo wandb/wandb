@@ -1007,6 +1007,12 @@ class WandbImporter:
     def _compare_run_summary(self, src_run, dst_run):
         non_matching = {}
         for k, src_v in src_run.summary.items():
+            # These won't match between systems and that's ok
+            if src_v.startswith(
+                "wandb-client-artifact://"
+            ):
+                continue
+
             if k in ("_wandb", "_runtime"):
                 continue
 
@@ -1018,7 +1024,7 @@ class WandbImporter:
             if isinstance(src_v, dict) and isinstance(dst_v, dict):
                 for kk, sv in src_v.items():
                     # These won't match between systems and that's ok
-                    if kk == "artifact_path" and sv.startswith(
+                    if sv.startswith(
                         "wandb-client-artifact://"
                     ):
                         continue
