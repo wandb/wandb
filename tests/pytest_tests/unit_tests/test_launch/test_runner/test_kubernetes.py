@@ -872,7 +872,7 @@ def test_state_from_conditions(conditions, expected):
 
 def test_kubernetes_submitted_run_get_logs():
     core_api = MagicMock()
-    core_api.list_namespaced_pod.return_value = MockPodList(
+    pod_list = MockPodList(
         [
             MockDict(
                 {
@@ -886,6 +886,7 @@ def test_kubernetes_submitted_run_get_logs():
             )
         ]
     )
+    core_api.list_namespaced_pod.return_value = pod_list
     core_api.read_namespaced_pod_log.return_value = "test_log"
     submitted_run = KubernetesSubmittedRun(
         batch_api=MagicMock(),
@@ -894,8 +895,18 @@ def test_kubernetes_submitted_run_get_logs():
         monitor=MagicMock(),
         name="test_run",
     )
+    # Assert that we get the logs back.
     assert submitted_run.get_logs() == "test_log"
 
-    core_api.read_namespaced_pod_log.side_effect = ApiException()
+    # Assert we get None if the pod doesn't exist.
+    core_api.list_namespaced_pod.return_value = dict()
+    assert submitted_run.get_logs() is None
 
+    # Assert that empty logs come back as None
+    core_api.list_namespaced_pod.return_value = pod_list
+    core_api.read_namespaced_pod_log.return_value = ""
+    assert submitted_run.get_logs() is None
+
+    # Assert that we wrap API exceptions in None.
+    core_api.read_namespaced_pod_log.side_effect = ApiException()
     assert submitted_run.get_logs() is None

@@ -110,7 +110,7 @@ class KubernetesSubmittedRun(AbstractRun):
             if logs:
                 return str(logs)
             else:
-                wandb.termwarn(f"Retrieved no logs for kubernetes pod(s): {pod_names}")
+                wandb.termwarn(f"No logs for kubernetes pod(s): {pod_names}")
             return None
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
