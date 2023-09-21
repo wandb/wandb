@@ -104,8 +104,9 @@ class WandbRun:
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)
                 dfs.append(df)
-
-        return self._merge_dfs(dfs)
+                
+        merged = self._merge_dfs(dfs)
+        return merged
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
