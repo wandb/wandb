@@ -201,8 +201,8 @@ def parallelize(
                 lineno = traceback_details[-1].lineno
 
                 print(f"Exception: {run=} {e=} {filename=} {lineno=}. {traceback_details=}")
-                exc.shutdown(cancel_futures=True)
-                # continue
+                # exc.shutdown(cancel_futures=True)
+                continue
             else:
                 results.append(result)
             finally:
