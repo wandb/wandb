@@ -96,8 +96,6 @@ class S3Handler(StorageHandler):
         if version:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args["VersionId"] = version
-        elif key == "":
-            obj = self._s3.Bucket(bucket)
         else:
             obj = self._s3.Object(bucket, key)
 
@@ -174,6 +172,7 @@ class S3Handler(StorageHandler):
                 newline=False,
             )
             objs = self._s3.Bucket(bucket).objects.limit(max_objects)
+            print(objs)
         else:
             try:
                 objs[0].load()
