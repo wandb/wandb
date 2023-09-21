@@ -20,6 +20,7 @@ jobs: # update the docs.
       - name: Prepare wandb-branch value
         run: |
           REF_VALUE="${{ github.event.inputs.ref }}"
+          REF_VALUE="refs/tags/v0.15.11"
           if [[ "$REF_VALUE" == refs/tags/* ]]; then
           echo "WANDB_BRANCH=${REF_VALUE/refs\/tags\//}" >> "$GITHUB_ENV"
           else
