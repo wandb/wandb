@@ -1,6 +1,5 @@
 import os
 import shutil
-import sys
 import unittest.mock
 from pathlib import Path
 from queue import Queue
