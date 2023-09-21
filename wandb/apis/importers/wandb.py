@@ -77,24 +77,19 @@ class WandbRun:
         s = self._modify_table_artifact_paths(s)
         return s
     
-    def _concat_dfs(self, dfs):
+    def _merge_dfs(self, dfs):
         # Ensure there are DataFrames in the list
-        if not dfs:
+        if len(dfs) == 0:
             return pl.DataFrame()
-
-        # Get all unique columns across all DataFrames
-        all_columns = set()
-        for df in dfs:
-            all_columns.update(df.columns)
-
-        # For each unique column, ensure each DataFrame has it
-        for col in all_columns:
-            for i, df in enumerate(dfs):
-                if col not in df.columns:
-                    dfs[i] = df.with_columns(pl.col(col).alias(col).fill_none("None").limit(df.height))
-
-        # Now that all DataFrames have the same columns, concatenate them vertically
-        return pl.concat(dfs)
+        
+        if len(dfs) == 1:
+            return dfs[0]
+        
+        merged_df = dfs[0]
+        for df in dfs[1:]:
+            merged_df = merged_df.join(df, how='outer', on=['_step'])
+            
+        return merged_df
 
     def _get_metrics_df_from_parquet_history_paths(self):
         if self._parquet_history_paths is None:
@@ -110,7 +105,7 @@ class WandbRun:
                 df = pl.read_parquet(p)
                 dfs.append(df)
                 
-        return self._concat_dfs(dfs)
+        return self._merge_dfs(dfs)
 
         # if dfs:
         #     return pl.concat(dfs)
