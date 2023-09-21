@@ -88,6 +88,14 @@ class WandbRun:
         merged_df = dfs[0]
         for df in dfs[1:]:
             merged_df = merged_df.join(df, how="outer", on=["_step"])
+            col_pairs = [
+                (c, f"{c}_right")
+                for c in merged_df.columns
+                if f"{c}_right" in merged_df.columns
+            ]
+            for col, right in col_pairs:
+                new_col = merged_df[col].fill_null(merged_df[right])
+                merged_df = merged_df.with_columns(new_col).drop(right)
 
         return merged_df
 
@@ -104,7 +112,7 @@ class WandbRun:
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)
                 dfs.append(df)
-                
+
         merged = self._merge_dfs(dfs)
         return merged
 
@@ -1053,12 +1061,6 @@ class WandbImporter:
     def _compare_run_metrics(self, src_run, dst_run):
         src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
         dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
-        
-        
-        # print(f"{src_df=}, {dst_df=}")
-
-
-        # print(f"{src_df=}, {dst_df=}")
 
         # NA never equals NA, so fill for easier comparison
         src_df = src_df.fill_nan(None)
