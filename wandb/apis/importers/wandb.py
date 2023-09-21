@@ -76,6 +76,25 @@ class WandbRun:
         # Modify artifact paths because they are different between systems
         s = self._modify_table_artifact_paths(s)
         return s
+    
+    def _concat_dfs(self, dfs):
+        # Ensure there are DataFrames in the list
+        if not dfs:
+            return pl.DataFrame()
+
+        # Get all unique columns across all DataFrames
+        all_columns = set()
+        for df in dfs:
+            all_columns.update(df.columns)
+
+        # For each unique column, ensure each DataFrame has it
+        for col in all_columns:
+            for i, df in enumerate(dfs):
+                if col not in df.columns:
+                    dfs[i] = df.with_columns(pl.col(col).alias(col).fill_none("None").limit(df.height))
+
+        # Now that all DataFrames have the same columns, concatenate them vertically
+        return pl.concat(dfs)
 
     def _get_metrics_df_from_parquet_history_paths(self):
         if self._parquet_history_paths is None:
@@ -90,11 +109,13 @@ class WandbRun:
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)
                 dfs.append(df)
+                
+        return self._concat_dfs(dfs)
 
-        if dfs:
-            return pl.concat(dfs)
-        else:
-            return pl.DataFrame()
+        # if dfs:
+        #     return pl.concat(dfs)
+        # else:
+        #     return pl.DataFrame()
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
@@ -1041,10 +1062,14 @@ class WandbImporter:
     def _compare_run_metrics(self, src_run, dst_run):
         src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
         dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
+        
+        # print(f"{src_df=}, {dst_df=}")
 
         # NA never equals NA, so fill for easier comparison
         src_df = src_df.fill_nan(None)
         dst_df = dst_df.fill_nan(None)
+        
+        print(f"now comparing frames {src_run.entity=}, {src_run.project=}, {src_run.id=}")
 
         if not src_df.frame_equal(dst_df):
             return f"Non-matching metrics {src_df.shape=} {dst_df.shape=}"
