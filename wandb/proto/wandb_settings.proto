@@ -39,6 +39,7 @@ message Settings {
   google.protobuf.BoolValue _except_exit = 12;
   google.protobuf.StringValue _executable = 13;
   MapStringKeyStringValue _extra_http_headers = 14;
+  MapStringKeyStringValue _proxies = 200;
   google.protobuf.Int32Value _file_stream_retry_max = 147;
   google.protobuf.Int32Value _file_stream_retry_wait_min_seconds = 148;
   google.protobuf.Int32Value _file_stream_retry_wait_max_seconds = 149;

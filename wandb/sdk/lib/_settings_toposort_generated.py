@@ -58,6 +58,7 @@ _Setting = Literal[
     "_sync",
     "_os",
     "_platform",
+    "_proxies",
     "_python",
     "_runqueue_item_id",
     "_require_nexus",

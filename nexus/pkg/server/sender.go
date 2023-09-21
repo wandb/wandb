@@ -26,7 +26,7 @@ import (
 
 const (
 	MetaFilename = "wandb-metadata.json"
-	NexusVersion = "0.0.1a3"
+	NexusVersion = "0.16.0b1" // todo: handle this automatically with bumpversion
 	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 )

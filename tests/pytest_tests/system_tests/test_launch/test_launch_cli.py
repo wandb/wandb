@@ -165,7 +165,7 @@ def test_launch_repository_arg(
         user,
     ]
 
-    def patched_run(
+    def patched_launch(
         uri,
         job,
         api,
@@ -191,15 +191,15 @@ def test_launch_repository_arg(
         return mock_run
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch._run",
-        lambda *args, **kwargs: patched_run(*args, **kwargs),
+        "wandb.sdk.launch._launch._launch",
+        lambda *args, **kwargs: patched_launch(*args, **kwargs),
     )
 
     def patched_fetch_and_val(launch_project, _):
         return launch_project
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch.fetch_and_validate_project",
+        "wandb.sdk.launch._launch.fetch_and_validate_project",
         lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
     )
 
