@@ -76,19 +76,19 @@ class WandbRun:
         # Modify artifact paths because they are different between systems
         s = self._modify_table_artifact_paths(s)
         return s
-    
+
     def _merge_dfs(self, dfs):
         # Ensure there are DataFrames in the list
         if len(dfs) == 0:
             return pl.DataFrame()
-        
+
         if len(dfs) == 1:
             return dfs[0]
-        
+
         merged_df = dfs[0]
         for df in dfs[1:]:
-            merged_df = merged_df.join(df, how='outer', on=['_step'])
-            
+            merged_df = merged_df.join(df, how="outer", on=["_step"])
+
         return merged_df
 
     def _get_metrics_df_from_parquet_history_paths(self):
@@ -104,13 +104,8 @@ class WandbRun:
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)
                 dfs.append(df)
-                
-        return self._merge_dfs(dfs)
 
-        # if dfs:
-        #     return pl.concat(dfs)
-        # else:
-        #     return pl.DataFrame()
+        return self._merge_dfs(dfs)
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
@@ -1058,13 +1053,19 @@ class WandbImporter:
         src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
         dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
         
+        
+        # print(f"{src_df=}, {dst_df=}")
+
+
         # print(f"{src_df=}, {dst_df=}")
 
         # NA never equals NA, so fill for easier comparison
         src_df = src_df.fill_nan(None)
         dst_df = dst_df.fill_nan(None)
-        
-        print(f"now comparing frames {src_run.entity=}, {src_run.project=}, {src_run.id=}")
+
+        print(
+            f"now comparing frames {src_run.entity=}, {src_run.project=}, {src_run.id=}"
+        )
 
         if not src_df.frame_equal(dst_df):
             return f"Non-matching metrics {src_df.shape=} {dst_df.shape=}"
