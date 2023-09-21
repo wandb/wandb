@@ -952,10 +952,6 @@ class WandbImporter:
         if non_matching_summary:
             problems.append("summary:" + str(non_matching_summary))
         progress.subsubtask_pbar.remove_task(t)
-        
-        for k, v in non_matching_summary.items():
-            print(k, v)
-            print(f"{almost_equal(v['src'], v['dst'])=}")
 
         t = progress.subsubtask_pbar.add_task(
             f"Compare run metrics ({run_str})", total=None
@@ -1970,11 +1966,11 @@ def recursive_cast_to_dict(obj):
 
 
 def almost_equal(x, y, eps=1e-8):
-    if type(x) != type(y):
-        return False
-
     if isinstance(x, numbers.Number) and isinstance(y, numbers.Number):
         return abs(x - y) < eps
+
+    if type(x) != type(y):
+        return False
 
     return x == y
 
