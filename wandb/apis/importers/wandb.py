@@ -1473,7 +1473,7 @@ class WandbImporter:
             tracker[i] = (art, e, p)
 
         df2 = pl.DataFrame(data)
-        if df2:
+        if not df2.is_empty():
             results = df2.join(
                 df, how="anti", on=["entity", "project", "name", "version", "type"]
             )
