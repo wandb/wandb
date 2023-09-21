@@ -632,6 +632,9 @@ class WandbImporter:
         name, *_ = art.name.split(":v")
         entity = placeholder_run.entity
         project = placeholder_run.project
+        if isinstance(placeholder_run, MagicMock):
+            entity = entity.return_value
+            project = project.return_value
 
         base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
 
