@@ -17,10 +17,23 @@ jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: wandb/docugen@v0.4.1
-        with:
-          docodile-branch: main
-          wandb-branch: ${{ replace(github.event.inputs.ref, 'refs/tags/', '') || github.ref }}
-          generate-sdk-docs: true
-          generate-weave-docs: false
-          access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}
+      - name: Prepare wandb-branch value
+        run: |
+          REF_VALUE="${{ github.event.inputs.ref }}"
+          if [[ "$REF_VALUE" == refs/tags/* ]]; then
+          echo "wandb_branch=${REF_VALUE/refs\/tags\//}" >> "$GITHUB_ENV"
+          else
+          echo "wandb_branch=${{ github.ref }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: test
+        run: |
+          echo ${{ steps.prepare.outputs.wandb_branch }}
+
+#      - uses: wandb/docugen@v0.4.1
+#        with:
+#          docodile-branch: main
+#          wandb-branch: ${{ steps.prepare.outputs.wandb_branch }}
+#          generate-sdk-docs: true
+#          generate-weave-docs: false
+#          access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}
