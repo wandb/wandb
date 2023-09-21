@@ -1017,6 +1017,11 @@ class WandbImporter:
 
             if isinstance(src_v, dict) and isinstance(dst_v, dict):
                 for kk, sv in src_v.items():
+                    # These won't match between systems and that's ok
+                    if kk == "artifact-path" and sv.startswith(
+                        "wandb-client-artifact://"
+                    ):
+                        continue
                     dv = dst_v.get(kk)
                     if not almost_equal(sv, dv):
                         non_matching[f"{k}-{kk}"] = {"src": sv, "dst": dv}
@@ -1527,7 +1532,9 @@ class WandbImporter:
             ]
 
         if problems:
-            print(f"Problem validating artifact: {src_art.entity=}, {src_art.project=}, {src_art.name=} {problems=}")
+            print(
+                f"Problem validating artifact: {src_art.entity=}, {src_art.project=}, {src_art.name=} {problems=}"
+            )
 
         return (src_art, problems)
 
