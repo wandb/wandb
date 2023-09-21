@@ -1059,7 +1059,7 @@ class WandbImporter:
         return non_matching
 
     def _compare_run_metrics(self, src_run, dst_run):
-        src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
+        src_df = WandbRun(src_run)._get_metrics_dslackf_from_parquet_history_paths()
         dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
 
         # NA never equals NA, so fill for easier comparison
@@ -1670,9 +1670,9 @@ class WandbImporter:
         progress.live.start()
         self._clear_errors()
 
-        self._validate_runs_from_namespaces(namespaces, incremental=incremental)
-        failed_runs = self._collect_failed_runs()
-        self._import_failed_runs(failed_runs)
+        # self._validate_runs_from_namespaces(namespaces, incremental=incremental)
+        # failed_runs = self._collect_failed_runs()
+        # self._import_failed_runs(failed_runs)
 
         seqs = list(self._collect_artifact_sequences_from_namespaces(namespaces))
         # print(f"{len(seqs)=}, {seqs=}")
@@ -1680,11 +1680,11 @@ class WandbImporter:
         failed_artifact_sequences = self._filter_failed_artifact_sequences(seqs)
 
         # import the largest artifact sequences first becuase they will take the longest
-        failed_artifact_sequences = sorted(
-            failed_artifact_sequences,
-            key=lambda s: sum(a.size for a in s.artifacts),
-            reverse=True,
-        )
+        # failed_artifact_sequences = sorted(
+        #     failed_artifact_sequences,
+        #     key=lambda s: sum(a.size for a in s.artifacts),
+        #     reverse=True,
+        # )
         self._import_failed_artifact_sequences(
             failed_artifact_sequences, max_workers=max_workers
         )
