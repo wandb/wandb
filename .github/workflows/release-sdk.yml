@@ -69,7 +69,7 @@ jobs:
 
   pypi-publish:
     name: Publish to PyPI
-    needs: test-pypi-publish
+    # needs: test-pypi-publish
     runs-on: ubuntu-latest
     environment:
       name: release
