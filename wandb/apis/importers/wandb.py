@@ -1018,7 +1018,7 @@ class WandbImporter:
             if isinstance(src_v, dict) and isinstance(dst_v, dict):
                 for kk, sv in src_v.items():
                     # These won't match between systems and that's ok
-                    if kk == "artifact-path" and sv.startswith(
+                    if kk == "artifact_path" and sv.startswith(
                         "wandb-client-artifact://"
                     ):
                         continue
