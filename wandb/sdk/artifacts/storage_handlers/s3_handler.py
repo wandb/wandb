@@ -96,6 +96,8 @@ class S3Handler(StorageHandler):
         if version:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args["VersionId"] = version
+        elif key == "":
+            obj = self._s3.Bucket(bucket)
         else:
             obj = self._s3.Object(bucket, key)
 
@@ -164,22 +166,31 @@ class S3Handler(StorageHandler):
         )
         start_time = None
         multi = False
-        try:
-            objs[0].load()
-            # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
-            # trigger a recursive upload.
-            # we should check the object's metadata says it is a directory and do a multi file upload if it is
-            if "x-directory" in objs[0].content_type:
-                multi = True
-        except self._botocore.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "404":
-                multi = True
-            else:
-                raise CommError(
-                    "Unable to connect to S3 ({}): {}".format(
-                        e.response["Error"]["Code"], e.response["Error"]["Message"]
+        if key == "":
+            start_time = time.time()
+            termlog(
+                'Generating checksum for up to %i objects in the bucket "%s"... '
+                % (max_objects, bucket),
+                newline=False,
+            )
+            objs = self._s3.Bucket(bucket).objects.limit(max_objects)
+        else:
+            try:
+                objs[0].load()
+                # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
+                # trigger a recursive upload.
+                # we should check the object's metadata says it is a directory and do a multi file upload if it is
+                if "x-directory" in objs[0].content_type:
+                    multi = True
+            except self._botocore.exceptions.ClientError as e:
+                if e.response["Error"]["Code"] == "404":
+                    multi = True
+                else:
+                    raise CommError(
+                        "Unable to connect to S3 ({}): {}".format(
+                            e.response["Error"]["Code"], e.response["Error"]["Message"]
+                        )
                     )
-                )
         if multi:
             start_time = time.time()
             termlog(
