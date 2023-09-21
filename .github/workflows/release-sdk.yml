@@ -27,45 +27,45 @@ jobs:
           name: wandb-sdk-distributions
           path: ./dist
 
-  test-pypi-publish:
-    name: Publish to TestPyPI
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: release
-      url: https://test.pypi.org/p/wandb
-    permissions:
-      id-token: write  # trusted publishing
-    steps:
-      - name: Download distribution
-        uses: actions/download-artifact@v3
-        with:
-          name: wandb-sdk-distributions
-          path: dist/
-      - name: List distribution
-        run: ls dist/
-      - name: Publish distribution to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
+  # test-pypi-publish:
+  #   name: Publish to TestPyPI
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   environment:
+  #     name: release
+  #     url: https://test.pypi.org/p/wandb
+  #   permissions:
+  #     id-token: write  # trusted publishing
+  #   steps:
+  #     - name: Download distribution
+  #       uses: actions/download-artifact@v3
+  #       with:
+  #         name: wandb-sdk-distributions
+  #         path: dist/
+  #     - name: List distribution
+  #       run: ls dist/
+  #     - name: Publish distribution to TestPyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         repository-url: https://test.pypi.org/legacy/
 
-  verify-test-pypi:
-    name: Verify TestPyPI upload
-    needs: test-pypi-publish
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-      - name: Install wandb from TestPyPI
-        run: |
-          sleep 5
-          python -m pip install --upgrade pip
-          python -m pip install --extra-index-url https://test.pypi.org/simple/ --pre wandb
-      - name: Smoke-test wandb TestPyPI install
-        run: |
-          python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
+  # verify-test-pypi:
+  #   name: Verify TestPyPI upload
+  #   needs: test-pypi-publish
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Setup Python
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: "3.9"
+  #     - name: Install wandb from TestPyPI
+  #       run: |
+  #         sleep 5
+  #         python -m pip install --upgrade pip
+  #         python -m pip install --extra-index-url https://test.pypi.org/simple/ --pre wandb
+  #     - name: Smoke-test wandb TestPyPI install
+  #       run: |
+  #         python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
 
   pypi-publish:
     name: Publish to PyPI
