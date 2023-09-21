@@ -16,6 +16,7 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
 from wandb.sdk.launch.runner.kubernetes_runner import (
     KubernetesRunMonitor,
     KubernetesRunner,
+    KubernetesSubmittedRun,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -864,3 +865,37 @@ def test_state_from_conditions(conditions, expected):
         assert CRD_STATE_DICT[state.lower()] == expected
     else:
         assert state == expected is None
+
+
+# Tests for KubernetesSubmittedRun
+
+
+def test_kubernetes_submitted_run_get_logs():
+    core_api = MagicMock()
+    core_api.list_namespaced_pod.return_value = MockPodList(
+        [
+            MockDict(
+                {
+                    "metadata": MockDict(
+                        {
+                            "name": "test_pod",
+                            "labels": {"job-name": "test_job"},
+                        }
+                    )
+                }
+            )
+        ]
+    )
+    core_api.read_namespaced_pod_log.return_value = "test_log"
+    submitted_run = KubernetesSubmittedRun(
+        batch_api=MagicMock(),
+        core_api=core_api,
+        namespace="wandb",
+        monitor=MagicMock(),
+        name="test_run",
+    )
+    assert submitted_run.get_logs() == "test_log"
+
+    core_api.read_namespaced_pod_log.side_effect = ApiException()
+
+    assert submitted_run.get_logs() is None
