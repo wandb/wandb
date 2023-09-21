@@ -314,6 +314,7 @@ class LaunchAgent:
             # Sweep runs exist but have no info before they are started
             # so run_info returned will be None, while normal runs just throw a
             # comm error.
+            logs = None
             start_time = time.time()
             interval = 1
             while True:
@@ -331,6 +332,11 @@ class LaunchAgent:
                 ):
                     break
                 if run_info is None:
+                    # Fetch the logs now if we don't get run info on the
+                    # first try, in case the logs are cleaned from the runner
+                    # environment (e.g. k8s) during the run info grace period.
+                    if interval == 1:
+                        logs = job_and_run_status.run.get_logs()
                     time.sleep(interval)
                     interval *= 2
 
@@ -340,7 +346,6 @@ class LaunchAgent:
                     _msg = "The submitted job exited successfully but failed to call wandb.init"
                 else:
                     _msg = "The submitted run was not successfully started"
-                logs = job_and_run_status.run.get_logs()
                 if logs:
                     fnames = job_and_run_status.saver.save_contents(
                         logs, "error.log", "error"
