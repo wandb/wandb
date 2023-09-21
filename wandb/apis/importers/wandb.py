@@ -952,6 +952,10 @@ class WandbImporter:
         if non_matching_summary:
             problems.append("summary:" + str(non_matching_summary))
         progress.subsubtask_pbar.remove_task(t)
+        
+        for k, v in non_matching_summary.items():
+            print(k, v)
+            print(f"{almost_equal(v['src'], v['dst'])=}")
 
         t = progress.subsubtask_pbar.add_task(
             f"Compare run metrics ({run_str})", total=None
@@ -1035,10 +1039,6 @@ class WandbImporter:
             else:
                 if not almost_equal(src_v, dst_v):
                     non_matching[k] = {"src": src_v, "dst": dst_v}
-
-        for k, v in non_matching.items():
-            print(k, v)
-            print(f"{almost_equal(v['src'], v['dst'])=}")
 
         return non_matching
 
