@@ -1,6 +1,6 @@
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Tuple
 
 import wandb
@@ -22,8 +22,14 @@ class ArtifactSequence:
     entity: str
     project: str
 
+    name: str = field(init=False)
+
     def __post_init__(self):
         self.artifacts = list(self.artifacts)
+        if self.artifacts:
+            self.name = self.artifacts[0].name
+        else:
+            self.name = ""
 
     def __iter__(self) -> Iterator:
         return iter(self.artifacts)
