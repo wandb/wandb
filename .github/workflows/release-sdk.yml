@@ -2,6 +2,12 @@ name: Build and Release W&B SDK
 
 on:
   workflow_dispatch:
+    inputs:
+      use_pre:
+        type: boolean
+        description: "Use pre-release version"
+        required: false
+        default: "false"
 
 jobs:
   build:
@@ -52,6 +58,7 @@ jobs:
   verify-test-pypi:
     name: Verify TestPyPI upload
     needs: test-pypi-publish
+    if: always() && (needs.test-pypi-publish.outputs.job_status=='success')
     runs-on: ubuntu-latest
     steps:
       - name: Setup Python
@@ -62,7 +69,11 @@ jobs:
         run: |
           sleep 5
           python -m pip install --upgrade pip
-          python -m pip install --extra-index-url https://test.pypi.org/simple/ --pre wandb
+          if [ "${{ inputs.use_pre }}" == "true" ]; then
+            python -m pip install --extra-index-url https://test.pypi.org/simple/ --pre wandb
+          else
+            python -m pip install --extra-index-url https://test.pypi.org/simple/ wandb
+          fi
       - name: Smoke-test wandb TestPyPI install
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
@@ -70,6 +81,7 @@ jobs:
   pypi-publish:
     name: Publish to PyPI
     needs: test-pypi-publish
+    if: always() && (needs.test-pypi-publish.outputs.job_status=='success')
     runs-on: ubuntu-latest
     environment:
       name: release
@@ -100,7 +112,11 @@ jobs:
         run: |
           sleep 5
           python -m pip install --upgrade pip
-          python -m pip install --pre wandb
+          if [ "${{ inputs.use_pre }}" == "true" ]; then
+            python -m pip install --pre wandb
+          else
+            python -m pip install wandb
+          fi
           echo "WANDB_VERSION=$(python -c 'import wandb; print(wandb.__version__)')" >> "$GITHUB_ENV"
       - name: Post to Slack
         id: slack
