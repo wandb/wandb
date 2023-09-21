@@ -939,7 +939,7 @@ class WandbImporter:
         )
         non_matching_metadata = self._compare_run_metadata(src_run, dst_run)
         if non_matching_metadata:
-            problems.append(str(non_matching_metadata))
+            problems.append("metadata:" + str(non_matching_metadata))
         progress.subsubtask_pbar.remove_task(t)
 
         t = progress.subsubtask_pbar.add_task(
@@ -947,7 +947,7 @@ class WandbImporter:
         )
         non_matching_summary = self._compare_run_summary(src_run, dst_run)
         if non_matching_summary:
-            problems.append(str(non_matching_summary))
+            problems.append("summary:" + str(non_matching_summary))
         progress.subsubtask_pbar.remove_task(t)
 
         t = progress.subsubtask_pbar.add_task(
@@ -955,7 +955,7 @@ class WandbImporter:
         )
         non_matching_metrics = self._compare_run_metrics(src_run, dst_run)
         if non_matching_metrics:
-            problems.append(str(non_matching_metrics))
+            problems.append("metrics:" + str(non_matching_metrics))
         progress.subsubtask_pbar.remove_task(t)
 
         return problems
@@ -991,6 +991,7 @@ class WandbImporter:
         except requests.HTTPError as e:
             if e.response.status_code == 404:
                 return {"Bad upload": f"File not found: {fname}"}
+            return {"http problem": f"{fname}: ({e})"}
 
         dst_meta = wandb.wandb_sdk.lib.json_util.loads(contents)
 
@@ -1526,7 +1527,7 @@ class WandbImporter:
             ]
 
         if problems:
-            print(f"Problem validating artifact: {src_art=}, {problems=}")
+            print(f"Problem validating artifact: {src_art.entity=}, {src_art.project=}, {src_art.name=} {problems=}")
 
         return (src_art, problems)
 
