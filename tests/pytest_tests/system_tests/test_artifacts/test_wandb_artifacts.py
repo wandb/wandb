@@ -544,21 +544,6 @@ def test_add_s3_reference_object():
     }
 
 
-def test_add_s3_reference_object_dir():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact, content_type="application/x-directory; charset=UTF-8")
-    artifact.add_reference("s3://my-bucket/my_dir")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_dir",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
-        "size": 10,
-    }
-
-
 def test_add_s3_reference_object_no_version():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact, version_id=None)
@@ -626,13 +611,13 @@ def test_add_s3_reference_path_with_content_type(runner, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         mock_boto(artifact, path=False, content_type="application/x-directory")
-        artifact.add_reference("s3://my-bucket/")
+        artifact.add_reference("s3://my-bucket/my_dir")
 
         assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"]["my_object.pb"] == {
             "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_object.pb",
+            "ref": "s3://my-bucket/my_dir",
             "extra": {"etag": "1234567890abcde", "versionID": "1"},
             "size": 10,
         }
@@ -644,7 +629,7 @@ def test_add_s3_max_objects():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact, path=True)
     with pytest.raises(ValueError):
-        artifact.add_reference("s3://my-bucket", max_objects=1)
+        artifact.add_reference("s3://my-bucket/", max_objects=1)
 
 
 def test_add_reference_s3_no_checksum():
