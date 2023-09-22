@@ -67,8 +67,10 @@ class WandbStoragePolicy(StoragePolicy):
         api: Optional[InternalApi] = None,
     ) -> None:
         self._cache = cache or get_artifacts_cache()
+        self._config = config or {}
         self._session = requests.Session()
-        self.config = config or {}
+        proxies = self._config.get("proxies")
+        self._session.proxies.update(proxies or {})
         adapter = requests.adapters.HTTPAdapter(
             max_retries=_REQUEST_RETRY_STRATEGY,
             pool_connections=_REQUEST_POOL_CONNECTIONS,
@@ -77,7 +79,7 @@ class WandbStoragePolicy(StoragePolicy):
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
-        s3 = S3Handler()
+        s3 = S3Handler(proxies=proxies)
         gcs = GCSHandler()
         azure = AzureHandler()
         http = HTTPHandler(self._session)
@@ -101,15 +103,8 @@ class WandbStoragePolicy(StoragePolicy):
             default_handler=TrackingHandler(),
         )
 
-    @property
     def config(self) -> Dict:
-        return self._config
-
-    @config.setter
-    def config(self, config: Dict) -> None:
-        self._config = config
-        if self._session and "proxies" in config:
-            self._session.proxies.update(config["proxies"])
+        return self._config.copy()
 
     def load_file(
         self,

@@ -34,9 +34,10 @@ class S3Handler(StorageHandler):
     _s3: Optional["boto3.resources.base.ServiceResource"]
     _scheme: str
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self, scheme: Optional[str] = None, proxies: Optional[Dict] = None) -> None:
         self._scheme = scheme or "s3"
         self._s3 = None
+        self._proxies = proxies
         self._cache = get_artifacts_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
@@ -50,12 +51,15 @@ class S3Handler(StorageHandler):
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
             lazy=False,
         )
-        self._s3 = boto.session.Session().resource(
+        self._botocore = util.get_module("botocore", lazy=False)
+        config = None
+        if self._proxies:
+            config = self._botocore.config.Config(proxies=self._proxies)
+        self._s3 = boto.session.Session(config=config).resource(
             "s3",
             endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"),
             region_name=os.getenv("AWS_REGION"),
         )
-        self._botocore = util.get_module("botocore")
         return self._s3
 
     def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:

@@ -136,10 +136,7 @@ class Artifact:
         # Internal.
         self._client: Optional[RetryingClient] = None
 
-        storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
-        layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
-        policy_config = {"storageLayout": layout}
-        self._storage_policy = storage_policy_cls.from_config(config=policy_config)
+        self._initialize_storage_policy()
 
         self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
         self._added_objs: Dict[
@@ -271,9 +268,7 @@ class Artifact:
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
         proxies = client and client._client and client._client.transport.session.proxies
-        if proxies:
-            config = {**artifact._storage_policy.config, "proxies": proxies}
-            artifact._storage_policy.config = config
+        artifact._initialize_storage_policy(proxies=proxies)
         artifact._id = attrs["id"]
         artifact._entity = entity
         artifact._project = project
@@ -690,6 +685,14 @@ class Artifact:
         self._ensure_logged("updated_at")
         assert self._created_at is not None
         return self._updated_at or self._created_at
+
+    def _initialize_storage_policy(self, proxies: Optional[Dict]=None) -> None:
+        storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
+        layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
+        policy_config = {"storageLayout": layout}
+        if proxies:
+            policy_config["proxies"] = proxies
+        self._storage_policy = storage_policy_cls.from_config(config=policy_config)
 
     # State management.
 
