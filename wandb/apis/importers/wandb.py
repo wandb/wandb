@@ -901,12 +901,15 @@ class WandbImporter:
             try:
                 version.delete(delete_aliases=True)
             except wandb.CommError as e:
-                # it's possible that the artifact didn't upload properly so there is no placeholder ver here
-                print(f"Placeholder version not found {version=}, {e=}")
-                continue
-            except Exception as e:
                 if "cannot delete system managed artifact" not in str(e):
                     raise e
+
+                # system managed artifacts cant be deleted.  You need to delete the base run
+                try:
+                    run = version.logged_by()
+                    run.delete()
+                except Exception as e:
+                    print(f"Problem: {e=}")
             finally:
                 progress.subtask_pbar.advance(task)
         progress.subtask_pbar.remove_task(task)
