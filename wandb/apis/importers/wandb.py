@@ -1059,7 +1059,7 @@ class WandbImporter:
         return non_matching
 
     def _compare_run_metrics(self, src_run, dst_run):
-        src_df = WandbRun(src_run)._get_metrics_dslackf_from_parquet_history_paths()
+        src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
         dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
 
         # NA never equals NA, so fill for easier comparison
