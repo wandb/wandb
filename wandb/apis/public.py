@@ -56,7 +56,7 @@ from wandb.sdk.launch.utils import (
     convert_jupyter_notebook_to_script,
 )
 from wandb.sdk.lib import ipython, json_util, retry, runid
-from wandb.sdk.lib.gql_request import GraphQLSession
+from wandb.sdk.lib.gql_client import build_gql_client
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -391,29 +391,8 @@ class Api:
         self._sweeps = {}
         self._reports = {}
         self._default_entity = None
-        self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
-        auth = None
-        if not _thread_local_api_settings.cookies:
-            auth = ("api", self.api_key)
-        proxies = self.settings.get("_proxies") or json.loads(
-            os.environ.get("WANDB__PROXIES", "{}")
-        )
-        self._base_client = Client(
-            transport=GraphQLSession(
-                headers={
-                    "User-Agent": self.user_agent,
-                    "Use-Admin-Privileges": "true",
-                    **(_thread_local_api_settings.headers or {}),
-                },
-                use_json=True,
-                # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
-                # https://bugs.python.org/issue22889
-                timeout=self._timeout,
-                auth=auth,
-                url="%s/graphql" % self.settings["base_url"],
-                cookies=_thread_local_api_settings.cookies,
-                proxies=proxies,
-            )
+        self._base_client = build_gql_client(
+            self.user_agent, self.api_key, self.settings
         )
         self._client = RetryingClient(self._base_client)
 
