@@ -70,8 +70,8 @@ class ArtifactManifestV1(ArtifactManifest):
             contents[entry.path] = json_entry
         return {
             "version": self.__class__.version(),
-            "storagePolicy": self.storage_policy.name(),
-            "storagePolicyConfig": self.storage_policy.config() or {},
+            "storagePolicy": self.storage_policy.name,
+            "storagePolicyConfig": self.storage_policy.config,
             "contents": contents,
         }
 
