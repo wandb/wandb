@@ -892,6 +892,10 @@ class WandbImporter:
                 continue
             try:
                 version.delete(delete_aliases=True)
+            except wandb.CommError as e:
+                # it's possible that the artifact didn't upload properly so there is no placeholder ver here
+                print(f"Placeholder version not found {version=}, {e=}")
+                continue
             except Exception as e:
                 if "cannot delete system managed artifact" not in str(e):
                     raise e
@@ -1021,7 +1025,7 @@ class WandbImporter:
         if src_run.metadata:
             for k, src_v in src_run.metadata.items():
                 if k not in dst_meta:
-                    non_matching[k] = {'src': src_v, 'dst': 'KEY NOT FOUND'}
+                    non_matching[k] = {"src": src_v, "dst": "KEY NOT FOUND"}
                     continue
                 dst_v = dst_meta[k]
                 if src_v != dst_v:
@@ -1083,7 +1087,7 @@ class WandbImporter:
 
             if not src.series_equal(dst):
                 non_matching.append(col)
-            
+
         if non_matching:
             return f"Non-matching metrics {non_matching=}"
         else:
