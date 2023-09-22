@@ -5,9 +5,9 @@ on:
     inputs:
       use_pre:
         type: boolean
-        description: "Use pre-release version"
+        description: "pre-release"
         required: false
-        default: "false"
+        default: false
 
 jobs:
   build:
