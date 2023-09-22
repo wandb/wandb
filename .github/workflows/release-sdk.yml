@@ -50,7 +50,7 @@ jobs:
           name: wandb-sdk-distributions
           path: dist/
       - name: List distribution
-        run: ls dist/
+        run: ls dist/ && exit 1
 #      - name: Publish distribution to TestPyPI
 #        uses: pypa/gh-action-pypi-publish@release/v1
 #        with:
