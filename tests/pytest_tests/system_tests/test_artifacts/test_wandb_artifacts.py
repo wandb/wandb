@@ -647,7 +647,9 @@ def test_add_s3_reference_path_with_content_type(runner, capsys):
 
 def test_add_s3_max_objects():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact, path=True)
+    mock_boto(
+        artifact, path=True, content_type="application/x-directory; charset=UTF-8"
+    )
     with pytest.raises(ValueError):
         artifact.add_reference("s3://my-bucket/my-dir/", max_objects=1)
 
