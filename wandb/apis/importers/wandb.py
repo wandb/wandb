@@ -613,12 +613,13 @@ class WandbImporter:
         for art in artifact_sequence:
             try:
                 placeholder_run = art.logged_by()
-            except ValueError:
+            except ValueError as e:
                 # TODO: Artifacts whose runs have been deleted do not get imported.
+                print(f"This run does not exist! {placeholder_run=}, {e=}")
                 placeholder_run = special_logged_by(self.src_api.client, art)
-                # print(f"This run does not exist! {placeholder_run=}")
                 # continue
-            except requests.exceptions.HTTPError:
+            except requests.exceptions.HTTPError as e:
+                print(f"Some HTTP Error: {e=}")
                 continue  # Something bad happened.  Retry later
 
             if placeholder_run is not None:
@@ -684,6 +685,7 @@ class WandbImporter:
                     )
                     path = art.download()
                 except Exception as e:
+                    print(f"Some error {e=}")
                     wandb_logger.error(
                         f"Error downloading artifact {art} -- {e}",
                         extra={
