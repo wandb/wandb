@@ -1020,6 +1020,9 @@ class WandbImporter:
         non_matching = {}
         if src_run.metadata:
             for k, src_v in src_run.metadata.items():
+                if k not in dst_meta:
+                    non_matching[k] = {'src': src_v, 'dst': 'KEY NOT FOUND'}
+                    continue
                 dst_v = dst_meta[k]
                 if src_v != dst_v:
                     non_matching[k] = {"src": src_v, "dst": dst_v}
