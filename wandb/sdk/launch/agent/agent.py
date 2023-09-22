@@ -6,7 +6,7 @@ import threading
 import time
 import traceback
 from multiprocessing import Event
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -26,7 +26,7 @@ from .job_status_tracker import JobAndRunStatusTracker
 from .run_queue_item_file_saver import RunQueueItemFileSaver
 
 AGENT_POLLING_INTERVAL = 10
-ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
+RECEIVED_JOB_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
 
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
@@ -157,7 +157,7 @@ class LaunchAgent:
             self._api.fail_run_queue_item_introspection()
         )
 
-        self._queues = config.get("queues", ["default"])
+        self._queues: List[str] = config.get("queues", ["default"])
         create_response = self._api.create_launch_agent(
             self._entity,
             self._project,
@@ -239,10 +239,10 @@ class LaunchAgent:
                 project=self._project,
                 agent_id=self._id,
             )
+            return ups
         except Exception as e:
             print("Exception:", e)
             return None
-        return ups
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
@@ -456,45 +456,43 @@ class LaunchAgent:
                     raise KeyboardInterrupt
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
-                    for queue in self._queues:
-                        job = self.pop_from_queue(queue)
-                        if job:
-                            try:
-                                file_saver = RunQueueItemFileSaver(
-                                    self._wandb_run, job["runQueueItemId"]
-                                )
-                                if _is_scheduler_job(job.get("runSpec")):
-                                    # If job is a scheduler, and we are already at the cap, ignore,
-                                    #    don't ack, and it will be pushed back onto the queue in 1 min
-                                    if (
-                                        self.num_running_schedulers
-                                        >= self._max_schedulers
-                                    ):
-                                        wandb.termwarn(
-                                            f"{LOG_PREFIX}Agent already running the maximum number "
-                                            f"of sweep schedulers: {self._max_schedulers}. To set "
-                                            "this value use `max_schedulers` key in the agent config"
-                                        )
-                                        continue
-                                self.run_job(job, queue, file_saver)
-                            except Exception as e:
-                                wandb.termerror(
-                                    f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
-                                )
-                                wandb._sentry.exception(e)
+                    received_job = False
+                    for job, queue in self.get_jobs_and_queues():
+                        received_job = True
+                        try:
+                            file_saver = RunQueueItemFileSaver(
+                                self._wandb_run, job["runQueueItemId"]
+                            )
+                            runSpec = job.get("runSpec")
+                            if _is_scheduler_job(job.get("runSpec", {})):
+                                # If job is a scheduler, and we are already at the cap, ignore,
+                                #    don't ack, and it will be pushed back onto the queue in 1 min
+                                if self.num_running_schedulers >= self._max_schedulers:
+                                    wandb.termwarn(
+                                        f"{LOG_PREFIX}Agent already running the maximum number "
+                                        f"of sweep schedulers: {self._max_schedulers}. To set "
+                                        "this value use `max_schedulers` key in the agent config"
+                                    )
+                                    continue
+                            self.run_job(job, queue, file_saver)
+                        except Exception as e:
+                            wandb.termerror(
+                                f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
+                            )
+                            wandb._sentry.exception(e)
 
-                                # always the first phase, because we only enter phase 2 within the thread
-                                files = file_saver.save_contents(
-                                    contents=traceback.format_exc(),
-                                    fname="error.log",
-                                    file_sub_type="error",
-                                )
-                                self.fail_run_queue_item(
-                                    run_queue_item_id=job["runQueueItemId"],
-                                    message=str(e),
-                                    phase="agent",
-                                    files=files,
-                                )
+                            # always the first phase, because we only enter phase 2 within the thread
+                            files = file_saver.save_contents(
+                                contents=traceback.format_exc(),
+                                fname="error.log",
+                                file_sub_type="error",
+                            )
+                            self.fail_run_queue_item(
+                                run_queue_item_id=job["runQueueItemId"],
+                                message=str(e),
+                                phase="agent",
+                                files=files,
+                            )
 
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
@@ -505,14 +503,11 @@ class LaunchAgent:
                         self.update_status(AGENT_RUNNING)
                     self.print_status()
 
-                if (
-                    self.num_running_jobs == self._max_jobs
-                    or self.num_running_schedulers == 0
-                ):
-                    # all threads busy or no schedulers running
+                if self.num_running_jobs == self._max_jobs or not received_job:
+                    # all threads busy or did not receive job
                     time.sleep(AGENT_POLLING_INTERVAL)
                 else:
-                    time.sleep(ACTIVE_SWEEP_POLLING_INTERVAL)
+                    time.sleep(RECEIVED_JOB_POLLING_INTERVAL)
 
         except KeyboardInterrupt:
             self._jobs_event.clear()
@@ -734,3 +729,11 @@ class LaunchAgent:
             _logger.info("---")
             wandb._sentry.exception(e)
         return known_error
+
+    def get_jobs_and_queues(self) -> List[Tuple[Dict[str, Any], str]]:
+        jobs_and_queues: List[Tuple[Dict[str, Any], str]] = []
+        for queue in self._queues:
+            job = self.pop_from_queue(queue)
+            if job is not None:
+                jobs_and_queues.append((job, queue))
+        return jobs_and_queues
