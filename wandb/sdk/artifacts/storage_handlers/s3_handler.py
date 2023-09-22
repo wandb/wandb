@@ -154,7 +154,8 @@ class S3Handler(StorageHandler):
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
+            entry_path = name or (key if key != "" else bucket)
+            return [ArtifactManifestEntry(path=entry_path, ref=path, digest=path)]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
         objs = (
@@ -181,24 +182,19 @@ class S3Handler(StorageHandler):
                             e.response["Error"]["Code"], e.response["Error"]["Message"]
                         )
                     )
+        else:
+            multi = True
+
         if multi:
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i objects with prefix "%s"... '
-                % (max_objects, key),
-                newline=False,
-            )
-            objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
-
-        if key == "":
-            multi = True
-            start_time = time.time()
-            termlog(
-                'Generating checksum for up to %i objects in the bucket "%s"... '
-                % (max_objects, bucket),
+                'Generating checksum for up to %i objects in "%s/%s"... '
+                % (max_objects, bucket, key),
                 newline=False,
             )
             objs = self._s3.Bucket(bucket).objects.limit(max_objects)
+            if key != "":
+                objs = objs.filter(Prefix=key)
 
         # Weird iterator scoping makes us assign this to a local function
         size = self._size_from_obj
