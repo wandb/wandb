@@ -880,9 +880,17 @@ class WandbImporter:
         progress.subtask_pbar.remove_task(task)
 
     def _remove_placeholders(self, art: Artifact) -> None:
-        dst_versions = list(
-            self.dst_api.artifact_versions(art.type, _strip_version(art.qualified_name))
-        )
+        try:
+            dst_versions = list(
+                self.dst_api.artifact_versions(
+                    art.type, _strip_version(art.qualified_name)
+                )
+            )
+        except wandb.CommError:
+            # the artifact did not upload for some reason
+            print(f"This artifact doesn't seem to exist in dst, {art=}")
+            return
+
         task = progress.subtask_pbar.add_task(
             f"Cleaning up placeholders for {art.entity}/{art.project}/{_strip_version(art.name)}",
             total=len(dst_versions),
