@@ -206,7 +206,7 @@ class LaunchAgent:
     def thread_ids(self) -> List[int]:
         """Returns a list of keys running thread ids for the agent."""
         with self._jobs_lock:
-            yield list(self._jobs.keys())
+            return list(self._jobs.keys())
 
     @property
     def num_running_schedulers(self) -> int:
