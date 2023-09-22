@@ -2,6 +2,12 @@ name: Build and Release W&B SDK Core
 
 on:
   workflow_dispatch:
+    inputs:
+      use_pre:
+        type: boolean
+        description: "pre-release"
+        required: false
+        default: false
 
 jobs:
   build_wheels:
@@ -73,6 +79,7 @@ jobs:
   test-pypi-publish:
     name: Publish to TestPyPI
     needs: build_wheels
+    continue-on-error: true
     runs-on: ubuntu-latest
     environment:
       name: release
@@ -101,7 +108,11 @@ jobs:
       - name: Install wandb-core from TestPyPI
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --index-url https://test.pypi.org/simple/ --pre wandb-core
+          if [ "${{ inputs.use_pre }}" == "true" ]; then
+            python -m pip install --index-url https://test.pypi.org/simple/ --pre wandb-core
+          else
+            python -m pip install --index-url https://test.pypi.org/simple/ wandb-core
+          fi
       - name: Install wandb from source
         run: |
           python -m pip install .
@@ -141,7 +152,11 @@ jobs:
         run: |
           sleep 5
           python -m pip install --upgrade pip
-          python -m pip install --pre wandb-core
+          if [ "${{ inputs.use_pre }}" == "true" ]; then
+            python -m pip install --pre wandb-core
+          else
+            python -m pip install wandb-core
+          fi
           echo "WANDB_CORE_VERSION=$(python -c 'import wandb_core; print(wandb_core.__version__)')" >> "$GITHUB_ENV"
       - name: Post to Slack
         id: slack
