@@ -50,15 +50,15 @@ jobs:
           path: dist/
       - name: List distribution
         run: ls dist/
-      - name: Publish distribution to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
+#      - name: Publish distribution to TestPyPI
+#        uses: pypa/gh-action-pypi-publish@release/v1
+#        with:
+#          repository-url: https://test.pypi.org/legacy/
 
   verify-test-pypi:
     name: Verify TestPyPI upload
     needs: test-pypi-publish
-    if: always() && (needs.test-pypi-publish.outputs.job_status=='success')
+    if: needs.test-pypi-publish.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Setup Python
@@ -97,10 +97,10 @@ jobs:
           path: dist/
       - name: List distribution
         run: ls dist/
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_TOKEN }}
+#      - name: Publish distribution to PyPI
+#        uses: pypa/gh-action-pypi-publish@release/v1
+#        with:
+#          password: ${{ secrets.PYPI_TOKEN }}
 
   slack:
     name: Post to Slack
@@ -118,15 +118,15 @@ jobs:
             python -m pip install wandb
           fi
           echo "WANDB_VERSION=$(python -c 'import wandb; print(wandb.__version__)')" >> "$GITHUB_ENV"
-      - name: Post to Slack
-        id: slack
-        uses: slackapi/slack-github-action@v1.24.0
-        with:
-          # Slack channel id, channel name, or user id to post message.
-          # See also: https://api.slack.com/methods/chat.postMessage#channels
-          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
-          channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
-          # For posting a simple plain text message
-          slack-message: "W&B SDK ${{ env.WANDB_VERSION }} released :tada:: https://pypi.org/project/wandb/${{ env.WANDB_VERSION }}/"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+#      - name: Post to Slack
+#        id: slack
+#        uses: slackapi/slack-github-action@v1.24.0
+#        with:
+#          # Slack channel id, channel name, or user id to post message.
+#          # See also: https://api.slack.com/methods/chat.postMessage#channels
+#          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
+#          channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+#          # For posting a simple plain text message
+#          slack-message: "W&B SDK ${{ env.WANDB_VERSION }} released :tada:: https://pypi.org/project/wandb/${{ env.WANDB_VERSION }}/"
+#        env:
+#          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
