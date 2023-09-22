@@ -906,6 +906,7 @@ class WandbImporter:
 
                 # system managed artifacts cant be deleted.  You need to delete the base run
                 try:
+                    print("This is a system managed artifact.  Deleting the run...")
                     run = version.logged_by()
                     run.delete()
                 except Exception as e:
