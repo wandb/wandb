@@ -52,7 +52,11 @@ class SafeWatch:
 
     def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         """Stream the watcher."""
+        counter = 0
         while True:
+            counter += 1
+            if counter % 10 == 0:
+                wandb.termlog(f"Streaming event {kwargs}")
             try:
                 for event in self._watcher.stream(
                     func, *args, **kwargs, timeout_seconds=15
@@ -79,9 +83,12 @@ class SafeWatch:
                 wandb.termwarn(f"Broken event stream: {e}")
             except ApiException as e:
                 if e.status == 410:
+                    wandb.termerror(f"410 exception {kwargs}")
                     # If resource version is too old we need to start over.
                     del kwargs["resource_version"]
                     self._last_seen_resource_version = None
+                else:
+                    wandb.termerror(f"API EXCEPTION job {kwargs}")
             except Exception as E:
                 wandb.termerror(f"Unknown exception in event stream: {E}")
 
