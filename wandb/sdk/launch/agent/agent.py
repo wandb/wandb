@@ -522,7 +522,7 @@ class LaunchAgent:
     ) -> None:
         thread_id = threading.current_thread().ident
         assert thread_id
-        e = None
+        exception: Optional[Union[LaunchDockerError, Exception]] = None
         try:
             with self._jobs_lock:
                 self._jobs[thread_id] = job_tracker
@@ -533,14 +533,17 @@ class LaunchAgent:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
+            exception = e
             wandb._sentry.exception(e)
         except LaunchError as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
+            exception = e
             wandb._sentry.exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
+            exception = e
             wandb._sentry.exception(e)
-        self.finish_thread_id(thread_id, e)
+        self.finish_thread_id(thread_id, exception)
 
     def _thread_run_job(
         self,
