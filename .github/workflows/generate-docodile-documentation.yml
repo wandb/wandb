@@ -26,7 +26,7 @@ jobs: # update the docs.
           echo "WANDB_BRANCH=${REF_VALUE}" >> "$GITHUB_ENV"
           fi
 
-      - uses: wandb/docugen@v0.4.1
+      - uses: wandb/docugen@v0.4.2
         with:
           docodile-branch: main
           wandb-branch: $WANDB_BRANCH
