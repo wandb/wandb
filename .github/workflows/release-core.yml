@@ -102,7 +102,7 @@ jobs:
   verify-test-pypi:
     name: Verify TestPyPI upload
     needs: test-pypi-publish
-    if: always() && (needs.test-pypi-publish.outputs.job_status=='success')
+    if: needs.test-pypi-publish.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
