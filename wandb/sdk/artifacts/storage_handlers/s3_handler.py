@@ -192,10 +192,14 @@ class S3Handler(StorageHandler):
                 % (max_objects, bucket, key),
                 newline=False,
             )
-            objs = self._s3.Bucket(bucket).objects.limit(max_objects)
             if key != "":
-                objs = objs.filter(Prefix=key)
-
+                objs = objs = (
+                    self._s3.Bucket(bucket)
+                    .objects.filter(Prefix=key)
+                    .limit(max_objects)
+                )
+            else:
+                objs = self._s3.Bucket(bucket).objects.limit(max_objects)
         # Weird iterator scoping makes us assign this to a local function
         size = self._size_from_obj
         entries = [
