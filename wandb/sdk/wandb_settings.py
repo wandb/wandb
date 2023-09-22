@@ -1821,6 +1821,7 @@ class Settings(SettingsData):
                         f"Ignored wandb.init() arg {key} when running a sweep."
                     )
         if self.launch:
+            init_settings["resume"] = "allow"  # launch runs must be resumable
             if self.project is not None and init_settings.pop("project", None):
                 wandb.termwarn(
                     "Project is ignored when running from wandb launch context. "

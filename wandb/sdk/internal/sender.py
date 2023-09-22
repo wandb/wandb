@@ -959,6 +959,12 @@ class SendManager:
             config_override = self._consolidated_config
             config_dict = self._resume_state.config
             config_dict = config_util.dict_strip_value_dict(config_dict)
+
+            # override everything EXCEPT _wandb key
+            _wandb = config_override.pop("_wandb", {})
+            if config_dict.get("_wandb"):
+                config_dict["_wandb"].update(_wandb)
+
             config_dict.update(config_override)
             self._consolidated_config.update(config_dict)
             config_value_dict = self._config_format(self._consolidated_config)
