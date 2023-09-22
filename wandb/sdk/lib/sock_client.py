@@ -99,7 +99,7 @@ class SockClient:
 
     def connect(self, port: int) -> None:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(("localhost", port))
+        s.connect(("127.0.0.1", port))
         self._sock = s
         self._detect_bufsize()
 

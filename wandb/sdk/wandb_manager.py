@@ -137,7 +137,7 @@ class _Manager:
         # if token exists, check if the corresponding process exists
         if not token or not psutil.pid_exists(token.pid):
             self._service.start()
-            host = "localhost"
+            host = "127.0.0.1"
             transport = "tcp"
             port = self._service.sock_port
             assert port
