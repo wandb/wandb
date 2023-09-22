@@ -1069,6 +1069,13 @@ class WandbImporter:
         #     f"now comparing frames {src_run.entity=}, {src_run.project=}, {src_run.id=}"
         # )
 
+        for col in src_df.columns:
+            src = src_df[col]
+            dst = dst_df[col]
+
+            if not src.series_equal(dst):
+                return f"Non-matching metrics {col=}"
+
         if not src_df.frame_equal(dst_df):
             return f"Non-matching metrics {src_df.shape=} {dst_df.shape=}"
 
