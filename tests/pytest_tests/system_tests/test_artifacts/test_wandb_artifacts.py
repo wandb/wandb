@@ -59,11 +59,6 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
             self.key = name or "my_object.pb"
             self.size = size
 
-        @property
-        def is_directory(self):
-            # Check if the object summary is a directory based on the key
-            return self.key.endswith("/")
-
     class Filtered:
         def limit(self, *args, **kwargs):
             return [S3ObjectSummary(), S3ObjectSummary(name="my_other_object.pb")]
