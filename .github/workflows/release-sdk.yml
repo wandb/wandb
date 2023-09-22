@@ -59,7 +59,6 @@ jobs:
   verify-test-pypi:
     name: Verify TestPyPI upload
     needs: test-pypi-publish
-    if: needs.test-pypi-publish.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Setup Python
@@ -82,14 +81,10 @@ jobs:
   pypi-publish:
     name: Publish to PyPI
     needs: test-pypi-publish
-    if: always() && (needs.test-pypi-publish.outputs.job_status=='success')
     runs-on: ubuntu-latest
     environment:
       name: release
       url: https://pypi.org/p/wandb
-# todo: add
-#    permissions:
-#      id-token: write  # trusted publishing
     steps:
       - name: Download distribution
         uses: actions/download-artifact@v3
