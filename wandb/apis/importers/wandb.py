@@ -1080,8 +1080,11 @@ class WandbImporter:
 
             if not src.series_equal(dst):
                 non_matching.append(col)
-                
-        return f"Non-matching metrics {non_matching=}"
+            
+        if non_matching:
+            return f"Non-matching metrics {non_matching=}"
+        else:
+            return None
 
     def _collect_failed_artifact_sequences(self):
         try:
