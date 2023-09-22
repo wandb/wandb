@@ -113,8 +113,7 @@ class WandbRun:
                 df = pl.read_parquet(p)
                 dfs.append(df)
 
-        merged = self._merge_dfs(dfs)
-        return merged
+        return self._merge_dfs(dfs).sort("_step")
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
@@ -1066,9 +1065,9 @@ class WandbImporter:
         src_df = src_df.fill_nan(None)
         dst_df = dst_df.fill_nan(None)
 
-        print(
-            f"now comparing frames {src_run.entity=}, {src_run.project=}, {src_run.id=}"
-        )
+        # print(
+        #     f"now comparing frames {src_run.entity=}, {src_run.project=}, {src_run.id=}"
+        # )
 
         if not src_df.frame_equal(dst_df):
             return f"Non-matching metrics {src_df.shape=} {dst_df.shape=}"
