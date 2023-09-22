@@ -206,7 +206,7 @@ class LaunchAgent:
     def thread_ids(self) -> List[int]:
         """Returns a list of keys running thread ids for the agent."""
         with self._jobs_lock:
-            return list(self._jobs.keys())
+            yield list(self._jobs.keys())
 
     @property
     def num_running_schedulers(self) -> int:
@@ -367,13 +367,6 @@ class LaunchAgent:
         if len(self.thread_ids) == 0:
             self.update_status(AGENT_POLLING)
 
-    def _update_finished(self, thread_id: int) -> None:
-        """Check our status enum."""
-        with self._jobs_lock:
-            job = self._jobs[thread_id]
-        if job.job_completed:
-            self.finish_thread_id(thread_id)
-
     def run_job(
         self, job: Dict[str, Any], queue: str, file_saver: RunQueueItemFileSaver
     ) -> None:
@@ -496,8 +489,6 @@ class LaunchAgent:
                                     files=files,
                                 )
 
-                for thread_id in self.thread_ids:
-                    self._update_finished(thread_id)
                 if self._ticks % 2 == 0:
                     if len(self.thread_ids) == 0:
                         self.update_status(AGENT_POLLING)
@@ -531,6 +522,7 @@ class LaunchAgent:
     ) -> None:
         thread_id = threading.current_thread().ident
         assert thread_id
+        e = None
         try:
             with self._jobs_lock:
                 self._jobs[thread_id] = job_tracker
@@ -541,16 +533,14 @@ class LaunchAgent:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
-            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
         except LaunchError as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
-            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
-            self.finish_thread_id(thread_id, e)
             wandb._sentry.exception(e)
+        self.finish_thread_id(thread_id, e)
 
     def _thread_run_job(
         self,
