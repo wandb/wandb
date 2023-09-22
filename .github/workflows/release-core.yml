@@ -22,42 +22,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-#      - name: Set up QEMU
-#        if: runner.os == 'Linux'
-#        uses: docker/setup-qemu-action@v2
-#        with:
-#          platforms: all
-#
-#      - name: Remove specific Go version
-#        if: runner.os == 'Windows'
-#        run: cmd /c "rmdir /s /q C:\hostedtoolcache\windows\go"
-#
-#      - name: Install Latest Go on Windows
-#        if: runner.os == 'Windows'
-#        run: |
-#          choco upgrade golang
-#          echo "C:\Program Files\Go\bin" >> $env:GITHUB_PATH
-#
-#      - name: Verify Go Version
-#        run: |
-#          go version
-#          gcc --version
-#
-#      - name: Build wheels
-#        uses: pypa/cibuildwheel@v2.15.0
-#        with:
-#           package-dir: "nexus"
-#           output-dir: "nexus/wheelhouse"
-#        env:
-#          CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
-#          CIBW_BEFORE_ALL_LINUX: python nexus/scripts/build/install_go.py
-#          CIBW_BEFORE_ALL_MACOS: brew update && rm -f /usr/local/bin/go* && brew install go@1.21
-#          CIBW_BEFORE_BUILD_WINDOWS: refreshenv && set "GOROOT=C:\Program Files\Go" && set "PATH=%GOROOT%\bin;%PATH%"
-#          CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
-#          CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
-#          CIBW_ARCHS_LINUX: "x86_64 aarch64"
-#          CIBW_ARCHS_MACOS: "x86_64 arm64"
-#          CIBW_BUILD_VERBOSITY: 3
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
+
+      - name: Remove specific Go version
+        if: runner.os == 'Windows'
+        run: cmd /c "rmdir /s /q C:\hostedtoolcache\windows\go"
+
+      - name: Install Latest Go on Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco upgrade golang
+          echo "C:\Program Files\Go\bin" >> $env:GITHUB_PATH
+
+      - name: Verify Go Version
+        run: |
+          go version
+          gcc --version
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.15.0
+        with:
+           package-dir: "nexus"
+           output-dir: "nexus/wheelhouse"
+        env:
+          CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
+          CIBW_BEFORE_ALL_LINUX: python nexus/scripts/build/install_go.py
+          CIBW_BEFORE_ALL_MACOS: brew update && rm -f /usr/local/bin/go* && brew install go@1.21
+          CIBW_BEFORE_BUILD_WINDOWS: refreshenv && set "GOROOT=C:\Program Files\Go" && set "PATH=%GOROOT%\bin;%PATH%"
+          CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
+          CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
+          CIBW_ARCHS_LINUX: "x86_64 aarch64"
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          CIBW_BUILD_VERBOSITY: 3
 
 # todo: build sdist
 #      - name: Build sdist
@@ -71,14 +71,15 @@ jobs:
 #        with:
 #          path: ./nexus/dist/*.tar.gz
 
-#      - uses: actions/upload-artifact@v3
-#        with:
-#          name: wandb-core-distributions
-#          path: ./nexus/wheelhouse/*.whl
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wandb-core-distributions
+          path: ./nexus/wheelhouse/*.whl
 
   test-pypi-publish:
     name: Publish to TestPyPI
     needs: build_wheels
+    continue-on-error: true
     runs-on: ubuntu-latest
     environment:
       name: release
@@ -86,23 +87,21 @@ jobs:
     permissions:
       id-token: write  # trusted publishing
     steps:
-      - run: echo "lol"
-#      - name: Download all the wheels
-#        uses: actions/download-artifact@v3
-#        with:
-#          name: wandb-core-distributions
-#          path: dist/
-#      - name: List wheels
-#        run: ls dist/
-#      - name: Publish distribution to TestPyPI
-#        uses: pypa/gh-action-pypi-publish@release/v1
-#        with:
-#          repository-url: https://test.pypi.org/legacy/
+      - name: Download all the wheels
+        uses: actions/download-artifact@v3
+        with:
+          name: wandb-core-distributions
+          path: dist/
+      - name: List wheels
+        run: ls dist/
+      - name: Publish distribution to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
 
   verify-test-pypi:
     name: Verify TestPyPI upload
     needs: test-pypi-publish
-    if: needs.test-pypi-publish.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -126,7 +125,6 @@ jobs:
   pypi-publish:
     name: Publish to PyPI
     needs: test-pypi-publish
-    if: always() && (needs.test-pypi-publish.outputs.job_status=='success')
     runs-on: ubuntu-latest
     environment:
       name: release
