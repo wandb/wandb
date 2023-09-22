@@ -1069,14 +1069,19 @@ class WandbImporter:
         #     f"now comparing frames {src_run.entity=}, {src_run.project=}, {src_run.id=}"
         # )
 
+        non_matching = []
         for col in src_df.columns:
             src = src_df[col]
-            dst = dst_df[col]
+            try:
+                dst = dst_df[col]
+            except pl.ColumnNotFoundError:
+                non_matching.append(f"{col} does not exist in dst")
+                continue
 
             if not src.series_equal(dst):
-                return f"Non-matching metrics {col=}"
-
-        return None
+                non_matching.append(col)
+                
+        return f"Non-matching metrics {non_matching=}"
 
     def _collect_failed_artifact_sequences(self):
         try:
