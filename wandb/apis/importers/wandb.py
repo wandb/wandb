@@ -556,17 +556,17 @@ class WandbImporter:
                 history.append(a)
         progress.subsubtask_pbar.remove_task(t)
 
-        t = progress.subsubtask_pbar.add_task(
-            f"Upload history artifacts ({run_str})", total=None
-        )
-        internal.send_artifacts_with_send_manager(
-            history,
-            run,
-            overrides=namespace.send_manager_overrides,
-            settings_override={**settings_override, "resumed": True},
-            config=internal.SendManagerConfig(log_artifacts=True),
-        )
-        progress.subsubtask_pbar.remove_task(t)
+        # t = progress.subsubtask_pbar.add_task(
+        #     f"Upload history artifacts ({run_str})", total=None
+        # )
+        # internal.send_artifacts_with_send_manager(
+        #     history,
+        #     run,
+        #     overrides=namespace.send_manager_overrides,
+        #     settings_override={**settings_override, "resumed": True},
+        #     config=internal.SendManagerConfig(log_artifacts=True),
+        # )
+        # progress.subsubtask_pbar.remove_task(t)
 
     def _delete_collection_in_dst(self, src_art, entity=None, project=None):
         entity = coalesce(entity, src_art.entity)
@@ -919,7 +919,7 @@ class WandbImporter:
             for attr in ["path", "digest", "size"]:
                 if getattr(src_entry, attr) != getattr(dst_entry, attr):
                     problems.append(
-                        f"manifest entry {attr} mismatch, {getattr(src_entry, attr)=}, {getattr(dst_entry, attr)=}"
+                        f"manifest entry {attr=} mismatch, {getattr(src_entry, attr)=}, {getattr(dst_entry, attr)=}"
                     )
 
         return problems
