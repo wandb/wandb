@@ -164,15 +164,7 @@ class S3Handler(StorageHandler):
         )
         start_time = None
         multi = False
-        if key == "":
-            start_time = time.time()
-            termlog(
-                'Generating checksum for up to %i objects in the bucket "%s"... '
-                % (max_objects, bucket),
-                newline=False,
-            )
-            objs = self._s3.Bucket(bucket).objects.limit(max_objects)
-        else:
+        if key != "":
             try:
                 objs[0].load()
                 # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
@@ -197,6 +189,17 @@ class S3Handler(StorageHandler):
                 newline=False,
             )
             objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
+
+        if key == "":
+            multi = True
+            start_time = time.time()
+            termlog(
+                'Generating checksum for up to %i objects in the bucket "%s"... '
+                % (max_objects, bucket),
+                newline=False,
+            )
+            objs = self._s3.Bucket(bucket).objects.limit(max_objects)
+
         # Weird iterator scoping makes us assign this to a local function
         size = self._size_from_obj
         entries = [
