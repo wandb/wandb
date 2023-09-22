@@ -36,6 +36,7 @@ jobs:
   test-pypi-publish:
     name: Publish to TestPyPI
     needs: build
+    continue-on-error: true
     runs-on: ubuntu-latest
     environment:
       name: release
