@@ -67,8 +67,8 @@ class WandbStoragePolicy(StoragePolicy):
         api: Optional[InternalApi] = None,
     ) -> None:
         self._cache = cache or get_artifacts_cache()
-        self._config = config or {}
         self._session = requests.Session()
+        self.config = config or {}
         adapter = requests.adapters.HTTPAdapter(
             max_retries=_REQUEST_RETRY_STRATEGY,
             pool_connections=_REQUEST_POOL_CONNECTIONS,
@@ -101,8 +101,15 @@ class WandbStoragePolicy(StoragePolicy):
             default_handler=TrackingHandler(),
         )
 
+    @property
     def config(self) -> Dict:
         return self._config
+
+    @config.setter
+    def config(self, config: Dict) -> None:
+        self._config = config
+        if self._session and "proxies" in config:
+            self._session.proxies.update(config["proxies"])
 
     def load_file(
         self,

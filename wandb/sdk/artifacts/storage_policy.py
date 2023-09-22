@@ -28,7 +28,12 @@ class StoragePolicy:
     def from_config(cls, config: Dict) -> "StoragePolicy":
         raise NotImplementedError
 
+    @property
     def config(self) -> Dict:
+        raise NotImplementedError
+
+    @config.setter
+    def config(self, config: Dict) -> None:
         raise NotImplementedError
 
     def load_file(

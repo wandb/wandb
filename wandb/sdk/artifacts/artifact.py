@@ -270,6 +270,10 @@ class Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
+        proxies = client.transport.session.proxies
+        if proxies:
+            config = {**artifact._storage_policy.config, "proxies": proxies}
+            artifact._storage_policy.config = config
         artifact._id = attrs["id"]
         artifact._entity = entity
         artifact._project = project
