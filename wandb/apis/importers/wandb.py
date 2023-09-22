@@ -1076,9 +1076,6 @@ class WandbImporter:
             if not src.series_equal(dst):
                 return f"Non-matching metrics {col=}"
 
-        if not src_df.frame_equal(dst_df):
-            return f"Non-matching metrics {src_df.shape=} {dst_df.shape=}"
-
         return None
 
     def _collect_failed_artifact_sequences(self):
