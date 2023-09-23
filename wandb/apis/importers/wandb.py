@@ -1654,6 +1654,10 @@ class WandbImporter:
         args = []
         for seq in seqs:
             for art in seq:
+                if art.type == "wandb-history" and art.logged_by() is None:
+                    # We can never upload valid history for a deleted run, so skip it
+                    continue
+
                 tup = (art, seq.entity, seq.project)
                 args.append(tup)
         descr = "Validate artifacts"
