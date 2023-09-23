@@ -1711,7 +1711,8 @@ class WandbImporter:
         self._validate_artifact_sequences(seqs, incremental=incremental)
         failed_artifact_sequences = list(self._filter_failed_artifact_sequences(seqs))
         
-        print(f"The failed artifact sequences are {failed_artifact_sequences=}")
+        names = [s.name for s in failed_artifact_sequences]
+        print(f"The failed artifact sequences are {names=}")
 
         # import the largest artifact sequences first becuase they will take the longest
         # failed_artifact_sequences = sorted(
