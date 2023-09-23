@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 

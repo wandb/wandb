@@ -90,7 +90,7 @@ func wandbcoreDataAddDoubles(num int, cLength C.int, cKeys **C.cchar_t, cDoubles
 func wandbcoreLogData(runNum int, dataNum int) {
 	run := wandbRuns.Get(runNum)
 	data := wandbData.Get(dataNum)
-    run.Log(data)
+	run.Log(data)
 	wandbData.Remove(dataNum)
 }
 
