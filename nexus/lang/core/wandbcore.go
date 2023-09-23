@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 )
@@ -39,8 +40,9 @@ func wandbcoreSetup() {
 func wandbcoreInit(configDataNum int) int {
 	wandbcoreSetup()
 
+	configData := wandbData.Get(configDataNum)
 	run, err := wandbSession.NewRun(
-		runopts.WithConfig(),
+		runopts.WithConfig(runconfig.Config(configData)),
 	)
 	if err != nil {
 		panic(err)

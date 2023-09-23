@@ -33,12 +33,12 @@ public:
 namespace run {
 class InitRunOption {
 protected:
-  Settings *settings;
-  Config *config;
+  const Settings *settings;
+  const Config *config;
 public:
   InitRunOption() : settings(nullptr), config(nullptr) {};
-  Settings *getSettings();
-  Config *getConfig();
+  const Settings *getSettings();
+  const Config *getConfig();
 };
 
 class WithSettings : public InitRunOption {
@@ -77,7 +77,7 @@ private:
   static Session *defaultSession_;
 
   Session(Settings *settings = nullptr);
-  Run _initRun(Settings *settings = nullptr, Config *config = nullptr);
+  Run _initRun(const Settings *settings = nullptr, const Config *config = nullptr);
 
 public:
   Run initRun();

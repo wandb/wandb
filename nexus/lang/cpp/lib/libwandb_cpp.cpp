@@ -85,7 +85,7 @@ Session *Session::GetInstance() {
   return defaultSession_;
 }
 
-Run Session::_initRun(Settings *settings, Config *config) {
+Run Session::_initRun(const Settings *settings, const Config *config) {
   _session_setup();
 
   auto configData = new Data(config);
@@ -96,8 +96,8 @@ Run Session::_initRun(Settings *settings, Config *config) {
 }
 
 Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
-  Settings *settings;
-  Config *config;
+  const Settings *settings;
+  const Config *config;
   for (auto item : options) {
       auto withSettings = static_cast<run::WithSettings *>(&item);
       if (withSettings != nullptr) {
@@ -125,17 +125,17 @@ Run initRun() {
 }
 
 namespace run {
-Settings *InitRunOption::getSettings() {
+const Settings *InitRunOption::getSettings() {
     return this->settings;
 }
-Config *InitRunOption::getConfig() {
+const Config *InitRunOption::getConfig() {
     return this->config;
 }
 WithSettings::WithSettings(const Settings &s) {
-    this->settings = settings;
+    this->settings = &s;
 }
 WithConfig::WithConfig(const Config &c) {
-    this->config = config;
+    this->config = &c;
 }
 
 } // namespace run

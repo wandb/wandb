@@ -67,9 +67,20 @@ func (r *Run) init() {
 		return
 	}
 
+	config := &service.ConfigRecord{}
+	for key, value := range *r.config {
+		data, err := json.Marshal(value)
+		if err != nil {
+			panic(err)
+		}
+		config.Update = append(config.Update, &service.ConfigItem{
+			Key:       key,
+			ValueJson: string(data),
+		})
+	}
 	runRecord := service.Record_Run{Run: &service.RunRecord{
 		RunId: r.settings.GetRunId().GetValue(),
-		//Config: &service.ConfigRecord{},
+		Config: config,
 		XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
 	record := service.Record{

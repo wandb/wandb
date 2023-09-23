@@ -11,7 +11,8 @@ type RunParams struct {
 
 type RunOption func(*RunParams)
 
-func WithConfig() RunOption {
-	return func(s *RunParams) {
+func WithConfig(config runconfig.Config) RunOption {
+	return func(p *RunParams) {
+		p.Config = &config
 	}
 }
