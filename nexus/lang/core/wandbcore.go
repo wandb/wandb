@@ -11,6 +11,7 @@ import (
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 )
 
 // globals to keep track of the wandb session and any runs
@@ -35,10 +36,12 @@ func wandbcoreSetup() {
 }
 
 //export wandbcoreInit
-func wandbcoreInit() int {
+func wandbcoreInit(configDataNum int) int {
 	wandbcoreSetup()
 
-	run, err := wandbSession.NewRun()
+	run, err := wandbSession.NewRun(
+		runopts.WithConfig(),
+	)
 	if err != nil {
 		panic(err)
 	}

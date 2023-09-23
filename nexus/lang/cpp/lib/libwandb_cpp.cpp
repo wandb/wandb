@@ -19,23 +19,24 @@ Session::Session(Settings *settings) {
   defaultSession_ = this;
 }
 
-Run::Run() : _num(0) {}
+class Data {
+public:
+  int num;
+  Data();
+  Data(const std::unordered_map<std::string, Value> *myMap);
+  ~Data();
+};
 
-template <typename T>
-void Run::log(std::vector<const char *> &keys, std::vector<T> &values,
-              bool commit) {
-  if constexpr (std::is_same_v<T, double>) {
-  } else if constexpr (std::is_same_v<T, int>) {
+Data::Data(const std::unordered_map<std::string, Value> *myMap) : num(0) {
+  if (myMap == nullptr) {
+      return;
   }
-}
-
-void Run::log(const std::unordered_map<std::string, Value> &myMap) {
   std::vector<const char *> keyDoubles;
   std::vector<const char *> keyInts;
   std::vector<double> valDoubles;
   std::vector<int> valInts;
 
-  for (const auto &[key, val] : myMap) {
+  for (const auto &[key, val] : *myMap) {
     if (std::holds_alternative<int>(val)) {
       keyInts.push_back(key.c_str());
       valInts.push_back(std::get<int>(val));
@@ -51,7 +52,21 @@ void Run::log(const std::unordered_map<std::string, Value> &myMap) {
   if (keyInts.size()) {
     data_num = wandbcoreDataAddInts(data_num, keyInts.size(), &keyInts[0], &valInts[0]);
   }
-  wandbcoreLogData(this->_num, data_num);
+  this->num = data_num;
+}
+
+Data::~Data() {
+  if (this->num == 0) {
+      return;
+  }
+  wandbcoreDataFree(this->num);
+}
+
+Run::Run() : _num(0) {}
+
+void Run::log(const std::unordered_map<std::string, Value> &myMap) {
+  auto data = new Data(&myMap);
+  wandbcoreLogData(this->_num, data->num);
 }
 
 void Run::finish() { wandbcoreFinish(this->_num); }
@@ -73,7 +88,8 @@ Session *Session::GetInstance() {
 Run Session::_initRun(Settings *settings, Config *config) {
   _session_setup();
 
-  int n = wandbcoreInit();
+  auto configData = new Data(config);
+  int n = wandbcoreInit(configData->num);
   Run r;
   r._num = n;
   return r;
