@@ -79,9 +79,9 @@ func (r *Run) init() {
 		})
 	}
 	runRecord := service.Record_Run{Run: &service.RunRecord{
-		RunId: r.settings.GetRunId().GetValue(),
+		RunId:  r.settings.GetRunId().GetValue(),
 		Config: config,
-		XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+		XInfo:  &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
 	record := service.Record{
 		RecordType: &runRecord,
