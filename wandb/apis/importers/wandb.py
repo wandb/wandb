@@ -1709,7 +1709,7 @@ class WandbImporter:
         seqs = list(self._collect_artifact_sequences_from_namespaces(namespaces))
         # print(f"{len(seqs)=}, {seqs=}")
         self._validate_artifact_sequences(seqs, incremental=incremental)
-        failed_artifact_sequences = self._filter_failed_artifact_sequences(seqs)
+        failed_artifact_sequences = list(self._filter_failed_artifact_sequences(seqs))
         
         print(f"The failed artifact sequences are {failed_artifact_sequences=}")
 
