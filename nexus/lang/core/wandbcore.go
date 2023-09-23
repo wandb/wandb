@@ -91,6 +91,17 @@ func wandbcoreDataAddDoubles(num int, cLength C.int, cKeys **C.cchar_t, cDoubles
 	return num
 }
 
+//export wandbcoreDataAddStrings
+func wandbcoreDataAddStrings(num int, cLength C.int, cKeys **C.cchar_t, cStrings **C.cchar_t) int {
+	num, data := dataCreateOrGet(num)
+	keys := unsafe.Slice(cKeys, cLength)
+	strings := unsafe.Slice(cStrings, cLength)
+	for i := range keys {
+		data[C.GoString(keys[i])] = C.GoString(strings[i])
+	}
+	return num
+}
+
 //export wandbcoreLogData
 func wandbcoreLogData(runNum int, dataNum int) {
 	run := wandbRuns.Get(runNum)

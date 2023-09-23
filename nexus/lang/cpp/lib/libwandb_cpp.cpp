@@ -33,8 +33,10 @@ Data::Data(const std::unordered_map<std::string, Value> *myMap) : num(0) {
   }
   std::vector<const char *> keyDoubles;
   std::vector<const char *> keyInts;
+  std::vector<const char *> keyStrings;
   std::vector<double> valDoubles;
   std::vector<int> valInts;
+  std::vector<const char *> valStrings;
 
   for (const auto &[key, val] : *myMap) {
     if (std::holds_alternative<int>(val)) {
@@ -43,6 +45,9 @@ Data::Data(const std::unordered_map<std::string, Value> *myMap) : num(0) {
     } else if (std::holds_alternative<double>(val)) {
       keyDoubles.push_back(key.c_str());
       valDoubles.push_back(std::get<double>(val));
+    } else if (std::holds_alternative<std::string>(val)) {
+      keyStrings.push_back(key.c_str());
+      valStrings.push_back(std::get<std::string>(val).c_str());
     }
   }
   int data_num = WANDBCORE_DATA_CREATE;
@@ -51,6 +56,9 @@ Data::Data(const std::unordered_map<std::string, Value> *myMap) : num(0) {
   }
   if (keyInts.size()) {
     data_num = wandbcoreDataAddInts(data_num, keyInts.size(), &keyInts[0], &valInts[0]);
+  }
+  if (keyStrings.size()) {
+    data_num = wandbcoreDataAddStrings(data_num, keyStrings.size(), &keyStrings[0], &valStrings[0]);
   }
   this->num = data_num;
 }

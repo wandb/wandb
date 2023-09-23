@@ -8,7 +8,7 @@
 
 namespace wandb {
 
-typedef std::variant<int, double> Value;
+typedef std::variant<int, double, std::string> Value;
 typedef std::unordered_map<std::string, wandb::Value> History;
 typedef std::unordered_map<std::string, wandb::Value> Config;
 

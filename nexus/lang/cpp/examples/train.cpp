@@ -4,6 +4,7 @@ int main() {
   wandb::Config config = {
       {"param1", 4},
       {"param2", 4.2},
+      {"param3", "smiles"},
   };
   auto run = wandb::initRun({
           wandb::run::WithConfig(config),
@@ -14,6 +15,7 @@ int main() {
         {"val", 3.14 + i},
         {"val2", 1.23 + i},
         {"val23", 1},
+        {"cat", "dog"},
     };
     run.log(history);
   }
