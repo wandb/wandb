@@ -15,9 +15,9 @@ int wandb_init(wandb_run *run) {
     return 0;
 }
 
-void wandb_log_scaler(wandb_run *run, char *key, float value) {
-    int num = run->num;
-    wandbcoreLogScaler(num, key, value);
+void wandb_log_scaler(wandb_run *run, const char *key, double value) {
+    int data = wandbcoreDataAddDoubles(WANDBCORE_DATA_CREATE, 1, &key, &value);
+    wandbcoreLogData(run->num, data);
 }
 
 void wandb_finish(wandb_run *run) {

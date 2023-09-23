@@ -10,6 +10,7 @@ namespace wandb {
 
 typedef std::variant<int, double> Value;
 typedef std::unordered_map<std::string, wandb::Value> History;
+typedef std::unordered_map<std::string, wandb::Value> Config;
 
 namespace settings {
 struct Options {
@@ -28,6 +29,28 @@ public:
   Settings(const std::unordered_map<std::string, std::string> &settings_map);
   Settings(const settings::Options &options);
 };
+
+namespace run {
+class InitRunOption {
+protected:
+  Settings *settings;
+  Config *config;
+public:
+  InitRunOption() : settings(nullptr), config(nullptr) {};
+  Settings *getSettings();
+  Config *getConfig();
+};
+
+class WithSettings : public InitRunOption {
+public:
+  WithSettings(const Settings &s);
+};
+
+class WithConfig : public InitRunOption {
+public:
+  WithConfig(const Config &c);
+};
+} // namespace run
 
 class Run {
 private:
@@ -54,26 +77,14 @@ private:
   static Session *defaultSession_;
 
   Session(Settings *settings = nullptr);
-  Run _initRun(Settings *settings = nullptr);
+  Run _initRun(Settings *settings = nullptr, Config *config = nullptr);
 
 public:
   Run initRun();
-  Run initRun(const Settings &settings);
+  Run initRun(const std::initializer_list<run::InitRunOption> &options);
 
   static Session *GetInstance();
 };
-
-namespace run {
-class InitRunOption {
-public:
-  InitRunOption();
-};
-
-class WithSettings : public InitRunOption {
-public:
-  WithSettings(const Settings &s);
-};
-} // namespace run
 
 Run initRun();
 Run initRun(const std::initializer_list<run::InitRunOption> &options);

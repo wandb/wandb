@@ -1,7 +1,13 @@
 #include <libwandb_cpp.h>
 
 int main() {
-  auto run = wandb::initRun();
+  wandb::Config config = {
+      {"param1", 4},
+      {"param2", 4.2},
+  };
+  auto run = wandb::initRun({
+          wandb::run::WithConfig(config),
+          });
 
   for (int i = 0; i < 5; i++) {
     wandb::History history = {

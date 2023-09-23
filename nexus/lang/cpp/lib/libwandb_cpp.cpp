@@ -21,23 +21,13 @@ Session::Session(Settings *settings) {
 
 Run::Run() : _num(0) {}
 
-void Run::logPartialCommit() { wandbcoreLogCommit(this->_num); }
-
 template <typename T>
 void Run::log(std::vector<const char *> &keys, std::vector<T> &values,
               bool commit) {
   if constexpr (std::is_same_v<T, double>) {
-    wandbcoreLogDoubles(this->_num, commit, keys.size(), &keys[0], &values[0]);
   } else if constexpr (std::is_same_v<T, int>) {
-    wandbcoreLogInts(this->_num, commit, keys.size(), &keys[0], &values[0]);
   }
 }
-
-// Explicit instantiation of the template function
-template void Run::log(std::vector<const char *> &keys,
-                       std::vector<double> &values, bool commit);
-template void Run::log(std::vector<const char *> &keys,
-                       std::vector<int> &values, bool commit);
 
 void Run::log(const std::unordered_map<std::string, Value> &myMap) {
   std::vector<const char *> keyDoubles;
@@ -54,13 +44,14 @@ void Run::log(const std::unordered_map<std::string, Value> &myMap) {
       valDoubles.push_back(std::get<double>(val));
     }
   }
+  int data_num = WANDBCORE_DATA_CREATE;
   if (keyDoubles.size()) {
-    this->log(keyDoubles, valDoubles, false);
+    data_num = wandbcoreDataAddDoubles(data_num, keyDoubles.size(), &keyDoubles[0], &valDoubles[0]);
   }
   if (keyInts.size()) {
-    this->log(keyInts, valInts, false);
+    data_num = wandbcoreDataAddInts(data_num, keyInts.size(), &keyInts[0], &valInts[0]);
   }
-  this->logPartialCommit();
+  wandbcoreLogData(this->_num, data_num);
 }
 
 void Run::finish() { wandbcoreFinish(this->_num); }
@@ -79,42 +70,58 @@ Session *Session::GetInstance() {
   return defaultSession_;
 }
 
-Run Session::_initRun(Settings *settings) {
+Run Session::_initRun(Settings *settings, Config *config) {
   _session_setup();
+
   int n = wandbcoreInit();
   Run r;
   r._num = n;
   return r;
 }
 
-Run Session::initRun() { return _initRun(nullptr); }
-
-Run Session::initRun(const Settings &settings) {
-  return _initRun(const_cast<Settings *>(&settings));
-}
-
-Run initRun(Settings *settings = nullptr) {
-  auto s = Session::GetInstance();
-  if (settings != nullptr) {
-    return s->initRun(*settings);
+Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
+  Settings *settings;
+  Config *config;
+  for (auto item : options) {
+      auto withSettings = static_cast<run::WithSettings *>(&item);
+      if (withSettings != nullptr) {
+          settings = withSettings->getSettings();
+      }
+      auto withConfig = static_cast<run::WithConfig *>(&item);
+      if (withConfig != nullptr) {
+          config = withConfig->getConfig();
+      }
   }
-  return s->initRun();
+  return this->_initRun(settings, config);
 }
 
-Run initRun(const Settings &settings) {
-  return initRun(const_cast<Settings *>(&settings));
+Run Session::initRun() {
+  return this->initRun({});
 }
-
-Run initRun() { return initRun(nullptr); }
 
 Run initRun(const std::initializer_list<run::InitRunOption> &options) {
-  return initRun(nullptr);
+  auto s = Session::GetInstance();
+  return s->initRun(options);
+}
+
+Run initRun() {
+  return initRun({});
 }
 
 namespace run {
-InitRunOption::InitRunOption() {}
+Settings *InitRunOption::getSettings() {
+    return this->settings;
+}
+Config *InitRunOption::getConfig() {
+    return this->config;
+}
+WithSettings::WithSettings(const Settings &s) {
+    this->settings = settings;
+}
+WithConfig::WithConfig(const Config &c) {
+    this->config = config;
+}
 
-WithSettings::WithSettings(const Settings &s) {}
 } // namespace run
 
 } // namespace wandb

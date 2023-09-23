@@ -2,6 +2,7 @@ package main
 
 /*
 typedef const char cchar_t;
+#define WANDBCORE_DATA_CREATE 0
 */
 import "C"
 
@@ -15,6 +16,7 @@ import (
 // globals to keep track of the wandb session and any runs
 var wandbSession *gowandb.Session
 var wandbRuns *RunKeeper
+var wandbData *PartialData
 
 //export wandbcoreSetup
 func wandbcoreSetup() {
@@ -29,6 +31,7 @@ func wandbcoreSetup() {
 		panic(err)
 	}
 	wandbRuns = NewRunKeeper()
+	wandbData = NewPartialData()
 }
 
 //export wandbcoreInit
@@ -43,42 +46,52 @@ func wandbcoreInit() int {
 	return num
 }
 
-//export wandbcoreLogCommit
-func wandbcoreLogCommit(num int) {
-	run := wandbRuns.Get(num)
-	run.LogPartialCommit()
+//export wandbcoreDataCreate
+func wandbcoreDataCreate() int {
+	num := wandbData.Create()
+	return num
 }
 
-//export wandbcoreLogScaler
-func wandbcoreLogScaler(num int, log_key *C.char, log_value C.float) {
-	run := wandbRuns.Get(num)
-	run.Log(map[string]interface{}{
-		C.GoString(log_key): float64(log_value),
-	})
+//export wandbcoreDataFree
+func wandbcoreDataFree(num int) {
+	wandbData.Remove(num)
 }
 
-//export wandbcoreLogInts
-func wandbcoreLogInts(num int, flags C.uchar, cLength C.int, cKeys **C.cchar_t, cInts *C.int) {
-	run := wandbRuns.Get(num)
+func dataCreateOrGet(num int) (int, MapData) {
+	if num == 0 {
+		num = wandbData.Create()
+	}
+	return num, wandbData.Get(num)
+}
+
+//export wandbcoreDataAddInts
+func wandbcoreDataAddInts(num int, cLength C.int, cKeys **C.cchar_t, cInts *C.int) int {
+	num, data := dataCreateOrGet(num)
 	keys := unsafe.Slice(cKeys, cLength)
 	ints := unsafe.Slice(cInts, cLength)
-	logs := make(map[string]interface{})
 	for i := range keys {
-		logs[C.GoString(keys[i])] = int(ints[i])
+		data[C.GoString(keys[i])] = int(ints[i])
 	}
-	run.LogPartial(logs, (flags != 0))
+	return num
 }
 
-//export wandbcoreLogDoubles
-func wandbcoreLogDoubles(num int, flags C.uchar, cLength C.int, cKeys **C.cchar_t, cDoubles *C.double) {
-	run := wandbRuns.Get(num)
+//export wandbcoreDataAddDoubles
+func wandbcoreDataAddDoubles(num int, cLength C.int, cKeys **C.cchar_t, cDoubles *C.double) int {
+	num, data := dataCreateOrGet(num)
 	keys := unsafe.Slice(cKeys, cLength)
 	doubles := unsafe.Slice(cDoubles, cLength)
-	logs := make(map[string]interface{})
 	for i := range keys {
-		logs[C.GoString(keys[i])] = float64(doubles[i])
+		data[C.GoString(keys[i])] = float64(doubles[i])
 	}
-	run.LogPartial(logs, (flags != 0))
+	return num
+}
+
+//export wandbcoreLogData
+func wandbcoreLogData(runNum int, dataNum int) {
+	run := wandbRuns.Get(runNum)
+	data := wandbData.Get(dataNum)
+    run.Log(data)
+	wandbData.Remove(dataNum)
 }
 
 //export wandbcoreFinish
