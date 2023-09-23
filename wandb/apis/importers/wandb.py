@@ -1654,7 +1654,13 @@ class WandbImporter:
         args = []
         for seq in seqs:
             for art in seq:
-                if art.type == "wandb-history" and art.logged_by() is None:
+                logged_by = None
+                try:
+                    logged_by = art.logged_by()
+                except Exception as e:
+                    print(f"problem with getting logged by {e=}")
+
+                if art.type == "wandb-history" and logged_by is None:
                     # We can never upload valid history for a deleted run, so skip it
                     continue
 
