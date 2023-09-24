@@ -74,7 +74,7 @@ class WandbRun:
         s = self.run.summary
 
         # Modify artifact paths because they are different between systems
-        # s = self._modify_table_artifact_paths(s)
+        s = self._modify_table_artifact_paths(s)
         return s
 
     def _merge_dfs(self, dfs):
@@ -446,15 +446,19 @@ class WandbRun:
                 continue
 
             url = art.get_path(obj_name).ref_url()
-            url = url.replace("wandb-artifact://", "wandb-client-artifact://")
+            # url = url.replace("wandb-artifact://", "wandb-client-artifact://")
+
+            print(f"{art=}")
+            print(f"{art.get_path(obj_name)=}")
+            print(f"{url=}")
+
             base, name = url.rsplit("/", 1)
             latest_art_path = f"{base}:latest/{name}"
 
             # replace the old url which points to an artifact on the old system
             # with a new url which points to an artifact on the new system.
             # wandb.termlog(f"{row[table_key]}")
-            # row[table_key]["artifact_path"] = url
-            row[table_key]["artifact_path"] = latest_art_path
+            row[table_key]["artifact_path"] = url
             row[table_key]["_latest_artifact_path"] = latest_art_path
 
         return row
