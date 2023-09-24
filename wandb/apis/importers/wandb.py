@@ -1051,8 +1051,8 @@ class WandbImporter:
         non_matching = {}
         for k, src_v in src_run.summary.items():
             # These won't match between systems and that's ok
-            if isinstance(src_v, str) and src_v.startswith("wandb-client-artifact://"):
-                continue
+            # if isinstance(src_v, str) and src_v.startswith("wandb-client-artifact://"):
+            #     continue
 
             if k in ("_wandb", "_runtime"):
                 continue
@@ -1065,10 +1065,10 @@ class WandbImporter:
             if isinstance(src_v, dict) and isinstance(dst_v, dict):
                 for kk, sv in src_v.items():
                     # These won't match between systems and that's ok
-                    if isinstance(sv, str) and sv.startswith(
-                        "wandb-client-artifact://"
-                    ):
-                        continue
+                    # if isinstance(sv, str) and sv.startswith(
+                    #     "wandb-client-artifact://"
+                    # ):
+                    #     continue
                     dv = dst_v.get(kk)
                     if not almost_equal(sv, dv):
                         non_matching[f"{k}-{kk}"] = {"src": sv, "dst": dv}
