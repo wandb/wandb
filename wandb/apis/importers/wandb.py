@@ -453,7 +453,8 @@ class WandbRun:
             # replace the old url which points to an artifact on the old system
             # with a new url which points to an artifact on the new system.
             # wandb.termlog(f"{row[table_key]}")
-            row[table_key]["artifact_path"] = url
+            # row[table_key]["artifact_path"] = url
+            row[table_key]["artifact_path"] = latest_art_path
             row[table_key]["_latest_artifact_path"] = latest_art_path
 
         return row
