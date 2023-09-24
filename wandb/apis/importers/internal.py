@@ -36,25 +36,28 @@ class AlternateSendManager(sender.SendManager):
 
 @dataclass
 class ThreadLocalSettings(threading.local):
-    api_key: str = ""
-    base_url: str = ""
-    entity: str = ""
-    project: str = ""
-    run_id: str = ""
+    src_api_key: str = ""
+    src_base_url: str = ""
+    src_entity: str = ""
+    src_project: str = ""
+    src_run_id: str = ""
+
+    dst_api_key: str = ""
+    dst_base_url: str = ""
 
 
 _thread_local_settings = ThreadLocalSettings()
 
 
-def set_thread_local_importer_settings(api_key, base_url):
-    _thread_local_settings.api_key = api_key
-    _thread_local_settings.base_url = base_url
+# def set_thread_local_importer_settings(api_key, base_url):
+#     _thread_local_settings.src_api_key = api_key
+#     _thread_local_settings.src_base_url = base_url
 
 
-def set_thread_local_run_settings(entity, project, run_id):
-    _thread_local_settings.entity = entity
-    _thread_local_settings.project = project
-    _thread_local_settings.run_id = run_id
+# def set_thread_local_run_settings(entity, project, run_id):
+#     _thread_local_settings.src_entity = entity
+#     _thread_local_settings.src_project = project
+#     _thread_local_settings.src_run_id = run_id
 
 
 @dataclass(frozen=True)

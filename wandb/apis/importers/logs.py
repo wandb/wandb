@@ -18,13 +18,13 @@ pl = get_module(
 class ThreadLocalFilter(logging.Filter):
     def filter(self, record):
         if not hasattr(record, "entity"):
-            record.entity = _thread_local_settings.entity
+            record.entity = _thread_local_settings.src_entity
 
         if not hasattr(record, "project"):
-            record.project = _thread_local_settings.project
+            record.project = _thread_local_settings.src_project
 
         if not hasattr(record, "run_id"):
-            record.run_id = _thread_local_settings.run_id
+            record.run_id = _thread_local_settings.src_run_id
 
         return True
 

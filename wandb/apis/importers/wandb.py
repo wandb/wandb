@@ -44,13 +44,19 @@ class WandbRun:
     def __init__(self, run: Run):
         self.run = run
         self.api = wandb.Api(
-            api_key=_thread_local_settings.api_key,
-            overrides={"base_url": _thread_local_settings.base_url},
+            api_key=_thread_local_settings.src_api_key,
+            overrides={"base_url": _thread_local_settings.src_base_url},
+        )
+        self.dst_api = wandb.Api(
+            api_key=_thread_local_settings.dst_api_key,
+            overrides={"base_url": _thread_local_settings.dst_base_Url},
         )
 
-        _thread_local_settings.entity = self.entity()
-        _thread_local_settings.project = self.project()
-        _thread_local_settings.run_id = self.run_id()
+        print(f"{self.dst_api.settings=}")
+
+        _thread_local_settings.src_entity = self.entity()
+        _thread_local_settings.src_project = self.project()
+        _thread_local_settings.src_run_id = self.run_id()
 
         # For caching
         self._files: Optional[Iterable[Tuple[str, str]]] = None
@@ -415,9 +421,9 @@ class WandbRun:
             art = None
 
             # Try to pick up the artifact within 20 seconds
-            for _ in range(10):
+            for _ in range(3):
                 try:
-                    art = self.api.artifact(art_path, type="run_table")
+                    art = self.dst_api.artifact(art_path, type="run_table")
                 except wandb.errors.CommError:
                     wandb.termwarn(f"Waiting for artifact {art_path}...")
                     time.sleep(2)
@@ -458,6 +464,7 @@ class WandbRun:
             # replace the old url which points to an artifact on the old system
             # with a new url which points to an artifact on the new system.
             # wandb.termlog(f"{row[table_key]}")
+            # row[table_key]["artifact_path"] = url
             row[table_key]["artifact_path"] = url
             row[table_key]["_latest_artifact_path"] = latest_art_path
 
@@ -511,8 +518,10 @@ class WandbImporter:
         )
 
         # There is probably a less redundant way of doing this
-        _thread_local_settings.api_key = src_api_key
-        _thread_local_settings.base_url = src_base_url
+        _thread_local_settings.src_api_key = src_api_key
+        _thread_local_settings.src_base_url = src_base_url
+        _thread_local_settings.dst_api_key = dst_api_key
+        _thread_local_settings.dst_base_url = dst_base_url
 
     import_runs = protocols.import_runs
 
