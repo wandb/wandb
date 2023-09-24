@@ -446,6 +446,7 @@ class WandbRun:
                 continue
 
             url = art.get_path(obj_name).ref_url()
+            url = url.replace("wandb-artifact://", "wandb-client-artifact://")
             base, name = url.rsplit("/", 1)
             latest_art_path = f"{base}:latest/{name}"
 
