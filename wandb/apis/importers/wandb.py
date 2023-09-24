@@ -590,160 +590,6 @@ class WandbImporter:
 
         Use `namespace` to specify alternate settings like where the artifact sequence should be uploaded
         """
-        try:
-            if not artifact_sequence.artifacts:
-                # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
-                # but it can also happen if the sequence represents run history and that run was deleted.
-                print("No artifacts in sequence")
-                return
-
-            if namespace is None:
-                namespace = Namespace(
-                    artifact_sequence.entity, artifact_sequence.project
-                )
-
-            settings_override = {
-                "api_key": self.dst_api_key,
-                "base_url": self.dst_base_url,
-                "resumed": True,
-            }
-
-            send_manager_config = internal.SendManagerConfig(log_artifacts=True)
-
-            # Get a placeholder run for dummy artifacts we'll upload later
-            placeholder_run: Optional[Run] = None
-            art = None
-            for art in artifact_sequence:
-                try:
-                    placeholder_run = art.logged_by()
-                except ValueError as e:
-                    # TODO: Artifacts whose runs have been deleted do not get imported.
-                    print(f"This run does not exist! {placeholder_run=}, {e=}")
-                    placeholder_run = special_logged_by(self.src_api.client, art)
-                    # continue
-                except requests.exceptions.HTTPError as e:
-                    print(f"Some HTTP Error: {e=}")
-                    continue  # Something bad happened.  Retry later
-
-                if placeholder_run is not None:
-                    break
-
-            # If no placeholder run, check if this sequence is relevant
-            if placeholder_run is None:
-                # If the run doesn't exist, job and history are not relevant artifact
-                ignore_patterns = [
-                    r"^job-(.*?)\.py(:v\d+)?$",
-                    # r"^run-.*-history(?:\:v\d+)?$",
-                ]
-                if art:
-                    for pattern in ignore_patterns:
-                        if re.search(pattern, art.name):
-                            return
-                return
-
-            # Delete any existing artifact sequence, otherwise versions will be out of order
-            self._delete_collection_in_dst(art, namespace.entity, namespace.project)
-
-            # Instead of uploading placeholders one run at a time, upload an entire batch of placeholders at once
-            # The placeholders cannot be uploaded at the same time as the actual artifact, otherwise we can run into
-            # version collisions.
-            groups_of_artifacts = list(_fill_with_dummy_arts(artifact_sequence))
-            art = groups_of_artifacts[0][0]
-            _type = art.type
-
-            # can't use get_art_name_ver -- artifact naming is inconsistent between logged and not-yet-logged arts
-            name, *_ = art.name.split(":v")
-            entity = placeholder_run.entity
-            project = placeholder_run.project
-            if isinstance(placeholder_run, MagicMock):
-                entity = entity.return_value
-                project = project.return_value
-
-            base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
-
-            task = progress.subtask_pbar.add_task(
-                base_descr,
-                total=len(groups_of_artifacts),
-            )
-            for group in groups_of_artifacts:
-                art = group[0]
-                if art.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
-                    run = WandbRun(placeholder_run)
-                else:
-                    try:
-                        t = progress.subsubtask_pbar.add_task(
-                            f"{base_descr} (Collecting logged by)", total=None
-                        )
-                        wandb_run = art.logged_by()
-                    except ValueError:
-                        # Possible that the run that created this artifact was deleted, so we'll use a placeholder
-                        print(f"{placeholder_run=}, {type(placeholder_run)=}")
-                        wandb_run = placeholder_run
-                    finally:
-                        progress.subsubtask_pbar.remove_task(t)
-
-                    try:
-                        t = progress.subsubtask_pbar.add_task(
-                            f"{base_descr} (Downloading artifact)", total=None
-                        )
-                        path = art.download()
-                    except Exception as e:
-                        print(f"Some error {e=}")
-                        wandb_logger.error(
-                            f"Error downloading artifact {art} -- {e}",
-                            extra={
-                                "entity": wandb_run.entity,
-                                "project": wandb_run.project,
-                                "run_id": wandb_run.id,
-                            },
-                        )
-                        continue
-                    finally:
-                        progress.subsubtask_pbar.remove_task(t)
-
-                    t = progress.subsubtask_pbar.add_task(
-                        f"{base_descr} (Make new artifact)", total=None
-                    )
-                    new_art = _make_new_art(art)
-
-                    if Path(path).is_dir():
-                        new_art.add_dir(path)
-
-                    group = [new_art]
-                    run = WandbRun(wandb_run)
-                    progress.subsubtask_pbar.remove_task(t)
-
-                t = progress.subsubtask_pbar.add_task(
-                    f"{base_descr} (Send new artifact)", total=None
-                )
-                internal.send_artifacts_with_send_manager(
-                    group,
-                    run,
-                    overrides=namespace.send_manager_overrides,
-                    settings_override=settings_override,
-                    config=send_manager_config,
-                )
-                progress.subsubtask_pbar.remove_task(t)
-
-                progress.subtask_pbar.update(task, advance=1)
-
-            # query it back and remove placeholders
-            self._remove_placeholders(art)
-            progress.subtask_pbar.remove_task(task)
-        except Exception as e:
-            print(f"Failed to import artifact sequence: {e=}")
-
-    # TODO: Instead of deleting the entire sequence, just delete the bad parts
-    # TODO: Instead of start at 0, start at the last valid artifact version
-    # Unfortunately, this won't work because the artifact versions are always incrementing unless the entire collection is deleted
-    # This means we have to delete the collection if any part of the sequence fails.
-    def _smart_import_artifact_sequence(
-        self, artifact_sequence: ArtifactSequence, namespace: Optional[Namespace] = None
-    ) -> None:
-        """Import one artifact sequence.
-
-        Use `namespace` to specify alternate settings like where the artifact sequence should be uploaded
-        """
         if not artifact_sequence.artifacts:
             # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
             # but it can also happen if the sequence represents run history and that run was deleted.
@@ -767,11 +613,14 @@ class WandbImporter:
         for art in artifact_sequence:
             try:
                 placeholder_run = art.logged_by()
-            except ValueError:
+            except ValueError as e:
                 # TODO: Artifacts whose runs have been deleted do not get imported.
-                # placeholder_run = special_logged_by(self.src_api.client, art)
-                # print(f"This run does not exist! {placeholder_run=}")
-                continue
+                print(f"This run does not exist! {placeholder_run=}, {e=}")
+                placeholder_run = special_logged_by(self.src_api.client, art)
+                # continue
+            except requests.exceptions.HTTPError as e:
+                print(f"Some HTTP Error: {e=}")
+                continue  # Something bad happened.  Retry later
 
             if placeholder_run is not None:
                 break
@@ -790,28 +639,7 @@ class WandbImporter:
             return
 
         # Delete any existing artifact sequence, otherwise versions will be out of order
-        # self._delete_collection_in_dst(art, namespace.entity, namespace.project)
-
-        # Compare the actual sequence vs. expected and see what the last valid version is
-        # Then, only import from that last valid version.
-        expected = artifact_sequence
-        actual = self._get_specific_sequence(
-            expected.artifacts[0], namespace.entity, namespace.project, api=self.dst_api
-        )
-        # actual = self._collect_artifact_sequences(
-        #     namespace.entity, namespace.project, api=self.dst_api
-        # )
-        last_valid_ver = get_last_valid_ver(expected, actual)
-
-        for art in actual.artifacts:
-            name, ver = _get_art_name_ver(art)
-            if ver > last_valid_ver:
-                print(f"art is invalid, delete {art.version=}")
-                art.delete(delete_aliases=True)
-
-        artifact_sequence.artifacts = list(
-            get_incremental_artifacts(expected, last_valid_ver)
-        )
+        self._delete_collection_in_dst(art, namespace.entity, namespace.project)
 
         # Instead of uploading placeholders one run at a time, upload an entire batch of placeholders at once
         # The placeholders cannot be uploaded at the same time as the actual artifact, otherwise we can run into
@@ -824,12 +652,15 @@ class WandbImporter:
         name, *_ = art.name.split(":v")
         entity = placeholder_run.entity
         project = placeholder_run.project
+        if isinstance(placeholder_run, MagicMock):
+            entity = entity.return_value
+            project = project.return_value
 
-        total = sum(len(g) for g in groups_of_artifacts)
+        base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
 
         task = progress.subtask_pbar.add_task(
-            f"Artifact Sequence ({entity}/{project}/{_type}/{name})",
-            total=total,
+            base_descr,
+            total=len(groups_of_artifacts),
         )
         for group in groups_of_artifacts:
             art = group[0]
@@ -837,15 +668,24 @@ class WandbImporter:
                 run = WandbRun(placeholder_run)
             else:
                 try:
+                    t = progress.subsubtask_pbar.add_task(
+                        f"{base_descr} (Collecting logged by)", total=None
+                    )
                     wandb_run = art.logged_by()
                 except ValueError:
                     # Possible that the run that created this artifact was deleted, so we'll use a placeholder
                     print(f"{placeholder_run=}, {type(placeholder_run)=}")
                     wandb_run = placeholder_run
+                finally:
+                    progress.subsubtask_pbar.remove_task(t)
 
                 try:
+                    t = progress.subsubtask_pbar.add_task(
+                        f"{base_descr} (Downloading artifact)", total=None
+                    )
                     path = art.download()
                 except Exception as e:
+                    print(f"Some error {e=}")
                     wandb_logger.error(
                         f"Error downloading artifact {art} -- {e}",
                         extra={
@@ -855,7 +695,12 @@ class WandbImporter:
                         },
                     )
                     continue
+                finally:
+                    progress.subsubtask_pbar.remove_task(t)
 
+                t = progress.subsubtask_pbar.add_task(
+                    f"{base_descr} (Make new artifact)", total=None
+                )
                 new_art = _make_new_art(art)
 
                 if Path(path).is_dir():
@@ -863,10 +708,10 @@ class WandbImporter:
 
                 group = [new_art]
                 run = WandbRun(wandb_run)
+                progress.subsubtask_pbar.remove_task(t)
 
-            _start_time = dt.now()
-            print(
-                f"Start send artifact with send manager, {run.entity()=}, {run.project()=}, {run.run_id()=}, {dt.now()=}"
+            t = progress.subsubtask_pbar.add_task(
+                f"{base_descr} (Send new artifact)", total=None
             )
             internal.send_artifacts_with_send_manager(
                 group,
@@ -875,16 +720,166 @@ class WandbImporter:
                 settings_override=settings_override,
                 config=send_manager_config,
             )
-            _end_time = dt.now()
-            _total_time = (_end_time - _start_time).total_seconds()
-            print(
-                f"Done, {run.entity()=}, {run.project()=}, {run.run_id()=}, {_total_time=}"
-            )
-            progress.subtask_pbar.update(task, advance=len(group))
+            progress.subsubtask_pbar.remove_task(t)
+
+            progress.subtask_pbar.update(task, advance=1)
 
         # query it back and remove placeholders
         self._remove_placeholders(art)
         progress.subtask_pbar.remove_task(task)
+
+    # TODO: Instead of deleting the entire sequence, just delete the bad parts
+    # TODO: Instead of start at 0, start at the last valid artifact version
+    # Unfortunately, this won't work because the artifact versions are always incrementing unless the entire collection is deleted
+    # This means we have to delete the collection if any part of the sequence fails.
+    # def _smart_import_artifact_sequence(
+    #     self, artifact_sequence: ArtifactSequence, namespace: Optional[Namespace] = None
+    # ) -> None:
+    #     """Import one artifact sequence.
+
+    #     Use `namespace` to specify alternate settings like where the artifact sequence should be uploaded
+    #     """
+    #     if not artifact_sequence.artifacts:
+    #         # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
+    #         # but it can also happen if the sequence represents run history and that run was deleted.
+    #         print("No artifacts in sequence")
+    #         return
+
+    #     if namespace is None:
+    #         namespace = Namespace(artifact_sequence.entity, artifact_sequence.project)
+
+    #     settings_override = {
+    #         "api_key": self.dst_api_key,
+    #         "base_url": self.dst_base_url,
+    #         "resumed": True,
+    #     }
+
+    #     send_manager_config = internal.SendManagerConfig(log_artifacts=True)
+
+    #     # Get a placeholder run for dummy artifacts we'll upload later
+    #     placeholder_run: Optional[Run] = None
+    #     art = None
+    #     for art in artifact_sequence:
+    #         try:
+    #             placeholder_run = art.logged_by()
+    #         except ValueError:
+    #             # TODO: Artifacts whose runs have been deleted do not get imported.
+    #             # placeholder_run = special_logged_by(self.src_api.client, art)
+    #             # print(f"This run does not exist! {placeholder_run=}")
+    #             continue
+
+    #         if placeholder_run is not None:
+    #             break
+
+    #     # If no placeholder run, check if this sequence is relevant
+    #     if placeholder_run is None:
+    #         # If the run doesn't exist, job and history are not relevant artifact
+    #         ignore_patterns = [
+    #             r"^job-(.*?)\.py(:v\d+)?$",
+    #             # r"^run-.*-history(?:\:v\d+)?$",
+    #         ]
+    #         if art:
+    #             for pattern in ignore_patterns:
+    #                 if re.search(pattern, art.name):
+    #                     return
+    #         return
+
+    #     # Delete any existing artifact sequence, otherwise versions will be out of order
+    #     # self._delete_collection_in_dst(art, namespace.entity, namespace.project)
+
+    #     # Compare the actual sequence vs. expected and see what the last valid version is
+    #     # Then, only import from that last valid version.
+    #     expected = artifact_sequence
+    #     actual = self._get_specific_sequence(
+    #         expected.artifacts[0], namespace.entity, namespace.project, api=self.dst_api
+    #     )
+    #     # actual = self._collect_artifact_sequences(
+    #     #     namespace.entity, namespace.project, api=self.dst_api
+    #     # )
+    #     last_valid_ver = get_last_valid_ver(expected, actual)
+
+    #     for art in actual.artifacts:
+    #         name, ver = _get_art_name_ver(art)
+    #         if ver > last_valid_ver:
+    #             print(f"art is invalid, delete {art.version=}")
+    #             art.delete(delete_aliases=True)
+
+    #     artifact_sequence.artifacts = list(
+    #         get_incremental_artifacts(expected, last_valid_ver)
+    #     )
+
+    #     # Instead of uploading placeholders one run at a time, upload an entire batch of placeholders at once
+    #     # The placeholders cannot be uploaded at the same time as the actual artifact, otherwise we can run into
+    #     # version collisions.
+    #     groups_of_artifacts = list(_fill_with_dummy_arts(artifact_sequence))
+    #     art = groups_of_artifacts[0][0]
+    #     _type = art.type
+
+    #     # can't use get_art_name_ver -- artifact naming is inconsistent between logged and not-yet-logged arts
+    #     name, *_ = art.name.split(":v")
+    #     entity = placeholder_run.entity
+    #     project = placeholder_run.project
+
+    #     total = sum(len(g) for g in groups_of_artifacts)
+
+    #     task = progress.subtask_pbar.add_task(
+    #         f"Artifact Sequence ({entity}/{project}/{_type}/{name})",
+    #         total=total,
+    #     )
+    #     for group in groups_of_artifacts:
+    #         art = group[0]
+    #         if art.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
+    #             run = WandbRun(placeholder_run)
+    #         else:
+    #             try:
+    #                 wandb_run = art.logged_by()
+    #             except ValueError:
+    #                 # Possible that the run that created this artifact was deleted, so we'll use a placeholder
+    #                 print(f"{placeholder_run=}, {type(placeholder_run)=}")
+    #                 wandb_run = placeholder_run
+
+    #             try:
+    #                 path = art.download()
+    #             except Exception as e:
+    #                 wandb_logger.error(
+    #                     f"Error downloading artifact {art} -- {e}",
+    #                     extra={
+    #                         "entity": wandb_run.entity,
+    #                         "project": wandb_run.project,
+    #                         "run_id": wandb_run.id,
+    #                     },
+    #                 )
+    #                 continue
+
+    #             new_art = _make_new_art(art)
+
+    #             if Path(path).is_dir():
+    #                 new_art.add_dir(path)
+
+    #             group = [new_art]
+    #             run = WandbRun(wandb_run)
+
+    #         _start_time = dt.now()
+    #         print(
+    #             f"Start send artifact with send manager, {run.entity()=}, {run.project()=}, {run.run_id()=}, {dt.now()=}"
+    #         )
+    #         internal.send_artifacts_with_send_manager(
+    #             group,
+    #             run,
+    #             overrides=namespace.send_manager_overrides,
+    #             settings_override=settings_override,
+    #             config=send_manager_config,
+    #         )
+    #         _end_time = dt.now()
+    #         _total_time = (_end_time - _start_time).total_seconds()
+    #         print(
+    #             f"Done, {run.entity()=}, {run.project()=}, {run.run_id()=}, {_total_time=}"
+    #         )
+    #         progress.subtask_pbar.update(task, advance=len(group))
+
+    #     # query it back and remove placeholders
+    #     self._remove_placeholders(art)
+    #     progress.subtask_pbar.remove_task(task)
 
     def _remove_placeholders(self, art: Artifact) -> None:
         try:
@@ -2079,13 +2074,13 @@ def special_logged_by(client, art):
         variable_values={"id": art.id},
     )
     creator = response.get("artifact", {}).get("createdBy", {})
-    if creator.get("name") is None:
-        return None
 
     placeholder_run = MagicMock()
-    placeholder_run.entity.return_value = creator["project"]["entityName"]
-    placeholder_run.project.return_value = creator["project"]["name"]
-    placeholder_run.run_id.return_value = creator["name"]
+    placeholder_run.entity.return_value = art.entity
+    placeholder_run.project.return_value = art.project
+    placeholder_run.run_id.return_value = creator.get(
+        "name", "__dummy_placeholder_run__"
+    )
 
     return placeholder_run
 

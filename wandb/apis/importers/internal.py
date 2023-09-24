@@ -5,6 +5,7 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
+from unittest.mock import MagicMock
 
 from google.protobuf.json_format import ParseDict
 from tenacity import retry, stop_after_attempt, wait_random_exponential
@@ -83,7 +84,27 @@ class RecordMaker:
         p.mkdir(parents=True, exist_ok=True)
         return f"./wandb-importer/{self.run.run_id()}"
 
+    def _make_fake_run_record(self):
+        """
+        Unfortunately, the vanilla Run object does a check for existence on the server,
+        so we use this as the simplest hack to skip that check.
+        """
+
+        run = pb.RunRecord()
+
+        # in this case run is a magicmock, so we need to convert the return types back to vanilla py types
+        run = pb.RunRecord()
+        run.entity = str(self.run.entity())
+        run.project = str(self.run.project())
+        run.run_id = str(self.run.run_id())
+
+        return self.interface._make_record(run=run)
+
     def _make_run_record(self) -> pb.Record:
+        # unfortunate hack to get deleted wandb runs to work...
+        if isinstance(self.run.run, MagicMock):
+            return self._make_fake_run_record()
+
         run = pb.RunRecord()
         run.run_id = self.run.run_id()
         run.entity = self.run.entity()
