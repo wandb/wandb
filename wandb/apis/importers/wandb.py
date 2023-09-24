@@ -74,7 +74,7 @@ class WandbRun:
         s = self.run.summary
 
         # Modify artifact paths because they are different between systems
-        s = self._modify_table_artifact_paths(s)
+        # s = self._modify_table_artifact_paths(s)
         return s
 
     def _merge_dfs(self, dfs):
