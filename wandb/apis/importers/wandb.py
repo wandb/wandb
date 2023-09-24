@@ -49,7 +49,7 @@ class WandbRun:
         )
         self.dst_api = wandb.Api(
             api_key=_thread_local_settings.dst_api_key,
-            overrides={"base_url": _thread_local_settings.dst_base_Url},
+            overrides={"base_url": _thread_local_settings.dst_base_url},
         )
 
         print(f"{self.dst_api.settings=}")
