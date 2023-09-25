@@ -1178,17 +1178,19 @@ class WandbImporter:
         send_manager_config = internal.SendManagerConfig(use_artifacts=True)
 
         for art in sequence:
-            wandb_run = art.used_by()
-            if wandb_run is None:
+            used_by = art.used_by()
+            if used_by is None:
                 continue
-            run = WandbRun(wandb_run)
 
-            internal.send_run_with_send_manager(
-                run,
-                overrides=namespace.send_manager_overrides,
-                settings_override=settings_override,
-                config=send_manager_config,
-            )
+            for wandb_run in used_by:
+                run = WandbRun(wandb_run)
+
+                internal.send_run_with_send_manager(
+                    run,
+                    overrides=namespace.send_manager_overrides,
+                    settings_override=settings_override,
+                    config=send_manager_config,
+                )
 
     def _use_artifact_sequences(
         self,
