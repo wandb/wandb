@@ -451,19 +451,11 @@ class WandbRun:
                 continue
 
             url = art.get_path(obj_name).ref_url()
-            # url = url.replace("wandb-artifact://", "wandb-client-artifact://")
-
-            print(f"{art=}")
-            print(f"{art.get_path(obj_name)=}")
-            print(f"{url=}")
-
             base, name = url.rsplit("/", 1)
             latest_art_path = f"{base}:latest/{name}"
 
             # replace the old url which points to an artifact on the old system
             # with a new url which points to an artifact on the new system.
-            # wandb.termlog(f"{row[table_key]}")
-            # row[table_key]["artifact_path"] = url
             row[table_key]["artifact_path"] = url
             row[table_key]["_latest_artifact_path"] = latest_art_path
 
@@ -597,6 +589,19 @@ class WandbImporter:
         except wandb.CommError:
             return  # it's not allowed to be deleted
 
+    def _get_run_from_art(self, art: Artifact):
+        run = None
+
+        try:
+            run = art.logged_by()
+        except ValueError as e:
+            print(f"This run does not exist! {e=}")
+            run = special_logged_by(self.src_api.client, art)
+        if run is None:
+            run = special_logged_by(self.src_api.client, art)
+
+        return run
+
     def _import_artifact_sequence(
         self, artifact_sequence: ArtifactSequence, namespace: Optional[Namespace] = None
     ) -> None:
@@ -622,39 +627,25 @@ class WandbImporter:
         send_manager_config = internal.SendManagerConfig(log_artifacts=True)
 
         # Get a placeholder run for dummy artifacts we'll upload later
-        placeholder_run: Optional[Run] = None
-        art = None
-        for art in artifact_sequence:
-            try:
-                placeholder_run = art.logged_by()
-            except ValueError as e:
-                # TODO: Artifacts whose runs have been deleted do not get imported.
-                print(f"This run does not exist! {placeholder_run=}, {e=}")
-                placeholder_run = special_logged_by(self.src_api.client, art)
-                # continue
-            except requests.exceptions.HTTPError as e:
-                print(f"Some HTTP Error: {e=}")
-                continue  # Something bad happened.  Retry later
+        art = artifact_sequence.artifacts[0]
+        try:
+            placeholder_run: Optional[Run] = self._get_run_from_art(art)
+        except requests.exceptions.HTTPError as e:
+            # If we had an http error, then just skip for now.
+            print(f"Some HTTP Error: {e=}")
+            return
 
-            if placeholder_run is not None:
-                break
-
-        # If no placeholder run, check if this sequence is relevant
-        if placeholder_run is None:
-            # If the run doesn't exist, job and history are not relevant artifact
-            ignore_patterns = [
-                r"^job-(.*?)\.py(:v\d+)?$",
-                # r"^run-.*-history(?:\:v\d+)?$",
-            ]
-            if art:
-                for pattern in ignore_patterns:
-                    if re.search(pattern, art.name):
-                        return
-                placeholder_run = special_logged_by(self.src_api.client, art)
-            else:
-                return
+        # ignore_patterns = [
+        #     r"^job-(.*?)\.py(:v\d+)?$",
+        #     # r"^run-.*-history(?:\:v\d+)?$",
+        # ]
+        # for pattern in ignore_patterns:
+        #     if re.search(pattern, art.name):
+        #         return
+        # placeholder_run = special_logged_by(self.src_api.client, art)
 
         # Delete any existing artifact sequence, otherwise versions will be out of order
+        # Unfortunately, you can't delete only part of the sequence because versions are "remembered" even after deletion
         self._delete_collection_in_dst(art, namespace.entity, namespace.project)
 
         # Instead of uploading placeholders one run at a time, upload an entire batch of placeholders at once
@@ -668,6 +659,8 @@ class WandbImporter:
         name, *_ = art.name.split(":v")
         entity = placeholder_run.entity
         project = placeholder_run.project
+
+        # This is a hack to check for dummy runs
         if isinstance(placeholder_run, MagicMock):
             entity = entity.return_value
             project = project.return_value
@@ -694,6 +687,9 @@ class WandbImporter:
                     wandb_run = placeholder_run
                 finally:
                     progress.subsubtask_pbar.remove_task(t)
+
+                if wandb_run is None:
+                    wandb_run = placeholder_run
 
                 try:
                     t = progress.subsubtask_pbar.add_task(
