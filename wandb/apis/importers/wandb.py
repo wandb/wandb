@@ -1754,7 +1754,7 @@ class WandbImporter:
         )
 
         # this is done a second time to make "run artifacts" work.
-        self._clear_errors()
+        self._clear_run_errors()
         self._validate_runs_from_namespaces(namespaces, incremental=incremental)
         failed_runs = self._collect_failed_runs()
         self._import_failed_runs(failed_runs)
