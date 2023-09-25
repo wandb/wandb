@@ -295,11 +295,6 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
 	case *service.Request_ServerInfo:
-		// fakeError := &HandlerError{
-		// 	streamId:   h.settings.RunId.GetValue(),
-		// 	recordType: "Request_ServerInfo",
-		// }
-		// h.logger.CaptureError("hello", fakeError)
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
 		shutdown = true
