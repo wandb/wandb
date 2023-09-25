@@ -4,17 +4,17 @@ int main() {
   auto wb = new wandb::Session();
 
   wb->loginSession({
-          wandb::session::WithHostname("host"),
-          wandb::session::WithAPIKey("myapikey"),
-          });
+      wandb::session::WithHostname("host"),
+      wandb::session::WithAPIKey("myapikey"),
+  });
   wandb::Config config = {
       {"param1", 4},
       {"param2", 4.2},
       {"param3", "smiles"},
   };
   auto run = wb->initRun({
-          wandb::run::WithConfig(config),
-          });
+      wandb::run::WithConfig(config),
+  });
 
   for (int i = 0; i < 5; i++) {
     wandb::History history = {

@@ -35,8 +35,9 @@ class InitRunOption {
 protected:
   const Settings *settings;
   const Config *config;
+
 public:
-  InitRunOption() : settings(nullptr), config(nullptr) {};
+  InitRunOption() : settings(nullptr), config(nullptr){};
   const Settings *getSettings();
   const Config *getConfig();
 };
@@ -75,7 +76,7 @@ public:
 namespace session {
 class LoginSessionOption {
 public:
-  LoginSessionOption() {};
+  LoginSessionOption(){};
 };
 
 class WithAPIKey : public LoginSessionOption {
@@ -93,13 +94,15 @@ class Session {
 private:
   static Session *defaultSession_;
 
-  Run _initRun(const Settings *settings = nullptr, const Config *config = nullptr);
+  Run _initRun(const Settings *settings = nullptr,
+               const Config *config = nullptr);
 
 public:
   Session(Settings *settings = nullptr);
   Run initRun();
   Run initRun(const std::initializer_list<run::InitRunOption> &options);
-  void loginSession(const std::initializer_list<session::LoginSessionOption> &options);
+  void loginSession(
+      const std::initializer_list<session::LoginSessionOption> &options);
 
   static Session *GetInstance();
 };

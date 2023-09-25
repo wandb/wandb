@@ -29,7 +29,7 @@ public:
 
 Data::Data(const std::unordered_map<std::string, Value> *myMap) : num(0) {
   if (myMap == nullptr) {
-      return;
+    return;
   }
   std::vector<const char *> keyDoubles;
   std::vector<const char *> keyInts;
@@ -52,20 +52,23 @@ Data::Data(const std::unordered_map<std::string, Value> *myMap) : num(0) {
   }
   int data_num = WANDBCORE_DATA_CREATE;
   if (keyDoubles.size()) {
-    data_num = wandbcoreDataAddDoubles(data_num, keyDoubles.size(), &keyDoubles[0], &valDoubles[0]);
+    data_num = wandbcoreDataAddDoubles(data_num, keyDoubles.size(),
+                                       &keyDoubles[0], &valDoubles[0]);
   }
   if (keyInts.size()) {
-    data_num = wandbcoreDataAddInts(data_num, keyInts.size(), &keyInts[0], &valInts[0]);
+    data_num = wandbcoreDataAddInts(data_num, keyInts.size(), &keyInts[0],
+                                    &valInts[0]);
   }
   if (keyStrings.size()) {
-    data_num = wandbcoreDataAddStrings(data_num, keyStrings.size(), &keyStrings[0], &valStrings[0]);
+    data_num = wandbcoreDataAddStrings(data_num, keyStrings.size(),
+                                       &keyStrings[0], &valStrings[0]);
   }
   this->num = data_num;
 }
 
 Data::~Data() {
   if (this->num == 0) {
-      return;
+    return;
   }
   wandbcoreDataFree(this->num);
 }
@@ -107,55 +110,41 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
   const Settings *settings;
   const Config *config;
   for (auto item : options) {
-      auto withSettings = static_cast<run::WithSettings *>(&item);
-      if (withSettings != nullptr) {
-          settings = withSettings->getSettings();
-      }
-      auto withConfig = static_cast<run::WithConfig *>(&item);
-      if (withConfig != nullptr) {
-          config = withConfig->getConfig();
-      }
+    auto withSettings = static_cast<run::WithSettings *>(&item);
+    if (withSettings != nullptr) {
+      settings = withSettings->getSettings();
+    }
+    auto withConfig = static_cast<run::WithConfig *>(&item);
+    if (withConfig != nullptr) {
+      config = withConfig->getConfig();
+    }
   }
   return this->_initRun(settings, config);
 }
 
 namespace session {
-WithAPIKey::WithAPIKey(const std::string apiKey) {
-};
+WithAPIKey::WithAPIKey(const std::string apiKey){};
 
-WithHostname::WithHostname(const std::string hostname) {
-};
+WithHostname::WithHostname(const std::string hostname){};
 } // namespace session
 
-void Session::loginSession(const std::initializer_list<session::LoginSessionOption> &options) {
-}
+void Session::loginSession(
+    const std::initializer_list<session::LoginSessionOption> &options) {}
 
-Run Session::initRun() {
-  return this->initRun({});
-}
+Run Session::initRun() { return this->initRun({}); }
 
 Run initRun(const std::initializer_list<run::InitRunOption> &options) {
   auto s = Session::GetInstance();
   return s->initRun(options);
 }
 
-Run initRun() {
-  return initRun({});
-}
+Run initRun() { return initRun({}); }
 
 namespace run {
-const Settings *InitRunOption::getSettings() {
-    return this->settings;
-}
-const Config *InitRunOption::getConfig() {
-    return this->config;
-}
-WithSettings::WithSettings(const Settings &s) {
-    this->settings = &s;
-}
-WithConfig::WithConfig(const Config &c) {
-    this->config = &c;
-}
+const Settings *InitRunOption::getSettings() { return this->settings; }
+const Config *InitRunOption::getConfig() { return this->config; }
+WithSettings::WithSettings(const Settings &s) { this->settings = &s; }
+WithConfig::WithConfig(const Config &c) { this->config = &c; }
 
 } // namespace run
 

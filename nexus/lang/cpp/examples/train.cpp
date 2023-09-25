@@ -7,8 +7,8 @@ int main() {
       {"param3", "smiles"},
   };
   auto run = wandb::initRun({
-          wandb::run::WithConfig(config),
-          });
+      wandb::run::WithConfig(config),
+  });
 
   for (int i = 0; i < 5; i++) {
     wandb::History history = {
