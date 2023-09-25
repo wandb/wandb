@@ -34,7 +34,7 @@ jobs:
           docker context create builder
           docker buildx create --use
 
-          REF={{ github.event.inputs.ref }}
+          REF=${{ github.event.inputs.ref }}
 
           TAG=${{ github.event.inputs.tagName }}
 
