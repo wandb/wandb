@@ -15,15 +15,6 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
-type HandlerError struct {
-	streamId   string
-	recordType string
-}
-
-func (e *HandlerError) Error() string {
-	return fmt.Sprintf("handler: error handling record of type %s for stream %s", e.recordType, e.streamId)
-}
-
 // Timer is used to track the run start and execution times
 type Timer struct {
 	startTime   time.Time
