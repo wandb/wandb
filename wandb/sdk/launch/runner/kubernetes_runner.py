@@ -59,7 +59,6 @@ class KubernetesSubmittedRun(AbstractRun):
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         name: str,
-        pod_names: List[str],
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
     ) -> None:
@@ -77,7 +76,6 @@ class KubernetesSubmittedRun(AbstractRun):
             batch_api: Kubernetes BatchV1Api object.
             core_api: Kubernetes CoreV1Api object.
             name: Name of the job.
-            pod_names: List of pod names.
             namespace: Kubernetes namespace.
             secret: Kubernetes secret.
 
@@ -90,7 +88,6 @@ class KubernetesSubmittedRun(AbstractRun):
         self.name = name
         self.namespace = namespace
         self._fail_count = 0
-        self.pod_names = pod_names
         self.secret = secret
 
     @property
@@ -100,15 +97,20 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def get_logs(self) -> Optional[str]:
         try:
+            pods = self.core_api.list_namespaced_pod(
+                label_selector=f"job-name={self.name}", namespace=self.namespace
+            )
+            pod_names = [pi.metadata.name for pi in pods.items]
+            if not pod_names:
+                wandb.termwarn(f"Found no pods for kubernetes job: {self.name}")
+                return None
             logs = self.core_api.read_namespaced_pod_log(
-                name=self.pod_names[0], namespace=self.namespace
+                name=pod_names[0], namespace=self.namespace
             )
             if logs:
                 return str(logs)
             else:
-                wandb.termwarn(
-                    f"Retrieved no logs for kubernetes pod(s): {self.pod_names}"
-                )
+                wandb.termwarn(f"No logs for kubernetes pod(s): {pod_names}")
             return None
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
@@ -521,7 +523,6 @@ class KubernetesRunner(AbstractRunner):
             0
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.name
-
         # Event stream monitor to ensure pod creation and job completion.
         monitor = KubernetesRunMonitor(
             job_field_selector=f"metadata.name={job_name}",
@@ -532,7 +533,7 @@ class KubernetesRunner(AbstractRunner):
         )
         monitor.start()
         submitted_job = KubernetesSubmittedRun(
-            monitor, batch_api, core_api, job_name, [], namespace, secret
+            monitor, batch_api, core_api, job_name, namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
