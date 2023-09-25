@@ -5,6 +5,7 @@ import pprint
 import threading
 import time
 import traceback
+from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -50,6 +51,12 @@ else:
     RUN_START_TIMEOUT = 60 * 30  # default 30 minutes
 
 _logger = logging.getLogger(__name__)
+
+
+@dataclass
+class JobSpecAndQueue:
+    job: Dict[str, Any]
+    queue: str
 
 
 def _convert_access(access: str) -> str:
@@ -447,6 +454,7 @@ class LaunchAgent:
         self.print_status()
         try:
             while True:
+                job = None
                 self._ticks += 1
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
@@ -456,9 +464,11 @@ class LaunchAgent:
                     raise KeyboardInterrupt
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
-                    received_job = False
-                    for job, queue in self.get_jobs_and_queues():
-                        received_job = True
+                    job_and_queue = self.get_job_and_queue()
+                    # these will either both be None, or neither will be None
+                    if job_and_queue is not None:
+                        job = job_and_queue.job
+                        queue = job_and_queue.queue
                         try:
                             file_saver = RunQueueItemFileSaver(
                                 self._wandb_run, job["runQueueItemId"]
@@ -502,7 +512,7 @@ class LaunchAgent:
                         self.update_status(AGENT_RUNNING)
                     self.print_status()
 
-                if self.num_running_jobs == self._max_jobs or not received_job:
+                if self.num_running_jobs == self._max_jobs or job is None:
                     # all threads busy or did not receive job
                     time.sleep(AGENT_POLLING_INTERVAL)
                 else:
@@ -729,10 +739,9 @@ class LaunchAgent:
             wandb._sentry.exception(e)
         return known_error
 
-    def get_jobs_and_queues(self) -> List[Tuple[Dict[str, Any], str]]:
-        jobs_and_queues: List[Tuple[Dict[str, Any], str]] = []
+    def get_job_and_queue(self) -> Optional[JobSpecAndQueue]:
         for queue in self._queues:
             job = self.pop_from_queue(queue)
             if job is not None:
-                jobs_and_queues.append((job, queue))
-        return jobs_and_queues
+                return JobSpecAndQueue(job, queue)
+        return None
