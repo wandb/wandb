@@ -195,9 +195,9 @@ class RecordMaker:
 
     def _make_artifact_record(self, artifact, use_artifact=False) -> pb.Record:
         proto = self.interface._make_artifact(artifact)
-        proto.run_id = self.run.run_id()
-        proto.project = self.run.project()
-        proto.entity = self.run.entity()
+        proto.run_id = str(self.run.run_id())
+        proto.project = str(self.run.project())
+        proto.entity = str(self.run.entity())
         proto.user_created = use_artifact
         proto.use_after_commit = use_artifact
         proto.finalize = True
