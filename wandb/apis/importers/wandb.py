@@ -52,8 +52,6 @@ class WandbRun:
             overrides={"base_url": _thread_local_settings.dst_base_url},
         )
 
-        print(f"{self.dst_api.settings=}")
-
         _thread_local_settings.src_entity = self.entity()
         _thread_local_settings.src_project = self.project()
         _thread_local_settings.src_run_id = self.run_id()
