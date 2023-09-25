@@ -80,3 +80,10 @@ def list_failing_tests_nexus(session):
         ],
         plugins=[my_plugin],
     )
+
+
+@nox.session(python=False, name="bump-version")
+def bump_version(session):
+    pass
+    # todo: get from args if you want to bump core or wandb
+    #  and what to bump (major, minor, patch)
