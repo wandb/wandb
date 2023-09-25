@@ -72,16 +72,34 @@ public:
   friend class Session;
 };
 
+namespace session {
+class LoginSessionOption {
+public:
+  LoginSessionOption() {};
+};
+
+class WithAPIKey : public LoginSessionOption {
+public:
+  WithAPIKey(const std::string apiKey);
+};
+
+class WithHostname : public LoginSessionOption {
+public:
+  WithHostname(const std::string hostname);
+};
+} // namespace session
+
 class Session {
 private:
   static Session *defaultSession_;
 
-  Session(Settings *settings = nullptr);
   Run _initRun(const Settings *settings = nullptr, const Config *config = nullptr);
 
 public:
+  Session(Settings *settings = nullptr);
   Run initRun();
   Run initRun(const std::initializer_list<run::InitRunOption> &options);
+  void loginSession(const std::initializer_list<session::LoginSessionOption> &options);
 
   static Session *GetInstance();
 };

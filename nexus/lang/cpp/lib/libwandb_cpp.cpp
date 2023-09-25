@@ -119,6 +119,17 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
   return this->_initRun(settings, config);
 }
 
+namespace session {
+WithAPIKey::WithAPIKey(const std::string apiKey) {
+};
+
+WithHostname::WithHostname(const std::string hostname) {
+};
+} // namespace session
+
+void Session::loginSession(const std::initializer_list<session::LoginSessionOption> &options) {
+}
+
 Run Session::initRun() {
   return this->initRun({});
 }
