@@ -635,15 +635,6 @@ class WandbImporter:
             print(f"Some HTTP Error: {e=}")
             return
 
-        # ignore_patterns = [
-        #     r"^job-(.*?)\.py(:v\d+)?$",
-        #     # r"^run-.*-history(?:\:v\d+)?$",
-        # ]
-        # for pattern in ignore_patterns:
-        #     if re.search(pattern, art.name):
-        #         return
-        # placeholder_run = special_logged_by(self.src_api.client, art)
-
         # Delete any existing artifact sequence, otherwise versions will be out of order
         # Unfortunately, you can't delete only part of the sequence because versions are "remembered" even after deletion
         self._delete_collection_in_dst(art, namespace.entity, namespace.project)
@@ -741,159 +732,6 @@ class WandbImporter:
         self._remove_placeholders(art)
         progress.subtask_pbar.remove_task(task)
 
-    # TODO: Instead of deleting the entire sequence, just delete the bad parts
-    # TODO: Instead of start at 0, start at the last valid artifact version
-    # Unfortunately, this won't work because the artifact versions are always incrementing unless the entire collection is deleted
-    # This means we have to delete the collection if any part of the sequence fails.
-    # def _smart_import_artifact_sequence(
-    #     self, artifact_sequence: ArtifactSequence, namespace: Optional[Namespace] = None
-    # ) -> None:
-    #     """Import one artifact sequence.
-
-    #     Use `namespace` to specify alternate settings like where the artifact sequence should be uploaded
-    #     """
-    #     if not artifact_sequence.artifacts:
-    #         # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
-    #         # but it can also happen if the sequence represents run history and that run was deleted.
-    #         print("No artifacts in sequence")
-    #         return
-
-    #     if namespace is None:
-    #         namespace = Namespace(artifact_sequence.entity, artifact_sequence.project)
-
-    #     settings_override = {
-    #         "api_key": self.dst_api_key,
-    #         "base_url": self.dst_base_url,
-    #         "resumed": True,
-    #     }
-
-    #     send_manager_config = internal.SendManagerConfig(log_artifacts=True)
-
-    #     # Get a placeholder run for dummy artifacts we'll upload later
-    #     placeholder_run: Optional[Run] = None
-    #     art = None
-    #     for art in artifact_sequence:
-    #         try:
-    #             placeholder_run = art.logged_by()
-    #         except ValueError:
-    #             # TODO: Artifacts whose runs have been deleted do not get imported.
-    #             # placeholder_run = special_logged_by(self.src_api.client, art)
-    #             # print(f"This run does not exist! {placeholder_run=}")
-    #             continue
-
-    #         if placeholder_run is not None:
-    #             break
-
-    #     # If no placeholder run, check if this sequence is relevant
-    #     if placeholder_run is None:
-    #         # If the run doesn't exist, job and history are not relevant artifact
-    #         ignore_patterns = [
-    #             r"^job-(.*?)\.py(:v\d+)?$",
-    #             # r"^run-.*-history(?:\:v\d+)?$",
-    #         ]
-    #         if art:
-    #             for pattern in ignore_patterns:
-    #                 if re.search(pattern, art.name):
-    #                     return
-    #         return
-
-    #     # Delete any existing artifact sequence, otherwise versions will be out of order
-    #     # self._delete_collection_in_dst(art, namespace.entity, namespace.project)
-
-    #     # Compare the actual sequence vs. expected and see what the last valid version is
-    #     # Then, only import from that last valid version.
-    #     expected = artifact_sequence
-    #     actual = self._get_specific_sequence(
-    #         expected.artifacts[0], namespace.entity, namespace.project, api=self.dst_api
-    #     )
-    #     # actual = self._collect_artifact_sequences(
-    #     #     namespace.entity, namespace.project, api=self.dst_api
-    #     # )
-    #     last_valid_ver = get_last_valid_ver(expected, actual)
-
-    #     for art in actual.artifacts:
-    #         name, ver = _get_art_name_ver(art)
-    #         if ver > last_valid_ver:
-    #             print(f"art is invalid, delete {art.version=}")
-    #             art.delete(delete_aliases=True)
-
-    #     artifact_sequence.artifacts = list(
-    #         get_incremental_artifacts(expected, last_valid_ver)
-    #     )
-
-    #     # Instead of uploading placeholders one run at a time, upload an entire batch of placeholders at once
-    #     # The placeholders cannot be uploaded at the same time as the actual artifact, otherwise we can run into
-    #     # version collisions.
-    #     groups_of_artifacts = list(_fill_with_dummy_arts(artifact_sequence))
-    #     art = groups_of_artifacts[0][0]
-    #     _type = art.type
-
-    #     # can't use get_art_name_ver -- artifact naming is inconsistent between logged and not-yet-logged arts
-    #     name, *_ = art.name.split(":v")
-    #     entity = placeholder_run.entity
-    #     project = placeholder_run.project
-
-    #     total = sum(len(g) for g in groups_of_artifacts)
-
-    #     task = progress.subtask_pbar.add_task(
-    #         f"Artifact Sequence ({entity}/{project}/{_type}/{name})",
-    #         total=total,
-    #     )
-    #     for group in groups_of_artifacts:
-    #         art = group[0]
-    #         if art.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
-    #             run = WandbRun(placeholder_run)
-    #         else:
-    #             try:
-    #                 wandb_run = art.logged_by()
-    #             except ValueError:
-    #                 # Possible that the run that created this artifact was deleted, so we'll use a placeholder
-    #                 print(f"{placeholder_run=}, {type(placeholder_run)=}")
-    #                 wandb_run = placeholder_run
-
-    #             try:
-    #                 path = art.download()
-    #             except Exception as e:
-    #                 wandb_logger.error(
-    #                     f"Error downloading artifact {art} -- {e}",
-    #                     extra={
-    #                         "entity": wandb_run.entity,
-    #                         "project": wandb_run.project,
-    #                         "run_id": wandb_run.id,
-    #                     },
-    #                 )
-    #                 continue
-
-    #             new_art = _make_new_art(art)
-
-    #             if Path(path).is_dir():
-    #                 new_art.add_dir(path)
-
-    #             group = [new_art]
-    #             run = WandbRun(wandb_run)
-
-    #         _start_time = dt.now()
-    #         print(
-    #             f"Start send artifact with send manager, {run.entity()=}, {run.project()=}, {run.run_id()=}, {dt.now()=}"
-    #         )
-    #         internal.send_artifacts_with_send_manager(
-    #             group,
-    #             run,
-    #             overrides=namespace.send_manager_overrides,
-    #             settings_override=settings_override,
-    #             config=send_manager_config,
-    #         )
-    #         _end_time = dt.now()
-    #         _total_time = (_end_time - _start_time).total_seconds()
-    #         print(
-    #             f"Done, {run.entity()=}, {run.project()=}, {run.run_id()=}, {_total_time=}"
-    #         )
-    #         progress.subtask_pbar.update(task, advance=len(group))
-
-    #     # query it back and remove placeholders
-    #     self._remove_placeholders(art)
-    #     progress.subtask_pbar.remove_task(task)
-
     def _remove_placeholders(self, art: Artifact) -> None:
         try:
             dst_versions = list(
@@ -913,21 +751,16 @@ class WandbImporter:
         for version in dst_versions:
             if version.description != ART_SEQUENCE_DUMMY_DESCRIPTION:
                 continue
+
+            if version.type in ("wandb-history", "job"):
+                print("Cannot delete system managed artifact.  Skipping.")
+                continue
+
             try:
                 version.delete(delete_aliases=True)
             except wandb.CommError as e:
                 if "cannot delete system managed artifact" not in str(e):
                     raise e
-
-                # system managed artifacts cant be deleted.  You need to delete the base run
-                try:
-                    print(
-                        "This is a system managed artifact.  The run cant be deleted so you prob have to delete the project..."
-                    )
-                    # run = version.logged_by()
-                    # run.delete()
-                except Exception as e:
-                    print(f"Problem: {e=}")
             finally:
                 progress.subtask_pbar.advance(task)
         progress.subtask_pbar.remove_task(task)
@@ -1102,10 +935,6 @@ class WandbImporter:
         src_df = src_df.fill_nan(None)
         dst_df = dst_df.fill_nan(None)
 
-        # print(
-        #     f"now comparing frames {src_run.entity=}, {src_run.project=}, {src_run.id=}"
-        # )
-
         non_matching = []
         for col in src_df.columns:
             src = src_df[col]
@@ -1172,21 +1001,6 @@ class WandbImporter:
             )
             if len(filtered_df) > 0:
                 yield seq
-
-            # art_name = f"{entity}/{project}/{name}"
-            # arts = self.src_api.artifact_versions(seq["type"], art_name)
-            # arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-            # yield ArtifactSequence(arts, entity, project)
-
-        # for seq in unique_failed_sequences.iter_rows(named=True):
-        #     entity = seq["entity"]
-        #     project = seq["project"]
-        #     name = seq["name"]
-
-        #     art_name = f"{entity}/{project}/{name}"
-        #     arts = self.src_api.artifact_versions(seq["type"], art_name)
-        #     arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-        #     yield ArtifactSequence(arts, entity, project)
 
     def _collect_failed_runs(self):
         try:
@@ -1442,30 +1256,9 @@ class WandbImporter:
         incremental: bool = True,
         max_workers: Optional[int] = None,
     ) -> None:
-        # reports = self._collect_reports_from_namespaces(namespaces)
-        # self.import_reports(reports)
-
-        # runs = self._collect_runs_from_namespaces(namespaces)
-        # self.import_runs(runs)
-
-        # artifact_sequences = self._collect_artifact_sequences_from_namespaces(
-        #     namespaces
-        # )
-
-        # # import the largest artifact sequences first becuase they will take the longest
-        # artifact_sequences = sorted(
-        #     artifact_sequences,
-        #     key=lambda s: sum(a.size for a in s.artifacts),
-        #     reverse=True,
-        # )
-        # self.import_artifact_sequences(artifact_sequences)
-
         self._validate_and_reimport_failed(
             namespaces, incremental=incremental, max_workers=max_workers
         )
-
-        # self._use_artifact_sequences(artifact_sequences)
-
         progress.live.refresh()
 
     def _validate_run(self, src_run: Run) -> Tuple[Run, List[str]]:
@@ -1620,54 +1413,9 @@ class WandbImporter:
 
         return (src_art, problems)
 
-    # def _validate_artifact_sequences_from_namespaces(
-    #     self, namespaces: Iterable[Namespace], incremental: bool = True
-    # ):
-    #     artifact_sequences = self._collect_artifact_sequences_from_namespaces(
-    #         namespaces
-    #     )
-    #     tuples = []
-    #     for seq in artifact_sequences:
-    #         for art in seq:
-    #             tup = (art, seq.entity, seq.project)
-    #             tuples.append(tup)
-    #     descr = "Validate artifacts"
-
-    #     if incremental:
-    #         tuples = list(self._filter_previously_checked_artifacts(tuples))
-    #         descr = "Incrementally validate artifacts"
-
-    #     # things = [art.name for art, _, _ in tuples]
-    #     # print(f"{things=}")
-
-    #     problems = parallelize(
-    #         lambda args: self._validate_artifact(*args),
-    #         tuples,
-    #         description=descr,
-    #     )
-
-    #     with open(ARTIFACT_ERRORS_JSONL_FNAME, "a") as f:
-    #         with open(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME, "a") as f2:
-    #             for art, problem in problems:
-    #                 name, ver = _get_art_name_ver(art)
-    #                 d = {
-    #                     "entity": art.entity,
-    #                     "project": art.project,
-    #                     "name": name,
-    #                     "version": ver,
-    #                     "type": art.type,
-    #                 }
-    #                 if problem:
-    #                     d["problems"] = problem
-    #                     f.write(json.dumps(d) + "\n")
-    #                 else:
-    #                     f2.write(json.dumps(d) + "\n")
-
     def _validate_artifact_sequences(self, seqs, incremental: bool = True):
-        # artifact_sequences = self._collect_artifact_sequences_from_namespaces(
-        #     namespaces
-        # )
         args = []
+        descr = "Validate artifacts"
         for seq in seqs:
             for art in seq:
                 logged_by = None
@@ -1682,18 +1430,10 @@ class WandbImporter:
 
                 tup = (art, seq.entity, seq.project)
                 args.append(tup)
-        descr = "Validate artifacts"
-
-        # print(f"{args=}")
 
         if incremental:
             args = list(self._filter_previously_checked_artifacts(args))
-            # print(f"{args=}")
-
             descr = "Incrementally validate artifacts"
-
-        # things = [art.name for art, _, _ in args]
-        # print(f"{things=}")
 
         problems = parallelize(
             lambda args: self._validate_artifact(*args),
@@ -1739,22 +1479,18 @@ class WandbImporter:
 
         names = [(s.entity, s.project, s.name) for s in failed_artifact_sequences]
         print(f"The failed artifact sequences are {names=}")
-
-        # import the largest artifact sequences first becuase they will take the longest
-        # failed_artifact_sequences = sorted(
-        #     failed_artifact_sequences,
-        #     key=lambda s: sum(a.size for a in s.artifacts),
-        #     reverse=True,
-        # )
         self._import_failed_artifact_sequences(
             failed_artifact_sequences, max_workers=max_workers
         )
 
-        # this is done a second time to make "run artifacts" work.
+        # this is done a second time to make "run artifacts" work.  The validation step should skip runs without
+        # run artifacts (if they were imported correctly), so this step should run a lot faster than the initial import.
         self._clear_run_errors()
         self._validate_runs_from_namespaces(namespaces, incremental=incremental)
         failed_runs = self._collect_failed_runs()
         self._import_failed_runs(failed_runs)
+
+        self._use_artifact_sequences(seqs)
 
     def _import_failed_artifact_sequences(
         self,
@@ -1963,15 +1699,6 @@ class WandbImporter:
                 finally:
                     progress.subtask_pbar.advance(task, 1)
             progress.subtask_pbar.remove_task(task)
-
-    # def _validate_run(self):
-    #     ...
-
-    # def _validate_artifact_sequence(self, sequence):
-    #     ...
-
-    # def _validate_report(self):
-    #     ...
 
     def _get_specific_sequence(self, art, entity, project, api: Optional[Api] = None):
         api = coalesce(api, self.src_api)
