@@ -983,11 +983,10 @@ class WandbImporter:
     def _clear_artifact_errors(self):
         with open(RUN_ERRORS_JSONL_FNAME, "w"):
             pass
-        
+
     def _clear_run_errors(self):
         with open(ARTIFACT_ERRORS_JSONL_FNAME, "w"):
             pass
-
 
     def _get_run_problems(self, src_run, dst_run):
         problems = []
