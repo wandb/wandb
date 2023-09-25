@@ -1727,6 +1727,10 @@ class WandbImporter:
         progress.live.start()
         self._clear_errors()
 
+        self._validate_runs_from_namespaces(namespaces, incremental=incremental)
+        failed_runs = self._collect_failed_runs()
+        self._import_failed_runs(failed_runs)
+
         seqs = list(self._collect_artifact_sequences_from_namespaces(namespaces))
         # print(f"{len(seqs)=}, {seqs=}")
         self._validate_artifact_sequences(seqs, incremental=incremental)
@@ -1745,10 +1749,9 @@ class WandbImporter:
             failed_artifact_sequences, max_workers=max_workers
         )
 
-        # import run history last because it could depend on some artifacts
-        self._validate_runs_from_namespaces(namespaces, incremental=incremental)
-        failed_runs = self._collect_failed_runs()
+        # do you have to do this twice?
         self._import_failed_runs(failed_runs)
+
 
     def _import_failed_artifact_sequences(
         self,
