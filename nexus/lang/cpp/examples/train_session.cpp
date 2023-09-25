@@ -1,11 +1,25 @@
+#include <fstream>
+#include <iostream>
+
 #include <libwandb_cpp.h>
+
+std::string readStringFromFile(const std::string &file_path) {
+  std::ifstream input_stream(file_path, std::ios_base::binary);
+  if (input_stream.fail()) {
+    throw std::runtime_error("could not open file");
+  }
+  std::string line;
+  std::getline(input_stream, line);
+  return line;
+}
 
 int main() {
   auto wb = new wandb::Session();
 
+  auto apiKey = readStringFromFile("apikey.txt");
   wb->loginSession({
       wandb::session::WithHostname("host"),
-      wandb::session::WithAPIKey("myapikey"),
+      wandb::session::WithAPIKey(apiKey),
   });
   wandb::Config config = {
       {"param1", 4},
