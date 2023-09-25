@@ -735,6 +735,7 @@ class WandbImporter:
                 config=send_manager_config,
             )
             progress.subsubtask_pbar.remove_task(t)
+            print(f"Finished sending artifact {base_descr}")
 
             progress.subtask_pbar.update(task, advance=1)
 
