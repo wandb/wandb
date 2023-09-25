@@ -650,6 +650,7 @@ class WandbImporter:
                 for pattern in ignore_patterns:
                     if re.search(pattern, art.name):
                         return
+                placeholder_run = special_logged_by(self.src_api.client, art)
             return
 
         # Delete any existing artifact sequence, otherwise versions will be out of order
