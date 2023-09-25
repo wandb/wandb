@@ -463,7 +463,6 @@ class LaunchAgent:
                             file_saver = RunQueueItemFileSaver(
                                 self._wandb_run, job["runQueueItemId"]
                             )
-                            runSpec = job.get("runSpec")
                             if _is_scheduler_job(job.get("runSpec", {})):
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
