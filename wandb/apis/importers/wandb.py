@@ -1593,7 +1593,9 @@ class WandbImporter:
                 try:
                     collections = [c for c in _type.collections()]
                 except Exception as e:
-                    print(f"Problem getting artifact type {_type=}, {e=}")
+                    print(
+                        f"Problem getting collection {_type.entity=}, {_type.project=}, {_type.name=}, {e=}"
+                    )
                     collections = []
 
                 t3 = progress.subsubtask_pbar.add_task(
