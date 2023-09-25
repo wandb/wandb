@@ -282,7 +282,8 @@ class LaunchAgent:
         exception: Optional[Union[Exception, LaunchDockerError]] = None,
     ) -> None:
         """Removes the job from our list for now."""
-        job_and_run_status = self._jobs[thread_id]
+        with self._jobs_lock:
+            job_and_run_status = self._jobs[thread_id]
         if (
             job_and_run_status.entity is not None
             and job_and_run_status.entity != self._entity
