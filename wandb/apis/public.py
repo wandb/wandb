@@ -4293,8 +4293,8 @@ class RunArtifacts(Paginator):
     def convert_objects(self):
         return [
             wandb.Artifact._from_attrs(
-                self.run.entity,
-                self.run.project,
+                r["node"]["artifactSequence"]["project"]["entityName"],
+                r["node"]["artifactSequence"]["project"]["name"],
                 "{}:v{}".format(
                     r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
                 ),
