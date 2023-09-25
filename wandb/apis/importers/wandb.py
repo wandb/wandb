@@ -1425,6 +1425,10 @@ class WandbImporter:
                     logged_by = art.logged_by()
                 except ValueError as e:
                     print(f"problem with getting logged by {e=}")
+                except requests.HTTPError as e:
+                    # it failed so skip for now
+                    print(f"Some http error: {e=}")
+                    continue
 
                 if art.type == "wandb-history" and logged_by is None:
                     # We can never upload valid history for a deleted run, so skip it
