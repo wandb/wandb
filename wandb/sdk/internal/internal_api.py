@@ -3357,11 +3357,11 @@ class Api:
             values += "distributedID: $distributedID,"
 
         if "clientID" in fields:
-            types += "$clientID: ID!,"
+            types += "$clientID: ID,"
             values += "clientID: $clientID,"
 
         if "sequenceClientID" in fields:
-            types += "$sequenceClientID: ID!,"
+            types += "$sequenceClientID: ID,"
             values += "sequenceClientID: $sequenceClientID,"
 
         if "enableDigestDeduplication" in fields:

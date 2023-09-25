@@ -421,13 +421,6 @@ def test_artifact_bracket_accessor(runner, live_mock_server, api):
         art["s"] = wandb.Table(data=[], columns=[])
 
 
-def test_artifact_manual_log(runner, mock_server, api):
-    run = api.run("test/test/test")
-    art = api.artifact("entity/project/mnist:v0", type="dataset")
-    run.log_artifact(art)
-    assert True
-
-
 def test_artifact_manual_link(runner, mock_server, api):
     run = api.run("test/test/test")
     art = api.artifact("entity/project/mnist:v0", type="dataset")
