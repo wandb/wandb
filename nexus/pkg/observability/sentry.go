@@ -37,6 +37,9 @@ func InitSentry(disabled bool, commit string) {
 		BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
 			// Modify the stack trace by checking the file name of the bottom-most 3 frames.
 			for i, exception := range event.Exception {
+				if exception.Stacktrace == nil {
+					continue
+				}
 				frames := exception.Stacktrace.Frames
 				framesLen := len(frames)
 				// for the recovered panics, the bottom-most 3 frames of the stacktrace
