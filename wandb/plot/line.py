@@ -9,6 +9,7 @@ def line(
     y: str,
     stroke: Optional[str] = None,
     title: Optional[str] = None,
+    log_table_separately: Optional[bool] = False,
 ):
     """Construct a line plot.
 
@@ -30,5 +31,5 @@ def line(
         ```
     """
     return wandb.plot_table(
-        "wandb/line/v0", table, {"x": x, "y": y, "stroke": stroke}, {"title": title}
+        "wandb/line/v0", table, {"x": x, "y": y, "stroke": stroke}, {"title": title}, log_table_separately=log_table_separately
     )
