@@ -980,12 +980,14 @@ class WandbImporter:
 
         return self.dst_api.run(f"{entity}/{project}/{run_id}")
 
-    def _clear_errors(self):
+    def _clear_artifact_errors(self):
+        with open(RUN_ERRORS_JSONL_FNAME, "w"):
+            pass
+        
+    def _clear_run_errors(self):
         with open(ARTIFACT_ERRORS_JSONL_FNAME, "w"):
             pass
 
-        with open(RUN_ERRORS_JSONL_FNAME, "w"):
-            pass
 
     def _get_run_problems(self, src_run, dst_run):
         problems = []
@@ -1727,14 +1729,14 @@ class WandbImporter:
         max_workers: Optional[int] = None,
     ):
         progress.live.start()
-        self._clear_errors()
 
+        self._clear_run_errors()
         self._validate_runs_from_namespaces(namespaces, incremental=incremental)
         failed_runs = self._collect_failed_runs()
         self._import_failed_runs(failed_runs)
 
+        self._clear_artifact_errors()
         seqs = list(self._collect_artifact_sequences_from_namespaces(namespaces))
-        # print(f"{len(seqs)=}, {seqs=}")
         self._validate_artifact_sequences(seqs, incremental=incremental)
         failed_artifact_sequences = list(self._filter_failed_artifact_sequences(seqs))
 

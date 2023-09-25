@@ -199,9 +199,9 @@ def parallelize(
                 traceback_details = traceback.extract_tb(exc_traceback)
                 filename = traceback_details[-1].filename
                 lineno = traceback_details[-1].lineno
-
-                print(f"Exception: {run=} {e=} {filename=} {lineno=}. {traceback_details=}")
-                # exc.shutdown(cancel_futures=True)
+                print(
+                    f"Exception: {run=} {e=} {filename=} {lineno=}. {traceback_details=}"
+                )
                 continue
             else:
                 results.append(result)
