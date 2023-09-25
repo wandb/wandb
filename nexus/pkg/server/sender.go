@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wandb/wandb/nexus/internal/debounce"
+
 	"github.com/wandb/wandb/nexus/internal/clients"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
@@ -67,6 +69,8 @@ type Sender struct {
 	telemetry *service.TelemetryRecord
 
 	ms *MetricSender
+
+	configDebouncer *debounce.Debouncer
 
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
@@ -157,6 +161,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		)
 
 	}
+	sender.configDebouncer = debounce.NewDebouncer(30 * time.Second)
 	return sender
 }
 
@@ -545,15 +550,9 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 	s.fileStream.StreamRecord(record)
 }
 
-// sendConfig sends a config record to the server via an upsertBucket mutation
-// and updates the in memory config
-func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
+func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
-	}
-
-	if configRecord != nil {
-		s.updateConfig(configRecord)
 	}
 
 	config := s.serializeConfig()
@@ -584,6 +583,15 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
 	}
+}
+
+// sendConfig sends a config record to the server via an upsertBucket mutation
+// and updates the in memory config
+func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
+	if configRecord != nil {
+		s.updateConfig(configRecord)
+	}
+	s.configDebouncer.Debounce(s.upsertConfig)
 }
 
 // sendSystemMetrics sends a system metrics record via the file stream

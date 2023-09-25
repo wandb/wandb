@@ -13,6 +13,10 @@ func NewDebouncer(duration time.Duration) *Debouncer {
 	}
 }
 
+func (d *Debouncer) Start(f func()) {
+	d.timer = time.AfterFunc(d.debounceDuration, f)
+}
+
 func (d *Debouncer) Debounce(f func()) {
 	if d.timer != nil {
 		d.timer.Stop()
