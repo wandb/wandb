@@ -651,7 +651,8 @@ class WandbImporter:
                     if re.search(pattern, art.name):
                         return
                 placeholder_run = special_logged_by(self.src_api.client, art)
-            return
+            else:
+                return
 
         # Delete any existing artifact sequence, otherwise versions will be out of order
         self._delete_collection_in_dst(art, namespace.entity, namespace.project)
