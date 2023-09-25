@@ -418,7 +418,7 @@ class WandbRun:
             art_path = f"{self.entity()}/{self.project()}/run-{self.run_id()}-{table_key}:latest"
             art = None
 
-            # Try to pick up the artifact within 20 seconds
+            # Try to pick up the artifact within 6 seconds
             for _ in range(3):
                 try:
                     art = self.dst_api.artifact(art_path, type="run_table")
@@ -1726,10 +1726,6 @@ class WandbImporter:
         progress.live.start()
         self._clear_errors()
 
-        self._validate_runs_from_namespaces(namespaces, incremental=incremental)
-        failed_runs = self._collect_failed_runs()
-        self._import_failed_runs(failed_runs)
-
         seqs = list(self._collect_artifact_sequences_from_namespaces(namespaces))
         # print(f"{len(seqs)=}, {seqs=}")
         self._validate_artifact_sequences(seqs, incremental=incremental)
@@ -1747,6 +1743,11 @@ class WandbImporter:
         self._import_failed_artifact_sequences(
             failed_artifact_sequences, max_workers=max_workers
         )
+
+        # import run history last because it could depend on some artifacts
+        self._validate_runs_from_namespaces(namespaces, incremental=incremental)
+        failed_runs = self._collect_failed_runs()
+        self._import_failed_runs(failed_runs)
 
     def _import_failed_artifact_sequences(
         self,
