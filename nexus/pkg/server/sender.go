@@ -161,6 +161,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 
 // do sending of messages to the server
 func (s *Sender) do(inChan <-chan *service.Record) {
+	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
 	for record := range inChan {

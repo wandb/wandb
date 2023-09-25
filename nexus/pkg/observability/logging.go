@@ -2,7 +2,6 @@ package observability
 
 import (
 	"context"
-
 	"log/slog"
 )
 
@@ -62,6 +61,10 @@ func (nl *NexusLogger) SetTags(tags Tags) {
 	}
 }
 
+func (nl *NexusLogger) GetTags() Tags {
+	return nl.tags
+}
+
 // CaptureError logs an error and sends it to sentry.
 func (nl *NexusLogger) CaptureError(msg string, err error, args ...interface{}) {
 	nl.Logger.Error(msg, args...)
@@ -116,4 +119,11 @@ func (nl *NexusLogger) CaptureWarn(msg string, args ...interface{}) {
 	tags := nl.tagsFromArgs(args...)
 	// send message to sentry:
 	CaptureMessage(msg, tags)
+}
+
+// Reraise is used to capture unexpected panics with sentry and reraise them.
+func (nl *NexusLogger) Reraise(args ...any) {
+	if err := recover(); err != nil {
+		Reraise(err, nl.tagsFromArgs(args...))
+	}
 }

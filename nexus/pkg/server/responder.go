@@ -20,7 +20,8 @@ type Dispatcher struct {
 }
 
 // do is the main loop of the dispatcher to process incoming messages
-func (s *Dispatcher) do(hChan, sChan <-chan *service.Result) {
+func (d *Dispatcher) do(hChan, sChan <-chan *service.Result) {
+	defer d.logger.Reraise()
 	for hChan != nil || sChan != nil {
 		select {
 		case result, ok := <-hChan:
@@ -28,38 +29,38 @@ func (s *Dispatcher) do(hChan, sChan <-chan *service.Result) {
 				hChan = nil
 				continue
 			}
-			s.handleRespond(result)
+			d.handleRespond(result)
 		case result, ok := <-sChan:
 			if !ok {
 				sChan = nil
 				continue
 			}
-			s.handleRespond(result)
+			d.handleRespond(result)
 		}
 	}
-	s.logger.Debug("dispatch: finished")
+	d.logger.Debug("dispatch: finished")
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
-func (s *Dispatcher) AddResponders(entries ...ResponderEntry) {
-	if s.responders == nil {
-		s.responders = make(map[string]Responder)
+func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
+	if d.responders == nil {
+		d.responders = make(map[string]Responder)
 	}
 	for _, entry := range entries {
 		responderId := entry.ID
-		if _, ok := s.responders[responderId]; !ok {
-			s.responders[responderId] = entry.Responder
+		if _, ok := d.responders[responderId]; !ok {
+			d.responders[responderId] = entry.Responder
 		} else {
-			s.logger.CaptureWarn("Responder already exists", "responder", responderId)
+			d.logger.CaptureWarn("Responder already exists", "responder", responderId)
 		}
 	}
 }
 
-func (s *Dispatcher) handleRespond(result *service.Result) {
+func (d *Dispatcher) handleRespond(result *service.Result) {
 	responderId := result.GetControl().GetConnectionId()
-	s.logger.Debug("dispatch: got result", "result", result)
+	d.logger.Debug("dispatch: got result", "result", result)
 	if responderId == "" {
-		s.logger.Debug("dispatch: got result with no connection id", "result", result)
+		d.logger.Debug("dispatch: got result with no connection id", "result", result)
 		return
 	}
 	response := &service.ServerResponse{
@@ -67,7 +68,7 @@ func (s *Dispatcher) handleRespond(result *service.Result) {
 			ResultCommunicate: result,
 		},
 	}
-	s.responders[responderId].Respond(response)
+	d.responders[responderId].Respond(response)
 }
 
 func NewDispatcher(logger *observability.NexusLogger) *Dispatcher {
