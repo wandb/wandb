@@ -543,7 +543,8 @@ class LaunchAgent:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             exception = e
             wandb._sentry.exception(e)
-        self.finish_thread_id(thread_id, exception)
+        finally:
+            self.finish_thread_id(thread_id, exception)
 
     def _thread_run_job(
         self,
