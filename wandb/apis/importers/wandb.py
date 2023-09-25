@@ -434,6 +434,7 @@ class WandbRun:
                             "run_id": self.run_id(),
                         },
                     )
+                    print("BUSTED TABLE ART")
                 else:
                     break
 
