@@ -273,6 +273,7 @@ def test_run_queue(user):
         queue.delete()
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_run_log_artifact(relay_server, wandb_init):
     with relay_server():
         # Prepare data.
