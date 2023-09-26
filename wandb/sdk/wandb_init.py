@@ -642,6 +642,9 @@ class _WandbInit:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()
             tel.platform = f"{platform.system()}-{platform.machine()}".lower()
+            launch_run_queue_item_id = wandb.env.get_launch_run_queue_item_id()
+            if launch_run_queue_item_id:
+                tel.launch_run_queue_item_id = launch_run_queue_item_id
             hf_version = _huggingface_version()
             if hf_version:
                 tel.huggingface_version = hf_version

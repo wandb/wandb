@@ -64,6 +64,7 @@ class LaunchProject:
         resource_args: Dict[str, Any],
         run_id: Optional[str],
         sweep_id: Optional[str] = None,
+        rqi_id: Optional[str] = None,
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -110,6 +111,7 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
+        self.rqi_id = rqi_id
         self._entry_point: Optional[
             EntryPoint
         ] = None  # todo: keep multiple entrypoint support?
@@ -455,7 +457,9 @@ def get_entry_point_command(
     return entry_point.compute_command(parameters)
 
 
-def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
+def create_project_from_spec(
+    launch_spec: Dict[str, Any], api: Api, rqi_id: str = None
+) -> LaunchProject:
     """Constructs a LaunchProject instance using a launch spec.
 
     Arguments:
@@ -483,6 +487,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("resource_args", {}),
         launch_spec.get("run_id", None),
         launch_spec.get("sweep_id", {}),
+        rqi_id,
     )
 
 

@@ -84,6 +84,7 @@ INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
 _EXECUTABLE = "WANDB_EXECUTABLE"
+LAUNCH_RUN_QUEUE_ITEM_ID = "LAUNCH_RUN_QUEUE_ITEM_ID"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -439,4 +440,11 @@ def disable_git(env: Optional[Env] = None) -> bool:
     val = env.get(DISABLE_GIT, default="False")
     if isinstance(val, str):
         val = False if val.lower() == "false" else True
+    return val
+
+
+def get_launch_run_queue_item_id(env: Optional[Env] = None) -> bool:
+    if env is None:
+        env = os.environ
+    val = str(env.get(LAUNCH_RUN_QUEUE_ITEM_ID, ""))
     return val

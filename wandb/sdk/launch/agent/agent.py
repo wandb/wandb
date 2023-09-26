@@ -560,7 +560,7 @@ class LaunchAgent:
         thread_id: int,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
-        project = create_project_from_spec(launch_spec, api)
+        project = create_project_from_spec(launch_spec, api, job["runQueueItemId"])
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         # don't launch sweep runs if the sweep isn't healthy
         if launch_spec.get("sweep_id"):

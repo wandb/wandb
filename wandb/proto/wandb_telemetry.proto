@@ -21,6 +21,7 @@ message TelemetryRecord {
   Issues issues = 11;
   string core_version = 12;
   string platform = 13;
+  string launch_run_queue_item_id = 14;
   _RecordInfo _info = 200;
 }
 
