@@ -46,7 +46,7 @@ func (d *Debouncer) Debounce(f func()) {
 			fmt.Println("Context done, sending last request")
 			f()
 			return
-		case _ = <-d.tokenChan:
+		case <-d.tokenChan:
 			// Wait for the next opportunity to send a request
 			err := d.limiter.Wait(d.ctx)
 			if err != nil {
