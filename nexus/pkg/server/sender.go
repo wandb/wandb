@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/wandb/wandb/nexus/internal/debounce"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/wandb/wandb/nexus/internal/debounce"
 
 	"github.com/wandb/wandb/nexus/internal/clients"
 	"github.com/wandb/wandb/nexus/internal/gql"
@@ -29,7 +28,9 @@ import (
 const (
 	MetaFilename = "wandb-metadata.json"
 	// RFC3339Micro Modified from time.RFC3339Nano
-	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
+	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
+	configDebouncerRateLimit = 2
+	configDebouncerBurstSize = 10
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -160,7 +161,8 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		)
 
 	}
-	sender.configDebouncer = debounce.NewDebouncer(30 * time.Second)
+	sender.configDebouncer = debounce.NewDebouncer(configDebouncerRateLimit, configDebouncerBurstSize)
+
 	return sender
 }
 
@@ -168,6 +170,8 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 func (s *Sender) do(inChan <-chan *service.Record) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
+
+	go s.configDebouncer.Debounce(s.upsertConfig)
 
 	for record := range inChan {
 		s.sendRecord(record)
@@ -281,6 +285,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
+		s.configDebouncer.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -591,7 +596,7 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	if configRecord != nil {
 		s.updateConfig(configRecord)
 	}
-	s.configDebouncer.Debounce(s.upsertConfig)
+	s.configDebouncer.Trigger()
 }
 
 // sendSystemMetrics sends a system metrics record via the file stream
