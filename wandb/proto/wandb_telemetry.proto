@@ -191,6 +191,7 @@ message Feature {
   bool cohere_autolog = 53; // Cohere autolog used
   bool hf_pipeline_autolog = 54; // HuggingFace Autologging
   bool nexus = 55; // Using wandb nexus internal process
+  bool lib_cpp = 56; // Using cpp wandb library
 }
 
 message Env {
