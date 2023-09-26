@@ -41,9 +41,14 @@ func NewSettings(args ...any) *SettingsWrap {
 		runMode = "offline-run"
 	}
 
+	baseURL := os.Getenv("WANDB_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://api.wandb.ai"
+	}
+
 	settings := &service.Settings{
 		BaseUrl: &wrapperspb.StringValue{
-			Value: "https://api.wandb.ai",
+			Value: baseURL,
 		},
 		RootDir: &wrapperspb.StringValue{
 			Value: rootDir,
@@ -79,6 +84,12 @@ func NewSettings(args ...any) *SettingsWrap {
 			Value: true,
 		},
 	}
+
+	apiKey := os.Getenv("WANDB_API_KEY")
+	if apiKey != "" {
+		settings.ApiKey = &wrapperspb.StringValue{Value: apiKey}
+	}
+
 	return &SettingsWrap{settings}
 }
 
