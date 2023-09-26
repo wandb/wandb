@@ -38,12 +38,21 @@ func wandbcoreSetup() {
 
 //export wandbcoreInit
 func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t) int {
+	options := []runopts.RunOption{}
 	wandbcoreSetup()
 
 	configData := wandbData.Get(configDataNum)
-	run, err := wandbSession.NewRun(
-		runopts.WithConfig(runconfig.Config(configData)),
-	)
+	options = append(options, runopts.WithConfig(runconfig.Config(configData)))
+	goName := C.GoString(name)
+	if goName != "" {
+		options = append(options, runopts.WithName(goName))
+	}
+	goRunID := C.GoString(runID)
+	if goRunID != "" {
+		options = append(options, runopts.WithRunID(goRunID))
+	}
+
+	run, err := wandbSession.NewRun(options...)
 	if err != nil {
 		panic(err)
 	}

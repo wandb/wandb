@@ -10,7 +10,7 @@ void wandb_setup() {
 
 int wandb_init(wandb_run *run) {
     wandb_setup();
-    int n = wandbcoreInit(0, NULL, NULL);
+    int n = wandbcoreInit(0, "", "");
     run->num = n;
     return 0;
 }

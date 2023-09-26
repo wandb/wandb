@@ -23,6 +23,7 @@ type Run struct {
 	conn           *Connection
 	wg             sync.WaitGroup
 	run            *service.RunRecord
+	params         *runopts.RunParams
 	partialHistory History
 }
 
@@ -34,6 +35,7 @@ func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, r
 		conn:     conn,
 		wg:       sync.WaitGroup{},
 		config:   runParams.Config,
+		params:   runParams,
 	}
 	run.resetPartialHistory()
 	return run
@@ -78,6 +80,9 @@ func (r *Run) init() {
 			ValueJson: string(data),
 		})
 	}
+	// if r.params.RunName != nil {
+	// 	RunName = *r.params.RunName
+	// }
 	runRecord := service.Record_Run{Run: &service.RunRecord{
 		RunId:  r.settings.GetRunId().GetValue(),
 		Config: config,

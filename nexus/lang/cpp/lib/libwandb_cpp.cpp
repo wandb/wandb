@@ -96,19 +96,11 @@ Session *Session::GetInstance() {
   return defaultSession_;
 }
 
-Run Session::_initRun(const Settings *settings, const Config *config, const std::string *name, const std::string *runID) {
+Run Session::_initRun(const Settings *settings, const Config *config, const std::string name, const std::string runID) {
   _session_setup();
 
   auto configData = new Data(config);
-  const char *cName = NULL;
-  const char *cRunID = NULL;
-  if (name != nullptr) {
-      cName = name->c_str();
-  }
-  if (runID != nullptr) {
-      cRunID = runID->c_str();
-  }
-  int n = wandbcoreInit(configData->num, cName, cRunID);
+  int n = wandbcoreInit(configData->num, name.c_str(), runID.c_str());
   Run r;
   r._num = n;
   return r;
@@ -117,26 +109,28 @@ Run Session::_initRun(const Settings *settings, const Config *config, const std:
 Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
   const Settings *settings;
   const Config *config;
-  const std::string *name;
-  const std::string *runID;
+  std::string name;
+  std::string runID;
+  printf("DEBUG initrun start %s %s\n", name.c_str(), runID.c_str());
   for (auto item : options) {
-    auto withSettings = static_cast<run::WithSettings *>(&item);
-    if (withSettings != nullptr) {
-      settings = withSettings->getSettings();
+    auto optionSettings = item.getSettings();
+    if (optionSettings != nullptr) {
+      settings = optionSettings;
     }
-    auto withConfig = static_cast<run::WithConfig *>(&item);
-    if (withConfig != nullptr) {
-      config = withConfig->getConfig();
+    auto optionConfig = item.getConfig();
+    if (optionConfig != nullptr) {
+      config = optionConfig;
     }
-    auto withName = static_cast<run::WithName *>(&item);
-    if (withName != nullptr) {
-      name = withName->getName();
+    auto optionName = item.getName();
+    if (!optionName.empty()) {
+      name = optionName;
     }
-    auto withRunID = static_cast<run::WithRunID *>(&item);
-    if (withRunID != nullptr) {
-      runID = withRunID->getRunID();
+    auto optionRunID = item.getRunID();
+    if (!optionRunID.empty()) {
+      runID = optionRunID;
     }
   }
+  printf("DEBUG initrun final %s %s\n", name.c_str(), runID.c_str());
   return this->_initRun(settings, config, name, runID);
 }
 
@@ -165,12 +159,12 @@ Run initRun() { return initRun({}); }
 namespace run {
 const Settings *InitRunOption::getSettings() { return this->settings; }
 const Config *InitRunOption::getConfig() { return this->config; }
-const std::string *InitRunOption::getName() { return this->name; }
-const std::string *InitRunOption::getRunID() { return this->runID; }
+const std::string InitRunOption::getName() { return this->name; }
+const std::string InitRunOption::getRunID() { return this->runID; }
 WithSettings::WithSettings(const Settings &s) { this->settings = &s; }
 WithConfig::WithConfig(const Config &c) { this->config = &c; }
-WithName::WithName(const std::string &n) { this->name = &n; }
-WithRunID::WithRunID(const std::string &i) { this->runID = &i; }
+WithName::WithName(const std::string &n) { this->name = n; }
+WithRunID::WithRunID(const std::string &i) { this->runID = i; }
 
 } // namespace run
 

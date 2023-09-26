@@ -53,7 +53,7 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store, err = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), nil)
+	w.store, err = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
 	}
