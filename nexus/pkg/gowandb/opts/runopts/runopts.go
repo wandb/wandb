@@ -7,8 +7,8 @@ import (
 
 type RunParams struct {
 	Config *runconfig.Config
-	Name *string
-	RunID *string
+	Name   *string
+	RunID  *string
 }
 
 type RunOption func(*RunParams)
