@@ -1,4 +1,3 @@
-#include<unistd.h>
 #include <libwandb_cpp.h>
 
 int main() {

@@ -15,7 +15,9 @@ rm -rf tmpbuild
 mkdir tmpbuild
 # build binary
 cd ..
-go build -o lang/tmpbuild/embed-nexus.bin cmd/nexus/main.go
+CGO_ENABLED=1 go build \
+  -ldflags "-extldflags \"-fuse-ld=gold -Wl,--weak-unresolved-symbols\"" \
+  -o lang/tmpbuild/embed-nexus.bin cmd/nexus/main.go
 cd -
 
 # build shared-library

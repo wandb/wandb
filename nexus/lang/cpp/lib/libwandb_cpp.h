@@ -88,7 +88,7 @@ public:
 };
 
 namespace session {
-// TODO(login): Do not expose loginSession until we have implemented login in gowandb
+// TODO(login): Do not expose loginSession until gowandb login is implemented
 // class LoginSessionOption {
 // public:
 //   LoginSessionOption(){};
@@ -107,6 +107,7 @@ namespace session {
 class SessionOption {
 protected:
   const Settings *settings;
+
 public:
   SessionOption(){};
 };
@@ -123,17 +124,16 @@ private:
   static Session *defaultSession_;
 
   Run _initRun(const Settings *settings = nullptr,
-               const Config *config = nullptr,
-               const std::string name = "",
+               const Config *config = nullptr, const std::string name = "",
                const std::string runID = "");
 
 public:
   Session(Settings *settings = nullptr);
   Run initRun();
   Run initRun(const std::initializer_list<run::InitRunOption> &options);
-// TODO(login): Do not expose loginSession until we have implemented login in gowandb
-//  void loginSession(
-//      const std::initializer_list<session::LoginSessionOption> &options);
+  // TODO(login): Do not expose loginSession until gowandb login is implemented
+  // void loginSession(
+  //     const std::initializer_list<session::LoginSessionOption> &options);
 
   static Session *GetInstance();
 };

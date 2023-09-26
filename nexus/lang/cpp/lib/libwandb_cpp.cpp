@@ -96,7 +96,8 @@ Session *Session::GetInstance() {
   return defaultSession_;
 }
 
-Run Session::_initRun(const Settings *settings, const Config *config, const std::string name, const std::string runID) {
+Run Session::_initRun(const Settings *settings, const Config *config,
+                      const std::string name, const std::string runID) {
   _session_setup();
 
   auto configData = new Data(config);
@@ -135,13 +136,13 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
 namespace session {
 WithSettings::WithSettings(const Settings &s) { this->settings = &s; }
 
-// TODO(login): Do not expose loginSession until we have implemented login in gowandb
+// TODO(login): Do not expose loginSession until gowandb login is implemented
 // WithAPIKey::WithAPIKey(const std::string apiKey){};
 // WithHostname::WithHostname(const std::string hostname){};
 
 } // namespace session
 
-// TODO(login): Do not expose loginSession until we have implemented login in gowandb
+// TODO(login): Do not expose loginSession until gowandb login is implemented
 // void Session::loginSession(
 //     const std::initializer_list<session::LoginSessionOption> &options) {}
 

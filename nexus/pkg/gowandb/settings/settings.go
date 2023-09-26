@@ -66,7 +66,7 @@ func NewSettings(args ...any) *SettingsWrap {
 			Value: timeStamp,
 		},
 		XDisableStats: &wrapperspb.BoolValue{
-			Value: true,
+			Value: false,
 		},
 		XOffline: &wrapperspb.BoolValue{
 			Value: (mode == "offline"),
