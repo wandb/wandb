@@ -40,7 +40,6 @@ func (d *Debouncer) Close() {
 
 func (d *Debouncer) Trigger() {
 	select {
-	// todo: verify that this is actually non-blocking :)
 	case d.tokenChan <- struct{}{}:
 		// Triggered
 	default:
