@@ -88,20 +88,34 @@ public:
 };
 
 namespace session {
-class LoginSessionOption {
+// TODO(login): Do not expose loginSession until we have implemented login in gowandb
+// class LoginSessionOption {
+// public:
+//   LoginSessionOption(){};
+// };
+//
+// class WithAPIKey : public LoginSessionOption {
+// public:
+//   WithAPIKey(const std::string apiKey);
+// };
+//
+// class WithHostname : public LoginSessionOption {
+// public:
+//   WithHostname(const std::string hostname);
+// };
+
+class SessionOption {
+protected:
+  const Settings *settings;
 public:
-  LoginSessionOption(){};
+  SessionOption(){};
 };
 
-class WithAPIKey : public LoginSessionOption {
+class WithSettings : public SessionOption {
 public:
-  WithAPIKey(const std::string apiKey);
+  WithSettings(const Settings &s);
 };
 
-class WithHostname : public LoginSessionOption {
-public:
-  WithHostname(const std::string hostname);
-};
 } // namespace session
 
 class Session {
@@ -117,8 +131,9 @@ public:
   Session(Settings *settings = nullptr);
   Run initRun();
   Run initRun(const std::initializer_list<run::InitRunOption> &options);
-  void loginSession(
-      const std::initializer_list<session::LoginSessionOption> &options);
+// TODO(login): Do not expose loginSession until we have implemented login in gowandb
+//  void loginSession(
+//      const std::initializer_list<session::LoginSessionOption> &options);
 
   static Session *GetInstance();
 };

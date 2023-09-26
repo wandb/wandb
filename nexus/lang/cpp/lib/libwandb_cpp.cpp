@@ -141,13 +141,17 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
 }
 
 namespace session {
-WithAPIKey::WithAPIKey(const std::string apiKey){};
+WithSettings::WithSettings(const Settings &s) { this->settings = &s; }
 
-WithHostname::WithHostname(const std::string hostname){};
+// TODO(login): Do not expose loginSession until we have implemented login in gowandb
+// WithAPIKey::WithAPIKey(const std::string apiKey){};
+// WithHostname::WithHostname(const std::string hostname){};
+
 } // namespace session
 
-void Session::loginSession(
-    const std::initializer_list<session::LoginSessionOption> &options) {}
+// TODO(login): Do not expose loginSession until we have implemented login in gowandb
+// void Session::loginSession(
+//     const std::initializer_list<session::LoginSessionOption> &options) {}
 
 Run Session::initRun() { return this->initRun({}); }
 
@@ -161,6 +165,8 @@ Run initRun() { return initRun({}); }
 namespace run {
 const Settings *InitRunOption::getSettings() { return this->settings; }
 const Config *InitRunOption::getConfig() { return this->config; }
+const std::string *InitRunOption::getName() { return this->name; }
+const std::string *InitRunOption::getRunID() { return this->runID; }
 WithSettings::WithSettings(const Settings &s) { this->settings = &s; }
 WithConfig::WithConfig(const Config &c) { this->config = &c; }
 WithName::WithName(const std::string &n) { this->name = &n; }
