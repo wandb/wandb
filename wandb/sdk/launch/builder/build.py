@@ -240,7 +240,7 @@ def get_env_vars_dict(
     if launch_project.launch_spec.get("_resume_count", 0) > 0:
         env_vars["WANDB_RESUME"] = "allow"
     if launch_project.rqi_id:
-        env_vars["WANDB_LAUNCH_RQI_ID"] = launch_project.rqi_id
+        env_vars["LAUNCH_RUN_QUEUE_ITEM_ID"] = launch_project.rqi_id
 
     _inject_wandb_config_env_vars(
         launch_project.override_config, env_vars, max_env_length
