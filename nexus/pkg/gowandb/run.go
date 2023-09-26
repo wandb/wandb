@@ -80,11 +80,13 @@ func (r *Run) init() {
 			ValueJson: string(data),
 		})
 	}
-	// if r.params.RunName != nil {
-	// 	RunName = *r.params.RunName
-	// }
+	var DisplayName string
+	if r.params.Name != nil {
+		DisplayName = *r.params.Name
+	}
 	runRecord := service.Record_Run{Run: &service.RunRecord{
 		RunId:  r.settings.GetRunId().GetValue(),
+		DisplayName: DisplayName,
 		Config: config,
 		XInfo:  &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}

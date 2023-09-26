@@ -2,7 +2,6 @@ package gowandb
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
@@ -36,7 +35,6 @@ func (m *Manager) NewRun(runParams *runopts.RunParams) *Run {
 	conn := m.Connect(m.ctx)
 	// make a copy of the base manager settings
 	runSettings := m.settings.Copy()
-	fmt.Printf("GOT %+v\n", runParams)
 	if runParams.RunID != nil {
 		runSettings.SetRunID(*runParams.RunID)
 	} else if runSettings.RunId == nil {

@@ -111,7 +111,6 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
   const Config *config;
   std::string name;
   std::string runID;
-  printf("DEBUG initrun start %s %s\n", name.c_str(), runID.c_str());
   for (auto item : options) {
     auto optionSettings = item.getSettings();
     if (optionSettings != nullptr) {
@@ -130,7 +129,6 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
       runID = optionRunID;
     }
   }
-  printf("DEBUG initrun final %s %s\n", name.c_str(), runID.c_str());
   return this->_initRun(settings, config, name, runID);
 }
 

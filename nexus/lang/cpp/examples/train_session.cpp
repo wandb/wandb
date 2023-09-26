@@ -11,8 +11,8 @@ int main() {
   };
   auto run = wb->initRun({
       wandb::run::WithConfig(config),
-      wandb::run::WithRunID("runid"),
-      wandb::run::WithName("sample run name"),
+      // wandb::run::WithRunID("runid"),
+      // wandb::run::WithName("sample run name"),
   });
 
   for (int i = 0; i < 5; i++) {
