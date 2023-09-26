@@ -171,6 +171,7 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
+	// todo: spin up the goroutine in the Debounce method instead of here
 	go s.configDebouncer.Debounce(s.upsertConfig)
 
 	for record := range inChan {
