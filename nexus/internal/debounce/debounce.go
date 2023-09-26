@@ -2,8 +2,9 @@ package debounce
 
 import (
 	"context"
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"sync"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"golang.org/x/time/rate"
 )
