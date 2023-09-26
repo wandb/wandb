@@ -193,7 +193,7 @@ class S3Handler(StorageHandler):
                 newline=False,
             )
             if key != "":
-                objs = objs = (
+                objs = (
                     self._s3.Bucket(bucket)
                     .objects.filter(Prefix=key)
                     .limit(max_objects)
