@@ -162,7 +162,11 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		)
 
 	}
-	sender.configDebouncer = debounce.NewDebouncer(configDebouncerRateLimit, configDebouncerBurstSize)
+	sender.configDebouncer = debounce.NewDebouncer(
+		configDebouncerRateLimit,
+		configDebouncerBurstSize,
+		logger,
+	)
 
 	return sender
 }
@@ -173,7 +177,7 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
 	// todo: spin up the goroutine in the Debounce method instead of here
-	go s.configDebouncer.Debounce(s.upsertConfig)
+	s.configDebouncer.Start(s.upsertConfig)
 
 	for record := range inChan {
 		s.sendRecord(record)
