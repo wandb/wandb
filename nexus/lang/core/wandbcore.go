@@ -37,7 +37,7 @@ func wandbcoreSetup() {
 }
 
 //export wandbcoreInit
-func wandbcoreInit(configDataNum int) int {
+func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t) int {
 	wandbcoreSetup()
 
 	configData := wandbData.Get(configDataNum)

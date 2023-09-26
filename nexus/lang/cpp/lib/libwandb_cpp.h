@@ -35,11 +35,15 @@ class InitRunOption {
 protected:
   const Settings *settings;
   const Config *config;
+  const std::string *name;
+  const std::string *runID;
 
 public:
   InitRunOption() : settings(nullptr), config(nullptr){};
   const Settings *getSettings();
   const Config *getConfig();
+  const std::string *getName();
+  const std::string *getRunID();
 };
 
 class WithSettings : public InitRunOption {
@@ -50,6 +54,16 @@ public:
 class WithConfig : public InitRunOption {
 public:
   WithConfig(const Config &c);
+};
+
+class WithName : public InitRunOption {
+public:
+  WithName(const std::string &n);
+};
+
+class WithRunID : public InitRunOption {
+public:
+  WithRunID(const std::string &i);
 };
 } // namespace run
 
@@ -95,7 +109,9 @@ private:
   static Session *defaultSession_;
 
   Run _initRun(const Settings *settings = nullptr,
-               const Config *config = nullptr);
+               const Config *config = nullptr,
+               const std::string *name = nullptr,
+               const std::string *runID = nullptr);
 
 public:
   Session(Settings *settings = nullptr);

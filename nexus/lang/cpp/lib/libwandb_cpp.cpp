@@ -96,11 +96,19 @@ Session *Session::GetInstance() {
   return defaultSession_;
 }
 
-Run Session::_initRun(const Settings *settings, const Config *config) {
+Run Session::_initRun(const Settings *settings, const Config *config, const std::string *name, const std::string *runID) {
   _session_setup();
 
   auto configData = new Data(config);
-  int n = wandbcoreInit(configData->num);
+  const char *cName = NULL;
+  const char *cRunID = NULL;
+  if (name != nullptr) {
+      cName = name->c_str();
+  }
+  if (runID != nullptr) {
+      cRunID = runID->c_str();
+  }
+  int n = wandbcoreInit(configData->num, cName, cRunID);
   Run r;
   r._num = n;
   return r;
@@ -109,6 +117,8 @@ Run Session::_initRun(const Settings *settings, const Config *config) {
 Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
   const Settings *settings;
   const Config *config;
+  const std::string *name;
+  const std::string *runID;
   for (auto item : options) {
     auto withSettings = static_cast<run::WithSettings *>(&item);
     if (withSettings != nullptr) {
@@ -118,8 +128,16 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
     if (withConfig != nullptr) {
       config = withConfig->getConfig();
     }
+    auto withName = static_cast<run::WithName *>(&item);
+    if (withName != nullptr) {
+      name = withName->getName();
+    }
+    auto withRunID = static_cast<run::WithRunID *>(&item);
+    if (withRunID != nullptr) {
+      runID = withRunID->getRunID();
+    }
   }
-  return this->_initRun(settings, config);
+  return this->_initRun(settings, config, name, runID);
 }
 
 namespace session {
@@ -145,6 +163,8 @@ const Settings *InitRunOption::getSettings() { return this->settings; }
 const Config *InitRunOption::getConfig() { return this->config; }
 WithSettings::WithSettings(const Settings &s) { this->settings = &s; }
 WithConfig::WithConfig(const Config &c) { this->config = &c; }
+WithName::WithName(const std::string &n) { this->name = &n; }
+WithRunID::WithRunID(const std::string &i) { this->runID = &i; }
 
 } // namespace run
 
