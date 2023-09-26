@@ -30,8 +30,8 @@ const (
 	MetaFilename = "wandb-metadata.json"
 	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
-	configDebouncerRateLimit = 2
-	configDebouncerBurstSize = 10
+	configDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
+	configDebouncerBurstSize = 1        // todo: audit burst size
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server

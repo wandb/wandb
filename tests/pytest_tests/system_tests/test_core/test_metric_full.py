@@ -256,8 +256,6 @@ def test_metric_sync_step(relay_server, wandb_init):
     assert metrics and len(metrics) == 2
 
 
-# todo: config debounce
-@pytest.mark.nexus_failure(feature="config")
 def test_metric_mult(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -268,11 +266,10 @@ def test_metric_mult(relay_server, wandb_init):
         run.finish()
 
     metrics = relay.context.get_run_metrics(run_id)
-    assert metrics and len(metrics) == 3
+    # in nexus, we get 4 because we send the first update immediately
+    assert metrics and 3 <= len(metrics) <= 4
 
 
-# todo: config debounce
-@pytest.mark.nexus_failure(feature="config")
 def test_metric_goal(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -284,7 +281,7 @@ def test_metric_goal(relay_server, wandb_init):
 
     metrics = relay.context.get_run_metrics(run_id)
 
-    assert metrics and len(metrics) == 3
+    assert metrics and 3 <= len(metrics) <= 4
 
 
 @pytest.mark.nexus_failure(feature="define_metric")
