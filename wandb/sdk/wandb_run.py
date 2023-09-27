@@ -682,9 +682,9 @@ class Run:
             )
 
         # if run is from a launch queue, add queue id to _wandb config
-        launch_queue_id = wandb.env.get_launch_queue_id()
-        if launch_queue_id:
-            config[wandb_key]["launch_queue_id"] = wandb.env.get_launch_queue_id()
+        launch_queue_name = wandb.env.get_launch_queue_name()
+        if launch_queue_name:
+            config[wandb_key]["launch_queue_name"] = launch_queue_name
 
         self._config._update(config, ignore_locked=True)
 

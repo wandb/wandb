@@ -110,7 +110,7 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
-        self._queue_id: Optional[str] = None
+        self._queue_name: Optional[str] = None
         self._entry_point: Optional[
             EntryPoint
         ] = None  # todo: keep multiple entrypoint support?
@@ -189,12 +189,12 @@ class LaunchProject:
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
     @property
-    def queue_id(self) -> Optional[str]:
-        return self._queue_id
+    def queue_name(self) -> Optional[str]:
+        return self._queue_name
 
-    @queue_id.setter
-    def queue_id(self, value: str) -> None:
-        self._queue_id = value
+    @queue_name.setter
+    def queue_name(self, value: str) -> None:
+        self._queue_name = value
 
     def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:
         if not entrypoint:

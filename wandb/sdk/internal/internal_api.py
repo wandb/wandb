@@ -1622,40 +1622,20 @@ class Api:
                 launchAgentId: $launchAgentId
             }) {
                 runQueueItemId
-                queueID
                 runSpec
             }
         }
         """
         )
-
-        mutation_old = gql(
-            """
-        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $launchAgentId: ID)  {
-            popFromRunQueue(input: {
-                entityName: $entity,
-                projectName: $project,
-                queueName: $queueName,
-                launchAgentId: $launchAgentId
-            }) {
-                runQueueItemId
-                runSpec
-            }
-        }
-        """
+        response = self.gql(
+            mutation,
+            variable_values={
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+                "launchAgentId": agent_id,
+            },
         )
-        variable_values = {
-            "entity": entity,
-            "project": project,
-            "queueName": queue_name,
-            "launchAgentId": agent_id,
-        }
-        try:
-            response = self.gql(mutation, variable_values=variable_values)
-        except Exception as e:
-            logger.debug(f"new popFromRunQueue mutation failed with exception: {e}")
-            response = self.gql(mutation_old, variable_values=variable_values)
-
         result: Optional[Dict[str, Any]] = response["popFromRunQueue"]
         return result
 

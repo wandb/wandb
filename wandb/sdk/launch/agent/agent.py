@@ -561,9 +561,7 @@ class LaunchAgent:
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
         project = create_project_from_spec(launch_spec, api)
-        # set queue_id in project
-        if job.get("queueID"):
-            project.queue_id = job["queueID"]
+        project.queue_name = job_tracker.queue
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         # don't launch sweep runs if the sweep isn't healthy
         if launch_spec.get("sweep_id"):

@@ -209,7 +209,7 @@ def test_launch_build_push_job(
         with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
             json.dump(launch_config, f)
 
-        create_queue_response = internal_api.create_run_queue(
+        internal_api.create_run_queue(
             entity=user,
             project=LAUNCH_DEFAULT_PROJECT,
             queue_name=queue,
@@ -241,8 +241,6 @@ def test_launch_build_push_job(
         assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{release_image}:v0"
         # rqi pushed to launch proj, but confirm it's still pointed at our end project
         assert rqi["runSpec"]["project"] == proj
-
-        assert rqi["queueID"] == create_queue_response["queueID"]
 
         job = public_api.job(rqi["runSpec"]["job"])
         run.finish()
