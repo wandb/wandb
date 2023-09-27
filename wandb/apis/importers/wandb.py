@@ -661,11 +661,12 @@ class WandbImporter:
 
         base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
 
+        total = len(groups_of_artifacts)
         task = progress.subtask_pbar.add_task(
             base_descr,
-            total=len(groups_of_artifacts),
+            total=total,
         )
-        for group in groups_of_artifacts:
+        for i, group in enumerate(groups_of_artifacts):
             art = group[0]
             if art.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
                 run = WandbRun(placeholder_run)
@@ -727,7 +728,7 @@ class WandbImporter:
                 config=send_manager_config,
             )
             progress.subsubtask_pbar.remove_task(t)
-            print(f"Finished sending artifact {base_descr}")
+            print(f"Finished sending {base_descr} ({i}/{total})")
 
             progress.subtask_pbar.update(task, advance=1)
 
