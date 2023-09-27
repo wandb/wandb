@@ -688,7 +688,12 @@ class WandbImporter:
                     )
                     path = art.download()
                 except Exception as e:
-                    print(f"Some error {e=}")
+                    _, _, exc_traceback = sys.exc_info()
+                    traceback_details = traceback.extract_tb(exc_traceback)
+                    filename = traceback_details[-1].filename
+                    lineno = traceback_details[-1].lineno
+                    
+                    print(f"Some error {e=} {filename=} {lineno=}. {traceback_details=}")
                     wandb_logger.error(
                         f"Error downloading artifact {art} -- {e}",
                         extra={
