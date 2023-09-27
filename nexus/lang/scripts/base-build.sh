@@ -81,3 +81,8 @@ cd -
 cd cpp/examples/
 LD_RUN_PATH="$PWD/../../export/lib/" g++ -std=c++17 train.cpp -o ../../export/examples/traincpp -I../../export/include/ -L../../export/lib/ -lwandb_cpp -lwandb_core
 cd -
+
+# build client prog session (cpp)
+cd cpp/examples/
+LD_RUN_PATH="$PWD/../../export/lib/" g++ -std=c++17 train_session.cpp -o ../../export/examples/train_session -I../../export/include/ -L../../export/lib/ -lwandb_cpp -lwandb_core
+cd -

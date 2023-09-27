@@ -8,5 +8,5 @@ subject to change, functionality is limited and not all datapaths are fully test
 ## Sample Usage
 
 ```
-unzip libwandb-cpp-alpha-latest.zip
+unzip libwandb-cpp-linux-x86_64-alpha.zip
 ```
