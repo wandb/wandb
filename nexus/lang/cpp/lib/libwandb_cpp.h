@@ -58,9 +58,9 @@ public:
   WithConfig(const Config &c);
 };
 
-class WithName : public InitRunOption {
+class WithRunName : public InitRunOption {
 public:
-  WithName(const std::string &n);
+  WithRunName(const std::string &n);
 };
 
 class WithRunID : public InitRunOption {

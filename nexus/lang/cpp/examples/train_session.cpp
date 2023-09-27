@@ -6,12 +6,12 @@ int main() {
   wandb::Config config = {
       {"param1", 4},
       {"param2", 4.2},
-      {"param3", "smiles"},
+      {"param3", "hello"},
   };
   auto run = wb->initRun({
       wandb::run::WithConfig(config), wandb::run::WithProject("myproject"),
+      wandb::run::WithRunName("sample run name"),
       // wandb::run::WithRunID("myrunid"),
-      // wandb::run::WithName("sample run name"),
   });
 
   for (int i = 0; i < 5; i++) {
@@ -19,7 +19,7 @@ int main() {
         {"val1", 3.14 + i},
         {"val2", 1.23 + i},
         {"val3", 1},
-        {"val4", "dog"},
+        {"val4", "data"},
     };
     run.log(history);
   }

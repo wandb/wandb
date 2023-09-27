@@ -170,7 +170,7 @@ const std::string InitRunOption::getRunID() { return this->runID; }
 const std::string InitRunOption::getProject() { return this->project; }
 WithSettings::WithSettings(const Settings &s) { this->settings = &s; }
 WithConfig::WithConfig(const Config &c) { this->config = &c; }
-WithName::WithName(const std::string &n) { this->name = n; }
+WithRunName::WithRunName(const std::string &n) { this->name = n; }
 WithRunID::WithRunID(const std::string &i) { this->runID = i; }
 WithProject::WithProject(const std::string &p) { this->project = p; }
 
