@@ -10,7 +10,7 @@ int main() {
   };
   auto run = wb->initRun({
       wandb::run::WithConfig(config),
-      // wandb::run::WithRunID("runid"),
+      // wandb::run::WithRunID("myrunid"),
       // wandb::run::WithName("sample run name"),
   });
 
