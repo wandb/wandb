@@ -6,8 +6,8 @@ import (
 
 	"github.com/wandb/wandb/nexus/internal/execbin"
 	"github.com/wandb/wandb/nexus/internal/launcher"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 )
 

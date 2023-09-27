@@ -7,9 +7,9 @@ import (
 )
 
 type RunParams struct {
-	Config *runconfig.Config
-	Name   *string
-	RunID  *string
+	Config    *runconfig.Config
+	Name      *string
+	RunID     *string
 	Telemetry *service.TelemetryRecord
 }
 
