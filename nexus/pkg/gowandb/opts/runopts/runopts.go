@@ -2,8 +2,8 @@
 package runopts
 
 import (
-	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/internal/internal_runopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
 )
 
 type RunOption func(*internal_runopts.RunParams)

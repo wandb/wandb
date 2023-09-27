@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/internal/internal_runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
 	"github.com/wandb/wandb/nexus/pkg/service"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/internal/internal_runopts"
 )
 
 type Settings map[string]interface{}
