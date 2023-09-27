@@ -46,6 +46,15 @@ class Status:
     def __repr__(self) -> "State":
         return self.state
 
+    def __eq__(self, __value: object) -> bool:
+        if isinstance(__value, Status):
+            return self.state == __value.state
+        else:
+            return self.state == __value
+
+    def __hash__(self) -> int:
+        return hash(self.state)
+
 
 class AbstractRun(ABC):
     """Wrapper around a W&B launch run.

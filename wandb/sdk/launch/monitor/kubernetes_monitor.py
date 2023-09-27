@@ -130,11 +130,14 @@ class LaunchKubernetesMonitor:
         core_api: CoreV1Api,
         batch_api: BatchV1Api,
         custom_api: CustomObjectsApi,
+        label_selector: str = "app=wandb",
     ):
         """Initialize the LaunchKubernetesMonitor."""
         self._core_api: CoreV1Api = core_api
         self._batch_api: BatchV1Api = batch_api
         self._custom_api: CustomObjectsApi = custom_api
+
+        self._label_selector = label_selector
 
         self._asyncio_lock = asyncio.Lock()
 
@@ -143,7 +146,7 @@ class LaunchKubernetesMonitor:
         self._monitor_tasks: Dict[tuple(str), asyncio.Task] = dict()
 
         # Map from job name to job state.
-        self._job_states: Dict[str, str] = dict()
+        self._job_states: Dict[str, Status] = dict()
 
     def monitor_namespace(self, namespace: str, custom_resource=None) -> None:
         """Start monitoring a namespaces for resources."""
@@ -183,18 +186,17 @@ class LaunchKubernetesMonitor:
 
     def _set_status(self, job_name: str, status: Status) -> None:
         """Set the status of the run."""
-        if job_name not in self._job_states:
-            self._job_states[job_name] = status.state
-            wandb.termlog(f"Setting status for {job_name} to {status}")
-        elif self._job_states[job_name] != status.state:
-            self._job_states[job_name] = status.state
-            wandb.termlog(f"Setting status for {job_name} to {status}")
+        if self._job_states.get(job_name) != status:
+            self._job_states[job_name] = status
+            wandb.termlog(f"Job {job_name} is {status}")
 
     async def _monitor_pods(self, namespace: str) -> None:
         """Monitor a namespace for changes."""
         watcher = SafeWatch(watch.Watch())
         async for event in watcher.stream(
-            self._core_api.list_namespaced_pod, namespace
+            self._core_api.list_namespaced_pod,
+            namespace=namespace,
+            label_selector=self._label_selector,
         ):
             obj = event.get("object")
             job_name = obj.metadata.labels.get("job-name")
@@ -214,7 +216,9 @@ class LaunchKubernetesMonitor:
         """Monitor a namespace for changes."""
         watcher = SafeWatch(watch.Watch())
         async for event in watcher.stream(
-            self._batch_api.list_namespaced_job, namespace=namespace
+            self._batch_api.list_namespaced_job,
+            namespace=namespace,
+            label_selector=self._label_selector,
         ):
             obj = event.get("object")
             job_name = obj.metadata.name
@@ -236,6 +240,7 @@ class LaunchKubernetesMonitor:
             group=group,
             version=version,
             kind=kind,
+            label_selector=self._label_selector,
         ):
             object = event.get("object")
             status = object.get("status")
