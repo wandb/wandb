@@ -91,6 +91,9 @@ func (r *Run) init() {
 		Telemetry:   r.params.Telemetry,
 		XInfo:       &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
+	if r.params.Project != nil {
+		runRecord.Run.Project = *r.params.Project
+	}
 	record := service.Record{
 		RecordType: &runRecord,
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},

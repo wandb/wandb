@@ -97,11 +97,13 @@ Session *Session::GetInstance() {
 }
 
 Run Session::_initRun(const Settings *settings, const Config *config,
-                      const std::string name, const std::string runID) {
+                      const std::string name, const std::string runID,
+                      const std::string project) {
   _session_setup();
 
   auto configData = new Data(config);
-  int n = wandbcoreInit(configData->num, name.c_str(), runID.c_str(), LIB_CPP);
+  int n = wandbcoreInit(configData->num, name.c_str(), runID.c_str(),
+                        project.c_str(), LIB_CPP);
   Run r;
   r._num = n;
   return r;
@@ -112,6 +114,7 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
   const Config *config;
   std::string name;
   std::string runID;
+  std::string project;
   for (auto item : options) {
     auto optionSettings = item.getSettings();
     if (optionSettings != nullptr) {
@@ -129,8 +132,12 @@ Run Session::initRun(const std::initializer_list<run::InitRunOption> &options) {
     if (!optionRunID.empty()) {
       runID = optionRunID;
     }
+    auto optionProject = item.getProject();
+    if (!optionProject.empty()) {
+      project = optionProject;
+    }
   }
-  return this->_initRun(settings, config, name, runID);
+  return this->_initRun(settings, config, name, runID, project);
 }
 
 namespace session {
@@ -160,10 +167,12 @@ const Settings *InitRunOption::getSettings() { return this->settings; }
 const Config *InitRunOption::getConfig() { return this->config; }
 const std::string InitRunOption::getName() { return this->name; }
 const std::string InitRunOption::getRunID() { return this->runID; }
+const std::string InitRunOption::getProject() { return this->project; }
 WithSettings::WithSettings(const Settings &s) { this->settings = &s; }
 WithConfig::WithConfig(const Config &c) { this->config = &c; }
 WithName::WithName(const std::string &n) { this->name = n; }
 WithRunID::WithRunID(const std::string &i) { this->runID = i; }
+WithProject::WithProject(const std::string &p) { this->project = p; }
 
 } // namespace run
 

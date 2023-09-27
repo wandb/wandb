@@ -9,7 +9,7 @@ int main() {
       {"param3", "smiles"},
   };
   auto run = wb->initRun({
-      wandb::run::WithConfig(config),
+      wandb::run::WithConfig(config), wandb::run::WithProject("myproject"),
       // wandb::run::WithRunID("myrunid"),
       // wandb::run::WithName("sample run name"),
   });

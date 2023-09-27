@@ -37,6 +37,7 @@ protected:
   const Config *config;
   std::string name;
   std::string runID;
+  std::string project;
 
 public:
   InitRunOption() : settings(nullptr), config(nullptr){};
@@ -44,6 +45,7 @@ public:
   const Config *getConfig();
   const std::string getName();
   const std::string getRunID();
+  const std::string getProject();
 };
 
 class WithSettings : public InitRunOption {
@@ -64,6 +66,10 @@ public:
 class WithRunID : public InitRunOption {
 public:
   WithRunID(const std::string &i);
+};
+class WithProject : public InitRunOption {
+public:
+  WithProject(const std::string &p);
 };
 } // namespace run
 
@@ -125,7 +131,7 @@ private:
 
   Run _initRun(const Settings *settings = nullptr,
                const Config *config = nullptr, const std::string name = "",
-               const std::string runID = "");
+               const std::string runID = "", const std::string project = "");
 
 public:
   Session(Settings *settings = nullptr);

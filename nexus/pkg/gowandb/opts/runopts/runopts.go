@@ -10,6 +10,7 @@ type RunParams struct {
 	Config    *runconfig.Config
 	Name      *string
 	RunID     *string
+	Project   *string
 	Telemetry *service.TelemetryRecord
 }
 
@@ -30,5 +31,11 @@ func WithName(name string) RunOption {
 func WithRunID(runID string) RunOption {
 	return func(p *RunParams) {
 		p.RunID = &runID
+	}
+}
+
+func WithProject(project string) RunOption {
+	return func(p *RunParams) {
+		p.Project = &project
 	}
 }

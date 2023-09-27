@@ -55,7 +55,7 @@ func getTelemetry(library C.library_t) *service.TelemetryRecord {
 }
 
 //export wandbcoreInit
-func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, library C.library_t) int {
+func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, project *C.cchar_t, library C.library_t) int {
 	options := []runopts.RunOption{}
 	wandbcoreSetup()
 
@@ -68,6 +68,10 @@ func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, library
 	goRunID := C.GoString(runID)
 	if goRunID != "" {
 		options = append(options, runopts.WithRunID(goRunID))
+	}
+	goProject := C.GoString(project)
+	if goProject != "" {
+		options = append(options, runopts.WithProject(goProject))
 	}
 	telemetry := getTelemetry(library)
 	options = append(options, internal_runopts.WithTelemetry(telemetry))
