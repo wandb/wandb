@@ -3,6 +3,9 @@ package main
 /*
 typedef const char cchar_t;
 #define WANDBCORE_DATA_CREATE 0
+typedef enum {
+	LIB_GOLANG, LIB_C, LIB_CPP
+} library_t;
 */
 import "C"
 
@@ -38,17 +41,21 @@ func wandbcoreSetup() {
 	wandbData = NewPartialData()
 }
 
-func getTelemetry() *service.TelemetryRecord {
+func getTelemetry(library C.library_t) *service.TelemetryRecord {
 	telemetry := &service.TelemetryRecord{
-		Feature: &service.Feature{
-			LibCpp: true,
-		},
+		Feature: &service.Feature{},
+	}
+	switch library {
+	case C.LIB_C:
+		telemetry.Feature.LibC = true
+	case C.LIB_CPP:
+		telemetry.Feature.LibCpp = true
 	}
 	return telemetry
 }
 
 //export wandbcoreInit
-func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t) int {
+func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, library C.library_t) int {
 	options := []runopts.RunOption{}
 	wandbcoreSetup()
 
@@ -62,7 +69,7 @@ func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t) int {
 	if goRunID != "" {
 		options = append(options, runopts.WithRunID(goRunID))
 	}
-	telemetry := getTelemetry()
+	telemetry := getTelemetry(library)
 	options = append(options, internal_runopts.WithTelemetry(telemetry))
 
 	run, err := wandbSession.NewRun(options...)

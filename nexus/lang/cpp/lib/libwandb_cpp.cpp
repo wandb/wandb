@@ -101,7 +101,7 @@ Run Session::_initRun(const Settings *settings, const Config *config,
   _session_setup();
 
   auto configData = new Data(config);
-  int n = wandbcoreInit(configData->num, name.c_str(), runID.c_str());
+  int n = wandbcoreInit(configData->num, name.c_str(), runID.c_str(), LIB_CPP);
   Run r;
   r._num = n;
   return r;
