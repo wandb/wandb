@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import wandb
 from wandb.sdk.lib import telemetry
@@ -127,21 +127,22 @@ class WandbModelCheckpoint(ModelCheckpoint):
             initial_value_threshold,
         )
 
+    def _is_best_checkpoint(self, logs: Optional[Dict] = None):
+        if self.save_best_only:
+            current = logs.get(self.monitor)
+            return current is not None and self.monitor_op(current, self.best)
+        return False
+
     def on_train_batch_end(self, batch, logs=None):
         super().on_train_batch_end(batch, logs)
         if self._should_save_on_batch(batch):
-            if self.save_best_only:
-                current = logs.get(self.monitor)
-                if current is not None:
-                    if self.monitor_op(current, self.best):
-                        _log_artifact(
-                            self.filepath,
-                            artifact_type=self.artifact_type,
-                            aliases=[f"batch_{batch}", "best"],
-                            metadata={f"batch/{k}": v for k, v in logs.items()}
-                            if logs
-                            else {},
-                        )
+            if self._is_best_checkpoint(logs):
+                _log_artifact(
+                    self.filepath,
+                    artifact_type=self.artifact_type,
+                    aliases=[f"batch_{batch}", "best"],
+                    metadata={f"batch/{k}": v for k, v in logs.items()} if logs else {},
+                )
             else:
                 _log_artifact(
                     self.filepath,
@@ -153,18 +154,15 @@ class WandbModelCheckpoint(ModelCheckpoint):
     def on_epoch_end(self, epoch, logs=None):
         super().on_epoch_end(epoch, logs)
         if self.save_freq == "epoch":
-            if self.save_best_only:
-                current = logs.get(self.monitor)
-                if current is not None:
-                    if self.monitor_op(current, self.best):
-                        _log_artifact(
-                            self.filepath,
-                            artifact_type=self.artifact_type,
-                            aliases=[f"epoch_{epoch}", "best"],
-                            metadata=dict()
-                            if logs is None
-                            else {f"epoch/{k}": v for k, v in logs.items()},
-                        )
+            if self._is_best_checkpoint(logs):
+                _log_artifact(
+                    self.filepath,
+                    artifact_type=self.artifact_type,
+                    aliases=[f"epoch_{epoch}", "best"],
+                    metadata=dict()
+                    if logs is None
+                    else {f"epoch/{k}": v for k, v in logs.items()},
+                )
             else:
                 _log_artifact(
                     self.filepath,
