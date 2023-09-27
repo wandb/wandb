@@ -9,11 +9,11 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
+	"github.com/wandb/wandb/nexus/internal/gowandb/internal_runopts"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -38,15 +38,13 @@ func wandbcoreSetup() {
 	wandbData = NewPartialData()
 }
 
-func populateWandbConfig(config map[string]interface{}) {
-	telem := service.TelemetryRecord{
+func getTelemetry() service.TelemetryRecord {
+	telemetry := service.TelemetryRecord{
 		Feature: &service.Feature{
 			LibCpp: true,
 		},
 	}
-	config["_wandb"] = map[string]interface{}{
-		"t": nexuslib.ProtoEncodeToDict(&telem),
-	}
+	return telemetry
 }
 
 //export wandbcoreInit
@@ -55,10 +53,6 @@ func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t) int {
 	wandbcoreSetup()
 
 	configData := wandbData.Get(configDataNum)
-	if configData == nil {
-		configData = make(map[string]interface{})
-	}
-	populateWandbConfig(configData)
 	options = append(options, runopts.WithConfig(runconfig.Config(configData)))
 	goName := C.GoString(name)
 	if goName != "" {
@@ -68,6 +62,8 @@ func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t) int {
 	if goRunID != "" {
 		options = append(options, runopts.WithRunID(goRunID))
 	}
+	telemetry := getTelemetry()
+	options = append(options, internal_runopts.WithTelemetry(telemetry))
 
 	run, err := wandbSession.NewRun(options...)
 	if err != nil {

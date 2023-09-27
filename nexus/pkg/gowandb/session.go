@@ -6,9 +6,8 @@ import (
 
 	"github.com/wandb/wandb/nexus/internal/execbin"
 	"github.com/wandb/wandb/nexus/internal/launcher"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/internal/internal_runopts"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 )
 
@@ -61,7 +60,7 @@ func (s *Session) Close() {
 }
 
 func (s *Session) NewRun(opts ...runopts.RunOption) (*Run, error) {
-	runParams := &internal_runopts.RunParams{}
+	runParams := &runopts.RunParams{}
 	for _, opt := range opts {
 		opt(runParams)
 	}

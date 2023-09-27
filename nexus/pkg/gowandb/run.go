@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/internal/internal_runopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -23,12 +23,12 @@ type Run struct {
 	conn           *Connection
 	wg             sync.WaitGroup
 	run            *service.RunRecord
-	params         *internal_runopts.RunParams
+	params         *runopts.RunParams
 	partialHistory History
 }
 
 // NewRun creates a new run with the given settings and responders.
-func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, runParams *internal_runopts.RunParams) *Run {
+func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, runParams *runopts.RunParams) *Run {
 	run := &Run{
 		ctx:      ctx,
 		settings: settings,
@@ -88,6 +88,7 @@ func (r *Run) init() {
 		RunId:       r.settings.GetRunId().GetValue(),
 		DisplayName: DisplayName,
 		Config:      config,
+		Telemetry:   r.params.Telemetry,
 		XInfo:       &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
 	record := service.Record{
