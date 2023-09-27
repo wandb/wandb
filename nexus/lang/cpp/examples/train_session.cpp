@@ -16,10 +16,10 @@ int main() {
 
   for (int i = 0; i < 5; i++) {
     wandb::History history = {
-        {"val", 3.14 + i},
+        {"val1", 3.14 + i},
         {"val2", 1.23 + i},
-        {"val23", 1},
-        {"cat", "dog"},
+        {"val3", 1},
+        {"val4", "dog"},
     };
     run.log(history);
   }

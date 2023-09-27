@@ -177,5 +177,5 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 func (s *Stream) PrintFooter() {
 	run := s.GetRun()
-	shared.PrintHeadFoot(run, s.settings)
+	shared.PrintHeadFoot(run, s.settings, true)
 }

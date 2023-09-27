@@ -106,7 +106,7 @@ func (r *Run) init() {
 	}
 	result := handle.wait()
 	r.run = result.GetRunResult().GetRun()
-	shared.PrintHeadFoot(r.run, r.settings)
+	shared.PrintHeadFoot(r.run, r.settings, false)
 }
 
 func (r *Run) start() {
@@ -255,5 +255,5 @@ func (r *Run) Finish() {
 
 	r.conn.Close()
 	r.wg.Wait()
-	shared.PrintHeadFoot(r.run, r.settings)
+	shared.PrintHeadFoot(r.run, r.settings, true)
 }

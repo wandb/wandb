@@ -26,7 +26,12 @@ func NewSettings(args ...any) *SettingsWrap {
 	if err != nil {
 		panic(err)
 	}
-	wandbDir := filepath.Join(rootDir, ".wandb")
+	// Default to ".wandb" if "wandb" dir doesnt exist (swapped logic from python wandb)
+	wandbDir := filepath.Join(rootDir, "wandb")
+	if _, err := os.Stat(wandbDir); os.IsNotExist(err) {
+		wandbDir = filepath.Join(rootDir, ".wandb")
+	}
+
 	timeStamp := time.Now().Format("20060102_150405")
 
 	// TODO: parse more settings env variables
