@@ -227,9 +227,12 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
     # (5) flags without equals (e.g. --foo bar)
     args_no_equals: List[str] = []
     for param, config in command["args"].items():
-        _value: Any = config.get("value", None)
-        if _value is None:
+        # allow 'None' as a valid value, but error if no value is found
+        try:
+            _value: Any = config["value"]
+        except KeyError:
             raise ValueError('No "value" found for command["args"]["%s"]' % param)
+
         _flag: str = f"{param}={_value}"
         flags.append("--" + _flag)
         flags_no_hyphens.append(_flag)

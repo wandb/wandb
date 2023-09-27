@@ -154,7 +154,8 @@ class S3Handler(StorageHandler):
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
+            entry_path = name or (key if key != "" else bucket)
+            return [ArtifactManifestEntry(path=entry_path, ref=path, digest=path)]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
         objs = (
@@ -164,30 +165,41 @@ class S3Handler(StorageHandler):
         )
         start_time = None
         multi = False
-        try:
-            objs[0].load()
-            # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
-            # trigger a recursive upload.
-            # we should check the object's metadata says it is a directory and do a multi file upload if it is
-            if "x-directory" in objs[0].content_type:
-                multi = True
-        except self._botocore.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "404":
-                multi = True
-            else:
-                raise CommError(
-                    "Unable to connect to S3 ({}): {}".format(
-                        e.response["Error"]["Code"], e.response["Error"]["Message"]
+        if key != "":
+            try:
+                objs[0].load()
+                # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
+                # trigger a recursive upload.
+                # we should check the object's metadata says it is a directory and do a multi file upload if it is
+                if "x-directory" in objs[0].content_type:
+                    multi = True
+            except self._botocore.exceptions.ClientError as e:
+                if e.response["Error"]["Code"] == "404":
+                    multi = True
+                else:
+                    raise CommError(
+                        "Unable to connect to S3 ({}): {}".format(
+                            e.response["Error"]["Code"], e.response["Error"]["Message"]
+                        )
                     )
-                )
+        else:
+            multi = True
+
         if multi:
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i objects with prefix "%s"... '
-                % (max_objects, key),
+                'Generating checksum for up to %i objects in "%s/%s"... '
+                % (max_objects, bucket, key),
                 newline=False,
             )
-            objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
+            if key != "":
+                objs = (
+                    self._s3.Bucket(bucket)
+                    .objects.filter(Prefix=key)
+                    .limit(max_objects)
+                )
+            else:
+                objs = self._s3.Bucket(bucket).objects.limit(max_objects)
         # Weird iterator scoping makes us assign this to a local function
         size = self._size_from_obj
         entries = [

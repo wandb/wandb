@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandb/wandb/nexus/internal/clients"
+	"github.com/wandb/wandb/nexus/internal/debounce"
 
+	"github.com/wandb/wandb/nexus/internal/clients"
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/internal/uploader"
+	"github.com/wandb/wandb/nexus/internal/version"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -26,9 +28,10 @@ import (
 
 const (
 	MetaFilename = "wandb-metadata.json"
-	NexusVersion = "0.16.0b1" // todo: handle this automatically with bumpversion
 	// RFC3339Micro Modified from time.RFC3339Nano
-	RFC3339Micro = "2006-01-02T15:04:05.000000Z07:00"
+	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
+	configDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
+	configDebouncerBurstSize = 1        // todo: audit burst size
 )
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -68,6 +71,8 @@ type Sender struct {
 
 	ms *MetricSender
 
+	configDebouncer *debounce.Debouncer
+
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
 
@@ -99,7 +104,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		configMap:    make(map[string]interface{}),
 		loopbackChan: loopbackChan,
 		outChan:      make(chan *service.Result, BufferSize),
-		telemetry:    &service.TelemetryRecord{CoreVersion: NexusVersion},
+		telemetry:    &service.TelemetryRecord{CoreVersion: version.Version},
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -157,12 +162,21 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		)
 
 	}
+	sender.configDebouncer = debounce.NewDebouncer(
+		configDebouncerRateLimit,
+		configDebouncerBurstSize,
+		logger,
+	)
+
 	return sender
 }
 
 // do sending of messages to the server
 func (s *Sender) do(inChan <-chan *service.Record) {
+	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
+
+	s.configDebouncer.Start(s.upsertConfig)
 
 	for record := range inChan {
 		s.sendRecord(record)
@@ -276,6 +290,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
+		s.configDebouncer.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -545,15 +560,9 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 	s.fileStream.StreamRecord(record)
 }
 
-// sendConfig sends a config record to the server via an upsertBucket mutation
-// and updates the in memory config
-func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
+func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
-	}
-
-	if configRecord != nil {
-		s.updateConfig(configRecord)
 	}
 
 	config := s.serializeConfig()
@@ -584,6 +593,15 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
 	}
+}
+
+// sendConfig sends a config record to the server via an upsertBucket mutation
+// and updates the in memory config
+func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
+	if configRecord != nil {
+		s.updateConfig(configRecord)
+	}
+	s.configDebouncer.Trigger()
 }
 
 // sendSystemMetrics sends a system metrics record via the file stream
