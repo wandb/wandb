@@ -686,6 +686,10 @@ class Run:
         if launch_queue_name:
             config[wandb_key]["launch_queue_name"] = launch_queue_name
 
+        launch_run_queue_item_id = wandb.env.get_launch_run_queue_item_id()
+        if launch_run_queue_item_id:
+            config[wandb_key]["launch_run_queue_item_id"] = launch_run_queue_item_id
+
         self._config._update(config, ignore_locked=True)
 
         # interface pid and port configured when backend is configured (See _hack_set_run)

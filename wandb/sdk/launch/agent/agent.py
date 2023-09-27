@@ -19,7 +19,11 @@ from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
 
 from .. import loader
-from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from .._project_spec import (
+    create_project_from_spec,
+    fetch_and_validate_project,
+    LaunchQueue,
+)
 from ..builder.build import construct_agent_configs
 from ..errors import LaunchDockerError, LaunchError
 from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
@@ -562,6 +566,7 @@ class LaunchAgent:
     ) -> None:
         project = create_project_from_spec(launch_spec, api)
         project.queue_name = job_tracker.queue
+        project.run_queue_item_id = job["runQueueItemID"]
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         # don't launch sweep runs if the sweep isn't healthy
         if launch_spec.get("sweep_id"):

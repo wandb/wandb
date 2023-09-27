@@ -111,6 +111,7 @@ class LaunchProject:
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
         self._queue_name: Optional[str] = None
+        self._run_queue_item_id: Optional[str] = None
         self._entry_point: Optional[
             EntryPoint
         ] = None  # todo: keep multiple entrypoint support?
@@ -195,6 +196,14 @@ class LaunchProject:
     @queue_name.setter
     def queue_name(self, value: str) -> None:
         self._queue_name = value
+
+    @property
+    def run_queue_item_id(self) -> Optional[str]:
+        return self._run_queue_item_id
+
+    @run_queue_item_id.setter
+    def run_queue_item_id(self, value: str) -> None:
+        self._run_queue_item_id = value
 
     def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:
         if not entrypoint:

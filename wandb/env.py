@@ -85,6 +85,7 @@ GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
 _EXECUTABLE = "WANDB_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
+LAUNCH_RUN_QUEUE_ITEM_ID = "WANDB_LAUNCH_RUN_QUEUE_ITEM_ID"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -447,4 +448,11 @@ def get_launch_queue_name(env: Optional[Env] = None) -> Optional[str]:
     if env is None:
         env = os.environ
     val = env.get(LAUNCH_QUEUE_NAME, None)
+    return val
+
+
+def get_launch_run_queue_item_id(env: Optional[Env] = None) -> Optional[str]:
+    if env is None:
+        env = os.environ
+    val = env.get(LAUNCH_RUN_QUEUE_ITEM_ID, None)
     return val
