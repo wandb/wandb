@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 import wandb
 from wandb.sdk.lib import telemetry
@@ -38,8 +38,7 @@ def _log_artifact(
 
 
 class WandbModelCheckpoint(ModelCheckpoint):
-    """
-    `WandbModelCheckpoint` automatically logs model checkpoints to W&B and versions
+    """`WandbModelCheckpoint` automatically logs model checkpoints to W&B and versions
     them as [W&B artifacts](https://docs.wandb.ai/guides/artifacts).
 
     Since this callback is subclassed from
