@@ -23,7 +23,8 @@ def _log_artifact(
 ) -> None:
     """Log an artifact to Weights & Biases."""
     aliases = ["latest"] if aliases is None else aliases + ["latest"]
-    metadata = wandb.run.config.as_dict() if metadata is None else metadata
+    run_configs = wandb.run.config.as_dict()
+    metadata = run_configs if metadata is None else {**metadata, **run_configs}
     model_checkpoint_artifact = wandb.Artifact(
         f"run_{wandb.run.id}_model", type=artifact_type, metadata=metadata
     )
@@ -111,7 +112,7 @@ class WandbModelCheckpoint(ModelCheckpoint):
             tel.feature.keras_model_checkpoint = True
 
         if artifact_type is None:
-            self.artifact_type = "weights" if save_weights_only else "model"
+            self.artifact_type = "model-weights" if save_weights_only else "model"
         else:
             self.artifact_type = artifact_type
 
