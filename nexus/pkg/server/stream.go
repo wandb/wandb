@@ -129,7 +129,7 @@ func (s *Stream) GetRun() *service.RunRecord {
 	return s.handler.GetRun()
 }
 
-// Close Gracefully wait for handler, writer, sender, dispatcher to shutdown cleanly
+// Close Gracefully wait for handler, writer, sender, dispatcher to shut down cleanly
 // assumes an exit record has already been sent
 func (s *Stream) Close() {
 	s.wg.Wait()
