@@ -1414,6 +1414,16 @@ class WandbImporter:
         descr = "Validate artifacts"
         for seq in seqs:
             for art in seq:
+                try:
+                    logged_by = self._get_run_from_art(art)
+                except requests.HTTPError as e:
+                    print(f"Some http error: {e=}")
+                    continue
+
+                if art.type == "wandb-history" and isinstance(logged_by, MagicMock):
+                    # We can never upload valid history for a deleted run, so skip it
+                    continue
+
                 tup = (art, seq.entity, seq.project)
                 args.append(tup)
 
