@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/internal/runopts"
 )
 
 type Settings map[string]interface{}
@@ -23,12 +23,12 @@ type Run struct {
 	conn           *Connection
 	wg             sync.WaitGroup
 	run            *service.RunRecord
-	params         *runopts.RunParams
+	params         *internal_runopts.RunParams
 	partialHistory History
 }
 
 // NewRun creates a new run with the given settings and responders.
-func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, runParams *runopts.RunParams) *Run {
+func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, runParams *internal_runopts.RunParams) *Run {
 	run := &Run{
 		ctx:      ctx,
 		settings: settings,
