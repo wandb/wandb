@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from wandb.apis.internal import Api
+from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import LaunchProject
 
 from ..runner.abstract import AbstractRun
@@ -32,3 +34,18 @@ class JobAndRunStatusTracker:
 
     def set_err_stage(self, stage: str) -> None:
         self.err_stage = stage
+
+    def check_wandb_run_stopped(self, api: Api) -> bool:
+        if (
+            api._api is None
+            or self.run_id is None
+            or self.project is None
+            or self.entity is None
+        ):
+            return False
+        try:
+            if api._api.check_stop_requested(self.project, self.entity, self.run_id):
+                return True
+        except CommError:
+            pass
+        return False

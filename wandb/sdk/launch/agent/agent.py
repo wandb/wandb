@@ -642,6 +642,9 @@ class LaunchAgent:
                     )
             if self._check_run_finished(job_tracker, launch_spec):
                 return
+            if job_tracker.check_wandb_run_stopped(self._api):
+                run.cancel()
+
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
         # types of runners in general
@@ -714,6 +717,7 @@ class LaunchAgent:
                 with self._jobs_lock:
                     job_tracker.completed_status = status
                 return True
+
             return False
         except LaunchError as e:
             wandb.termerror(
