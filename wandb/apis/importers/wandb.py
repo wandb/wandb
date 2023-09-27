@@ -23,6 +23,9 @@ from .config import Namespace
 from .logs import _thread_local_settings, wandb_logger
 from .protocols import ArtifactSequence, parallelize
 
+import sys
+import traceback
+
 with patch("click.echo"):
     import wandb.apis.reports as wr
     from wandb.apis.reports import Report
