@@ -592,7 +592,7 @@ class WandbImporter:
         except wandb.CommError:
             return  # it's not allowed to be deleted
 
-    def _get_run_from_art(self, art: Artifact) -> Run:
+    def _get_run_from_art(self, art: Artifact):
         run = None
 
         try:
@@ -635,7 +635,7 @@ class WandbImporter:
             placeholder_run: Optional[Run] = self._get_run_from_art(art)
         except requests.exceptions.HTTPError as e:
             # If we had an http error, then just skip for now.
-            print(f"Some HTTP Error: {e=}")
+            print(f"Import Artifact Sequence http error: {art.entity=}, {art.project=}, {art.name=}, {e=}")
             return
 
         # Delete any existing artifact sequence, otherwise versions will be out of order
@@ -691,12 +691,7 @@ class WandbImporter:
                     )
                     path = art.download()
                 except Exception as e:
-                    _, _, exc_traceback = sys.exc_info()
-                    traceback_details = traceback.extract_tb(exc_traceback)
-                    filename = traceback_details[-1].filename
-                    lineno = traceback_details[-1].lineno
-                    
-                    print(f"Some error {e=} {filename=} {lineno=}. {traceback_details=}")
+                    print(f"Some error {e=}")
                     wandb_logger.error(
                         f"Error downloading artifact {art} -- {e}",
                         extra={
@@ -1382,14 +1377,13 @@ class WandbImporter:
 
     def _validate_artifact(self, src_art: Artifact, dst_entity: str, dst_project: str):
         # These patterns of artifacts are special and should not be validated
-        problems = []
-        
         ignore_patterns = [
             r"^job-(.*?)\.py(:v\d+)?$",
             # r"^run-.*-history(?:\:v\d+)?$$",
         ]
         for pattern in ignore_patterns:
             if re.search(pattern, src_art.name):
+                problems = []
                 return (src_art, problems)
 
         try:
@@ -1420,7 +1414,7 @@ class WandbImporter:
                 try:
                     logged_by = self._get_run_from_art(art)
                 except requests.HTTPError as e:
-                    print(f"Some http error: {e=}")
+                    print(f"Validate Artifact http error: {art.entity=}, {art.project=}, {art.name=}, {e=}")
                     continue
 
                 if art.type == "wandb-history" and isinstance(logged_by, MagicMock):
