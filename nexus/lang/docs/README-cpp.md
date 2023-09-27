@@ -10,4 +10,3 @@ subject to change, functionality is limited and not all datapaths are fully test
 ```
 unzip libwandb-cpp-alpha-latest.zip
 ```
-
