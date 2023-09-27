@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"io"
 	"log/slog"
 )
 
@@ -122,4 +123,8 @@ func (nl *NexusLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
 		Reraise(err, nl.tagsFromArgs(args...))
 	}
+}
+
+func NewNoOpLogger() *NexusLogger {
+	return NewNexusLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
 }
