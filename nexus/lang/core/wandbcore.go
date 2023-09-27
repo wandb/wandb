@@ -38,8 +38,8 @@ func wandbcoreSetup() {
 	wandbData = NewPartialData()
 }
 
-func getTelemetry() service.TelemetryRecord {
-	telemetry := service.TelemetryRecord{
+func getTelemetry() *service.TelemetryRecord {
+	telemetry := &service.TelemetryRecord{
 		Feature: &service.Feature{
 			LibCpp: true,
 		},

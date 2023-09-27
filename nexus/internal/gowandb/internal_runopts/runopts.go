@@ -5,8 +5,8 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
-func WithTelemetry(telemetry service.TelemetryRecord) runopts.RunOption {
+func WithTelemetry(telemetry *service.TelemetryRecord) runopts.RunOption {
 	return func(p *runopts.RunParams) {
-		p.Telemetry = &telemetry
+		p.Telemetry = telemetry
 	}
 }
