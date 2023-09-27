@@ -184,6 +184,11 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
 }
 
+func (s *Sender) Close() {
+	// sender is done processing data, close our dispatch channel
+	close(s.outChan)
+}
+
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
@@ -239,6 +244,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendMetadata(x.Metadata)
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
+	case *service.Request_PollExit:
+		s.sendPollExit(record, x.PollExit)
 	default:
 		// TODO: handle errors
 	}
@@ -319,8 +326,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_END:
 		request.State++
 		s.respondExit(s.exitRecord)
-		// sender is done processing data, close our dispatch channel
-		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -768,6 +773,26 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 				ResponseType: &service.Response_LogArtifactResponse{
 					LogArtifactResponse: &service.LogArtifactResponse{
 						ArtifactId: saverResult.ArtifactId,
+					},
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest) {
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_PollExitResponse{
+					PollExitResponse: &service.PollExitResponse{
+						FileCounts: &service.FileCounts{
+							WandbCount: 32,
+						},
 					},
 				},
 			},
