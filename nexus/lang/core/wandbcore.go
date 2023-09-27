@@ -13,6 +13,8 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
+	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/nexus/internal/nexuslib"
 )
 
 // globals to keep track of the wandb session and any runs
@@ -36,12 +38,27 @@ func wandbcoreSetup() {
 	wandbData = NewPartialData()
 }
 
+func populateWandbConfig(config map[string]interface{}) {
+	telem := service.TelemetryRecord{
+		Feature: &service.Feature{
+			LibCpp: true,
+		},
+	}
+	config["_wandb"] = map[string]interface{}{
+		"t": nexuslib.ProtoEncodeToDict(&telem),
+	}
+}
+
 //export wandbcoreInit
 func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t) int {
 	options := []runopts.RunOption{}
 	wandbcoreSetup()
 
 	configData := wandbData.Get(configDataNum)
+	if configData == nil {
+		configData = make(map[string]interface{})
+	}
+	populateWandbConfig(configData)
 	options = append(options, runopts.WithConfig(runconfig.Config(configData)))
 	goName := C.GoString(name)
 	if goName != "" {
