@@ -2,6 +2,7 @@ package storagehandlers
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"strings"
@@ -40,14 +41,14 @@ type ETag string
 func parseURI(uri string) (string, string, string, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
-		// todo: return error
+		return "", "", "", err
 	} else if u == nil {
-		// todo: return error
+		return "", "", "", fmt.Errorf("could not parse uri %v", uri)
 	}
 
 	query, err := url.ParseQuery(u.RawQuery)
 	if err != nil {
-		// todo: return error
+		return "", "", "", err
 	}
 	// query.Get("versionId") -> returns "" if key not found
 	return u.Host, strings.TrimPrefix(u.Path, "/"), query.Get("versionId"), nil
@@ -75,20 +76,21 @@ func (sh *S3StorageHandler) initClient() error {
 
 func (sh *S3StorageHandler) loadPath() (string, error) {
 	if sh.ManifestEntry.Ref == nil {
-		// todo: return error
+		return "", fmt.Errorf("reference not found manifest entry")
 	}
 	if !sh.Local {
 		return *sh.ManifestEntry.Ref, nil
 	}
 
 	// todo: cache
+
 	sh.initClient()
 	if sh.Client == nil {
-		// todo: return error
+		return "", fmt.Errorf("could not initiate client")
 	}
 	bucket, key, _, err := parseURI(*sh.ManifestEntry.Ref)
-	if bucket == "" || key == "" {
-		// todo: return error
+	if err != nil {
+		return "", err
 	}
 	getObjectParams := &s3.GetObjectInput{
 		Bucket: &bucket,
@@ -106,51 +108,51 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 		if awsErr, ok := err.(awserr.Error); ok {
 			switch awsErr.Code() {
 			case s3.ErrCodeNoSuchBucket:
-				// todo: error ("bucket %s does not exist", bucket)
+				return "", fmt.Errorf("bucket %s does not exist", bucket)
 			case s3.ErrCodeNoSuchKey:
-				//todo: error ("object with key %s does not exist in bucket %s", key, bucket)
+				return "", fmt.Errorf("object with key %s does not exist in bucket %s", key, bucket)
 			default:
-				// todo: return error
+				return "", awsErr.OrigErr()
 			}
 		}
 	} else if obj == nil {
-		// todo: return error
+		return "", fmt.Errorf("could not get object from %s/%s", bucket, key)
 	}
 
 	etag, err := etagFromObj(obj)
 	if err != nil {
-		// todo: return error
+		return "", err
 	} else if etag != ETag(sh.ManifestEntry.Digest) {
 		// try to match etag with some other version
 		if version != "" {
-			// todo: return error
+			return "", fmt.Errorf("digest mismatch for object %s with version %s: expected %s but found %s", *sh.ManifestEntry.Ref, version, sh.ManifestEntry.Digest, etag)
 		}
 
 		obj = nil
-		object_versions, err := sh.Client.ListObjectVersions(&s3.ListObjectVersionsInput{
+		objectVersions, err := sh.Client.ListObjectVersions(&s3.ListObjectVersionsInput{
 			Bucket: &bucket,
 			Prefix: &key,
 		})
 		if err != nil {
-			// todo: return error
-		} else if object_versions == nil {
-			// todo: return error
+			return "", err
+		} else if objectVersions == nil {
+			return "", fmt.Errorf("could not get object versions from %s/%s", bucket, key)
 		}
-		manifest_entry_etag, ok := sh.ManifestEntry.Extra["etag"]
+		manifestEntryEtag, ok := sh.ManifestEntry.Extra["etag"]
 		if ok {
-			for _, version := range object_versions.Versions {
-				version_etag, err := etagFromObj(version)
+			for _, version := range objectVersions.Versions {
+				versionEtag, err := etagFromObj(version)
 				if err != nil {
-					// todo: return error
+					return "", err
 				}
-				if version_etag == manifest_entry_etag {
+				if versionEtag == manifestEntryEtag {
 					obj, err = sh.Client.GetObject(&s3.GetObjectInput{
 						Bucket:    &bucket,
 						Key:       &key,
 						VersionId: version.VersionId,
 					})
 					if err != nil {
-						// todo: return error
+						return "", err
 					}
 					extraArgs["VersionId"] = version.VersionId
 					break
@@ -159,7 +161,7 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 			}
 		}
 		if obj == nil {
-			// todo: return error
+			return "", fmt.Errorf("could not find object version for %s/%s matching etag %s", bucket, key, manifestEntryEtag)
 		}
 	}
 
@@ -176,7 +178,7 @@ func etagFromObj(obj interface{}) (ETag, error) {
 	case *s3.ObjectVersion:
 		etagValue = *obj.ETag
 	default:
-		// todo: return error
+		return "", fmt.Errorf("unsupported object type %T to retrieve etag", obj)
 	}
 	etag := ETag(etagValue[1 : len(etagValue)-1]) // escape leading and trailing quotes
 	return etag, nil
