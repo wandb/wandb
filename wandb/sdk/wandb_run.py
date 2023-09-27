@@ -35,6 +35,7 @@ from typing import (
 import requests
 
 import wandb
+import wandb.env
 from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -679,6 +680,11 @@ class Run:
             self._config.update_locked(
                 launch_config, user="launch", _allow_val_change=True
             )
+
+        # if run is from a launch queue, add queue id to _wandb config
+        launch_queue_id = wandb.env.get_launch_queue_id()
+        if launch_queue_id:
+            config[wandb_key]["launch_queue_id"] = wandb.env.get_launch_queue_id()
 
         self._config._update(config, ignore_locked=True)
 

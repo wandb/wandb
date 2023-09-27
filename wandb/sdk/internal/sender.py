@@ -864,9 +864,6 @@ class SendManager:
         s = self._telemetry_obj.huggingface_version
         if s:
             config_dict[wandb_key]["huggingface_version"] = s
-        s = self._telemetry_obj.launch_run_queue_item_id
-        if s:
-            config_dict[wandb_key]["launch_run_queue_item_id"] = s
         b = self._telemetry_obj.env.jupyter
         config_dict[wandb_key]["is_jupyter_run"] = b
         b = self._telemetry_obj.env.kaggle

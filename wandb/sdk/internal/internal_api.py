@@ -1622,22 +1622,53 @@ class Api:
                 launchAgentId: $launchAgentId
             }) {
                 runQueueItemId
+                queueID
                 runSpec
             }
         }
         """
         )
-        response = self.gql(
-            mutation,
-            variable_values={
-                "entity": entity,
-                "project": project,
-                "queueName": queue_name,
-                "launchAgentId": agent_id,
-            },
+
+        mutation_old = gql(
+            """
+        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $launchAgentId: ID)  {
+            popFromRunQueue(input: {
+                entityName: $entity,
+                projectName: $project,
+                queueName: $queueName,
+                launchAgentId: $launchAgentId
+            }) {
+                runQueueItemId
+                runSpec
+            }
+        }
+        """
         )
-        result: Optional[Dict[str, Any]] = response["popFromRunQueue"]
-        return result
+        try:
+            response = self.gql(
+                mutation,
+                variable_values={
+                    "entity": entity,
+                    "project": project,
+                    "queueName": queue_name,
+                    "launchAgentId": agent_id,
+                },
+            )
+        except Exception as e:
+            response = self.gql(
+                mutation_old,
+                variable_values={
+                    "entity": entity,
+                    "project": project,
+                    "queueName": queue_name,
+                    "launchAgentId": agent_id,
+                },
+            )
+            logger.debug(f"popFromRunQueue failed with eception: {e}")
+        finally:
+            result: Optional[Dict[str, Any]] = response["popFromRunQueue"]
+            return result
+        return None
 
     @normalize_exceptions
     def ack_run_queue_item(self, item_id: str, run_id: Optional[str] = None) -> bool:

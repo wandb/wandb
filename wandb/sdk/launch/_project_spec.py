@@ -64,7 +64,6 @@ class LaunchProject:
         resource_args: Dict[str, Any],
         run_id: Optional[str],
         sweep_id: Optional[str] = None,
-        rqi_id: Optional[str] = None,
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -111,7 +110,7 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
-        self.rqi_id = rqi_id
+        self._queue_id: Optional[str] = None
         self._entry_point: Optional[
             EntryPoint
         ] = None  # todo: keep multiple entrypoint support?
@@ -188,6 +187,14 @@ class LaunchProject:
             # this will always pass since one of these 3 is required
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
+
+    @property
+    def queue_id(self):
+        return self._queue_id
+
+    @queue_id.setter
+    def queue_id(self, value):
+        self._queue_id = value
 
     def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:
         if not entrypoint:
@@ -457,9 +464,7 @@ def get_entry_point_command(
     return entry_point.compute_command(parameters)
 
 
-def create_project_from_spec(
-    launch_spec: Dict[str, Any], api: Api, rqi_id: str = None
-) -> LaunchProject:
+def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
     """Constructs a LaunchProject instance using a launch spec.
 
     Arguments:
@@ -487,7 +492,6 @@ def create_project_from_spec(
         launch_spec.get("resource_args", {}),
         launch_spec.get("run_id", None),
         launch_spec.get("sweep_id", {}),
-        rqi_id,
     )
 
 
