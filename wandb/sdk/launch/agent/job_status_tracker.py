@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Optional
 
 from wandb.apis.internal import Api
@@ -49,5 +49,4 @@ class JobAndRunStatusTracker:
             return api.api.check_stop_requested(self.project, self.entity, self.run_id)
         except CommError as e:
             _logger.error(f"CommError when checking if wandb run stopped: {e}")
-            pass
         return False
