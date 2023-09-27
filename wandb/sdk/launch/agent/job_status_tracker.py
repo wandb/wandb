@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 from typing import Optional
 
 from wandb.apis.internal import Api
@@ -7,6 +8,8 @@ from wandb.sdk.launch._project_spec import LaunchProject
 
 from ..runner.abstract import AbstractRun
 from .run_queue_item_file_saver import RunQueueItemFileSaver
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -36,16 +39,15 @@ class JobAndRunStatusTracker:
         self.err_stage = stage
 
     def check_wandb_run_stopped(self, api: Api) -> bool:
-        if (
-            api._api is None
-            or self.run_id is None
-            or self.project is None
-            or self.entity is None
-        ):
+        if self.run_id is None or self.project is None or self.entity is None:
+            _logger.error(
+                "Job tracked does not contain run info, not checking if run is stopped"
+            )
             return False
+
         try:
-            if api._api.check_stop_requested(self.project, self.entity, self.run_id):
-                return True
-        except CommError:
+            return api.api.check_stop_requested(self.project, self.entity, self.run_id)
+        except CommError as e:
+            _logger.error(f"CommError when checking if wandb run stopped: {e}")
             pass
         return False
