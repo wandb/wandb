@@ -7,6 +7,8 @@ subject to change, functionality is limited and not all datapaths are fully test
 
 ## Sample Usage
 
+### Build
 ```
 unzip libwandb-cpp-linux-x86_64-alpha.zip
+LD_RUN_PATH="$PWD/libwandb/lib/" g++ -std=c++17 libwandb/share/libwandb/examples/logging.cpp -Ilibwandb/include/ -Llibwandb/lib/ -lwandb_cpp -lwandb_core
 ```
