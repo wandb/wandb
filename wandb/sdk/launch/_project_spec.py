@@ -189,11 +189,11 @@ class LaunchProject:
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
     @property
-    def queue_id(self):
+    def queue_id(self) -> Optional[str]:
         return self._queue_id
 
     @queue_id.setter
-    def queue_id(self, value):
+    def queue_id(self, value: str) -> None:
         self._queue_id = value
 
     def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:

@@ -1644,31 +1644,20 @@ class Api:
         }
         """
         )
+        variable_values = {
+            "entity": entity,
+            "project": project,
+            "queueName": queue_name,
+            "launchAgentId": agent_id,
+        }
         try:
-            response = self.gql(
-                mutation,
-                variable_values={
-                    "entity": entity,
-                    "project": project,
-                    "queueName": queue_name,
-                    "launchAgentId": agent_id,
-                },
-            )
+            response = self.gql(mutation, variable_values=variable_values)
         except Exception as e:
-            response = self.gql(
-                mutation_old,
-                variable_values={
-                    "entity": entity,
-                    "project": project,
-                    "queueName": queue_name,
-                    "launchAgentId": agent_id,
-                },
-            )
-            logger.debug(f"popFromRunQueue failed with eception: {e}")
-        finally:
-            result: Optional[Dict[str, Any]] = response["popFromRunQueue"]
-            return result
-        return None
+            logger.debug(f"new popFromRunQueue mutation failed with exception: {e}")
+            response = self.gql(mutation_old, variable_values=variable_values)
+
+        result: Optional[Dict[str, Any]] = response["popFromRunQueue"]
+        return result
 
     @normalize_exceptions
     def ack_run_queue_item(self, item_id: str, run_id: Optional[str] = None) -> bool:
