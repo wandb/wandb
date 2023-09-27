@@ -34,9 +34,12 @@ type ManifestStoragePolicyConfig struct {
 }
 
 type ManifestEntry struct {
-	Digest          string `json:"digest"`
-	BirthArtifactID string `json:"birthArtifactID"`
-	Size            int64  `json:"size"`
+	Digest          string                 `json:"digest"`
+	BirthArtifactID *string                `json:"birthArtifactID"`
+	Ref             *string                `json:"ref,omitempty"`
+	Size            int64                  `json:"size"`
+	Extra           map[string]interface{} `json:"extra,omitempty"`
+	LocalPath       *string
 }
 
 type ManifestV1 struct {
