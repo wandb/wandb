@@ -15,12 +15,12 @@ const (
 	defaultConcurrencyLimit = 64
 )
 
-// type fileCounts struct {
-//		wandbCount    int
-//		mediaCount    int
-//		artifactCount int
-//		otherCount    int
-// }
+type fileCounts struct {
+	wandbCount    int
+	mediaCount    int
+	artifactCount int
+	otherCount    int
+}
 
 type Uploader interface {
 	Upload(task *UploadTask) error
@@ -38,8 +38,8 @@ type UploadManager struct {
 	// semaphore is the semaphore for limiting concurrency
 	semaphore chan struct{}
 
-	// fileCounts is the file counts
-	// fileCounts fileCounts
+	// fileCounts is the file counts for the uploader
+	fileCounts fileCounts
 
 	// settings is the settings for the uploader
 	settings *service.Settings
