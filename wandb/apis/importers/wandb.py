@@ -589,7 +589,7 @@ class WandbImporter:
         except wandb.CommError:
             return  # it's not allowed to be deleted
 
-    def _get_run_from_art(self, art: Artifact):
+    def _get_run_from_art(self, art: Artifact) -> Run:
         run = None
 
         try:
@@ -1234,18 +1234,6 @@ class WandbImporter:
         for group in results:
             yield from group
 
-        # results = [seq for seq in results]
-
-        # c = 0
-        # task = progress.task_pbar.add_task(
-        #     description="Collecting artifact sequences", total=len(namespaces)
-        # )
-        # for ns in namespaces:
-        #     for seq in self._collect_artifact_sequences(ns.entity, ns.project):
-        #         yield seq
-        #         c += 1
-        # progress.task_pbar.update(task, total=c, completed=c)
-
     def _add_aliases(
         self,
     ):
@@ -1386,13 +1374,14 @@ class WandbImporter:
 
     def _validate_artifact(self, src_art: Artifact, dst_entity: str, dst_project: str):
         # These patterns of artifacts are special and should not be validated
+        problems = []
+        
         ignore_patterns = [
             r"^job-(.*?)\.py(:v\d+)?$",
             # r"^run-.*-history(?:\:v\d+)?$$",
         ]
         for pattern in ignore_patterns:
             if re.search(pattern, src_art.name):
-                problems = []
                 return (src_art, problems)
 
         try:
@@ -1420,20 +1409,6 @@ class WandbImporter:
         descr = "Validate artifacts"
         for seq in seqs:
             for art in seq:
-                logged_by = None
-                try:
-                    logged_by = art.logged_by()
-                except ValueError as e:
-                    print(f"problem with getting logged by {e=}")
-                except requests.HTTPError as e:
-                    # it failed so skip for now
-                    print(f"Some http error: {e=}")
-                    continue
-
-                if art.type == "wandb-history" and logged_by is None:
-                    # We can never upload valid history for a deleted run, so skip it
-                    continue
-
                 tup = (art, seq.entity, seq.project)
                 args.append(tup)
 
