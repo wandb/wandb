@@ -340,7 +340,6 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate(s.telemetry)
-	// TODO(perf): improve when debounce config is added, for now this sends all the time
 	s.sendConfig(nil, nil /*configRecord*/)
 }
 
