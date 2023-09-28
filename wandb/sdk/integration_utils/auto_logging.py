@@ -2,8 +2,9 @@ import asyncio
 import functools
 import inspect
 import logging
+import os
 import sys
-from typing import Any, Dict, Optional, Sequence, TypeVar
+from typing import Any, Dict, Optional, Sequence, TypeVar, Union
 
 import wandb.sdk
 import wandb.util
@@ -79,7 +80,7 @@ class PatchAPI:
             )
         return self._api
 
-    def patch(self, run: "wandb.sdk.wandb_run.Run") -> None:
+    def patch(self, run: Union["wandb.sdk.wandb_run.Run", "wandb.StreamTable"]) -> None:
         """Patches the API to log media or metrics to W&B."""
         for symbol in self.symbols:
             # split on dots, e.g. "Client.generate" -> ["Client", "generate"]
@@ -162,16 +163,20 @@ class AutologAPI:
         symbols: Sequence[str],
         resolver: ArgumentResponseResolver,
         telemetry_feature: Optional[str] = None,
+        use_streamtable: bool = False,
     ) -> None:
         """Autolog API calls to W&B."""
         self._telemetry_feature = telemetry_feature
+        # TODO: wire up to settings
+        self._use_streamtable: bool = bool(os.getenv("WANDB_STREAM")) or use_streamtable
         self._patch_api = PatchAPI(
             name=name,
             symbols=symbols,
             resolver=resolver,
         )
+        self._resolver: ArgumentResponseResolver = resolver
         self._name = self._patch_api.name
-        self._run: Optional[wandb.sdk.wandb_run.Run] = None
+        self._run: Optional[Union[wandb.sdk.wandb_run.Run, wandb.StreamTable]] = None
         self.__run_created_by_autolog: bool = False
 
     @property
@@ -183,9 +188,35 @@ class AutologAPI:
         """Enable autologging."""
         self.enable(init=init)
 
+    def _wandb_init(self, init: AutologInitArgs = None) -> None:
+        """Hacky support for StreamTable.
+
+        This assumes we can only use common interfaces between wandb.run and wandb.StreamTable which are:
+
+            .log(...)
+            .finish()
+            .dir
+            .id
+        """
+        kwargs = init or {}
+        self._use_streamtable = kwargs.pop("use_streamtable", self._use_streamtable)
+        if self._use_streamtable:
+            self._run = wandb.StreamTable(
+                table_name=init.get("table", self._name),
+                entity_name=init.get("entity", None),
+                project_name=init.get("project", None),
+                config=init.get("config", {}),
+            )
+            self._resolver.session_id = self._run._client_id
+            # we must disable telemetry as streamtable doesn't currently support it
+            self._telemetry_feature = False
+        else:
+            self._run = wandb.init(**kwargs)
+            self._resolver.session_id = self._run.id
+
     def _run_init(self, init: AutologInitArgs = None) -> None:
         """Handle wandb run initialization."""
-        # - autolog(init: dict = {...}) calls wandb.init(**{...})
+        # - autolog(init: dict = {...}) calls wandb.init(**{...}) or StreamTable(...)
         #   regardless of whether there is a wandb.run or not,
         #   we only track if the run was created by autolog
         #    - todo: autolog(init: dict | run = run) would use the user-provided run
@@ -193,11 +224,11 @@ class AutologAPI:
         if init:
             _wandb_run = wandb.run
             # we delegate dealing with the init dict to wandb.init()
-            self._run = wandb.init(**init)
+            self._wandb_init(init)
             if _wandb_run != self._run:
                 self.__run_created_by_autolog = True
         elif wandb.run is None:
-            self._run = wandb.init()
+            self._wandb_init()
             self.__run_created_by_autolog = True
         else:
             self._run = wandb.run

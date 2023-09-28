@@ -32,6 +32,15 @@ usage_metric_keys = {f"usage/{k}" for k in asdict(UsageMetrics())}
 class OpenAIRequestResponseResolver:
     def __init__(self):
         self.define_metrics_called = False
+        self._session_id = None
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    @session_id.setter
+    def session_id(self, session_id: str) -> None:
+        self._session_id = session_id
 
     def __call__(
         self,
@@ -43,7 +52,7 @@ class OpenAIRequestResponseResolver:
     ) -> Optional[Dict[str, Any]]:
         request = kwargs
 
-        if not self.define_metrics_called:
+        if not self.define_metrics_called and wandb.run is not None:
             # define metrics on first call
             for key in usage_metric_keys:
                 wandb.define_metric(key, step_metric="_timestamp")
@@ -214,7 +223,7 @@ class OpenAIRequestResponseResolver:
                 ),
                 "request_id": response.get("id", None),
                 "api_type": response.get("api_type", "openai"),
-                "session_id": wandb.run.id,
+                "session_id": self.session_id,
             }
             row.update(asdict(usage_metrics))
             usage.append(row)
