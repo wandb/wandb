@@ -3112,7 +3112,7 @@ class Run:
                     - digest.
 
         Returns:
-            local_path: (StrPath) path to downloaded artifact file(s).
+            path: (StrPath) path to downloaded artifact file(s).
         """
         r = self._run_obj
         assert r is not None
