@@ -1,75 +1,52 @@
 package debounce
 
 import (
-	"context"
-	"sync"
-
 	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"golang.org/x/time/rate"
 )
 
+// Debouncer is a rate limiter that can be used to debounce events
+// such as config updates.
 type Debouncer struct {
-	once      sync.Once
-	ctx       context.Context
-	cancel    context.CancelFunc
-	limiter   *rate.Limiter
-	tokenChan chan struct{}
-	logger    *observability.NexusLogger
-	wg        *sync.WaitGroup
+	limiter       *rate.Limiter
+	needsDebounce bool
+	logger        *observability.NexusLogger
 }
 
-func NewDebouncer(eventRate rate.Limit, burstSize int, logger *observability.NexusLogger) *Debouncer {
-	ctx, cancel := context.WithCancel(context.Background())
+// NewDebouncer creates a new debouncer
+func NewDebouncer(
+	eventRate rate.Limit,
+	burstSize int,
+	logger *observability.NexusLogger,
+) *Debouncer {
 	return &Debouncer{
-		ctx:       ctx,
-		cancel:    cancel,
-		limiter:   rate.NewLimiter(eventRate, burstSize),
-		tokenChan: make(chan struct{}, 1),
-		logger:    logger,
-		wg:        &sync.WaitGroup{},
+		limiter: rate.NewLimiter(eventRate, burstSize),
+		logger:  logger,
 	}
 }
 
-func (d *Debouncer) Close() {
-	d.once.Do(func() {
-		d.cancel()
-		d.wg.Wait()
-	})
+func (d *Debouncer) SetNeedsDebounce() {
+	d.needsDebounce = true
 }
 
-func (d *Debouncer) Trigger() {
-	select {
-	case d.tokenChan <- struct{}{}:
-		// Triggered
-	default:
-		// Channel is full, do not trigger, it'll send the update when it can
-		d.logger.Debug("Debouncer channel is full, not triggering")
+func (d *Debouncer) UnsetNeedsDebounce() {
+	d.needsDebounce = false
+}
+
+// Debounce will call the function f if the rate limiter allows it.
+func (d *Debouncer) Debounce(f func()) {
+	if !d.needsDebounce || !d.limiter.Allow() {
+		return
 	}
+	d.Flush(f)
 }
 
-func (d *Debouncer) Start(f func()) {
-	d.wg.Add(1)
-	go func() {
-	outer:
-		for {
-			select {
-			case <-d.ctx.Done():
-				d.logger.Debug("Context done, sending last request")
-				f()
-				break outer
-			case <-d.tokenChan:
-				// Wait for the next opportunity to send a request
-				err := d.limiter.Wait(d.ctx)
-				if err != nil {
-					d.logger.Debug("Error waiting for limiter", err)
-					continue
-				}
-				// Send the request
-				d.logger.Debug("Sending request")
-				f()
-			}
-		}
-		d.wg.Done()
-	}()
+// Flush will call the function f if it needs to be called.
+func (d *Debouncer) Flush(f func()) {
+	if d.needsDebounce {
+		d.logger.Debug("Flushing debouncer")
+		f()
+		d.UnsetNeedsDebounce()
+	}
 }
