@@ -3074,23 +3074,19 @@ class Run:
 
     def log_model(
         self,
-        local_path: StrPath,
+        path: StrPath,
         model_name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
         """Declare a model artifact as an output of a run.
 
         Arguments:
-            local_path: (str) A path to the contents of this model,
+            path: (str) A path to the contents of this model,
                 can be in the following forms:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
-            model_name: (str, optional) An artifact name. May be prefixed with entity/project.
-                Valid names can be in the following forms:
-                    - name:version
-                    - name:alias
-                    - digest.
+            model_name: (str, optional) An artifact name. String containing only the following alphanumeric characters: dashes, underscores, and dots.
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
             aliases: (list, optional) Aliases to apply to this artifact,
@@ -3100,12 +3096,11 @@ class Run:
             None
         """
         self._log_artifact(
-            artifact_or_path=local_path, name=model_name, type="model", aliases=aliases
+            artifact_or_path=path, name=model_name, type="model", aliases=aliases
         )
-        return None
 
     @_run_decorator._attach
-    def use_model(self, model_name: str) -> StrPath:
+    def use_model(self, model_name: str) -> FilePathStr:
         """Download a logged model artifact.
 
         Arguments:
@@ -3115,17 +3110,28 @@ class Run:
                     - name:version
                     - name:alias
                     - digest.
+
+        Returns:
+            local_path: (StrPath) path to downloaded artifact file(s).
         """
         r = self._run_obj
         assert r is not None
         artifact = self.use_artifact(artifact_or_name=model_name)
-        assert artifact.type.lower() == "model"
-        local_path = artifact.download()
-        return local_path
+        assert "model" in str(artifact.type.lower())
+        path = artifact.download()
+
+        # If returned directory contains only one file, return path to that file
+        try:
+            file_list = os.listdir(path)
+            if len(file_list) == 1:
+                return FilePathStr(os.path.join(path, file_list[0]))
+        except NotADirectoryError:
+            pass
+        return path
 
     def link_model(
         self,
-        local_path: StrPath,
+        path: StrPath,
         linked_model_name: str,
         model_name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
@@ -3135,15 +3141,15 @@ class Run:
         The linked model will be visible in the UI for the specified portfolio.
 
         Arguments:
-            local_path: (str) A path to the contents of this model,
+            path: (str) A path to the contents of this model,
                 can be in the following forms:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
-            linked_model_name: (str) - the name of the portfolio that the model is to be linked to. The entity will be derived from the run
-            model_name: (str) - the name of the model artifact that files in local_path will be logged to.
+            linked_model_name: (str) - the name of the registered model that the model is to be linked to. The entity will be derived from the run
+            model_name: (str) - the name of the model artifact that files in 'path' will be logged to.
             aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
-                inside the portfolio.
+                inside the registered model.
                 The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
@@ -3155,7 +3161,7 @@ class Run:
         target_path = self.entity + "/" + project + "/" + linked_model_name
 
         artifact = self._log_artifact(
-            artifact_or_path=local_path, name=model_name, type="model"
+            artifact_or_path=path, name=model_name, type="model"
         )
         self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
 
