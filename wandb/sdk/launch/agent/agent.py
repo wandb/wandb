@@ -642,7 +642,10 @@ class LaunchAgent:
                     )
             if self._check_run_finished(job_tracker, launch_spec):
                 return
-            if job_tracker.check_wandb_run_stopped(self._api):
+            if (
+                job_tracker.check_wandb_run_stopped(self._api)
+                and run.get_status() == "running"
+            ):
                 run.cancel()
 
             time.sleep(AGENT_POLLING_INTERVAL)
