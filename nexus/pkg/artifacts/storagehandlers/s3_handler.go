@@ -3,6 +3,7 @@ package storagehandlers
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strings"
@@ -62,6 +63,10 @@ func (sh *S3StorageHandler) initClient() error {
 	awsS3EndpointURL := os.Getenv("AWS_S3_ENDPOINT_URL")
 	awsRegion := os.Getenv("AWS_REGION")
 
+	
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(awsRegion), config.WithEnd
+	)
+
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
 			Endpoint: aws.String(awsS3EndpointURL),
@@ -83,6 +88,9 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 	}
 
 	// todo: cache
+	// path, hit, cache_open = sh.Cache.check_etag_obj_path()
+	// if hit:
+	//     return path
 
 	sh.initClient()
 	if sh.Client == nil {
@@ -165,7 +173,20 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 		}
 	}
 
-	// todo: download files and write to cache
+	// todo: update cache
+
+	path := os.Getenv("WANDB_CACHE_DIR")
+	file, err := os.Create(path)
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		os.Exit(1)
+	}
+	defer file.Close()
+	_, copyErr := io.Copy(file, obj.Body)
+	if copyErr != nil {
+		fmt.Println("Error copying object data to file:", copyErr)
+		os.Exit(1)
+	}
 
 	return path, nil
 }
