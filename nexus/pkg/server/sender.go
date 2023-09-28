@@ -443,6 +443,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	if s.graphqlClient != nil {
 
 		s.updateConfig(run.Config)
+		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate(run.Telemetry)
 		config := s.serializeConfig()
 
