@@ -67,8 +67,8 @@ class ArtifactsCache:
     def cleanup(
         self,
         target_size: Optional[int] = None,
-        target_fraction: Optional[float] = None,
         remove_temp: bool = False,
+        target_fraction: Optional[float] = None,
     ) -> int:
         """Clean up the cache, removing the least recently used files first.
 
@@ -76,14 +76,14 @@ class ArtifactsCache:
             target_size: The target size of the cache in bytes. If the cache is larger
                 than this, we will remove the least recently used files until the cache
                 is smaller than this size.
-            target_fraction: The target fraction of the cache to reclaim. If the cache
-                is larger than this, we will remove the least recently used files until
-                the cache is smaller than this fraction of its current size. It is an
-                error to specify both target_size and target_fraction.
             remove_temp: Whether to remove temporary files. Temporary files are files
                 that are currently being written to the cache. If remove_temp is True,
                 all temp files will be removed, regardless of the target_size or
                 target_fraction.
+            target_fraction: The target fraction of the cache to reclaim. If the cache
+                is larger than this, we will remove the least recently used files until
+                the cache is smaller than this fraction of its current size. It is an
+                error to specify both target_size and target_fraction.
 
         Returns:
             The number of bytes reclaimed.
