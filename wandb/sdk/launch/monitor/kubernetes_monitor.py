@@ -35,23 +35,18 @@ class JobState:
     # Dict for mapping possible states of custom objects to the states we want to report
 
 
-# to the agent.
+# Maps phases and conditions of custom objects to agent's internal run states.
 CRD_STATE_DICT: Dict[str, State] = {
-    # Starting states.
     "created": JobState.STARTING,
     "pending": JobState.STARTING,
-    # Running states.
     "running": JobState.RUNNING,
     "completing": JobState.RUNNING,
-    # Finished states.
     "succeeded": JobState.FINISHED,
     "completed": JobState.FINISHED,
-    # Failed states.
     "failed": JobState.FAILED,
     "aborted": JobState.FAILED,
     "timeout": JobState.FAILED,
     "terminated": JobState.FAILED,
-    # Stopping states.
     "terminating": JobState.STOPPING,
 }
 
@@ -136,10 +131,7 @@ class LaunchKubernetesMonitor:
         self._core_api: CoreV1Api = core_api
         self._batch_api: BatchV1Api = batch_api
         self._custom_api: CustomObjectsApi = custom_api
-
         self._label_selector = label_selector
-
-        self._asyncio_lock = asyncio.Lock()
 
         # Dict mapping a tuple of (namespace, resource_type) to an
         # asyncio.Task that is monitoring that resource type in that namespace.
@@ -148,33 +140,73 @@ class LaunchKubernetesMonitor:
         # Map from job name to job state.
         self._job_states: Dict[str, Status] = dict()
 
-    def monitor_namespace(self, namespace: str, custom_resource=None) -> None:
+    @classmethod
+    def initialize(cls, *args, **kwargs) -> None:
+        """Initialize the LaunchKubernetesMonitor."""
+        if cls._instance is None:
+            cls._instance = cls(*args, **kwargs)
+        else:
+            raise ValueError(
+                "LaunchKubernetesMonitor has already been initialized. "
+                "It cannot be initialized more than once."
+            )
+
+    @classmethod
+    def monitor_namespace(cls, namespace: str, custom_resource=None) -> None:
+        """Start monitoring a namespaces for resources."""
+        cls._check_initialized()
+        cls._instance.__monitor_namespace(namespace, custom_resource=custom_resource)
+
+    @classmethod
+    def get_status(cls, job_name: str) -> Status:
+        """Get the status of a job."""
+        cls._check_initialized()
+        return cls._instance.__get_status(job_name)
+
+    @classmethod
+    def status_count(cls) -> Dict[str, int]:
+        """Get a dictionary mapping statuses to the # monitored jobs with each status."""
+        cls._check_initialized()
+        return cls._instance.__status_count()
+
+    @classmethod
+    def _check_initialized(cls) -> None:
+        """Check if the LaunchKubernetesMonitor has been initialized."""
+        if cls._instance is None:
+            raise ValueError(
+                "LaunchKubernetesMonitor must be initialized before it can be used."
+            )
+
+    def __monitor_namespace(self, namespace: str, custom_resource=None) -> None:
         """Start monitoring a namespaces for resources."""
         if (namespace, Resources.PODS) not in self._monitor_tasks:
             self._monitor_tasks[(namespace, Resources.PODS)] = asyncio.create_task(
-                self._monitor_pods(namespace)
+                self._monitor_pods(namespace),
+                name=f"monitor_{Resources.PODS}_{namespace}",
             )
         # If a custom resource is specified then we will start monitoring
         # that resource type in the namespace instead of jobs.
         if custom_resource is not None:
             if (namespace, custom_resource) not in self._monitor_tasks:
                 self._monitor_tasks[(namespace, custom_resource)] = asyncio.create_task(
-                    self._monitor_jobs(namespace)
+                    self._monitor_crd(namespace, custom_resource),
+                    name=f"monitor_{custom_resource}_{namespace}",
                 )
         else:
             if (namespace, Resources.JOBS) not in self._monitor_tasks:
                 self._monitor_tasks[(namespace, Resources.JOBS)] = asyncio.create_task(
-                    self._monitor_jobs(namespace)
+                    self._monitor_jobs(namespace),
+                    name=f"monitor_{Resources.JOBS}_{namespace}",
                 )
 
-    def get_status(self, job_name: str) -> Status:
+    def __get_status(self, job_name: str) -> Status:
         """Get the status of a job."""
         if job_name not in self._job_states:
             return Status(JobState.PENDING)
         state = self._job_states[job_name]
         return Status(state)
 
-    def status_count(self) -> Dict[str, int]:
+    def __status_count(self) -> Dict[str, int]:
         """Get a dictionary mapping statuses to the # monitored jobs with each status."""
         counts = dict()
         for _, state in self._job_states.items():
@@ -188,7 +220,6 @@ class LaunchKubernetesMonitor:
         """Set the status of the run."""
         if self._job_states.get(job_name) != status:
             self._job_states[job_name] = status
-            wandb.termlog(f"Job {job_name} is {status}")
 
     async def _monitor_pods(self, namespace: str) -> None:
         """Monitor a namespace for changes."""
@@ -243,6 +274,7 @@ class LaunchKubernetesMonitor:
             label_selector=self._label_selector,
         ):
             object = event.get("object")
+            name = object.get("metadata", dict()).get("name")
             status = object.get("status")
             if status is None:
                 continue
@@ -263,7 +295,7 @@ class LaunchKubernetesMonitor:
             if state is None:
                 continue
             status = Status(state)
-            self._set_status(status)
+            self._set_status(name, status)
             if status.state in [JobState.FINISHED, JobState.FAILED, JobState.PREEMPTED]:
                 self.stop()
                 break
@@ -315,7 +347,6 @@ class SafeWatch:
                     # If resource version is too old we need to start over.
                     del kwargs["resource_version"]
                     self._last_seen_resource_version = None
-                    wandb.terminfo("Oh boy 410")
             except Exception as E:
                 wandb.termerror(f"Unknown exception in event stream: {E}")
 
