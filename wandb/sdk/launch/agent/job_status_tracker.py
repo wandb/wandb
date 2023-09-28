@@ -39,11 +39,11 @@ class JobAndRunStatusTracker:
         self.err_stage = stage
 
     def check_wandb_run_stopped(self, api: Api) -> bool:
-        if self.run_id is None or self.project is None or self.entity is None:
-            _logger.error(
-                "Job tracked does not contain run info, not checking if run is stopped"
-            )
-            return False
+        assert (
+            self.run_id is not None
+            and self.project is not None
+            and self.entity is not None
+        ), "Job tracker does not contain run info. Update with run info before checking if run stopped"
 
         try:
             return api.api.check_stop_requested(self.project, self.entity, self.run_id)
