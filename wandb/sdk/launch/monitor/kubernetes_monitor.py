@@ -32,8 +32,6 @@ class JobState:
     STARTING = "starting"
     STOPPING = "stopping"
 
-    # Dict for mapping possible states of custom objects to the states we want to report
-
 
 # Maps phases and conditions of custom objects to agent's internal run states.
 CRD_STATE_DICT: Dict[str, State] = {
