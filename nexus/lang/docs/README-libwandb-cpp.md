@@ -11,7 +11,7 @@ subject to change, functionality is limited and not all datapaths are thoroughly
 
 ```shell
 # download library
-wget https://github.com/wandb/libwandb-cpp/releases/download/v0.0-alpha.0/libwandb-cpp-linux-x86_64-alpha.zip
+wget https://github.com/wandb/libwandb-cpp/releases/download/v0.0-alpha.1/libwandb-cpp-linux-x86_64-alpha.zip
 # unpack
 unzip libwandb-cpp-linux-x86_64-alpha.zip
 # compile and link
