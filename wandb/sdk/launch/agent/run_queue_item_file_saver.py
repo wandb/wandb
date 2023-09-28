@@ -5,8 +5,6 @@ import sys
 from typing import List, Optional, Union
 
 import wandb
-from wandb.sdk.lib import RunDisabled
-from wandb.sdk.wandb_run import Run
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -18,7 +16,11 @@ FileSubtypes = Literal["warning", "error"]
 
 class RunQueueItemFileSaver:
     def __init__(
-        self, agent_run: Optional[Union[Run, RunDisabled]], run_queue_item_id: str
+        self,
+        agent_run: Optional[
+            Union["wandb.sdk.wandb_run.Run", "wandb.sdk.lib.RunDisabled"]
+        ],
+        run_queue_item_id: str,
     ):
         self.run_queue_item_id = run_queue_item_id
         self.run = agent_run
@@ -26,7 +28,7 @@ class RunQueueItemFileSaver:
     def save_contents(
         self, contents: str, fname: str, file_sub_type: FileSubtypes
     ) -> Optional[List[str]]:
-        if not isinstance(self.run, Run):
+        if not isinstance(self.run, wandb.sdk.wandb_run.Run):
             wandb.termwarn("Not saving file contents because agent has no run")
             return None
         root_dir = self.run._settings.files_dir

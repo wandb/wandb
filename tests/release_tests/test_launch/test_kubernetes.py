@@ -8,11 +8,12 @@ from utils import (
     init_agent_in_launch_cluster,
     run_cmd,
     run_cmd_async,
+    wait_for_k8s_job_completion,
     wait_for_queued_image_job_completion,
     wait_for_run_completion,
 )
 from wandb.apis.public import Api, Sweep
-from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch._launch_add import launch_add
 
 NAMESPACE = "wandb-release-testing"
 ENTITY = "launch-release-testing"
@@ -41,8 +42,9 @@ def test_kubernetes_agent_on_local_process():
             config=LAUNCH_JOB_CONFIG,
         )
 
-        status, completed_run = wait_for_queued_image_job_completion(
-            NAMESPACE, ENTITY, PROJECT, queued_run
+        status = wait_for_k8s_job_completion(NAMESPACE, ENTITY, PROJECT, 1)
+        completed_run = wait_for_queued_image_job_completion(
+            ENTITY, PROJECT, queued_run
         )
 
         summary = completed_run.summary
@@ -72,8 +74,9 @@ def test_kubernetes_agent_in_cluster(api_key: str, agent_image: Optional[str]):
             config=LAUNCH_JOB_CONFIG,
         )
 
-        status, completed_run = wait_for_queued_image_job_completion(
-            NAMESPACE, ENTITY, PROJECT, queued_run
+        status = wait_for_k8s_job_completion(NAMESPACE, ENTITY, PROJECT, 1)
+        completed_run = wait_for_queued_image_job_completion(
+            ENTITY, PROJECT, queued_run
         )
 
         summary = completed_run.summary

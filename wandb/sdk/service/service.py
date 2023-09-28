@@ -13,7 +13,8 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from wandb import _sentry
+from wandb import _minimum_nexus_version, _sentry, termlog
+from wandb.env import error_reporting_enabled
 from wandb.errors import Error
 from wandb.util import get_module
 
@@ -41,6 +42,17 @@ class ServiceStartPortError(Error):
     """Raised when service start fails to find a port."""
 
     pass
+
+
+def _check_nexus_version_compatibility(nexus_version: str) -> None:
+    """Checks if the installed nexus version is compatible with the wandb version."""
+    from pkg_resources import parse_version
+
+    if parse_version(nexus_version) < parse_version(_minimum_nexus_version):
+        raise ImportError(
+            f"Requires wandb-core version {_minimum_nexus_version} or later, "
+            f"but you have {nexus_version}. Run `pip install --upgrade wandb[nexus]` to upgrade."
+        )
 
 
 class _Service:
@@ -174,8 +186,11 @@ class _Service:
                         "wandb_core",
                         required="The nexus experiment requires the wandb_core module.",
                     )
+                    _check_nexus_version_compatibility(wandb_nexus.__version__)
                     nexus_path = wandb_nexus.get_nexus_path()
                 service_args.extend([nexus_path])
+                if not error_reporting_enabled():
+                    service_args.append("--no-observability")
                 exec_cmd_list = []
             else:
                 service_args.extend(["wandb", "service"])
@@ -190,9 +205,6 @@ class _Service:
             service_args.append("--serve-sock")
 
             if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
-                # enable memory profiling with memray
-                import wandb
-
                 _ = get_module(
                     "memray",
                     required=(
@@ -200,6 +212,7 @@ class _Service:
                         "install with `pip install memray`"
                     ),
                 )
+
                 time_tag = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 output_file = f"wandb_service.memray.{time_tag}.bin"
                 cli_executable = (
@@ -216,10 +229,10 @@ class _Service:
                     output_file,
                 ]
                 service_args[0] = str(cli_executable)
-                wandb.termlog(
+                termlog(
                     f"wandb service memory profiling enabled, output file: {output_file}"
                 )
-                wandb.termlog(
+                termlog(
                     f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
                 )
 
