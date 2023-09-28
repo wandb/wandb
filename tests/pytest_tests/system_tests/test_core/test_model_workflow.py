@@ -1,4 +1,3 @@
-import os
 import tempfile
 import pytest
 from wandb import env
@@ -17,7 +16,7 @@ def test_offline_link_artifact(wandb_init):
 
 
 def test_log_model(relay_server, wandb_init):
-    with relay_server() as relay:
+    with relay_server():
         run = wandb_init()
         with tempfile.TemporaryDirectory(dir="./") as tmpdir:
             with open(tmpdir + "/boom.txt", "w") as f:
@@ -30,13 +29,12 @@ def test_log_model(relay_server, wandb_init):
         run = wandb_init()
         download_path = run.use_model("test-model:v0")
         file = download_path
-        print(file)
         assert file == f"{env.get_artifact_dir()}/test-model:v0/boom.txt"
         run.finish()
 
 
 def test_use_model(relay_server, wandb_init):
-    with relay_server() as relay:
+    with relay_server():
         run = wandb_init()
         with tempfile.TemporaryDirectory(dir="./") as tmpdir:
             with open(tmpdir + "/boom.txt", "w") as f:
@@ -49,13 +47,12 @@ def test_use_model(relay_server, wandb_init):
             logged_artifact.wait()
             download_path = run.use_model("test-model:v0")
             file = download_path
-            print(file)
             assert file == f"{env.get_artifact_dir()}/test-model:v0/boom.txt"
         run.finish()
 
 
 def test_use_model_error_artifact_type(relay_server, wandb_init):
-    with relay_server() as relay:
+    with relay_server():
         run = wandb_init()
         with tempfile.TemporaryDirectory(dir="./") as tmpdir:
             with open(tmpdir + "/boom.txt", "w") as f:
@@ -72,7 +69,7 @@ def test_use_model_error_artifact_type(relay_server, wandb_init):
 
 
 def test_link_model(relay_server, wandb_init):
-    with relay_server() as relay:
+    with relay_server():
         run = wandb_init()
         with tempfile.TemporaryDirectory(dir="./") as tmpdir:
             with open(tmpdir + "/boom.txt", "w") as f:
