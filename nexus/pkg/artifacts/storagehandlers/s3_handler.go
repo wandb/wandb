@@ -63,14 +63,14 @@ func (sh *S3StorageHandler) initClient() error {
 	awsS3EndpointURL := os.Getenv("AWS_S3_ENDPOINT_URL")
 	awsRegion := os.Getenv("AWS_REGION")
 
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		Config: aws.Config{
-			Endpoint: aws.String(awsS3EndpointURL),
-			Region:   aws.String(awsRegion),
-			// S3ForcePathStyle: aws.Bool(true),
-		},
-	}))
-
+	sess := session.Must(session.NewSessionWithOptions(
+		session.Options{
+			Config: aws.Config{
+				Endpoint: aws.String(awsS3EndpointURL),
+				Region:   aws.String(awsRegion),
+				// S3ForcePathStyle: aws.Bool(true),
+			},
+		}))
 	sh.Client = s3.New(sess)
 	return nil
 }
