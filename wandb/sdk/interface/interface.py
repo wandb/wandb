@@ -362,8 +362,6 @@ class InterfaceBase:
     def _make_partial_source_str(
         source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
     ) -> str:
-        import wandb
-        wandb.termlog(f"{source=} {job_info=} {metadata=}")
         """Construct use_artifact.partial.source_info.sourc as str."""
         source_type = job_info.get("source_type", "").strip()
         if source_type == "artifact":
