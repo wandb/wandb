@@ -20,6 +20,7 @@ class GraphQLSession(HTTPTransport):
         auth: Optional[Union[Tuple[str, str], Callable]] = None,
         use_json: bool = False,
         timeout: Optional[Union[int, float]] = None,
+        proxies: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> None:
         """Setup a session for sending GraphQL queries and mutations.
@@ -32,6 +33,8 @@ class GraphQLSession(HTTPTransport):
         """
         super().__init__(url, **kwargs)
         self.session = requests.Session()
+        if proxies:
+            self.session.proxies.update(proxies)
         self.session.auth = auth
         self.default_timeout = timeout
         self.use_json = use_json

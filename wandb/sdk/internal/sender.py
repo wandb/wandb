@@ -268,6 +268,7 @@ class SendManager:
         self._cached_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
+        self._consolidated_summary: Dict[str, Any] = dict()
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
@@ -1149,7 +1150,9 @@ class SendManager:
         summary_dict.pop("_wandb", None)
         if self._metadata_summary:
             summary_dict["_wandb"] = self._metadata_summary
-        json_summary = json.dumps(summary_dict)
+        # merge with consolidated summary
+        self._consolidated_summary.update(summary_dict)
+        json_summary = json.dumps(self._consolidated_summary)
         if self._fs:
             self._fs.push(filenames.SUMMARY_FNAME, json_summary)
         # TODO(jhr): we should only write this at the end of the script

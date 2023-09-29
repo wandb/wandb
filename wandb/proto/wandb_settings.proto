@@ -35,9 +35,11 @@ message Settings {
   google.protobuf.BoolValue _disable_setproctitle = 9;
   google.protobuf.BoolValue _disable_stats = 10;
   google.protobuf.BoolValue _disable_viewer = 11;
+  google.protobuf.BoolValue _disable_machine_info = 158;
   google.protobuf.BoolValue _except_exit = 12;
   google.protobuf.StringValue _executable = 13;
   MapStringKeyStringValue _extra_http_headers = 14;
+  MapStringKeyStringValue _proxies = 200;
   google.protobuf.Int32Value _file_stream_retry_max = 147;
   google.protobuf.Int32Value _file_stream_retry_wait_min_seconds = 148;
   google.protobuf.Int32Value _file_stream_retry_wait_max_seconds = 149;
@@ -97,6 +99,7 @@ message Settings {
   google.protobuf.StringValue base_url = 57;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;
+  google.protobuf.StringValue colab_url = 160;
   google.protobuf.StringValue console = 60;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;
@@ -133,6 +136,7 @@ message Settings {
   google.protobuf.StringValue notebook_name = 93;
   google.protobuf.StringValue problem = 94;
   google.protobuf.StringValue program = 95;
+  google.protobuf.StringValue program_abspath = 159;
   google.protobuf.StringValue program_relpath = 96;
   google.protobuf.StringValue project = 97;
   google.protobuf.StringValue project_url = 98;

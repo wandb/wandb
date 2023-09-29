@@ -34,8 +34,8 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.launch import utils as launch_utils
+from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
-from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem
@@ -1281,7 +1281,7 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    from wandb.sdk.launch import launch as wandb_launch
+    from wandb.sdk.launch._launch import _launch
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_cli")
@@ -1289,6 +1289,11 @@ def launch(
     if run_async and queue is not None:
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
+        )
+
+    if queue and docker_image and not project:
+        raise LaunchError(
+            "Cannot use --queue and --docker together without a project. Please specify a project with --project or -p."
         )
 
     if resource_args is not None:
@@ -1329,19 +1334,19 @@ def launch(
     if queue is None:
         # direct launch
         try:
-            run = wandb_launch.run(
+            run = _launch(
                 api,
                 uri,
                 job,
-                entry_point,
-                git_version,
                 project=project,
                 entity=entity,
                 docker_image=docker_image,
                 name=name,
+                entry_point=entry_point,
+                version=git_version,
                 resource=resource,
                 resource_args=resource_args,
-                config=config,
+                launch_config=config,
                 synchronous=(not run_async),
                 run_id=run_id,
                 repository=repository,
@@ -1444,11 +1449,11 @@ def launch_agent(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
         )
 
-    from wandb.sdk.launch import launch as wandb_launch
+    import wandb.sdk.launch._launch as _launch
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
-    agent_config, api = wandb_launch.resolve_agent_config(
+    agent_config, api = _launch.resolve_agent_config(
         entity, project, max_jobs, queues, config
     )
     if agent_config.get("project") is None:
@@ -1465,7 +1470,7 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
     try:
-        wandb_launch.create_and_run_agent(api, agent_config)
+        _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
         wandb._sentry.exception(e)
         raise e

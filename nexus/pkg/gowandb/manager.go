@@ -3,6 +3,9 @@ package gowandb
 import (
 	"context"
 
+	"github.com/wandb/wandb/nexus/internal/shared"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -15,22 +18,29 @@ type Manager struct {
 	addr string
 
 	// settings for all runs
-	settings *SettingsWrap
+	settings *settings.SettingsWrap
 }
 
 // NewManager creates a new manager with the given settings and responders.
-func NewManager(ctx context.Context, settings *SettingsWrap, addr string) *Manager {
+func NewManager(ctx context.Context, baseSettings *settings.SettingsWrap, addr string) *Manager {
 	manager := &Manager{
 		ctx:      ctx,
-		settings: settings,
+		settings: baseSettings,
 		addr:     addr,
 	}
 	return manager
 }
 
-func (m *Manager) NewRun() *Run {
+func (m *Manager) NewRun(runParams *runopts.RunParams) *Run {
 	conn := m.Connect(m.ctx)
-	run := NewRun(m.ctx, m.settings.Settings, conn)
+	// make a copy of the base manager settings
+	runSettings := m.settings.Copy()
+	if runParams.RunID != nil {
+		runSettings.SetRunID(*runParams.RunID)
+	} else if runSettings.RunId == nil {
+		runSettings.SetRunID(shared.ShortID(8))
+	}
+	run := NewRun(m.ctx, runSettings.Settings, conn, runParams)
 	return run
 }
 

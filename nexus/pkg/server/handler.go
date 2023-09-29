@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
@@ -90,6 +92,9 @@ type Handler struct {
 	// from the server
 	runRecord *service.RunRecord
 
+	// runMetadata is the metadata associated with the run
+	runMetadata *service.MetadataRequest
+
 	// consolidatedSummary is the full summary (all keys)
 	// TODO(memory): persist this in the future as it will grow with number of distinct keys
 	consolidatedSummary map[string]string
@@ -103,6 +108,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	// fh is the file handler for the stream
+	fh *FileHandler
 }
 
 // NewHandler creates a new handler
@@ -125,13 +133,29 @@ func NewHandler(
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
+	// initialize the run metadata from settings
+	h.runMetadata = &service.MetadataRequest{
+		Os:       h.settings.GetXOs().GetValue(),
+		Python:   h.settings.GetXPython().GetValue(),
+		Host:     h.settings.GetHost().GetValue(),
+		Cuda:     h.settings.GetXCuda().GetValue(),
+		Program:  h.settings.GetProgram().GetValue(),
+		CodePath: h.settings.GetProgramAbspath().GetValue(),
+		// CodePathLocal: h.settings.GetProgramAbspath().GetValue(),  // todo(launch): add this
+		Email:      h.settings.GetEmail().GetValue(),
+		Root:       h.settings.GetRootDir().GetValue(),
+		Username:   h.settings.GetUsername().GetValue(),
+		Docker:     h.settings.GetDocker().GetValue(),
+		Executable: h.settings.GetXExecutable().GetValue(),
+		Args:       h.settings.GetXArgs().GetValue(),
+		Colab:      h.settings.GetColabUrl().GetValue(),
+	}
 	return h
 }
 
 // do this starts the handler
 func (h *Handler) do(in, lb <-chan *service.Record) {
-	defer observability.Reraise()
-
+	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 loop:
 	for in != nil || lb != nil {
@@ -170,6 +194,10 @@ func (h *Handler) close() {
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
+	if record == nil {
+		return
+	}
+
 	if record.GetControl() == nil {
 		record.Control = &service.Control{}
 	}
@@ -182,6 +210,9 @@ func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions .
 }
 
 func (h *Handler) sendRecord(record *service.Record) {
+	if record == nil {
+		return
+	}
 	h.fwdChan <- record
 }
 
@@ -270,6 +301,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleResume()
 	case *service.Request_Cancel:
 		h.handleCancel(record)
+	case *service.Request_InternalMessages:
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -300,6 +332,8 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
+		rec := h.fh.Final()
+		h.sendRecord(rec)
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
@@ -309,7 +343,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
 	}
-	// Need to clone the record to avoide race condition with the writer
+	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*service.Record)
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -371,14 +405,24 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 
-	// TODO: this is a hack, we should not be sending metadata from here,
-	//  it should arrive as a proper request from the client.
-	//  attempting to do this before the run start request arrives in the sender
-	//  will cause a segfault because the sender's uploader is not initialized yet.
-	h.handleMetadata(record, request)
+	if request.Run.GetGit() != nil {
+		h.runMetadata.Git = &service.GitRepoRecord{
+			RemoteUrl: run.GetGit().GetRemoteUrl(),
+			Commit:    run.GetGit().GetCommit(),
+		}
+	}
+	h.runMetadata.StartedAt = run.GetStartTime()
+
+	h.handleCodeSave()
 
 	// start the system monitor
 	h.systemMonitor.Do()
+	systemInfo := h.systemMonitor.Probe()
+	if systemInfo != nil {
+		proto.Merge(h.runMetadata, systemInfo)
+	}
+
+	h.handleMetadata()
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -404,27 +448,64 @@ func (h *Handler) handleResume() {
 	h.systemMonitor.Do()
 }
 
-func (h *Handler) handleMetadata(_ *service.Record, req *service.RunStartRequest) {
-	// Sending metadata as a request for now, eventually this should be turned into
-	// a record and stored in the transaction log
-	record := &service.Record{
+func (h *Handler) handleCodeSave() {
+	if !h.settings.GetSaveCode().GetValue() {
+		return
+	}
+
+	programRelative := h.settings.GetProgramRelpath().GetValue()
+	if programRelative == "" {
+		h.logger.Warn("handleCodeSave: program relative path is empty")
+		return
+	}
+
+	programAbsolute := h.settings.GetProgramAbspath().GetValue()
+	if _, err := os.Stat(programAbsolute); err != nil {
+		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
+		return
+	}
+
+	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
+	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
+		return
+	}
+	savedProgram := filepath.Join(codeDir, programRelative)
+	if _, err := os.Stat(savedProgram); err != nil {
+		if err = copyFile(programAbsolute, savedProgram); err != nil {
+			return
+		}
+	}
+	record := service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: filepath.Join("code", programRelative),
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(&record)
+}
+
+func (h *Handler) handleMetadata() {
+	// TODO: Sending metadata as a request for now, eventually this should be turned into
+	//  a record and stored in the transaction log
+	if h.settings.GetXDisableMeta().GetValue() {
+		return
+	}
+
+	record := service.Record{
 		RecordType: &service.Record_Request{
-			Request: &service.Request{RequestType: &service.Request_Metadata{
-				Metadata: &service.MetadataRequest{
-					Os:         h.settings.GetXOs().GetValue(),
-					Python:     h.settings.GetXPython().GetValue(),
-					Host:       h.settings.GetHost().GetValue(),
-					Cuda:       h.settings.GetXCuda().GetValue(),
-					Program:    h.settings.GetProgram().GetValue(),
-					Email:      h.settings.GetEmail().GetValue(),
-					Root:       h.settings.GetRootDir().GetValue(),
-					Username:   h.settings.GetUsername().GetValue(),
-					Docker:     h.settings.GetDocker().GetValue(),
-					Executable: h.settings.GetXExecutable().GetValue(),
-					Args:       h.settings.GetXArgs().GetValue(),
-					StartedAt:  req.Run.StartTime,
-				}}}}}
-	h.sendRecord(record)
+			Request: &service.Request{
+				RequestType: &service.Request_Metadata{
+					Metadata: h.runMetadata,
+				},
+			},
+		},
+	}
+	h.sendRecord(&record)
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
@@ -474,7 +555,16 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 }
 
 func (h *Handler) handleFiles(record *service.Record) {
-	h.sendRecord(record)
+	if record.GetFiles() == nil {
+		return
+	}
+
+	if h.fh == nil {
+		h.fh = NewFileHandler()
+	}
+
+	rec := h.fh.Handle(record)
+	h.sendRecord(rec)
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {

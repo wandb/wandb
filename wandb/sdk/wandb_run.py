@@ -103,6 +103,7 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
         GetSummaryResponse,
+        InternalMessagesResponse,
         SampledHistoryResponse,
     )
 
@@ -161,6 +162,8 @@ class RunStatusChecker:
     _stop_status_handle: Optional[MailboxHandle]
     _network_status_lock: threading.Lock
     _network_status_handle: Optional[MailboxHandle]
+    _internal_messages_lock: threading.Lock
+    _internal_messages_handle: Optional[MailboxHandle]
 
     def __init__(
         self,
@@ -190,9 +193,18 @@ class RunStatusChecker:
             daemon=True,
         )
 
+        self._internal_messages_lock = threading.Lock()
+        self._internal_messages_handle = None
+        self._internal_messages_thread = threading.Thread(
+            target=self.check_internal_messages,
+            name="IntMsgThr",
+            daemon=True,
+        )
+
     def start(self) -> None:
         self._stop_thread.start()
         self._network_status_thread.start()
+        self._internal_messages_thread.start()
 
     def _loop_check_status(
         self,
@@ -278,6 +290,20 @@ class RunStatusChecker:
             process=_process_stop_status,
         )
 
+    def check_internal_messages(self) -> None:
+        def _process_internal_messages(result: Result) -> None:
+            internal_messages = result.response.internal_messages_response
+            for msg in internal_messages.messages.warning:
+                wandb.termwarn(msg)
+
+        self._loop_check_status(
+            lock=self._internal_messages_lock,
+            set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+            timeout=1,
+            request=self._interface.deliver_internal_messages,
+            process=_process_internal_messages,
+        )
+
     def stop(self) -> None:
         self._join_event.set()
         with self._stop_status_lock:
@@ -286,11 +312,15 @@ class RunStatusChecker:
         with self._network_status_lock:
             if self._network_status_handle:
                 self._network_status_handle.abandon()
+        with self._internal_messages_lock:
+            if self._internal_messages_handle:
+                self._internal_messages_handle.abandon()
 
     def join(self) -> None:
         self.stop()
         self._stop_thread.join()
         self._network_status_thread.join()
+        self._internal_messages_thread.join()
 
 
 class _run_decorator:  # noqa: N801
@@ -504,6 +534,7 @@ class Run:
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
+    _internal_messages_response: Optional["InternalMessagesResponse"]
 
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
@@ -607,6 +638,7 @@ class Run:
         self._final_summary = None
         self._poll_exit_response = None
         self._server_info_response = None
+        self._internal_messages_response = None
         self._poll_exit_handle = None
         self._job_info = None
 
@@ -2156,7 +2188,7 @@ class Run:
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
-            traceback.print_exception(*sys.exc_info())
+            traceback.print_exc()
         else:
             self._on_final()
         finally:
@@ -2383,6 +2415,11 @@ class Run:
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
+        internal_messages_handle = self._backend.interface.deliver_internal_messages()
+        result = internal_messages_handle.wait(timeout=-1)
+        assert result
+        self._internal_messages_response = result.response.internal_messages_response
+
         # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
         server_info_handle = self._backend.interface.deliver_request_server_info()
@@ -2429,14 +2466,15 @@ class Run:
 
     def _on_final(self) -> None:
         self._footer(
-            self._sampled_history,
-            self._final_summary,
-            self._poll_exit_response,
-            self._server_info_response,
-            self._check_version,
-            self._job_info,
-            self._reporter,
-            self._quiet,
+            sampled_history=self._sampled_history,
+            final_summary=self._final_summary,
+            poll_exit_response=self._poll_exit_response,
+            server_info_response=self._server_info_response,
+            check_version_response=self._check_version,
+            internal_messages_response=self._internal_messages_response,
+            job_info=self._job_info,
+            reporter=self._reporter,
+            quiet=self._quiet,
             settings=self._settings,
             printer=self._printer,
         )
@@ -2640,10 +2678,7 @@ class Run:
                     entity,
                     project,
                 )
-                if (
-                    artifact._ttl_duration_seconds is not None
-                    or artifact._ttl_is_inherited
-                ):
+                if artifact._ttl_duration_seconds is not None:
                     wandb.termwarn(
                         "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
                     )
@@ -2990,7 +3025,7 @@ class Run:
         if expected_type is not None and artifact.type != expected_type:
             raise ValueError(
                 f"Artifact {artifact.name} already exists with type '{expected_type}'; "
-                f"cannot create another with type {artifact.type}"
+                f"cannot create another with type '{artifact.type}'"
             )
         if entity and artifact._source_entity and entity != artifact._source_entity:
             raise ValueError(
@@ -3078,9 +3113,12 @@ class Run:
         exc_val: BaseException,
         exc_tb: TracebackType,
     ) -> bool:
-        exit_code = 0 if exc_type is None else 1
-        self._finish(exit_code)
-        return exc_type is None
+        exception_raised = exc_type is not None
+        if exception_raised:
+            traceback.print_exception(exc_type, exc_val, exc_tb)
+        exit_code = 1 if exception_raised else 0
+        self._finish(exit_code=exit_code)
+        return not exception_raised
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
@@ -3240,7 +3278,8 @@ class Run:
         final_summary: Optional["GetSummaryResponse"] = None,
         poll_exit_response: Optional[PollExitResponse] = None,
         server_info_response: Optional[ServerInfoResponse] = None,
-        check_version: Optional["CheckVersionResponse"] = None,
+        check_version_response: Optional["CheckVersionResponse"] = None,
+        internal_messages_response: Optional["InternalMessagesResponse"] = None,
         job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
@@ -3265,10 +3304,19 @@ class Run:
         )
         Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
         Run._footer_version_check_info(
-            check_version=check_version, quiet=quiet, settings=settings, printer=printer
+            check_version=check_version_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
         )
         Run._footer_local_warn(
             server_info_response=server_info_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+        Run._footer_internal_messages(
+            internal_messages_response=internal_messages_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3584,6 +3632,23 @@ class Run:
                     f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
                     level="warn",
                 )
+
+    @staticmethod
+    def _footer_internal_messages(
+        internal_messages_response: Optional["InternalMessagesResponse"] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if not internal_messages_response:
+            return
+
+        for message in internal_messages_response.messages.warning:
+            printer.display(message, level="warn")
 
     @staticmethod
     def _footer_server_messages(

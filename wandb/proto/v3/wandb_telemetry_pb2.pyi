@@ -33,6 +33,7 @@ class TelemetryRecord(google.protobuf.message.Message):
     DEPRECATED_FIELD_NUMBER: builtins.int
     ISSUES_FIELD_NUMBER: builtins.int
     CORE_VERSION_FIELD_NUMBER: builtins.int
+    PLATFORM_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
     def imports_init(self) -> global___Imports: ...
@@ -53,6 +54,7 @@ class TelemetryRecord(google.protobuf.message.Message):
     @property
     def issues(self) -> global___Issues: ...
     core_version: builtins.str
+    platform: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -69,10 +71,11 @@ class TelemetryRecord(google.protobuf.message.Message):
         deprecated: global___Deprecated | None = ...,
         issues: global___Issues | None = ...,
         core_version: builtins.str = ...,
+        platform: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "cli_version", b"cli_version", "core_version", b"core_version", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "huggingface_version", b"huggingface_version", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label", "python_version", b"python_version"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "cli_version", b"cli_version", "core_version", b"core_version", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "huggingface_version", b"huggingface_version", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label", "platform", b"platform", "python_version", b"python_version"]) -> None: ...
 
 global___TelemetryRecord = TelemetryRecord
 
@@ -460,6 +463,8 @@ class Feature(google.protobuf.message.Message):
     COHERE_AUTOLOG_FIELD_NUMBER: builtins.int
     HF_PIPELINE_AUTOLOG_FIELD_NUMBER: builtins.int
     NEXUS_FIELD_NUMBER: builtins.int
+    LIB_C_FIELD_NUMBER: builtins.int
+    LIB_CPP_FIELD_NUMBER: builtins.int
     watch: builtins.bool
     """wandb.watch() called"""
     finish: builtins.bool
@@ -570,6 +575,10 @@ class Feature(google.protobuf.message.Message):
     """HuggingFace Autologging"""
     nexus: builtins.bool
     """Using wandb nexus internal process"""
+    lib_c: builtins.bool
+    """Using c wandb library"""
+    lib_cpp: builtins.bool
+    """Using cpp wandb library"""
     def __init__(
         self,
         *,
@@ -628,8 +637,10 @@ class Feature(google.protobuf.message.Message):
         cohere_autolog: builtins.bool = ...,
         hf_pipeline_autolog: builtins.bool = ...,
         nexus: builtins.bool = ...,
+        lib_c: builtins.bool = ...,
+        lib_cpp: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "nexus", b"nexus", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "service_disabled", b"service_disabled", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lib_c", b"lib_c", "lib_cpp", b"lib_cpp", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "nexus", b"nexus", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "service_disabled", b"service_disabled", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
 
 global___Feature = Feature
 

@@ -255,7 +255,7 @@ class Api:
             You can also set defaults for `entity`, `project`, and `run`.
     """
 
-    _HTTP_TIMEOUT = env.get_http_timeout(29)
+    _HTTP_TIMEOUT = env.get_http_timeout(19)
     VIEWER_QUERY = gql(
         """
         query Viewer{
@@ -395,6 +395,9 @@ class Api:
         auth = None
         if not _thread_local_api_settings.cookies:
             auth = ("api", self.api_key)
+        proxies = self.settings.get("_proxies") or json.loads(
+            os.environ.get("WANDB__PROXIES", "{}")
+        )
         self._base_client = Client(
             transport=GraphQLSession(
                 headers={
@@ -409,6 +412,7 @@ class Api:
                 auth=auth,
                 url="%s/graphql" % self.settings["base_url"],
                 cookies=_thread_local_api_settings.cookies,
+                proxies=proxies,
             )
         )
         self._client = RetryingClient(self._base_client)
@@ -1992,11 +1996,18 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
-        self._attrs["summaryMetrics"] = (
-            json.loads(self._attrs["summaryMetrics"])
-            if self._attrs.get("summaryMetrics")
-            else {}
-        )
+        try:
+            self._attrs["summaryMetrics"] = (
+                json.loads(self._attrs["summaryMetrics"])
+                if self._attrs.get("summaryMetrics")
+                else {}
+            )
+        except json.decoder.JSONDecodeError:
+            # ignore invalid utf-8 or control characters
+            self._attrs["summaryMetrics"] = json.loads(
+                self._attrs["summaryMetrics"],
+                strict=False,
+            )
         self._attrs["systemMetrics"] = (
             json.loads(self._attrs["systemMetrics"])
             if self._attrs.get("systemMetrics")
@@ -2350,7 +2361,12 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, wandb.Artifact) and not artifact.is_draft():
-            artifact_collection_name = artifact.name.split(":")[0]
+            if (
+                self.entity != artifact.source_entity
+                or self.project != artifact.source_project
+            ):
+                raise ValueError("A run can't log an artifact to a different project.")
+            artifact_collection_name = artifact.source_name.split(":")[0]
             api.create_artifact(
                 artifact.type,
                 artifact_collection_name,
@@ -2619,8 +2635,6 @@ class QueuedRun:
     def wait_until_running(self):
         if self._run is not None:
             return self._run
-        if self.container_job:
-            raise LaunchError("Container jobs cannot be waited on")
 
         while True:
             # sleep here to hide an ugly warning
@@ -2672,6 +2686,7 @@ class RunQueue:
         self._default_resource_config = _default_resource_config
         self._type = None
         self._items = None
+        self._id = None
 
     @property
     def name(self):
@@ -2704,12 +2719,42 @@ class RunQueue:
         return self._default_resource_config
 
     @property
+    def id(self) -> str:
+        if self._id is None:
+            self._get_metadata()
+        return self._id
+
+    @property
     def items(self) -> List[QueuedRun]:
         """Up to the first 100 queued runs. Modifying this list will not modify the queue or any enqueued items!"""
         # TODO(np): Add a paginated interface
         if self._items is None:
             self._get_items()
         return self._items
+
+    @normalize_exceptions
+    def delete(self):
+        """Delete the run queue from the wandb backend."""
+        query = gql(
+            """
+            mutation DeleteRunQueue($id: ID!) {
+                deleteRunQueues(input: {queueIDs: [$id]}) {
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        variable_values = {"id": self.id}
+        res = self._client.execute(query, variable_values)
+        if res["deleteRunQueues"]["success"]:
+            self._id = None
+            self._access = None
+            self._default_resource_config_id = None
+            self._default_resource_config = None
+            self._items = None
+        else:
+            raise CommError(f"Failed to delete run queue {self.name}")
 
     def __repr__(self):
         return f"<RunQueue {self._entity}/{self._name}>"
@@ -2721,6 +2766,7 @@ class RunQueue:
             query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueue) {
+                        id
                         access
                         defaultResourceConfigID
                     }
@@ -2734,6 +2780,7 @@ class RunQueue:
             "runQueue": self._name,
         }
         res = self._client.execute(query, variable_values)
+        self._id = res["project"]["runQueue"]["id"]
         self._access = res["project"]["runQueue"]["access"]
         self._default_resource_config_id = res["project"]["runQueue"][
             "defaultResourceConfigID"
@@ -4251,8 +4298,8 @@ class RunArtifacts(Paginator):
     def convert_objects(self):
         return [
             wandb.Artifact._from_attrs(
-                self.run.entity,
-                self.run.project,
+                r["node"]["artifactSequence"]["project"]["entityName"],
+                r["node"]["artifactSequence"]["project"]["name"],
                 "{}:v{}".format(
                     r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
                 ),
@@ -4830,7 +4877,7 @@ class Job:
         resource_args=None,
         project_queue=None,
     ):
-        from wandb.sdk.launch import launch_add
+        from wandb.sdk.launch import _launch_add
 
         run_config = {}
         for key, item in config.items():
@@ -4850,7 +4897,7 @@ class Job:
             if isinstance(assigned_config_type, InvalidType):
                 raise TypeError(self._input_types.explain(run_config))
 
-        queued_run = launch_add.launch_add(
+        queued_run = _launch_add.launch_add(
             job=self._name,
             config={"overrides": {"run_config": run_config}},
             project=project or self._project,
