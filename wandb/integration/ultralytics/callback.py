@@ -1,5 +1,6 @@
 import copy
 from datetime import datetime
+from packaging import version
 from typing import Callable, Dict, Optional, Union
 
 try:
@@ -13,6 +14,16 @@ from wandb.sdk.lib import telemetry
 try:
     import torch
     from tqdm.auto import tqdm
+
+    import ultralytics
+
+    if version.parse(ultralytics.__version__) > version.parse("8.0.186"):
+        wandb.termwarn(
+            """This integration is tested and supported for ultralytics v8.0.186 and below.
+            Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.""",
+            repeat=False,
+        )
+
     from ultralytics.models import YOLO
     from ultralytics.models.yolo.classify import (
         ClassificationPredictor,
