@@ -362,6 +362,8 @@ class InterfaceBase:
     def _make_partial_source_str(
         source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
     ) -> str:
+        import wandb
+        wandb.termlog(f"{source=} {job_info=} {metadata=}")
         """Construct use_artifact.partial.source_info.sourc as str."""
         source_type = job_info.get("source_type", "").strip()
         if source_type == "artifact":
@@ -377,7 +379,9 @@ class InterfaceBase:
         elif source_type == "image":
             source.image.image = metadata.get("docker", "")
         else:
-            raise ValueError("Invalid source type")
+            raise ValueError(
+                f"Invalid source type: '{source_type}'. Valid source types are ['image', 'code', 'git']"
+            )
 
         source_str: str = source.SerializeToString()
         return source_str
