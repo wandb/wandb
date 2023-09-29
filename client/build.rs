@@ -9,7 +9,9 @@ fn main() -> Result<()> {
         &[
             "../wandb/proto/wandb_base.proto",
             "../wandb/proto/wandb_settings.proto",
+            "../wandb/proto/wandb_telemetry.proto",
             "../wandb/proto/wandb_internal.proto",
+            "../wandb/proto/wandb_server.proto",
         ],
         &["../wandb/proto/"],
     )?;

@@ -18,5 +18,11 @@ fn main() {
         wandb_internal::RequestInfo {
             ..Default::default()
         }
+    );
+    println!(
+        "{:?}",
+        wandb_internal::ServerShutdownRequest {
+            ..Default::default()
+        }
     )
 }
