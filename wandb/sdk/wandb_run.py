@@ -3121,12 +3121,9 @@ class Run:
         path = artifact.download()
 
         # If returned directory contains only one file, return path to that file
-        try:
-            file_list = os.listdir(path)
-            if len(file_list) == 1:
-                return FilePathStr(os.path.join(path, file_list[0]))
-        except NotADirectoryError:
-            pass
+        dir_list = os.listdir(path)
+        if len(dir_list) == 1:
+            return FilePathStr(os.path.join(path, dir_list[0]))
         return path
 
     def link_model(
