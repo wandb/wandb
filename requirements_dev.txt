@@ -23,7 +23,6 @@ ipykernel
 nbclient
 
 scikit-learn
-tensorflow<2.14; sys_platform != 'darwin'
 tensorflow>=1.15.2; sys_platform == 'darwin' and platform.machine != 'arm64'
 tensorflow-macos; python_version > '3.7' and python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 tensorboard
