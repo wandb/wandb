@@ -631,7 +631,7 @@ class LaunchAgent:
         with self._jobs_lock:
             job_tracker.run = run
         start_time = time.time()
-        stopped_time = time.time()
+        stopped_time = None
         while self._jobs_event.is_set():
             # If run has failed to start before timeout, kill it
             state = run.get_status().state
