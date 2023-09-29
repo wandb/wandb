@@ -1,4 +1,5 @@
 import tempfile
+
 import pytest
 from wandb import env
 
@@ -15,6 +16,7 @@ def test_offline_link_artifact(wandb_init):
     run.finish()
 
 
+@pytest.mark.nexus_failure(feature="models")
 def test_log_model(relay_server, wandb_init):
     with relay_server():
         run = wandb_init()
@@ -33,6 +35,7 @@ def test_log_model(relay_server, wandb_init):
         run.finish()
 
 
+@pytest.mark.nexus_failure(feature="models")
 def test_use_model(relay_server, wandb_init):
     with relay_server():
         run = wandb_init()
@@ -51,6 +54,7 @@ def test_use_model(relay_server, wandb_init):
         run.finish()
 
 
+@pytest.mark.nexus_failure(feature="models")
 def test_use_model_error_artifact_type(relay_server, wandb_init):
     with relay_server():
         run = wandb_init()
@@ -68,6 +72,7 @@ def test_use_model_error_artifact_type(relay_server, wandb_init):
         run.finish()
 
 
+@pytest.mark.nexus_failure(feature="models")
 def test_link_model(relay_server, wandb_init):
     with relay_server():
         run = wandb_init()
