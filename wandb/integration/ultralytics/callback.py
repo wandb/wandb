@@ -50,7 +50,7 @@ try:
         plot_pose_validation_results,
     )
 except ImportError as e:
-    wandb.error(e)
+    wandb.Error(e)
 
 
 TRAINER_TYPE = Union[
