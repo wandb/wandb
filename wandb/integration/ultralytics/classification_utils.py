@@ -17,7 +17,7 @@ def plot_classification_predictions(
     class_id_to_label = {int(k): str(v) for k, v in result.names.items()}
     table_row = [
         model_name,
-        wandb.Image(result.orig_img[:, :, ::-1]),
+        wandb.Image(result.orig_img),
         class_id_to_label[int(probabilities.top1)],
         probabilities.top1conf,
         [class_id_to_label[int(class_idx)] for class_idx in list(probabilities.top5)],
