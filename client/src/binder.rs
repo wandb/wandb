@@ -12,5 +12,11 @@ fn main() {
             base_url: Some("https://google.com".to_string()),
             ..Default::default()
         }
+    );
+    println!(
+        "{:?}",
+        wandb_internal::RequestInfo {
+            ..Default::default()
+        }
     )
 }
