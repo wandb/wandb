@@ -4,9 +4,8 @@
 """Generated protocol buffer code."""
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import descriptor_pool as _descriptor_pool
-from google.protobuf import message as _message
-from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
+from google.protobuf.internal import builder as _builder
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
@@ -16,39 +15,15 @@ _sym_db = _symbol_database.Default()
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cwandb/proto/wandb_base.proto\x12\x0ewandb_internal\"6\n\x0b_RecordInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\t\"!\n\x0c_RequestInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\"#\n\x0b_ResultInfo\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\tb\x06proto3')
 
-
-
-__RECORDINFO = DESCRIPTOR.message_types_by_name['_RecordInfo']
-__REQUESTINFO = DESCRIPTOR.message_types_by_name['_RequestInfo']
-__RESULTINFO = DESCRIPTOR.message_types_by_name['_ResultInfo']
-_RecordInfo = _reflection.GeneratedProtocolMessageType('_RecordInfo', (_message.Message,), {
-  'DESCRIPTOR' : __RECORDINFO,
-  '__module__' : 'wandb.proto.wandb_base_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal._RecordInfo)
-  })
-_sym_db.RegisterMessage(_RecordInfo)
-
-_RequestInfo = _reflection.GeneratedProtocolMessageType('_RequestInfo', (_message.Message,), {
-  'DESCRIPTOR' : __REQUESTINFO,
-  '__module__' : 'wandb.proto.wandb_base_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal._RequestInfo)
-  })
-_sym_db.RegisterMessage(_RequestInfo)
-
-_ResultInfo = _reflection.GeneratedProtocolMessageType('_ResultInfo', (_message.Message,), {
-  'DESCRIPTOR' : __RESULTINFO,
-  '__module__' : 'wandb.proto.wandb_base_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal._ResultInfo)
-  })
-_sym_db.RegisterMessage(_ResultInfo)
-
+_globals = globals()
+_builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
+_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'wandb.proto.wandb_base_pb2', _globals)
 if _descriptor._USE_C_DESCRIPTORS == False:
-
   DESCRIPTOR._options = None
-  __RECORDINFO._serialized_start=48
-  __RECORDINFO._serialized_end=102
-  __REQUESTINFO._serialized_start=104
-  __REQUESTINFO._serialized_end=137
-  __RESULTINFO._serialized_start=139
-  __RESULTINFO._serialized_end=174
+  _globals['__RECORDINFO']._serialized_start=48
+  _globals['__RECORDINFO']._serialized_end=102
+  _globals['__REQUESTINFO']._serialized_start=104
+  _globals['__REQUESTINFO']._serialized_end=137
+  _globals['__RESULTINFO']._serialized_start=139
+  _globals['__RESULTINFO']._serialized_end=174
 # @@protoc_insertion_point(module_scope)

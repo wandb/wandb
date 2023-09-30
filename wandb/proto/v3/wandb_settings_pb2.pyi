@@ -17,6 +17,7 @@ else:
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
+@typing_extensions.final
 class ListStringValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -32,9 +33,11 @@ class ListStringValue(google.protobuf.message.Message):
 
 global___ListStringValue = ListStringValue
 
+@typing_extensions.final
 class MapStringKeyStringValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    @typing_extensions.final
     class ValueEntry(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -62,9 +65,11 @@ class MapStringKeyStringValue(google.protobuf.message.Message):
 
 global___MapStringKeyStringValue = MapStringKeyStringValue
 
+@typing_extensions.final
 class MapStringKeyMapStringKeyStringValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    @typing_extensions.final
     class ValueEntry(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -94,6 +99,7 @@ class MapStringKeyMapStringKeyStringValue(google.protobuf.message.Message):
 
 global___MapStringKeyMapStringKeyStringValue = MapStringKeyMapStringKeyStringValue
 
+@typing_extensions.final
 class OpenMetricsFilters(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -115,6 +121,7 @@ class OpenMetricsFilters(google.protobuf.message.Message):
 
 global___OpenMetricsFilters = OpenMetricsFilters
 
+@typing_extensions.final
 class Settings(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 

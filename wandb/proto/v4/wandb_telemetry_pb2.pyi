@@ -6,7 +6,7 @@ import builtins
 import google.protobuf.descriptor
 import google.protobuf.message
 import sys
-import wandb.proto.wandb_base_pb2
+import wandb_base_pb2
 
 if sys.version_info >= (3, 8):
     import typing as typing_extensions
@@ -57,7 +57,7 @@ class TelemetryRecord(google.protobuf.message.Message):
     core_version: builtins.str
     platform: builtins.str
     @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
@@ -73,7 +73,7 @@ class TelemetryRecord(google.protobuf.message.Message):
         issues: global___Issues | None = ...,
         core_version: builtins.str = ...,
         platform: builtins.str = ...,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        _info: wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "cli_version", b"cli_version", "core_version", b"core_version", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "huggingface_version", b"huggingface_version", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label", "platform", b"platform", "python_version", b"python_version"]) -> None: ...
