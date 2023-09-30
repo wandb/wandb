@@ -3,17 +3,15 @@ package storagehandlers
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/hasura/go-graphql-client"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 )
@@ -22,15 +20,13 @@ type storageHandler struct {
 	Ctx           context.Context
 	Logger        *observability.NexusLogger
 	ManifestEntry artifacts.ManifestEntry
-	Local         bool
+	Local         *bool
 	// Cache artifacts.ArtifactsCache
-	GraphqlClient graphql.Client
-	WgOutstanding sync.WaitGroup
 }
 
 type S3StorageHandler struct {
 	storageHandler
-	Client *s3.S3
+	Client s3iface.S3API
 }
 
 type StorageHandler interface {
@@ -79,7 +75,7 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 	if sh.ManifestEntry.Ref == nil {
 		return "", fmt.Errorf("reference not found manifest entry")
 	}
-	if !sh.Local {
+	if sh.Local != nil && !(*sh.Local) {
 		return *sh.ManifestEntry.Ref, nil
 	}
 
@@ -142,14 +138,15 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 		} else if objectVersions == nil {
 			return "", fmt.Errorf("could not get object versions from %s/%s", bucket, key)
 		}
-		manifestEntryEtag, ok := sh.ManifestEntry.Extra["etag"]
+		manifestEntryEtag, ok := sh.ManifestEntry.Extra["etag"].(string)
 		if ok {
 			for _, version := range objectVersions.Versions {
 				versionEtag, err := etagFromObj(version)
 				if err != nil {
 					return "", err
 				}
-				if versionEtag == manifestEntryEtag {
+
+				if versionEtag == ETag(manifestEntryEtag) {
 					obj, err = sh.Client.GetObject(&s3.GetObjectInput{
 						Bucket:    &bucket,
 						Key:       &key,
@@ -169,20 +166,10 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 		}
 	}
 
-	// todo: update cache
+	// todo: file write + update cache
+	// todo: retries
 
 	path := os.Getenv("WANDB_CACHE_DIR")
-	file, err := os.Create(path)
-	if err != nil {
-		fmt.Println("Error creating file:", err)
-		os.Exit(1)
-	}
-	defer file.Close()
-	_, copyErr := io.Copy(file, obj.Body)
-	if copyErr != nil {
-		fmt.Println("Error copying object data to file:", copyErr)
-		os.Exit(1)
-	}
 
 	return path, nil
 }
@@ -190,7 +177,7 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 func etagFromObj(obj interface{}) (ETag, error) {
 	var etagValue string
 	switch obj := obj.(type) {
-	case *s3.Object:
+	case *s3.GetObjectOutput:
 		etagValue = *obj.ETag
 	case *s3.ObjectVersion:
 		etagValue = *obj.ETag
