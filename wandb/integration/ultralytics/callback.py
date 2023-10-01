@@ -13,9 +13,9 @@ from wandb.sdk.lib import telemetry
 
 try:
     import torch
-    from tqdm.auto import tqdm
 
     import ultralytics
+    from tqdm.auto import tqdm
 
     if version.parse(ultralytics.__version__) > version.parse("8.0.186"):
         wandb.termwarn(
