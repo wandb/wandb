@@ -126,6 +126,40 @@ def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        """Create a new instance of the LaunchAgent.
+
+        This method ensures that only one instance of the LaunchAgent is created.
+        This is done so that information about the agent can be accessed from
+        elsewhere in the library.
+        """
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def name(cls) -> str:
+        """Return the name of the agent."""
+        cls._check_initialized()
+        return cls._instance._name
+
+    @classmethod
+    def initialized(cls) -> bool:
+        """Return whether the agent is initialized."""
+        try:
+            cls._check_initialized()
+            return True
+        except LaunchError:
+            return False
+
+    @classmethod
+    def _check_initialized(cls) -> None:
+        """Check that the agent has been initialized."""
+        if cls._instance is None:
+            raise LaunchError("LaunchAgent not initialized")
+
     def __init__(self, api: Api, config: Dict[str, Any]):
         """Initialize a launch agent.
 
@@ -511,10 +545,11 @@ class LaunchAgent:
                     time.sleep(RECEIVED_JOB_POLLING_INTERVAL)
 
         except KeyboardInterrupt:
-            self._jobs_event.clear()
             self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()
+        finally:
+            self._jobs_event.clear()
 
     # Threaded functions
     def thread_run_job(

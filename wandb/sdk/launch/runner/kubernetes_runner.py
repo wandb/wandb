@@ -10,6 +10,7 @@ import yaml
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
@@ -27,6 +28,7 @@ from ..utils import (
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )
+from ..monitor.kubernetes_monitor import LaunchKubernetesMonitor
 from .abstract import AbstractRun, AbstractRunner
 from .kubernetes_monitor import KubernetesRunMonitor
 
@@ -151,7 +153,8 @@ class KubernetesSubmittedRun(AbstractRun):
                 )
 
     def get_status(self) -> Status:
-        return self.monitor.get_status()
+        # return self.monitor.get_status()
+        return LaunchKubernetesMonitor.get_status(self.name)
 
     def cancel(self) -> None:
         """Cancel the run."""
@@ -234,7 +237,8 @@ class CrdSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         """Get status of custom object."""
-        return self.monitor.get_status()
+        return LaunchKubernetesMonitor.get_status(self.name)
+        # return self.monitor.get_status()
 
     def cancel(self) -> None:
         """Cancel the custom object."""
@@ -343,6 +347,12 @@ class KubernetesRunner(AbstractRunner):
         pod_spec.update(pod_template.get("spec", {}))
         containers: List[Dict[str, Any]] = pod_spec.get("containers", [{}])
 
+        # Add labels to job metadata
+        job_metadata.setdefault("labels", {})
+        job_metadata["labels"]["wandb.ai/monitor"] = "true"
+        if LaunchAgent.initialized():
+            job_metadata["labels"]["wandb.ai/agent"] = LaunchAgent.name()
+
         # name precedence: name in spec > generated name
         if not job_metadata.get("name"):
             job_metadata["generateName"] = make_name_dns_safe(
@@ -419,6 +429,7 @@ class KubernetesRunner(AbstractRunner):
         Returns:
             The run object if the run was successful, otherwise None.
         """
+        LaunchKubernetesMonitor.ensure_initialized()  # No up if running
         kubernetes = get_module(  # noqa: F811
             "kubernetes",
             required="Kubernetes runner requires the kubernetes package. Please"
@@ -435,9 +446,25 @@ class KubernetesRunner(AbstractRunner):
 
         context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
+        # add_label_to_pods(resource_args, "wandb.ai/run-id", launch_project.run_id)
+        add_label_to_pods(
+            resource_args,
+            "wandb.ai/monitor",
+            True,
+        )
+
+        # Add wandb.ai/agent: current agent label on all pods
+        if LaunchAgent.initialized():
+            add_label_to_pods(
+                resource_args,
+                "wandb.ai/agent",
+                LaunchAgent.name(),
+            )
+
         # If the user specified an alternate api, we need will execute this
         # run by creating a custom object.
         api_version = resource_args.get("apiVersion", "batch/v1")
+
         if api_version not in ["batch/v1", "batch/v1beta1"]:
             env_vars = get_env_vars_dict(
                 launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
@@ -446,7 +473,21 @@ class KubernetesRunner(AbstractRunner):
             add_wandb_env(resource_args, env_vars)
             # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
-            add_label_to_pods(resource_args, "wandb/run-id", launch_project.run_id)
+            # add_label_to_pods(resource_args, "wandb.ai/run-id", launch_project.run_id)
+            add_label_to_pods(
+                resource_args,
+                "wandb.ai/monitor",
+                True,
+            )
+
+            # Add wandb.ai/agent: current agent label on all pods
+            if LaunchAgent.initialized():
+                add_label_to_pods(
+                    resource_args,
+                    "wandb.ai/agent",
+                    LaunchAgent.name(),
+                )
+
             overrides = {}
             if launch_project.override_args:
                 overrides["args"] = launch_project.override_args
@@ -460,6 +501,7 @@ class KubernetesRunner(AbstractRunner):
             # Infer the attributes of a custom object from the apiVersion and/or
             # a kind: attribute in the resource args.
             namespace = self.get_namespace(resource_args, context)
+            LaunchKubernetesMonitor.monitor_namespace(namespace)
             group = resource_args.get("group", api_version.split("/")[0])
             version = api_version.split("/")[1]
             kind = resource_args.get("kind", version)
@@ -481,18 +523,18 @@ class KubernetesRunner(AbstractRunner):
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
             core = client.CoreV1Api(api_client)
-            run_monitor = KubernetesRunMonitor(
-                job_field_selector=f"metadata.name={name}",
-                pod_label_selector=f"wandb/run-id={launch_project.run_id}",
-                namespace=namespace,
-                batch_api=None,
-                core_api=core,
-                custom_api=api,
-                group=group,
-                version=version,
-                plural=plural,
-            )
-            run_monitor.start()
+            # run_monitor = KubernetesRunMonitor(
+            #     job_field_selector=f"metadata.name={name}",
+            #     pod_label_selector=f"wandb/run-id={launch_project.run_id}",
+            #     namespace=namespace,
+            #     batch_api=None,
+            #     core_api=core,
+            #     custom_api=api,
+            #     group=group,
+            #     version=version,
+            #     plural=plural,
+            # )
+            # run_monitor.start()
             submitted_run = CrdSubmittedRun(
                 name=name,
                 group=group,
@@ -501,7 +543,7 @@ class KubernetesRunner(AbstractRunner):
                 plural=plural,
                 core_api=client.CoreV1Api(api_client),
                 custom_api=api,
-                monitor=run_monitor,
+                monitor=None,
             )
             if self.backend_config[PROJECT_SYNCHRONOUS]:
                 submitted_run.wait()
@@ -523,17 +565,18 @@ class KubernetesRunner(AbstractRunner):
             0
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.name
+        LaunchKubernetesMonitor.monitor_namespace(namespace)
         # Event stream monitor to ensure pod creation and job completion.
-        monitor = KubernetesRunMonitor(
-            job_field_selector=f"metadata.name={job_name}",
-            pod_label_selector=f"job-name={job_name}",
-            namespace=namespace,
-            batch_api=batch_api,
-            core_api=core_api,
-        )
-        monitor.start()
+        # monitor = KubernetesRunMonitor(
+        #     job_field_selector=f"metadata.name={job_name}",
+        #     pod_label_selector=f"job-name={job_name}",
+        #     namespace=namespace,
+        #     batch_api=batch_api,
+        #     core_api=core_api,
+        # )
+        # monitor.start()
         submitted_job = KubernetesSubmittedRun(
-            monitor, batch_api, core_api, job_name, namespace, secret
+            None, batch_api, core_api, job_name, namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
@@ -623,6 +666,24 @@ def maybe_create_imagepull_secret(
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 
 
+def yield_containers(root: Any) -> Iterator[dict]:
+    """Yield all container specs in a manifest.
+
+    Recursively traverses the manifest and yields all container specs. Container
+    specs are identified by the presence of a "containers" key in the value.
+    """
+    if isinstance(root, dict):
+        for k, v in root.items():
+            if k == "containers":
+                if isinstance(v, list):
+                    yield from v
+            elif isinstance(v, (dict, list)):
+                yield from yield_containers(v)
+    elif isinstance(root, list):
+        for item in root:
+            yield from yield_containers(item)
+
+
 def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
     """Injects wandb environment variables into specs.
 
@@ -640,19 +701,6 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
 
     Returns: None.
     """
-
-    def yield_containers(root: Any) -> Iterator[dict]:
-        if isinstance(root, dict):
-            for k, v in root.items():
-                if k == "containers":
-                    if isinstance(v, list):
-                        yield from v
-                elif isinstance(v, (dict, list)):
-                    yield from yield_containers(v)
-        elif isinstance(root, list):
-            for item in root:
-                yield from yield_containers(item)
-
     for cont in yield_containers(root):
         env = cont.setdefault("env", [])
         env.extend([{"name": key, "value": value} for key, value in env_vars.items()])
@@ -660,6 +708,24 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
         # After we have set WANDB_RUN_ID once, we don't want to set it again
         if "WANDB_RUN_ID" in env_vars:
             env_vars.pop("WANDB_RUN_ID")
+
+
+def yield_pods(manifest: Any) -> Iterator[dict]:
+    """Yield all pod specs in a manifest.
+
+    Recursively traverses the manifest and yields all pod specs. Pod specs are
+    identified by the presence of a "spec" key with a "containers" key in the
+    value.
+    """
+    if isinstance(manifest, list):
+        for item in manifest:
+            yield from yield_pods(item)
+    elif isinstance(manifest, dict):
+        if "spec" in manifest and "containers" in manifest["spec"]:
+            yield manifest
+        for value in manifest.values():
+            if isinstance(value, (dict, list)):
+                yield from yield_pods(value)
 
 
 def add_label_to_pods(
@@ -678,17 +744,6 @@ def add_label_to_pods(
 
     Returns: None.
     """
-
-    def yield_pods(manifest: Any) -> Iterator[dict]:
-        if isinstance(manifest, list):
-            for item in manifest:
-                yield from yield_pods(item)
-        elif isinstance(manifest, dict):
-            if "spec" in manifest and "containers" in manifest["spec"]:
-                yield manifest
-            for value in manifest.values():
-                if isinstance(value, (dict, list)):
-                    yield from yield_pods(value)
 
     for pod in yield_pods(manifest):
         metadata = pod.setdefault("metadata", {})

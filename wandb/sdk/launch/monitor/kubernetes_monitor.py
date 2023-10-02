@@ -1,9 +1,12 @@
 """Monitors kubernetes resources managed by the launch agent."""
+import time
 import asyncio
 import logging
+import threading
 from typing import Any, Dict, List, Optional
 
 import urllib3
+import kubernetes
 from kubernetes_asyncio import watch  # type: ignore # noqa: F401
 from kubernetes_asyncio.client import (  # type: ignore # noqa: F401
     ApiException,
@@ -15,22 +18,14 @@ from kubernetes_asyncio.client import (  # type: ignore # noqa: F401
 
 import wandb
 
-from ..runner.abstract import State, Status
+from ..agent import LaunchAgent
+from ..runner.abstract import State, Status, JobState
+from ..utils import get_kube_context_and_api_client
 
 
 class Resources:
     JOBS = "jobs"
     PODS = "pods"
-
-
-class JobState:
-    FAILED = "failed"
-    FINISHED = "finished"
-    PENDING = "pending"
-    PREEMPTED = "preempted"
-    RUNNING = "running"
-    STARTING = "starting"
-    STOPPING = "stopping"
 
 
 # Maps phases and conditions of custom objects to agent's internal run states.
@@ -123,13 +118,14 @@ class LaunchKubernetesMonitor:
         core_api: CoreV1Api,
         batch_api: BatchV1Api,
         custom_api: CustomObjectsApi,
-        label_selector: str = "app=wandb",
+        label_selector: str,
     ):
         """Initialize the LaunchKubernetesMonitor."""
         self._core_api: CoreV1Api = core_api
         self._batch_api: BatchV1Api = batch_api
         self._custom_api: CustomObjectsApi = custom_api
-        self._label_selector = label_selector
+
+        self._label_selector: str = label_selector
 
         # Dict mapping a tuple of (namespace, resource_type) to an
         # asyncio.Task that is monitoring that resource type in that namespace.
@@ -138,15 +134,35 @@ class LaunchKubernetesMonitor:
         # Map from job name to job state.
         self._job_states: Dict[str, Status] = dict()
 
+        self.__loop = None
+
+        thread = threading.Thread(target=self.__loop_forever, daemon=True)
+        thread.start()
+        time.sleep(2)
+
+    def __loop_forever(self) -> None:
+        """Run the event loop forever."""
+        self.__loop = asyncio.get_event_loop()
+        self.__loop.run_forever()
+
     @classmethod
-    def initialize(cls, *args, **kwargs) -> None:
+    def ensure_initialized(
+        cls,
+    ) -> None:
         """Initialize the LaunchKubernetesMonitor."""
         if cls._instance is None:
-            cls._instance = cls(*args, **kwargs)
-        else:
-            raise ValueError(
-                "LaunchKubernetesMonitor has already been initialized. "
-                "It cannot be initialized more than once."
+            _, api_client = get_kube_context_and_api_client(kubernetes, {})
+            core_api = CoreV1Api(api_client)
+            batch_api = BatchV1Api(api_client)
+            custom_api = CustomObjectsApi(api_client)
+            label_selector = "wandb.ai/monitor=true"
+            if LaunchAgent.initialized():
+                label_selector += f",wandb.ai/agent={LaunchAgent.name()}"
+            cls._instance = cls(
+                core_api=core_api,
+                batch_api=batch_api,
+                custom_api=custom_api,
+                label_selector=label_selector,
             )
 
     @classmethod
@@ -178,9 +194,15 @@ class LaunchKubernetesMonitor:
     def __monitor_namespace(self, namespace: str, custom_resource=None) -> None:
         """Start monitoring a namespaces for resources."""
         if (namespace, Resources.PODS) not in self._monitor_tasks:
-            self._monitor_tasks[(namespace, Resources.PODS)] = asyncio.create_task(
+            # self._monitor_tasks[(namespace, Resources.PODS)] = asyncio.create_task(
+            #     self._monitor_pods(namespace),
+            #     name=f"monitor_{Resources.PODS}_{namespace}",
+            # )
+            self._monitor_tasks[
+                (namespace, Resources.PODS)
+            ] = asyncio.run_coroutine_threadsafe(
                 self._monitor_pods(namespace),
-                name=f"monitor_{Resources.PODS}_{namespace}",
+                self.__loop,
             )
         # If a custom resource is specified then we will start monitoring
         # that resource type in the namespace instead of jobs.
@@ -192,9 +214,15 @@ class LaunchKubernetesMonitor:
                 )
         else:
             if (namespace, Resources.JOBS) not in self._monitor_tasks:
-                self._monitor_tasks[(namespace, Resources.JOBS)] = asyncio.create_task(
+                # self._monitor_tasks[(namespace, Resources.JOBS)] = asyncio.create_task(
+                #     self._monitor_jobs(namespace),
+                #     name=f"monitor_{Resources.JOBS}_{namespace}",
+                # )
+                self._monitor_tasks[
+                    (namespace, Resources.JOBS)
+                ] = asyncio.run_coroutine_threadsafe(
                     self._monitor_jobs(namespace),
-                    name=f"monitor_{Resources.JOBS}_{namespace}",
+                    self.__loop,
                 )
 
     def __get_status(self, job_name: str) -> Status:

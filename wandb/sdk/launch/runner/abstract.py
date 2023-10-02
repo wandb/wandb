@@ -26,6 +26,18 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
+
+class JobState:
+    FAILED = "failed"
+    FINISHED = "finished"
+    PENDING = "pending"
+    PREEMPTED = "preempted"
+    RUNNING = "running"
+    STARTING = "starting"
+    STOPPING = "stopping"
+    UNKNOWN = "unknown"
+
+
 State = Literal[
     "unknown",
     "starting",
