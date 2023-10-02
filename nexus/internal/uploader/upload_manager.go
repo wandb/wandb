@@ -99,15 +99,20 @@ func (um *UploadManager) Start() {
 			go func(task *UploadTask) {
 				// Acquire the semaphore
 				um.semaphore <- struct{}{}
-				if err := um.upload(task); err != nil {
+				task.Err = um.upload(task)
+				// Release the semaphore
+				<-um.semaphore
+				if task.Err != nil {
 					um.logger.CaptureError(
 						"uploader: error uploading",
-						err,
+						task.Err,
 						"path", task.Path, "url", task.Url,
 					)
 				}
-				// Release the semaphore
-				<-um.semaphore
+				// Execute the callback.
+				if task.CompletionCallback != nil {
+					task.CompletionCallback(task)
+				}
 				// mark the task as done
 				um.wg.Done()
 			}(task)
@@ -118,7 +123,6 @@ func (um *UploadManager) Start() {
 
 // AddTask adds a task to the uploader
 func (um *UploadManager) AddTask(task *UploadTask) {
-	task.outstandingAdd()
 	um.logger.Debug("uploader: adding task", "path", task.Path, "url", task.Url)
 	um.inChan <- task
 }

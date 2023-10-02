@@ -164,10 +164,11 @@ func (as *ArtifactSaver) sendManifestFiles(artifactID string, manifestID string)
 	}
 	for n, edge := range response.GetCreateArtifactFiles().GetFiles().Edges {
 		task := uploader.UploadTask{
-			Url:           *edge.Node.GetUploadUrl(),
-			Path:          man.Contents[n].LocalPath,
-			WgOutstanding: &as.WgOutstanding,
+			Url:                *edge.Node.GetUploadUrl(),
+			Path:               man.Contents[n].LocalPath,
+			CompletionCallback: func(*uploader.UploadTask) { as.WgOutstanding.Done() },
 		}
+		as.WgOutstanding.Add(1)
 		as.UploadManager.AddTask(&task)
 	}
 }
@@ -209,11 +210,12 @@ func (as *ArtifactSaver) writeManifest() (string, error) {
 
 func (as *ArtifactSaver) sendManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) {
 	task := uploader.UploadTask{
-		Url:           *uploadUrl,
-		Path:          manifestFile,
-		Headers:       uploadHeaders,
-		WgOutstanding: &as.WgOutstanding,
+		Url:                *uploadUrl,
+		Path:               manifestFile,
+		Headers:            uploadHeaders,
+		CompletionCallback: func(*uploader.UploadTask) { as.WgOutstanding.Done() },
 	}
+	as.WgOutstanding.Add(1)
 	as.UploadManager.AddTask(&task)
 }
 
