@@ -1,8 +1,9 @@
-pub mod wandb_internal {
-    include!(concat!(env!("OUT_DIR"), "/wandb_internal.rs"));
-}
+// pub mod wandb_internal {
+//     include!(concat!(env!("OUT_DIR"), "/wandb_internal.rs"));
+// }
 
 // use wandb_internal;
+mod wandb_internal;
 
 fn main() {
     println!("Hello, world!");

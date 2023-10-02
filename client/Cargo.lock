@@ -58,6 +58,7 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
+ "tempfile",
 ]
 
 [[package]]
