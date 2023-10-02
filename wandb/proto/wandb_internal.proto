@@ -3,8 +3,8 @@ syntax = "proto3";
 package wandb_internal;
 
 import "google/protobuf/timestamp.proto";
-import "wandb_base.proto";
-import "wandb_telemetry.proto";
+import "wandb/proto/wandb_base.proto";
+import "wandb/proto/wandb_telemetry.proto";
 
 /*
  * Record: Persistent on disk data (BE CAREFUL)
