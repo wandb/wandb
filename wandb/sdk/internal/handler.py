@@ -747,15 +747,15 @@ class HandleManager:
 
         buffer = self._system_monitor.buffer
         for key, samples in buffer.items():
-            buffer = []
+            buff = []
             for s in samples:
                 sms = SystemMetricSample()
                 sms.timestamp.FromMicroseconds(int(s[0] * 1e6))
                 sms.value = s[1]
-                buffer.append(sms)
+                buff.append(sms)
 
             result.response.get_system_metrics_response.system_metrics[key].CopyFrom(
-                SystemMetricsBuffer(record=buffer)
+                SystemMetricsBuffer(record=buff)
             )
 
         self._respond_result(result)
