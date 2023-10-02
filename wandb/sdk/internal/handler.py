@@ -32,8 +32,8 @@ from wandb.proto.wandb_internal_pb2 import (
     SummaryItem,
     SummaryRecord,
     SummaryRecordRequest,
-    SystemMetricsBuffer,
     SystemMetricSample,
+    SystemMetricsBuffer,
 )
 
 from ..interface.interface_queue import InterfaceQueue
