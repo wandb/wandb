@@ -3164,7 +3164,7 @@ class Run:
             return {}
 
         handle = self._backend.interface.deliver_get_system_metrics()
-        result = handle.wait(timeout=1, cancel=True)
+        result = handle.wait(timeout=1)
 
         if result:
             try:
