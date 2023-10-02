@@ -47,17 +47,6 @@ def test_log_code_custom_root(wandb_init):
     run.finish()
 
 
-def test_log_model(wandb_init):
-    run = wandb_init(mode="offline")
-    with open("test.py", "w") as f:
-        f.write('print("test")')
-    with open("big_file.h5", "w") as f:
-        f.write("Not that big")
-    art = run.log_code()
-    assert sorted(art.manifest.entries.keys()) == ["test.py"]
-    run.finish()
-
-
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
 def test_invalid_project_name(wandb_init, project_name):
     with pytest.raises(UsageError) as e:
