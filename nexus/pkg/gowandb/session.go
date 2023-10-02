@@ -64,7 +64,7 @@ func (s *Session) NewRun(opts ...runopts.RunOption) (*Run, error) {
 	for _, opt := range opts {
 		opt(runParams)
 	}
-	run := s.manager.NewRun()
+	run := s.manager.NewRun(runParams)
 	run.setup()
 	run.init()
 	run.start()

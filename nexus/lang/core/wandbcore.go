@@ -2,19 +2,28 @@ package main
 
 /*
 typedef const char cchar_t;
+#define WANDBCORE_DATA_CREATE 0
+typedef enum {
+	LIB_GOLANG, LIB_C, LIB_CPP
+} library_t;
 */
 import "C"
 
 import (
 	"unsafe"
 
+	"github.com/wandb/wandb/nexus/internal/gowandb/internal_runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
+	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 // globals to keep track of the wandb session and any runs
 var wandbSession *gowandb.Session
 var wandbRuns *RunKeeper
+var wandbData *PartialData
 
 //export wandbcoreSetup
 func wandbcoreSetup() {
@@ -29,13 +38,45 @@ func wandbcoreSetup() {
 		panic(err)
 	}
 	wandbRuns = NewRunKeeper()
+	wandbData = NewPartialData()
+}
+
+func getTelemetry(library C.library_t) *service.TelemetryRecord {
+	telemetry := &service.TelemetryRecord{
+		Feature: &service.Feature{},
+	}
+	switch library {
+	case C.LIB_C:
+		telemetry.Feature.LibC = true
+	case C.LIB_CPP:
+		telemetry.Feature.LibCpp = true
+	}
+	return telemetry
 }
 
 //export wandbcoreInit
-func wandbcoreInit() int {
+func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, project *C.cchar_t, library C.library_t) int {
+	options := []runopts.RunOption{}
 	wandbcoreSetup()
 
-	run, err := wandbSession.NewRun()
+	configData := wandbData.Get(configDataNum)
+	options = append(options, runopts.WithConfig(runconfig.Config(configData)))
+	goName := C.GoString(name)
+	if goName != "" {
+		options = append(options, runopts.WithName(goName))
+	}
+	goRunID := C.GoString(runID)
+	if goRunID != "" {
+		options = append(options, runopts.WithRunID(goRunID))
+	}
+	goProject := C.GoString(project)
+	if goProject != "" {
+		options = append(options, runopts.WithProject(goProject))
+	}
+	telemetry := getTelemetry(library)
+	options = append(options, internal_runopts.WithTelemetry(telemetry))
+
+	run, err := wandbSession.NewRun(options...)
 	if err != nil {
 		panic(err)
 	}
@@ -43,42 +84,63 @@ func wandbcoreInit() int {
 	return num
 }
 
-//export wandbcoreLogCommit
-func wandbcoreLogCommit(num int) {
-	run := wandbRuns.Get(num)
-	run.LogPartialCommit()
+//export wandbcoreDataCreate
+func wandbcoreDataCreate() int {
+	num := wandbData.Create()
+	return num
 }
 
-//export wandbcoreLogScaler
-func wandbcoreLogScaler(num int, log_key *C.char, log_value C.float) {
-	run := wandbRuns.Get(num)
-	run.Log(map[string]interface{}{
-		C.GoString(log_key): float64(log_value),
-	})
+//export wandbcoreDataFree
+func wandbcoreDataFree(num int) {
+	wandbData.Remove(num)
 }
 
-//export wandbcoreLogInts
-func wandbcoreLogInts(num int, flags C.uchar, cLength C.int, cKeys **C.cchar_t, cInts *C.int) {
-	run := wandbRuns.Get(num)
+func dataCreateOrGet(num int) (int, MapData) {
+	if num == 0 {
+		num = wandbData.Create()
+	}
+	return num, wandbData.Get(num)
+}
+
+//export wandbcoreDataAddInts
+func wandbcoreDataAddInts(num int, cLength C.int, cKeys **C.cchar_t, cInts *C.int) int {
+	num, data := dataCreateOrGet(num)
 	keys := unsafe.Slice(cKeys, cLength)
 	ints := unsafe.Slice(cInts, cLength)
-	logs := make(map[string]interface{})
 	for i := range keys {
-		logs[C.GoString(keys[i])] = int(ints[i])
+		data[C.GoString(keys[i])] = int(ints[i])
 	}
-	run.LogPartial(logs, (flags != 0))
+	return num
 }
 
-//export wandbcoreLogDoubles
-func wandbcoreLogDoubles(num int, flags C.uchar, cLength C.int, cKeys **C.cchar_t, cDoubles *C.double) {
-	run := wandbRuns.Get(num)
+//export wandbcoreDataAddDoubles
+func wandbcoreDataAddDoubles(num int, cLength C.int, cKeys **C.cchar_t, cDoubles *C.double) int {
+	num, data := dataCreateOrGet(num)
 	keys := unsafe.Slice(cKeys, cLength)
 	doubles := unsafe.Slice(cDoubles, cLength)
-	logs := make(map[string]interface{})
 	for i := range keys {
-		logs[C.GoString(keys[i])] = float64(doubles[i])
+		data[C.GoString(keys[i])] = float64(doubles[i])
 	}
-	run.LogPartial(logs, (flags != 0))
+	return num
+}
+
+//export wandbcoreDataAddStrings
+func wandbcoreDataAddStrings(num int, cLength C.int, cKeys **C.cchar_t, cStrings **C.cchar_t) int {
+	num, data := dataCreateOrGet(num)
+	keys := unsafe.Slice(cKeys, cLength)
+	strings := unsafe.Slice(cStrings, cLength)
+	for i := range keys {
+		data[C.GoString(keys[i])] = C.GoString(strings[i])
+	}
+	return num
+}
+
+//export wandbcoreLogData
+func wandbcoreLogData(runNum int, dataNum int) {
+	run := wandbRuns.Get(runNum)
+	data := wandbData.Get(dataNum)
+	run.Log(data)
+	wandbData.Remove(dataNum)
 }
 
 //export wandbcoreFinish
