@@ -12,7 +12,7 @@ type Storage int
 
 const (
 	bufferSize              = 32
-	defaultConcurrencyLimit = 64
+	defaultConcurrencyLimit = 128
 )
 
 // type fileCounts struct {
@@ -82,8 +82,7 @@ func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 		opt(&um)
 	}
 
-	concurrencyLimit := getRlimit(um.settings.XAsyncUploadConcurrencyLimit.GetValue())
-	um.semaphore = make(chan struct{}, concurrencyLimit)
+	um.semaphore = make(chan struct{}, defaultConcurrencyLimit)
 
 	return &um
 }
