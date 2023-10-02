@@ -85,21 +85,18 @@ for proto_file in [
     "wandb_telemetry.proto",
     "wandb_server.proto",
 ]:
-    cmd = (
-        "",
-        "-I",
-        proto_root,
-        "-I",
-        ".",
-        "-I",
-        f"{pathlib.Path(__file__).resolve().parent.absolute()}",
-        f"--python_out={tmp_out}",
-        f"--mypy_out={tmp_out}",
-        f"wandb/proto/{proto_file}",
+    ret = protoc.main(
+        (
+            "",
+            "-I",
+            proto_root,
+            "-I",
+            ".",
+            f"--python_out={tmp_out}",
+            f"--mypy_out={tmp_out}",
+            f"wandb/proto/{proto_file}",
+        )
     )
-    print(f"INFO: Generating {proto_file}...")
-    print(cmd)
-    ret = protoc.main(cmd)
     assert not ret
 
 # clean up tmp dirs

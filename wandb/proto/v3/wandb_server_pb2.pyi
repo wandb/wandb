@@ -6,9 +6,9 @@ import builtins
 import google.protobuf.descriptor
 import google.protobuf.message
 import sys
-import wandb_base_pb2
-import wandb_internal_pb2
-import wandb_settings_pb2
+import wandb.proto.wandb_base_pb2
+import wandb.proto.wandb_internal_pb2
+import wandb.proto.wandb_settings_pb2
 
 if sys.version_info >= (3, 8):
     import typing as typing_extensions
@@ -17,24 +17,22 @@ else:
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
-@typing_extensions.final
 class ServerShutdownRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerShutdownRequest = ServerShutdownRequest
 
-@typing_extensions.final
 class ServerShutdownResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -44,24 +42,22 @@ class ServerShutdownResponse(google.protobuf.message.Message):
 
 global___ServerShutdownResponse = ServerShutdownResponse
 
-@typing_extensions.final
 class ServerStatusRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerStatusRequest = ServerStatusRequest
 
-@typing_extensions.final
 class ServerStatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -71,28 +67,26 @@ class ServerStatusResponse(google.protobuf.message.Message):
 
 global___ServerStatusResponse = ServerStatusResponse
 
-@typing_extensions.final
 class ServerInformInitRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     SETTINGS_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def settings(self) -> wandb_settings_pb2.Settings: ...
+    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        settings: wandb_settings_pb2.Settings | None = ...,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "settings", b"settings"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "settings", b"settings"]) -> None: ...
 
 global___ServerInformInitRequest = ServerInformInitRequest
 
-@typing_extensions.final
 class ServerInformInitResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -102,28 +96,26 @@ class ServerInformInitResponse(google.protobuf.message.Message):
 
 global___ServerInformInitResponse = ServerInformInitResponse
 
-@typing_extensions.final
 class ServerInformStartRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     SETTINGS_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def settings(self) -> wandb_settings_pb2.Settings: ...
+    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        settings: wandb_settings_pb2.Settings | None = ...,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "settings", b"settings"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "settings", b"settings"]) -> None: ...
 
 global___ServerInformStartRequest = ServerInformStartRequest
 
-@typing_extensions.final
 class ServerInformStartResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -133,24 +125,22 @@ class ServerInformStartResponse(google.protobuf.message.Message):
 
 global___ServerInformStartResponse = ServerInformStartResponse
 
-@typing_extensions.final
 class ServerInformFinishRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerInformFinishRequest = ServerInformFinishRequest
 
-@typing_extensions.final
 class ServerInformFinishResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -160,62 +150,58 @@ class ServerInformFinishResponse(google.protobuf.message.Message):
 
 global___ServerInformFinishResponse = ServerInformFinishResponse
 
-@typing_extensions.final
 class ServerInformAttachRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerInformAttachRequest = ServerInformAttachRequest
 
-@typing_extensions.final
 class ServerInformAttachResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     SETTINGS_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def settings(self) -> wandb_settings_pb2.Settings: ...
+    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        settings: wandb_settings_pb2.Settings | None = ...,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "settings", b"settings"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "settings", b"settings"]) -> None: ...
 
 global___ServerInformAttachResponse = ServerInformAttachResponse
 
-@typing_extensions.final
 class ServerInformDetachRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerInformDetachRequest = ServerInformDetachRequest
 
-@typing_extensions.final
 class ServerInformDetachResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -225,7 +211,6 @@ class ServerInformDetachResponse(google.protobuf.message.Message):
 
 global___ServerInformDetachResponse = ServerInformDetachResponse
 
-@typing_extensions.final
 class ServerInformTeardownRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -233,19 +218,18 @@ class ServerInformTeardownRequest(google.protobuf.message.Message):
     _INFO_FIELD_NUMBER: builtins.int
     exit_code: builtins.int
     @property
-    def _info(self) -> wandb_base_pb2._RecordInfo: ...
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
         exit_code: builtins.int = ...,
-        _info: wandb_base_pb2._RecordInfo | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "exit_code", b"exit_code"]) -> None: ...
 
 global___ServerInformTeardownRequest = ServerInformTeardownRequest
 
-@typing_extensions.final
 class ServerInformTeardownResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -255,7 +239,6 @@ class ServerInformTeardownResponse(google.protobuf.message.Message):
 
 global___ServerInformTeardownResponse = ServerInformTeardownResponse
 
-@typing_extensions.final
 class ServerRequest(google.protobuf.message.Message):
     """
     ServerRequest, ServerResponse: used in sock server
@@ -272,9 +255,9 @@ class ServerRequest(google.protobuf.message.Message):
     INFORM_TEARDOWN_FIELD_NUMBER: builtins.int
     INFORM_START_FIELD_NUMBER: builtins.int
     @property
-    def record_publish(self) -> wandb_internal_pb2.Record: ...
+    def record_publish(self) -> wandb.proto.wandb_internal_pb2.Record: ...
     @property
-    def record_communicate(self) -> wandb_internal_pb2.Record: ...
+    def record_communicate(self) -> wandb.proto.wandb_internal_pb2.Record: ...
     @property
     def inform_init(self) -> global___ServerInformInitRequest: ...
     @property
@@ -290,8 +273,8 @@ class ServerRequest(google.protobuf.message.Message):
     def __init__(
         self,
         *,
-        record_publish: wandb_internal_pb2.Record | None = ...,
-        record_communicate: wandb_internal_pb2.Record | None = ...,
+        record_publish: wandb.proto.wandb_internal_pb2.Record | None = ...,
+        record_communicate: wandb.proto.wandb_internal_pb2.Record | None = ...,
         inform_init: global___ServerInformInitRequest | None = ...,
         inform_finish: global___ServerInformFinishRequest | None = ...,
         inform_attach: global___ServerInformAttachRequest | None = ...,
@@ -305,7 +288,6 @@ class ServerRequest(google.protobuf.message.Message):
 
 global___ServerRequest = ServerRequest
 
-@typing_extensions.final
 class ServerResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -317,7 +299,7 @@ class ServerResponse(google.protobuf.message.Message):
     INFORM_TEARDOWN_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_START_RESPONSE_FIELD_NUMBER: builtins.int
     @property
-    def result_communicate(self) -> wandb_internal_pb2.Result: ...
+    def result_communicate(self) -> wandb.proto.wandb_internal_pb2.Result: ...
     @property
     def inform_init_response(self) -> global___ServerInformInitResponse: ...
     @property
@@ -333,7 +315,7 @@ class ServerResponse(google.protobuf.message.Message):
     def __init__(
         self,
         *,
-        result_communicate: wandb_internal_pb2.Result | None = ...,
+        result_communicate: wandb.proto.wandb_internal_pb2.Result | None = ...,
         inform_init_response: global___ServerInformInitResponse | None = ...,
         inform_finish_response: global___ServerInformFinishResponse | None = ...,
         inform_attach_response: global___ServerInformAttachResponse | None = ...,

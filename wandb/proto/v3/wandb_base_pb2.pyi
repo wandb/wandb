@@ -14,7 +14,6 @@ else:
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
-@typing_extensions.final
 class _RecordInfo(google.protobuf.message.Message):
     """
     _RecordInfo, _RequestInfo: extra info for all records and requests
@@ -36,7 +35,6 @@ class _RecordInfo(google.protobuf.message.Message):
 
 global____RecordInfo = _RecordInfo
 
-@typing_extensions.final
 class _RequestInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -51,7 +49,6 @@ class _RequestInfo(google.protobuf.message.Message):
 
 global____RequestInfo = _RequestInfo
 
-@typing_extensions.final
 class _ResultInfo(google.protobuf.message.Message):
     """
     _ResultInfo: extra info for all results
