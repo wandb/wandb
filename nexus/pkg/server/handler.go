@@ -155,8 +155,7 @@ func NewHandler(
 
 // do this starts the handler
 func (h *Handler) do(in, lb <-chan *service.Record) {
-	defer observability.Reraise()
-
+	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 loop:
 	for in != nil || lb != nil {
