@@ -588,6 +588,7 @@ jobs:
           name: Install python dependencies
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
+            brew install ffmpeg
       - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
