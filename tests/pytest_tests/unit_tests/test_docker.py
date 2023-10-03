@@ -2,7 +2,6 @@ import platform
 from unittest import mock
 
 import pytest
-import wandb
 from wandb.docker import is_buildx_installed
 
 
