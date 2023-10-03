@@ -918,5 +918,4 @@ Once you add the URL to that file you will need to run:
 ```shell
 python tools/generate-tool.py --generate
 ```
-
 test
