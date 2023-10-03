@@ -1,4 +1,5 @@
 """Implementation of launch agent."""
+import asyncio
 import logging
 import os
 import pprint
@@ -317,7 +318,7 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def finish_thread_id(
+    async def finish_thread_id(
         self,
         thread_id: int,
         exception: Optional[Union[Exception, LaunchDockerError]] = None,
@@ -430,19 +431,16 @@ class LaunchAgent:
         # Abort if this job attempts to override secure mode
         self._assert_secure(launch_spec)
         job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
-        t = threading.Thread(
-            target=self.thread_run_job,
-            args=(
+
+        asyncio.create_task(
+            self.thread_run_job(
                 launch_spec,
                 job,
                 self.default_config,
                 self._api,
                 job_tracker,
-            ),
-            daemon=True,
+            )
         )
-
-        t.start()
 
     def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
         """If secure mode is set, make sure no vulnerable keys are overridden."""
@@ -473,7 +471,7 @@ class LaunchAgent:
                 "but the job specification attempts to override it."
             )
 
-    def loop(self) -> None:
+    async def loop(self) -> None:
         """Loop infinitely to poll for jobs and run them.
 
         Raises:
@@ -540,9 +538,9 @@ class LaunchAgent:
 
                 if self.num_running_jobs == self._max_jobs or job is None:
                     # all threads busy or did not receive job
-                    time.sleep(AGENT_POLLING_INTERVAL)
+                    await asyncio.sleep(AGENT_POLLING_INTERVAL)
                 else:
-                    time.sleep(RECEIVED_JOB_POLLING_INTERVAL)
+                    await asyncio.sleep(RECEIVED_JOB_POLLING_INTERVAL)
 
         except KeyboardInterrupt:
             self.update_status(AGENT_KILLED)
@@ -552,7 +550,7 @@ class LaunchAgent:
             self._jobs_event.clear()
 
     # Threaded functions
-    def thread_run_job(
+    async def thread_run_job(
         self,
         launch_spec: Dict[str, Any],
         job: Dict[str, Any],
@@ -566,7 +564,7 @@ class LaunchAgent:
         try:
             with self._jobs_lock:
                 self._jobs[thread_id] = job_tracker
-            self._thread_run_job(
+            await self._thread_run_job(
                 launch_spec, job, default_config, api, thread_id, job_tracker
             )
         except LaunchDockerError as e:
@@ -584,9 +582,9 @@ class LaunchAgent:
             exception = e
             wandb._sentry.exception(e)
         finally:
-            self.finish_thread_id(thread_id, exception)
+            await self.finish_thread_id(thread_id, exception)
 
-    def _thread_run_job(
+    async def _thread_run_job(
         self,
         launch_spec: Dict[str, Any],
         job: Dict[str, Any],
@@ -645,10 +643,10 @@ class LaunchAgent:
 
         _logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):
-            run = backend.run(project, image_uri)
+            run = await backend.run(project, image_uri)
         else:
             assert image_uri
-            run = backend.run(project, image_uri)
+            run = await backend.run(project, image_uri)
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
@@ -677,7 +675,7 @@ class LaunchAgent:
                     )
             if self._check_run_finished(job_tracker, launch_spec):
                 return
-            time.sleep(AGENT_POLLING_INTERVAL)
+            await asyncio.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
         # types of runners in general
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:

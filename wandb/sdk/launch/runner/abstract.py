@@ -56,7 +56,7 @@ class Status:
         self.data = data or {}
 
     def __repr__(self) -> "State":
-        return self.state
+        return str(self.state)
 
     def __eq__(self, __value: object) -> bool:
         if isinstance(__value, Status):
@@ -184,7 +184,7 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(
+    async def run(
         self,
         launch_project: LaunchProject,
         image_uri: str,

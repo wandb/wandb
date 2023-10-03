@@ -128,7 +128,7 @@ class SageMakerRunner(AbstractRunner):
         self.environment = environment
         self.registry = registry
 
-    def run(
+    async def run(
         self,
         launch_project: LaunchProject,
         image_uri: str,

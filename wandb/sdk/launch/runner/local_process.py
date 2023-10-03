@@ -32,7 +32,7 @@ class LocalProcessRunner(AbstractRunner):
 
     """
 
-    def run(  # type: ignore
+    async def run(  # type: ignore
         self,
         launch_project: LaunchProject,
         *args,

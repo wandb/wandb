@@ -1,5 +1,5 @@
 """Implementation of KubernetesRunner class for wandb launch."""
-
+import asyncio
 import base64
 import json
 import logging
@@ -21,6 +21,7 @@ from wandb.util import get_module
 from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
+from ..monitor.kubernetes_monitor import LaunchKubernetesMonitor
 from ..utils import (
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
@@ -28,7 +29,6 @@ from ..utils import (
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )
-from ..monitor.kubernetes_monitor import LaunchKubernetesMonitor
 from .abstract import AbstractRun, AbstractRunner
 from .kubernetes_monitor import KubernetesRunMonitor
 
@@ -124,7 +124,7 @@ class KubernetesSubmittedRun(AbstractRun):
             name=self.name, namespace=self.namespace
         )
 
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         """Wait for the run to finish.
 
         Returns:
@@ -135,7 +135,7 @@ class KubernetesSubmittedRun(AbstractRun):
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
             if status.state in ["finished", "failed", "preempted"]:
                 break
-            time.sleep(5)
+            await asyncio.sleep(5)
         return (
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
@@ -415,9 +415,24 @@ class KubernetesRunner(AbstractRunner):
         job["spec"] = job_spec
         job["metadata"] = job_metadata
 
+        # add_label_to_pods(resource_args, "wandb.ai/run-id", launch_project.run_id)
+        add_label_to_pods(
+            job,
+            "wandb.ai/monitor",
+            "true",
+        )
+
+        # Add wandb.ai/agent: current agent label on all pods
+        if LaunchAgent.initialized():
+            add_label_to_pods(
+                job,
+                "wandb.ai/agent",
+                LaunchAgent.name(),
+            )
+
         return job, secret
 
-    def run(
+    async def run(
         self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
@@ -429,7 +444,7 @@ class KubernetesRunner(AbstractRunner):
         Returns:
             The run object if the run was successful, otherwise None.
         """
-        LaunchKubernetesMonitor.ensure_initialized()  # No up if running
+        await LaunchKubernetesMonitor.ensure_initialized()  # No up if running
         kubernetes = get_module(  # noqa: F811
             "kubernetes",
             required="Kubernetes runner requires the kubernetes package. Please"
@@ -444,22 +459,9 @@ class KubernetesRunner(AbstractRunner):
             )
         _logger.info(f"Running Kubernetes job with resource args: {resource_args}")
 
-        context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
-
-        # add_label_to_pods(resource_args, "wandb.ai/run-id", launch_project.run_id)
-        add_label_to_pods(
-            resource_args,
-            "wandb.ai/monitor",
-            True,
+        context, api_client = await get_kube_context_and_api_client(
+            kubernetes, resource_args
         )
-
-        # Add wandb.ai/agent: current agent label on all pods
-        if LaunchAgent.initialized():
-            add_label_to_pods(
-                resource_args,
-                "wandb.ai/agent",
-                LaunchAgent.name(),
-            )
 
         # If the user specified an alternate api, we need will execute this
         # run by creating a custom object.
@@ -471,6 +473,7 @@ class KubernetesRunner(AbstractRunner):
             )
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(resource_args, env_vars)
+
             # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
             # add_label_to_pods(resource_args, "wandb.ai/run-id", launch_project.run_id)
@@ -522,7 +525,7 @@ class KubernetesRunner(AbstractRunner):
                 ) from e
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
-            core = client.CoreV1Api(api_client)
+            client.CoreV1Api(api_client)
             # run_monitor = KubernetesRunMonitor(
             #     job_field_selector=f"metadata.name={name}",
             #     pod_label_selector=f"wandb/run-id={launch_project.run_id}",
@@ -579,7 +582,7 @@ class KubernetesRunner(AbstractRunner):
             None, batch_api, core_api, job_name, namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
-            submitted_job.wait()
+            await submitted_job.wait()
 
         return submitted_job
 
@@ -744,7 +747,6 @@ def add_label_to_pods(
 
     Returns: None.
     """
-
     for pod in yield_pods(manifest):
         metadata = pod.setdefault("metadata", {})
         labels = metadata.setdefault("labels", {})

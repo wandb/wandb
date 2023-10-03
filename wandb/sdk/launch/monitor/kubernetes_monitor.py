@@ -1,12 +1,10 @@
 """Monitors kubernetes resources managed by the launch agent."""
-import time
 import asyncio
 import logging
-import threading
 from typing import Any, Dict, List, Optional
 
+import kubernetes_asyncio  # type: ignore # noqa: F401
 import urllib3
-import kubernetes
 from kubernetes_asyncio import watch  # type: ignore # noqa: F401
 from kubernetes_asyncio.client import (  # type: ignore # noqa: F401
     ApiException,
@@ -19,8 +17,7 @@ from kubernetes_asyncio.client import (  # type: ignore # noqa: F401
 import wandb
 
 from ..agent import LaunchAgent
-from ..runner.abstract import State, Status, JobState
-from ..utils import get_kube_context_and_api_client
+from ..runner.abstract import JobState, State, Status
 
 
 class Resources:
@@ -134,27 +131,19 @@ class LaunchKubernetesMonitor:
         # Map from job name to job state.
         self._job_states: Dict[str, Status] = dict()
 
-        self.__loop = None
-
-        thread = threading.Thread(target=self.__loop_forever, daemon=True)
-        thread.start()
-        time.sleep(2)
-
-    def __loop_forever(self) -> None:
-        """Run the event loop forever."""
-        self.__loop = asyncio.get_event_loop()
-        self.__loop.run_forever()
-
     @classmethod
-    def ensure_initialized(
+    async def ensure_initialized(
         cls,
     ) -> None:
         """Initialize the LaunchKubernetesMonitor."""
         if cls._instance is None:
-            _, api_client = get_kube_context_and_api_client(kubernetes, {})
-            core_api = CoreV1Api(api_client)
-            batch_api = BatchV1Api(api_client)
-            custom_api = CustomObjectsApi(api_client)
+            # _, api_client = await get_kube_context_and_api_client(
+            #     kubernetes_asyncio, {}
+            # )
+            await kubernetes_asyncio.config.load_kube_config()
+            core_api = CoreV1Api()
+            batch_api = BatchV1Api()
+            custom_api = CustomObjectsApi()
             label_selector = "wandb.ai/monitor=true"
             if LaunchAgent.initialized():
                 label_selector += f",wandb.ai/agent={LaunchAgent.name()}"
@@ -194,15 +183,9 @@ class LaunchKubernetesMonitor:
     def __monitor_namespace(self, namespace: str, custom_resource=None) -> None:
         """Start monitoring a namespaces for resources."""
         if (namespace, Resources.PODS) not in self._monitor_tasks:
-            # self._monitor_tasks[(namespace, Resources.PODS)] = asyncio.create_task(
-            #     self._monitor_pods(namespace),
-            #     name=f"monitor_{Resources.PODS}_{namespace}",
-            # )
-            self._monitor_tasks[
-                (namespace, Resources.PODS)
-            ] = asyncio.run_coroutine_threadsafe(
+            self._monitor_tasks[(namespace, Resources.PODS)] = asyncio.create_task(
                 self._monitor_pods(namespace),
-                self.__loop,
+                name=f"monitor_{Resources.PODS}_{namespace}",
             )
         # If a custom resource is specified then we will start monitoring
         # that resource type in the namespace instead of jobs.
@@ -214,15 +197,9 @@ class LaunchKubernetesMonitor:
                 )
         else:
             if (namespace, Resources.JOBS) not in self._monitor_tasks:
-                # self._monitor_tasks[(namespace, Resources.JOBS)] = asyncio.create_task(
-                #     self._monitor_jobs(namespace),
-                #     name=f"monitor_{Resources.JOBS}_{namespace}",
-                # )
-                self._monitor_tasks[
-                    (namespace, Resources.JOBS)
-                ] = asyncio.run_coroutine_threadsafe(
+                self._monitor_tasks[(namespace, Resources.JOBS)] = asyncio.create_task(
                     self._monitor_jobs(namespace),
-                    self.__loop,
+                    name=f"monitor_{Resources.JOBS}_{namespace}",
                 )
 
     def __get_status(self, job_name: str) -> Status:

@@ -541,7 +541,7 @@ def validate_build_and_registry_configs(
         raise LaunchError("registry and build config credential mismatch")
 
 
-def get_kube_context_and_api_client(
+async def get_kube_context_and_api_client(
     kubernetes: Any,
     resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
