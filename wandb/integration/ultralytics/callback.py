@@ -14,7 +14,6 @@ from wandb.sdk.lib import telemetry
 
 try:
     import torch
-
     import ultralytics
     from tqdm.auto import tqdm
 
