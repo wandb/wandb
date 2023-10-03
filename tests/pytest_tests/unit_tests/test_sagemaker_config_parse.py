@@ -47,11 +47,8 @@ def test_parse_sm_config(mock_open, mock_json_load, mock_getenv, mock_path_exist
         "param7": -0.45,
     }
     conf = parse_sm_config()
-
-    assert conf == expected_conf
-
     # Setting the environment variable
-    os.environ["SM_TRAINING_ENV"] = json.dumps(
+    sm_trainging_env = json.dumps(
         {
             "sagemaker_training_job_name": "2022-07-21",
             "param1": "2022-04-01",
@@ -105,17 +102,20 @@ def test_parse_sm_config(mock_open, mock_json_load, mock_getenv, mock_path_exist
             },
         }
     )
-
-    # Mock getenv to return the environment variable value
-    mock_getenv.side_effect = lambda key, dflt=None: os.environ.get(key, dflt)
-
-    # Deserialize it to ensure it's a valid JSON
-    try:
-        training_env_data = json.loads(os.getenv("SM_TRAINING_ENV"))
-    except json.JSONDecodeError:
-        raise AssertionError("SM_TRAINING_ENV is not a valid JSON string!")
-
-    conf = parse_sm_config()
-    expected_conf.update(training_env_data)
-
-    assert conf == expected_conf
+    # Mock the environment variable
+    with mock.patch.dict(
+        os.environ,
+        {
+            "SM_TRAINING_ENV": sm_trainging_env,
+        },
+    ):
+        # Mock  getenv to return the environment variable value
+        mock_getenv.side_effect = lambda key, dflt=None: os.environ.get(key, dflt)
+        # Deserialize it to ensure it's a valid JSON
+        try:
+            training_env_data = json.loads(os.getenv("SM_TRAINING_ENV"))
+        except json.JSONDecodeError:
+            raise AssertionError("SM_TRAINING_ENV is not a valid JSON string!")
+        conf = parse_sm_config()
+        expected_conf.update(training_env_data)
+        assert conf == expected_conf
