@@ -35,7 +35,7 @@ fastcore
 pyarrow
 metaflow>=2.3.5
 xgboost
-lightgbm
+lightgbm; sys_platform != 'darwin'
 mlflow
 kfp<2.0.0
 urllib3<2
