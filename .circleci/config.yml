@@ -577,8 +577,8 @@ jobs:
         type: string
         default: ""
     macos:
-      xcode: 13.4.1
-    resource_class: large
+      xcode: 14.3.1
+    resource_class: macos.m1.medium.gen1
     parallelism: << parameters.parallelism >>
     environment:
       COVERAGE_DIR: << parameters.coverage_dir >>
