@@ -883,7 +883,7 @@ def no_retry_auth(e: Any) -> bool:
     if not isinstance(e, requests.HTTPError):
         return True
     if e.response is None:
-        return True
+        return True  # type: ignore
     # Don't retry bad request errors; raise immediately
     if e.response.status_code in (400, 409):
         return False

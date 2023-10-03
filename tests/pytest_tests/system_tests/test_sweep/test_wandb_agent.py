@@ -12,7 +12,12 @@ from wandb.wandb_agent import Agent
 
 def test_agent_create_command_args():
     mock_command = {
-        "args": {"a": {"value": True}, "b": {"value": False}, "c": {"value": 1}}
+        "args": {
+            "a": {"value": True},
+            "b": {"value": False},
+            "c": {"value": 1},
+            "d": {"value": None},
+        }
     }
 
     _return = create_sweep_command_args(mock_command)
@@ -22,10 +27,10 @@ def test_agent_create_command_args():
     assert "args_no_boolean_flags" in _return
     assert "args_json" in _return
     # test fields are correct
-    assert _return["args"] == ["--a=True", "--b=False", "--c=1"]
-    assert _return["args_no_hyphens"] == ["a=True", "b=False", "c=1"]
-    assert _return["args_no_boolean_flags"] == ["--a", "--c=1"]
-    assert _return["args_json"] == ['{"a": true, "b": false, "c": 1}']
+    assert _return["args"] == ["--a=True", "--b=False", "--c=1", "--d=None"]
+    assert _return["args_no_hyphens"] == ["a=True", "b=False", "c=1", "d=None"]
+    assert _return["args_no_boolean_flags"] == ["--a", "--c=1", "--d=None"]
+    assert _return["args_json"] == ['{"a": true, "b": false, "c": 1, "d": null}']
 
 
 def test_agent_create_command_args_bad_command():

@@ -348,6 +348,7 @@ class SettingsData:
     _sync: bool
     _os: str
     _platform: str
+    _proxies: Mapping[str, str]  # dedicated global proxy servers [scheme -> url]
     _python: str
     _runqueue_item_id: str
     _require_nexus: bool
@@ -367,6 +368,7 @@ class SettingsData:
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
+    _stats_buffer_size: int  # number of consolidated samples to buffer before flushing, available in run obj
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -699,6 +701,9 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
+            _proxies={
+                "preprocessor": _str_as_json,
+            },
             _require_nexus={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
@@ -732,6 +737,10 @@ class Settings(SettingsData):
             _stats_disk_paths={
                 "value": ("/",),
                 "preprocessor": _str_as_json,
+            },
+            _stats_buffer_size={
+                "value": 0,
+                "preprocessor": int,
             },
             _sync={"value": False},
             _tmp_code_dir={
