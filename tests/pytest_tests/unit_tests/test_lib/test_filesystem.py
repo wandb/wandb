@@ -14,6 +14,7 @@ from unittest import mock
 from unittest.mock import Mock, patch
 
 import pytest
+
 # from pyfakefs.fake_filesystem import OSType
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.filesystem import (
