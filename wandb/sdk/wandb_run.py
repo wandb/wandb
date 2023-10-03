@@ -3160,7 +3160,11 @@ class Run:
 
             return res
 
-        if not hasattr(self, "_backend") or not self._backend or not self._backend.interface:
+        if (
+            not hasattr(self, "_backend")
+            or not self._backend
+            or not self._backend.interface
+        ):
             return {}
 
         handle = self._backend.interface.deliver_get_system_metrics()
