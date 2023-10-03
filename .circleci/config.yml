@@ -322,7 +322,7 @@ jobs:
       SHARD: << parameters.shard >>
       COVERAGE_DIR: << parameters.coverage_dir >>
     parallelism: << parameters.parallelism >>
-    resource_class: 2xlarge
+    resource_class: xlarge
     working_directory: /mnt/ramdisk
     steps:
       - checkout

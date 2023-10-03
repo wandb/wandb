@@ -349,6 +349,7 @@ def test_safe_copy_str_path(tmp_path: Path):
     assert Path(target_path).read_text("utf-8") == source_content
 
 
+# todo: fix this test
 # @pytest.mark.skipif(sys.platform != "darwin", reason="pyfakefs limitations")
 # @pytest.mark.parametrize("fs_type", [OSType.LINUX, OSType.MACOS, OSType.WINDOWS])
 # def test_safe_copy_different_file_systems(fs, fs_type: OSType):

@@ -319,6 +319,7 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
     assert check_warning
 
 
+# todo: fix this test
 # def test_cache_drops_lru_when_adding_not_enough_space(fs, artifacts_cache):
 #     # Simulate a 1KB drive.
 #     fs.set_disk_usage(1000)
