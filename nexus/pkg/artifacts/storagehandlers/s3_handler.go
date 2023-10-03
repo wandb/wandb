@@ -82,9 +82,12 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 
 	// todo: check for cache hit
 
-	sh.initClient()
+	err := sh.initClient()
+	if err != nil {
+		return "", fmt.Errorf("could not initialize client: %v", err)
+	}
 	if sh.Client == nil {
-		return "", fmt.Errorf("could not initiate client")
+		return "", fmt.Errorf("could not initialize client")
 	}
 	bucket, key, _, err := parseURI(*sh.ManifestEntry.Ref)
 	if err != nil {
@@ -169,12 +172,12 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 	path := os.Getenv("WANDB_CACHE_DIR")
 	file, err := os.Create(path)
 	if err != nil {
-		return "", fmt.Errorf("Error creating file:", err)
+		return "", fmt.Errorf("Error creating file: %v", err)
 	}
 	defer file.Close()
 	_, err = io.Copy(file, obj.Body)
 	if err != nil {
-		return "", fmt.Errorf("Error copying object content:", err)
+		return "", fmt.Errorf("Error copying object content %v:", err)
 	}
 
 	return path, nil
