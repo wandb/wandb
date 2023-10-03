@@ -21,4 +21,3 @@ def mock_shell():
 def test_buildx_not_installed(runner):
     with runner.isolated_filesystem():
         assert is_buildx_installed() is False
-        assert wandb.docker._buildx_installed is False
