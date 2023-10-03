@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/wandb/wandb/nexus/pkg/observability"
+
 	"github.com/wandb/wandb/nexus/pkg/auth"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -266,9 +268,16 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 // handleInformStart is called when the client sends an InformStart message
 // TODO: probably can remove this, we should be able to update the settings
 // using the regular InformRecord messages
-func (nc *Connection) handleInformStart(_ *service.ServerInformStartRequest) {
+func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// todo: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
+	nc.stream.settings = msg.GetSettings()
+	// update sentry tags
+	// add attrs from settings:
+	nc.stream.logger.SetTags(observability.Tags{
+		"run_url": nc.stream.settings.GetRunUrl().GetValue(),
+		"entity":  nc.stream.settings.GetEntity().GetValue(),
+	})
 }
 
 // handleInformAttach is called when the client sends an InformAttach message

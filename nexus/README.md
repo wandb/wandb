@@ -19,19 +19,18 @@ but starting from a clean slate.
 To install Nexus, you will need to run the following commands:
 
 ```bash
-pip install wandb[nexus]
+pip install "wandb[nexus]" --pre
 ```
 
 ### Supported Platforms
 
 Nexus is currently supported on the following platforms:
 
-- Linux (`x86_64`)
-- macOS (`x86_64`)
-- macOS (`arm64`)
-- Windows (`x86_64`)
+- Linux:`x86_64`, `aarch64`
+- macOS: `x86_64`, `arm64`
+- Windows `amd64`
 
-If you are using a different platform, you can build Nexus from source by following the
+If you are using a different platform, you can build Nexus from the source by following the
 instructions in the [contributing guide](docs/contributing.md#installing-nexus).
 Please also open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
 to let us know that you are interested in using Nexus on
@@ -57,14 +56,14 @@ your development environment and how to contribute to the codebase.
 ## Feedback
 Please give Nexus a try and let us know what you think, we believe it is worth it!
 
-We are very much looking forward for your feedback, especially bug reports.
+We are very much looking forward to your feedback, especially bug reports.
 Please open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
-if you encounter an error and mention that you are using Nexus.
+if you encounter an error, mention that you are using Nexus.
 
 ## Feature Parity Status
 
-The following table shows the current status of feature parity
-between the current W&B SDK and Nexus.
+The following table shows the status of the feature parity
+between the current W&B SDK and Nexus for version `0.16.0b1`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
@@ -100,13 +99,12 @@ Status legend:
 |             | console logging   | 🚧[^E.8]              |
 |             | system metrics    | 🚧[^E.9]              |
 |             | system info       | ✅                     |
-|             | code saving       | 🚧[^E.10][^E.11]      |
+|             | code saving       | 🚧[^E.11]             |
 |             | Settings          | 🚧[^E.12]             |
 | Login       |                   |                       |
 |             | default entity    | ✅                     |
 |             | team entity       | ✅                     |
 |             | service account   | ✅                     |
-| Public API  |                   | 🚧[^PA.1]             |
 | CLI         |                   | 🚧[^CLI.1]            |
 | Artifacts   |                   | ❌[^A.1]               |
 | Launch      |                   | ❌[^L.1]               |
@@ -125,8 +123,6 @@ Status legend:
 [^E.11]: Automatic code saving in Notebooks is not yet supported. Requires Artifacts support.
 [^E.12]: TODO: list unsupported settings.
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
-[^PA.1]: The public API works, but uses the current Python backend under the hood.
-    Expect the public API to be rewritten to use the new backend.
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
     commands. Expect the CLI to be rewritten to use the new backend.
 [^A.1]: Artifacts support is not yet available. Expect Artifacts to be supported soon.

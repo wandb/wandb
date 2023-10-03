@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -30,14 +31,16 @@ func NewManager(ctx context.Context, baseSettings *settings.SettingsWrap, addr s
 	return manager
 }
 
-func (m *Manager) NewRun() *Run {
+func (m *Manager) NewRun(runParams *runopts.RunParams) *Run {
 	conn := m.Connect(m.ctx)
 	// make a copy of the base manager settings
 	runSettings := m.settings.Copy()
-	if runSettings.RunId == nil {
+	if runParams.RunID != nil {
+		runSettings.SetRunID(*runParams.RunID)
+	} else if runSettings.RunId == nil {
 		runSettings.SetRunID(shared.ShortID(8))
 	}
-	run := NewRun(m.ctx, runSettings.Settings, conn)
+	run := NewRun(m.ctx, runSettings.Settings, conn, runParams)
 	return run
 }
 
