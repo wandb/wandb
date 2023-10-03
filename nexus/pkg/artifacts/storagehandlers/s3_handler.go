@@ -3,6 +3,7 @@ package storagehandlers
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strings"
@@ -79,10 +80,7 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 		return *sh.ManifestEntry.Ref, nil
 	}
 
-	// todo: cache
-	// path, hit, cache_open = sh.Cache.check_etag_obj_path()
-	// if hit:
-	//     return path
+	// todo: check for cache hit
 
 	sh.initClient()
 	if sh.Client == nil {
@@ -118,6 +116,7 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 	} else if obj == nil {
 		return "", fmt.Errorf("could not get object from %s/%s", bucket, key)
 	}
+	defer obj.Body.Close()
 
 	etag, err := etagFromObj(obj)
 	if err != nil {
@@ -166,10 +165,17 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 		}
 	}
 
-	// todo: file write + update cache
-	// todo: retries
-
+	// todo: set path based on etag
 	path := os.Getenv("WANDB_CACHE_DIR")
+	file, err := os.Create(path)
+	if err != nil {
+		return "", fmt.Errorf("Error creating file:", err)
+	}
+	defer file.Close()
+	_, err = io.Copy(file, obj.Body)
+	if err != nil {
+		return "", fmt.Errorf("Error copying object content:", err)
+	}
 
 	return path, nil
 }
