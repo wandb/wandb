@@ -3139,6 +3139,7 @@ class Run:
         Returns:
             A dictionary of system metrics.
         """
+
         def pb_to_dict(
             system_metrics_pb: wandb.proto.wandb_internal_pb2.GetSystemMetricsResponse,
         ) -> Dict[str, List[Tuple[datetime, float]]]:
