@@ -33,7 +33,6 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 	// open the file for reading and defer closing it
 	file, err := os.Open(task.Path)
 	if err != nil {
-		task.outstandingDone()
 		return err
 	}
 	defer func(file *os.File) {
@@ -55,15 +54,12 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 	}
 
 	if err != nil {
-		task.outstandingDone()
 		return err
 	}
 
 	if _, err = u.client.Do(req); err != nil {
-		task.outstandingDone()
 		return err
 	}
 
-	task.outstandingDone()
 	return nil
 }
