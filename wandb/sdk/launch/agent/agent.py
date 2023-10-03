@@ -40,6 +40,8 @@ MAX_RESUME_COUNT = 5
 
 RUN_INFO_GRACE_PERIOD = 60
 
+MAX_WAIT_RUN_STOPPED = 60
+
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
     try:
@@ -662,6 +664,7 @@ class LaunchAgent:
         with self._jobs_lock:
             job_tracker.run = run
         start_time = time.time()
+        stopped_time: Optional[float] = None
         while self._jobs_event.is_set():
             # If run has failed to start before timeout, kill it
             state = run.get_status().state
@@ -675,7 +678,14 @@ class LaunchAgent:
                     )
             if self._check_run_finished(job_tracker, launch_spec):
                 return
+            if job_tracker.check_wandb_run_stopped(self._api):
+                if stopped_time is None:
+                    stopped_time = time.time()
+                else:
+                    if time.time() - stopped_time > MAX_WAIT_RUN_STOPPED:
+                        run.cancel()
             await asyncio.sleep(AGENT_POLLING_INTERVAL)
+
         # temp: for local, kill all jobs. we don't yet have good handling for different
         # types of runners in general
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
@@ -747,6 +757,7 @@ class LaunchAgent:
                 with self._jobs_lock:
                     job_tracker.completed_status = status
                 return True
+
             return False
         except LaunchError as e:
             wandb.termerror(
