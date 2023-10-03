@@ -1,6 +1,5 @@
 pytest
 hypothesis
-pyfakefs
 hypothesis-fspaths
 coverage
 

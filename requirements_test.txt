@@ -8,7 +8,6 @@ pytest-openfiles
 pytest-flakefinder
 pytest-rerunfailures
 parameterized
-pyfakefs
 
 flask>2.0.0
 pandas
