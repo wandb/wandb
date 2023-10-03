@@ -1,6 +1,6 @@
 """Implementation of the SageMakerRunner class."""
+import asyncio
 import logging
-import time
 from typing import Any, Dict, List, Optional, cast
 
 if False:
@@ -71,7 +71,7 @@ class SagemakerSubmittedRun(AbstractRun):
             )
             return None
 
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         while True:
             status_state = self.get_status().state
             wandb.termlog(
@@ -79,7 +79,7 @@ class SagemakerSubmittedRun(AbstractRun):
             )
             if status_state in ["stopped", "failed", "finished"]:
                 break
-            time.sleep(5)
+            await asyncio.sleep(5)
         return status_state == "finished"
 
     def cancel(self) -> None:

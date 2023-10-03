@@ -1,10 +1,10 @@
+import asyncio
 import logging
 import os
 import shlex
 import subprocess
 import sys
 import threading
-import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
@@ -54,13 +54,13 @@ class LocalSubmittedRun(AbstractRun):
             return None
         return str(self._command_proc.pid)
 
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         assert self._thread is not None
         # if command proc is not set
         # wait for thread to set it
         if self._command_proc is None:
             while self._thread.is_alive():
-                time.sleep(5)
+                await asyncio.sleep(5)
                 # command proc can be updated by another thread
                 if self._command_proc is not None:
                     return self._command_proc.wait() == 0  # type: ignore

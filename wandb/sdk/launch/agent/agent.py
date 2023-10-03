@@ -382,7 +382,7 @@ class LaunchAgent:
                     # environment (e.g. k8s) during the run info grace period.
                     if interval == 1:
                         logs = job_and_run_status.run.get_logs()
-                    time.sleep(interval)
+                    await asyncio.sleep(interval)
                     interval *= 2
 
             if run_info is None:

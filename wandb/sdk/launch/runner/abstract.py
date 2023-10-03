@@ -56,7 +56,7 @@ class Status:
         self.data = data or {}
 
     def __repr__(self) -> "State":
-        return str(self.state)
+        return State(self.state)
 
     def __eq__(self, __value: object) -> bool:
         if isinstance(__value, Status):

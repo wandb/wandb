@@ -1,4 +1,4 @@
-import time
+import asyncio
 from typing import Any, Dict, Optional
 
 if False:
@@ -184,7 +184,9 @@ class VertexRunner(AbstractRunner):
         else:
             job.submit(**execution_kwargs)
         submitted_run = VertexSubmittedRun(job)
+        interval = 1
         while not getattr(job._gca_resource, "name", None):
             # give time for the gcp job object to be created and named, this should only loop a couple times max
-            time.sleep(1)
+            await asyncio.sleep(interval)
+            interval *= 2
         return submitted_run

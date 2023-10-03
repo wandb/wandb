@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import logging
@@ -60,7 +61,7 @@ else:
     NAMESPACE = "wandb"
 
 
-def _wait_for_completion(
+async def _wait_for_completion(
     batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
 ) -> bool:
     start_time = time.time()
@@ -75,7 +76,7 @@ def _wait_for_completion(
         if deadline_secs is not None and time.time() - start_time > deadline_secs:
             return False
 
-        time.sleep(5)
+        await asyncio.sleep(5)
 
 
 class KanikoBuilder(AbstractBuilder):

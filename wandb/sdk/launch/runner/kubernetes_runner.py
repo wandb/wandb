@@ -255,12 +255,12 @@ class CrdSubmittedRun(AbstractRun):
                 f"Failed to delete CRD {self.name} in namespace {self.namespace}: {str(e)}"
             ) from e
 
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         """Wait for this custom object to finish running."""
         while True:
             status = self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            time.sleep(5)
+            await asyncio.sleep(5)
             if status.state in ["finished", "failed", "preempted"]:
                 return status.state == "finished"
 
@@ -569,15 +569,6 @@ class KubernetesRunner(AbstractRunner):
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
-        # Event stream monitor to ensure pod creation and job completion.
-        # monitor = KubernetesRunMonitor(
-        #     job_field_selector=f"metadata.name={job_name}",
-        #     pod_label_selector=f"job-name={job_name}",
-        #     namespace=namespace,
-        #     batch_api=batch_api,
-        #     core_api=core_api,
-        # )
-        # monitor.start()
         submitted_job = KubernetesSubmittedRun(
             None, batch_api, core_api, job_name, namespace, secret
         )
