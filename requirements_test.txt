@@ -10,6 +10,6 @@ pytest-rerunfailures
 parameterized
 pyfakefs
 
-flask
+flask>2.0.0
 pandas
 responses
