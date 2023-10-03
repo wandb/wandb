@@ -264,6 +264,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	}
 }
 
+//gocyclo:ignore
 func (h *Handler) handleRequest(record *service.Record) {
 	shutdown := false
 	request := record.GetRequest()
@@ -301,6 +302,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleResume()
 	case *service.Request_Cancel:
 		h.handleCancel(record)
+	case *service.Request_GetSystemMetrics:
+		h.handleGetSystemMetrics(record, response)
 	case *service.Request_InternalMessages:
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
@@ -577,6 +580,32 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 		GetSummaryResponse: &service.GetSummaryResponse{
 			Item: items,
 		},
+	}
+}
+
+func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Response) {
+	sm := h.systemMonitor.GetBuffer()
+
+	response.ResponseType = &service.Response_GetSystemMetricsResponse{
+		GetSystemMetricsResponse: &service.GetSystemMetricsResponse{
+			SystemMetrics: make(map[string]*service.SystemMetricsBuffer),
+		},
+	}
+
+	for key, samples := range sm {
+		buffer := make([]*service.SystemMetricSample, 0, len(samples.GetElements()))
+
+		// convert samples to buffer:
+		for _, sample := range samples.GetElements() {
+			buffer = append(buffer, &service.SystemMetricSample{
+				Timestamp: sample.Timestamp,
+				Value:     float32(sample.Value),
+			})
+		}
+		// add to response as map key: buffer
+		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &service.SystemMetricsBuffer{
+			Record: buffer,
+		}
 	}
 }
 
