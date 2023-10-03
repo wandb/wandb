@@ -385,7 +385,7 @@ jobs:
         default: false
       xdist:
         type: integer
-        default: 6
+        default: 4
       tox_args:
         type: string
         default: ""
