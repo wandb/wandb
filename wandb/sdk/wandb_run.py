@@ -3072,6 +3072,8 @@ class Run:
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
     def log_model(
         self,
         path: StrPath,
@@ -3099,6 +3101,7 @@ class Run:
             artifact_or_path=path, name=model_name, type="model", aliases=aliases
         )
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def use_model(self, model_name: str) -> FilePathStr:
         """Download a logged model artifact.
@@ -3110,14 +3113,15 @@ class Run:
                     - name:version
                     - name:alias
                     - digest.
-
+        Raises:
+            AssertionError: if type of artifact 'model_name' does not contain 'model'
         Returns:
             path: (StrPath) path to downloaded artifact file(s).
         """
-        r = self._run_obj
-        assert r is not None
         artifact = self.use_artifact(artifact_or_name=model_name)
-        assert "model" in str(artifact.type.lower())
+        assert "model" in str(
+            artifact.type.lower()
+        ), "You can only use this method for 'model' artifacts. Please make sure the artifact type of the model you're trying to use contains the word 'model'."
         path = artifact.download()
 
         # If returned directory contains only one file, return path to that file
@@ -3126,6 +3130,8 @@ class Run:
             return FilePathStr(os.path.join(path, dir_list[0]))
         return path
 
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
     def link_model(
         self,
         path: StrPath,
@@ -3143,17 +3149,32 @@ class Run:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
-            linked_model_name: (str) - the name of the registered model that the model is to be linked to. The entity will be derived from the run
+            registered_model_name: (str) - the name of the registered model that the model is to be linked to. The entity will be derived from the run
             model_name: (str) - the name of the model artifact that files in 'path' will be logged to.
             aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
                 inside the registered model.
                 The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
+        Examples:
+            ```python
+            run.link_model(path='/local/directory', registered_model_name='my_reg_model', model_name='my_model_artifact', aliases=['production'])
+            ```
+
+            Invalid usage
+            ```python
+            run.link_model(path='/local/directory', registered_model_name='my_entity/my_project/my_reg_model', model_name='my_model_artifact', aliases=['production'])
+            ```
+
+        Raises:
+            AssertionError: if registered_model_name is a path
+
         Returns:
             None
         """
         name_parts = linked_model_name.split("/")
-        assert len(name_parts) == 1
+        assert (
+            len(name_parts) == 1
+        ), "Please provide only the name of the registered model. Do not append the entity or project name."
         project = "model-registry"
         target_path = self.entity + "/" + project + "/" + linked_model_name
 

@@ -47,9 +47,6 @@ Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
-log_model = wandb_sdk.wandb_run.Run.log_model
-use_model = wandb_sdk.wandb_run.Run.use_model
-link_model = wandb_sdk.wandb_run.Run.link_model
 
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError

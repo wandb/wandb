@@ -1,7 +1,10 @@
+import pathlib
 import tempfile
+from typing import Callable
 
 import pytest
 from wandb import env
+from wandb.sdk.wandb_run import Run
 
 
 class FakeArtifact:
@@ -17,75 +20,69 @@ def test_offline_link_artifact(wandb_init):
 
 
 @pytest.mark.nexus_failure(feature="models")
-def test_log_model(relay_server, wandb_init):
-    with relay_server():
-        run = wandb_init()
-        with tempfile.TemporaryDirectory(dir="./") as tmpdir:
-            with open(tmpdir + "/boom.txt", "w") as f:
-                f.write("testing")
+def test_log_model(
+    wandb_init: Callable[..., Run],
+    tmp_path: pathlib.Path,
+):
+    run = wandb_init()
+    local_path = tmp_path / "boom.txt"
+    local_path.write_text("testing")
+    run.log_model(local_path, "test-model")
+    run.finish()
 
-            local_path = f"{tmpdir}/boom.txt"
-            run.log_model(local_path, model_name="test-model")
-        run.finish()
-
-        run = wandb_init()
-        download_path = run.use_model("test-model:v0")
-        file = download_path
-        assert file == f"{env.get_artifact_dir()}/test-model:v0/boom.txt"
-        run.finish()
-
-
-@pytest.mark.nexus_failure(feature="models")
-def test_use_model(relay_server, wandb_init):
-    with relay_server():
-        run = wandb_init()
-        with tempfile.TemporaryDirectory(dir="./") as tmpdir:
-            with open(tmpdir + "/boom.txt", "w") as f:
-                f.write("testing")
-
-            local_path = f"{tmpdir}/boom.txt"
-            logged_artifact = run.log_artifact(
-                local_path, name="test-model", type="model"
-            )
-            logged_artifact.wait()
-            download_path = run.use_model("test-model:v0")
-            file = download_path
-            assert file == f"{env.get_artifact_dir()}/test-model:v0/boom.txt"
-        run.finish()
+    run = wandb_init()
+    download_path = run.use_model("test-model:v0")
+    file = download_path
+    assert file == f"{env.get_artifact_dir()}/test-model:v0/boom.txt"
+    run.finish()
 
 
 @pytest.mark.nexus_failure(feature="models")
-def test_use_model_error_artifact_type(relay_server, wandb_init):
-    with relay_server():
-        run = wandb_init()
-        with tempfile.TemporaryDirectory(dir="./") as tmpdir:
-            with open(tmpdir + "/boom.txt", "w") as f:
-                f.write("testing")
+def test_use_model(
+    wandb_init: Callable[..., Run],
+    tmp_path: pathlib.Path,
+):
+    run = wandb_init()
+    local_path = tmp_path / "boom.txt"
+    local_path.write_text("testing")
 
-            local_path = f"{tmpdir}/boom.txt"
-            logged_artifact = run.log_artifact(
-                local_path, name="test-model", type="dataset"
-            )
-            logged_artifact.wait()
-            with pytest.raises(AssertionError):
-                _ = run.use_model("test-model:v0")
-        run.finish()
+    logged_artifact = run.log_artifact(local_path, name="test-model", type="model")
+    logged_artifact.wait()
+    download_path = run.use_model("test-model:v0")
+    file = download_path
+    assert file == f"{env.get_artifact_dir()}/test-model:v0/boom.txt"
+    run.finish()
 
 
 @pytest.mark.nexus_failure(feature="models")
-def test_link_model(relay_server, wandb_init):
-    with relay_server():
-        run = wandb_init()
-        with tempfile.TemporaryDirectory(dir="./") as tmpdir:
-            with open(tmpdir + "/boom.txt", "w") as f:
-                f.write("testing")
+def test_use_model_error_artifact_type(
+    wandb_init: Callable[..., Run],
+    tmp_path: pathlib.Path,
+):
+    run = wandb_init()
+    local_path = tmp_path / "boom.txt"
+    local_path.write_text("testing")
 
-            local_path = f"{tmpdir}/boom.txt"
-            run.link_model(local_path, "test_portfolio", "test_model")
-        run.finish()
+    logged_artifact = run.log_artifact(local_path, name="test-model", type="dataset")
+    logged_artifact.wait()
+    with pytest.raises(AssertionError):
+        _ = run.use_model("test-model:v0")
+    run.finish()
 
-        run = wandb_init()
-        download_path = run.use_model("model-registry/test_portfolio:v0")
-        file = download_path
-        assert file == f"{env.get_artifact_dir()}/test_model:v0/boom.txt"
-        run.finish()
+
+@pytest.mark.nexus_failure(feature="models")
+def test_link_model(
+    wandb_init: Callable[..., Run],
+    tmp_path: pathlib.Path,
+):
+    run = wandb_init()
+    local_path = tmp_path / "boom.txt"
+    local_path.write_text("testing")
+    run.link_model(local_path, "test_portfolio", "test_model")
+    run.finish()
+
+    run = wandb_init()
+    download_path = run.use_model("model-registry/test_portfolio:v0")
+    file = download_path
+    assert file == f"{env.get_artifact_dir()}/test_model:v0/boom.txt"
+    run.finish()
