@@ -26,8 +26,8 @@ tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
 tensorflow>=1.15.2; sys_platform == 'darwin' and platform.machine != 'arm64'
 tensorflow-macos; python_version > '3.7' and python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 tensorboard
-torch
-torchvision
+torch; python_version < '3.12'
+torchvision; python_version < '3.12'
 jax[cpu]; sys_platform == 'darwin' or sys_platform == 'linux'
 
 fastcore
