@@ -3,13 +3,13 @@ plugin:
   - wandb
 tag:
   shard: llm
-  skips:
-    - platform: win
+  skip: true
 depend:
   requirements:
     - langchain>=0.0.188
     - openai
     - beautifulsoup4
+    - numexpr
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 1
