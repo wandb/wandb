@@ -15,7 +15,15 @@ rm -rf tmpbuild
 mkdir tmpbuild
 # build binary
 cd ..
-go build -o lang/tmpbuild/embed-nexus.bin cmd/nexus/main.go
+SYSTEM=`uname -s`
+if [ "x$SYSTEM" == "xLinux" ]; then
+CGO_ENABLED=1 go build \
+  -ldflags "-extldflags \"-fuse-ld=gold -Wl,--weak-unresolved-symbols\"" \
+  -o lang/tmpbuild/embed-nexus.bin cmd/nexus/main.go
+else
+go build \
+  -o lang/tmpbuild/embed-nexus.bin cmd/nexus/main.go
+fi
 cd -
 
 # build shared-library
@@ -72,4 +80,9 @@ cd -
 # build client prog (cpp)
 cd cpp/examples/
 LD_RUN_PATH="$PWD/../../export/lib/" g++ -std=c++17 train.cpp -o ../../export/examples/traincpp -I../../export/include/ -L../../export/lib/ -lwandb_cpp -lwandb_core
+cd -
+
+# build client prog session (cpp)
+cd cpp/examples/
+LD_RUN_PATH="$PWD/../../export/lib/" g++ -std=c++17 train_session.cpp -o ../../export/examples/train_session -I../../export/include/ -L../../export/lib/ -lwandb_cpp -lwandb_core
 cd -
