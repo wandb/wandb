@@ -34,7 +34,6 @@ init = wandb_sdk.init
 setup = wandb_sdk.setup
 _attach = wandb_sdk._attach
 _teardown = wandb_sdk.teardown
-save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
 finish = wandb_sdk.finish
@@ -201,6 +200,21 @@ from .analytics import Sentry as _Sentry
 
 _sentry = _Sentry()
 _sentry.setup()
+
+
+# print a warning if running py 3.6 saying that it will be deprecated in the 0.16.0 release
+try:
+    import sys
+
+    if sys.version_info[0] == 3 and sys.version_info[1] == 6:
+        termwarn(
+            "Support for Python 3.6 will be discontinued "
+            "in the upcoming 0.16.0 release of wandb. "
+            "We recommend upgrading to Python 3.7 or a later version.",
+            repeat=False,
+        )
+except Exception:
+    pass
 
 
 __all__ = (
