@@ -38,6 +38,11 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     ]
 
 
+# skip on macos
+@pytest.mark.skipif(
+    platform.system() == "Darwin",
+    reason="todo: fix gpu monitoring on CircleCI's M1 Macs",
+)
 def test_tb_watcher_logdir_not_exists(mocked_run, tbwatcher_util, capsys):
     # TODO: check caplog for right error text
     pytest.importorskip("tensorboard.summary.v1")
