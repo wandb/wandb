@@ -27,12 +27,66 @@ func Average(nums []float64) float64 {
 	return total / float64(len(nums))
 }
 
-func makeStatsRecord(stats map[string]float64) *service.Record {
+type Measurement struct {
+	// timestamp of the measurement
+	Timestamp *timestamppb.Timestamp
+	// value of the measurement
+	Value float64
+}
+
+type List struct {
+	// slice of tuples of (timestamp, value)
+	elements []Measurement
+	maxSize  int32
+}
+
+func (l *List) Append(element Measurement) {
+	if (l.maxSize > 0) && (len(l.elements) >= int(l.maxSize)) {
+		l.elements = l.elements[1:] // Drop the oldest element
+	}
+	l.elements = append(l.elements, element) // Add the new element
+}
+
+func (l *List) GetElements() []Measurement {
+	return l.elements
+}
+
+// Buffer is the in-memory metrics buffer for the system monitor
+type Buffer struct {
+	elements map[string]List
+	mutex    sync.RWMutex
+	maxSize  int32
+}
+
+func NewBuffer(maxSize int32) *Buffer {
+	return &Buffer{
+		elements: make(map[string]List),
+		maxSize:  maxSize,
+	}
+}
+
+func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
+	mb.mutex.Lock()
+	defer mb.mutex.Unlock()
+	buf, ok := mb.elements[metricName]
+	if !ok {
+		mb.elements[metricName] = List{
+			maxSize: mb.maxSize,
+		}
+	}
+	buf.Append(Measurement{
+		Timestamp: timeStamp,
+		Value:     metricValue,
+	})
+	mb.elements[metricName] = buf
+}
+
+func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
 	record := &service.Record{
 		RecordType: &service.Record_Stats{
 			Stats: &service.StatsRecord{
 				StatsType: service.StatsRecord_SYSTEM,
-				Timestamp: timestamppb.Now(),
+				Timestamp: timeStamp,
 			},
 		},
 		Control: &service.Control{AlwaysSend: true},
@@ -75,6 +129,9 @@ type SystemMonitor struct {
 	//	outChan is the channel for outgoing messages
 	outChan chan *service.Record
 
+	// Buffer is the metrics buffer for the system monitor
+	buffer *Buffer
+
 	// settings is the settings for the system monitor
 	settings *service.Settings
 
@@ -88,11 +145,21 @@ func NewSystemMonitor(
 	logger *observability.NexusLogger,
 	outChan chan *service.Record,
 ) *SystemMonitor {
+	sbs := settings.XStatsBufferSize.GetValue()
+	var buffer *Buffer
+	// if buffer size is 0, don't create a buffer
+	// a positive buffer size restricts the number of metrics that are kept in memory
+	// value of -1 indicates that all sampled metrics will be kept in memory
+	if sbs != 0 {
+		buffer = NewBuffer(sbs)
+	}
+
 	systemMonitor := &SystemMonitor{
 		wg:       sync.WaitGroup{},
 		settings: settings,
 		logger:   logger,
 		outChan:  outChan,
+		buffer:   buffer,
 	}
 
 	// if stats are disabled, return early
@@ -148,7 +215,6 @@ func (sm *SystemMonitor) Probe() *service.MetadataRequest {
 }
 
 func (sm *SystemMonitor) Monitor(asset Asset) {
-
 	// recover from panic and log the error
 	defer func() {
 		sm.wg.Done()
@@ -186,7 +252,6 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	}()
 
 	samplesCollected := int32(0)
-
 	for {
 		select {
 		case <-sm.ctx.Done():
@@ -198,8 +263,16 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			if samplesCollected == samplesToAverage {
 				aggregatedMetrics := asset.AggregateMetrics()
 				if len(aggregatedMetrics) > 0 {
+					ts := timestamppb.Now()
+					// store in buffer
+					for k, v := range aggregatedMetrics {
+						if sm.buffer != nil {
+							sm.buffer.push(k, ts, v)
+						}
+					}
+
 					// publish metrics
-					record := makeStatsRecord(aggregatedMetrics)
+					record := makeStatsRecord(aggregatedMetrics, ts)
 					// ensure that the context is not done before sending the record
 					select {
 					case <-sm.ctx.Done():
@@ -216,6 +289,15 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 		}
 	}
 
+}
+
+func (sm *SystemMonitor) GetBuffer() map[string]List {
+	if sm == nil || sm.buffer == nil {
+		return nil
+	}
+	sm.buffer.mutex.RLock()
+	defer sm.buffer.mutex.RUnlock()
+	return sm.buffer.elements
 }
 
 func (sm *SystemMonitor) Stop() {

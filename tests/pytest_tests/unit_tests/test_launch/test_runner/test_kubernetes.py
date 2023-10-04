@@ -6,7 +6,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from kubernetes.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     CRD_STATE_DICT,
     _state_from_conditions,
@@ -14,6 +16,7 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
 from wandb.sdk.launch.runner.kubernetes_runner import (
     KubernetesRunMonitor,
     KubernetesRunner,
+    KubernetesSubmittedRun,
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
@@ -464,6 +467,18 @@ def test_launch_kube_works(
         == "IfNotPresent"
     )
 
+    # Test cancel
+    assert "test-job" in mock_batch_api.jobs
+    submitted_run.cancel()
+    assert "test-job" not in mock_batch_api.jobs
+
+    def _raise_api_exception(*args, **kwargs):
+        raise ApiException()
+
+    mock_batch_api.delete_namespaced_job = _raise_api_exception
+    with pytest.raises(LaunchError):
+        submitted_run.cancel()
+
 
 def test_launch_crd_works(
     monkeypatch,
@@ -850,3 +865,48 @@ def test_state_from_conditions(conditions, expected):
         assert CRD_STATE_DICT[state.lower()] == expected
     else:
         assert state == expected is None
+
+
+# Tests for KubernetesSubmittedRun
+
+
+def test_kubernetes_submitted_run_get_logs():
+    core_api = MagicMock()
+    pod_list = MockPodList(
+        [
+            MockDict(
+                {
+                    "metadata": MockDict(
+                        {
+                            "name": "test_pod",
+                            "labels": {"job-name": "test_job"},
+                        }
+                    )
+                }
+            )
+        ]
+    )
+    core_api.list_namespaced_pod.return_value = pod_list
+    core_api.read_namespaced_pod_log.return_value = "test_log"
+    submitted_run = KubernetesSubmittedRun(
+        batch_api=MagicMock(),
+        core_api=core_api,
+        namespace="wandb",
+        monitor=MagicMock(),
+        name="test_run",
+    )
+    # Assert that we get the logs back.
+    assert submitted_run.get_logs() == "test_log"
+
+    # Assert we get None if the pod doesn't exist.
+    core_api.list_namespaced_pod.return_value = dict()
+    assert submitted_run.get_logs() is None
+
+    # Assert that empty logs come back as None
+    core_api.list_namespaced_pod.return_value = pod_list
+    core_api.read_namespaced_pod_log.return_value = ""
+    assert submitted_run.get_logs() is None
+
+    # Assert that we wrap API exceptions in None.
+    core_api.read_namespaced_pod_log.side_effect = ApiException()
+    assert submitted_run.get_logs() is None
