@@ -59,7 +59,6 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
         assert len(uploaded_files) == 17
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_fetching_artifact_files(user, wandb_init):
     project = "test"
 
@@ -91,7 +90,6 @@ def test_fetching_artifact_files(user, wandb_init):
     assert open(file_path).read() == "testing"
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_save_aliases_after_logging_artifact(user, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
@@ -113,7 +111,6 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
     assert "hello" in aliases
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_update_aliases_on_artifact(user, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
@@ -153,7 +150,6 @@ def test_update_aliases_on_artifact(user, wandb_init):
     assert "sequence" not in aliases
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_artifact_version(wandb_init):
     def create_test_artifact(content: str):
         art = wandb.Artifact("test-artifact", "test-type")
@@ -185,7 +181,6 @@ def test_artifact_version(wandb_init):
     assert artifact.source_version == "v1"
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_delete_collection(wandb_init):
     with wandb_init(project="test") as run:
         art = wandb.Artifact("test-artifact", "test-type")
@@ -221,7 +216,6 @@ def test_delete_collection(wandb_init):
         )
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
     # todo: logged_artifact does not work with nexus
     entity, project = logged_artifact.entity, logged_artifact.project
@@ -273,22 +267,20 @@ def test_run_queue(user):
         queue.delete()
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
-def test_run_log_artifact(relay_server, wandb_init):
-    with relay_server():
-        # Prepare data.
-        with wandb_init() as run:
-            pass
-        run = wandb.Api().run(run.path)
+def test_run_log_artifact(wandb_init):
+    # Prepare data.
+    with wandb_init() as run:
+        pass
+    run = wandb.Api().run(run.path)
 
-        artifact = wandb.Artifact("my_artifact", type="test")
-        artifact.save()
-        artifact.wait()
+    artifact = wandb.Artifact("my_artifact", type="test")
+    artifact.save()
+    artifact.wait()
 
-        # Run.
-        run.log_artifact(artifact)
+    # Run.
+    run.log_artifact(artifact)
 
-        # Assert.
-        actual_artifacts = list(run.logged_artifacts())
-        assert len(actual_artifacts) == 1
-        assert actual_artifacts[0].qualified_name == artifact.qualified_name
+    # Assert.
+    actual_artifacts = list(run.logged_artifacts())
+    assert len(actual_artifacts) == 1
+    assert actual_artifacts[0].qualified_name == artifact.qualified_name
