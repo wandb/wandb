@@ -6,7 +6,6 @@ import pytest
 import wandb
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_big_table_throws_error_that_can_be_overridden(wandb_init):
     run = wandb_init(settings={"table_raise_on_max_row_limit_exceeded": True})
 
@@ -34,7 +33,6 @@ def test_big_table_throws_error_that_can_be_overridden(wandb_init):
         run.finish()
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_table_logging(
     wandb_init,
 ):  # TODO: do we need this fixture? reinit_internal_api
@@ -66,7 +64,6 @@ def test_object3d_logging(relay_server, wandb_init, assets_path):
         assert relay.context.summary["point_cloud"][0]["path"].endswith(".pts.json")
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_partitioned_table_logging(wandb_init):
     run = wandb_init()
     run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
@@ -74,7 +71,6 @@ def test_partitioned_table_logging(wandb_init):
     assert True
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_joined_table_logging(wandb_init):
     run = wandb_init()
     art = wandb.Artifact("A", "dataset")

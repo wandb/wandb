@@ -274,21 +274,20 @@ def test_run_queue(user):
 
 
 @pytest.mark.nexus_failure(feature="artifacts")
-def test_run_log_artifact(relay_server, wandb_init):
-    with relay_server():
-        # Prepare data.
-        with wandb_init() as run:
-            pass
-        run = wandb.Api().run(run.path)
+def test_run_log_artifact(wandb_init):
+    # Prepare data.
+    with wandb_init() as run:
+        pass
+    run = wandb.Api().run(run.path)
 
-        artifact = wandb.Artifact("my_artifact", type="test")
-        artifact.save()
-        artifact.wait()
+    artifact = wandb.Artifact("my_artifact", type="test")
+    artifact.save()
+    artifact.wait()
 
-        # Run.
-        run.log_artifact(artifact)
+    # Run.
+    run.log_artifact(artifact)
 
-        # Assert.
-        actual_artifacts = list(run.logged_artifacts())
-        assert len(actual_artifacts) == 1
-        assert actual_artifacts[0].qualified_name == artifact.qualified_name
+    # Assert.
+    actual_artifacts = list(run.logged_artifacts())
+    assert len(actual_artifacts) == 1
+    assert actual_artifacts[0].qualified_name == artifact.qualified_name

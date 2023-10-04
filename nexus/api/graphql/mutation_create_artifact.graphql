@@ -1,0 +1,46 @@
+mutation CreateArtifact(
+    $entityName: String!,
+    $projectName: String!,
+    $artifactTypeName: String!,
+    $artifactCollectionName: String!,
+    $runName: String,
+    $digest: String!,
+    $description: String,
+    $aliases: [ArtifactAliasInput!],
+    $metadata: JSONString,
+    $ttlDurationSeconds: Int64,
+    $historyStep: Int64,
+    $distributedID: String,
+    $clientID: ID!,
+    $sequenceClientID: ID!,
+) {
+    createArtifact(input: {
+        entityName: $entityName,
+        projectName: $projectName,
+        artifactTypeName: $artifactTypeName,
+        artifactCollectionName: $artifactCollectionName,
+        runName: $runName,
+        digest: $digest,
+        digestAlgorithm: MANIFEST_MD5,
+        description: $description,
+        aliases: $aliases,
+        metadata: $metadata,
+        ttlDurationSeconds: $ttlDurationSeconds,
+        historyStep: $historyStep,
+        enableDigestDeduplication: true,
+        distributedID: $distributedID,
+        clientID: $clientID,
+        sequenceClientID: $sequenceClientID,
+        }
+    ) {
+        artifact {
+            id
+            state
+            artifactSequence {
+                latestArtifact {
+                    id
+                }
+            }
+        }
+    }
+}
