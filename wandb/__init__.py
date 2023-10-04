@@ -11,7 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.15.12"
+__version__ = "0.15.13.dev1"
 _minimum_nexus_version = "0.16.0b1"
 
 # Used with pypi checks and other messages related to pip
