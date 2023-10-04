@@ -552,8 +552,8 @@ def test_inner_thread_run_job(mocker):
 def test_get_job_and_queue(mocker):
     _setup(mocker)
     mock_config = {
-        # "entity": "test-entity",
-        # "project": "test-project",
+        "entity": "test-entity",
+        "project": "test-project",
         "queues": ["queue-1", "queue-2", "queue-3"]
     }
     mock_job = {"test-key": "test-value"}
