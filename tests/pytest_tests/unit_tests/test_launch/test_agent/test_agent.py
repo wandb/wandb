@@ -547,3 +547,22 @@ def test_inner_thread_run_job(mocker):
         job,
     )
     cancel.assert_called_once()
+
+
+def test_get_job_and_queue(mocker):
+    _setup(mocker)
+    mock_config = {
+        # "entity": "test-entity",
+        # "project": "test-project",
+        "queues": ["queue-1", "queue-2", "queue-3"]
+    }
+    mock_job = {"test-key": "test-value"}
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent.pop_from_queue = MagicMock(return_value=mock_job)
+
+    job_and_queue = agent.get_job_and_queue()
+
+    assert job_and_queue is not None
+    assert job_and_queue.job == mock_job
+    assert job_and_queue.queue == "queue-1"
+    assert agent._queues == ["queue-2", "queue-3", "queue-1"]
