@@ -331,7 +331,6 @@ def test_keras_save_model(dummy_model, dummy_data, wandb_init):
     assert len(glob.glob(os.path.join(run.dir, "model-best.h5"))) == 1
 
 
-@pytest.mark.timeout(300)
 @pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_dsviz(dummy_model, dummy_data, wandb_init):
     run = wandb_init()
@@ -347,8 +346,8 @@ def test_keras_dsviz(dummy_model, dummy_data, wandb_init):
             ),
         ],
     )
-    run.finish()
 
     assert run.summary["validation_predictions"] is not None
     assert run.summary["validation_predictions"]["artifact_path"] is not None
     assert run.summary["validation_predictions"]["_type"] == "table-file"
+    run.finish()
