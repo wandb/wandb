@@ -365,7 +365,20 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 			s.logger.CaptureError("unmarshal problem", err)
 			continue
 		}
-		s.configMap[d.GetKey()] = value
+		keyList := d.GetNestedKey()
+		if keyList == nil {
+			keyList = []string{d.GetKey()}
+		}
+		target := s.configMap
+		for _, k := range keyList[:len(keyList)-1] {
+			val, ok := target[k].(map[string]interface{})
+			if !ok {
+				val = make(map[string]interface{})
+				target[k] = val
+			}
+			target = val
+		}
+		target[keyList[len(keyList)-1]] = value
 	}
 	for _, d := range configRecord.GetRemove() {
 		delete(s.configMap, d.GetKey())
