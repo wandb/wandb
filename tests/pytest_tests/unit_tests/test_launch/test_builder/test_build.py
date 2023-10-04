@@ -71,7 +71,7 @@ def _setup(mocker):
     launch_project.docker_image = "test-docker-image"
     launch_project.name = "test-name"
     launch_project.launch_spec = {"author": "test-author"}
-    launch_project.queue_name = "test-queue-name"
+    launch_project.queue_uri = "queue:1:test-entity/test-queue-name"
     launch_project.run_queue_item_id = "test-run-queue-item-id"
     launch_project.override_config = {}
     launch_project.override_args = []
