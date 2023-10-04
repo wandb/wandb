@@ -73,53 +73,51 @@ Status legend:
 - 🚧: In Development: The feature is available, but may be unstable or incomplete.
 - ❌: Not Available: The feature is not yet available.
 
-| Category    | Feature           | Status                |
-|-------------|-------------------|-----------------------|
-| Experiments |                   |                       |
-|             | `init`            | ✅[^E.1][^E.10][^E.11] |
-|             | `log`             | ✅                     |
-|             | `log_artifact`    | ✅                     |
-|             | `log_code`        | ✅                     |
-|             | `config`          | ✅                     |
-|             | `summary`         | ✅                     |
-|             | `define_metric`   | 🚧[^E.5]              |
-|             | `tags`            | ✅                     |
-|             | `notes`           | ✅                     |
-|             | `name`            | ✅                     |
-|             | `alert`           | ✅                     |
-|             | `save`            | 🚧[^E.6]              |
-|             | `restore`         | ✅                     |
-|             | `mark_preempting` | ✅                     |
-|             | resume            | ✅                     |
-|             | reinit            | ✅                     |
-|             | Media             | ✅                     |
-|             | Grouping          | ✅                     |
-|             | anonymous mode    | ✅                     |
-|             | offline mode      | ✅                     |
-|             | disabled mode     | ✅                     |
-|             | multiprocessing   | ✅                     |
-|             | TensorBoard sync  | ❌                     |
-|             | console logging   | 🚧[^E.8]              |
-|             | system metrics    | 🚧[^E.9]              |
-|             | system info       | ✅                     |
-|             | code saving       | 🚧[^E.11]             |
-|             | Settings          | 🚧[^E.12]             |
-| Login       |                   |                       |
-|             | default entity    | ✅                     |
-|             | team entity       | ✅                     |
-|             | service account   | ✅                     |
-| CLI         |                   | 🚧[^CLI.1]            |
-| Artifacts   |                   | 🚧[^A.1]              |
-| Launch      |                   | ❌[^L.1]               |
-| Sweeps      |                   | 🚧[^S.1]              |
+| Category    | Feature           | Status        |
+|-------------|-------------------|---------------|
+| Experiments |                   |               |
+|             | `init`            | ✅[^E.1][^E.6] |
+|             | `log`             | ✅             |
+|             | `log_artifact`    | ✅             |
+|             | `log_code`        | ✅             |
+|             | `config`          | ✅             |
+|             | `summary`         | ✅             |
+|             | `define_metric`   | 🚧[^E.5]      |
+|             | `tags`            | ✅             |
+|             | `notes`           | ✅             |
+|             | `name`            | ✅             |
+|             | `alert`           | ✅             |
+|             | `save`            | 🚧[^E.6]      |
+|             | `restore`         | ✅             |
+|             | `mark_preempting` | ✅             |
+|             | resume            | ✅             |
+|             | reinit            | ✅             |
+|             | Media             | ✅             |
+|             | Grouping          | ✅             |
+|             | anonymous mode    | ✅             |
+|             | offline mode      | ✅             |
+|             | disabled mode     | ✅             |
+|             | multiprocessing   | ✅             |
+|             | TensorBoard sync  | ❌             |
+|             | console logging   | 🚧[^E.8]      |
+|             | system metrics    | 🚧[^E.9]      |
+|             | system info       | ✅             |
+|             | auto code saving  | 🚧[^E.6]      |
+|             | Settings          | 🚧[^E.12]     |
+| Login       |                   |               |
+|             | default entity    | ✅             |
+|             | team entity       | ✅             |
+|             | service account   | ✅             |
+| CLI         |                   | 🚧[^CLI.1]    |
+| Artifacts   |                   | 🚧[^A.1]      |
+| Launch      |                   | ❌[^L.1]       |
+| Sweeps      |                   | 🚧[^S.1]      |
 
-[^E.1]: `sync_tensorboard` requires TensorBoard support.
+[^E.1]: `sync_tensorboard` requires TensorBoard sync support.
 [^E.5]: `define_metric` only supports default summary.
-[^E.6]: `save` only support `now` and `end` policy. `live` policy will be treated as `end`.
+[^E.6]: Only `now` and `end` policies are supported. `live` policy will be treated as `end`.
 [^E.8]: Only raw console logging is supported.
 [^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
-[^E.10]: The "live" policy is not yet supported, it will be treated as "end".
-[^E.11]: Automatic code saving in Notebooks is not yet fully supported.
 [^E.12]: TODO: list unsupported settings.
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
