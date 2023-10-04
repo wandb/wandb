@@ -110,7 +110,7 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
-        self._queue_name: Optional[str] = None
+        self._queue_uri: Optional[str] = None
         self._run_queue_item_id: Optional[str] = None
         self._entry_point: Optional[
             EntryPoint
@@ -190,12 +190,12 @@ class LaunchProject:
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
     @property
-    def queue_name(self) -> Optional[str]:
-        return self._queue_name
+    def queue_uri(self) -> Optional[str]:
+        return self._queue_uri
 
-    @queue_name.setter
-    def queue_name(self, value: str) -> None:
-        self._queue_name = value
+    @queue_uri.setter
+    def queue_uri(self, value: str) -> None:
+        self._queue_uri = value
 
     @property
     def run_queue_item_id(self) -> Optional[str]:

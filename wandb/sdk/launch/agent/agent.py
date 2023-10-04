@@ -22,7 +22,12 @@ from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.build import construct_agent_configs
 from ..errors import LaunchDockerError, LaunchError
-from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
+from ..utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    LOG_PREFIX,
+    PROJECT_SYNCHRONOUS,
+    make_queue_uri,
+)
 from .job_status_tracker import JobAndRunStatusTracker
 from .run_queue_item_file_saver import RunQueueItemFileSaver
 
@@ -563,7 +568,9 @@ class LaunchAgent:
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
         project = create_project_from_spec(launch_spec, api)
-        project.queue_name = job_tracker.queue
+        project.queue_uri = make_queue_uri(
+            self._entity, self._project, job_tracker.queue
+        )
         project.run_queue_item_id = job["runQueueItemId"]
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         # don't launch sweep runs if the sweep isn't healthy

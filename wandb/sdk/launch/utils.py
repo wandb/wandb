@@ -712,3 +712,19 @@ def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
         }
     else:
         return source
+
+
+def make_queue_uri(
+    entity: Optional[str], project: Optional[str], queue_name: str
+) -> str:
+    """Create a queue uri from the given entity, project and queue name."""
+    if not entity:
+        raise ValueError("entity is required to make a queue uri")
+
+    if not project:
+        raise ValueError("project is required to make a queue uri")
+
+    if project == LAUNCH_DEFAULT_PROJECT:
+        return f"queue:1:{entity}:{queue_name}"
+
+    return f"queue:0:{entity}:{project}:{queue_name}"
