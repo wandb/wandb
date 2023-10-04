@@ -554,7 +554,7 @@ def test_get_job_and_queue(mocker):
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
-        "queues": ["queue-1", "queue-2", "queue-3"]
+        "queues": ["queue-1", "queue-2", "queue-3"],
     }
     mock_job = {"test-key": "test-value"}
     agent = LaunchAgent(api=mocker.api, config=mock_config)
