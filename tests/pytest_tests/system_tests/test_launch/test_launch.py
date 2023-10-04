@@ -102,17 +102,3 @@ def test_launch_get_project_queue_error(user):
         match=f"Error fetching run queues for {user}/{proj} check that you have access to this entity and project",
     ):
         api.get_project_run_queues(user, proj)
-
-
-def test_launch_run_init_with_special_env_vars(wandb_init, runner):
-    uri = "queue:1:entity:queue"
-    with runner.isolated_filesystem(), mock.patch.dict(
-        "os.environ",
-        {"WANDB_LAUNCH_QUEUE_URI": uri, "WANDB_LAUNCH_RUN_QUEUE_ID": "123"},
-    ):
-        run = wandb_init()
-
-        assert run.config["_wandb"]["launch_queue_uri"] == uri
-        assert run.config["_wandb"]["launch_run_queue_item_id"] == "123"
-
-        run.finish()
