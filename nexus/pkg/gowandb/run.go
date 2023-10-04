@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
@@ -17,19 +19,23 @@ type Run struct {
 	// ctx is the context for the run
 	ctx            context.Context
 	settings       *service.Settings
+	config         *runconfig.Config
 	conn           *Connection
 	wg             sync.WaitGroup
 	run            *service.RunRecord
+	params         *runopts.RunParams
 	partialHistory History
 }
 
 // NewRun creates a new run with the given settings and responders.
-func NewRun(ctx context.Context, settings *service.Settings, conn *Connection) *Run {
+func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, runParams *runopts.RunParams) *Run {
 	run := &Run{
 		ctx:      ctx,
 		settings: settings,
 		conn:     conn,
 		wg:       sync.WaitGroup{},
+		config:   runParams.Config,
+		params:   runParams,
 	}
 	run.resetPartialHistory()
 	return run
@@ -63,11 +69,31 @@ func (r *Run) init() {
 		return
 	}
 
+	config := &service.ConfigRecord{}
+	for key, value := range *r.config {
+		data, err := json.Marshal(value)
+		if err != nil {
+			panic(err)
+		}
+		config.Update = append(config.Update, &service.ConfigItem{
+			Key:       key,
+			ValueJson: string(data),
+		})
+	}
+	var DisplayName string
+	if r.params.Name != nil {
+		DisplayName = *r.params.Name
+	}
 	runRecord := service.Record_Run{Run: &service.RunRecord{
-		RunId: r.settings.GetRunId().GetValue(),
-		//Config: &service.ConfigRecord{},
-		XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+		RunId:       r.settings.GetRunId().GetValue(),
+		DisplayName: DisplayName,
+		Config:      config,
+		Telemetry:   r.params.Telemetry,
+		XInfo:       &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
+	if r.params.Project != nil {
+		runRecord.Run.Project = *r.params.Project
+	}
 	record := service.Record{
 		RecordType: &runRecord,
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
@@ -83,7 +109,7 @@ func (r *Run) init() {
 	}
 	result := handle.wait()
 	r.run = result.GetRunResult().GetRun()
-	shared.PrintHeadFoot(r.run, r.settings)
+	shared.PrintHeadFoot(r.run, r.settings, false)
 }
 
 func (r *Run) start() {
@@ -232,5 +258,5 @@ func (r *Run) Finish() {
 
 	r.conn.Close()
 	r.wg.Wait()
-	shared.PrintHeadFoot(r.run, r.settings)
+	shared.PrintHeadFoot(r.run, r.settings, true)
 }

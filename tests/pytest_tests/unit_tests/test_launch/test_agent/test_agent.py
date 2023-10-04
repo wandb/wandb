@@ -21,6 +21,17 @@ def _setup(mocker):
     mocker.patch("wandb.termerror", mocker.termerror)
     mocker.patch("wandb.init", mocker.wandb_init)
 
+    mocker.status = MagicMock()
+    mocker.status.state = "running"
+    mocker.run = MagicMock()
+    mocker.run.get_status = MagicMock(return_value=mocker.status)
+    mocker.runner = MagicMock()
+    mocker.runner.run = MagicMock(return_value=mocker.run)
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.runner_from_config",
+        return_value=mocker.runner,
+    )
+
 
 def test_loop_capture_stack_trace(mocker):
     _setup(mocker)
@@ -497,3 +508,42 @@ def test_thread_run_job_calls_finish_thread_id(mocker, exception):
     mock_finish_thread_id.assert_called_once_with(
         threading.current_thread().ident, exception
     )
+
+
+def test_inner_thread_run_job(mocker):
+    _setup(mocker)
+    mocker.patch("wandb.sdk.launch.agent.agent.MAX_WAIT_RUN_STOPPED", new=0)
+    mocker.patch("wandb.sdk.launch.agent.agent.AGENT_POLLING_INTERVAL", new=0)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker(
+        "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
+    )
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_spec = {
+        "docker": {"docker_image": "blah-blah:latest"},
+        "entity": "user",
+        "project": "test",
+    }
+
+    mocker.api.check_stop_requested = True
+    cancel = MagicMock()
+    mocker.run.cancel = cancel
+
+    def side_effect_func():
+        job.completed_status = True
+
+    cancel.side_effect = side_effect_func
+
+    agent._thread_run_job(
+        mock_spec,
+        {"runQueueItemId": "blah"},
+        {},
+        mocker.api,
+        threading.current_thread().ident,
+        job,
+    )
+    cancel.assert_called_once()

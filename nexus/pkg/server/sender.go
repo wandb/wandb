@@ -176,10 +176,9 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
-	s.configDebouncer.Start(s.upsertConfig)
-
 	for record := range inChan {
 		s.sendRecord(record)
+		s.configDebouncer.Debounce(s.upsertConfig)
 	}
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
 }
@@ -290,7 +289,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
-		s.configDebouncer.Close()
+		s.configDebouncer.Flush(s.upsertConfig)
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -443,6 +442,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	if s.graphqlClient != nil {
 
 		s.updateConfig(run.Config)
+		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate(run.Telemetry)
 		config := s.serializeConfig()
 
@@ -601,7 +601,7 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	if configRecord != nil {
 		s.updateConfig(configRecord)
 	}
-	s.configDebouncer.Trigger()
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 // sendSystemMetrics sends a system metrics record via the file stream

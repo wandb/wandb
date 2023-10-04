@@ -756,6 +756,16 @@ class InterfaceBase:
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         raise NotImplementedError
 
+    def deliver_get_system_metrics(self) -> MailboxHandle:
+        get_summary = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_summary)
+
+    @abstractmethod
+    def _deliver_get_system_metrics(
+        self, get_summary: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle:
         exit_data = self._make_exit(exit_code)
         return self._deliver_exit(exit_data)

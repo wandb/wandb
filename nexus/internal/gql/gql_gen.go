@@ -542,12 +542,12 @@ type RunResumeStatusResponse struct {
 func (v *RunResumeStatusResponse) GetModel() *RunResumeStatusModelProject { return v.Model }
 
 type UploadPartsInput struct {
-	PartNumber int    `json:"partNumber"`
+	PartNumber int64  `json:"partNumber"`
 	HexMD5     string `json:"hexMD5"`
 }
 
 // GetPartNumber returns UploadPartsInput.PartNumber, and is useful for accessing the field via an interface.
-func (v *UploadPartsInput) GetPartNumber() int { return v.PartNumber }
+func (v *UploadPartsInput) GetPartNumber() int64 { return v.PartNumber }
 
 // GetHexMD5 returns UploadPartsInput.HexMD5, and is useful for accessing the field via an interface.
 func (v *UploadPartsInput) GetHexMD5() string { return v.HexMD5 }

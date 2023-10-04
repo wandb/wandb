@@ -23,6 +23,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) Sender {
 			RunId: &wrapperspb.StringValue{Value: "run1"},
 		},
 		graphqlClient: client,
+		telemetry:     &service.TelemetryRecord{},
 		outChan:       resultChan,
 		configMap:     make(map[string]interface{}),
 	}
