@@ -39,7 +39,7 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
 
 
 # skip on macos
-@pytest.skipif(
+@pytest.mark.skipif(
     platform.system() == "Darwin",
     reason="todo: fix gpu monitoring on CircleCI's M1 Macs",
 )
