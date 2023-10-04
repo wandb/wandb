@@ -9,9 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandb/wandb/nexus/internal/debounce"
+	"github.com/Khan/genqlient/graphql"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/nexus/internal/clients"
+	"github.com/wandb/wandb/nexus/internal/debounce"
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/internal/uploader"
@@ -19,11 +22,8 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"
 	"github.com/wandb/wandb/nexus/pkg/observability"
-
-	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/pkg/service"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+	"github.com/wandb/wandb/nexus/pkg/utils"
 )
 
 const (
@@ -81,16 +81,6 @@ type Sender struct {
 
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *service.Record
-}
-
-func emptyAsNil(s *string) *string {
-	if s == nil {
-		return nil
-	}
-	if *s == "" {
-		return nil
-	}
-	return s
 }
 
 // NewSender creates a new Sender with the given settings
@@ -461,27 +451,27 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		// this is used to pass the retry function to the graphql client
 		ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
-			ctx,                          // ctx
-			s.graphqlClient,              // client
-			nil,                          // id
-			&run.RunId,                   // name
-			emptyAsNil(&run.Project),     // project
-			emptyAsNil(&run.Entity),      // entity
-			emptyAsNil(&run.RunGroup),    // groupName
-			nil,                          // description
-			emptyAsNil(&run.DisplayName), // displayName
-			emptyAsNil(&run.Notes),       // notes
-			emptyAsNil(&commit),          // commit
-			&config,                      // config
-			emptyAsNil(&run.Host),        // host
-			nil,                          // debug
-			emptyAsNil(&program),         // program
-			emptyAsNil(&repo),            // repo
-			emptyAsNil(&run.JobType),     // jobType
-			nil,                          // state
-			nil,                          // sweep
-			tags,                         // tags []string,
-			nil,                          // summaryMetrics
+			ctx,                              // ctx
+			s.graphqlClient,                  // client
+			nil,                              // id
+			&run.RunId,                       // name
+			utils.NilIfZero(run.Project),     // project
+			utils.NilIfZero(run.Entity),      // entity
+			utils.NilIfZero(run.RunGroup),    // groupName
+			nil,                              // description
+			utils.NilIfZero(run.DisplayName), // displayName
+			utils.NilIfZero(run.Notes),       // notes
+			utils.NilIfZero(commit),          // commit
+			&config,                          // config
+			utils.NilIfZero(run.Host),        // host
+			nil,                              // debug
+			utils.NilIfZero(program),         // program
+			utils.NilIfZero(repo),            // repo
+			utils.NilIfZero(run.JobType),     // jobType
+			nil,                              // state
+			nil,                              // sweep
+			tags,                             // tags []string,
+			nil,                              // summaryMetrics
 		)
 		if err != nil {
 			err = fmt.Errorf("failed to upsert bucket: %s", err)
@@ -568,27 +558,27 @@ func (s *Sender) upsertConfig() {
 	config := s.serializeConfig()
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
-		ctx,                              // ctx
-		s.graphqlClient,                  // client
-		nil,                              // id
-		&s.RunRecord.RunId,               // name
-		emptyAsNil(&s.RunRecord.Project), // project
-		emptyAsNil(&s.RunRecord.Entity),  // entity
-		nil,                              // groupName
-		nil,                              // description
-		nil,                              // displayName
-		nil,                              // notes
-		nil,                              // commit
-		&config,                          // config
-		nil,                              // host
-		nil,                              // debug
-		nil,                              // program
-		nil,                              // repo
-		nil,                              // jobType
-		nil,                              // state
-		nil,                              // sweep
-		nil,                              // tags []string,
-		nil,                              // summaryMetrics
+		ctx,                                  // ctx
+		s.graphqlClient,                      // client
+		nil,                                  // id
+		&s.RunRecord.RunId,                   // name
+		utils.NilIfZero(s.RunRecord.Project), // project
+		utils.NilIfZero(s.RunRecord.Entity),  // entity
+		nil,                                  // groupName
+		nil,                                  // description
+		nil,                                  // displayName
+		nil,                                  // notes
+		nil,                                  // commit
+		&config,                              // config
+		nil,                                  // host
+		nil,                                  // debug
+		nil,                                  // program
+		nil,                                  // repo
+		nil,                                  // jobType
+		nil,                                  // state
+		nil,                                  // sweep
+		nil,                                  // tags []string,
+		nil,                                  // summaryMetrics
 	)
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
