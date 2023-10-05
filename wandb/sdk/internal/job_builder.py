@@ -337,7 +337,7 @@ class JobBuilder:
                 )
             elif source_type == "artifact":
                 assert program_relpath
-                source, name = self._build_artifact_job_source(program_relpath, runtime)
+                source, name = self._build_artifact_job_source(program_relpath, metadata)
             elif source_type == "image" and self._has_image_job_ingredients(metadata):
                 source, name = self._build_image_job_source(metadata)
             else:
