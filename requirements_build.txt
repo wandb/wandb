@@ -1,7 +1,7 @@
 libcst
 grpcio>=1.46.3
 grpcio-tools>=1.46.3
-bump2version
+bump-my-version
 twine
 wheel>=0.38.0
 build
