@@ -1,3 +1,29 @@
+# 0.15.12 (Oct 3, 2023)
+
+### :magic_wand: Enhancements
+* feat(nexus): implement config debouncing mechanism by @kptkin in https://github.com/wandb/wandb/pull/6331
+* feat(integrations): fix channel swapping on ultrlytics classification task by @soumik12345 in https://github.com/wandb/wandb/pull/6382
+* feat(nexus): implement nexus alpha cpp interface by @raubitsj in https://github.com/wandb/wandb/pull/6358
+* feat(nexus): expose system metrics in the run object (PoC) by @dmitryduev in https://github.com/wandb/wandb/pull/6238
+* feat(integrations): Pin ultralytics version support to `v8.0.186` by @soumik12345 in https://github.com/wandb/wandb/pull/6391
+### :hammer: Fixes
+* fix(launch): get logs from failed k8s pods by @bcsherma in https://github.com/wandb/wandb/pull/6339
+* fix(artifacts): Allow adding s3 bucket as reference artifact by @ibindlish in https://github.com/wandb/wandb/pull/6346
+* fix(launch): Fix race condition in agent thread clean up by @KyleGoyette in https://github.com/wandb/wandb/pull/6352
+* fix(artifacts): don't assume run and its i/o artifacts are in the same project by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6363
+* fix(artifacts): fix wandb.Api().run(run_name).log_artifact(artifact) by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6362
+* fix(sweeps): ValueError with None value in sweep by @gtarpenning in https://github.com/wandb/wandb/pull/6364
+* fix(artifacts): fix typo in s3 handler by @ibindlish in https://github.com/wandb/wandb/pull/6368
+* fix(artifacts): fix the argument order for new argument target_fraction by @moredatarequired in https://github.com/wandb/wandb/pull/6377
+* fix(nexus): fix potential race in config debouncer by @dmitryduev in https://github.com/wandb/wandb/pull/6385
+* fix(sdk): fix graphql type mapping by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6396
+* fix(sdk): fix concurrency limit in uploader by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6399
+### :books: Docs
+* docs(sdk): fix reference docs GH action by @dmitryduev in https://github.com/wandb/wandb/pull/6350
+* docs(sdk): Update generate-docodile-documentation.yml by @ngrayluna in https://github.com/wandb/wandb/pull/6351
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.15.11...v0.15.12
+
 # 0.15.11 (Sep 21, 2023)
 
 ### :magic_wand: Enhancements

@@ -292,7 +292,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		shutdown = true
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
-		h.handleLogArtifact(record, x.LogArtifact, response)
+		h.handleLogArtifact(record)
+		response = nil
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
@@ -309,7 +310,9 @@ func (h *Handler) handleRequest(record *service.Record) {
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
-	h.sendResponse(record, response)
+	if response != nil {
+		h.sendResponse(record, response)
+	}
 
 	// shutdown request indicates that we have gone through the exit path and
 	// have sent all the requests needed to extract the final bits of information
@@ -358,7 +361,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	)
 }
 
-func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
+func (h *Handler) handleLogArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
