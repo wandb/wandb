@@ -3,7 +3,6 @@ import asyncio
 import base64
 import json
 import logging
-import time
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
@@ -18,7 +17,7 @@ from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import Status
 from wandb.util import get_module
 
-from .._project_spec import EntryPoint, LaunchProject
+from .._project_spec import EntryPoint, LaunchPsroject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..monitor.kubernetes_monitor import LaunchKubernetesMonitor
@@ -37,15 +36,15 @@ get_module(
     required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
 )
 
-from kubernetes import client  # type: ignore # noqa: E402
-from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
-from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
-from kubernetes.client.api.custom_objects_api import (  # type: ignore # noqa: E402
+from kubernetes_asyncio import client  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
-from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
-from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
-from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.models.v1_job import V1Job  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 
@@ -132,7 +131,7 @@ class KubernetesSubmittedRun(AbstractRun):
         """
         while True:
             status = self.get_status()
-            wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
+            wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status.state}")
             if status.state in ["finished", "failed", "preempted"]:
                 break
             await asyncio.sleep(5)

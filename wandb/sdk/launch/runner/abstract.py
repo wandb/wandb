@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
@@ -56,7 +56,10 @@ class Status:
         self.data = data or {}
 
     def __repr__(self) -> "State":
-        return State(self.state)
+        return self.state
+
+    def __str__(self) -> str:
+        return self.state
 
     def __eq__(self, __value: object) -> bool:
         if isinstance(__value, Status):
