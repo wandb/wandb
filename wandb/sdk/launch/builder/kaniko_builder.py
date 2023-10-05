@@ -41,12 +41,12 @@ from .build import (
 )
 
 get_module(
-    "kubernetes",
-    required="Kaniko builder requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
+    "kubernetes_asyncio",
+    required="Kaniko builder requires the kubernetes_asyncio package. Please install it with `pip install wandb[launch]`.",
 )
 
-import kubernetes  # type: ignore # noqa: E402
-from kubernetes import client  # noqa: E402
+import kubernetes_asyncio as kubernetes  # type: ignore # noqa: E402
+from kubernetes_asyncio import client  # noqa: E402
 
 _logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ async def _wait_for_completion(
 ) -> bool:
     start_time = time.time()
     while True:
-        job = batch_client.read_namespaced_job_status(job_name, NAMESPACE)
+        job = await batch_client.read_namespaced_job_status(job_name, NAMESPACE)
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
@@ -190,7 +190,7 @@ class KanikoBuilder(AbstractBuilder):
         """Login to the registry."""
         pass
 
-    def _create_docker_ecr_config_map(
+    async def _create_docker_ecr_config_map(
         self, job_name: str, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
         if self.registry is None:
@@ -211,13 +211,15 @@ class KanikoBuilder(AbstractBuilder):
             },
             immutable=True,
         )
-        corev1_client.create_namespaced_config_map(NAMESPACE, ecr_config_map)
+        await corev1_client.create_namespaced_config_map(NAMESPACE, ecr_config_map)
 
-    def _delete_docker_ecr_config_map(
+    async def _delete_docker_ecr_config_map(
         self, job_name: str, client: client.CoreV1Api
     ) -> None:
         if self.secret_name:
-            client.delete_namespaced_config_map(f"docker-config-{job_name}", NAMESPACE)
+            await client.delete_namespaced_config_map(
+                f"docker-config-{job_name}", NAMESPACE
+            )
 
     def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
@@ -231,7 +233,7 @@ class KanikoBuilder(AbstractBuilder):
         self.environment.upload_file(context_file.name, destination)
         return destination
 
-    def build_image(
+    async def build_image(
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
@@ -272,7 +274,7 @@ class KanikoBuilder(AbstractBuilder):
         context_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         run_id = launch_project.run_id
 
-        _, api_client = get_kube_context_and_api_client(
+        _, api_client = await get_kube_context_and_api_client(
             kubernetes, launch_project.resource_args
         )
         # TODO: use same client as kuberentes_runner.py
@@ -303,11 +305,15 @@ class KanikoBuilder(AbstractBuilder):
                         )
                     },
                 )
-                core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
+                await core_v1.create_namespaced_config_map(
+                    "wandb", dockerfile_config_map
+                )
             # core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             if self.secret_name:
-                self._create_docker_ecr_config_map(build_job_name, core_v1, repo_uri)
-            batch_v1.create_namespaced_job(NAMESPACE, build_job)
+                await self._create_docker_ecr_config_map(
+                    build_job_name, core_v1, repo_uri
+                )
+            await batch_v1.create_namespaced_job(NAMESPACE, build_job)
 
             # wait for double the job deadline since it might take time to schedule
             if not _wait_for_completion(
@@ -317,7 +323,7 @@ class KanikoBuilder(AbstractBuilder):
                     job_tracker.set_err_stage("build")
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
             try:
-                logs = batch_v1.read_namespaced_job_log(build_job_name, NAMESPACE)
+                logs = await batch_v1.read_namespaced_job_log(build_job_name, NAMESPACE)
                 warn_failed_packages_from_build_logs(
                     logs, image_uri, launch_project.api, job_tracker
                 )
@@ -333,21 +339,19 @@ class KanikoBuilder(AbstractBuilder):
         finally:
             wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
             try:
-                # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
-                # core_v1.delete_namespaced_config_map(config_map_name, "wandb")
                 if isinstance(self.registry, AzureContainerRegistry):
-                    core_v1.delete_namespaced_config_map(
+                    await core_v1.delete_namespaced_config_map(
                         f"docker-config-{build_job_name}", "wandb"
                     )
                 if self.secret_name:
-                    self._delete_docker_ecr_config_map(build_job_name, core_v1)
-                batch_v1.delete_namespaced_job(build_job_name, NAMESPACE)
+                    await self._delete_docker_ecr_config_map(build_job_name, core_v1)
+                await batch_v1.delete_namespaced_job(build_job_name, NAMESPACE)
             except Exception as e:
                 raise LaunchError(f"Exception during Kubernetes resource clean up {e}")
 
         return image_uri
 
-    def _create_kaniko_job(
+    async def _create_kaniko_job(
         self,
         job_name: str,
         repository: str,
@@ -375,7 +379,7 @@ class KanikoBuilder(AbstractBuilder):
         if isinstance(self.environment, AzureEnvironment):
             # Use the core api to check if the secret exists
             try:
-                core_client.read_namespaced_secret(
+                await core_client.read_namespaced_secret(
                     "azure-storage-access-key",
                     "wandb",
                 )

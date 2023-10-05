@@ -479,21 +479,7 @@ def construct_agent_configs(
     return environment_config, build_config, registry_config
 
 
-def build_image_with_builder(
-    builder: AbstractBuilder,
-    launch_project: LaunchProject,
-    entry_point: EntryPoint,
-) -> Optional[str]:
-    """Build image with testing and logging."""
-    wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
-    image_uri: Optional[str] = builder.build_image(
-        launch_project,
-        entry_point,
-    )
-    return image_uri
-
-
-def build_image_from_project(
+async def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
     launch_config: Dict[str, Any],
@@ -547,7 +533,7 @@ def build_image_from_project(
         command=EntrypointDefaults.PYTHON,
     )
     wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
-    image_uri = builder.build_image(launch_project, entry_point)
+    image_uri = await builder.build_image(launch_project, entry_point)
     if not image_uri:
         raise LaunchError("Error building image uri")
     else:

@@ -281,18 +281,3 @@ def launch(
     )
 
     return submitted_run_obj
-
-
-def _wait_for(submitted_run_obj: AbstractRun) -> None:
-    """Wait on the passed-in submitted run, reporting its status to the tracking server."""
-    # Note: there's a small chance we fail to report the run's status to the tracking server if
-    # we're interrupted before we reach the try block below
-    try:
-        if submitted_run_obj.wait():
-            _logger.info("=== Submitted run succeeded ===")
-        else:
-            raise ExecutionError("Submitted run failed")
-    except KeyboardInterrupt:
-        _logger.error("=== Submitted run interrupted, cancelling run ===")
-        submitted_run_obj.cancel()
-        raise

@@ -17,7 +17,7 @@ from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import Status
 from wandb.util import get_module
 
-from .._project_spec import EntryPoint, LaunchPsroject
+from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..monitor.kubernetes_monitor import LaunchKubernetesMonitor
@@ -37,13 +37,19 @@ get_module(
 )
 
 from kubernetes_asyncio import client  # type: ignore # noqa: E402
-from kubernetes_asyncio.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
-from kubernetes_asyncio.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.api.batch_v1_api import (  # type: ignore # noqa: E402
+    BatchV1Api,
+)
+from kubernetes_asyncio.client.api.core_v1_api import (  # type: ignore # noqa: E402
+    CoreV1Api,
+)
 from kubernetes_asyncio.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
 from kubernetes_asyncio.client.models.v1_job import V1Job  # type: ignore # noqa: E402
-from kubernetes_asyncio.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa: E402
+    V1Secret,
+)
 from kubernetes_asyncio.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
@@ -56,7 +62,6 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def __init__(
         self,
-        monitor: KubernetesRunMonitor,
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         name: str,
@@ -83,7 +88,6 @@ class KubernetesSubmittedRun(AbstractRun):
         Returns:
             None.
         """
-        self.monitor = monitor
         self.batch_api = batch_api
         self.core_api = core_api
         self.name = name
@@ -96,16 +100,16 @@ class KubernetesSubmittedRun(AbstractRun):
         """Return the run id."""
         return self.name
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         try:
-            pods = self.core_api.list_namespaced_pod(
+            pods = await self.core_api.list_namespaced_pod(
                 label_selector=f"job-name={self.name}", namespace=self.namespace
             )
             pod_names = [pi.metadata.name for pi in pods.items]
             if not pod_names:
                 wandb.termwarn(f"Found no pods for kubernetes job: {self.name}")
                 return None
-            logs = self.core_api.read_namespaced_pod_log(
+            logs = await self.core_api.read_namespaced_pod_log(
                 name=pod_names[0], namespace=self.namespace
             )
             if logs:
@@ -117,12 +121,6 @@ class KubernetesSubmittedRun(AbstractRun):
             wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
             return None
 
-    def get_job(self) -> "V1Job":
-        """Return the job object."""
-        return self.batch_api.read_namespaced_job(
-            name=self.name, namespace=self.namespace
-        )
-
     async def wait(self) -> bool:
         """Wait for the run to finish.
 
@@ -130,7 +128,7 @@ class KubernetesSubmittedRun(AbstractRun):
             True if the run finished successfully, False otherwise.
         """
         while True:
-            status = self.get_status()
+            status = await self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status.state}")
             if status.state in ["finished", "failed", "preempted"]:
                 break
@@ -139,27 +137,14 @@ class KubernetesSubmittedRun(AbstractRun):
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
-    def _delete_secret_if_completed(self, state: str) -> None:
-        """If the runner has a secret and the run is completed, delete the secret."""
-        if state in ["stopped", "failed", "finished"] and self.secret is not None:
-            try:
-                self.core_api.delete_namespaced_secret(
-                    self.secret.metadata.name, self.namespace
-                )
-            except Exception as e:
-                wandb.termerror(
-                    f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
-                )
-
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         # return self.monitor.get_status()
         return LaunchKubernetesMonitor.get_status(self.name)
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         """Cancel the run."""
-        self.monitor.stop()
         try:
-            self.batch_api.delete_namespaced_job(
+            await self.batch_api.delete_namespaced_job(
                 namespace=self.namespace,
                 name=self.name,
             )
@@ -181,7 +166,6 @@ class CrdSubmittedRun(AbstractRun):
         namespace: str,
         core_api: CoreV1Api,
         custom_api: CustomObjectsApi,
-        monitor: KubernetesRunMonitor,
     ) -> None:
         """Create a run object for tracking the progress of a CRD.
 
@@ -193,7 +177,6 @@ class CrdSubmittedRun(AbstractRun):
             namespace: The namespace of the CRD instance.
             core_api: The Kubernetes core API client.
             custom_api: The Kubernetes custom object API client.
-            monitor: The run monitor.
 
         Raises:
             LaunchError: If the CRD instance does not exist.
@@ -206,24 +189,23 @@ class CrdSubmittedRun(AbstractRun):
         self.core_api = core_api
         self.custom_api = custom_api
         self._fail_count = 0
-        self.monitor = monitor
 
     @property
     def id(self) -> str:
         """Get the name of the custom object."""
         return self.name
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         """Get logs for custom object."""
         # TODO: test more carefully once we release multi-node support
         logs: Dict[str, Optional[str]] = {}
         try:
-            pods = self.core_api.list_namespaced_pod(
+            pods = await self.core_api.list_namespaced_pod(
                 label_selector=f"wandb/run-id={self.name}", namespace=self.namespace
             )
             pod_names = [pi.metadata.name for pi in pods.items]
             for pod_name in pod_names:
-                logs[pod_name] = self.core_api.read_namespaced_pod_log(
+                logs[pod_name] = await self.core_api.read_namespaced_pod_log(
                     name=pod_name, namespace=self.namespace
                 )
         except ApiException as e:
@@ -234,15 +216,14 @@ class CrdSubmittedRun(AbstractRun):
         logs_as_array = [f"Pod {pod_name}:\n{log}" for pod_name, log in logs.items()]
         return "\n".join(logs_as_array)
 
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         """Get status of custom object."""
         return LaunchKubernetesMonitor.get_status(self.name)
-        # return self.monitor.get_status()
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         """Cancel the custom object."""
         try:
-            self.custom_api.delete_namespaced_custom_object(
+            await self.custom_api.delete_namespaced_custom_object(
                 group=self.group,
                 version=self.version,
                 namespace=self.namespace,
@@ -257,11 +238,11 @@ class CrdSubmittedRun(AbstractRun):
     async def wait(self) -> bool:
         """Wait for this custom object to finish running."""
         while True:
-            status = self.get_status()
+            status = await self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            await asyncio.sleep(5)
             if status.state in ["finished", "failed", "preempted"]:
                 return status.state == "finished"
+            await asyncio.sleep(5)
 
 
 class KubernetesRunner(AbstractRunner):
@@ -475,11 +456,10 @@ class KubernetesRunner(AbstractRunner):
 
             # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
-            # add_label_to_pods(resource_args, "wandb.ai/run-id", launch_project.run_id)
             add_label_to_pods(
                 resource_args,
                 "wandb.ai/monitor",
-                True,
+                "true",
             )
 
             # Add wandb.ai/agent: current agent label on all pods
@@ -545,10 +525,9 @@ class KubernetesRunner(AbstractRunner):
                 plural=plural,
                 core_api=client.CoreV1Api(api_client),
                 custom_api=api,
-                monitor=None,
             )
             if self.backend_config[PROJECT_SYNCHRONOUS]:
-                submitted_run.wait()
+                await submitted_run.wait()
             return submitted_run
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
@@ -569,7 +548,7 @@ class KubernetesRunner(AbstractRunner):
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(
-            None, batch_api, core_api, job_name, namespace, secret
+            batch_api, core_api, job_name, namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()

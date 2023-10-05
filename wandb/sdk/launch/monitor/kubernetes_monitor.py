@@ -3,10 +3,10 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
-import kubernetes_asyncio  # type: ignore # noqa: F401
+import kubernetes_asyncio  # noqa: F401
 import urllib3
-from kubernetes_asyncio import watch  # type: ignore # noqa: F401
-from kubernetes_asyncio.client import (  # type: ignore # noqa: F401
+from kubernetes_asyncio import watch  # noqa: F401
+from kubernetes_asyncio.client import (  # noqa: F401
     ApiException,
     BatchV1Api,
     CoreV1Api,
@@ -16,8 +16,9 @@ from kubernetes_asyncio.client import (  # type: ignore # noqa: F401
 
 import wandb
 
+from ..errors import LaunchError
 from ..agent import LaunchAgent
-from ..runner.abstract import JobState, State, Status
+from ..runner.abstract import State, Status
 
 
 class Resources:
@@ -27,17 +28,17 @@ class Resources:
 
 # Maps phases and conditions of custom objects to agent's internal run states.
 CRD_STATE_DICT: Dict[str, State] = {
-    "created": JobState.STARTING,
-    "pending": JobState.STARTING,
-    "running": JobState.RUNNING,
-    "completing": JobState.RUNNING,
-    "succeeded": JobState.FINISHED,
-    "completed": JobState.FINISHED,
-    "failed": JobState.FAILED,
-    "aborted": JobState.FAILED,
-    "timeout": JobState.FAILED,
-    "terminated": JobState.FAILED,
-    "terminating": JobState.STOPPING,
+    "created": "starting",
+    "pending": "starting",
+    "running": "running",
+    "completing": "running",
+    "succeeded": "finished",
+    "completed": "finished",
+    "failed": "failed",
+    "aborted": "failed",
+    "timeout": "failed",
+    "terminated": "failed",
+    "terminating": "stopping",
 }
 
 _logger = logging.getLogger(__name__)
@@ -79,11 +80,11 @@ def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
     # The list below is ordered so that returning the first state detected
     # will accurately reflect the state of the job.
     for state in [
-        JobState.FINISHED,
-        JobState.FAILED,
-        JobState.STOPPING,
-        JobState.RUNNING,
-        JobState.STARTING,
+        "finished",
+        "failed",
+        "stopping",
+        "running",
+        "starting",
     ]:
         if state in detected_states:
             return state
@@ -157,30 +158,27 @@ class LaunchKubernetesMonitor:
     @classmethod
     def monitor_namespace(cls, namespace: str, custom_resource=None) -> None:
         """Start monitoring a namespaces for resources."""
-        cls._check_initialized()
+        if cls._instance is None:
+            raise LaunchError("LaunchKubernetesMonitor not initialized.")
         cls._instance.__monitor_namespace(namespace, custom_resource=custom_resource)
 
     @classmethod
     def get_status(cls, job_name: str) -> Status:
         """Get the status of a job."""
-        cls._check_initialized()
+        if cls._instance is None:
+            raise LaunchError("LaunchKubernetesMonitor not initialized.")
         return cls._instance.__get_status(job_name)
 
     @classmethod
     def status_count(cls) -> Dict[str, int]:
         """Get a dictionary mapping statuses to the # monitored jobs with each status."""
-        cls._check_initialized()
+        if cls._instance is None:
+            raise ValueError("LaunchKubernetesMonitor not initialized.")
         return cls._instance.__status_count()
 
-    @classmethod
-    def _check_initialized(cls) -> None:
-        """Check if the LaunchKubernetesMonitor has been initialized."""
-        if cls._instance is None:
-            raise ValueError(
-                "LaunchKubernetesMonitor must be initialized before it can be used."
-            )
-
-    def __monitor_namespace(self, namespace: str, custom_resource=None) -> None:
+    def __monitor_namespace(
+        self, namespace: str, custom_resource: Optional[str] = None
+    ) -> None:
         """Start monitoring a namespaces for resources."""
         if (namespace, Resources.PODS) not in self._monitor_tasks:
             self._monitor_tasks[(namespace, Resources.PODS)] = asyncio.create_task(
@@ -205,9 +203,9 @@ class LaunchKubernetesMonitor:
     def __get_status(self, job_name: str) -> Status:
         """Get the status of a job."""
         if job_name not in self._job_states:
-            return Status(JobState.PENDING)
+            return Status("unknown")
         state = self._job_states[job_name]
-        return Status(state)
+        return state
 
     def __status_count(self) -> Dict[str, int]:
         """Get a dictionary mapping statuses to the # monitored jobs with each status."""
@@ -240,11 +238,11 @@ class LaunchKubernetesMonitor:
             if not hasattr(obj, "status"):
                 continue
             if obj.status.phase == "Running":
-                self._set_status(job_name, Status(JobState.RUNNING))
+                self._set_status(job_name, Status("running"))
             if _is_container_creating(obj.status):
-                self._set_status(job_name, Status(JobState.RUNNING))
+                self._set_status(job_name, Status("running"))
             if _is_preempted(obj.status):
-                self._set_status(job_name, Status(JobState.PREEMPTED))
+                self._set_status(job_name, Status("preempted"))
 
     async def _monitor_jobs(self, namespace: str) -> None:
         """Monitor a namespace for changes."""
@@ -257,9 +255,9 @@ class LaunchKubernetesMonitor:
             obj = event.get("object")
             job_name = obj.metadata.name
             if obj.status.succeeded == 1:
-                self._set_status(job_name, Status(JobState.FINISHED))
+                self._set_status(job_name, Status("finished"))
             elif obj.status.failed is not None and obj.status.failed >= 1:
-                self._set_status(job_name, Status(JobState.FAILED))
+                self._set_status(job_name, Status("failed"))
 
     async def _monitor_crd(self, namespace: str, custom_resource: str) -> None:
         """Monitor a namespace for changes."""
@@ -269,6 +267,7 @@ class LaunchKubernetesMonitor:
         plural = f"{kind.lower()}s"
         watcher = SafeWatch(watch.Watch())
         async for event in watcher.stream(
+            self._custom_api.list_namespaced_custom_object,
             namespace=namespace,
             plural=plural,
             group=group,
@@ -293,15 +292,12 @@ class LaunchKubernetesMonitor:
                     # This should never happen.
                     _logger.warning(
                         f"Unexpected conditions type {type(conditions)} "
-                        f"for CRD {self.job_field_selector}: {conditions}"
+                        f"for CRD watcher in {namespace}"
                     )
             if state is None:
                 continue
             status = Status(state)
             self._set_status(name, status)
-            if status.state in [JobState.FINISHED, JobState.FAILED, JobState.PREEMPTED]:
-                self.stop()
-                break
 
 
 class SafeWatch:

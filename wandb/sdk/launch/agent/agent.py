@@ -676,7 +676,7 @@ class LaunchAgent:
                         "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
                         "to a larger value."
                     )
-            if self._check_run_finished(job_tracker, launch_spec):
+            if await self._check_run_finished(job_tracker, launch_spec):
                 return
             if job_tracker.check_wandb_run_stopped(self._api):
                 if stopped_time is None:
@@ -691,7 +691,7 @@ class LaunchAgent:
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
             run._command_proc.kill()
 
-    def _check_run_finished(
+    async def _check_run_finished(
         self, job_tracker: JobAndRunStatusTracker, launch_spec: Dict[str, Any]
     ) -> bool:
         if job_tracker.completed_status:
@@ -709,7 +709,7 @@ class LaunchAgent:
         known_error = False
         try:
             run = job_tracker.run
-            status = run.get_status().state
+            status = await run.get_status().state
 
             if status == "preempted" and job_tracker.entity == self._entity:
                 config = launch_spec.copy()

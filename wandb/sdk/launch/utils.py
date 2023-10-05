@@ -1,4 +1,5 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
+import asyncio
 import logging
 import os
 import platform
@@ -6,7 +7,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Callable, Coroutine
 
 import click
 
@@ -63,6 +64,27 @@ LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
+
+
+def threaded(func: Callable) -> Callable:
+    """Wrapper for making a function run in a thread.
+
+    This can be used a decorator for a function that you want to run in a thread.
+    Or, you can call it directly, e.g.:
+
+        ```
+        threaded(my_func)(arg1, arg2)
+        ```
+
+    The returned function must be called within an active event loop.
+    """
+
+    async def wrapper(*args, **kwargs):
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+        return result
+
+    return wrapper
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -549,10 +571,10 @@ async def get_kube_context_and_api_client(
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
         # context only exist in the non-incluster case
-
-        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
-            config_file
-        )
+        (
+            all_contexts,
+            active_context,
+        ) = kubernetes.config.list_kube_config_contexts(config_file)
         context = None
         if resource_args.get("context"):
             context_name = resource_args["context"]
@@ -571,14 +593,14 @@ async def get_kube_context_and_api_client(
             "awscli is required to load a kubernetes context "
             "from eks. Please run `pip install wandb[launch]` to install it.",
         )
-        kubernetes.config.load_kube_config(config_file, context["name"])
-        api_client = kubernetes.config.new_client_from_config(
+        await kubernetes.config.load_kube_config(config_file, context["name"])
+        api_client = await kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
         )
         return context, api_client
     else:
-        kubernetes.config.load_incluster_config()
-        api_client = kubernetes.client.api_client.ApiClient()
+        await kubernetes.config.load_incluster_config()
+        api_client = await kubernetes.client.api_client.ApiClient()
         return context, api_client
 
 

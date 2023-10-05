@@ -7,7 +7,7 @@ if False:
     import boto3  # type: ignore
 
 import wandb
-from wandb.apis.internal import Api
+from wandb.apis.internal import Apis
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
 
@@ -39,7 +39,7 @@ class SagemakerSubmittedRun(AbstractRun):
     def id(self) -> str:
         return f"sagemaker-{self.training_job_name}"
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         if self.log_client is None:
             return None
         try:
@@ -73,7 +73,7 @@ class SagemakerSubmittedRun(AbstractRun):
 
     async def wait(self) -> bool:
         while True:
-            status_state = self.get_status().state
+            status_state = (await self.get_status()).state
             wandb.termlog(
                 f"{LOG_PREFIX}Training job {self.training_job_name} status: {status_state}"
             )
@@ -82,14 +82,14 @@ class SagemakerSubmittedRun(AbstractRun):
             await asyncio.sleep(5)
         return status_state == "finished"
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         # Interrupt child process if it hasn't already exited
-        status = self.get_status()
+        status = await self.get_status()
         if status.state == "running":
             self.client.stop_training_job(TrainingJobName=self.training_job_name)
-            self.wait()
+            await self.wait()
 
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         job_status = self.client.describe_training_job(
             TrainingJobName=self.training_job_name
         )["TrainingJobStatus"]
@@ -201,7 +201,7 @@ class SageMakerRunner(AbstractRunner):
                 launch_project, sagemaker_args, sagemaker_client, log_client
             )
             if self.backend_config[PROJECT_SYNCHRONOUS]:
-                run.wait()
+                await run.wait()
             return run
 
         launch_project.fill_macros(image_uri)
@@ -237,7 +237,7 @@ class SageMakerRunner(AbstractRunner):
             launch_project, sagemaker_args, sagemaker_client, log_client
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
-            run.wait()
+            await run.wait()
         return run
 
 

@@ -62,7 +62,7 @@ class AbstractBuilder(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def build_image(
+    async def build_image(
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,

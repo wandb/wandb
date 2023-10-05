@@ -40,7 +40,7 @@ class NoOpBuilder(AbstractBuilder):
         """Verify the builder."""
         raise LaunchError("Attempted to verify noop builder.")
 
-    def build_image(
+    async def build_image(
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,

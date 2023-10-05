@@ -68,10 +68,10 @@ class LocalSubmittedRun(AbstractRun):
 
         return self._command_proc.wait() == 0
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         return self._stdout
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         # thread is set immediately after starting, should always exist
         assert self._thread is not None
 
@@ -79,7 +79,7 @@ class LocalSubmittedRun(AbstractRun):
         # indicates to thread to not start command proc if not already started
         self._terminate_flag = True
 
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         assert self._thread is not None, "Failed to get status, self._thread = None"
         if self._command_proc is None:
             if self._thread.is_alive():
@@ -182,7 +182,7 @@ class LocalContainerRunner(AbstractRunner):
         wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
-            run.wait()
+            await run.wait()
         return run
 
 
@@ -215,6 +215,7 @@ def _thread_process_runner(
     # cancel was called before we started the subprocess
     if run._terminate_flag:
         return
+    # TODO: Make this async
     process = subprocess.Popen(
         args,
         close_fds=True,

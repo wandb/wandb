@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
@@ -25,17 +25,6 @@ if sys.version_info >= (3, 8):
     from typing import Literal
 else:
     from typing_extensions import Literal
-
-
-class JobState:
-    FAILED = "failed"
-    FINISHED = "finished"
-    PENDING = "pending"
-    PREEMPTED = "preempted"
-    RUNNING = "running"
-    STARTING = "starting"
-    STOPPING = "stopping"
-    UNKNOWN = "unknown"
 
 
 State = Literal[
@@ -91,7 +80,7 @@ class AbstractRun(ABC):
         return self._status
 
     @abstractmethod
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         """Return the logs associated with the run."""
         pass
 
@@ -117,7 +106,7 @@ class AbstractRun(ABC):
             return None
 
     @abstractmethod
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         """Wait for the run to finish, returning True if the run succeeded and false otherwise.
 
         Note that in some cases, we may wait until the remote job completes rather than until the W&B run completes.
@@ -125,12 +114,12 @@ class AbstractRun(ABC):
         pass
 
     @abstractmethod
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         """Get status of the run."""
         pass
 
     @abstractmethod
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         """Cancel the run (interrupts the command subprocess, cancels the run, etc).
 
         Cancels the run and waits for it to terminate. The W&B run status may not be

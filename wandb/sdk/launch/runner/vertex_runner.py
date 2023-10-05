@@ -27,7 +27,7 @@ class VertexSubmittedRun(AbstractRun):
         # numeric ID of the custom training job
         return self._job.name  # type: ignore
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         # TODO: implement
         return None
 
@@ -51,11 +51,12 @@ class VertexSubmittedRun(AbstractRun):
             project=self.gcp_project,
         )
 
-    def wait(self) -> bool:
-        self._job.wait()
-        return self.get_status().state == "finished"
+    async def wait(self) -> bool:
+        # TODO: run this in a separate thread.
+        await self._job.wait()
+        return (await self.get_status()).state == "finished"
 
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         job_state = str(self._job.state)  # extract from type PipelineState
         if job_state == "JobState.JOB_STATE_SUCCEEDED":
             return Status("finished")
@@ -67,7 +68,7 @@ class VertexSubmittedRun(AbstractRun):
             return Status("starting")
         return Status("unknown")
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         self._job.cancel()
 
 

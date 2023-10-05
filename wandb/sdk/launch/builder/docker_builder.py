@@ -108,7 +108,7 @@ class DockerBuilder(AbstractBuilder):
             username, password = self.registry.get_username_password()
             docker.login(username, password, self.registry.uri)
 
-    def build_image(
+    async def build_image(
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
