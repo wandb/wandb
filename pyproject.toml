@@ -201,42 +201,57 @@ ignore-overlong-task-comments = true
 max-complexity = 18
 
 [tool.bumpversion]
-current_version = "0.15.13.dev1"
+allow_dirty = true
+current_version = "0.15.13dev2"
 commit = false
 tag = false
-parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)((?P<prekind>[a-z]+)(?P<pre>\\d+))?(\\.(?P<devkind>[a-z]+)(?P<dev>\\d+))?"
+#parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)((?P<prekind>[a-z]+)(?P<pre>\\d*))?(\\.(?P<devkind>[a-z]+)(?P<dev>\\d+))?"
+#serialize = [
+#    "{major}.{minor}.{patch}.{devkind}{dev}",
+#    "{major}.{minor}.{patch}{prekind}{pre}",
+#    "{major}.{minor}.{patch}"
+#]
+
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)((?P<release>[a-z]+)(?P<build>\\d*))?"
 serialize = [
-    "{major}.{minor}.{patch}{prekind}{pre}.{devkind}{dev}",
-    "{major}.{minor}.{patch}.{devkind}{dev}",
-    "{major}.{minor}.{patch}{prekind}{pre}",
-    "{major}.{minor}.{patch}"
+"{major}.{minor}.{patch}{release}{build}",
+"{major}.{minor}.{patch}{release}",
+"{major}.{minor}.{patch}"
 ]
 
-[tool.bumpversion.part.pre]
-first_value = 1
-
-[tool.bumpversion.part.prekind]
-optional_value = "_"
+[tool.bumpversion.part.release]
+optional_value = "g"
+first_value = "g"
 values = [
-    "_",
+    "dev",
     "a",
     "b",
-    "rc",
-    "_"
+    "g",
 ]
 
-[tool.bumpversion.part.dev]
-first_value = 1
+#[tool.bumpversion.part.pre]
+##first_value = 1
+#optional_value = ""
+#
+#[tool.bumpversion.part.prekind]
+#optional_value = ""
+#values = [
+#    "a",
+#    "b",
+#    "rc",
+#]
+#
+#[tool.bumpversion.part.dev]
+#first_value = 1
+#optional_value = ""
+#
+#[tool.bumpversion.part.devkind]
+#optional_value = ""
+#values = [
+#    "dev",
+#]
 
-[tool.bumpversion.part.devkind]
-optional_value = "_"
-values = [
-    "_",
-    "dev",
-    "_"
-]
-
-[[tool.bumpversion.files]]
-filename = "wandb/__init__.py"
-search = "__version__ = {current_version}"
-replace = "__version__ = {new_version}"
+#[[tool.bumpversion.files]]
+#filename = "wandb/__init__.py"
+#search = "__version__ = {current_version}"
+#replace = "__version__ = {new_version}"
