@@ -187,7 +187,7 @@ async def _launch(
     )
     if backend:
         assert image_uri
-        submitted_run = asyncio.run(backend.run(launch_project, image_uri))
+        submitted_run = await backend.run(launch_project, image_uri)
         # this check will always pass, run is only optional in the agent case where
         # a run queue id is present on the backend config
         assert submitted_run

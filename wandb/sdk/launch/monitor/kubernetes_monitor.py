@@ -109,10 +109,7 @@ class LaunchKubernetesMonitor:
         """
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-        raise LaunchError(
-            "LaunchKubernetesMonitor is a singleton. "
-            "Use LaunchKubernetesMonitor.ensure_initialized() instead."
-        )
+        return cls._instance
 
     def __init__(
         self,
@@ -151,12 +148,13 @@ class LaunchKubernetesMonitor:
             label_selector = "wandb.ai/monitor=true"
             if LaunchAgent.initialized():
                 label_selector += f",wandb.ai/agent={LaunchAgent.name()}"
-            cls._instance = cls(
+            cls(
                 core_api=core_api,
                 batch_api=batch_api,
                 custom_api=custom_api,
                 label_selector=label_selector,
             )
+            print(cls._instance)
 
     @classmethod
     def monitor_namespace(
@@ -164,21 +162,27 @@ class LaunchKubernetesMonitor:
     ) -> None:
         """Start monitoring a namespaces for resources."""
         if cls._instance is None:
-            raise LaunchError("LaunchKubernetesMonitor not initialized.")
+            raise LaunchError(
+                "LaunchKubernetesMonitor not initialized, cannot monitor namespace."
+            )
         cls._instance.__monitor_namespace(namespace, custom_resource=custom_resource)
 
     @classmethod
     def get_status(cls, job_name: str) -> Status:
         """Get the status of a job."""
         if cls._instance is None:
-            raise LaunchError("LaunchKubernetesMonitor not initialized.")
+            raise LaunchError(
+                "LaunchKubernetesMonitor not initialized, cannot get status."
+            )
         return cls._instance.__get_status(job_name)
 
     @classmethod
     def status_count(cls) -> Dict[State, int]:
         """Get a dictionary mapping statuses to the # monitored jobs with each status."""
         if cls._instance is None:
-            raise ValueError("LaunchKubernetesMonitor not initialized.")
+            raise ValueError(
+                "LaunchKubernetesMonitor not initialized, cannot get status counts."
+            )
         return cls._instance.__status_count()
 
     def __monitor_namespace(

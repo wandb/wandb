@@ -1354,7 +1354,11 @@ def launch(
                     repository=repository,
                 )
             )
-            if run.get_status().state in ["failed", "stopped", "preempted"]:
+            if asyncio.run(run.get_status()).state in [
+                "failed",
+                "stopped",
+                "preempted",
+            ]:
                 wandb.termerror("Launched run exited with non-zero status")
                 sys.exit(1)
         except LaunchError as e:

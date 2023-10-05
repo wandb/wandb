@@ -139,8 +139,8 @@ class LaunchAgent:
         elsewhere in the library.
         """
         if cls._instance is None:
-            cls._instance = super().__new__(cls, *args, **kwargs)
-        raise LaunchError("LaunchAgent has already been initialized")
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     @classmethod
     def name(cls) -> str:
