@@ -210,14 +210,14 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases.")
 @click.argument("key", nargs=-1)
-@click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option("--cloud", is_flag=True, help="Login to the cloud instead of a local server.")
+@click.option("--host", default=None, help="Login to a specific instance of W&B.")
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
-@click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
+@click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously.")
 @display_error
 def login(key, host, cloud, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
@@ -247,16 +247,16 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
+    context_settings=CONTEXT, help="Run a W&B service.", name="service", hidden=True
 )
 @click.option(
     "--sock-port", default=None, type=int, help="The host port to bind socket service."
 )
-@click.option("--port-filename", default=None, help="Save allocated port to file.")
-@click.option("--address", default=None, help="The address to bind service.")
-@click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
-@click.option("--debug", is_flag=True, help="log debug info")
-@click.option("--serve-sock", is_flag=True, help="use socket mode")
+@click.option("--port-filename", default=None, help="Save the allocated port to a file.")
+@click.option("--address", default=None, help="The address to bind the service.")
+@click.option("--pid", default=None, type=int, help="The Parent Process ID to monitor.")
+@click.option("--debug", is_flag=True, help="Log debugging information.")
+@click.option("--serve-sock", is_flag=True, help="Use Socket Mode.")
 @display_error
 def service(
     sock_port=None,
@@ -280,14 +280,14 @@ def service(
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Configure a directory with Weights & Biases"
+    context_settings=CONTEXT, help="Configure a directory with Weights & Biases."
 )
 @click.option("--project", "-p", help="The project to use.")
 @click.option("--entity", "-e", help="The entity to scope the project to.")
 # TODO(jhr): Enable these with settings rework
 # @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
 # @click.option('--show', is_flag=True, help="Show settings")
-@click.option("--reset", is_flag=True, help="Reset settings")
+@click.option("--reset", is_flag=True, help="Reset directory settings.")
 @click.option(
     "--mode",
     "-m",
@@ -417,12 +417,12 @@ def init(ctx, project, entity, reset, mode):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Upload an offline training directory to W&B"
+    context_settings=CONTEXT, help="Upload an offline training directory to W&B."
 )
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
-@click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
-@click.option("--verbose", is_flag=True, default=False, help="Verbose", hidden=True)
+@click.option("--view", is_flag=True, default=False, help="View all runs.", hidden=True)
+@click.option("--verbose", is_flag=True, default=False, help="Displays verbose output.", hidden=True)
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
@@ -438,43 +438,43 @@ def init(ctx, project, entity, reset, mode):
     "--include-online/--no-include-online",
     is_flag=True,
     default=None,
-    help="Include online runs",
+    help="Include or exclude online runs.",
 )
 @click.option(
     "--include-offline/--no-include-offline",
     is_flag=True,
     default=None,
-    help="Include offline runs",
+    help="Include or exclude offline runs.",
 )
 @click.option(
     "--include-synced/--no-include-synced",
     is_flag=True,
     default=None,
-    help="Include synced runs",
+    help="Include or exclude synced runs.",
 )
 @click.option(
     "--mark-synced/--no-mark-synced",
     is_flag=True,
     default=True,
-    help="Mark runs as synced",
+    help="Mark or unmark runs as synced.",
 )
-@click.option("--sync-all", is_flag=True, default=False, help="Sync all runs")
-@click.option("--clean", is_flag=True, default=False, help="Delete synced runs")
+@click.option("--sync-all", is_flag=True, default=False, help="Sync all runs.")
+@click.option("--clean", is_flag=True, default=False, help="Delete synced runs.")
 @click.option(
     "--clean-old-hours",
     default=24,
-    help="Delete runs created before this many hours. To be used alongside --clean flag.",
+    help="Delete runs created before this time, measured in hours. Should be used alongside the --clean flag.",
     type=int,
 )
 @click.option(
     "--clean-force",
     is_flag=True,
     default=False,
-    help="Clean without confirmation prompt.",
+    help="Clean without displaying a confirmation prompt.",
 )
 @click.option("--ignore", hidden=True)
-@click.option("--show", default=5, help="Number of runs to show")
-@click.option("--append", is_flag=True, default=False, help="Append run")
+@click.option("--show", default=5, help="Number of runs to show.")
+@click.option("--append", is_flag=True, default=False, help="Append run.")
 @display_error
 def sync(
     ctx,
@@ -652,26 +652,26 @@ def sync(
         _summary()
 
 
-@cli.command(context_settings=CONTEXT, help="Create a sweep")
+@cli.command(context_settings=CONTEXT, help="Create a sweep.")
 @click.option("--project", "-p", default=None, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
-@click.option("--controller", is_flag=True, default=False, help="Run local controller")
-@click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
-@click.option("--name", default=None, help="Set sweep name")
-@click.option("--program", default=None, help="Set sweep program")
-@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
-@click.option("--update", default=None, help="Update pending sweep")
+@click.option("--controller", is_flag=True, default=False, help="Run local controller.")
+@click.option("--verbose", is_flag=True, default=False, help="Display verbose output.")
+@click.option("--name", default=None, help="Set sweep name.")
+@click.option("--program", default=None, help="Set sweep program.")
+@click.option("--settings", default=None, help="Set sweep settings.", hidden=True)
+@click.option("--update", default=None, help="Update pending sweep.")
 @click.option(
     "--stop",
     is_flag=True,
     default=False,
-    help="Finish a sweep to stop running new runs and let currently running runs finish.",
+    help="Finish a sweep. This stops running new runs and lets ones currently running finish.",
 )
 @click.option(
     "--cancel",
     is_flag=True,
     default=False,
-    help="Cancel a sweep to kill all running runs and stop running new runs.",
+    help="Cancel a sweep, killing all running runs and stopping new ones.",
 )
 @click.option(
     "--pause",
@@ -888,26 +888,26 @@ def sweep(
     "--queue",
     "-q",
     default=None,
-    help="The name of a queue to push the sweep to",
+    help="The name of the queue to push the sweep to.",
 )
 @click.option(
     "--project",
     "-p",
     default=None,
-    help="Name of the project which the agent will watch. "
-    "If passed in, will override the project value passed in using a config file",
+    help="Name of the project that the agent will watch. "
+    "If a value is passed in, it will override values passed in using a config file.",
 )
 @click.option(
     "--entity",
     "-e",
     default=None,
-    help="The entity to use. Defaults to current logged-in user",
+    help="The entity to use. Defaults to current logged-in user.",
 )
 @click.option(
     "--resume_id",
     "-r",
     default=None,
-    help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
+    help="Resume a launch sweep by passing an 8-char sweep id. Queue required.",
 )
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
@@ -1128,17 +1128,17 @@ def launch_sweep(
     "-j",
     metavar="(str)",
     default=None,
-    help="Name of the job to launch. If passed in, launch does not require a uri.",
+    help="Name of the job to launch. If passed in, launch does not require a URI.",
 )
 @click.option(
     "--entry-point",
     "-E",
     metavar="NAME",
     default=None,
-    help="""Entry point within project. [default: main]. If the entry point is not found,
+    help="""Entry point within project. [default: main]. If an entry point is not found,
     attempts to run the project file with the specified name as a script,
     using 'python' to run .py files and the default shell (specified by
-    environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.""",
+    environment variable $SHELL) to run .sh files. If passed in, will override entrypoint values passed in with a config file.""",
 )
 @click.option(
     "--git-version",
@@ -1150,8 +1150,8 @@ def launch_sweep(
 @click.option(
     "--name",
     envvar="WANDB_NAME",
-    help="""Name of the run under which to launch the run. If not
-    specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.""",
+    help="""Name to launch the run under. If not
+    specified, a random run name will be used. If passed in, will override values passed in with a config file.""",
 )
 @click.option(
     "--entity",
@@ -1159,15 +1159,15 @@ def launch_sweep(
     metavar="(str)",
     default=None,
     help="""Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.
-    If passed in, will override the entity value passed in using a config file.""",
+    If passed in, will override the entity values passed in with a config file.""",
 )
 @click.option(
     "--project",
     "-p",
     metavar="(str)",
     default=None,
-    help="""Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri
-    or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.""",
+    help="""Name of the target project the new run will be sent to. Defaults to using the project name given by the source URI
+    or for github runs, the git repo name. If passed in, will override the project value passed in with a config file.""",
 )
 @click.option(
     "--resource",
@@ -1176,22 +1176,22 @@ def launch_sweep(
     default=None,
     help="""Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'.
     This is now a required parameter if pushing to a queue with no resource configuration.
-    If passed in, will override the resource value passed in using a config file.""",
+    If passed in, will override resource values passed in with a config file.""",
 )
 @click.option(
     "--docker-image",
     "-d",
     default=None,
     metavar="DOCKER IMAGE",
-    help="""Specific docker image you'd like to use. In the form name:tag.
-    If passed in, will override the docker image value passed in using a config file.""",
+    help="""The specific docker image you'd like to use, in the form name:tag.
+    If passed in, will override the docker image value passed in with a config file.""",
 )
 @click.option(
     "--config",
     "-c",
     metavar="FILE",
-    help="""Path to JSON file (must end in '.json') or JSON string which will be passed
-    as a launch config. Dictation how the launched run will be configured.""",
+    help="""Path to JSON file (must end in '.json') or JSON string that will be passed
+    as a launch config. Dictates how the launched run will be configured.""",
 )
 @click.option(
     "--queue",
@@ -1199,17 +1199,17 @@ def launch_sweep(
     is_flag=False,
     flag_value="default",
     default=None,
-    help="""Name of run queue to push to. If none, launches single run directly. If supplied without
-    an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the
+    help="""Name of the run queue to push to. If `None`, launches a single run directly. If supplied without
+    an argument (`--queue`), defaults to queue 'default'. If a name is supplied, the specified run queue must exist under the
     project and entity supplied.""",
 )
 @click.option(
     "--async",
     "run_async",
     is_flag=True,
-    help="""Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for
-    the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be
-    set on wandb launch-agent.""",
+    help="""Flag to run the job asynchronously. Defaults to `false`. This means that unless `--async` is set, `wandb launch` will wait for
+    the job to finish. This option is incompatible with `--queue`; asynchronous options when running with an agent should be
+    set on `wandb launch-agent`.""",
 )
 @click.option(
     "--resource-args",
@@ -1224,7 +1224,7 @@ def launch_sweep(
     "-b",
     is_flag=True,
     hidden=True,
-    help="Flag to build an associated job and push to queue as an image job.",
+    help="Builds an associated job and pushes it to queue as an image job.",
 )
 @click.option(
     "--repository",
@@ -1232,7 +1232,7 @@ def launch_sweep(
     is_flag=False,
     default=None,
     hidden=True,
-    help="Name of a remote repository. Will be used to push a built image to.",
+    help="Name of the remote repository that will be used to push a built image to.",
 )
 # TODO: this is only included for back compat. But we should remove this in the future
 @click.option(
@@ -1246,7 +1246,7 @@ def launch_sweep(
     "--dockerfile",
     "-D",
     default=None,
-    help="Path to the Dockerfile used to build the job, relative to the job's root",
+    help="Path to the Dockerfile used to build the job, relative to the job's root.",
 )
 @display_error
 def launch(
@@ -1270,9 +1270,9 @@ def launch(
 ):
     """Start a W&B run from the given URI.
 
-    The URI can bea wandb URI, a GitHub repo uri, or a local path). In the case of a
-    wandb URI the arguments used in the original run will be used by default. These
-    arguments can be overridden using the args option, or specifying those arguments in
+    The URI can be a wandb URI, a GitHub repo URI, or a local path. In the case of a
+    wandb URI, the arguments used in the original run will be used by default. These
+    arguments can be overridden using the `args` option, or by specifying those arguments in
     the config's 'overrides' key, 'args' field as a list of strings.
 
     Running `wandb launch [URI]` will launch the run directly. To add the run to a
@@ -1406,8 +1406,8 @@ def launch(
     "--project",
     "-p",
     default=None,
-    help="""Name of the project which the agent will watch.
-    If passed in, will override the project value passed in using a config file.""",
+    help="""Name of the project that the agent will watch.
+    If passed in, will override the project values passed in with a config file.""",
 )
 @click.option(
     "--entity",
@@ -1419,17 +1419,17 @@ def launch(
     "--max-jobs",
     "-j",
     default=None,
-    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit.",
 )
 @click.option(
-    "--config", "-c", default=None, help="path to the agent config yaml to use"
+    "--config", "-c", default=None, help="Path to the agent config YAML file to use."
 )
 @click.option(
     "--url",
     "-u",
     default=None,
     hidden=True,
-    help="a wandb client registration URL, this is generated in the UI",
+    help="A wandb client registration URL. This is generated in the web UI.",
 )
 @display_error
 def launch_agent(
@@ -1592,7 +1592,7 @@ def _list(project, entity):
 
 
 @job.command(
-    help="Describe a launch job. Provide the launch job in the form of: entity/project/job-name:alias-or-version"
+    help="Describe a launch job. Provide the launch job in the form of: `entity/project/job-name:alias-or-version`."
 )
 @click.argument("job")
 def describe(job):
@@ -1622,23 +1622,23 @@ def describe(job):
     "--entity",
     "-e",
     envvar=env.ENTITY,
-    help="The entity the jobs belong to",
+    help="The entity the jobs belong to.",
 )
 @click.option(
     "--name",
     "-n",
-    help="Name for the job",
+    help="Name for the job.",
 )
 @click.option(
     "--description",
     "-d",
-    help="Description for the job",
+    help="Description for the job.",
 )
 @click.option(
     "--alias",
     "-a",
     "aliases",
-    help="Alias for the job",
+    help="Alias for the job.",
     multiple=True,
     default=tuple(),
 )
@@ -1646,7 +1646,7 @@ def describe(job):
     "--entry-point",
     "-E",
     "entrypoint",
-    help="Codepath to the main script, required for repo jobs",
+    help="Codepath to the main script, required for repo jobs.",
 )
 @click.option(
     "--git-hash",
@@ -1659,7 +1659,7 @@ def describe(job):
     "--runtime",
     "-r",
     type=str,
-    help="Python runtime to execute the job",
+    help="Python runtime to execute the job.",
 )
 @click.argument(
     "job_type",
@@ -1680,10 +1680,10 @@ def create(
 ):
     """Create a job from a source, without a wandb run.
 
-    Jobs can be of three types, git, code, or image.
+    There are three types of job, `git`, `code`, or `image`.
 
     git: A git source, with an entrypoint either in the path or provided explicitly pointing to the main python executable.
-    code: A code path, containing a requirements.txt file.
+    code: A code path, containing a `requirements.txt` file.
     image: A docker image.
     """
     from wandb.sdk.launch.create_job import _create_job
@@ -1733,8 +1733,8 @@ def create(
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 
 
-@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
-@click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
+@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller.")
+@click.option("--verbose", is_flag=True, default=False, help="Display verbose output.")
 @click.argument("sweep_id")
 @display_error
 def controller(verbose, sweep_id):
@@ -1749,10 +1749,10 @@ def controller(verbose, sweep_id):
 @click.pass_context
 @click.argument("docker_run_args", nargs=-1)
 def docker_run(ctx, docker_run_args):
-    """Wrap `docker run` and adds WANDB_API_KEY and WANDB_DOCKER environment variables.
+    """Wrap `docker run` and adds `WANDB_API_KEY` and `WANDB_DOCKER` environment variables.
 
-    This will also set the runtime to nvidia if the nvidia-docker executable is present
-    on the system and --runtime wasn't set.
+    This will also set the runtime to `nvidia` if the `nvidia-docker` executable is present
+    on the system and `--runtime` wasn't set.
 
     See `docker run --help` for more details.
     """
@@ -1792,25 +1792,25 @@ def docker_run(ctx, docker_run_args):
 @click.option(
     "--nvidia/--no-nvidia",
     default=find_executable("nvidia-docker") is not None,
-    help="Use the nvidia runtime, defaults to nvidia if nvidia-docker is present",
+    help="Use the `nvidia` runtime, defaults to `nvidia` if `nvidia-docker` is present.",
 )
 @click.option(
-    "--digest", is_flag=True, default=False, help="Output the image digest and exit"
+    "--digest", is_flag=True, default=False, help="Output the image digest and exit."
 )
 @click.option(
-    "--jupyter/--no-jupyter", default=False, help="Run jupyter lab in the container"
+    "--jupyter/--no-jupyter", default=False, help="Run Jupyter lab in the container."
 )
 @click.option(
-    "--dir", default="/app", help="Which directory to mount the code in the container"
+    "--dir", default="/app", help="The name of the directory to mount the code in the container."
 )
-@click.option("--no-dir", is_flag=True, help="Don't mount the current directory")
+@click.option("--no-dir", is_flag=True, help="If `true`, W&B won't mount the current directory.")
 @click.option(
-    "--shell", default="/bin/bash", help="The shell to start the container with"
+    "--shell", default="/bin/bash", help="The shell to start the container with."
 )
-@click.option("--port", default="8888", help="The host port to bind jupyter on")
-@click.option("--cmd", help="The command to run in the container")
+@click.option("--port", default="8888", help="The host port to bind Jupyter on.")
+@click.option("--cmd", help="The command to run inside the container.")
 @click.option(
-    "--no-tty", is_flag=True, default=False, help="Run the command without a tty"
+    "--no-tty", is_flag=True, default=False, help="Run the command without a TTY."
 )
 @display_error
 def docker(
@@ -1829,11 +1829,11 @@ def docker(
 ):
     """Run your code in a docker container.
 
-    W&B docker lets you run your code in a docker image ensuring wandb is configured. It
-    adds the WANDB_DOCKER and WANDB_API_KEY environment variables to your container and
-    mounts the current directory in /app by default.  You can pass additional args which
-    will be added to `docker run` before the image name is declared, we'll choose a
-    default image for you if one isn't passed:
+    W&B docker lets you run your code in a docker image, ensuring that wandb is correctly configured. It
+    adds the `WANDB_DOCKER` and `WANDB_API_KEY` environment variables to your container and
+    mounts the current directory in `/app` by default.  You can pass additional args that
+    will be added to `docker run` before the image name is declared, and a
+    default image will be chosen if one isn't passed:
 
     ```sh
     wandb docker -v /mnt/dataset:/app/data
@@ -1842,10 +1842,10 @@ def docker(
     ```
 
     By default, we override the entrypoint to check for the existence of wandb and
-    install it if not present.  If you pass the --jupyter flag we will ensure jupyter is
-    installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your
-    system we will use the nvidia runtime.  If you just want wandb to set environment
-    variable to an existing docker run command, see the wandb docker-run command.
+    install it if not present.  If you pass the `--jupyter` flag we will ensure jupyter is
+    installed and start jupyter lab on port 8888.  If we detect `nvidia-docker` on your
+    system we will use the `nvidia` runtime.  If you just want wandb to set environment
+    variable to an existing docker run command, see the `wandb docker-run` command.
     """
     api = InternalApi()
     if not find_executable("docker"):
@@ -1927,22 +1927,22 @@ def docker(
 
 @cli.command(
     context_settings=RUN_CONTEXT,
-    help="Start a local W&B container (deprecated, see wandb server --help)",
+    help="Start a local W&B container. Deprecated, see `wandb server --help`.",
     hidden=True,
 )
 @click.pass_context
-@click.option("--port", "-p", default="8080", help="The host port to bind W&B local on")
+@click.option("--port", "-p", default="8080", help="The host port to bind W&B local on.")
 @click.option(
-    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+    "--env", "-e", default=[], multiple=True, help="Set environment variables to pass to wandb/local."
 )
 @click.option(
-    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+    "--daemon/--no-daemon", default=True, help="Toggle daemon mode on or off."
 )
 @click.option(
-    "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version"
+    "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version of W&B."
 )
 @click.option(
-    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge.", hidden=True
 )
 @display_error
 def local(ctx, *args, **kwargs):
@@ -1955,26 +1955,26 @@ def server():
     pass
 
 
-@server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
+@server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server.")
 @click.pass_context
 @click.option(
-    "--port", "-p", default="8080", help="The host port to bind W&B server on"
+    "--port", "-p", default="8080", help="The host port to bind W&B server on."
 )
 @click.option(
-    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+    "--env", "-e", default=[], multiple=True, help="Set environment variables to pass to wandb/local."
 )
 @click.option(
-    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+    "--daemon/--no-daemon", default=True, help="Toggle daemon mode on or off."
 )
 @click.option(
     "--upgrade",
     is_flag=True,
     default=False,
-    help="Upgrade to the most recent version",
+    help="Upgrade W&B to the most recent version.",
     hidden=True,
 )
 @click.option(
-    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge.", hidden=True
 )
 @display_error
 def start(ctx, port, env, daemon, upgrade, edge):
@@ -2059,19 +2059,19 @@ def artifact():
     pass
 
 
-@artifact.command(context_settings=CONTEXT, help="Upload an artifact to wandb")
+@artifact.command(context_settings=CONTEXT, help="Upload an artifact to wandb.")
 @click.argument("path")
 @click.option(
-    "--name", "-n", help="The name of the artifact to push: project/artifact_name"
+    "--name", "-n", help="The name of the artifact to push, in the form of `project/artifact_name`"
 )
-@click.option("--description", "-d", help="A description of this artifact")
-@click.option("--type", "-t", default="dataset", help="The type of the artifact")
+@click.option("--description", "-d", help="A description of this artifact.")
+@click.option("--type", "-t", default="dataset", help="The type of the artifact.")
 @click.option(
     "--alias",
     "-a",
     default=["latest"],
     multiple=True,
-    help="An alias to apply to this artifact",
+    help="An alias to apply to this artifact.",
 )
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option(
@@ -2128,10 +2128,10 @@ def put(path, name, description, type, alias, run_id, resume):
     )
 
 
-@artifact.command(context_settings=CONTEXT, help="Download an artifact from wandb")
+@artifact.command(context_settings=CONTEXT, help="Download an artifact from wandb.")
 @click.argument("path")
-@click.option("--root", help="The directory you want to download the artifact to")
-@click.option("--type", help="The type of artifact you are downloading")
+@click.option("--root", help="The directory to download the artifact to.")
+@click.option("--type", help="The type of artifact to download.")
 @display_error
 def get(path, root, type):
     public_api = PublicApi()
@@ -2160,10 +2160,10 @@ def get(path, root, type):
 
 
 @artifact.command(
-    context_settings=CONTEXT, help="List all artifacts in a wandb project"
+    context_settings=CONTEXT, help="List all artifacts in a wandb project."
 )
 @click.argument("path")
-@click.option("--type", "-t", help="The type of artifacts to list")
+@click.option("--type", "-t", help="The type of artifacts to list.")
 @display_error
 def ls(path, type):
     public_api = PublicApi()
@@ -2190,17 +2190,17 @@ def ls(path, type):
             )
 
 
-@artifact.group(help="Commands for interacting with the artifact cache")
+@artifact.group(help="Commands for interacting with the artifact cache.")
 def cache():
     pass
 
 
 @cache.command(
     context_settings=CONTEXT,
-    help="Clean up less frequently used files from the artifacts cache",
+    help="Clean up less frequently used files from the artifacts cache.",
 )
 @click.argument("target_size")
-@click.option("--remove-temp/--no-remove-temp", default=False, help="Remove temp files")
+@click.option("--remove-temp/--no-remove-temp", default=False, help="Toggles if temp files should be removed or not.")
 @display_error
 def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
@@ -2209,7 +2209,7 @@ def cleanup(target_size, remove_temp):
     print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
-@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
+@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases.")
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(
     "--project", "-p", envvar=env.PROJECT, help="The project you want to download."
@@ -2252,7 +2252,7 @@ def pull(run, project, entity):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Restore code, config and docker state for a run"
+    context_settings=CONTEXT, help="Restore the code, config and docker state for a run."
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
@@ -2260,7 +2260,7 @@ def pull(run, project, entity):
 @click.option(
     "--branch/--no-branch",
     default=True,
-    help="Whether to create a branch or checkout detached",
+    help="Toggle whether to create a branch or checkout detached or not.",
 )
 @click.option(
     "--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to."
@@ -2487,7 +2487,7 @@ def off(ctx):
 
 @cli.command("status", help="Show configuration settings")
 @click.option(
-    "--settings/--no-settings", help="Show the current settings", default=True
+    "--settings/--no-settings", help="Toggles whether to show the current settings.", default=True
 )
 def status(settings):
     api = _get_cling_api()
@@ -2601,20 +2601,20 @@ def verify(host):
         sys.exit(1)
 
 
-@cli.group("import", help="Commands for importing data from other systems")
+@cli.group("import", help="Commands for importing data from other systems.")
 def importer():
     pass
 
 
-@importer.command("mlflow", help="Import from MLFlow")
-@click.option("--mlflow-tracking-uri", help="MLFlow Tracking URI")
+@importer.command("mlflow", help="Import from MLFlow.")
+@click.option("--mlflow-tracking-uri", help="The MLFlow Tracking URI.")
 @click.option(
-    "--target-entity", required=True, help="Override default entity to import data into"
+    "--target-entity", required=True, help="Override default entity to import data into."
 )
 @click.option(
     "--target-project",
     required=True,
-    help="Override default project to import data into",
+    help="Override default project to import data into.",
 )
 def mlflow(mlflow_tracking_uri, target_entity, target_project):
     from wandb.apis.importers import MlflowImporter
