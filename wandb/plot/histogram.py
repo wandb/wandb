@@ -3,7 +3,7 @@ from typing import Optional
 import wandb
 
 
-def histogram(table: wandb.Table, value: str, title: Optional[str] = None):
+def histogram(table: wandb.Table, value: str, title: Optional[str] = None, log_table_separately: Optional[bool] = False):
     """Construct a histogram plot.
 
     Arguments:
@@ -22,5 +22,5 @@ def histogram(table: wandb.Table, value: str, title: Optional[str] = None):
         ```
     """
     return wandb.plot_table(
-        "wandb/histogram/v0", table, {"value": value}, {"title": title}
+        "wandb/histogram/v0", table, {"value": value}, {"title": title}, log_table_separately=log_table_separately
     )

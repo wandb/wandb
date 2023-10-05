@@ -3,7 +3,7 @@ from typing import Optional
 import wandb
 
 
-def bar(table: wandb.Table, label: str, value: str, title: Optional[str] = None):
+def bar(table: wandb.Table, label: str, value: str, title: Optional[str] = None, log_table_separately: Optional[bool] = False):
     """Construct a bar plot.
 
     Arguments:
@@ -27,5 +27,5 @@ def bar(table: wandb.Table, label: str, value: str, title: Optional[str] = None)
         ```
     """
     return wandb.plot_table(
-        "wandb/bar/v0", table, {"label": label, "value": value}, {"title": title}
+        "wandb/bar/v0", table, {"label": label, "value": value}, {"title": title}, log_table_separately=log_table_separately
     )

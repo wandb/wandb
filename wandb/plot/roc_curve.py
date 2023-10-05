@@ -1,10 +1,12 @@
+from typing import Optional
+
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types
 
 
 def roc_curve(
-    y_true=None, y_probas=None, labels=None, classes_to_plot=None, title=None
+    y_true=None, y_probas=None, labels=None, classes_to_plot=None, title=None, log_table_separately: Optional[bool] = False
 ):
     """Calculate and visualize receiver operating characteristic (ROC) scores.
 
@@ -105,4 +107,5 @@ def roc_curve(
             "x-axis-title": "False positive rate",
             "y-axis-title": "True positive rate",
         },
+        log_table_separately=log_table_separately,
     )
