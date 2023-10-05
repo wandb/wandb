@@ -194,7 +194,7 @@ class JobBuilder:
             "entrypoint": entrypoint,
             "notebook": notebook,
         }
-        name = self._make_job_name(f"job-{remote}_{program_relpath}")
+        name = self._make_job_name(f"{remote}_{program_relpath}")
 
         return source, name
 
@@ -240,7 +240,8 @@ class JobBuilder:
 
         raw_image_name = image_name
         if ":" in image_name:
-            raw_image_name, tag = image_name.split(":")
+            tag = image_name.split(":")[-1]
+            raw_image_name = raw_image_name.removesuffix(f":{tag}")
             self._aliases += [tag]
 
         source: ImageSourceDict = {
@@ -261,7 +262,7 @@ class JobBuilder:
         self,
         program_relpath: str,
         metadata: Dict[str, Any],
-    ):
+    ) -> Tuple[List[str], bool]:
         # if building a partial job from CLI, overwrite entrypoint and notebook
         # should already be in metadata from create_job
         if metadata.get("_partial"):
@@ -333,7 +334,9 @@ class JobBuilder:
                 source, name = self._build_repo_job_source(metadata, program_relpath)
             elif source_type == "artifact":
                 assert program_relpath
-                source, name = self._build_artifact_job_source(program_relpath, metadata)
+                source, name = self._build_artifact_job_source(
+                    program_relpath, metadata
+                )
             elif source_type == "image" and self._has_image_job_ingredients(metadata):
                 source, name = self._build_image_job_source(metadata)
             else:
