@@ -196,6 +196,8 @@ pub struct Settings {
     pub stats_open_metrics_filters: ::core::option::Option<OpenMetricsFilters>,
     #[prost(message, optional, tag = "146")]
     pub stats_disk_paths: ::core::option::Option<ListStringValue>,
+    #[prost(message, optional, tag = "161")]
+    pub stats_buffer_size: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "49")]
     pub tmp_code_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "50")]
@@ -1830,7 +1832,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 20, 21, 22, 23, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 20, 21, 22, 23, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1895,6 +1897,8 @@ pub mod request {
         TelemetryRecord(super::TelemetryRecordRequest),
         #[prost(message, tag = "73")]
         JobInfo(super::JobInfoRequest),
+        #[prost(message, tag = "74")]
+        GetSystemMetrics(super::GetSystemMetricsRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1906,7 +1910,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 35, 36, 37, 64, 65, 66, 67, 68, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 35, 36, 37, 64, 65, 66, 67, 68, 69, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1951,6 +1955,8 @@ pub mod response {
         ServerInfoResponse(super::ServerInfoResponse),
         #[prost(message, tag = "68")]
         JobInfoResponse(super::JobInfoResponse),
+        #[prost(message, tag = "69")]
+        GetSystemMetricsResponse(super::GetSystemMetricsResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
@@ -2093,6 +2099,37 @@ pub struct GetSummaryRequest {
 pub struct GetSummaryResponse {
     #[prost(message, repeated, tag = "1")]
     pub item: ::prost::alloc::vec::Vec<SummaryItem>,
+}
+///
+/// GetSystemMetrics: request system metrics
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetSystemMetricsRequest {
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SystemMetricSample {
+    #[prost(message, optional, tag = "1")]
+    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(float, tag = "2")]
+    pub value: f32,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SystemMetricsBuffer {
+    #[prost(message, repeated, tag = "1")]
+    pub record: ::prost::alloc::vec::Vec<SystemMetricSample>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetSystemMetricsResponse {
+    #[prost(map = "string, message", tag = "1")]
+    pub system_metrics: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        SystemMetricsBuffer,
+    >,
 }
 ///
 /// StatusRequest:
