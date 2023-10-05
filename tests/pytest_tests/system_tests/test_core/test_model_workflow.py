@@ -1,5 +1,4 @@
 import pathlib
-import tempfile
 from typing import Callable
 
 import pytest

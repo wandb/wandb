@@ -3113,6 +3113,7 @@ class Run:
                     - name:version
                     - name:alias
                     - digest.
+
         Raises:
             AssertionError: if type of artifact 'model_name' does not contain 'model'
         Returns:
@@ -3157,12 +3158,22 @@ class Run:
 
         Examples:
             ```python
-            run.link_model(path='/local/directory', registered_model_name='my_reg_model', model_name='my_model_artifact', aliases=['production'])
+            run.link_model(
+                path="/local/directory",
+                registered_model_name="my_reg_model",
+                model_name="my_model_artifact",
+                aliases=["production"],
+            )
             ```
 
             Invalid usage
             ```python
-            run.link_model(path='/local/directory', registered_model_name='my_entity/my_project/my_reg_model', model_name='my_model_artifact', aliases=['production'])
+            run.link_model(
+                path="/local/directory",
+                registered_model_name="my_entity/my_project/my_reg_model",
+                model_name="my_model_artifact",
+                aliases=["production"],
+            )
             ```
 
         Raises:
