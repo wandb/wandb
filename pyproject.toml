@@ -202,7 +202,7 @@ max-complexity = 18
 
 [tool.bumpversion]
 allow_dirty = true
-current_version = "0.15.13dev2"
+current_version = "0.15.13.dev1"
 commit = false
 tag = false
 #parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)((?P<prekind>[a-z]+)(?P<pre>\\d*))?(\\.(?P<devkind>[a-z]+)(?P<dev>\\d+))?"
