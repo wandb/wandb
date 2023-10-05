@@ -365,7 +365,20 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 			s.logger.CaptureError("unmarshal problem", err)
 			continue
 		}
-		s.configMap[d.GetKey()] = value
+		keyList := d.GetNestedKey()
+		if keyList == nil {
+			keyList = []string{d.GetKey()}
+		}
+		target := s.configMap
+		for _, k := range keyList[:len(keyList)-1] {
+			val, ok := target[k].(map[string]interface{})
+			if !ok {
+				val = make(map[string]interface{})
+				target[k] = val
+			}
+			target = val
+		}
+		target[keyList[len(keyList)-1]] = value
 	}
 	for _, d := range configRecord.GetRemove() {
 		delete(s.configMap, d.GetKey())
@@ -740,25 +753,20 @@ func (s *Sender) sendFile(name string) {
 }
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
-	saver := artifacts.ArtifactSaver{
-		Ctx:           s.ctx,
-		Logger:        s.logger,
-		Artifact:      msg.Artifact,
-		GraphqlClient: s.graphqlClient,
-		UploadManager: s.uploadManager,
-	}
-	saverResult, err := saver.Save()
+	var response service.LogArtifactResponse
+	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, msg.Artifact, msg.HistoryStep)
+	artifactID, err := saver.Save()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic("sender: sendLogArtifact: save failure", err)
+		response.ErrorMessage = err.Error()
+	} else {
+		response.ArtifactId = artifactID
 	}
 
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
 				ResponseType: &service.Response_LogArtifactResponse{
-					LogArtifactResponse: &service.LogArtifactResponse{
-						ArtifactId: saverResult.ArtifactId,
-					},
+					LogArtifactResponse: &response,
 				},
 			},
 		},
