@@ -122,6 +122,6 @@ Status legend:
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
     commands. Expect the CLI to be rewritten to use the new backend.
-[^A.1]: Artifacts are partially supported. Expect full support in a next pre-release.
+[^A.1]: Artifacts are partially supported. Expect full support in the near future.
 [^L.1]: Launch is not yet supported.
 [^S.1]: Requires verification.

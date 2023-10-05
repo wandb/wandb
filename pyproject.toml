@@ -199,3 +199,44 @@ ignore-overlong-task-comments = true
 
 [tool.ruff.mccabe]
 max-complexity = 18
+
+[tool.bumpversion]
+current_version = "0.15.13.dev1"
+commit = false
+tag = false
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)((?P<prekind>[a-z]+)(?P<pre>\\d+))?(\\.(?P<devkind>[a-z]+)(?P<dev>\\d+))?"
+serialize = [
+    "{major}.{minor}.{patch}{prekind}{pre}.{devkind}{dev}",
+    "{major}.{minor}.{patch}.{devkind}{dev}",
+    "{major}.{minor}.{patch}{prekind}{pre}",
+    "{major}.{minor}.{patch}"
+]
+
+[tool.bumpversion.part.pre]
+first_value = 1
+
+[tool.bumpversion.part.prekind]
+optional_value = "_"
+values = [
+    "_",
+    "a",
+    "b",
+    "rc",
+    "_"
+]
+
+[tool.bumpversion.part.dev]
+first_value = 1
+
+[tool.bumpversion.part.devkind]
+optional_value = "_"
+values = [
+    "_",
+    "dev",
+    "_"
+]
+
+[[tool.bumpversion.files]]
+filename = "wandb/__init__.py"
+search = "__version__ = {current_version}"
+replace = "__version__ = {new_version}"
