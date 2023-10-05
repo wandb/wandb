@@ -1371,24 +1371,26 @@ def launch(
             sys.exit(e)
     else:
         try:
-            _launch_add(
-                api,
-                uri,
-                job,
-                config,
-                project,
-                entity,
-                queue,
-                resource,
-                entry_point,
-                name,
-                git_version,
-                docker_image,
-                project_queue,
-                resource_args,
-                build=build,
-                run_id=run_id,
-                repository=repository,
+            asyncio.run(
+                _launch_add(
+                    api,
+                    uri,
+                    job,
+                    config,
+                    project,
+                    entity,
+                    queue,
+                    resource,
+                    entry_point,
+                    name,
+                    git_version,
+                    docker_image,
+                    project_queue,
+                    resource_args,
+                    build=build,
+                    run_id=run_id,
+                    repository=repository,
+                )
             )
         except Exception as e:
             wandb._sentry.exception(e)
