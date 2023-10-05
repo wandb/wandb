@@ -1,12 +1,12 @@
 """Monitors kubernetes resources managed by the launch agent."""
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-import kubernetes_asyncio  # noqa: F401
+import kubernetes_asyncio  # type: ignore # noqa: F401
 import urllib3
-from kubernetes_asyncio import watch  # noqa: F401
-from kubernetes_asyncio.client import (  # noqa: F401
+from kubernetes_asyncio import watch
+from kubernetes_asyncio.client import (  # type: ignore  # noqa: F401
     ApiException,
     BatchV1Api,
     CoreV1Api,
@@ -16,8 +16,8 @@ from kubernetes_asyncio.client import (  # noqa: F401
 
 import wandb
 
-from ..errors import LaunchError
 from ..agent import LaunchAgent
+from ..errors import LaunchError
 from ..runner.abstract import State, Status
 
 
@@ -100,7 +100,7 @@ class LaunchKubernetesMonitor:
 
     _instance = None  # This is used to ensure only one instance is created.
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> "LaunchKubernetesMonitor":
         """Create a new instance of the LaunchKubernetesMonitor.
 
         This method ensures that only one instance of the LaunchKubernetesMonitor
@@ -109,7 +109,10 @@ class LaunchKubernetesMonitor:
         """
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-        return cls._instance
+        raise LaunchError(
+            "LaunchKubernetesMonitor is a singleton. "
+            "Use LaunchKubernetesMonitor.ensure_initialized() instead."
+        )
 
     def __init__(
         self,
@@ -127,7 +130,7 @@ class LaunchKubernetesMonitor:
 
         # Dict mapping a tuple of (namespace, resource_type) to an
         # asyncio.Task that is monitoring that resource type in that namespace.
-        self._monitor_tasks: Dict[tuple(str), asyncio.Task] = dict()
+        self._monitor_tasks: Dict[Tuple[str, str], asyncio.Task] = dict()
 
         # Map from job name to job state.
         self._job_states: Dict[str, Status] = dict()
@@ -156,7 +159,9 @@ class LaunchKubernetesMonitor:
             )
 
     @classmethod
-    def monitor_namespace(cls, namespace: str, custom_resource=None) -> None:
+    def monitor_namespace(
+        cls, namespace: str, custom_resource: Optional[str] = None
+    ) -> None:
         """Start monitoring a namespaces for resources."""
         if cls._instance is None:
             raise LaunchError("LaunchKubernetesMonitor not initialized.")
@@ -170,7 +175,7 @@ class LaunchKubernetesMonitor:
         return cls._instance.__get_status(job_name)
 
     @classmethod
-    def status_count(cls) -> Dict[str, int]:
+    def status_count(cls) -> Dict[State, int]:
         """Get a dictionary mapping statuses to the # monitored jobs with each status."""
         if cls._instance is None:
             raise ValueError("LaunchKubernetesMonitor not initialized.")
@@ -207,10 +212,11 @@ class LaunchKubernetesMonitor:
         state = self._job_states[job_name]
         return state
 
-    def __status_count(self) -> Dict[str, int]:
+    def __status_count(self) -> Dict[State, int]:
         """Get a dictionary mapping statuses to the # monitored jobs with each status."""
         counts = dict()
-        for _, state in self._job_states.items():
+        for _, status in self._job_states.items():
+            state = status.state
             if state not in counts:
                 counts[state] = 1
             else:

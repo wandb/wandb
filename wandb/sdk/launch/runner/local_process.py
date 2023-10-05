@@ -95,5 +95,5 @@ class LocalProcessRunner(AbstractRunner):
         wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
-            run.wait()
+            await run.wait()
         return run

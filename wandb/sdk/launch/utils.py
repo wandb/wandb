@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Callable, Coroutine
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import click
 
@@ -66,7 +66,7 @@ MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
 
-def threaded(func: Callable) -> Callable:
+def threaded(func: Callable) -> Any:
     """Wrapper for making a function run in a thread.
 
     This can be used a decorator for a function that you want to run in a thread.
@@ -79,7 +79,7 @@ def threaded(func: Callable) -> Callable:
     The returned function must be called within an active event loop.
     """
 
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, lambda: func(*args, **kwargs))
         return result

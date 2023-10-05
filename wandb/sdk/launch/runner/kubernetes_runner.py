@@ -29,7 +29,6 @@ from ..utils import (
     make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner
-from .kubernetes_monitor import KubernetesRunMonitor
 
 get_module(
     "kubernetes",
@@ -46,7 +45,6 @@ from kubernetes_asyncio.client.api.core_v1_api import (  # type: ignore # noqa: 
 from kubernetes_asyncio.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
-from kubernetes_asyncio.client.models.v1_job import V1Job  # type: ignore # noqa: E402
 from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa: E402
     V1Secret,
 )

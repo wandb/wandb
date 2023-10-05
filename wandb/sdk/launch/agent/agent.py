@@ -131,7 +131,7 @@ class LaunchAgent:
 
     _instance = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> "LaunchAgent":
         """Create a new instance of the LaunchAgent.
 
         This method ensures that only one instance of the LaunchAgent is created.
@@ -139,29 +139,23 @@ class LaunchAgent:
         elsewhere in the library.
         """
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+            cls._instance = super().__new__(cls, *args, **kwargs)
+        raise LaunchError("LaunchAgent has already been initialized")
 
     @classmethod
     def name(cls) -> str:
         """Return the name of the agent."""
-        cls._check_initialized()
-        return cls._instance._name
+        if cls._instance is None:
+            raise LaunchError("LaunchAgent has not been initialized")
+        name = cls._instance._name
+        if isinstance(name, str):
+            return name
+        raise LaunchError(f"Found invalid name for agent {name}")
 
     @classmethod
     def initialized(cls) -> bool:
         """Return whether the agent is initialized."""
-        try:
-            cls._check_initialized()
-            return True
-        except LaunchError:
-            return False
-
-    @classmethod
-    def _check_initialized(cls) -> None:
-        """Check that the agent has been initialized."""
-        if cls._instance is None:
-            raise LaunchError("LaunchAgent not initialized")
+        return cls._instance is not None
 
     def __init__(self, api: Api, config: Dict[str, Any]):
         """Initialize a launch agent.
@@ -381,7 +375,7 @@ class LaunchAgent:
                     # first try, in case the logs are cleaned from the runner
                     # environment (e.g. k8s) during the run info grace period.
                     if interval == 1:
-                        logs = job_and_run_status.run.get_logs()
+                        logs = await job_and_run_status.run.get_logs()
                     await asyncio.sleep(interval)
                     interval *= 2
 
@@ -641,7 +635,7 @@ class LaunchAgent:
 
         if not (project.docker_image or isinstance(backend, LocalProcessRunner)):
             assert entrypoint is not None
-            image_uri = builder.build_image(project, entrypoint, job_tracker)
+            image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
         _logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):
@@ -667,10 +661,10 @@ class LaunchAgent:
         stopped_time: Optional[float] = None
         while self._jobs_event.is_set():
             # If run has failed to start before timeout, kill it
-            state = run.get_status().state
+            state = (await run.get_status()).state
             if state == "starting" and RUN_START_TIMEOUT > 0:
                 if time.time() - start_time > RUN_START_TIMEOUT:
-                    run.cancel()
+                    await run.cancel()
                     raise LaunchError(
                         f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
                         "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
@@ -683,7 +677,7 @@ class LaunchAgent:
                     stopped_time = time.time()
                 else:
                     if time.time() - stopped_time > MAX_WAIT_RUN_STOPPED:
-                        run.cancel()
+                        await run.cancel()
             await asyncio.sleep(AGENT_POLLING_INTERVAL)
 
         # temp: for local, kill all jobs. we don't yet have good handling for different
@@ -709,7 +703,7 @@ class LaunchAgent:
         known_error = False
         try:
             run = job_tracker.run
-            status = await run.get_status().state
+            status = (await run.get_status()).state
 
             if status == "preempted" and job_tracker.entity == self._entity:
                 config = launch_spec.copy()

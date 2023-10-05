@@ -125,7 +125,7 @@ def create_and_run_agent(
     asyncio.run(agent.loop())
 
 
-def _launch(
+async def _launch(
     api: Api,
     uri: Optional[str] = None,
     job: Optional[str] = None,
@@ -181,7 +181,7 @@ def _launch(
     builder = loader.builder_from_config(build_config, environment, registry)
     if not launch_project.docker_image:
         assert entrypoint
-        image_uri = builder.build_image(launch_project, entrypoint, None)
+        image_uri = await builder.build_image(launch_project, entrypoint, None)
     backend = loader.runner_from_config(
         resource, api, runner_config, environment, registry
     )
@@ -261,23 +261,25 @@ def launch(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-    submitted_run_obj = _launch(
-        # TODO: fully deprecate URI path
-        uri=None,
-        job=job,
-        name=name,
-        project=project,
-        entity=entity,
-        docker_image=docker_image,
-        entry_point=entry_point,
-        version=version,
-        resource=resource,
-        resource_args=resource_args,
-        launch_config=config,
-        synchronous=synchronous,
-        api=api,
-        run_id=run_id,
-        repository=repository,
+    submitted_run_obj = asyncio.run(
+        _launch(
+            # TODO: fully deprecate URI path
+            uri=None,
+            job=job,
+            name=name,
+            project=project,
+            entity=entity,
+            docker_image=docker_image,
+            entry_point=entry_point,
+            version=version,
+            resource=resource,
+            resource_args=resource_args,
+            launch_config=config,
+            synchronous=synchronous,
+            api=api,
+            run_id=run_id,
+            repository=repository,
+        )
     )
 
     return submitted_run_obj

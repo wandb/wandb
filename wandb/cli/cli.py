@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import asyncio
 import configparser
 import datetime
 import getpass
@@ -1334,22 +1335,24 @@ def launch(
     if queue is None:
         # direct launch
         try:
-            run = _launch(
-                api,
-                uri,
-                job,
-                project=project,
-                entity=entity,
-                docker_image=docker_image,
-                name=name,
-                entry_point=entry_point,
-                version=git_version,
-                resource=resource,
-                resource_args=resource_args,
-                launch_config=config,
-                synchronous=(not run_async),
-                run_id=run_id,
-                repository=repository,
+            run = asyncio.run(
+                _launch(
+                    api,
+                    uri,
+                    job,
+                    project=project,
+                    entity=entity,
+                    docker_image=docker_image,
+                    name=name,
+                    entry_point=entry_point,
+                    version=git_version,
+                    resource=resource,
+                    resource_args=resource_args,
+                    launch_config=config,
+                    synchronous=(not run_async),
+                    run_id=run_id,
+                    repository=repository,
+                )
             )
             if run.get_status().state in ["failed", "stopped", "preempted"]:
                 wandb.termerror("Launched run exited with non-zero status")
