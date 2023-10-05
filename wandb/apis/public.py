@@ -450,7 +450,7 @@ class Api:
         access: "RunQueueAccessType",
         entity: Optional[str] = None,
         config: Optional[dict] = None,
-    ) -> None:
+    ) -> "RunQueue":
         """Create a new run queue (launch).
 
         Arguments:
