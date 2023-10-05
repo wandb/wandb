@@ -144,6 +144,7 @@ class InterfaceShared(InterfaceBase):
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
         job_info: Optional[pb.JobInfoRequest] = None,
+        get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -198,6 +199,8 @@ class InterfaceShared(InterfaceBase):
             request.telemetry_record.CopyFrom(telemetry_record)
         elif job_info:
             request.job_info.CopyFrom(job_info)
+        elif get_system_metrics:
+            request.get_system_metrics.CopyFrom(get_system_metrics)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -435,6 +438,12 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         record = self._make_request(get_summary=get_summary)
+        return self._deliver_record(record)
+
+    def _deliver_get_system_metrics(
+        self, get_system_metrics: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        record = self._make_request(get_system_metrics=get_system_metrics)
         return self._deliver_record(record)
 
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:

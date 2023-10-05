@@ -4,11 +4,14 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/url"
 	"sync"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/wandb/wandb/nexus/pkg/auth"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -18,8 +21,8 @@ import (
 )
 
 const (
-	messageSize    = 1024 * 1024      // 1MB message size
-	maxMessageSize = 64 * 1024 * 1024 // 64MB max message size
+	messageSize    = 1024 * 1024            // 1MB message size
+	maxMessageSize = 2 * 1024 * 1024 * 1024 // 2GB max message size
 )
 
 // Connection is the connection for a stream.
@@ -156,6 +159,9 @@ func (nc *Connection) readConnection() {
 			nc.inChan <- msg
 		}
 	}
+	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {
+		panic(scanner.Err())
+	}
 	close(nc.inChan)
 }
 
@@ -266,9 +272,16 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 // handleInformStart is called when the client sends an InformStart message
 // TODO: probably can remove this, we should be able to update the settings
 // using the regular InformRecord messages
-func (nc *Connection) handleInformStart(_ *service.ServerInformStartRequest) {
+func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// todo: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
+	nc.stream.settings = msg.GetSettings()
+	// update sentry tags
+	// add attrs from settings:
+	nc.stream.logger.SetTags(observability.Tags{
+		"run_url": nc.stream.settings.GetRunUrl().GetValue(),
+		"entity":  nc.stream.settings.GetEntity().GetValue(),
+	})
 }
 
 // handleInformAttach is called when the client sends an InformAttach message

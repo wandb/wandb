@@ -20,13 +20,16 @@ jobs: # update the docs.
       - name: Prepare wandb-branch value
         run: |
           REF_VALUE="${{ github.event.inputs.ref }}"
+          if [[ -z "$REF_VALUE" ]]; then
+            REF_VALUE="${{ github.event.release.tag_name }}"
+          fi
           if [[ "$REF_VALUE" == refs/tags/* ]]; then
           echo "WANDB_BRANCH=${REF_VALUE/refs\/tags\//}" >> "$GITHUB_ENV"
           else
           echo "WANDB_BRANCH=${REF_VALUE}" >> "$GITHUB_ENV"
           fi
 
-      - uses: wandb/docugen@v0.4.1
+      - uses: wandb/docugen@v0.4.2
         with:
           docodile-branch: main
           wandb-branch: $WANDB_BRANCH

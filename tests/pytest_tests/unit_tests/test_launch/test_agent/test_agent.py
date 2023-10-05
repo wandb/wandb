@@ -1,9 +1,10 @@
+import threading
 from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import CommError
 from wandb.sdk.launch.agent.agent import JobAndRunStatusTracker, LaunchAgent
-from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.errors import LaunchDockerError, LaunchError
 
 
 def _setup(mocker):
@@ -19,6 +20,17 @@ def _setup(mocker):
     mocker.patch("wandb.termwarn", mocker.termwarn)
     mocker.patch("wandb.termerror", mocker.termerror)
     mocker.patch("wandb.init", mocker.wandb_init)
+
+    mocker.status = MagicMock()
+    mocker.status.state = "running"
+    mocker.run = MagicMock()
+    mocker.run.get_status = MagicMock(return_value=mocker.status)
+    mocker.runner = MagicMock()
+    mocker.runner.run = MagicMock(return_value=mocker.run)
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.runner_from_config",
+        return_value=mocker.runner,
+    )
 
 
 def test_loop_capture_stack_trace(mocker):
@@ -460,3 +472,78 @@ def test_thread_finish_run_info_backoff(mocker):
     assert mocker.api.fail_run_queue_item.called
     # we should be able to call get_run_info  at 0, 1, 3, 7, 15, 31, 63 seconds
     assert mocker.api.get_run_info.call_count == 7
+
+
+@pytest.mark.parametrize(
+    "exception",
+    [
+        LaunchDockerError("launch docker error"),
+        LaunchError("launch error"),
+        Exception("exception"),
+        None,
+    ],
+)
+def test_thread_run_job_calls_finish_thread_id(mocker, exception):
+    _setup(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker(
+        "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
+    )
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+
+    def mock_thread_run_job(*args, **kwargs):
+        if exception is not None:
+            raise exception
+        return None
+
+    agent._thread_run_job = mock_thread_run_job
+    mock_finish_thread_id = MagicMock()
+    agent.finish_thread_id = mock_finish_thread_id
+    agent.thread_run_job({}, {}, {}, MagicMock(), job)
+
+    mock_finish_thread_id.assert_called_once_with(
+        threading.current_thread().ident, exception
+    )
+
+
+def test_inner_thread_run_job(mocker):
+    _setup(mocker)
+    mocker.patch("wandb.sdk.launch.agent.agent.MAX_WAIT_RUN_STOPPED", new=0)
+    mocker.patch("wandb.sdk.launch.agent.agent.AGENT_POLLING_INTERVAL", new=0)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    mock_saver = MagicMock()
+    job = JobAndRunStatusTracker(
+        "run_queue_item_id", "test-queue", mock_saver, run=MagicMock()
+    )
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_spec = {
+        "docker": {"docker_image": "blah-blah:latest"},
+        "entity": "user",
+        "project": "test",
+    }
+
+    mocker.api.check_stop_requested = True
+    cancel = MagicMock()
+    mocker.run.cancel = cancel
+
+    def side_effect_func():
+        job.completed_status = True
+
+    cancel.side_effect = side_effect_func
+
+    agent._thread_run_job(
+        mock_spec,
+        {"runQueueItemId": "blah"},
+        {},
+        mocker.api,
+        threading.current_thread().ident,
+        job,
+    )
+    cancel.assert_called_once()
