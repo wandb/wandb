@@ -23,6 +23,7 @@ from ..utils import (
     docker_image_exists,
     pull_docker_image,
     sanitize_wandb_api_key,
+    threaded,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -63,10 +64,11 @@ class LocalSubmittedRun(AbstractRun):
                 await asyncio.sleep(5)
                 # command proc can be updated by another thread
                 if self._command_proc is not None:
-                    return self._command_proc.wait() == 0  # type: ignore
-            return False
-
-        return self._command_proc.wait() == 0
+                    break
+            else:
+                return False
+        wait = threaded(self._command_proc.wait)
+        return (await wait()) == 0
 
     async def get_logs(self) -> Optional[str]:
         return self._stdout
