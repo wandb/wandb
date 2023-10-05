@@ -182,42 +182,26 @@ class JobBuilder:
                     if p == "..":
                         count_dots += 1
                 full_program_path = "/".join(split_path[2 * count_dots :])
-
         else:
             full_program_path = program_relpath
 
+        entrypoint, notebook = self._get_entrypoint_and_notebook(
+            full_program_path, metadata
+        )
         # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
-            "git": {
-                "remote": remote,
-                "commit": commit,
-            },
-            "entrypoint": [
-                os.path.basename(sys.executable),
-                full_program_path,
-            ],
-            "notebook": self._is_notebook_run,
+            "git": {"remote": remote, "commit": commit},
+            "entrypoint": entrypoint,
+            "notebook": notebook,
         }
+        name = self._make_job_name(f"job-{remote}_{program_relpath}")
 
-        if self._settings.job_name:
-            name = self._settings.job_name
-        else:
-            name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
-        # if building a partial job from CLI, don't construct local entrypoint
-        # or notebook flag entrypoint should already be in metadata from create_job
-        if metadata.get("_partial"):
-            assert "entrypoint" in metadata
-            assert "notebook" in metadata
-            source.update(
-                {
-                    "entrypoint": metadata["entrypoint"],
-                    "notebook": metadata["notebook"],
-                }
-            )
         return source, name
 
     def _build_artifact_job_source(
-        self, program_relpath: str, runtime: str
+        self,
+        program_relpath: str,
+        metadata: Dict[str, Any],
     ) -> Tuple[Optional[ArtifactSourceDict], Optional[str]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
@@ -233,19 +217,18 @@ class JobBuilder:
                 full_program_relpath = os.path.basename(program_relpath)
         else:
             full_program_relpath = program_relpath
-        python = f"python{'.'.join(runtime.split('.')[:2])}"
-        entrypoint = [python, full_program_relpath]
+
+        entrypoint, notebook = self._get_entrypoint_and_notebook(
+            full_program_relpath,
+            metadata,
+        )
         # TODO: update executable to a method that supports pex
         source: ArtifactSourceDict = {
             "entrypoint": entrypoint,
-            "notebook": self._is_notebook_run,
+            "notebook": notebook,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
-
-        if self._settings.job_name:
-            name = self._settings.job_name
-        else:
-            name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+        name = self._make_job_name(self._logged_code_artifact["name"])
 
         return source, name
 
@@ -260,14 +243,36 @@ class JobBuilder:
             raw_image_name, tag = image_name.split(":")
             self._aliases += [tag]
 
-        if self._settings.job_name:
-            name = self._settings.job_name
-        else:
-            name = make_artifact_name_safe(f"job-{raw_image_name}")
         source: ImageSourceDict = {
             "image": image_name,
         }
+        name = self._make_job_name(raw_image_name)
+
         return source, name
+
+    def _make_job_name(self, input_str: str) -> str:
+        """Use job name from settings if provided, else use programatic name."""
+        if self._settings.job_name:
+            return self._settings.job_name
+
+        return make_artifact_name_safe(f"job-{input_str}")
+
+    def _get_entrypoint_and_notebook(
+        self,
+        program_relpath: str,
+        metadata: Dict[str, Any],
+    ):
+        # if building a partial job from CLI, overwrite entrypoint and notebook
+        # should already be in metadata from create_job
+        if metadata.get("_partial"):
+            assert "entrypoint" in metadata
+            assert "notebook" in metadata
+            return metadata["entrypoint"], metadata["notebook"]
+
+        # job is being built from a run
+        entrypoint = [os.path.basename(sys.executable), program_relpath]
+
+        return entrypoint, self._is_notebook_run
 
     def _get_is_notebook_run(self) -> bool:
         return hasattr(self._settings, "_jupyter") and bool(self._settings._jupyter)
