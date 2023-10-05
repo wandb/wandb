@@ -749,5 +749,7 @@ class LaunchAgent:
         for queue in self._queues:
             job = self.pop_from_queue(queue)
             if job is not None:
+                self._queues.remove(queue)
+                self._queues.append(queue)
                 return JobSpecAndQueue(job, queue)
         return None
