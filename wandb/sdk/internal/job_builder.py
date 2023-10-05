@@ -148,11 +148,11 @@ class JobBuilder:
         self,
         metadata: Dict[str, Any],
         program_relpath: str,
-        root: Optional[str],
     ) -> Tuple[Optional[GitSourceDict], Optional[str]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
+        root = metadata.get("root")
         assert remote is not None
         assert commit is not None
         if self._is_notebook_run:
@@ -330,11 +330,7 @@ class JobBuilder:
             # make source dict
             if source_type == "repo":
                 assert program_relpath
-                source, name = self._build_repo_job_source(
-                    metadata,
-                    program_relpath,
-                    metadata.get("root"),
-                )
+                source, name = self._build_repo_job_source(metadata, program_relpath)
             elif source_type == "artifact":
                 assert program_relpath
                 source, name = self._build_artifact_job_source(program_relpath, metadata)
