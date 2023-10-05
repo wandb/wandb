@@ -584,6 +584,7 @@ class Run:
         self._config._set_settings(self._settings)
         self._backend = None
         self._internal_run_interface = None
+        # todo: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
