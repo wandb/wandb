@@ -264,6 +264,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	}
 }
 
+//gocyclo:ignore
 func (h *Handler) handleRequest(record *service.Record) {
 	shutdown := false
 	request := record.GetRequest()
@@ -291,7 +292,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		shutdown = true
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
-		h.handleLogArtifact(record, x.LogArtifact, response)
+		h.handleLogArtifact(record)
+		response = nil
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
@@ -301,12 +303,16 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleResume()
 	case *service.Request_Cancel:
 		h.handleCancel(record)
+	case *service.Request_GetSystemMetrics:
+		h.handleGetSystemMetrics(record, response)
 	case *service.Request_InternalMessages:
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
-	h.sendResponse(record, response)
+	if response != nil {
+		h.sendResponse(record, response)
+	}
 
 	// shutdown request indicates that we have gone through the exit path and
 	// have sent all the requests needed to extract the final bits of information
@@ -355,7 +361,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	)
 }
 
-func (h *Handler) handleLogArtifact(record *service.Record, _ *service.LogArtifactRequest, _ *service.Response) {
+func (h *Handler) handleLogArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
@@ -577,6 +583,32 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 		GetSummaryResponse: &service.GetSummaryResponse{
 			Item: items,
 		},
+	}
+}
+
+func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Response) {
+	sm := h.systemMonitor.GetBuffer()
+
+	response.ResponseType = &service.Response_GetSystemMetricsResponse{
+		GetSystemMetricsResponse: &service.GetSystemMetricsResponse{
+			SystemMetrics: make(map[string]*service.SystemMetricsBuffer),
+		},
+	}
+
+	for key, samples := range sm {
+		buffer := make([]*service.SystemMetricSample, 0, len(samples.GetElements()))
+
+		// convert samples to buffer:
+		for _, sample := range samples.GetElements() {
+			buffer = append(buffer, &service.SystemMetricSample{
+				Timestamp: sample.Timestamp,
+				Value:     float32(sample.Value),
+			})
+		}
+		// add to response as map key: buffer
+		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &service.SystemMetricsBuffer{
+			Record: buffer,
+		}
 	}
 }
 

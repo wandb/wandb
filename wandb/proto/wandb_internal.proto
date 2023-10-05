@@ -508,6 +508,7 @@ message Request {
     SummaryRecordRequest  summary_record = 71;
     TelemetryRecordRequest telemetry_record = 72;
     JobInfoRequest      job_info = 73;
+    GetSystemMetricsRequest     get_system_metrics = 74;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -535,6 +536,7 @@ message Response {
     StatusResponse         status_response = 66;
     ServerInfoResponse     server_info_response = 67;
     JobInfoResponse        job_info_response = 68;
+    GetSystemMetricsResponse     get_system_metrics_response = 69;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -605,6 +607,26 @@ message GetSummaryRequest {
 
 message GetSummaryResponse {
   repeated SummaryItem item = 1;
+}
+
+/*
+ * GetSystemMetrics: request system metrics
+ */
+message GetSystemMetricsRequest {
+  _RequestInfo _info = 200;
+}
+
+message SystemMetricSample {
+  google.protobuf.Timestamp timestamp = 1;
+  float value = 2;
+}
+
+message SystemMetricsBuffer {
+  repeated SystemMetricSample record = 1;
+}
+
+message GetSystemMetricsResponse{
+  map<string, SystemMetricsBuffer> system_metrics = 1;
 }
 
 /*
