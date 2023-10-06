@@ -123,15 +123,6 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         # we need to maintain best metric locally.
         self._local_best = self.best
 
-        # If this is true and filepath ends with .h5 or .keras
-        # extentions, the base class will error out
-        if save_weights_only:
-            if filepath.endswith(".h5") or filepath.endswith(".keras"):
-                raise FileNotFoundError(
-                    f"Since save_weights_only is True, the filepath should not "
-                    "end with a .h5 or .keras extension."
-                )
-
     def on_train_batch_end(
         self, batch: int, logs: Optional[Dict[str, float]] = None
     ) -> None:
@@ -172,7 +163,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
                     aliases.append("best")
                     self._log_ckpt_as_artifact(filepath, aliases=aliases)
             else:
-                self._log_ckpt_as_artifact(filepath, aliases=aliases)                                    
+                self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
     def _log_ckpt_as_artifact(
         self, filepath: str, aliases: Optional[List[str]] = None
@@ -210,6 +201,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             pass
 
     def _is_best_checkpoint(self, logs: Optional[Dict] = None) -> Optional[bool]:
+        logs = logs or {}
         current = logs.get(self.monitor)
         if current is not None and self.monitor_op(current, self._local_best):
             self._local_best = current
