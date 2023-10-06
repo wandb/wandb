@@ -8,7 +8,6 @@ import subprocess
 import sys
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
-from typing_extensions import Protocol
 
 import click
 
