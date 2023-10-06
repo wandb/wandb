@@ -49,6 +49,9 @@ class GitRepo:
             return None
         try:
             return Repo(self._root or os.getcwd(), search_parent_directories=True)
+        except FileNotFoundError:
+            wandb.termwarn("current working directory has been invalidated")
+            logger.warn("current working directory has been invalidated")
         except InvalidGitRepositoryError:
             logger.debug("git repository is invalid")
         except NoSuchPathError:

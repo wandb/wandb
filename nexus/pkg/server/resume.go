@@ -7,6 +7,7 @@ import (
 	"github.com/wandb/wandb/nexus/internal/gql"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/nexus/pkg/utils"
 )
 
 type ResumeState struct {
@@ -56,7 +57,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record, run *service.
 
 	s.resumeState = NewResumeState()
 	// If we couldn't get the resume status, we should fail if resume is set
-	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, emptyAsNil(&run.Entity), run.RunId)
+	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
 	if err != nil {
 		err = fmt.Errorf("failed to get run resume status: %s", err)
 		s.logger.Error("sender:", "error", err)
