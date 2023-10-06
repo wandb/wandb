@@ -23,6 +23,7 @@ from wandb.sdk.lib import runid
 from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.build import construct_agent_configs
+from ..builder.noop import NoOpBuilder
 from ..errors import LaunchDockerError, LaunchError
 from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
 from .job_status_tracker import JobAndRunStatusTracker
@@ -634,7 +635,7 @@ class LaunchAgent:
         if registry is not None:
             await registry.verify()
         builder = loader.builder_from_config(build_config, environment, registry)
-        if builder is not None:
+        if builder is not None and not isinstance(builder, NoOpBuilder):
             await builder.verify()
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
