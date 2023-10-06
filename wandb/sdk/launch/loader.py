@@ -98,10 +98,14 @@ def registry_from_config(
         from .environment.aws_environment import AwsEnvironment
 
         if not isinstance(environment, AwsEnvironment):
-            raise LaunchError(
-                "Could not create ECR registry. "
-                "Environment must be an instance of AWSEnvironment."
-            )
+            try:
+                environment = AwsEnvironment.from_default()
+            except LaunchError as e:
+                wandb.termerror(e)
+                raise LaunchError(
+                    "Could not create ECR client. "
+                    "Environment must be an instance of AwsEnvironment."
+                ) from e
         from .registry.elastic_container_registry import ElasticContainerRegistry
 
         return ElasticContainerRegistry.from_config(config, environment)
@@ -233,10 +237,14 @@ def runner_from_config(
         from .environment.aws_environment import AwsEnvironment
 
         if not isinstance(environment, AwsEnvironment):
-            raise LaunchError(
-                "Could not create Sagemaker runner. "
-                "Environment must be an instance of AwsEnvironment."
-            )
+            try:
+                environment = AwsEnvironment.from_default()
+            except LaunchError as e:
+                wandb.termerror(e)
+                raise LaunchError(
+                    "Could not create Sagemaker runner. "
+                    "Environment must be an instance of AwsEnvironment."
+                ) from e
         from .runner.sagemaker_runner import SageMakerRunner
 
         return SageMakerRunner(api, runner_config, environment, registry)
@@ -244,7 +252,7 @@ def runner_from_config(
         from .environment.gcp_environment import GcpEnvironment
 
         if not isinstance(environment, GcpEnvironment):
-            wandb.termwarn("Attempting to load GCP configuration from user settings.")
+            wandb.terminfo("Attempting to load GCP configuration from user settings.")
             try:
                 environment = GcpEnvironment.from_default()
             except LaunchError as e:

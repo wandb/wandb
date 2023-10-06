@@ -14,7 +14,13 @@ from wandb.sdk.launch.errors import LaunchError
 from .._project_spec import EntryPoint, LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..registry.abstract import AbstractRegistry
-from ..utils import LOG_PREFIX, MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, to_camel_case
+from ..utils import (
+    LOG_PREFIX,
+    MAX_ENV_LENGTHS,
+    PROJECT_SYNCHRONOUS,
+    to_camel_case,
+    threaded,
+)
 from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
@@ -43,7 +49,8 @@ class SagemakerSubmittedRun(AbstractRun):
         if self.log_client is None:
             return None
         try:
-            describe_res = self.log_client.describe_log_streams(
+            describe_log_streams = threaded(self.log_client.describe_log_streams)
+            describe_res = await describe_log_streams(
                 logGroupName="/aws/sagemaker/TrainingJobs",
                 logStreamNamePrefix=self.training_job_name,
             )
@@ -53,7 +60,8 @@ class SagemakerSubmittedRun(AbstractRun):
                 )
                 return None
             log_name = describe_res["logStreams"][0]["logStreamName"]
-            res = self.log_client.get_log_events(
+            get_log_events = threaded(self.log_client.get_log_events)
+            res = await get_log_events(
                 logGroupName="/aws/sagemaker/TrainingJobs",
                 logStreamName=log_name,
             )
@@ -90,8 +98,9 @@ class SagemakerSubmittedRun(AbstractRun):
             await self.wait()
 
     async def get_status(self) -> Status:
-        job_status = self.client.describe_training_job(
-            TrainingJobName=self.training_job_name
+        describe_training_job = threaded(self.client.describe_training_job)
+        job_status = (
+            await describe_training_job(TrainingJobName=self.training_job_name)
         )["TrainingJobStatus"]
         if job_status == "Completed" or job_status == "Stopped":
             self._status = Status("finished")
@@ -197,7 +206,7 @@ class SageMakerRunner(AbstractRunner):
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
-            run = launch_sagemaker_job(
+            run = await launch_sagemaker_job(
                 launch_project, sagemaker_args, sagemaker_client, log_client
             )
             if self.backend_config[PROJECT_SYNCHRONOUS]:
@@ -233,7 +242,7 @@ class SageMakerRunner(AbstractRunner):
             default_output_path,
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
-        run = launch_sagemaker_job(
+        run = await launch_sagemaker_job(
             launch_project, sagemaker_args, sagemaker_client, log_client
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
@@ -361,14 +370,15 @@ def build_sagemaker_args(
     return filtered_args
 
 
-def launch_sagemaker_job(
+async def launch_sagemaker_job(
     launch_project: LaunchProject,
     sagemaker_args: Dict[str, Any],
     sagemaker_client: "boto3.Client",
     log_client: Optional["boto3.Client"] = None,
 ) -> SagemakerSubmittedRun:
     training_job_name = sagemaker_args.get("TrainingJobName") or launch_project.run_id
-    resp = sagemaker_client.create_training_job(**sagemaker_args)
+    create_training_job = threaded(sagemaker_client.create_training_job)
+    resp = await create_training_job(**sagemaker_args)
 
     if resp.get("TrainingJobArn") is None:
         raise LaunchError("Failed to create training job when submitting to SageMaker")

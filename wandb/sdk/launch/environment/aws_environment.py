@@ -56,20 +56,20 @@ class AwsEnvironment(AbstractEnvironment):
             self.verify()
 
     @classmethod
-    def from_default(cls, region: str, verify: bool = True) -> "AwsEnvironment":
+    def from_default(cls, region: str = None, verify: bool = True) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
 
         Arguments:
-            region (str): The AWS region.
+            region (str, optional): The AWS region.
             verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
 
         Returns:
             AwsEnvironment: The AWS environment.
         """
-        _logger.info("Creating AWS environment from default credentials.")
+        _logger.info("Creating AWS environment from defsault credentials.")
         try:
             session = boto3.Session()
-            region = region or session.region_name
+            region = region or session.region_name or os.environ.get("AWS_REGION")
             credentials = session.get_credentials()
             if not credentials:
                 raise LaunchError(
@@ -81,6 +81,10 @@ class AwsEnvironment(AbstractEnvironment):
         except botocore.client.ClientError as e:
             raise LaunchError(
                 f"Could not create AWS environment from default environment. Please verify that your AWS credentials are configured correctly. {e}"
+            )
+        if not region:
+            raise LaunchError(
+                "Could not create AWS environment from default environment. Region not specified."
             )
         return cls(
             region=region,
