@@ -1,4 +1,5 @@
 import os
+import glob
 import string
 import sys
 from typing import Any, Dict, List, Optional, Union
@@ -118,6 +119,19 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
 
         self._is_old_tf_keras_version: Optional[bool] = None
 
+        # Since self.best is updated in the base class's _save_model method
+        # we need to maintain best metric locally.
+        self._local_best = self.best
+
+        # If this is true and filepath ends with .h5 or .keras
+        # extentions, the base class will error out
+        if save_weights_only:
+            if filepath.endswith(".h5") or filepath.endswith(".keras"):
+                raise FileNotFoundError(
+                    f"Since save_weights_only is True, the filepath should not "
+                    "end with a .h5 or .keras extension."
+                )
+
     def on_train_batch_end(
         self, batch: int, logs: Optional[Dict[str, float]] = None
     ) -> None:
@@ -134,7 +148,12 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
                 )
             # Log the model as artifact
             aliases = ["latest", f"epoch_{self._current_epoch}_batch_{batch}"]
-            self._log_ckpt_as_artifact(filepath, aliases=aliases)
+            if self.save_best_only:
+                if self._is_best_checkpoint(logs):
+                    aliases.append("best")
+                    self._log_ckpt_as_artifact(filepath, aliases=aliases)
+            else:
+                self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, float]] = None) -> None:
         super().on_epoch_end(epoch, logs)
@@ -145,31 +164,58 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
                 filepath = self._get_file_path(epoch=epoch, logs=logs)
             else:
                 filepath = self._get_file_path(epoch=epoch, batch=None, logs=logs)
+
             # Log the model as artifact
             aliases = ["latest", f"epoch_{epoch}"]
-            self._log_ckpt_as_artifact(filepath, aliases=aliases)
+            if self.save_best_only:
+                if self._is_best_checkpoint(logs):
+                    aliases.append("best")
+                    self._log_ckpt_as_artifact(filepath, aliases=aliases)
+            else:
+                self._log_ckpt_as_artifact(filepath, aliases=aliases)                                    
 
     def _log_ckpt_as_artifact(
         self, filepath: str, aliases: Optional[List[str]] = None
     ) -> None:
         """Log model checkpoint as  W&B Artifact."""
+        assert wandb.run is not None
         try:
-            assert wandb.run is not None
             model_checkpoint_artifact = wandb.Artifact(
                 f"run_{wandb.run.id}_model", type="model"
             )
-            if os.path.isfile(filepath):
-                model_checkpoint_artifact.add_file(filepath)
-            elif os.path.isdir(filepath):
-                model_checkpoint_artifact.add_dir(filepath)
+            if self.save_weights_only:
+                # We get three files when this is True
+                model_checkpoint_artifact.add_file(
+                    os.path.join(os.path.dirname(filepath), "checkpoint")
+                )
+                model_checkpoint_artifact.add_file(filepath + ".index")
+                # In a distributed setting we get multiple shards.
+                for file in glob.glob(f"{filepath}.data-*"):
+                    model_checkpoint_artifact.add_file(file)
             else:
-                raise FileNotFoundError(f"No such file or directory {filepath}")
+                if filepath.endswith(".h5"):
+                    # Model saved in .h5 format thus we get one file.
+                    model_checkpoint_artifact.add_file(filepath)
+                elif filepath.endswith(".keras"):
+                    # Model saved in .keras format thus we get one file.
+                    model_checkpoint_artifact.add_file(filepath)
+                else:
+                    # Model saved in the SavedModel format thus we have dir.
+                    model_checkpoint_artifact.add_dir(filepath)
             wandb.log_artifact(model_checkpoint_artifact, aliases=aliases or [])
-        except ValueError:
+        except ValueError as e:
             # This error occurs when `save_best_only=True` and the model
             # checkpoint is not saved for that epoch/batch. Since TF/Keras
             # is giving friendly log, we can avoid clustering the stdout.
             pass
+
+    def _is_best_checkpoint(self, logs: Optional[Dict] = None) -> Optional[bool]:
+        current = logs.get(self.monitor)
+        if current is not None and self.monitor_op(current, self._local_best):
+            self._local_best = current
+            return True
+        else:
+            return False
 
     def _check_filepath(self) -> None:
         placeholders = []
