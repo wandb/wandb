@@ -14,6 +14,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
+from wandb.sdk.launch.environment.local_environment import LocalEnvironment
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -554,14 +555,14 @@ class LaunchAgent:
         api: Api,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
-        thread_id = threading.current_thread().ident
-        assert thread_id
+        rqi_id = job["runQueueItemId"]
+        assert rqi_id
         exception: Optional[Union[LaunchDockerError, Exception]] = None
         try:
             with self._jobs_lock:
-                self._jobs[thread_id] = job_tracker
+                self._jobs[rqi_id] = job_tracker
             await self._thread_run_job(
-                launch_spec, job, default_config, api, thread_id, job_tracker
+                launch_spec, job, default_config, api, rqi_id, job_tracker
             )
         except LaunchDockerError as e:
             wandb.termerror(
@@ -578,7 +579,7 @@ class LaunchAgent:
             exception = e
             wandb._sentry.exception(e)
         finally:
-            await self.finish_thread_id(thread_id, exception)
+            await self.finish_thread_id(rqi_id, exception)
 
     async def _thread_run_job(
         self,
@@ -627,12 +628,17 @@ class LaunchAgent:
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )
+        if environment is not None and not isinstance(environment, LocalEnvironment):
+            await environment.verify()
         registry = loader.registry_from_config(registry_config, environment)
+        if registry is not None:
+            await registry.verify()
         builder = loader.builder_from_config(build_config, environment, registry)
+        if builder is not None:
+            await builder.verify()
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
-
         if not (project.docker_image or isinstance(backend, LocalProcessRunner)):
             assert entrypoint is not None
             image_uri = await builder.build_image(project, entrypoint, job_tracker)
