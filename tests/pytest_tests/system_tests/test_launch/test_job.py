@@ -45,8 +45,6 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
 def test_create_job_artifact(runner, user, wandb_init, test_settings):
     proj = "test-p"
     settings = test_settings({"project": proj})
-    wandb_init(settings=settings).finish()  # create proj
-
     internal_api = InternalApi()
     public_api = PublicApi()
 
@@ -118,9 +116,6 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
 
 def test_create_job_image(user, wandb_init, test_settings):
     proj = "test-p1"
-    settings = test_settings({"project": proj})
-    wandb_init(settings=settings).finish()  # create proj
-
     internal_api = InternalApi()
     public_api = PublicApi()
 
