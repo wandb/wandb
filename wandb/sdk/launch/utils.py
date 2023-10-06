@@ -596,14 +596,14 @@ async def get_kube_context_and_api_client(
             "awscli is required to load a kubernetes context "
             "from eks. Please run `pip install wandb[launch]` to install it.",
         )
-        kubernetes.config.load_kube_config(config_file, context["name"])
+        await kubernetes.config.load_kube_config(config_file, context["name"])
         api_client = await kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
         )
         return context, api_client
     else:
-        kubernetes.config.load_incluster_config()
-        api_client = kubernetes.client.api_client.ApiClient()
+        await kubernetes.config.load_incluster_config()
+        api_client = await kubernetes.client.api_client.ApiClient()
         return context, api_client
 
 

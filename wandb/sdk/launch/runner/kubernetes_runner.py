@@ -484,7 +484,7 @@ class KubernetesRunner(AbstractRunner):
             kind = resource_args.get("kind", version)
             plural = f"{kind.lower()}s"
             try:
-                response = api.create_namespaced_custom_object(
+                response = await api.create_namespaced_custom_object(
                     group=group,
                     version=version,
                     namespace=namespace,
@@ -612,11 +612,11 @@ async def maybe_create_imagepull_secret(
     )
     try:
         try:
-            return core_api.create_namespaced_secret(namespace, secret)
+            return await core_api.create_namespaced_secret(namespace, secret)
         except ApiException as e:
             # 409 = conflict = secret already exists
             if e.status == 409:
-                return core_api.read_namespaced_secret(
+                return await core_api.read_namespaced_secret(
                     name=f"regcred-{run_id}", namespace=namespace
                 )
             raise
