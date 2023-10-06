@@ -154,7 +154,6 @@ class LaunchKubernetesMonitor:
                 custom_api=custom_api,
                 label_selector=label_selector,
             )
-            print(cls._instance)
 
     @classmethod
     def monitor_namespace(
