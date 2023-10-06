@@ -602,8 +602,8 @@ async def get_kube_context_and_api_client(
         )
         return context, api_client
     else:
-        await kubernetes.config.load_incluster_config()
-        api_client = await kubernetes.client.api_client.ApiClient()
+        kubernetes.config.load_incluster_config()
+        api_client = kubernetes.client.api_client.ApiClient()
         return context, api_client
 
 
