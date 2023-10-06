@@ -146,8 +146,8 @@ class JobBuilder:
 
     def _build_repo_job_source(
         self,
-        metadata: Dict[str, Any],
         program_relpath: str,
+        metadata: Dict[str, Any],
     ) -> Tuple[Optional[GitSourceDict], Optional[str]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
@@ -266,9 +266,18 @@ class JobBuilder:
         # if building a partial job from CLI, overwrite entrypoint and notebook
         # should already be in metadata from create_job
         if metadata.get("_partial"):
-            assert "entrypoint" in metadata
-            assert "notebook" in metadata
-            return metadata["entrypoint"], metadata["notebook"]
+            if metadata.get("entrypoint"):
+                return metadata["entrypoint"], metadata["notebook"]
+
+            # if entrypoint is not in metadata, then construct from python
+            assert metadata.get("python")
+
+            python = metadata["python"]
+            if python.count(".") > 1:
+                python = ".".join(metadata["python"].split(".")[:2])
+
+            entrypoint = [f"python{python}", program_relpath]
+            return entrypoint, self._is_notebook_run
 
         # job is being built from a run
         entrypoint = [os.path.basename(sys.executable), program_relpath]
@@ -331,7 +340,7 @@ class JobBuilder:
             # make source dict
             if source_type == "repo":
                 assert program_relpath
-                source, name = self._build_repo_job_source(metadata, program_relpath)
+                source, name = self._build_repo_job_source(program_relpath, metadata)
             elif source_type == "artifact":
                 assert program_relpath
                 source, name = self._build_artifact_job_source(
