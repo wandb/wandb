@@ -1,5 +1,5 @@
-import os
 import glob
+import os
 import string
 import sys
 from typing import Any, Dict, List, Optional, Union
@@ -194,7 +194,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
                     # Model saved in the SavedModel format thus we have dir.
                     model_checkpoint_artifact.add_dir(filepath)
             wandb.log_artifact(model_checkpoint_artifact, aliases=aliases or [])
-        except ValueError as e:
+        except ValueError:
             # This error occurs when `save_best_only=True` and the model
             # checkpoint is not saved for that epoch/batch. Since TF/Keras
             # is giving friendly log, we can avoid clustering the stdout.
