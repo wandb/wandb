@@ -133,6 +133,8 @@ func (s *Stream) GetRun() *service.RunRecord {
 // assumes an exit record has already been sent
 func (s *Stream) Close() {
 	s.sender.Close()
+	s.handler.Close()
+	s.writer.Close()
 	s.wg.Wait()
 }
 

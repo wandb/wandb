@@ -175,8 +175,6 @@ loop:
 			h.handleRecord(record)
 		}
 	}
-	h.close()
-	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendResponse(record *service.Record, response *service.Response) {
@@ -188,9 +186,10 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 	h.outChan <- result
 }
 
-func (h *Handler) close() {
+func (h *Handler) Close() {
 	close(h.outChan)
 	close(h.fwdChan)
+	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
