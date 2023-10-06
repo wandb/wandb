@@ -3,6 +3,7 @@ import asyncio
 import base64
 import json
 import logging
+import tempfile
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
@@ -31,11 +32,12 @@ from ..utils import (
 from .abstract import AbstractRun, AbstractRunner
 
 get_module(
-    "kubernetes",
+    "kubernetes_asyncio",
     required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
 )
 
-from kubernetes_asyncio import client  # type: ignore # noqa: E402
+import kubernetes_asyncio  # type: ignore # noqa: E402
+from kubernetes_asyncio import client  # noqa: E402
 from kubernetes_asyncio.client.api.batch_v1_api import (  # type: ignore # noqa: E402
     BatchV1Api,
 )
@@ -423,11 +425,6 @@ class KubernetesRunner(AbstractRunner):
             The run object if the run was successful, otherwise None.
         """
         await LaunchKubernetesMonitor.ensure_initialized()  # No up if running
-        kubernetes = get_module(  # noqa: F811
-            "kubernetes",
-            required="Kubernetes runner requires the kubernetes package. Please"
-            " install it with `pip install wandb[launch]`.",
-        )
         resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
@@ -438,7 +435,7 @@ class KubernetesRunner(AbstractRunner):
         _logger.info(f"Running Kubernetes job with resource args: {resource_args}")
 
         context, api_client = await get_kube_context_and_api_client(
-            kubernetes, resource_args
+            kubernetes_asyncio, resource_args
         )
 
         # If the user specified an alternate api, we need will execute this
@@ -502,19 +499,6 @@ class KubernetesRunner(AbstractRunner):
                 ) from e
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
-            client.CoreV1Api(api_client)
-            # run_monitor = KubernetesRunMonitor(
-            #     job_field_selector=f"metadata.name={name}",
-            #     pod_label_selector=f"wandb/run-id={launch_project.run_id}",
-            #     namespace=namespace,
-            #     batch_api=None,
-            #     core_api=core,
-            #     custom_api=api,
-            #     group=group,
-            #     version=version,
-            #     plural=plural,
-            # )
-            # run_monitor.start()
             submitted_run = CrdSubmittedRun(
                 name=name,
                 group=group,
@@ -528,8 +512,8 @@ class KubernetesRunner(AbstractRunner):
                 await submitted_run.wait()
             return submitted_run
 
-        batch_api = kubernetes.client.BatchV1Api(api_client)
-        core_api = kubernetes.client.CoreV1Api(api_client)
+        batch_api = kubernetes_asyncio.client.BatchV1Api(api_client)
+        core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
         namespace = self.get_namespace(resource_args, context)
         job, secret = await self._inject_defaults(
             resource_args, launch_project, image_uri, namespace, core_api
@@ -538,11 +522,15 @@ class KubernetesRunner(AbstractRunner):
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
         _logger.info(msg)
-        job_response = kubernetes.utils.create_from_yaml(
-            api_client, yaml_objects=[job], namespace=namespace
-        )[0][
-            0
-        ]  # create_from_yaml returns a nested list of k8s objects
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
+            f.write(yaml.dump(job))
+            job_yaml_path = f.name
+
+        job_response = (
+            await kubernetes_asyncio.utils.create_from_yaml(
+                api_client, job_yaml_path, namespace=namespace
+            )
+        )[0][0]
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(

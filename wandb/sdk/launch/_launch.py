@@ -178,7 +178,6 @@ async def _launch(
     environment_config, build_config, registry_config = construct_agent_configs(config)
     environment = loader.environment_from_config(environment_config)
     if environment is not None:
-        print(type(environment))
         await environment.verify()
     registry = loader.registry_from_config(registry_config, environment)
     if registry:

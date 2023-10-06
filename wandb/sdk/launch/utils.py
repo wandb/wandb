@@ -7,7 +7,8 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from typing_extensions import Protocol
 
 import click
 
@@ -66,7 +67,7 @@ MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
 
-def threaded(func: Callable) -> Any:
+def threaded(func: Any) -> Any:
     """Wrapper for making a function run in a thread.
 
     This can be used a decorator for a function that you want to run in a thread.
@@ -81,7 +82,9 @@ def threaded(func: Callable) -> Any:
 
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+        result = cast(
+            Any, await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+        )
         return result
 
     return wrapper
@@ -594,7 +597,7 @@ async def get_kube_context_and_api_client(
             "from eks. Please run `pip install wandb[launch]` to install it.",
         )
         kubernetes.config.load_kube_config(config_file, context["name"])
-        api_client = kubernetes.config.new_client_from_config(
+        api_client = await kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
         )
         return context, api_client

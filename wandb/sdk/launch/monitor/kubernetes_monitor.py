@@ -19,6 +19,7 @@ import wandb
 from ..agent import LaunchAgent
 from ..errors import LaunchError
 from ..runner.abstract import State, Status
+from ..utils import get_kube_context_and_api_client
 
 
 class Resources:
@@ -138,13 +139,12 @@ class LaunchKubernetesMonitor:
     ) -> None:
         """Initialize the LaunchKubernetesMonitor."""
         if cls._instance is None:
-            # _, api_client = await get_kube_context_and_api_client(
-            #     kubernetes_asyncio, {}
-            # )
-            await kubernetes_asyncio.config.load_kube_config()
-            core_api = CoreV1Api()
-            batch_api = BatchV1Api()
-            custom_api = CustomObjectsApi()
+            _, api_client = await get_kube_context_and_api_client(
+                kubernetes_asyncio, {}
+            )
+            core_api = CoreV1Api(api_client)
+            batch_api = BatchV1Api(api_client)
+            custom_api = CustomObjectsApi(api_client)
             label_selector = "wandb.ai/monitor=true"
             if LaunchAgent.initialized():
                 label_selector += f",wandb.ai/agent={LaunchAgent.name()}"
@@ -358,8 +358,3 @@ class SafeWatch:
                     self._last_seen_resource_version = None
             except Exception as E:
                 wandb.termerror(f"Unknown exception in event stream: {E}")
-
-    def stop(self) -> None:
-        """Stop the watcher."""
-        self._watcher.stop()
-        self._stopped = True

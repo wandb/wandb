@@ -52,8 +52,6 @@ class DockerBuilder(AbstractBuilder):
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
         config: Dict[str, Any],
-        verify: bool = True,
-        login: bool = True,
     ):
         """Initialize a DockerBuilder.
 
@@ -90,13 +88,11 @@ class DockerBuilder(AbstractBuilder):
         # but ultimately we should add things like target platform, base image, etc.
         return cls(environment, registry, config)
 
-    @threaded
     async def verify(self) -> None:
         """Verify the builder."""
         await validate_docker_installation()
         await self.login()
 
-    @threaded
     async def login(self) -> None:
         """Login to the registry."""
         if isinstance(self.registry, LocalRegistry):

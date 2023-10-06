@@ -63,12 +63,12 @@ class LocalSubmittedRun(AbstractRun):
             while self._thread.is_alive():
                 await asyncio.sleep(5)
                 # command proc can be updated by another thread
-                if self._command_proc is not None:  # noqa: C901
-                    break
+                if self._command_proc is not None:
+                    break  # type: ignore  # mypy thinks this is unreachable
             else:
                 return False
         wait = threaded(self._command_proc.wait)
-        return (await wait()) == 0
+        return int(await wait()) == 0
 
     async def get_logs(self) -> Optional[str]:
         return self._stdout
