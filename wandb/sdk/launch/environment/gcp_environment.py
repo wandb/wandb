@@ -57,7 +57,10 @@ class GcpEnvironment(AbstractEnvironment):
 
     region: str
 
-    def __init__(self, region: str, verify: bool = True) -> None:
+    def __init__(
+        self,
+        region: str,
+    ) -> None:
         """Initialize the GCP environment.
 
         Arguments:
@@ -72,8 +75,6 @@ class GcpEnvironment(AbstractEnvironment):
         _logger.info(f"Initializing GcpEnvironment in region {region}")
         self.region: str = region
         self._project = ""
-        if verify:
-            self.verify()
 
     @classmethod
     def from_config(cls, config: dict) -> "GcpEnvironment":
@@ -99,7 +100,9 @@ class GcpEnvironment(AbstractEnvironment):
         return cls(region=region)
 
     @classmethod
-    def from_default(cls, verify: bool = True) -> "GcpEnvironment":
+    def from_default(
+        cls,
+    ) -> "GcpEnvironment":
         """Create a GcpEnvironment from the default configuration.
 
         Returns:
@@ -115,7 +118,7 @@ class GcpEnvironment(AbstractEnvironment):
                 "wandb launch configuration at `$HOME/.config/wandb/launch-config.yaml`. "
                 "See https://docs.wandb.ai/guides/launch/run-agent#environments for more information."
             )
-        return cls(region=region, verify=verify)
+        return cls(region=region)
 
     @property
     def project(self) -> str:
@@ -184,7 +187,7 @@ class GcpEnvironment(AbstractEnvironment):
             )
         return creds
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify the credentials, region, and project.
 
         Credentials and region are verified by calling get_credentials(). The
@@ -199,7 +202,7 @@ class GcpEnvironment(AbstractEnvironment):
         _logger.debug("Verifying GCP environment")
         self.get_credentials()
 
-    def verify_storage_uri(self, uri: str) -> None:
+    async def verify_storage_uri(self, uri: str) -> None:
         """Verify that a storage URI is valid.
 
         Arguments:
@@ -220,7 +223,7 @@ class GcpEnvironment(AbstractEnvironment):
         except google.api_core.exceptions.NotFound as e:
             raise LaunchError(f"Bucket {bucket} does not exist.") from e
 
-    def upload_file(self, source: str, destination: str) -> None:
+    async def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to GCS.
 
         Arguments:
@@ -248,7 +251,7 @@ class GcpEnvironment(AbstractEnvironment):
         except google.api_core.exceptions.GoogleAPICallError as e:
             raise LaunchError(f"Could not upload file to GCS: {e}") from e
 
-    def upload_dir(self, source: str, destination: str) -> None:
+    async def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to GCS.
 
         Arguments:
@@ -293,13 +296,10 @@ def get_gcloud_config_value(config_name: str) -> Optional[str]:
         str: The config value, or None if the value is not set.
     """
     try:
-        value = (
-            subprocess.check_output(
-                ["gcloud", "config", "get-value", config_name], stderr=subprocess.STDOUT
-            )
-            .decode("utf-8")
-            .strip()
+        output = subprocess.check_output(
+            ["gcloud", "config", "get-value", config_name], stderr=subprocess.STDOUT
         )
+        value = str(output.decode("utf-8").strip())
         if value and "unset" not in value:
             return value
         return None

@@ -291,7 +291,7 @@ class KubernetesRunner(AbstractRunner):
             or default_namespace
         )
 
-    def _inject_defaults(
+    async def _inject_defaults(
         self,
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
@@ -361,7 +361,7 @@ class KubernetesRunner(AbstractRunner):
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             containers[0]["image"] = image_uri
-        secret = maybe_create_imagepull_secret(
+        secret = await maybe_create_imagepull_secret(
             core_api, self.registry, launch_project.run_id, namespace
         )
         if secret is not None:
@@ -531,7 +531,7 @@ class KubernetesRunner(AbstractRunner):
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
         namespace = self.get_namespace(resource_args, context)
-        job, secret = self._inject_defaults(
+        job, secret = await self._inject_defaults(
             resource_args, launch_project, image_uri, namespace, core_api
         )
         msg = "Creating Kubernetes job"
@@ -580,7 +580,7 @@ def inject_entrypoint_and_args(
             containers[i]["command"] = entry_point.command
 
 
-def maybe_create_imagepull_secret(
+async def maybe_create_imagepull_secret(
     core_api: "CoreV1Api",
     registry: AbstractRegistry,
     run_id: str,
@@ -603,7 +603,7 @@ def maybe_create_imagepull_secret(
     ):
         # Secret not required
         return None
-    uname, token = registry.get_username_password()
+    uname, token = await registry.get_username_password()
     creds_info = {
         "auths": {
             registry.uri: {

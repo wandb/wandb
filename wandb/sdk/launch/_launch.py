@@ -177,8 +177,15 @@ async def _launch(
     config = launch_config or {}
     environment_config, build_config, registry_config = construct_agent_configs(config)
     environment = loader.environment_from_config(environment_config)
+    if environment is not None:
+        print(type(environment))
+        await environment.verify()
     registry = loader.registry_from_config(registry_config, environment)
+    if registry:
+        await registry.verify()
     builder = loader.builder_from_config(build_config, environment, registry)
+    if builder:
+        await builder.verify()
     if not launch_project.docker_image:
         assert entrypoint
         image_uri = await builder.build_image(launch_project, entrypoint, None)

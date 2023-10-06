@@ -63,7 +63,7 @@ class LocalSubmittedRun(AbstractRun):
             while self._thread.is_alive():
                 await asyncio.sleep(5)
                 # command proc can be updated by another thread
-                if self._command_proc is not None:
+                if self._command_proc is not None:  # noqa: C901
                     break
             else:
                 return False

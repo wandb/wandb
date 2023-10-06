@@ -3,11 +3,12 @@
 import logging
 import os
 import re
-from typing import Dict
+from typing import Dict, Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
+from ..utils import threaded
 from .abstract import AbstractEnvironment
 
 boto3 = get_module(
@@ -35,7 +36,6 @@ class AwsEnvironment(AbstractEnvironment):
         access_key: str,
         secret_key: str,
         session_token: str,
-        verify: bool = True,
     ) -> None:
         """Initialize the AWS environment.
 
@@ -52,11 +52,9 @@ class AwsEnvironment(AbstractEnvironment):
         self._secret_key = secret_key
         self._session_token = session_token
         self._account = None
-        if verify:
-            self.verify()
 
     @classmethod
-    def from_default(cls, region: str = None, verify: bool = True) -> "AwsEnvironment":
+    def from_default(cls, region: Optional[str] = None) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
 
         Arguments:
@@ -69,7 +67,7 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.info("Creating AWS environment from defsault credentials.")
         try:
             session = boto3.Session()
-            region = region or session.region_name or os.environ.get("AWS_REGION")
+            region = region or os.environ.get("AWS_REGION")
             credentials = session.get_credentials()
             if not credentials:
                 raise LaunchError(
@@ -91,12 +89,12 @@ class AwsEnvironment(AbstractEnvironment):
             access_key=access_key,
             secret_key=secret_key,
             session_token=session_token,
-            verify=verify,
         )
 
     @classmethod
     def from_config(
-        cls, config: Dict[str, str], verify: bool = True
+        cls,
+        config: Dict[str, str],
     ) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
 
@@ -114,7 +112,6 @@ class AwsEnvironment(AbstractEnvironment):
             )
         return cls.from_default(
             region=region,
-            verify=verify,
         )
 
     @property
@@ -126,7 +123,7 @@ class AwsEnvironment(AbstractEnvironment):
     def region(self, region: str) -> None:
         self._region = region
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify that the AWS environment is configured correctly.
 
         Raises:
@@ -134,16 +131,17 @@ class AwsEnvironment(AbstractEnvironment):
         """
         _logger.debug("Verifying AWS environment.")
         try:
-            session = self.get_session()
-            client = session.client("sts")
-            self._account = client.get_caller_identity().get("Account")
+            session = await self.get_session()
+            client = await threaded(session.client)("sts")
+            get_caller_identity = threaded(client.get_caller_identity)
+            self._account = (await get_caller_identity()).get("Account")
             # TODO: log identity details from the response
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
                 f"Could not verify AWS environment. Please verify that your AWS credentials are configured correctly. {e}"
             ) from e
 
-    def get_session(self) -> "boto3.Session":  # type: ignore
+    async def get_session(self) -> "boto3.Session":  # type: ignore
         """Get an AWS session.
 
         Returns:
@@ -154,16 +152,17 @@ class AwsEnvironment(AbstractEnvironment):
         """
         _logger.debug(f"Creating AWS session in region {self._region}")
         try:
-            return boto3.Session(
+            session = threaded(boto3.Session)
+            return await session(
+                region_name=self._region,
                 aws_access_key_id=self._access_key,
                 aws_secret_access_key=self._secret_key,
                 aws_session_token=self._session_token,
-                region_name=self._region,
             )
         except botocore.exceptions.ClientError as e:
             raise LaunchError(f"Could not create AWS session. {e}")
 
-    def upload_file(self, source: str, destination: str) -> None:
+    async def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to s3 from local storage.
 
         The destination is a valid s3 URI, e.g. s3://bucket/key and will
@@ -191,16 +190,16 @@ class AwsEnvironment(AbstractEnvironment):
         key = match.group(2).lstrip("/")
         if not key:
             key = ""
-        session = self.get_session()
+        session = await self.get_session()
         try:
-            client = session.client("s3")
+            client = await threaded(session.client)("s3")
             client.upload_file(source, bucket, key)
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
                 f"botocore error attempting to copy {source} to {destination}. {e}"
             ) from e
 
-    def upload_dir(self, source: str, destination: str) -> None:
+    async def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to s3 from local storage.
 
         The upload will place the contents of the source directory in the destination
@@ -227,9 +226,9 @@ class AwsEnvironment(AbstractEnvironment):
         key = match.group(2).lstrip("/")
         if not key:
             key = ""
-        session = self.get_session()
+        session = await self.get_session()
         try:
-            client = session.client("s3")
+            client = await threaded(session.client)("s3")
             for path, _, files in os.walk(source):
                 for file in files:
                     abs_path = os.path.join(path, file)
@@ -250,7 +249,7 @@ class AwsEnvironment(AbstractEnvironment):
                 f"Unexpected error attempting to copy {source} to {destination}. {e}"
             ) from e
 
-    def verify_storage_uri(self, uri: str) -> None:
+    async def verify_storage_uri(self, uri: str) -> None:
         """Verify that s3 storage is configured correctly.
 
         This will check that the bucket exists and that the credentials are
@@ -272,8 +271,8 @@ class AwsEnvironment(AbstractEnvironment):
             raise LaunchError(f"Destination {uri} is not a valid s3 URI.")
         bucket = match.group(1)
         try:
-            session = self.get_session()
-            client = session.client("s3")
+            session = await self.get_session()
+            client = threaded(session.client)("s3")
             client.head_bucket(Bucket=bucket)
         except botocore.exceptions.ClientError as e:
             raise LaunchError(

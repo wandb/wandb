@@ -1,7 +1,6 @@
 """Utilities for the agent."""
 from typing import Any, Dict, Optional
 
-import wandb
 from wandb.apis.internal import Api
 from wandb.docker import is_docker_installed
 from wandb.sdk.launch.errors import LaunchError
@@ -101,7 +100,6 @@ def registry_from_config(
             try:
                 environment = AwsEnvironment.from_default()
             except LaunchError as e:
-                wandb.termerror(e)
                 raise LaunchError(
                     "Could not create ECR client. "
                     "Environment must be an instance of AwsEnvironment."
@@ -240,7 +238,6 @@ def runner_from_config(
             try:
                 environment = AwsEnvironment.from_default()
             except LaunchError as e:
-                wandb.termerror(e)
                 raise LaunchError(
                     "Could not create Sagemaker runner. "
                     "Environment must be an instance of AwsEnvironment."
@@ -252,7 +249,6 @@ def runner_from_config(
         from .environment.gcp_environment import GcpEnvironment
 
         if not isinstance(environment, GcpEnvironment):
-            wandb.terminfo("Attempting to load GCP configuration from user settings.")
             try:
                 environment = GcpEnvironment.from_default()
             except LaunchError as e:

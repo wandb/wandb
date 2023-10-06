@@ -49,7 +49,6 @@ class GoogleArtifactRegistry(AbstractRegistry):
         repository: str,
         image_name: str,
         environment: GcpEnvironment,
-        verify: bool = True,
     ) -> None:
         """Initialize the Google Artifact Registry.
 
@@ -76,8 +75,6 @@ class GoogleArtifactRegistry(AbstractRegistry):
                 "consist of alphanumeric characters and underscores."
             )
         self.environment = environment
-        if verify:
-            self.verify()
 
     @property
     def uri(self) -> str:
@@ -94,7 +91,6 @@ class GoogleArtifactRegistry(AbstractRegistry):
         cls,
         config: dict,
         environment: GcpEnvironment,
-        verify: bool = True,
     ) -> "GoogleArtifactRegistry":
         """Create a Google Artifact Registry from a config.
 
@@ -152,9 +148,9 @@ class GoogleArtifactRegistry(AbstractRegistry):
                     "by setting the either the uri or  repository key of your "
                     f"registry config. The provided config is:\n{yaml.dump(config)}."
                 )
-        return cls(repository, image_name, environment, verify=verify)
+        return cls(repository, image_name, environment)
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify the registry is properly configured.
 
         Raises:
@@ -186,7 +182,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
                 f"The Google Artifact Registry repository {self.repository} does not exist."
             )
 
-    def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> Tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:
@@ -209,7 +205,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
             f"{self.environment.project}/{self.repository}/{self.image_name}"
         )
 
-    def check_image_exists(self, image_uri: str) -> bool:
+    async def check_image_exists(self, image_uri: str) -> bool:
         """Check if the image exists.
 
         Arguments:

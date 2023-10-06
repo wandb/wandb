@@ -18,8 +18,8 @@ from ..utils import (
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
-    to_camel_case,
     threaded,
+    to_camel_case,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -169,8 +169,8 @@ class SageMakerRunner(AbstractRunner):
         ):
             default_output_path = f"s3://{default_output_path}"
 
-        session = self.environment.get_session()
-        client = session.client("sts")
+        session = await self.environment.get_session()
+        client = await threaded(session.client)("sts")
         caller_id = client.get_caller_identity()
         account_id = caller_id["Account"]
         _logger.info(f"Using account ID {account_id}")

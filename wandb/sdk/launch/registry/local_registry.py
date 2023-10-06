@@ -36,11 +36,11 @@ class LocalRegistry(AbstractRegistry):
         """
         return cls()
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify the local registry by doing nothing."""
         pass
 
-    def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> Tuple[str, str]:
         """Get the username and password of the local registry."""
         raise LaunchError("Attempted to get username and password for LocalRegistry.")
 
@@ -51,7 +51,7 @@ class LocalRegistry(AbstractRegistry):
         """
         return ""
 
-    def check_image_exists(self, image_uri: str) -> bool:
+    async def check_image_exists(self, image_uri: str) -> bool:
         """Check if an image exists in the local registry.
 
         Arguments:

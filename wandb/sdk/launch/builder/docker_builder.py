@@ -21,6 +21,7 @@ from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
     sanitize_wandb_api_key,
+    threaded,
     warn_failed_packages_from_build_logs,
 )
 from .build import (
@@ -59,8 +60,6 @@ class DockerBuilder(AbstractBuilder):
         Arguments:
             environment (AbstractEnvironment): The environment to use.
             registry (AbstractRegistry): The registry to use.
-            verify (bool, optional): Whether to verify the functionality of the builder.
-            login (bool, optional): Whether to login to the registry.
 
         Raises:
             LaunchError: If docker is not installed
@@ -68,10 +67,6 @@ class DockerBuilder(AbstractBuilder):
         self.environment = environment  # Docker builder doesn't actually use this.
         self.registry = registry
         self.config = config
-        if verify:
-            self.verify()
-        if login:
-            self.login()
 
     @classmethod
     def from_config(
@@ -79,7 +74,6 @@ class DockerBuilder(AbstractBuilder):
         config: Dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
-        verify: bool = True,
     ) -> "DockerBuilder":
         """Create a DockerBuilder from a config.
 
@@ -96,17 +90,21 @@ class DockerBuilder(AbstractBuilder):
         # but ultimately we should add things like target platform, base image, etc.
         return cls(environment, registry, config)
 
-    def verify(self) -> None:
+    @threaded
+    async def verify(self) -> None:
         """Verify the builder."""
-        validate_docker_installation()
+        await validate_docker_installation()
+        await self.login()
 
-    def login(self) -> None:
+    @threaded
+    async def login(self) -> None:
         """Login to the registry."""
         if isinstance(self.registry, LocalRegistry):
             _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
         else:
-            username, password = self.registry.get_username_password()
-            docker.login(username, password, self.registry.uri)
+            username, password = await self.registry.get_username_password()
+            login = threaded(docker.login)
+            await login(username, password, self.registry.uri)
 
     async def build_image(
         self,
@@ -139,8 +137,9 @@ class DockerBuilder(AbstractBuilder):
         else:
             image_uri = f"{launch_project.image_name}:{image_tag}"
 
-        if not launch_project.build_required() and self.registry.check_image_exists(
-            image_uri
+        if (
+            not launch_project.build_required()
+            and await self.registry.check_image_exists(image_uri)
         ):
             return image_uri
 
@@ -159,7 +158,7 @@ class DockerBuilder(AbstractBuilder):
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
-            output = docker.build(
+            output = threaded(docker.build)(
                 tags=[image_uri],
                 file=dockerfile,
                 context_path=build_ctx_path,

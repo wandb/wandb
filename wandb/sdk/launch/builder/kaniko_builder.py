@@ -99,7 +99,6 @@ class KanikoBuilder(AbstractBuilder):
         secret_name: str = "",
         secret_key: str = "",
         image: str = "gcr.io/kaniko-project/executor:v1.11.0",
-        verify: bool = True,
     ):
         """Initialize a KanikoBuilder.
 
@@ -126,8 +125,6 @@ class KanikoBuilder(AbstractBuilder):
         self.secret_name = secret_name
         self.secret_key = secret_key
         self.image = image
-        if verify:
-            self.verify()
 
     @classmethod
     def from_config(
@@ -173,10 +170,9 @@ class KanikoBuilder(AbstractBuilder):
             secret_name=secret_name,
             secret_key=secret_key,
             image=image,
-            verify=verify,
         )
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify that the builder config is valid.
 
         Raises:
@@ -184,7 +180,7 @@ class KanikoBuilder(AbstractBuilder):
         """
         if self.environment is None:
             raise LaunchError("No environment specified for Kaniko build.")
-        self.environment.verify_storage_uri(self.build_context_store)
+        await self.environment.verify_storage_uri(self.build_context_store)
 
     def login(self) -> None:
         """Login to the registry."""
@@ -195,7 +191,7 @@ class KanikoBuilder(AbstractBuilder):
     ) -> None:
         if self.registry is None:
             raise LaunchError("No registry specified for Kaniko build.")
-        username, password = self.registry.get_username_password()
+        username, password = await self.registry.get_username_password()
         encoded = base64.b64encode(f"{username}:{password}".encode()).decode("utf-8")
         ecr_config_map = client.V1ConfigMap(
             api_version="v1",
@@ -221,7 +217,7 @@ class KanikoBuilder(AbstractBuilder):
                 f"docker-config-{job_name}", NAMESPACE
             )
 
-    def _upload_build_context(self, run_id: str, context_path: str) -> str:
+    async def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
         context_file = tempfile.NamedTemporaryFile(delete=False)
         with tarfile.TarFile.open(fileobj=context_file, mode="w:gz") as context_tgz:
@@ -230,7 +226,7 @@ class KanikoBuilder(AbstractBuilder):
         destination = f"{self.build_context_store}/{run_id}.tgz"
         if self.environment is None:
             raise LaunchError("No environment specified for Kaniko build.")
-        self.environment.upload_file(context_file.name, destination)
+        await self.environment.upload_file(context_file.name, destination)
         return destination
 
     async def build_image(
@@ -283,7 +279,7 @@ class KanikoBuilder(AbstractBuilder):
 
         build_job_name = f"{self.build_job_name}-{run_id}"
 
-        build_context = self._upload_build_context(run_id, context_path)
+        build_context = await self._upload_build_context(run_id, context_path)
         build_job = self._create_kaniko_job(
             build_job_name, repo_uri, image_uri, build_context, core_v1
         )
