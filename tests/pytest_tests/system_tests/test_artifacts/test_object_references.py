@@ -1,4 +1,3 @@
-# Suggest running as: WANDB_BASE_URL=http://api.wandb.test python artifact_object_reference_test.py
 import base64
 import binascii
 import os
@@ -6,24 +5,15 @@ import shutil
 import time
 from math import cos, pi, sin
 
+import boto3
+import botocore
+import google.cloud.storage
 import numpy as np
+import pytest
 import wandb
 from bokeh.plotting import figure
-from wandb.sdk import artifacts
-
-WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
-if WANDB_PROJECT_ENV is None:
-    WANDB_PROJECT = "test__" + str(round(time.time()) % 1000000)
-else:
-    WANDB_PROJECT = WANDB_PROJECT_ENV
-os.environ["WANDB_PROJECT"] = WANDB_PROJECT
-
-WANDB_SILENT_ENV = os.environ.get("WANDB_SILENT")
-if WANDB_SILENT_ENV is None:
-    WANDB_SILENT = "true"
-else:
-    WANDB_SILENT = WANDB_SILENT_ENV
-os.environ["WANDB_SILENT"] = WANDB_SILENT
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
+from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 
 columns = [
     "id",
@@ -44,8 +34,10 @@ columns = [
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
-    test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "assets", f"test{suffix}.png")
+    assets_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir, "assets"
+    )
+    im_path = os.path.join(assets_path, f"test{suffix}.png")
     return wandb.Image(
         im_path,
         classes=wandb.Classes(
@@ -297,7 +289,7 @@ def _b64_to_hex_id(id_string):
 
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
-def test_artifact_add_reference_via_url():
+def test_artifact_add_reference_via_url(user, cleanup):
     """Test adding a reference to an artifact via a URL.
 
     This test creates three artifacts. The middle artifact references the first
@@ -369,7 +361,7 @@ def test_artifact_add_reference_via_url():
 
 
 # # Artifact1.add_reference(artifact2.get_path(file_name))
-def test_add_reference_via_artifact_entry():
+def test_add_reference_via_artifact_entry(user, cleanup):
     """Test adding a reference to an artifact via an ArtifactEntry.
 
     This test is the same as test_artifact_add_reference_via_url, but rather than
@@ -445,7 +437,7 @@ def test_add_reference_via_artifact_entry():
 
 
 # # Artifact1.get(MEDIA_NAME) => media obj
-def test_get_artifact_obj_by_name():
+def test_get_artifact_obj_by_name(user, cleanup, anon_s3_handler, anon_gcs_handler):
     """Test the ability to instantiate a wandb Media object from the name of the object.
 
     This is the logical inverse of Artifact.add(name).
@@ -473,7 +465,7 @@ def test_get_artifact_obj_by_name():
 
 
 # # Artifact1.add(artifact2.get(MEDIA_NAME))
-def test_adding_artifact_by_object():
+def test_adding_artifact_by_object(user, cleanup):
     """Test adding wandb Media objects to an artifact by passing the object itself."""
     # Create an artifact with such file stored
     with wandb.init() as run:
@@ -498,17 +490,7 @@ def test_adding_artifact_by_object():
         assert downstream_artifact.get("T2") == _make_wandb_image()
 
 
-def _cleanup():
-    artifacts.artifacts_cache.get_artifacts_cache()._artifacts_by_id = {}
-    if os.path.isdir("wandb"):
-        shutil.rmtree("wandb")
-    if os.path.isdir("artifacts"):
-        shutil.rmtree("artifacts")
-    if os.path.isdir("upstream"):
-        shutil.rmtree("upstream")
-
-
-def test_image_reference_artifact():
+def test_image_reference_artifact(user, cleanup):
     with wandb.init() as run:
         artifact = wandb.Artifact("image_data", "data")
         image = _make_wandb_image()
@@ -528,7 +510,7 @@ def test_image_reference_artifact():
         # assert os.path.islink(os.path.join(artifact_2._default_root(), "image_2.image-file.json"))
 
 
-def test_nested_reference_artifact():
+def test_nested_reference_artifact(user, cleanup):
     with wandb.init() as run:
         artifact = wandb.Artifact("image_data", "data")
         image = _make_wandb_image()
@@ -551,7 +533,9 @@ def test_nested_reference_artifact():
         artifact_3.download()
 
 
-def test_table_slice_reference_artifact():
+def test_table_slice_reference_artifact(
+    user, cleanup, anon_s3_handler, anon_gcs_handler
+):
     with wandb.init() as run:
         artifact = wandb.Artifact("table_data", "data")
         table = _make_wandb_table()
@@ -682,42 +666,43 @@ def assert_media_obj_referential_equality(obj):
     # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
 
-def test_table_refs():
+def test_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
     assert_media_obj_referential_equality(_make_wandb_table())
 
 
-def test_image_refs():
+def test_image_refs(user, cleanup):
     assert_media_obj_referential_equality(_make_wandb_image())
 
 
-def test_point_cloud_refs():
+def test_point_cloud_refs(user, cleanup):
     assert_media_obj_referential_equality(_make_point_cloud())
 
 
-def test_bokeh_refs():
+def test_bokeh_refs(user, cleanup):
     assert_media_obj_referential_equality(_make_bokeh())
 
 
-def test_html_refs():
+def test_html_refs(user, cleanup):
     assert_media_obj_referential_equality(_make_html())
 
 
-def test_video_refs():
+def test_video_refs(user, cleanup):
     assert_media_obj_referential_equality(_make_video())
 
 
-def test_joined_table_refs():
+def test_joined_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
 
-def test_audio_refs():
+@pytest.mark.timeout(3 * 60)
+def test_audio_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
     # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
     assert_media_obj_referential_equality(aud_ref_https)
     assert_media_obj_referential_equality(aud_ref_s3)
     assert_media_obj_referential_equality(aud_ref_gs)
 
 
-def test_joined_table_referential():
+def test_joined_table_referential(user, cleanup):
     src_image_1 = _make_wandb_image()
     src_image_2 = _make_wandb_image()
     src_image_3 = _make_wandb_image()
@@ -747,7 +732,7 @@ def test_joined_table_referential():
         assert src_jt_1 == src_jt_2
 
 
-def test_joined_table_add_by_path():
+def test_joined_table_add_by_path(user, cleanup):
     src_image_1 = _make_wandb_image()
     src_image_2 = _make_wandb_image()
     src_image_3 = _make_wandb_image()
@@ -800,13 +785,12 @@ def test_joined_table_add_by_path():
         )
 
 
-def test_image_reference_with_preferred_path():
-    orig_im_path = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "assets", "test.png"
+def test_image_reference_with_preferred_path(user, cleanup):
+    assets_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir, "assets"
     )
-    orig_im_path_2 = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "assets", "test2.png"
-    )
+    orig_im_path = os.path.join(assets_path, "test.png")
+    orig_im_path_2 = os.path.join(assets_path, "test2.png")
     desired_artifact_path = "images/sample.png"
     with wandb.init() as run:
         artifact = wandb.Artifact("artifact_1", type="test_artifact")
@@ -847,7 +831,7 @@ def test_image_reference_with_preferred_path():
     # This test just checks that all this logic does not fail
 
 
-def test_simple_partition_table():
+def test_simple_partition_table(user, cleanup):
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
     artifact_name = "simple_dataset"
@@ -876,7 +860,7 @@ def test_simple_partition_table():
     run.finish()
 
 
-def test_distributed_artifact_simple():
+def test_distributed_artifact_simple(user, cleanup):
     # table_name = "dataset"
     artifact_name = f"simple_dist_dataset_{round(time.time())}"
     group_name = f"test_group_{np.random.rand()}"
@@ -907,48 +891,54 @@ def test_distributed_artifact_simple():
     run.finish()
 
     # test
-    run = wandb.init()
-    artifact = run.use_artifact(f"{artifact_name}:latest")
+    with wandb.init() as run:
+        artifact = run.use_artifact(f"{artifact_name}:latest")
     assert len(artifact.manifest.entries.keys()) == count * 2
     # for image, path in zip(images, image_paths):
     #     assert image == artifact.get(path)
 
 
-if __name__ == "__main__":
+@pytest.fixture
+def cleanup():
+    yield
     _cleanup()
-    test_fns = [
-        test_artifact_add_reference_via_url,
-        test_add_reference_via_artifact_entry,
-        test_adding_artifact_by_object,
-        test_get_artifact_obj_by_name,
-        test_image_reference_artifact,
-        test_nested_reference_artifact,
-        test_table_slice_reference_artifact,
-        test_image_refs,
-        test_point_cloud_refs,
-        test_bokeh_refs,
-        test_html_refs,
-        test_video_refs,
-        test_table_refs,
-        test_joined_table_refs,
-        test_audio_refs,
-        test_joined_table_referential,
-        test_joined_table_add_by_path,
-        test_image_reference_with_preferred_path,
-        # test_distributed_artifact_simple,
-        test_simple_partition_table,
-    ]
-    for ndx, test_fn in enumerate(test_fns):
-        try:
-            test_fn()
-            _cleanup()
-            print(f"{ndx+1}/{len(test_fns)} Complete")
-        except Exception as exception:
-            print(f"error on function {test_fn.__name__}")
-            raise exception
 
-    if WANDB_PROJECT_ENV is not None:
-        os.environ["WANDB_PROJECT"] = WANDB_PROJECT_ENV
 
-    if WANDB_SILENT_ENV is not None:
-        os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
+def _cleanup():
+    if os.path.isdir("wandb"):
+        shutil.rmtree("wandb")
+    if os.path.isdir("artifacts"):
+        shutil.rmtree("artifacts")
+    if os.path.isdir("upstream"):
+        shutil.rmtree("upstream")
+
+
+@pytest.fixture
+def anon_s3_handler():
+    def init_boto(self):
+        if self._s3 is not None:
+            return self._s3
+        self._botocore = botocore
+        self._s3 = boto3.session.Session().resource(
+            "s3", config=botocore.client.Config(signature_version=botocore.UNSIGNED)
+        )
+        return self._s3
+
+    original = S3Handler.init_boto
+    S3Handler.init_boto = init_boto
+    yield
+    S3Handler.init_boto = original
+
+
+@pytest.fixture
+def anon_gcs_handler():
+    def init_gcs(self):
+        if self._client is not None:
+            return self._client
+        self._client = google.cloud.storage.Client.create_anonymous_client()
+        return self._client
+
+    original = GCSHandler.init_gcs
+    GCSHandler.init_gcs = init_gcs
+    yield
+    GCSHandler.init_gcs = original
