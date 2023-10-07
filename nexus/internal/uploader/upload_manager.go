@@ -1,6 +1,7 @@
 package uploader
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -33,6 +34,12 @@ type UploadManager struct {
 
 	// fileCounts is the file counts for the uploader
 	fileCounts *service.FileCounts
+
+	// fileCountsChan is the channel used to count files uploaded by type
+	fileCountsChan chan FileType
+
+	// wgfc is the wait group for the file counts channel ops
+	wgfc *sync.WaitGroup
 
 	// settings is the settings for the uploader
 	settings *service.Settings
@@ -67,16 +74,34 @@ func WithUploader(uploader Uploader) UploadManagerOption {
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 
 	um := UploadManager{
-		inChan:     make(chan *UploadTask, bufferSize),
-		fileCounts: &service.FileCounts{},
-		wg:         &sync.WaitGroup{},
+		inChan:         make(chan *UploadTask, bufferSize),
+		fileCounts:     &service.FileCounts{},
+		fileCountsChan: make(chan FileType, bufferSize),
+		wgfc:           &sync.WaitGroup{},
+		wg:             &sync.WaitGroup{},
+		semaphore:      make(chan struct{}, defaultConcurrencyLimit),
 	}
 
 	for _, opt := range opts {
 		opt(&um)
 	}
 
-	um.semaphore = make(chan struct{}, defaultConcurrencyLimit)
+	um.wgfc.Add(1)
+	go func() {
+		for fileType := range um.fileCountsChan {
+			switch fileType {
+			case WandbFile:
+				um.fileCounts.WandbCount++
+			case MediaFile:
+				um.fileCounts.MediaCount++
+			case ArtifactFile:
+				um.fileCounts.ArtifactCount++
+			default:
+				um.fileCounts.OtherCount++
+			}
+		}
+		um.wgfc.Done()
+	}()
 
 	return &um
 }
@@ -107,21 +132,14 @@ func (um *UploadManager) Start() {
 				if task.CompletionCallback != nil {
 					task.CompletionCallback(task)
 				}
-				// mark the task as done
-				um.wg.Done()
 
 				if task.Err == nil {
-					switch task.FileType {
-					case WandbFile:
-						um.fileCounts.WandbCount++
-					case MediaFile:
-						um.fileCounts.MediaCount++
-					case ArtifactFile:
-						um.fileCounts.ArtifactCount++
-					default:
-						um.fileCounts.OtherCount++
-					}
+					fmt.Println("task.FileType", task.FileType, task.Path)
+					um.fileCountsChan <- task.FileType
 				}
+
+				// mark the task as done
+				um.wg.Done()
 			}(task)
 		}
 		um.wg.Done()
@@ -146,6 +164,8 @@ func (um *UploadManager) Close() {
 	// todo: review this, we don't want to cause a panic
 	close(um.inChan)
 	um.wg.Wait()
+	close(um.fileCountsChan)
+	um.wgfc.Wait()
 }
 
 // upload uploads a file to the server
