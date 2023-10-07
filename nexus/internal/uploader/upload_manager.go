@@ -15,13 +15,6 @@ const (
 	defaultConcurrencyLimit = 128
 )
 
-type fileCounts struct {
-	wandbCount    int
-	mediaCount    int
-	artifactCount int
-	otherCount    int
-}
-
 type Uploader interface {
 	Upload(task *UploadTask) error
 }
@@ -39,7 +32,7 @@ type UploadManager struct {
 	semaphore chan struct{}
 
 	// fileCounts is the file counts for the uploader
-	fileCounts fileCounts
+	fileCounts *service.FileCounts
 
 	// settings is the settings for the uploader
 	settings *service.Settings
@@ -74,8 +67,9 @@ func WithUploader(uploader Uploader) UploadManagerOption {
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 
 	um := UploadManager{
-		inChan: make(chan *UploadTask, bufferSize),
-		wg:     &sync.WaitGroup{},
+		inChan:     make(chan *UploadTask, bufferSize),
+		fileCounts: &service.FileCounts{},
+		wg:         &sync.WaitGroup{},
 	}
 
 	for _, opt := range opts {
@@ -115,6 +109,19 @@ func (um *UploadManager) Start() {
 				}
 				// mark the task as done
 				um.wg.Done()
+
+				if task.Err == nil {
+					switch task.FileType {
+					case WandbFile:
+						um.fileCounts.WandbCount++
+					case MediaFile:
+						um.fileCounts.MediaCount++
+					case ArtifactFile:
+						um.fileCounts.ArtifactCount++
+					default:
+						um.fileCounts.OtherCount++
+					}
+				}
 			}(task)
 		}
 		um.wg.Done()
@@ -145,4 +152,16 @@ func (um *UploadManager) Close() {
 func (um *UploadManager) upload(task *UploadTask) error {
 	err := um.uploader.Upload(task)
 	return err
+}
+
+// GetFileCounts returns the file counts for the uploader
+func (um *UploadManager) GetFileCounts() *service.FileCounts {
+	// um.fileCounts = &service.FileCounts{
+	// 	WandbCount:    42,
+	// 	MediaCount:    420,
+	// 	ArtifactCount: -1,
+	// 	OtherCount:    100500,
+	// }
+
+	return um.fileCounts
 }

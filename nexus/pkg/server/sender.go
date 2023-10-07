@@ -262,7 +262,7 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendFile(MetaFilename)
+	s.sendFile(MetaFilename, uploader.WandbFile)
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
@@ -729,12 +729,16 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) {
 	files := filesRecord.GetFiles()
 	for _, file := range files {
-		s.sendFile(file.GetPath())
+		if strings.HasPrefix(file.GetPath(), "media") {
+			s.sendFile(file.GetPath(), uploader.MediaFile)
+		} else {
+			s.sendFile(file.GetPath(), uploader.OtherFile)
+		}
 	}
 }
 
 // sendFile sends a file to the server
-func (s *Sender) sendFile(name string) {
+func (s *Sender) sendFile(name string, fileType uploader.FileType) {
 	if s.graphqlClient == nil || s.uploadManager == nil {
 		return
 	}
@@ -752,7 +756,7 @@ func (s *Sender) sendFile(name string) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl}
+		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl, FileType: fileType}
 		s.uploadManager.AddTask(task)
 	}
 }
@@ -783,14 +787,14 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 
 func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest) {
 
+	fileCounts := s.uploadManager.GetFileCounts()
+
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
 				ResponseType: &service.Response_PollExitResponse{
 					PollExitResponse: &service.PollExitResponse{
-						FileCounts: &service.FileCounts{
-							WandbCount: 32,
-						},
+						FileCounts: fileCounts,
 					},
 				},
 			},
