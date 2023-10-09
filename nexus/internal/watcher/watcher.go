@@ -2,11 +2,12 @@ package watcher
 
 import (
 	"fmt"
-	fw "github.com/radovskyb/watcher"
-	"github.com/wandb/wandb/nexus/pkg/service"
 	"log"
 	"sync"
 	"time"
+
+	fw "github.com/radovskyb/watcher"
+	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 type Watcher struct {

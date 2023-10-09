@@ -3,10 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/wandb/wandb/nexus/internal/watcher"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/wandb/wandb/nexus/internal/watcher"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"

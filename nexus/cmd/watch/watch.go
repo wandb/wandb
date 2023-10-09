@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/wandb/wandb/nexus/internal/watcher"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
-import "github.com/wandb/wandb/nexus/internal/watcher"
 
 // main
 func main() {
