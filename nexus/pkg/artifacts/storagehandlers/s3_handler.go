@@ -35,7 +35,7 @@ type StorageHandler interface {
 
 type ETag string
 
-func parseURI(uri string) (string, string, string, error) {
+func parseS3URI(uri string) (string, string, string, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return "", "", "", err
@@ -88,7 +88,7 @@ func (sh *S3StorageHandler) loadPath() (string, error) {
 	if sh.Client == nil {
 		return "", fmt.Errorf("could not initialize client")
 	}
-	bucket, key, _, err := parseURI(*sh.ManifestEntry.Ref)
+	bucket, key, _, err := parseS3URI(*sh.ManifestEntry.Ref)
 	if err != nil {
 		return "", err
 	}
