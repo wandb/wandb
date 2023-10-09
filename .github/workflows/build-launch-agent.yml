@@ -1,0 +1,44 @@
+name: Build Launch Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        required: false
+        description: wandb ref to build agent from
+        default: main
+      tagName:
+        type: string
+        required: true
+        description: Tag Name for the launch agent
+
+defaults:
+  run:
+    working-directory: ./tools/launch/build
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - id: build
+        name: Build launch agent
+        run: |
+          docker context create builder
+          docker buildx create --use
+
+          REF=${{ github.event.inputs.ref }}
+
+          TAG=${{ github.event.inputs.tagName }}
+
+          echo Building launch agent image for version $TAG
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg REF=$REF -t wandb/launch-agent-dev:$TAG -t wandb/launch-agent-dev:latest . --push

@@ -760,12 +760,32 @@ class InterfaceBase:
     def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
         raise NotImplementedError
 
+    def deliver_internal_messages(self) -> MailboxHandle:
+        internal_message = pb.InternalMessagesRequest()
+        return self._deliver_internal_messages(internal_message)
+
+    @abstractmethod
+    def _deliver_internal_messages(
+        self, internal_message: pb.InternalMessagesRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_get_summary(self) -> MailboxHandle:
         get_summary = pb.GetSummaryRequest()
         return self._deliver_get_summary(get_summary)
 
     @abstractmethod
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_system_metrics(self) -> MailboxHandle:
+        get_summary = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_summary)
+
+    @abstractmethod
+    def _deliver_get_system_metrics(
+        self, get_summary: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle:

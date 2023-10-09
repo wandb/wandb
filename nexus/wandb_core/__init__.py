@@ -1,12 +1,10 @@
-"""nexus."""
+"""W&B Nexus: Calcium-Rich Bones for the SDK."""
+__all__ = ("__version__", "get_nexus_path")
 
-import platform
 from pathlib import Path
+
+__version__ = "0.16.0b2"
 
 
 def get_nexus_path() -> Path:
-    base = Path(__file__).parent
-    goos = platform.system().lower()
-    goarch = platform.machine().lower().replace("x86_64", "amd64")
-    path = (base / f"bin-{goos}-{goarch}" / "wandb-nexus").resolve()
-    return path
+    return (Path(__file__).parent / "wandb-nexus").resolve()

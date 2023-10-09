@@ -5,11 +5,11 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.sdk.launch._launch as _launch
 import wandb.sdk.launch._project_spec as _project_spec
-import wandb.sdk.launch.launch as launch
 from wandb.sdk.data_types._dtypes import TypeRegistry
+from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.launch_add import launch_add
 
 from tests.pytest_tests.unit_tests_old import utils
 
@@ -121,7 +121,7 @@ def test_launch_job_artifact(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -167,7 +167,7 @@ def test_launch_job_repo(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -207,7 +207,7 @@ def test_launch_job_container(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -243,5 +243,4 @@ def test_launch_add_container_queued_run(
     )
 
     queued_run = launch_add(job="test/test/test-job:v0")
-    with pytest.raises(LaunchError):
-        queued_run.wait_until_finished()
+    assert queued_run

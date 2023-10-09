@@ -1741,7 +1741,8 @@ class Artifact:
             has_next_page = True
             cursor = None
             while has_next_page:
-                attrs = self._fetch_file_urls(cursor)
+                fetch_url_batch_size = env.get_artifact_fetch_file_url_batch_size()
+                attrs = self._fetch_file_urls(cursor, fetch_url_batch_size)
                 has_next_page = attrs["pageInfo"]["hasNextPage"]
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
@@ -1749,7 +1750,7 @@ class Artifact:
                     entry._download_url = edge["node"]["directUrl"]
                     active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
-                max_backlog = 5000
+                max_backlog = fetch_url_batch_size
                 if len(active_futures) > max_backlog:
                     for future in concurrent.futures.as_completed(active_futures):
                         future.result()  # check for errors
@@ -1780,12 +1781,14 @@ class Artifact:
         retry_timedelta=timedelta(minutes=3),
         retryable_exceptions=(requests.RequestException),
     )
-    def _fetch_file_urls(self, cursor: Optional[str]) -> Any:
+    def _fetch_file_urls(
+        self, cursor: Optional[str], per_page: Optional[int] = 5000
+    ) -> Any:
         query = gql(
             """
-            query ArtifactFileURLs($id: ID!, $cursor: String) {
+            query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
                 artifact(id: $id) {
-                    files(after: $cursor, first: 5000) {
+                    files(after: $cursor, first: $perPage) {
                         pageInfo {
                             hasNextPage
                             endCursor
@@ -1804,7 +1807,7 @@ class Artifact:
         assert self._client is not None
         response = self._client.execute(
             query,
-            variable_values={"id": self.id, "cursor": cursor},
+            variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
             timeout=60,
         )
         return response["artifact"]["files"]

@@ -1,12 +1,16 @@
 // package gowandb implements the go Weights & Biases SDK
 package gowandb
 
+import (
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
+)
+
 type History map[string]interface{}
 
-func NewSession(opts ...SessionOption) (*Session, error) {
+func NewSession(opts ...sessionopts.SessionOption) (*Session, error) {
 	session := &Session{}
 	for _, opt := range opts {
-		opt(session)
+		opt(&session.SessionParams)
 	}
 	session.start()
 	return session, nil

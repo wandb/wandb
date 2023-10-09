@@ -134,7 +134,7 @@ message RunRecord {
 }
 
 message GitRepoRecord {
-  string remote_url = 1;
+  string remote_url = 1 [json_name="remote"];
   string commit = 2;
 }
 
@@ -498,6 +498,7 @@ message Request {
     RunStatusRequest      run_status = 20;
     CancelRequest         cancel = 21;
     MetadataRequest       metadata = 22;
+    InternalMessagesRequest internal_messages = 23;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -508,6 +509,7 @@ message Request {
     SummaryRecordRequest  summary_record = 71;
     TelemetryRecordRequest telemetry_record = 72;
     JobInfoRequest      job_info = 73;
+    GetSystemMetricsRequest     get_system_metrics = 74;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -530,11 +532,13 @@ message Response {
     DownloadArtifactResponse    download_artifact_response = 31;
     RunStatusResponse      run_status_response = 35;
     CancelResponse         cancel_response = 36;
+    InternalMessagesResponse internal_messages_response = 37;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
     ServerInfoResponse     server_info_response = 67;
     JobInfoResponse        job_info_response = 68;
+    GetSystemMetricsResponse     get_system_metrics_response = 69;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -608,6 +612,26 @@ message GetSummaryResponse {
 }
 
 /*
+ * GetSystemMetrics: request system metrics
+ */
+message GetSystemMetricsRequest {
+  _RequestInfo _info = 200;
+}
+
+message SystemMetricSample {
+  google.protobuf.Timestamp timestamp = 1;
+  float value = 2;
+}
+
+message SystemMetricsBuffer {
+  repeated SystemMetricSample record = 1;
+}
+
+message GetSystemMetricsResponse{
+  map<string, SystemMetricsBuffer> system_metrics = 1;
+}
+
+/*
  * StatusRequest:
  */
 message StatusRequest {
@@ -637,6 +661,21 @@ message NetworkStatusResponse {
 message HttpResponse {
   int32 http_status_code = 1;
   string http_response_text = 2;
+}
+
+/*
+ * InternalMessagesRequest:
+ */
+message InternalMessagesRequest{
+_RequestInfo _info = 200;
+    }
+
+message InternalMessagesResponse {
+  InternalMessages messages = 1;
+}
+
+message InternalMessages{
+  repeated string warning = 1;
 }
 
 /*
@@ -975,18 +1014,28 @@ message CancelResponse {
 /*
  * MetadataRequest
  */
-message MetaDiskInfo {
-  float total = 1;
-  float used = 2;
+message DiskInfo {
+  uint64 total = 1;
+  uint64 used = 2;
 }
 
-message MetaGpuAppleInfo {
+message MemoryInfo {
+  uint64 total = 1;
+}
+
+message CpuInfo {
+  uint32 count = 1;
+  uint32 count_logical = 2;
+}
+
+message GpuAppleInfo {
   string gpuType = 1;
   string vendor = 2;
 }
 
-message MetaMemInfo {
-  float total = 1;
+message GpuNvidiaInfo {
+  string name = 1;
+  uint64 memory_total = 2;
 }
 
 message MetadataRequest {
@@ -999,16 +1048,22 @@ message MetadataRequest {
   repeated string args = 7;
   string state = 8;
   string program = 9;
-  string codePath = 10;
+  string code_path = 10 [json_name="codePath"];
   GitRepoRecord git = 11;
   string email = 12;
   string root = 13;
   string host = 14;
   string username = 15;
   string executable = 16;
-  int32 cpu_count = 17 [json_name="cpu_count"];
-  int32 cpu_count_logical = 18 [json_name="cpu_count_logical"];
-  MetaDiskInfo disk = 19;
-  MetaGpuAppleInfo gpuapple = 20;
-  MetaMemInfo memory = 21;
+  string code_path_local = 17 [json_name="codePathLocal"];
+  string colab = 18;
+  uint32 cpu_count = 19 [json_name="cpu_count"];
+  uint32 cpu_count_logical = 20 [json_name="cpu_count_logical"];
+  string gpu_type = 21 [json_name="gpu"];
+  uint32 gpu_count = 22 [json_name="gpu_count"];
+  map<string, DiskInfo> disk = 23;
+  MemoryInfo memory = 24;
+  CpuInfo cpu = 25;
+  GpuAppleInfo gpu_apple = 26 [json_name="gpuapple"];
+  repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name="gpu_nvidia"];
 }

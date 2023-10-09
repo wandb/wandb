@@ -124,6 +124,7 @@ class InterfaceShared(InterfaceBase):
         resume: Optional[pb.ResumeRequest] = None,
         status: Optional[pb.StatusRequest] = None,
         stop_status: Optional[pb.StopStatusRequest] = None,
+        internal_messages: Optional[pb.InternalMessagesRequest] = None,
         network_status: Optional[pb.NetworkStatusRequest] = None,
         poll_exit: Optional[pb.PollExitRequest] = None,
         partial_history: Optional[pb.PartialHistoryRequest] = None,
@@ -144,6 +145,7 @@ class InterfaceShared(InterfaceBase):
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
         job_info: Optional[pb.JobInfoRequest] = None,
+        get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -158,6 +160,8 @@ class InterfaceShared(InterfaceBase):
             request.status.CopyFrom(status)
         elif stop_status:
             request.stop_status.CopyFrom(stop_status)
+        elif internal_messages:
+            request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
@@ -198,6 +202,8 @@ class InterfaceShared(InterfaceBase):
             request.telemetry_record.CopyFrom(telemetry_record)
         elif job_info:
             request.job_info.CopyFrom(job_info)
+        elif get_system_metrics:
+            request.get_system_metrics.CopyFrom(get_system_metrics)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -441,6 +447,12 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(get_summary=get_summary)
         return self._deliver_record(record)
 
+    def _deliver_get_system_metrics(
+        self, get_system_metrics: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        record = self._make_request(get_system_metrics=get_system_metrics)
+        return self._deliver_record(record)
+
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
         record = self._make_record(exit=exit_data)
         return self._deliver_record(record)
@@ -467,6 +479,12 @@ class InterfaceShared(InterfaceBase):
         self, network_status: pb.NetworkStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(network_status=network_status)
+        return self._deliver_record(record)
+
+    def _deliver_internal_messages(
+        self, internal_message: pb.InternalMessagesRequest
+    ) -> MailboxHandle:
+        record = self._make_request(internal_messages=internal_message)
         return self._deliver_record(record)
 
     def _deliver_request_server_info(

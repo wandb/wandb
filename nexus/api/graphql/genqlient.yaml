@@ -8,11 +8,11 @@ package: gql
 # optional: value
 optional: pointer
 bindings:
-  JSONString:
-    type: string
   DateTime:
     type: time.Time
   Duration:
     type: int64
   Int64:
-    type: int
+    type: int64
+  JSONString:
+    type: string

@@ -32,7 +32,7 @@ from typing import (
     Union,
     no_type_check,
 )
-from urllib.parse import quote, urlencode, urlparse, urlsplit
+from urllib.parse import quote, unquote, urlencode, urlparse, urlsplit
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 
@@ -309,6 +309,7 @@ class SettingsData:
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
+    _disable_machine_info: bool  # Disable automatic machine info collection
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
@@ -347,6 +348,7 @@ class SettingsData:
     _sync: bool
     _os: str
     _platform: str
+    _proxies: Mapping[str, str]  # dedicated global proxy servers [scheme -> url]
     _python: str
     _runqueue_item_id: str
     _require_nexus: bool
@@ -366,6 +368,7 @@ class SettingsData:
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
+    _stats_buffer_size: int  # number of consolidated samples to buffer before flushing, available in run obj
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -376,6 +379,7 @@ class SettingsData:
     azure_account_url_to_access_key: Dict[str, str]
     base_url: str  # The base url for the wandb api
     code_dir: str
+    colab_url: str
     config_paths: Sequence[str]
     console: str
     deployment: str
@@ -414,7 +418,8 @@ class SettingsData:
     notebook_name: str
     problem: str
     program: str
-    program_relpath: Optional[str]
+    program_abspath: str
+    program_relpath: str
     project: str
     project_url: str
     quiet: bool
@@ -619,14 +624,26 @@ class Settings(SettingsData):
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
             },
-            _disable_meta={"preprocessor": _str_as_bool},
+            _disable_machine_info={
+                "value": False,
+                "preprocessor": _str_as_bool,
+            },
+            _disable_meta={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
             _disable_service={
                 "value": False,
                 "preprocessor": _str_as_bool,
                 "is_policy": True,
             },
             _disable_setproctitle={"value": False, "preprocessor": _str_as_bool},
-            _disable_stats={"preprocessor": _str_as_bool},
+            _disable_stats={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
             # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
@@ -684,6 +701,9 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
+            _proxies={
+                "preprocessor": _str_as_json,
+            },
             _require_nexus={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
@@ -718,6 +738,10 @@ class Settings(SettingsData):
                 "value": ("/",),
                 "preprocessor": _str_as_json,
             },
+            _stats_buffer_size={
+                "value": 0,
+                "preprocessor": int,
+            },
             _sync={"value": False},
             _tmp_code_dir={
                 "value": "code",
@@ -734,6 +758,10 @@ class Settings(SettingsData):
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
+            colab_url={
+                "hook": lambda _: self._get_colab_url(),
+                "auto_hook": True,
+            },
             config_paths={"preprocessor": _str_as_tuple},
             console={
                 "value": "auto",
@@ -745,10 +773,22 @@ class Settings(SettingsData):
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
             },
-            disable_code={"preprocessor": _str_as_bool},
+            disable_code={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
             disable_hints={"preprocessor": _str_as_bool},
-            disable_git={"preprocessor": _str_as_bool},
-            disable_job_creation={"value": False, "preprocessor": _str_as_bool},
+            disable_git={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
+            disable_job_creation={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "hook": lambda x: self._disable_machine_info or x,
+            },
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
@@ -763,7 +803,7 @@ class Settings(SettingsData):
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            init_timeout={"value": 60, "preprocessor": lambda x: float(x)},
+            init_timeout={"value": 90, "preprocessor": lambda x: float(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -801,6 +841,9 @@ class Settings(SettingsData):
             login_timeout={"preprocessor": lambda x: float(x)},
             mode={"value": "online", "validator": self._validate_mode},
             problem={"value": "fatal", "validator": self._validate_problem},
+            program={
+                "hook": lambda x: self._get_program(x),
+            },
             project={"validator": self._validate_project},
             project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
@@ -1170,6 +1213,32 @@ class Settings(SettingsData):
             else:
                 console = "redirect"
         return console
+
+    def _get_colab_url(self) -> Optional[str]:
+        if not self._colab:
+            return None
+        if self._jupyter_path and self._jupyter_path.startswith("fileId="):
+            unescaped = unquote(self._jupyter_path)
+            return "https://colab.research.google.com/notebook#" + unescaped
+        return None
+
+    def _get_program(self, program: Optional[str]) -> Optional[str]:
+        if program is not None and program != "<python with no main file>":
+            return program
+
+        if not self._jupyter:
+            return program
+
+        if self.notebook_name:
+            return self.notebook_name
+
+        if not self._jupyter_path:
+            return program
+
+        if self._jupyter_path.startswith("fileId="):
+            return self._jupyter_name
+        else:
+            return self._jupyter_path
 
     def _get_url_query_string(self) -> str:
         # TODO(settings) use `wandb_setting` (if self.anonymous != "true":)
@@ -1706,10 +1775,17 @@ class Settings(SettingsData):
         program = self.program or _get_program()
         if program is not None:
             repo = GitRepo()
+            root = repo.root or os.getcwd()
+
             program_relpath = self.program_relpath or _get_program_relpath(
                 program, repo.root, _logger=_logger
             )
             settings["program_relpath"] = program_relpath
+            program_abspath = os.path.abspath(
+                os.path.join(root, os.path.relpath(os.getcwd(), root), program)
+            )
+            if os.path.exists(program_abspath):
+                settings["program_abspath"] = program_abspath
         else:
             program = "<python with no main file>"
 
