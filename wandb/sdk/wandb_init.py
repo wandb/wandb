@@ -637,6 +637,7 @@ class _WandbInit:
         with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()
+            tel.platform = f"{platform.system()}-{platform.machine()}".lower()
             hf_version = _huggingface_version()
             if hf_version:
                 tel.huggingface_version = hf_version

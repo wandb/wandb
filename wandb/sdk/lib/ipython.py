@@ -45,6 +45,10 @@ def _get_python_type() -> PythonType:
         (get_ipython().config.get("IPKernelApp", {}) or {})
         .get("connection_file", "")
         .lower()
+    ) or (
+        (get_ipython().config.get("ColabKernelApp", {}) or {})
+        .get("connection_file", "")
+        .lower()
     )
 
     if (
