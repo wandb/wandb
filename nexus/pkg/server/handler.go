@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/wandb/wandb/nexus/internal/watcher"
 	"os"
 	"path/filepath"
 	"time"
@@ -109,6 +110,8 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
+	watcher *watcher.Watcher
+
 	// fh is the file handler for the stream
 	fh *FileHandler
 }
@@ -133,6 +136,7 @@ func NewHandler(
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
+
 	// initialize the run metadata from settings
 	h.runMetadata = &service.MetadataRequest{
 		Os:       h.settings.GetXOs().GetValue(),
