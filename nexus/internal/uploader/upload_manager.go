@@ -176,5 +176,8 @@ func (um *UploadManager) upload(task *UploadTask) error {
 
 // GetFileCounts returns the file counts for the uploader
 func (um *UploadManager) GetFileCounts() *service.FileCounts {
+	if um == nil {
+		return &service.FileCounts{}
+	}
 	return um.fileCounts
 }

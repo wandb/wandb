@@ -788,7 +788,6 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 }
 
 func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest) {
-
 	fileCounts := s.uploadManager.GetFileCounts()
 
 	result := &service.Result{
