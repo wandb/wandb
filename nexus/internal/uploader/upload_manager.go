@@ -1,7 +1,6 @@
 package uploader
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -136,7 +135,6 @@ func (um *UploadManager) Start() {
 				}
 
 				if task.Err == nil {
-					fmt.Println("task.FileType", task.FileType, task.Path)
 					um.fileCountsChan <- task.FileType
 				}
 
