@@ -20,23 +20,11 @@ if TYPE_CHECKING:
 
 class GCSHandler(StorageHandler):
     _client: Optional["gcs_module.client.Client"]
-    _versioning_enabled: Optional[bool]
 
     def __init__(self, scheme: Optional[str] = None) -> None:
         self._scheme = scheme or "gs"
         self._client = None
-        self._versioning_enabled = None
         self._cache = get_artifacts_cache()
-
-    def versioning_enabled(self, bucket_path: str) -> bool:
-        if self._versioning_enabled is not None:
-            return self._versioning_enabled
-        self.init_gcs()
-        assert self._client is not None  # mypy: unwraps optionality
-        bucket = self._client.bucket(bucket_path)
-        bucket.reload()
-        self._versioning_enabled = bucket.versioning_enabled
-        return self._versioning_enabled
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
         return parsed_url.scheme == self._scheme
@@ -120,16 +108,14 @@ class GCSHandler(StorageHandler):
         bucket, key, version = self._parse_uri(path)
         path = URIStr(f"{self._scheme}://{bucket}/{key}")
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
-        if not self.versioning_enabled(bucket) and version:
-            raise ValueError(
-                f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
-            )
 
         if not checksum:
             return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
 
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
+        if obj is None and version is not None:
+            raise ValueError(f"Object does not exist: {path}#{version}")
         multi = obj is None
         if multi:
             start_time = time.time()
