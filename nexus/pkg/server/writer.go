@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -25,13 +24,8 @@ type Writer struct {
 	// fwdChan is the channel for forwarding messages to the sender
 	fwdChan chan *service.Record
 
-	// storeChan is the channel for messages to be stored
-	storeChan chan *service.Record
-
 	// store is the store for the writer
 	store *Store
-
-	wg sync.WaitGroup
 }
 
 // NewWriter returns a new Writer
@@ -51,28 +45,11 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 	defer w.logger.Reraise()
 	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
 
-	w.storeChan = make(chan *service.Record, BufferSize*8)
-
 	var err error
 	w.store, err = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
 	}
-
-	w.wg = sync.WaitGroup{}
-	w.wg.Add(1)
-	go func() {
-		for record := range w.storeChan {
-			if err = w.store.storeRecord(record); err != nil {
-				w.logger.Error("writer: error storing record", "error", err)
-			}
-		}
-
-		if err = w.store.Close(); err != nil {
-			w.logger.CaptureError("writer: error closing store", err)
-		}
-		w.wg.Done()
-	}()
 
 	for record := range inChan {
 		w.handleRecord(record)
@@ -85,8 +62,9 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 func (w *Writer) close() {
 	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
 	close(w.fwdChan)
-	close(w.storeChan)
-	w.wg.Wait()
+	if err := w.store.Close(); err != nil {
+		w.logger.CaptureError("writer: error closing store", err)
+	}
 }
 
 // handleRecord Writing messages to the append-only log,
@@ -101,8 +79,8 @@ func (w *Writer) handleRecord(record *service.Record) {
 	case nil:
 		w.logger.Error("nil record type")
 	default:
-		w.sendRecord(record)
 		w.storeRecord(record)
+		w.sendRecord(record)
 	}
 }
 
@@ -111,7 +89,9 @@ func (w *Writer) storeRecord(record *service.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
-	w.storeChan <- record
+	if err := w.store.storeRecord(record); err != nil {
+		w.logger.Error("writer: error storing record", "error", err)
+	}
 }
 
 func (w *Writer) sendRecord(record *service.Record) {
