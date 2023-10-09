@@ -228,6 +228,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendMetadata(x.Metadata)
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
+	case *service.Request_DownloadArtifact:
+		s.sendDownloadArtifact(record, x.DownloadArtifact)
 	default:
 		// TODO: handle errors
 	}
@@ -767,6 +769,29 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 			Response: &service.Response{
 				ResponseType: &service.Response_LogArtifactResponse{
 					LogArtifactResponse: &response,
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
+	var response service.DownloadArtifactResponse
+	fmt.Printf("\n\nsender: %v\n\n", msg)
+	// if err != nil {
+	// 	response.ErrorMessage = err.Error()
+	// } else {
+	// 	response.FileDownloadPath = ""
+	// }
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_DownloadArtifactResponse{
+					DownloadArtifactResponse: &response,
 				},
 			},
 		},
