@@ -176,12 +176,5 @@ func (um *UploadManager) upload(task *UploadTask) error {
 
 // GetFileCounts returns the file counts for the uploader
 func (um *UploadManager) GetFileCounts() *service.FileCounts {
-	// um.fileCounts = &service.FileCounts{
-	// 	WandbCount:    42,
-	// 	MediaCount:    420,
-	// 	ArtifactCount: -1,
-	// 	OtherCount:    100500,
-	// }
-
 	return um.fileCounts
 }
