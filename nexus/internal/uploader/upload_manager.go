@@ -71,6 +71,22 @@ func WithUploader(uploader Uploader) UploadManagerOption {
 	}
 }
 
+func (um *UploadManager) fileCount() {
+	for fileType := range um.fileCountsChan {
+		switch fileType {
+		case WandbFile:
+			um.fileCounts.WandbCount++
+		case MediaFile:
+			um.fileCounts.MediaCount++
+		case ArtifactFile:
+			um.fileCounts.ArtifactCount++
+		default:
+			um.fileCounts.OtherCount++
+		}
+	}
+	um.wgfc.Done()
+}
+
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 
 	um := UploadManager{
@@ -87,21 +103,7 @@ func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 	}
 
 	um.wgfc.Add(1)
-	go func() {
-		for fileType := range um.fileCountsChan {
-			switch fileType {
-			case WandbFile:
-				um.fileCounts.WandbCount++
-			case MediaFile:
-				um.fileCounts.MediaCount++
-			case ArtifactFile:
-				um.fileCounts.ArtifactCount++
-			default:
-				um.fileCounts.OtherCount++
-			}
-		}
-		um.wgfc.Done()
-	}()
+	go um.fileCount()
 
 	return &um
 }

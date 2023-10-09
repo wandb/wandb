@@ -235,6 +235,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendLogArtifact(record, x.LogArtifact)
 	case *service.Request_PollExit:
 		s.sendPollExit(record, x.PollExit)
+	case *service.Request_ServerInfo:
+		s.sendServerInfo(record, x.ServerInfo)
 	default:
 		// TODO: handle errors
 	}
@@ -797,6 +799,23 @@ func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest
 						FileCounts: fileCounts,
 					},
 				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
+	if s.graphqlClient == nil {
+		return
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_ServerInfoResponse{}, // todo: fill in
 			},
 		},
 		Control: record.Control,

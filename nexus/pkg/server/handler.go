@@ -282,6 +282,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 		return
 	case *service.Request_PollExit:
 		h.handlePollExit(record)
+		return
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
@@ -369,11 +370,6 @@ func (h *Handler) handleLinkArtifact(record *service.Record) {
 }
 
 func (h *Handler) handlePollExit(record *service.Record) {
-	// resp.file_counts.wandb_count = file_counts.wandb
-	// resp.file_counts.media_count = file_counts.media
-	// resp.file_counts.artifact_count = file_counts.artifact
-	// resp.file_counts.other_count = file_counts.other
-
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true

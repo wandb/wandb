@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -118,5 +119,6 @@ func (w *Writer) sendRecord(record *service.Record) {
 	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return
 	}
+	fmt.Println("sendRecord", record)
 	w.fwdChan <- record
 }
