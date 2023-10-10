@@ -6,6 +6,11 @@ from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 
 
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super(AsyncMock, self).__call__(*args, **kwargs)
+
+
 @pytest.fixture
 def azure_environment(mocker):
     """Fixture for AzureEnvironment class."""
@@ -34,7 +39,8 @@ def azure_container_registry(mocker, azure_environment):
     return AzureContainerRegistry.from_config(config, azure_environment)
 
 
-def test_kaniko_azure(azure_container_registry):
+@pytest.mark.asyncio
+async def test_kaniko_azure(azure_container_registry):
     """Test that the kaniko builder correctly constructs the job spec for Azure."""
     builder = KanikoBuilder(
         environment=azure_container_registry.environment,
@@ -43,7 +49,8 @@ def test_kaniko_azure(azure_container_registry):
         build_context_store="https://account.blob.core.windows.net/container/blob",
     )
     core_client = MagicMock()
-    job = builder._create_kaniko_job(
+    core_client.read_namespaced_secret = AsyncMock(return_value=None)
+    job = await builder._create_kaniko_job(
         "test-job",
         "https://registry.azurecr.io/test-repo",
         "12345678",
