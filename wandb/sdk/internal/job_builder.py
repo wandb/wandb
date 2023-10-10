@@ -241,7 +241,7 @@ class JobBuilder:
         raw_image_name = image_name
         if ":" in image_name:
             tag = image_name.split(":")[-1]
-            raw_image_name = raw_image_name.removesuffix(f":{tag}")
+            raw_image_name = raw_image_name.replace(f":{tag}", "")
             self._aliases += [tag]
 
         source: ImageSourceDict = {
