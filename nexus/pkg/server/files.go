@@ -25,6 +25,7 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 	for _, item := range record.GetFiles().GetFiles() {
 		// TODO: support live policy?
 		if item.Policy == service.FilesItem_END || item.Policy == service.FilesItem_LIVE {
+			// todo: handle globs in path
 			if _, ok := fh.savedFiles[item.Path]; !ok {
 				fh.savedFiles[item.Path] = nil
 				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
