@@ -479,8 +479,8 @@ class KubernetesRunner(AbstractRunner):
             # a kind: attribute in the resource args.
             namespace = self.get_namespace(resource_args, context)
             LaunchKubernetesMonitor.monitor_namespace(namespace)
-            group = resource_args.get("group", api_version.split("/")[0])
-            version = api_version.split("/")[1]
+            group, version, *_ = api_version.split("/")
+            group = resource_args.get("group", group)
             kind = resource_args.get("kind", version)
             plural = f"{kind.lower()}s"
             try:

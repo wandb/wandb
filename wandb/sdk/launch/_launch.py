@@ -21,6 +21,7 @@ from .utils import (
     construct_launch_spec,
     validate_launch_spec_source,
 )
+from .environment.local_environment import LocalEnvironment
 
 _logger = logging.getLogger(__name__)
 
@@ -177,7 +178,7 @@ async def _launch(
     config = launch_config or {}
     environment_config, build_config, registry_config = construct_agent_configs(config)
     environment = loader.environment_from_config(environment_config)
-    if environment is not None:
+    if environment is not None and not isinstance(environment, LocalEnvironment):
         await environment.verify()
     registry = loader.registry_from_config(registry_config, environment)
     if registry:
