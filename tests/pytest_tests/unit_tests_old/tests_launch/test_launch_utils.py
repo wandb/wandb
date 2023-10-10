@@ -3,12 +3,7 @@ from typing import List
 
 import pytest
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    diff_pip_requirements,
-    make_queue_uri,
-    parse_wandb_uri,
-)
+from wandb.sdk.launch.utils import diff_pip_requirements, parse_wandb_uri
 
 REQUIREMENT_FILE_BASIC: List[str] = [
     "package-one==1.0.0",
@@ -58,22 +53,3 @@ def test_diff_pip_requirements():
 def test_parse_wandb_uri_invalid_uri():
     with pytest.raises(LaunchError):
         parse_wandb_uri("invalid_uri")
-
-
-def test_make_queue_uri():
-    with pytest.raises(ValueError):
-        make_queue_uri(None, None, "queue")
-
-    with pytest.raises(ValueError):
-        make_queue_uri("entity", None, "queue")
-
-    with pytest.raises(ValueError):
-        make_queue_uri(None, "project", "queue")
-
-    assert (
-        make_queue_uri("entity", "project", "queue") == "queue:0:entity:project:queue"
-    )
-    assert (
-        make_queue_uri("entity", LAUNCH_DEFAULT_PROJECT, "queue")
-        == "queue:1:entity:queue"
-    )

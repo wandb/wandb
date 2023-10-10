@@ -240,8 +240,10 @@ def get_env_vars_dict(
         env_vars["WANDB_SWEEP_ID"] = launch_project.sweep_id
     if launch_project.launch_spec.get("_resume_count", 0) > 0:
         env_vars["WANDB_RESUME"] = "allow"
-    if launch_project.queue_uri:
-        env_vars[wandb.env.LAUNCH_QUEUE_URI] = launch_project.queue_uri
+    if launch_project.queue_name:
+        env_vars[wandb.env.LAUNCH_QUEUE_NAME] = launch_project.queue_name
+    if launch_project.queue_entity:
+        env_vars[wandb.env.LAUNCH_QUEUE_ENTITY] = launch_project.queue_entity
     if launch_project.run_queue_item_id:
         env_vars[wandb.env.LAUNCH_RUN_QUEUE_ITEM_ID] = launch_project.run_queue_item_id
 

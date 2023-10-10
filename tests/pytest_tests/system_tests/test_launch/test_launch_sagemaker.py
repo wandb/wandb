@@ -90,7 +90,8 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
         project.image_name = "testimage"
         project.job = "testjob"
         project.launch_spec = {}
-        project.queue_uri = None
+        project.queue_name = None
+        project.queue_entity = None
         project.run_queue_item_id = None
         environment = loader.environment_from_config({})
         api = Api()

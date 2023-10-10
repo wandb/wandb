@@ -107,10 +107,14 @@ def test_launch_get_project_queue_error(user):
 def test_launch_wandb_init_launch_envs(
     relay_server, runner, user, wandb_init, test_settings
 ):
-    uri = "queue:1:test-entity/test-queue-name"
+    queue = "test-queue-name"
     with runner.isolated_filesystem(), mock.patch.dict(
         "os.environ",
-        {"WANDB_LAUNCH_QUEUE_URI": uri, "WANDB_LAUNCH_RUN_QUEUE_ITEM_ID": "test123"},
+        {
+            "WANDB_LAUNCH_QUEUE_NAME": queue,
+            "WANDB_LAUNCH_QUEUE_ENTITY": user,
+            "WANDB_LAUNCH_RUN_QUEUE_ITEM_ID": "test123",
+        },
     ):
         with relay_server() as relay:
             run = wandb_init()
@@ -120,4 +124,5 @@ def test_launch_wandb_init_launch_envs(
         config = relay.context.config[run.id]
 
         assert config["_wandb"]["value"]["launch_run_queue_item_id"] == "test123"
-        assert config["_wandb"]["value"]["launch_queue_uri"] == uri
+        assert config["_wandb"]["value"]["launch_queue_entity"] == user
+        assert config["_wandb"]["value"]["launch_queue_name"] == queue
