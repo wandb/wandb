@@ -132,7 +132,6 @@ class ArtifactManifestEntry:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
                 self._parent_artifact, self
             )
-        termlog(f"\n\n Cache path: {cache_path}\n\n")
         return FilePathStr(
             str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
         )
