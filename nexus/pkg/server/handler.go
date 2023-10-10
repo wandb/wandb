@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/wandb/wandb/nexus/internal/watcher"
-
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
 
@@ -110,8 +108,6 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
-
-	watcher *watcher.Watcher
 
 	// fh is the file handler for the stream
 	fh *FileHandler

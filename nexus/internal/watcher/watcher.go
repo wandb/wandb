@@ -5,7 +5,6 @@ import (
 	fw "github.com/radovskyb/watcher"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -56,12 +55,10 @@ func (w *Watcher) Start() {
 	go func() {
 		if err := w.watcher.Start(time.Millisecond * 100); err != nil {
 			fmt.Println("ERROR", err)
-			log.Fatalln(err)
 		}
 	}()
-	fmt.Println("STARTED WATCHER")
 	w.watcher.Wait()
-	fmt.Println("WAITED WATCHER")
+	fmt.Println("STARTED WATCHER")
 }
 
 func (w *Watcher) Close() {

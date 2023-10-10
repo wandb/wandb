@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/wandb/wandb/nexus/internal/watcher"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
 )
@@ -8,6 +9,7 @@ import (
 type FileHandler struct {
 	savedFiles map[string]interface{}
 	final      *service.Record
+	watcher    *watcher.Watcher
 }
 
 func (fh *FileHandler) Handle(record *service.Record) *service.Record {
@@ -53,7 +55,10 @@ func (fh *FileHandler) Final() *service.Record {
 }
 
 func NewFileHandler() *FileHandler {
-	return &FileHandler{
+	fh := &FileHandler{
 		savedFiles: make(map[string]interface{}),
+		watcher:    watcher.NewWatcher(),
 	}
+	fh.watcher.Start()
+	return fh
 }
