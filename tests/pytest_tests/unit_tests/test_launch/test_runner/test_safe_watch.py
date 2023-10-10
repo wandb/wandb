@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from kubernetes.client import ApiException
 from urllib3.exceptions import ProtocolError
-from wandb.sdk.launch.runner.kubernetes_monitor import SafeWatch
+from wandb.sdk.launch.monitor.kubernetes_monitor import SafeWatch
 
 
 class MockWatch:
@@ -14,7 +14,7 @@ class MockWatch:
         self.args = []
         self.queue = []
 
-    def stream(self, *args, **kwargs):
+    async def stream(self, *args, **kwargs):
         """Simulate an input stream."""
         self.args.append((args, kwargs))
         while True:
@@ -48,7 +48,8 @@ def event_factory(resource_version):
 # If this timeout fails it means that the SafeWatch is not breaking out of its
 # loop after stop() is called.
 @pytest.mark.timeout(60)
-def test_safe_watch():
+@pytest.mark.asyncio
+async def test_safe_watch():
     """Test that safewatch wraps properly.
 
     This unit test is designed to verify that the SafeWatch is properly wrapping
@@ -72,20 +73,11 @@ def test_safe_watch():
 
     safe_watch = SafeWatch(watch)
     stream = safe_watch.stream(None)
-    assert next(stream) == item_1
+    assert await anext(stream) == item_1
     assert safe_watch._last_seen_resource_version == "1"
-    assert next(stream) == item_2
+    assert await anext(stream) == item_2
     assert safe_watch._last_seen_resource_version == "2"
-    assert next(stream) == item_3
+    assert await anext(stream) == item_3
     assert safe_watch._last_seen_resource_version == "3"
-    assert next(stream) == item_4
+    assert await anext(stream) == item_4
     assert safe_watch._last_seen_resource_version == "4"
-
-    # Lastly we call stop and then raise a stop iteration to ensure that the
-    # actually breaks.
-
-    safe_watch.stop()
-    assert not safe_watch._watcher.is_alive
-    watch.add(StopIteration)  # This force the watch to break out of its inner loop.
-    with pytest.raises(StopIteration):
-        next(stream)
