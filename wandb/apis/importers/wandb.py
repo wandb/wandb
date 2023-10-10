@@ -344,7 +344,8 @@ class WandbRun:
         return int(t)
 
     def start_time(self) -> Optional[int]:
-        t = dt.fromisoformat(self.run.created_at).timestamp()
+        t = dt.fromisoformat(self.run.created_at).timestamp() * 1000
+        print(f"The {t=}")
         return int(t)
 
     def code_path(self) -> Optional[str]:
