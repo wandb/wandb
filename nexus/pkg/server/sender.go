@@ -173,6 +173,11 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
 }
 
+func (s *Sender) Close() {
+	// sender is done processing data, close our dispatch channel
+	close(s.outChan)
+}
+
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
@@ -228,6 +233,10 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendMetadata(x.Metadata)
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
+	case *service.Request_PollExit:
+		s.sendPollExit(record, x.PollExit)
+	case *service.Request_ServerInfo:
+		s.sendServerInfo(record, x.ServerInfo)
 	case *service.Request_DownloadArtifact:
 		s.sendDownloadArtifact(record, x.DownloadArtifact)
 	default:
@@ -257,7 +266,7 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendFile(MetaFilename)
+	s.sendFile(MetaFilename, uploader.WandbFile)
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
@@ -310,8 +319,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_END:
 		request.State++
 		s.respondExit(s.exitRecord)
-		// sender is done processing data, close our dispatch channel
-		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -726,12 +733,16 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) {
 	files := filesRecord.GetFiles()
 	for _, file := range files {
-		s.sendFile(file.GetPath())
+		if strings.HasPrefix(file.GetPath(), "media") {
+			s.sendFile(file.GetPath(), uploader.MediaFile)
+		} else {
+			s.sendFile(file.GetPath(), uploader.OtherFile)
+		}
 	}
 }
 
 // sendFile sends a file to the server
-func (s *Sender) sendFile(name string) {
+func (s *Sender) sendFile(name string, fileType uploader.FileType) {
 	if s.graphqlClient == nil || s.uploadManager == nil {
 		return
 	}
@@ -749,7 +760,7 @@ func (s *Sender) sendFile(name string) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl}
+		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl, FileType: fileType}
 		s.uploadManager.AddTask(task)
 	}
 }
@@ -795,6 +806,42 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 				ResponseType: &service.Response_DownloadArtifactResponse{
 					DownloadArtifactResponse: &response,
 				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest) {
+	fileCounts := s.uploadManager.GetFileCounts()
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_PollExitResponse{
+					PollExitResponse: &service.PollExitResponse{
+						FileCounts: fileCounts,
+					},
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
+	if s.graphqlClient == nil {
+		return
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_ServerInfoResponse{}, // todo: fill in
 			},
 		},
 		Control: record.Control,
