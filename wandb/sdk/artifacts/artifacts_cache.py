@@ -5,6 +5,7 @@ import hashlib
 import os
 import shutil
 from pathlib import Path
+import subprocess
 from tempfile import NamedTemporaryFile
 from typing import IO, TYPE_CHECKING, ContextManager, Generator, Optional, Tuple
 
@@ -181,12 +182,10 @@ class ArtifactsCache:
             try:
                 yield temp_file
                 temp_file.close()
-                # The NamedTemporaryFile is always created with mode 0600, hardcoded at
-                # tempfile.py, line 235, because it is private to your process until
-                # you open it up with chmod. Here we change the permissions back to
-                # the system defaults, with a temporary umask assignment to 0o022
-                umask = os.umask(0o22)
-                os.umask(umask)
+                # NamedTemporaryFile sets the file mode to 600 [1], we reset to the default.
+                # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
+                umask_cmd = ("python", "-c", "import os; print(os.umask(22))")
+                umask = int(subprocess.check_output(umask_cmd))
                 os.chmod(temp_file.name, 0o666 & ~umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(temp_file.name, path)
