@@ -272,7 +272,7 @@ class AwsEnvironment(AbstractEnvironment):
         bucket = match.group(1)
         try:
             session = await self.get_session()
-            client = threaded(session.client)("s3")
+            client = await threaded(session.client)("s3")
             client.head_bucket(Bucket=bucket)
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
