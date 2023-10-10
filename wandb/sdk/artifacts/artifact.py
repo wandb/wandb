@@ -1724,6 +1724,15 @@ class Artifact:
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         )
+        
+        def download_entry(entry):
+            print(f"{_thread_local_api_settings.api_key=}")
+            print(f"{_thread_local_api_settings.cookies=}")
+            print(f"{_thread_local_api_settings.headers=}")
+            
+            return _download_entry(entry, api_key=_thread_local_api_settings.api_key,
+cookies=_thread_local_api_settings.cookies,
+headers=_thread_local_api_settings.headers,)
 
         with concurrent.futures.ThreadPoolExecutor(64) as executor:
             active_futures = set()
@@ -1736,6 +1745,7 @@ class Artifact:
                 for edge in attrs["edges"]:
                     entry = self.get_path(edge["node"]["name"])
                     entry._download_url = edge["node"]["directUrl"]
+                    print(f">>>>>>> {entry._download_url=}")
                     active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
                 max_backlog = 5000

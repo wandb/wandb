@@ -108,7 +108,24 @@ class RecordMaker:
         if isinstance(self.run.run, MagicMock):
             return self._make_fake_run_record()
 
-        run = pb.RunRecord()
+        username = pb.SettingsItem()
+        username.key = "username"
+        username.value_json = "1 username"
+
+        
+        log_user = pb.SettingsItem()
+        log_user.key = "log_user"
+        log_user.value_json = "2 log user"
+        
+                
+        symlink_user = pb.SettingsItem()
+        symlink_user.key = "symlink_user"
+        symlink_user.value_json = "3 symlink user"
+        
+        settings = pb.SettingsRecord(item=[username, log_user, symlink_user])
+        
+
+        run = pb.RunRecord(settings=settings)
         run.run_id = self.run.run_id()
         run.entity = self.run.entity()
         run.project = self.run.project()
@@ -116,6 +133,8 @@ class RecordMaker:
         run.notes = coalesce(self.run.notes(), "")
         run.tags.extend(coalesce(self.run.tags(), []))
         run.start_time.FromMilliseconds(self.run.start_time())
+        
+
 
         host = self.run.host()
         if host is not None:
@@ -161,13 +180,22 @@ class RecordMaker:
         return self.interface._make_record(summary=summary)
 
     def _make_history_records(self) -> Iterable[pb.Record]:
+        import math
+        import numpy as np
         for metrics in self.run.metrics():
             history = pb.HistoryRecord()
             for k, v in metrics.items():
                 item = history.item.add()
                 item.key = k
+                # There seems to be some conversion issue to breaks when we try to re-upload.
+                # np.NaN gets converted to float("nan"), which is not expected by our system.
+                # If this cast to string (!) is not done, the row will be dropped.
+                if isinstance(v, float) and math.isnan(v):
+                    v = "NaN"
                 item.value_json = json.dumps(v)
-            yield self.interface._make_record(history=history)
+            rec = self.interface._make_record(history=history)
+            print(f"{rec=}")
+            yield rec
 
     def _make_files_record(self, metadata, artifacts, files, media, code) -> pb.Record:
         files = self.run.files()
@@ -201,14 +229,11 @@ class RecordMaker:
         proto.user_created = use_artifact
         proto.use_after_commit = use_artifact
         proto.finalize = True
+        
+        # print(artifact.aliases)
 
-        aliases = []
-        try:
-            aliases = artifact.aliases
-        except ArtifactNotLoggedError:
-            aliases = []
-        finally:
-            aliases += ["latest", "importer"]
+        aliases = artifact._aliases
+        aliases += ["latest", "imported"]
 
         for alias in aliases:
             proto.aliases.append(alias)
@@ -323,6 +348,10 @@ def _handle_use_artifacts(
         used_artifacts = rm.run.used_artifacts()
         if used_artifacts is not None:
             used_artifacts = list(used_artifacts)
+            print(f"{used_artifacts=}")
+            aliases = [a._alias for a in used_artifacts]
+            print(f"{aliases=}")
+            
             task = progress.subtask_pbar.add_task(task_name, total=len(used_artifacts))
             for artifact in used_artifacts:
                 sm.send(rm._make_artifact_record(artifact, use_artifact=True))

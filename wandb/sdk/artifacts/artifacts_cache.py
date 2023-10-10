@@ -197,4 +197,6 @@ def get_artifacts_cache() -> ArtifactsCache:
     global _artifacts_cache
     if _artifacts_cache is None:
         _artifacts_cache = ArtifactsCache(env.get_cache_dir() / "artifacts")
+        
+    # print(f"{_artifacts_cache._cache_dir=}")
     return _artifacts_cache

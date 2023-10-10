@@ -224,5 +224,8 @@ class Api:
     def stop_run(self, *args, **kwargs):
         return self.api.stop_run(*args, **kwargs)
 
+    def delete_project(self, *args, **kwargs):
+        return self.api.delete_project(*args, **kwargs)
+
 
 __all__ = ["Api"]

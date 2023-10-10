@@ -124,8 +124,10 @@ class WandbRun:
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
+        print(len(df))
         for row in df.iter_rows(named=True):
-            row = remove_keys_with_none_values(row)
+            # print(f'yielding {row=}')
+            # row = remove_keys_with_none_values(row)
             yield row
 
     def _get_metrics_from_scan_history_fallback(self) -> Iterable[Dict[str, Any]]:
@@ -931,6 +933,7 @@ class WandbImporter:
 
         return non_matching
 
+
     def _compare_run_metrics(self, src_run, dst_run):
         src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
         dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
@@ -1533,6 +1536,18 @@ class WandbImporter:
                 yield WandbRun(run)
 
         yield from itertools.islice(runs(), limit)
+        
+    def _collect_run(
+                self,
+        entity: str,
+        project: str,
+        run_id: str,
+        *,
+        api: Optional[Api] = None,
+    ):
+        api = coalesce(api, self.src_api)
+        run = api.run(f"{entity}/{project}/{run_id}")
+        return WandbRun(run)
 
     def _collect_reports(
         self,

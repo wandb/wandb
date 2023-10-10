@@ -114,24 +114,34 @@ class ArtifactManifestEntry:
         """
         if self._parent_artifact is None:
             raise NotImplementedError
+        
+        print(">>> STARRT DOWNLOAD")
 
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
         dest_path = os.path.join(root, self.path)
 
+        print(">>> 2")
+
+
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
         if os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
+            print(">>> 3")
             return FilePathStr(dest_path)
 
         if self.ref is not None:
+            print(">>> 4")
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
                 self, local=True
             )
+
         else:
+            print(">>> 5")
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
                 self._parent_artifact, self
             )
+        print(">>> 6")
         return FilePathStr(
             str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
         )
