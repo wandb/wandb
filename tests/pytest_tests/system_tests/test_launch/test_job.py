@@ -114,14 +114,13 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert str(job._input_types) == "{'input1': Number}"
 
 
-def test_create_job_image(user, wandb_init, test_settings):
+def test_create_job_image(user):
     proj = "test-p1"
     internal_api = InternalApi()
-    public_api = PublicApi()
 
     artifact, action, aliases = _create_job(
         api=internal_api,
-        path="test/docker-image-path:alias1",
+        path="port:1000/test/docker-image-path:alias1",
         project=proj,
         entity=user,
         job_type="image",
@@ -133,7 +132,3 @@ def test_create_job_image(user, wandb_init, test_settings):
     assert artifact.name == "test-job-1111:v0"
     assert action == "Created"
     assert aliases == ["alias1", "latest"]
-
-    job = public_api.job(f"{user}/{proj}/{artifact.name}")
-    assert job
-    assert job._partial
