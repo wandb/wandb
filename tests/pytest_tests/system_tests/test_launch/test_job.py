@@ -45,6 +45,8 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
 def test_create_job_artifact(runner, user, wandb_init, test_settings):
     proj = "test-p"
     settings = test_settings({"project": proj})
+    wandb_init(settings=settings).finish()  # create proj
+
     internal_api = InternalApi()
     public_api = PublicApi()
 
@@ -81,7 +83,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert job_v0._partial
     assert job_v0._job_info["runtime"] == "3.8"
     assert job_v0._job_info["_version"] == "v0"
-    assert job_v0._job_info["source"]["entrypoint"] == ["python3.8", "test.py"]
+    assert job_v0._job_info["source"]["entrypoint"] == ["python", "test.py"]
     assert job_v0._job_info["source"]["notebook"] is False
 
     # Now use artifact as input, assert it gets upgraded
@@ -114,13 +116,17 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert str(job._input_types) == "{'input1': Number}"
 
 
-def test_create_job_image(user):
+def test_create_job_image(user, wandb_init, test_settings):
     proj = "test-p1"
+    settings = test_settings({"project": proj})
+    wandb_init(settings=settings).finish()  # create proj
+
     internal_api = InternalApi()
+    public_api = PublicApi()
 
     artifact, action, aliases = _create_job(
         api=internal_api,
-        path="port:1000/test/docker-image-path:alias1",
+        path="test/docker-image-path:alias1",
         project=proj,
         entity=user,
         job_type="image",
@@ -132,3 +138,7 @@ def test_create_job_image(user):
     assert artifact.name == "test-job-1111:v0"
     assert action == "Created"
     assert aliases == ["alias1", "latest"]
+
+    job = public_api.job(f"{user}/{proj}/{artifact.name}")
+    assert job
+    assert job._partial
