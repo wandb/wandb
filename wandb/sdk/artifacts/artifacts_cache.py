@@ -175,7 +175,7 @@ class ArtifactsCache:
         def helper(mode: str = "w") -> Generator[IO, None, None]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
-            umask = os.umask(0)
+
             self._reserve_space(size)
             temp_file = NamedTemporaryFile(dir=self._temp_dir, mode=mode, delete=False)
             try:
@@ -184,7 +184,9 @@ class ArtifactsCache:
                 # The NamedTemporaryFile is always created with mode 0600, hardcoded at
                 # tempfile.py, line 235, because it is private to your process until
                 # you open it up with chmod. Here we change the permissions back to
-                # the system defaults
+                # the system defaults, with a temporary umask assignment to 0o022
+                umask = os.umask(0o22)
+                os.umask(umask)
                 os.chmod(temp_file.name, 0o666 & ~umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(temp_file.name, path)
