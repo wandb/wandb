@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import re
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -241,8 +242,12 @@ class JobBuilder:
         raw_image_name = image_name
         if ":" in image_name:
             tag = image_name.split(":")[-1]
-            raw_image_name = raw_image_name.replace(f":{tag}", "")
-            self._aliases += [tag]
+
+            # if tag looks properly formatted, assume its a tag
+            # regex: alphanumeric add "_" "-" "."
+            if re.fullmatch(r"([a-zA-Z0-9_\-\.]+)", tag):
+                raw_image_name = raw_image_name.replace(f":{tag}", "")
+                self._aliases += [tag]
 
         source: ImageSourceDict = {
             "image": image_name,

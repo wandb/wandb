@@ -3,6 +3,7 @@ import os
 import tempfile
 from unittest import mock
 
+import pytest
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -116,7 +117,16 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert str(job._input_types) == "{'input1': Number}"
 
 
-def test_create_job_image(user, wandb_init, test_settings):
+@pytest.mark.parametrize(
+    "image_name",
+    [
+        "test/docker-image-path:alias1",
+        "port:5000/test/docker-image-path:alias1",
+        "port:5000/test/docker-image-path",
+        "port:5000:1000/1000/test/docker-image-path:alias1",
+    ],
+)
+def test_create_job_image(user, wandb_init, test_settings, image_name):
     proj = "test-p1"
     settings = test_settings({"project": proj})
     wandb_init(settings=settings).finish()  # create proj
@@ -126,7 +136,7 @@ def test_create_job_image(user, wandb_init, test_settings):
 
     artifact, action, aliases = _create_job(
         api=internal_api,
-        path="test/docker-image-path:alias1",
+        path=image_name,
         project=proj,
         entity=user,
         job_type="image",
@@ -137,7 +147,12 @@ def test_create_job_image(user, wandb_init, test_settings):
     assert isinstance(artifact, Artifact)
     assert artifact.name == "test-job-1111:v0"
     assert action == "Created"
-    assert aliases == ["alias1", "latest"]
+
+    gold_aliases = ["latest"]
+    if image_name[-1] == "1":
+        gold_aliases = ["alias1", "latest"]
+
+    assert aliases == gold_aliases
 
     job = public_api.job(f"{user}/{proj}/{artifact.name}")
     assert job
