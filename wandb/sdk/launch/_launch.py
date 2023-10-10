@@ -12,6 +12,7 @@ from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder.build import construct_agent_configs
+from .environment.local_environment import LocalEnvironment
 from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
 from .utils import (
@@ -21,7 +22,6 @@ from .utils import (
     construct_launch_spec,
     validate_launch_spec_source,
 )
-from .environment.local_environment import LocalEnvironment
 
 _logger = logging.getLogger(__name__)
 

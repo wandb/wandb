@@ -1,6 +1,7 @@
 """Monitors kubernetes resources managed by the launch agent."""
 import asyncio
 import logging
+import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
 import kubernetes_asyncio  # type: ignore # noqa: F401
@@ -43,6 +44,13 @@ CRD_STATE_DICT: Dict[str, State] = {
 }
 
 _logger = logging.getLogger(__name__)
+
+
+def _task_callback(task: asyncio.Task) -> None:
+    """Callback to log exceptions from tasks."""
+    if task.exception() is not None:
+        _logger.error(f"Exception in task {task.get_name()}: {task.exception()}")
+        traceback.print_tb(task.exception().__traceback__)
 
 
 def _is_preempted(status: "V1PodStatus") -> bool:
@@ -193,6 +201,9 @@ class LaunchKubernetesMonitor:
                 self._monitor_pods(namespace),
                 name=f"monitor_{Resources.PODS}_{namespace}",
             )
+            self._monitor_tasks[(namespace, Resources.PODS)].add_done_callback(
+                _task_callback
+            )
         # If a custom resource is specified then we will start monitoring
         # that resource type in the namespace instead of jobs.
         if custom_resource is not None:
@@ -201,11 +212,17 @@ class LaunchKubernetesMonitor:
                     self._monitor_crd(namespace, custom_resource),
                     name=f"monitor_{custom_resource}_{namespace}",
                 )
+                self._monitor_tasks[(namespace, custom_resource)].add_done_callback(
+                    _task_callback
+                )
         else:
             if (namespace, Resources.JOBS) not in self._monitor_tasks:
                 self._monitor_tasks[(namespace, Resources.JOBS)] = asyncio.create_task(
                     self._monitor_jobs(namespace),
                     name=f"monitor_{Resources.JOBS}_{namespace}",
+                )
+                self._monitor_tasks[(namespace, Resources.JOBS)].add_done_callback(
+                    _task_callback
                 )
 
     def __get_status(self, job_name: str) -> Status:
@@ -240,7 +257,7 @@ class LaunchKubernetesMonitor:
             label_selector=self._label_selector,
         ):
             obj = event.get("object")
-            job_name = obj.metadata.labels.get("job-name")
+            job_name = obj.get("metadata", {}).get("labels", {}).get("job-name")
             if job_name is None:
                 continue
             # Sometimes ADDED events will be missing field.
