@@ -1,5 +1,4 @@
 """GCS storage handler."""
-import base64
 import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
@@ -213,12 +212,3 @@ class GCSHandler(StorageHandler):
             "etag": obj.etag,
             "versionID": obj.generation,
         }
-
-    @staticmethod
-    def _content_addressed_path(md5: str) -> FilePathStr:
-        # TODO: is this the structure we want? not at all human
-        # readable, but that's probably OK. don't want people
-        # poking around in the bucket
-        return FilePathStr(
-            "wandb/%s" % base64.b64encode(md5.encode("ascii")).decode("ascii")
-        )
