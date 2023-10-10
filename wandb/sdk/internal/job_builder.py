@@ -229,6 +229,9 @@ class JobBuilder:
                 # at the directory the notebook is in instead of the jupyter core
                 if not os.path.exists(os.path.basename(program_relpath)):
                     _logger.info("target path does not exist, exiting")
+                    wandb.termwarn(
+                        "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job"
+                    )
                     return None, None
                 full_program_relpath = os.path.basename(program_relpath)
         else:
@@ -282,14 +285,23 @@ class JobBuilder:
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
         ):
+            wandb.termwarn(
+                "No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+            )
             return None
         metadata = self._handle_metadata_file()
         if metadata is None:
+            wandb.termwarn(
+                "No metadata file found, not creating job artifact. Ensure api settings files_dir exists with read and write access."
+            )
             return None
 
         runtime: Optional[str] = metadata.get("python")
         # can't build a job without a python version
         if runtime is None:
+            wandb.termwarn(
+                "No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+            )
             return None
 
         input_types = TypeRegistry.type_of(self._config).to_json()
@@ -312,10 +324,14 @@ class JobBuilder:
             # configure job from environment
             source_type = self._get_source_type(metadata)
             if not source_type:
+                wandb.termwarn("No source type found, not creating job artifact")
                 return None
 
             program_relpath = self._get_program_relpath(source_type, metadata)
             if source_type != "image" and not program_relpath:
+                wandb.termwarn(
+                    "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+                )
                 return None
 
             source: Union[
@@ -409,7 +425,14 @@ class JobBuilder:
     ) -> Optional[str]:
         if self._is_notebook_run:
             _logger.info("run is notebook based run")
-            return metadata.get("program")
+            program = metadata.get("program")
+
+            if not program:
+                wandb.termwarn(
+                    "Notebook 'program' path not found in metadata. See https://docs.wandb.ai/guides/launch/create-job"
+                )
+
+            return program
 
         if source_type == "artifact" or self._settings.job_source == "artifact":
             # if the job is set to be an artifact, use relpath guaranteed

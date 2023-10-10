@@ -135,8 +135,8 @@ def _create_job(
             project=project,
             job_type="cli_create_job",
         )
-    except Exception:
-        # Error printed by wandb.init
+    except Exception as e:
+        wandb.termerror(f"{e}")
         return None, "", []
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
