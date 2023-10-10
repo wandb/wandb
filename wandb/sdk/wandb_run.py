@@ -2942,13 +2942,13 @@ class Run:
 
     def _download_artifact(
         self,
-        artifact: Artifact,
+        qualified_name: str,
         root: Optional[str] = None,
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         return self._backend.interface.download_artifact(
-            artifact,
+            qualified_name,
             root,
             recursive,
             allow_missing_references,
