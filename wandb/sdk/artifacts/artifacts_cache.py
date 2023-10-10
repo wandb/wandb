@@ -4,8 +4,8 @@ import errno
 import hashlib
 import os
 import shutil
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import IO, TYPE_CHECKING, ContextManager, Generator, Optional, Tuple
 
