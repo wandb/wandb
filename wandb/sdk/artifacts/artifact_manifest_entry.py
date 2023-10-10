@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
 
-from wandb.errors.term import termlog, termwarn
+from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import (
     B64MD5,
