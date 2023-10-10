@@ -19,6 +19,8 @@ botocore = get_module(
     "it with `pip install wandb[launch]`.",
 )
 
+import botocore.exceptions  # noqa: E402
+
 _logger = logging.getLogger(__name__)
 
 
@@ -119,7 +121,6 @@ class ElasticContainerRegistry(AbstractRegistry):
         _logger.debug("Verifying Elastic Container Registry.")
         try:
             session = await self.environment.get_session()
-            print(session)
             client = await threaded(session.client)("ecr")
             response = await threaded(client.describe_repositories)(
                 repositoryNames=[self.repo_name]

@@ -8,7 +8,7 @@ from wandb.sdk.launch.registry.azure_container_registry import AzureContainerReg
 
 class AsyncMock(MagicMock):
     async def __call__(self, *args, **kwargs):
-        return super(AsyncMock, self).__call__(*args, **kwargs)
+        return super().__call__(*args, **kwargs)
 
 
 @pytest.fixture

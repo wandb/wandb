@@ -10,7 +10,7 @@ from wandb.sdk.launch.errors import LaunchDockerError, LaunchError
 
 class AsyncMock(MagicMock):
     async def __call__(self, *args, **kwargs):
-        return super(AsyncMock, self).__call__(*args, **kwargs)
+        return super().__call__(*args, **kwargs)
 
 
 @pytest.fixture
