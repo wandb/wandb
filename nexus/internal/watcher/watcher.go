@@ -92,6 +92,7 @@ func (w *Watcher) Add(item *service.FilesItem) error {
 			err := w.watcher.Add(match)
 			if err != nil {
 				// todo: log error
+				fmt.Println("ERROR", err)
 			}
 			e := &EventFileInfo{FileInfo: fileInfo, name: match}
 			w.watcher.TriggerEvent(fw.Create, e)
