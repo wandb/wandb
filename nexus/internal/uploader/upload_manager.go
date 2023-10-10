@@ -15,13 +15,6 @@ const (
 	defaultConcurrencyLimit = 128
 )
 
-// type fileCounts struct {
-//		wandbCount    int
-//		mediaCount    int
-//		artifactCount int
-//		otherCount    int
-// }
-
 type Uploader interface {
 	Upload(task *UploadTask) error
 }
@@ -38,8 +31,14 @@ type UploadManager struct {
 	// semaphore is the semaphore for limiting concurrency
 	semaphore chan struct{}
 
-	// fileCounts is the file counts
-	// fileCounts fileCounts
+	// fileCounts is the file counts for the uploader
+	fileCounts *service.FileCounts
+
+	// fileCountsChan is the channel used to count files uploaded by type
+	fileCountsChan chan FileType
+
+	// wgfc is the wait group for the file counts channel ops
+	wgfc *sync.WaitGroup
 
 	// settings is the settings for the uploader
 	settings *service.Settings
@@ -71,18 +70,39 @@ func WithUploader(uploader Uploader) UploadManagerOption {
 	}
 }
 
+func (um *UploadManager) fileCount() {
+	for fileType := range um.fileCountsChan {
+		switch fileType {
+		case WandbFile:
+			um.fileCounts.WandbCount++
+		case MediaFile:
+			um.fileCounts.MediaCount++
+		case ArtifactFile:
+			um.fileCounts.ArtifactCount++
+		default:
+			um.fileCounts.OtherCount++
+		}
+	}
+	um.wgfc.Done()
+}
+
 func NewUploadManager(opts ...UploadManagerOption) *UploadManager {
 
 	um := UploadManager{
-		inChan: make(chan *UploadTask, bufferSize),
-		wg:     &sync.WaitGroup{},
+		inChan:         make(chan *UploadTask, bufferSize),
+		fileCounts:     &service.FileCounts{},
+		fileCountsChan: make(chan FileType, bufferSize),
+		wgfc:           &sync.WaitGroup{},
+		wg:             &sync.WaitGroup{},
+		semaphore:      make(chan struct{}, defaultConcurrencyLimit),
 	}
 
 	for _, opt := range opts {
 		opt(&um)
 	}
 
-	um.semaphore = make(chan struct{}, defaultConcurrencyLimit)
+	um.wgfc.Add(1)
+	go um.fileCount()
 
 	return &um
 }
@@ -113,6 +133,11 @@ func (um *UploadManager) Start() {
 				if task.CompletionCallback != nil {
 					task.CompletionCallback(task)
 				}
+
+				if task.Err == nil {
+					um.fileCountsChan <- task.FileType
+				}
+
 				// mark the task as done
 				um.wg.Done()
 			}(task)
@@ -139,10 +164,20 @@ func (um *UploadManager) Close() {
 	// todo: review this, we don't want to cause a panic
 	close(um.inChan)
 	um.wg.Wait()
+	close(um.fileCountsChan)
+	um.wgfc.Wait()
 }
 
 // upload uploads a file to the server
 func (um *UploadManager) upload(task *UploadTask) error {
 	err := um.uploader.Upload(task)
 	return err
+}
+
+// GetFileCounts returns the file counts for the uploader
+func (um *UploadManager) GetFileCounts() *service.FileCounts {
+	if um == nil {
+		return &service.FileCounts{}
+	}
+	return um.fileCounts
 }
