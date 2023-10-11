@@ -154,7 +154,7 @@ class DockerBuilder(AbstractBuilder):
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
-            output = threaded(docker.build)(
+            output = await threaded(docker.build)(
                 tags=[image_uri],
                 file=dockerfile,
                 context_path=build_ctx_path,
@@ -179,7 +179,7 @@ class DockerBuilder(AbstractBuilder):
         if repository:
             reg, tag = image_uri.split(":")
             wandb.termlog(f"{LOG_PREFIX}Pushing image {image_uri}")
-            push_resp = docker.push(reg, tag)
+            push_resp = await threaded(docker.push)(reg, tag)
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")
             elif (
