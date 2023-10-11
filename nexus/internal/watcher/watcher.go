@@ -13,6 +13,8 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+const pollingInterval = time.Millisecond * 100
+
 type Watcher struct {
 	watcher *fw.Watcher
 	pathMap map[string]string
@@ -85,7 +87,7 @@ func (w *Watcher) Start() {
 
 	// Start the watching process - it'll check for changes every 100ms.
 	go func() {
-		if err := w.watcher.Start(time.Millisecond * 100); err != nil {
+		if err := w.watcher.Start(pollingInterval); err != nil {
 			w.logger.Error("error starting watcher", "err", err)
 		}
 	}()
