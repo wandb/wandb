@@ -120,21 +120,21 @@ def test__get_entrypoint():
     metadata = {"python": "3.9.11", "codePathLocal": "main.py", "_partial": "v0"}
 
     program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint = builder._get_entrypoint(program_relpath)
+    entrypoint = builder._get_entrypoint(program_relpath, metadata)
     assert entrypoint == ["python3.9", "main.py"]
 
     metadata = {"python": "3.9", "codePath": "main.py", "_partial": "v0"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint = builder._get_entrypoint(program_relpath)
+    entrypoint = builder._get_entrypoint(program_relpath, metadata)
     assert entrypoint == ["python3.9", "main.py"]
 
     with pytest.raises(AssertionError):
         metadata = {"codePath": "main.py", "_partial": "v0"}
         program_relpath = builder._get_program_relpath(job_source, metadata)
-        entrypoint = builder._get_entrypoint(program_relpath)
+        entrypoint = builder._get_entrypoint(program_relpath, metadata)
 
     metadata = {"codePath": "main.py"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint = builder._get_entrypoint(program_relpath)
+    entrypoint = builder._get_entrypoint(program_relpath, metadata)
 
     assert entrypoint == [os.path.basename(sys.executable), "main.py"]
