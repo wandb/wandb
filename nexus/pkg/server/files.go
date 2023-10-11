@@ -27,11 +27,13 @@ func NewFileHandler(logger *observability.NexusLogger, watcherOutChan chan *serv
 	}
 }
 
+// Start starts the file handler and the watcher
 func (fh *FileHandler) Start() {
 	fh.logger.Debug("starting file handler")
 	fh.watcher.Start()
 }
 
+// Close closes the file handler and the watcher
 func (fh *FileHandler) Close() {
 	if fh == nil {
 		return
@@ -40,6 +42,10 @@ func (fh *FileHandler) Close() {
 	fh.logger.Debug("closed file handler")
 }
 
+// Handle handles file uploads preprocessing, depending on their policies:
+// - NOW: upload immediately
+// - END: upload at the end of the run
+// - LIVE: upload immediately, on changes, and at the end of the run
 func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 	if fh.final == nil {
 		fh.final = &service.Record{
@@ -116,6 +122,7 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 	return rec
 }
 
+// Final returns the stored record to be uploaded at the end of the run (DeferRequest_FLUSH_DIR)
 func (fh *FileHandler) Final() *service.Record {
 	if fh == nil {
 		return nil

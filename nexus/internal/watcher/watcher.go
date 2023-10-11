@@ -33,6 +33,8 @@ func NewWatcher(logger *observability.NexusLogger, outChan chan *service.Record)
 	}
 }
 
+// Start starts the watcher and forwards upload requests
+// when watched files are created or written to.
 func (w *Watcher) Start() {
 	w.wg.Add(1)
 	go func() {
@@ -41,8 +43,15 @@ func (w *Watcher) Start() {
 		for {
 			select {
 			case event := <-w.watcher.Event:
+				// Only trigger on create and write events.
+				// The record we send on the channel must contain the relative path
+				// to comply with the backend's expectations
 				if event.Op == fw.Create || event.Op == fw.Write {
 					path := event.Path
+					// The first time we see a file, it comes from a manual trigger
+					// where event.Path is not defined. We compute the absolute path
+					// and store a map of absolute path to the user-provided relative path.
+					// On subsequent events, we use the map to get the relative path.
 					if path == "-" {
 						path = event.Name()
 						absolutePath, err := filepath.Abs(path)
@@ -60,6 +69,8 @@ func (w *Watcher) Start() {
 						continue
 					}
 
+					// at this point, we know that the file needs to be uploaded,
+					// so we send a Files record on the channel with the NOW policy
 					rec := &service.Record{
 						RecordType: &service.Record_Files{
 							Files: &service.FilesRecord{
@@ -85,7 +96,7 @@ func (w *Watcher) Start() {
 		w.wg.Done()
 	}()
 
-	// Start the watching process - it'll check for changes every 100ms.
+	// Start the watching process - it'll check for changes every pollingInterval ms.
 	go func() {
 		if err := w.watcher.Start(pollingInterval); err != nil {
 			w.logger.Error("error starting watcher", "err", err)
@@ -95,6 +106,7 @@ func (w *Watcher) Start() {
 	w.logger.Debug("watcher started")
 }
 
+// Close closes the watcher
 func (w *Watcher) Close() {
 	w.watcher.Close()
 	w.wg.Wait()
@@ -110,6 +122,7 @@ func (e *EventFileInfo) Name() string {
 	return e.name
 }
 
+// Add adds a path to the watcher's watch list
 func (w *Watcher) Add(path string) error {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
@@ -120,9 +133,11 @@ func (w *Watcher) Add(path string) error {
 		if err != nil {
 			return err
 		}
+		// w.watcher.Add() doesn't trigger an event for an existing file, so we do it manually
 		e := &EventFileInfo{FileInfo: fileInfo, name: path}
 		w.watcher.TriggerEvent(fw.Create, e)
 	} else {
+		// w.watcher.AddRecursive() does trigger events for existing files
 		err := w.watcher.AddRecursive(path)
 		if err != nil {
 			return err

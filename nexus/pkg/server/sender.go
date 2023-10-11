@@ -757,14 +757,7 @@ func (s *Sender) sendFile(name string, fileType uploader.FileType) {
 	}
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
-		// todo: sort this out
-		// check if path is absolute already
-		var fullPath string
-		if filepath.IsAbs(file.Name) {
-			fullPath = file.Name
-		} else {
-			fullPath = filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		}
+		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
 		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl, FileType: fileType}
 		s.uploadManager.AddTask(task)
 	}
