@@ -14,7 +14,6 @@ from wandb import Artifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_settings_pb2
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
-from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context, sender, settings_static
@@ -88,11 +87,9 @@ class RecordMaker:
         return f"./wandb-importer/{self.run.run_id()}"
 
     def _make_fake_run_record(self):
-        """
-        Unfortunately, the vanilla Run object does a check for existence on the server,
+        """Unfortunately, the vanilla Run object does a check for existence on the server,
         so we use this as the simplest hack to skip that check.
         """
-
         run = pb.RunRecord()
 
         # in this case run is a magicmock, so we need to convert the return types back to vanilla py types
@@ -112,18 +109,15 @@ class RecordMaker:
         username.key = "username"
         username.value_json = "1 username"
 
-        
         log_user = pb.SettingsItem()
         log_user.key = "log_user"
         log_user.value_json = "2 log user"
-        
-                
+
         symlink_user = pb.SettingsItem()
         symlink_user.key = "symlink_user"
         symlink_user.value_json = "3 symlink user"
-        
+
         settings = pb.SettingsRecord(item=[username, log_user, symlink_user])
-        
 
         run = pb.RunRecord(settings=settings)
         run.run_id = self.run.run_id()
@@ -149,7 +143,7 @@ class RecordMaker:
         config = self.run.config()
         if "_wandb" not in config:
             config["_wandb"] = {}
-            
+
         # how do I get this automatically?
         config["_wandb"]["code_path"] = self.run.code_path()
         config["_wandb"]["python_version"] = self.run.python_version()
@@ -179,7 +173,7 @@ class RecordMaker:
 
     def _make_history_records(self) -> Iterable[pb.Record]:
         import math
-        import numpy as np
+
         for metrics in self.run.metrics():
             history = pb.HistoryRecord()
             for k, v in metrics.items():
@@ -227,7 +221,7 @@ class RecordMaker:
         proto.user_created = use_artifact
         proto.use_after_commit = use_artifact
         proto.finalize = True
-        
+
         # print(artifact.aliases)
 
         aliases = artifact._aliases
@@ -349,7 +343,7 @@ def _handle_use_artifacts(
             print(f"{used_artifacts=}")
             aliases = [a._alias for a in used_artifacts]
             print(f"{aliases=}")
-            
+
             task = progress.subtask_pbar.add_task(task_name, total=len(used_artifacts))
             for artifact in used_artifacts:
                 sm.send(rm._make_artifact_record(artifact, use_artifact=True))

@@ -16,15 +16,12 @@ from wandb_gql import gql
 
 import wandb
 from wandb.apis.public import Run
-from wandb.util import coalesce, remove_keys_with_none_values
+from wandb.util import coalesce
 
 from . import internal, progress, protocols
 from .config import Namespace
 from .logs import _thread_local_settings, wandb_logger
 from .protocols import ArtifactSequence, parallelize
-
-import sys
-import traceback
 
 with patch("click.echo"):
     import wandb.apis.reports as wr
@@ -125,10 +122,7 @@ class WandbRun:
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
         print(len(df))
-        for row in df.iter_rows(named=True):
-            # print(f'yielding {row=}')
-            # row = remove_keys_with_none_values(row)
-            yield row
+        yield from df.iter_rows(named=True)
 
     def _get_metrics_from_scan_history_fallback(self) -> Iterable[Dict[str, Any]]:
         wandb_logger.warn(
@@ -640,7 +634,9 @@ class WandbImporter:
             placeholder_run: Optional[Run] = self._get_run_from_art(art)
         except requests.exceptions.HTTPError as e:
             # If we had an http error, then just skip for now.
-            print(f"Import Artifact Sequence http error: {art.entity=}, {art.project=}, {art.name=}, {e=}")
+            print(
+                f"Import Artifact Sequence http error: {art.entity=}, {art.project=}, {art.name=}, {e=}"
+            )
             return
 
         # Delete any existing artifact sequence, otherwise versions will be out of order
@@ -935,7 +931,6 @@ class WandbImporter:
                     non_matching[k] = {"src": src_v, "dst": dst_v}
 
         return non_matching
-
 
     def _compare_run_metrics(self, src_run, dst_run):
         src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
@@ -1421,7 +1416,9 @@ class WandbImporter:
                 try:
                     logged_by = self._get_run_from_art(art)
                 except requests.HTTPError as e:
-                    print(f"Validate Artifact http error: {art.entity=}, {art.project=}, {art.name=}, {e=}")
+                    print(
+                        f"Validate Artifact http error: {art.entity=}, {art.project=}, {art.name=}, {e=}"
+                    )
                     continue
 
                 if art.type == "wandb-history" and isinstance(logged_by, MagicMock):
@@ -1539,9 +1536,9 @@ class WandbImporter:
                 yield WandbRun(run)
 
         yield from itertools.islice(runs(), limit)
-        
+
     def _collect_run(
-                self,
+        self,
         entity: str,
         project: str,
         run_id: str,
