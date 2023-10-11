@@ -73,21 +73,27 @@ func (sr *Store) Close() error {
 	return err
 }
 
-func (sr *Store) storeRecord(msg *service.Record) error {
+func (sr *Store) storeRecord(msg *service.Record) (int64, error) {
 	writer, err := sr.writer.Next()
 	if err != nil {
 		sr.logger.CaptureError("can't write header", err)
-		return err
+		return 0, err
 	}
 	out, err := proto.Marshal(msg)
 	if err != nil {
 		sr.logger.CaptureError("can't write header", err)
-		return err
+		return 0, err
 	}
 
 	if _, err = writer.Write(out); err != nil {
 		sr.logger.CaptureError("can't write header", err)
-		return err
+		return 0, err
 	}
-	return nil
+
+	offset, err := sr.writer.LastRecordOffset()
+	if err != nil {
+		sr.logger.CaptureError("can't write header", err)
+		return 0, err
+	}
+	return offset, nil
 }

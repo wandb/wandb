@@ -26,6 +26,9 @@ type Writer struct {
 
 	// store is the store for the writer
 	store *Store
+
+	// record number count
+	recordNum int64
 }
 
 // NewWriter returns a new Writer
@@ -88,9 +91,22 @@ func (w *Writer) storeRecord(record *service.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
-	if err := w.store.storeRecord(record); err != nil {
+
+	// annotate record with a record number before writing
+	w.recordNum += 1
+	record.Num = w.recordNum
+
+	offset, err := w.store.storeRecord(record)
+	if err != nil {
 		w.logger.Error("writer: error storing record", "error", err)
 	}
+
+	// annotate record with a file offset after writing
+	if record.Control == nil {
+		record.Control = &service.Control{}
+	}
+	// TODO: add StartOffset or switch leveldb/store to report end offset
+	record.GetControl().EndOffset = offset
 }
 
 func (w *Writer) sendRecord(record *service.Record) {
