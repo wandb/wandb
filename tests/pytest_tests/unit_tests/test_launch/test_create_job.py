@@ -112,7 +112,7 @@ def test_dump_metadata_and_requirements():
     assert metadata == m
 
 
-def test__get_entrypoint_and_notebook():
+def test__get_entrypoint():
     dir = tempfile.TemporaryDirectory().name
     job_source = "artifact"
     builder = _configure_job_builder_for_partial(dir, job_source)
@@ -120,30 +120,21 @@ def test__get_entrypoint_and_notebook():
     metadata = {"python": "3.9.11", "codePathLocal": "main.py", "_partial": "v0"}
 
     program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint, notebook = builder._get_entrypoint_and_notebook(
-        program_relpath, metadata
-    )
+    entrypoint = builder._get_entrypoint(program_relpath)
     assert entrypoint == ["python3.9", "main.py"]
-    assert not notebook
 
     metadata = {"python": "3.9", "codePath": "main.py", "_partial": "v0"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint, notebook = builder._get_entrypoint_and_notebook(
-        program_relpath, metadata
-    )
+    entrypoint = builder._get_entrypoint(program_relpath)
     assert entrypoint == ["python3.9", "main.py"]
 
     with pytest.raises(AssertionError):
         metadata = {"codePath": "main.py", "_partial": "v0"}
         program_relpath = builder._get_program_relpath(job_source, metadata)
-        entrypoint, notebook = builder._get_entrypoint_and_notebook(
-            program_relpath, metadata
-        )
+        entrypoint = builder._get_entrypoint(program_relpath)
 
     metadata = {"codePath": "main.py"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint, notebook = builder._get_entrypoint_and_notebook(
-        program_relpath, metadata
-    )
+    entrypoint = builder._get_entrypoint(program_relpath)
 
     assert entrypoint == [os.path.basename(sys.executable), "main.py"]

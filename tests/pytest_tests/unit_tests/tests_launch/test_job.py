@@ -110,13 +110,13 @@ def test_configure_notebook_artifact_job(mocker, tmp_path):
     assert job._entrypoint == ["python3", new_fname]
 
 
-def test_make_job_name():
-    builder = JobBuilder()
+def test_make_job_name(test_settings):
+    builder = JobBuilder(settings=test_settings())
     name = builder._make_job_name("testing*123")
 
     assert name == "job-testing_123"
 
-    settings = {"job_name": "custom-name"}
+    settings = test_settings({"job_name": "custom-name"})
     builder = JobBuilder(settings=settings)
     name = builder._make_job_name("testing*123")
 
