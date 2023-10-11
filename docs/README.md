@@ -5,7 +5,3 @@
 # Weights and Biases documentation
 
 General developer docs available at [https://docs.wandb.com](https://docs.wandb.com)
-
-## Developer documentation
-
-- [Developer information](dev/)
