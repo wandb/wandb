@@ -343,6 +343,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.sendRecord(rec)
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
+		h.fh.Close()
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
 	case service.DeferRequest_END:
@@ -567,7 +568,8 @@ func (h *Handler) handleFiles(record *service.Record) {
 	}
 
 	if h.fh == nil {
-		h.fh = NewFileHandler()
+		h.fh = NewFileHandler(h.loopbackChan)
+		h.fh.Start()
 	}
 
 	rec := h.fh.Handle(record)

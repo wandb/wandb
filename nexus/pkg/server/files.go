@@ -1,15 +1,35 @@
 package server
 
 import (
+	"fmt"
 	"github.com/wandb/wandb/nexus/internal/watcher"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
+	"path/filepath"
 )
 
 type FileHandler struct {
 	savedFiles map[string]interface{}
 	final      *service.Record
 	watcher    *watcher.Watcher
+}
+
+func NewFileHandler(watcherOutChan chan *service.Record) *FileHandler {
+	return &FileHandler{
+		savedFiles: make(map[string]interface{}),
+		watcher:    watcher.NewWatcher(watcherOutChan),
+	}
+}
+
+func (fh *FileHandler) Start() {
+	fh.watcher.Start()
+}
+
+func (fh *FileHandler) Close() {
+	if fh == nil {
+		return
+	}
+	fh.watcher.Close()
 }
 
 func (fh *FileHandler) Handle(record *service.Record) *service.Record {
@@ -23,14 +43,48 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 		}
 	}
 
-	var files []*service.FilesItem
+	// expand globs
+	var items []*service.FilesItem
 	for _, item := range record.GetFiles().GetFiles() {
-		// TODO: support live policy?
-		if item.Policy == service.FilesItem_END || item.Policy == service.FilesItem_LIVE {
-			// todo: handle globs in path
+		matches, err := filepath.Glob(item.Path)
+
+		if err != nil {
+			// todo: log error
+			continue
+		}
+
+		// if no matches, just add the item assuming it's not a glob
+		if len(matches) == 0 {
+			items = append(items, item)
+			continue
+		}
+
+		// expand globs
+		for _, match := range matches {
+			newItem := proto.Clone(item).(*service.FilesItem)
+			newItem.Path = match
+			items = append(items, newItem)
+		}
+	}
+
+	fmt.Println("ITEMS", items)
+
+	var files []*service.FilesItem
+	for _, item := range items {
+		if item.Policy == service.FilesItem_END {
 			if _, ok := fh.savedFiles[item.Path]; !ok {
 				fh.savedFiles[item.Path] = nil
 				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
+			}
+		} else if item.Policy == service.FilesItem_LIVE {
+			if _, ok := fh.savedFiles[item.Path]; !ok {
+				fh.savedFiles[item.Path] = nil
+				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
+			}
+			err := fh.watcher.Add(item.Path)
+			if err != nil {
+				// todo: log error
+				continue
 			}
 		} else {
 			files = append(files, item)
@@ -52,13 +106,4 @@ func (fh *FileHandler) Final() *service.Record {
 		return nil
 	}
 	return fh.final
-}
-
-func NewFileHandler() *FileHandler {
-	fh := &FileHandler{
-		savedFiles: make(map[string]interface{}),
-		watcher:    watcher.NewWatcher(),
-	}
-	fh.watcher.Start()
-	return fh
 }
