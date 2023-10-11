@@ -188,6 +188,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 					CompletionCallback: func(task *uploader.UploadTask) {
 						taskResultsChan <- TaskResult{task, name}
 					},
+					FileType: uploader.ArtifactFile,
 				}
 				as.UploadManager.AddTask(task)
 			}
@@ -215,29 +216,29 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	cache := map[string]string{}
 	for name, entry := range manifest.Contents {
 		if entry.Ref != nil && strings.HasPrefix(*entry.Ref, "wandb-client-artifact:") {
-			ref_parsed, err := url.Parse(*entry.Ref)
+			refParsed, err := url.Parse(*entry.Ref)
 			if err != nil {
 				return err
 			}
-			client_id, path := ref_parsed.Host, strings.TrimPrefix(ref_parsed.Path, "/")
-			server_id, ok := cache[client_id]
+			clientId, path := refParsed.Host, strings.TrimPrefix(refParsed.Path, "/")
+			serverId, ok := cache[clientId]
 			if !ok {
-				response, err := gql.ClientIDMapping(as.Ctx, as.GraphqlClient, client_id)
+				response, err := gql.ClientIDMapping(as.Ctx, as.GraphqlClient, clientId)
 				if err != nil {
 					return err
 				}
 				if response.ClientIDMapping == nil {
-					return fmt.Errorf("could not resolve client id %v", client_id)
+					return fmt.Errorf("could not resolve client id %v", clientId)
 				}
-				server_id = response.ClientIDMapping.ServerID
-				cache[client_id] = server_id
+				serverId = response.ClientIDMapping.ServerID
+				cache[clientId] = serverId
 			}
-			server_id_hex, err := utils.B64ToHex(server_id)
+			serverIdHex, err := utils.B64ToHex(serverId)
 			if err != nil {
 				return err
 			}
-			resolved_ref := "wandb-artifact://" + server_id_hex + "/" + path
-			entry.Ref = &resolved_ref
+			resolvedRef := "wandb-artifact://" + serverIdHex + "/" + path
+			entry.Ref = &resolvedRef
 			manifest.Contents[name] = entry
 		}
 	}
@@ -253,6 +254,7 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 		CompletionCallback: func(task *uploader.UploadTask) {
 			resultChan <- task
 		},
+		FileType: uploader.ArtifactFile,
 	}
 	as.UploadManager.AddTask(task)
 	<-resultChan
