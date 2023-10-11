@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -75,12 +76,15 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 
 	var files []*service.FilesItem
 	for _, item := range items {
-		if item.Policy == service.FilesItem_END {
+		switch item.Policy {
+		case service.FilesItem_NOW:
+			files = append(files, item)
+		case service.FilesItem_END:
 			if _, ok := fh.savedFiles[item.Path]; !ok {
 				fh.savedFiles[item.Path] = nil
 				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
 			}
-		} else if item.Policy == service.FilesItem_LIVE {
+		case service.FilesItem_LIVE:
 			if _, ok := fh.savedFiles[item.Path]; !ok {
 				fh.savedFiles[item.Path] = nil
 				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
@@ -90,8 +94,9 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 				fh.logger.CaptureError("error adding path to watcher", err, "path", item.Path)
 				continue
 			}
-		} else {
-			files = append(files, item)
+		default:
+			err := fmt.Errorf("unknown file policy: %s", item.Policy)
+			fh.logger.CaptureError("unknown file policy", err, "policy", item.Policy)
 		}
 	}
 
