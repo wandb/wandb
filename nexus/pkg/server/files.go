@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -62,12 +63,18 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 
 		// if no matches, just add the item assuming it's not a glob
 		if len(matches) == 0 {
+			if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
+				continue
+			}
 			items = append(items, item)
 			continue
 		}
 
 		// expand globs
 		for _, match := range matches {
+			if fileInfo, err := os.Stat(match); err != nil || fileInfo.IsDir() {
+				continue
+			}
 			newItem := proto.Clone(item).(*service.FilesItem)
 			newItem.Path = match
 			items = append(items, newItem)
