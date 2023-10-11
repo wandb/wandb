@@ -186,14 +186,12 @@ class JobBuilder:
         else:
             full_program_path = program_relpath
 
-        entrypoint, notebook = self._get_entrypoint_and_notebook(
-            full_program_path, metadata
-        )
+        entrypoint = self._get_entrypoint(full_program_path, metadata)
         # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
             "git": {"remote": remote, "commit": commit},
             "entrypoint": entrypoint,
-            "notebook": notebook,
+            "notebook": self._is_notebook_run,
         }
         name = self._make_job_name(f"{remote}_{program_relpath}")
 
@@ -219,14 +217,11 @@ class JobBuilder:
         else:
             full_program_relpath = program_relpath
 
-        entrypoint, notebook = self._get_entrypoint_and_notebook(
-            full_program_relpath,
-            metadata,
-        )
+        entrypoint = self._get_entrypoint(full_program_relpath, metadata)
         # TODO: update executable to a method that supports pex
         source: ArtifactSourceDict = {
             "entrypoint": entrypoint,
-            "notebook": notebook,
+            "notebook": self._is_notebook_run,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
         name = self._make_job_name(self._logged_code_artifact["name"])
@@ -244,7 +239,7 @@ class JobBuilder:
             tag = image_name.split(":")[-1]
 
             # if tag looks properly formatted, assume its a tag
-            # regex: alphanumeric add "_" "-" "."
+            # regex: alphanumeric and "_" "-" "."
             if re.fullmatch(r"([a-zA-Z0-9_\-\.]+)", tag):
                 raw_image_name = raw_image_name.replace(f":{tag}", "")
                 self._aliases += [tag]
@@ -263,31 +258,32 @@ class JobBuilder:
 
         return make_artifact_name_safe(f"job-{input_str}")
 
-    def _get_entrypoint_and_notebook(
+    def _get_entrypoint(
         self,
         program_relpath: str,
         metadata: Dict[str, Any],
-    ) -> Tuple[List[str], bool]:
+    ) -> List[str]:
         # if building a partial job from CLI, overwrite entrypoint and notebook
         # should already be in metadata from create_job
         if metadata.get("_partial"):
             if metadata.get("entrypoint"):
-                return metadata["entrypoint"], metadata["notebook"]
+                entrypoint: List[str] = metadata["entrypoint"]
+                return entrypoint
 
             # if entrypoint is not in metadata, then construct from python
             assert metadata.get("python")
 
             python = metadata["python"]
             if python.count(".") > 1:
-                python = ".".join(metadata["python"].split(".")[:2])
+                python = ".".join(python.split(".")[:2])
 
             entrypoint = [f"python{python}", program_relpath]
-            return entrypoint, self._is_notebook_run
+            return entrypoint
 
         # job is being built from a run
         entrypoint = [os.path.basename(sys.executable), program_relpath]
 
-        return entrypoint, self._is_notebook_run
+        return entrypoint
 
     def _get_is_notebook_run(self) -> bool:
         return hasattr(self._settings, "_jupyter") and bool(self._settings._jupyter)

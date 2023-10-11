@@ -3,6 +3,7 @@ import os
 from unittest.mock import MagicMock
 
 from wandb.apis.public import Job
+from wandb.sdk.internal.job_builder import JobBuilder
 
 
 def test_configure_notebook_repo_job(mocker, tmp_path):
@@ -107,3 +108,16 @@ def test_configure_notebook_artifact_job(mocker, tmp_path):
     job.configure_launch_project(mock_launch_project)
     assert mock_launch_project.set_entry_point.called_with(["python3", new_fname])
     assert job._entrypoint == ["python3", new_fname]
+
+
+def test_make_job_name():
+    builder = JobBuilder()
+    name = builder._make_job_name("testing*123")
+
+    assert name == "job-testing_123"
+
+    settings = {"job_name": "custom-name"}
+    builder = JobBuilder(settings=settings)
+    name = builder._make_job_name("testing*123")
+
+    assert name == "custom-name"
