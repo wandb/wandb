@@ -139,9 +139,13 @@ class VertexRunner(AbstractRunner):
                     "the key `vertex.spec.worker_pool_specs[].container_spec`."
                 )
             spec["container_spec"]["command"] = entry_cmd
-            spec["container_spec"]["env"] = [
-                {"name": k, "value": v} for k, v in env_vars.items()
-            ]
+
+            # Add our env vars to user supplied env vars
+            env = spec["container_spec"].get("env", [])
+            env.extend(
+                [{"name": key, "value": value} for key, value in env_vars.items()]
+            )
+            spec["container_spec"]["env"] = env
 
         if not spec_args.get("staging_bucket"):
             raise LaunchError(
