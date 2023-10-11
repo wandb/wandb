@@ -1890,7 +1890,6 @@ class Run:
                 % file_str
             )
         files_dict: FilesDict = dict(files=[(wandb_glob_str, policy)])
-        print("files_dict", files_dict)
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files

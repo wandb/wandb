@@ -554,6 +554,14 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	runtime := int32(h.timer.Elapsed().Seconds())
 	exit.Runtime = runtime
 
+	// update summary with runtime
+	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
+		{
+			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+		},
+	})
+	h.sendRecord(summaryRecord)
+
 	// send the exit record
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -629,6 +637,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 	})
 
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
+	fmt.Println("summaryRecord", summaryRecord)
 	h.sendRecord(summaryRecord)
 }
 
