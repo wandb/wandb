@@ -3,65 +3,43 @@ from typing import Callable
 import numpy as np
 import pytest
 import wandb
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
+from wandb.testing.relay import TokenizedCircularPattern
 
 
-@pytest.mark.timeout(120)
-def test_artifact_log_with_network_error(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
-        artifact = wandb.Artifact("table-example", "dataset")
-        live_mock_server.set_ctx({"fail_graphql_times": 15})
-        run.log_artifact(artifact)
-        live_mock_server.set_ctx({"fail_graphql_times": 0})
-        run.finish()
+def test_artifact_log_with_network_error(user, relay_server, inject_graphql_response):
+    create_artifact_response = inject_graphql_response(
+        # request
+        query_match_fn=lambda query, variables: query.startswith(
+            "mutation CreateArtifact("
+        ),
+        application_pattern=(
+            TokenizedCircularPattern.APPLY_TOKEN + TokenizedCircularPattern.STOP_TOKEN
+        ),
+        # response
+        status=500,
+        body="transient error",
+    )
+    with relay_server(inject=[create_artifact_response]):
+        with wandb.init() as run:
+            artifact = wandb.Artifact("table-example", "dataset")
+            run.log_artifact(artifact)
 
 
-def test_artifact_references_internal(
-    runner,
-    mocked_run,
-    mock_server,
-    internal_sm,
-    backend_interface,
-    parse_ctx,
-    test_settings,
-):
-    with runner.isolated_filesystem():
-        mock_server.set_context("max_cli_version", "0.11.0")
-        run = wandb.init(settings=test_settings)
-        t1 = wandb.Table(columns=[], data=[])
-        art = wandb.Artifact("A", "dataset")
-        art.add(t1, "t1")
-        run.log_artifact(art)
-        run.finish()
+def test_artifact_references_internal(user):
+    t1 = wandb.Table(columns=[], data=[])
 
-        art = wandb.Artifact("A_PENDING", "dataset")
-        art.add(t1, "t1")
+    art = wandb.Artifact("A", "dataset")
+    art.add(t1, "t1")
+    art.save()
 
-        with backend_interface() as interface:
-            proto_run = interface._make_run(mocked_run)
-            internal_sm.send_run(interface._make_record(run=proto_run))
-
-            proto_artifact = interface._make_artifact(art)
-            proto_artifact.run_id = proto_run.run_id
-            proto_artifact.project = proto_run.project
-            proto_artifact.entity = proto_run.entity
-            proto_artifact.user_created = False
-            proto_artifact.use_after_commit = False
-            proto_artifact.finalize = True
-            for alias in ["latest"]:
-                proto_artifact.aliases.append(alias)
-            log_artifact = pb.LogArtifactRequest()
-            log_artifact.artifact.CopyFrom(proto_artifact)
-
-            internal_sm.send_artifact(log_artifact)
+    art = wandb.Artifact("B", "dataset")
+    art.add(t1, "t1")  # creates a reference to A
+    art.save()
 
 
-@pytest.mark.timeout(300)
-def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+def test_lazy_artifact_passthrough(user):
+    with wandb.init() as run:
         art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
 
         t1 = wandb.Table(columns=[], data=[])
@@ -127,10 +105,6 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
             "json_encode",
         ]
         params = {"get_path": ["t1.table.json"], "get": ["t1"], "delete": [True]}
-        # these are failures of mocking
-        special_errors = {
-            "verify": ValueError,
-        }
 
         for valid_getter in testable_getters_valid:
             _ = getattr(art, valid_getter)
@@ -190,29 +164,21 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
 
         for method in testable_methods_valid + testable_methods_invalid:
             attr_method = getattr(art, method)
-            if method in special_errors:
-                with pytest.raises(special_errors[method]):
-                    _ = attr_method(*params.get(method, []))
-            else:
-                _ = attr_method(*params.get(method, []))
-
-        run.finish()
+            _ = attr_method(*params.get(method, []))
 
 
-def test_reference_download(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        open("file1.txt", "w").write("hello")
-        run = wandb.init(settings=test_settings)
+def test_reference_download(user):
+    open("file1.txt", "w").write("hello")
+    with wandb.init() as run:
         artifact = wandb.Artifact("test_reference_download", "dataset")
         artifact.add_file("file1.txt")
         artifact.add_reference(
             "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
         )
         run.log_artifact(artifact)
-        run.finish()
 
-        run = wandb.init(settings=test_settings)
-        artifact = run.use_artifact("my-test_reference_download:latest")
+    with wandb.init() as run:
+        artifact = run.use_artifact("test_reference_download:latest")
         entry = artifact.get_path("StarWars3.wav")
         entry.download()
         assert (
@@ -224,15 +190,15 @@ def test_reference_download(runner, live_mock_server, test_settings):
         entry.download()
         with pytest.raises(ValueError):
             assert entry.ref_target()
-        run.finish()
 
 
-def test_communicate_artifact(runner, publish_util, mocked_run):
-    with runner.isolated_filesystem():
+def test_communicate_artifact(user, relay_server, publish_util, mock_run):
+    with relay_server() as relay:
+        run = mock_run()
         artifact = wandb.Artifact("comms_test_PENDING", "dataset")
-        artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
-        ctx_util = publish_util(artifacts=[artifact_publish])
-        assert len(set(ctx_util.manifests_created_ids)) == 1
+        artifact_publish = dict(run=run, artifact=artifact, aliases=["latest"])
+        publish_util(run, artifacts=[artifact_publish])
+        assert len(relay.context[run.id]["create_artifact"]) == 1
 
 
 def _create_artifact_and_set_metadata(metadata):
