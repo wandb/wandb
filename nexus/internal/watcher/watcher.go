@@ -1,12 +1,13 @@
 package watcher
 
 import (
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	fw "github.com/radovskyb/watcher"
 	"github.com/wandb/wandb/nexus/pkg/service"

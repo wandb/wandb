@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"path/filepath"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"github.com/wandb/wandb/nexus/internal/watcher"
 	"github.com/wandb/wandb/nexus/pkg/service"
