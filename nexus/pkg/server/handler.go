@@ -133,6 +133,7 @@ func NewHandler(
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
+
 	// initialize the run metadata from settings
 	h.runMetadata = &service.MetadataRequest{
 		Os:       h.settings.GetXOs().GetValue(),
@@ -344,6 +345,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.sendRecord(rec)
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
+		h.fh.Close()
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
 	case service.DeferRequest_END:
@@ -558,6 +560,14 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	runtime := int32(h.timer.Elapsed().Seconds())
 	exit.Runtime = runtime
 
+	// update summary with runtime
+	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
+		{
+			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+		},
+	})
+	h.sendRecord(summaryRecord)
+
 	// send the exit record
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -572,7 +582,8 @@ func (h *Handler) handleFiles(record *service.Record) {
 	}
 
 	if h.fh == nil {
-		h.fh = NewFileHandler()
+		h.fh = NewFileHandler(h.logger, h.loopbackChan)
+		h.fh.Start()
 	}
 
 	rec := h.fh.Handle(record)
