@@ -66,56 +66,55 @@ if you encounter an error, mention that you are using Nexus.
 ## Feature Parity Status
 
 The following table shows the status of the feature parity
-between the current W&B SDK and Nexus for version `0.16.0b2`.
+between the current W&B SDK and Nexus for version `0.16.0b3`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
 - 🚧: In Development: The feature is available, but may be unstable or incomplete.
 - ❌: Not Available: The feature is not yet available.
 
-| Category    | Feature           | Status        |
-|-------------|-------------------|---------------|
-| Experiments |                   |               |
-|             | `init`            | ✅[^E.1][^E.6] |
-|             | `log`             | ✅             |
-|             | `log_artifact`    | ✅             |
-|             | `log_code`        | ✅             |
-|             | `config`          | ✅             |
-|             | `summary`         | ✅             |
-|             | `define_metric`   | 🚧[^E.5]      |
-|             | `tags`            | ✅             |
-|             | `notes`           | ✅             |
-|             | `name`            | ✅             |
-|             | `alert`           | ✅             |
-|             | `save`            | 🚧[^E.6]      |
-|             | `restore`         | ✅             |
-|             | `mark_preempting` | ✅             |
-|             | resume            | ✅             |
-|             | reinit            | ✅             |
-|             | Media             | ✅             |
-|             | Grouping          | ✅             |
-|             | anonymous mode    | ✅             |
-|             | offline mode      | ✅             |
-|             | disabled mode     | ✅             |
-|             | multiprocessing   | ✅             |
-|             | TensorBoard sync  | ❌             |
-|             | console logging   | 🚧[^E.8]      |
-|             | system metrics    | 🚧[^E.9]      |
-|             | system info       | ✅             |
-|             | auto code saving  | 🚧[^E.6]      |
-|             | Settings          | 🚧[^E.12]     |
-| Login       |                   |               |
-|             | default entity    | ✅             |
-|             | team entity       | ✅             |
-|             | service account   | ✅             |
-| CLI         |                   | 🚧[^CLI.1]    |
-| Artifacts   |                   | 🚧[^A.1]      |
-| Launch      |                   | ❌[^L.1]       |
-| Sweeps      |                   | 🚧[^S.1]      |
+| Category    | Feature           | Status     |
+|-------------|-------------------|------------|
+| Experiments |                   |            |
+|             | `init`            | ✅[^E.1]    |
+|             | `log`             | ✅          |
+|             | `log_artifact`    | ✅          |
+|             | `log_code`        | ✅          |
+|             | `config`          | ✅          |
+|             | `summary`         | ✅          |
+|             | `define_metric`   | 🚧[^E.5]   |
+|             | `tags`            | ✅          |
+|             | `notes`           | ✅          |
+|             | `name`            | ✅          |
+|             | `alert`           | ✅          |
+|             | `save`            | ✅          |
+|             | `restore`         | ✅          |
+|             | `mark_preempting` | ✅          |
+|             | resume            | ✅          |
+|             | reinit            | ✅          |
+|             | Media             | ✅          |
+|             | Grouping          | ✅          |
+|             | anonymous mode    | ✅          |
+|             | offline mode      | ✅          |
+|             | disabled mode     | ✅          |
+|             | multiprocessing   | ✅          |
+|             | TensorBoard sync  | ❌          |
+|             | console logging   | 🚧[^E.8]   |
+|             | system metrics    | 🚧[^E.9]   |
+|             | system info       | ✅          |
+|             | auto code saving  | ✅          |
+|             | Settings          | 🚧[^E.12]  |
+| Login       |                   |            |
+|             | default entity    | ✅          |
+|             | team entity       | ✅          |
+|             | service account   | ✅          |
+| CLI         |                   | 🚧[^CLI.1] |
+| Artifacts   |                   | 🚧[^A.1]   |
+| Launch      |                   | ❌[^L.1]    |
+| Sweeps      |                   | 🚧[^S.1]   |
 
 [^E.1]: `sync_tensorboard` requires TensorBoard sync support.
 [^E.5]: `define_metric` only supports default summary.
-[^E.6]: Only `now` and `end` policies are supported. `live` policy will be treated as `end`.
 [^E.8]: Only raw console logging is supported.
 [^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
 [^E.12]: TODO: list unsupported settings.
