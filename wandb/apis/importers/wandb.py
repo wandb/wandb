@@ -42,7 +42,17 @@ ART_SEQUENCE_DUMMY_DESCRIPTION = "__ART_SEQUENCE_DUMMY_DESCRIPTION__"
 
 class WandbRun:
     def __init__(self, run: Run):
+
         self.run = run
+        # very hacky way to get alt username applied at thread level (if setting env var, would require proc level)
+        from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
+
+        if _thread_local_api_settings.headers is None:
+            _thread_local_api_settings.headers = {}
+
+        _thread_local_api_settings.headers["X-WANDB-USERNAME"] = self.run.user.username
+        
+        
         self.api = wandb.Api(
             api_key=_thread_local_settings.src_api_key,
             overrides={"base_url": _thread_local_settings.src_base_url},
@@ -55,6 +65,11 @@ class WandbRun:
         _thread_local_settings.src_entity = self.entity()
         _thread_local_settings.src_project = self.project()
         _thread_local_settings.src_run_id = self.run_id()
+
+        
+        # import os
+        # os.environ["WANDB_USERNAME"] = self.run.user.username
+        # # _thread_local_settings.username = self.run.user.username
 
         # For caching
         self._files: Optional[Iterable[Tuple[str, str]]] = None
@@ -559,8 +574,8 @@ class WandbImporter:
         history = []
         for a in run.artifacts():
             if a.type == "wandb-history":
-                name, ver = _get_art_name_ver(a)
-                a._name = name
+                name, _ = _get_art_name_ver(a)
+                a._name = name  # pylint: disable=W0212
                 history.append(a)
         progress.subsubtask_pbar.remove_task(t)
 
