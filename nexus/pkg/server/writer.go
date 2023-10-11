@@ -77,16 +77,15 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 	for record := range inChan {
 		w.handleRecord(record)
 	}
-	w.close()
+	w.wg.Wait()
 }
 
-// close closes the writer and all its resources
+// Close closes the writer and all its resources
 // which includes the store
-func (w *Writer) close() {
-	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
+func (w *Writer) Close() {
 	close(w.fwdChan)
 	close(w.storeChan)
-	w.wg.Wait()
+	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
 }
 
 // handleRecord Writing messages to the append-only log,
