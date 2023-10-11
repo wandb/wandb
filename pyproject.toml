@@ -93,7 +93,7 @@ launch = [
     "google-cloud-compute",
     "google-cloud-storage",
     "iso8601",
-    "kubernetes",
+    "kubernetes_asyncio",
     "optuna",
     "nbconvert",
     "nbformat",
