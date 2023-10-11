@@ -113,7 +113,7 @@ def test_launch_wandb_init_launch_envs(
         {
             "WANDB_LAUNCH_QUEUE_NAME": queue,
             "WANDB_LAUNCH_QUEUE_ENTITY": user,
-            "WANDB_LAUNCH_RUN_QUEUE_ITEM_ID": "test123",
+            "WANDB_LAUNCH_TRACE_ID": "test123",
         },
     ):
         with relay_server() as relay:
@@ -123,6 +123,6 @@ def test_launch_wandb_init_launch_envs(
 
         config = relay.context.config[run.id]
 
-        assert config["_wandb"]["value"]["launch_run_queue_item_id"] == "test123"
+        assert config["_wandb"]["value"]["launch_trace_id"] == "test123"
         assert config["_wandb"]["value"]["launch_queue_entity"] == user
         assert config["_wandb"]["value"]["launch_queue_name"] == queue

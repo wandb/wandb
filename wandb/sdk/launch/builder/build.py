@@ -245,7 +245,7 @@ def get_env_vars_dict(
     if launch_project.queue_entity:
         env_vars[wandb.env.LAUNCH_QUEUE_ENTITY] = launch_project.queue_entity
     if launch_project.run_queue_item_id:
-        env_vars[wandb.env.LAUNCH_RUN_QUEUE_ITEM_ID] = launch_project.run_queue_item_id
+        env_vars[wandb.env.LAUNCH_TRACE_ID] = launch_project.run_queue_item_id
 
     _inject_wandb_config_env_vars(
         launch_project.override_config, env_vars, max_env_length

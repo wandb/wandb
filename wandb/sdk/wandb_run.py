@@ -691,9 +691,9 @@ class Run:
         if launch_queue_entity:
             config[wandb_key]["launch_queue_entity"] = launch_queue_entity
 
-        launch_run_queue_item_id = wandb.env.get_launch_run_queue_item_id()
-        if launch_run_queue_item_id:
-            config[wandb_key]["launch_run_queue_item_id"] = launch_run_queue_item_id
+        launch_trace_id = wandb.env.get_launch_trace_id()
+        if launch_trace_id:
+            config[wandb_key]["launch_trace_id"] = launch_trace_id
 
         self._config._update(config, ignore_locked=True)
 
