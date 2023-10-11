@@ -107,7 +107,7 @@ Status legend:
 | Login       |                   |            |
 |             | default entity    | ✅          |
 |             | team entity       | ✅          |
-|             | service account   | ✅          |
+|             | service account   | 🚧          |
 | CLI         |                   | 🚧[^CLI.1] |
 | Artifacts   |                   | 🚧[^A.1]   |
 | Launch      |                   | ❌[^L.1]    |
