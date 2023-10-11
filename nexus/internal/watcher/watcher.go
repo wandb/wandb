@@ -44,12 +44,12 @@ func (w *Watcher) Start() {
 					if path == "-" {
 						path = event.Name()
 						absolutePath, err := filepath.Abs(path)
-						if _, ok := w.pathMap[absolutePath]; !ok {
-							w.pathMap[absolutePath] = path
-						}
 						if err != nil {
 							w.logger.CaptureError("error getting absolute path", err, "path", path)
 							continue
+						}
+						if _, ok := w.pathMap[absolutePath]; !ok {
+							w.pathMap[absolutePath] = path
 						}
 						path = absolutePath
 					}
