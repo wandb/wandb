@@ -4,11 +4,16 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/internal/gql"
+	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/pkg/env"
 )
+
+const BATCH_SIZE int = 10000
+const MAX_BACKLOG int = 10000
 
 type ArtifactDownloader struct {
 	// Resources
@@ -110,7 +115,101 @@ func (ad *ArtifactDownloader) getArtifactManifestEntries() (map[string]ManifestE
 	return artifactManifest.Contents, nil
 }
 
-func (ad *ArtifactDownloader) DownloadEntry() error {
+func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries map[string]ManifestEntry) error {
+	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
+	batchSize := BATCH_SIZE
+
+	// Change to downloader or file_manager
+	type TaskResult struct {
+		Task *uploader.UploadTask
+		Name string
+	}
+
+	// Fetch URLs and download files in batches
+	numInProgress, numDone := 0, 0
+	nameToScheduledTime := map[string]time.Time{}
+	// taskResultsChan := make(chan TaskResult)
+	manifestEntriesBatch := make([]ManifestEntry, 0, batchSize)
+	cursor := ""
+	hasNextPage := true
+	for numDone < len(manifestEntries) {
+		// Prepare a batch
+		now := time.Now()
+		manifestEntriesBatch = manifestEntriesBatch[:0]
+		for hasNextPage {
+			response, err := gql.ArtifactFileURLs(
+				ad.Ctx,
+				ad.GraphqlClient,
+				artifactID,
+				&cursor,
+				&batchSize,
+			)
+			if err != nil {
+				return err
+			} else if response == nil {
+				return fmt.Errorf("Could not fetch artifact file urls for %s", ad.QualifiedName)
+			}
+			hasNextPage = response.GetArtifact().GetFiles().PageInfo.HasNextPage
+			cursor = *response.GetArtifact().GetFiles().PageInfo.EndCursor
+			fmt.Printf("\nFetchFileURLs ===> hasNextPage: %v, cursor: %v", hasNextPage, cursor)
+			for _, edge := range response.GetArtifact().GetFiles().Edges {
+				filePath := edge.GetNode().Name
+				entry, err := getManifestEntryFromArtifactFilePath(manifestEntries, filePath)
+				if err != nil {
+					return err
+				}
+				entry.DownloadURL = &edge.GetNode().DirectUrl
+				if _, ok := nameToScheduledTime[entry.Digest]; ok {
+					continue
+				}
+				nameToScheduledTime[entry.Digest] = now
+				manifestEntriesBatch = append(manifestEntriesBatch, entry)
+			}
+			if len(manifestEntriesBatch) > MAX_BACKLOG {
+				break
+			}
+		}
+		// Schedule downloads
+		fmt.Printf("\nbatch: %v", manifestEntriesBatch)
+		if len(manifestEntriesBatch) > 0 {
+			for _, entry := range manifestEntriesBatch {
+				// name := entry.Digest
+				fmt.Printf("\nentry: %v", entry)
+				numInProgress++
+				// Download task
+				// task := &uploader.UploadTask{
+				// 	Path: *entry.LocalPath,
+				// 	Url:  *entry.DownloadURL,
+				// 	CompletionCallback: func(task *uploader.UploadTask) {
+				// 		taskResultsChan <- TaskResult{task, name}
+				// 	},
+				// 	FileType: uploader.ArtifactFile,
+				// }
+				// ad.UploadManager.AddTask(task)
+			}
+		}
+		fmt.Printf("\nDebug schedule downloads ===> numInProgress: %d, numDone: %d", numInProgress, numDone)
+
+		// Wait for downloader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
+		for numInProgress > MAX_BACKLOG || (len(manifestEntriesBatch) == 0 && numInProgress > 0) {
+			fmt.Printf("\nInside catch up loop")
+			numInProgress--
+			// result := <-taskResultsChan
+			// if result.Task.Err != nil {
+			// 	// We want to retry when the signed URL expires. However, distinguishing that error from others is not
+			// 	// trivial. As a heuristic, we retry if the request failed more than an hour after we fetched the URL.
+			// 	if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
+			// 		return result.Task.Err
+			// 	}
+			// 	// Todo: This might not work for downloads?
+			// 	delete(nameToScheduledTime, result.Name) // retry
+			// 	continue
+			// }
+			numDone++
+		}
+		// break
+	}
+
 	return nil
 }
 
@@ -140,6 +239,8 @@ func (ad *ArtifactDownloader) Download() (FileDownloadPath string, rerr error) {
 	for _, file := range artifactManifestEntries {
 		size += int(file.Size)
 	}
+
+	ad.downloadFiles(artifactAttrs.Id, artifactManifestEntries)
 	// todo: ArtifactDownloadLogger
 	// if nFiles > 5000 || size > 50*1024*1024 {
 	// 	ad.logger.Info("downloadArtifact: downloading large artifact %s, %d MB, %d files", ad.QualifiedName, size/(1024*1024), nFiles)

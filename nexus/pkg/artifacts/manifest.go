@@ -29,6 +29,7 @@ type ManifestEntry struct {
 	Size            int64                  `json:"size"`
 	Extra           map[string]interface{} `json:"extra,omitempty"`
 	LocalPath       *string                `json:"-"`
+	DownloadURL     *string                `json:"-"`
 }
 
 func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
@@ -104,4 +105,14 @@ func loadManifestFromURL(url string) (Manifest, error) {
 		return Manifest{}, fmt.Errorf("Request to get manifest from url failed with status code: %d\n", resp.StatusCode)
 	}
 	return manifest, nil
+}
+
+func getManifestEntryFromArtifactFilePath(manifestEntries map[string]ManifestEntry, path string) (ManifestEntry, error) {
+	manifestEntry, ok := manifestEntries[path]
+	if !ok {
+		// implement _get_obj_entry
+		// For now just return error
+		return ManifestEntry{}, fmt.Errorf("Path not contained in artifact: %s", path)
+	}
+	return manifestEntry, nil
 }
