@@ -359,6 +359,128 @@ type ArtifactByNameResponse struct {
 // GetProject returns ArtifactByNameResponse.Project, and is useful for accessing the field via an interface.
 func (v *ArtifactByNameResponse) GetProject() *ArtifactByNameProject { return v.Project }
 
+// ArtifactFileURLsArtifact includes the requested fields of the GraphQL type Artifact.
+type ArtifactFileURLsArtifact struct {
+	Files ArtifactFileURLsArtifactFilesFileConnection `json:"files"`
+}
+
+// GetFiles returns ArtifactFileURLsArtifact.Files, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifact) GetFiles() ArtifactFileURLsArtifactFilesFileConnection {
+	return v.Files
+}
+
+// ArtifactFileURLsArtifactFilesFileConnection includes the requested fields of the GraphQL type FileConnection.
+type ArtifactFileURLsArtifactFilesFileConnection struct {
+	PageInfo ArtifactFileURLsArtifactFilesFileConnectionPageInfo        `json:"pageInfo"`
+	Edges    []ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge `json:"edges"`
+}
+
+// GetPageInfo returns ArtifactFileURLsArtifactFilesFileConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnection) GetPageInfo() ArtifactFileURLsArtifactFilesFileConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns ArtifactFileURLsArtifactFilesFileConnection.Edges, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnection) GetEdges() []ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge {
+	return v.Edges
+}
+
+// ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge includes the requested fields of the GraphQL type FileEdge.
+type ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge struct {
+	Node *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile `json:"node"`
+}
+
+// GetNode returns ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge.Node, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge) GetNode() *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile {
+	return v.Node
+}
+
+// ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
+type ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile struct {
+	Name      string `json:"name"`
+	DirectUrl string `json:"directUrl"`
+}
+
+// GetName returns ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetName() string {
+	return v.Name
+}
+
+// GetDirectUrl returns ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// ArtifactFileURLsArtifactFilesFileConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type ArtifactFileURLsArtifactFilesFileConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns ArtifactFileURLsArtifactFilesFileConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns ArtifactFileURLsArtifactFilesFileConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// ArtifactFileURLsResponse is returned by ArtifactFileURLs on success.
+type ArtifactFileURLsResponse struct {
+	Artifact *ArtifactFileURLsArtifact `json:"artifact"`
+}
+
+// GetArtifact returns ArtifactFileURLsResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsResponse) GetArtifact() *ArtifactFileURLsArtifact { return v.Artifact }
+
+// ArtifactManifestProject includes the requested fields of the GraphQL type Project.
+type ArtifactManifestProject struct {
+	Artifact *ArtifactManifestProjectArtifact `json:"artifact"`
+}
+
+// GetArtifact returns ArtifactManifestProject.Artifact, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestProject) GetArtifact() *ArtifactManifestProjectArtifact { return v.Artifact }
+
+// ArtifactManifestProjectArtifact includes the requested fields of the GraphQL type Artifact.
+type ArtifactManifestProjectArtifact struct {
+	CurrentManifest *ArtifactManifestProjectArtifactCurrentManifestArtifactManifest `json:"currentManifest"`
+}
+
+// GetCurrentManifest returns ArtifactManifestProjectArtifact.CurrentManifest, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestProjectArtifact) GetCurrentManifest() *ArtifactManifestProjectArtifactCurrentManifestArtifactManifest {
+	return v.CurrentManifest
+}
+
+// ArtifactManifestProjectArtifactCurrentManifestArtifactManifest includes the requested fields of the GraphQL type ArtifactManifest.
+type ArtifactManifestProjectArtifactCurrentManifestArtifactManifest struct {
+	File ArtifactManifestProjectArtifactCurrentManifestArtifactManifestFile `json:"file"`
+}
+
+// GetFile returns ArtifactManifestProjectArtifactCurrentManifestArtifactManifest.File, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestProjectArtifactCurrentManifestArtifactManifest) GetFile() ArtifactManifestProjectArtifactCurrentManifestArtifactManifestFile {
+	return v.File
+}
+
+// ArtifactManifestProjectArtifactCurrentManifestArtifactManifestFile includes the requested fields of the GraphQL type File.
+type ArtifactManifestProjectArtifactCurrentManifestArtifactManifestFile struct {
+	DirectUrl string `json:"directUrl"`
+}
+
+// GetDirectUrl returns ArtifactManifestProjectArtifactCurrentManifestArtifactManifestFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestProjectArtifactCurrentManifestArtifactManifestFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// ArtifactManifestResponse is returned by ArtifactManifest on success.
+type ArtifactManifestResponse struct {
+	Project *ArtifactManifestProject `json:"project"`
+}
+
+// GetProject returns ArtifactManifestResponse.Project, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestResponse) GetProject() *ArtifactManifestProject { return v.Project }
+
 type ArtifactManifestType string
 
 const (
@@ -1032,6 +1154,38 @@ func (v *__ArtifactByNameInput) GetProjectName() string { return v.ProjectName }
 // GetName returns __ArtifactByNameInput.Name, and is useful for accessing the field via an interface.
 func (v *__ArtifactByNameInput) GetName() string { return v.Name }
 
+// __ArtifactFileURLsInput is used internally by genqlient
+type __ArtifactFileURLsInput struct {
+	Id      string  `json:"id"`
+	Cursor  *string `json:"cursor"`
+	PerPage *int    `json:"perPage"`
+}
+
+// GetId returns __ArtifactFileURLsInput.Id, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsInput) GetId() string { return v.Id }
+
+// GetCursor returns __ArtifactFileURLsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __ArtifactFileURLsInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsInput) GetPerPage() *int { return v.PerPage }
+
+// __ArtifactManifestInput is used internally by genqlient
+type __ArtifactManifestInput struct {
+	EntityName  string `json:"entityName"`
+	ProjectName string `json:"projectName"`
+	Name        string `json:"name"`
+}
+
+// GetEntityName returns __ArtifactManifestInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__ArtifactManifestInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns __ArtifactManifestInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *__ArtifactManifestInput) GetProjectName() string { return v.ProjectName }
+
+// GetName returns __ArtifactManifestInput.Name, and is useful for accessing the field via an interface.
+func (v *__ArtifactManifestInput) GetName() string { return v.Name }
+
 // __ClientIDMappingInput is used internally by genqlient
 type __ClientIDMappingInput struct {
 	ClientID string `json:"clientID"`
@@ -1417,6 +1571,101 @@ func ArtifactByName(
 	var err error
 
 	var data ArtifactByNameResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by ArtifactFileURLs.
+const ArtifactFileURLs_Operation = `
+query ArtifactFileURLs ($id: ID!, $cursor: String, $perPage: Int) {
+	artifact(id: $id) {
+		files(after: $cursor, first: $perPage) {
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+			edges {
+				node {
+					name
+					directUrl
+				}
+			}
+		}
+	}
+}
+`
+
+func ArtifactFileURLs(
+	ctx context.Context,
+	client graphql.Client,
+	id string,
+	cursor *string,
+	perPage *int,
+) (*ArtifactFileURLsResponse, error) {
+	req := &graphql.Request{
+		OpName: "ArtifactFileURLs",
+		Query:  ArtifactFileURLs_Operation,
+		Variables: &__ArtifactFileURLsInput{
+			Id:      id,
+			Cursor:  cursor,
+			PerPage: perPage,
+		},
+	}
+	var err error
+
+	var data ArtifactFileURLsResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by ArtifactManifest.
+const ArtifactManifest_Operation = `
+query ArtifactManifest ($entityName: String!, $projectName: String!, $name: String!) {
+	project(entityName: $entityName, name: $projectName) {
+		artifact(name: $name) {
+			currentManifest {
+				file {
+					directUrl
+				}
+			}
+		}
+	}
+}
+`
+
+func ArtifactManifest(
+	ctx context.Context,
+	client graphql.Client,
+	entityName string,
+	projectName string,
+	name string,
+) (*ArtifactManifestResponse, error) {
+	req := &graphql.Request{
+		OpName: "ArtifactManifest",
+		Query:  ArtifactManifest_Operation,
+		Variables: &__ArtifactManifestInput{
+			EntityName:  entityName,
+			ProjectName: projectName,
+			Name:        name,
+		},
+	}
+	var err error
+
+	var data ArtifactManifestResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
