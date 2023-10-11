@@ -198,7 +198,9 @@ class WandbRun:
         return self.run.display_name
 
     def notes(self) -> Optional[str]:
-        return self.run.notes
+        previous_link = self.run.url
+        previous_notes = self.run.notes or ""
+        return f"Imported from: {previous_link}\n---\n{previous_notes}"
 
     def tags(self) -> Optional[List[str]]:
         return self.run.tags

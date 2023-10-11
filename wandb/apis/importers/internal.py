@@ -133,8 +133,6 @@ class RecordMaker:
         run.notes = coalesce(self.run.notes(), "")
         run.tags.extend(coalesce(self.run.tags(), []))
         run.start_time.FromMilliseconds(self.run.start_time())
-        
-
 
         host = self.run.host()
         if host is not None:
@@ -151,7 +149,7 @@ class RecordMaker:
         config = self.run.config()
         if "_wandb" not in config:
             config["_wandb"] = {}
-
+            
         # how do I get this automatically?
         config["_wandb"]["code_path"] = self.run.code_path()
         config["_wandb"]["python_version"] = self.run.python_version()
