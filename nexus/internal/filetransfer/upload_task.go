@@ -1,4 +1,4 @@
-package uploader
+package filetransfer
 
 type FileType int
 
