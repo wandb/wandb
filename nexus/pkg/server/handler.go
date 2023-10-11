@@ -637,7 +637,6 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 	})
 
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
-	fmt.Println("summaryRecord", summaryRecord)
 	h.sendRecord(summaryRecord)
 }
 

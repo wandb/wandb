@@ -53,6 +53,10 @@ func (w *Watcher) Start() {
 						}
 						path = absolutePath
 					}
+					// skip directories and files that don't exist
+					if fileInfo, err := os.Stat(path); err != nil || fileInfo.IsDir() {
+						continue
+					}
 
 					rec := &service.Record{
 						RecordType: &service.Record_Files{
