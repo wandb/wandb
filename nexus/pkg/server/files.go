@@ -2,10 +2,11 @@ package server
 
 import (
 	"fmt"
+	"path/filepath"
+
 	"github.com/wandb/wandb/nexus/internal/watcher"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
-	"path/filepath"
 )
 
 type FileHandler struct {
