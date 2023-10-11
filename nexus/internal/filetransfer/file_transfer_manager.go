@@ -17,7 +17,7 @@ const (
 
 type FileTransfer interface {
 	Upload(task *UploadTask) error
-	// Download(task *DownloadTask) error
+	Download(task *DownloadTask) error
 }
 
 // FileTransferManager handles the upload/download of files
@@ -127,7 +127,7 @@ func (fm *FileTransferManager) Start() {
 					<-fm.semaphore
 					if t.Err != nil {
 						fm.logger.CaptureError(
-							"uploader: error uploading",
+							"filetransfer: uploader: error uploading",
 							t.Err,
 							"path", t.Path, "url", t.Url,
 						)
@@ -140,8 +140,25 @@ func (fm *FileTransferManager) Start() {
 					if t.Err == nil {
 						fm.fileCountsChan <- t.FileType
 					}
-				// case DownloadTask:
-				//similar
+				case *DownloadTask:
+					t.Err = fm.transfer(t)
+					// Release the semaphore
+					<-fm.semaphore
+					if t.Err != nil {
+						fm.logger.CaptureError(
+							"filetransfer: downloader: error downloading",
+							t.Err,
+							"path", t.Path, "url", t.Url,
+						)
+					}
+					// Execute the callback.
+					if t.CompletionCallback != nil {
+						t.CompletionCallback(t)
+					}
+
+					if t.Err == nil {
+						fm.fileCountsChan <- t.FileType
+					}
 				default:
 					fm.logger.Debug("fileTransfer: go routine for transfer task: invalid task type", "type", t)
 				}
@@ -157,9 +174,11 @@ func (fm *FileTransferManager) Start() {
 func (fm *FileTransferManager) AddTask(task interface{}) {
 	switch t := task.(type) {
 	case *UploadTask:
-		fm.logger.Debug("fileTransfer: adding task", "path", t.Path, "url", t.Url)
+		fm.logger.Debug("fileTransfer: adding upload task", "path", t.Path, "url", t.Url)
 		fm.inChan <- t
-	// case DownloadTask:
+	case *DownloadTask:
+		fm.logger.Debug("fileTransfer: adding download task", "path", t.Path, "url", t.Url)
+		fm.inChan <- t
 	default:
 		fm.logger.Debug("fileTransfer: adding task: invalid task type", "type", t)
 	}
@@ -187,7 +206,8 @@ func (fm *FileTransferManager) transfer(task interface{}) error {
 	switch t := task.(type) {
 	case *UploadTask:
 		err = fm.fileTransfer.Upload(t)
-	// case DownloadTask:
+	case *DownloadTask:
+		err = fm.fileTransfer.Download(t)
 	default:
 		fm.logger.Debug("fileTransfer: transfer task: invalid task type", "type", t)
 	}
