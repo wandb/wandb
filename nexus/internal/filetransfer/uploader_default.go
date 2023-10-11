@@ -1,6 +1,7 @@
 package filetransfer
 
 import (
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -61,5 +62,37 @@ func (ft *DefaultFileTransfer) Upload(task *UploadTask) error {
 		return err
 	}
 
+	return nil
+}
+
+// Download downloads a file from the server
+func (ft *DefaultFileTransfer) Download(task *DownloadTask) error {
+	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
+	// open the file for reading and defer closing it
+	file, err := os.Create(task.Path)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			ft.logger.CaptureError("file transfer: download: error closing file", err, "path", task.Path)
+		}
+	}(file)
+
+	resp, err := ft.client.Get(task.Url)
+	if err != nil {
+		return err
+	}
+	defer func(file io.ReadCloser) {
+		err := file.Close()
+		if err != nil {
+			ft.logger.CaptureError("file transfer: download: error closing response reader", err, "path", task.Path)
+		}
+	}(resp.Body)
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return err
+	}
 	return nil
 }
