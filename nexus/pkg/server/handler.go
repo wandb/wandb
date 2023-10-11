@@ -568,7 +568,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	}
 
 	if h.fh == nil {
-		h.fh = NewFileHandler(h.loopbackChan)
+		h.fh = NewFileHandler(h.logger, h.loopbackChan)
 		h.fh.Start()
 	}
 

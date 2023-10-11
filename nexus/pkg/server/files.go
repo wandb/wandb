@@ -1,7 +1,7 @@
 package server
 
 import (
-	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 	"path/filepath"
 
 	"github.com/wandb/wandb/nexus/internal/watcher"
@@ -13,16 +13,19 @@ type FileHandler struct {
 	savedFiles map[string]interface{}
 	final      *service.Record
 	watcher    *watcher.Watcher
+	logger     *observability.NexusLogger
 }
 
-func NewFileHandler(watcherOutChan chan *service.Record) *FileHandler {
+func NewFileHandler(logger *observability.NexusLogger, watcherOutChan chan *service.Record) *FileHandler {
 	return &FileHandler{
 		savedFiles: make(map[string]interface{}),
-		watcher:    watcher.NewWatcher(watcherOutChan),
+		watcher:    watcher.NewWatcher(logger, watcherOutChan),
+		logger:     logger,
 	}
 }
 
 func (fh *FileHandler) Start() {
+	fh.logger.Debug("starting file handler")
 	fh.watcher.Start()
 }
 
@@ -31,6 +34,7 @@ func (fh *FileHandler) Close() {
 		return
 	}
 	fh.watcher.Close()
+	fh.logger.Debug("closed file handler")
 }
 
 func (fh *FileHandler) Handle(record *service.Record) *service.Record {
@@ -50,7 +54,7 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 		matches, err := filepath.Glob(item.Path)
 
 		if err != nil {
-			// todo: log error
+			fh.logger.CaptureError("error expanding glob", err, "path", item.Path)
 			continue
 		}
 
@@ -68,8 +72,6 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 		}
 	}
 
-	fmt.Println("ITEMS", items)
-
 	var files []*service.FilesItem
 	for _, item := range items {
 		if item.Policy == service.FilesItem_END {
@@ -84,7 +86,7 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 			}
 			err := fh.watcher.Add(item.Path)
 			if err != nil {
-				// todo: log error
+				fh.logger.CaptureError("error adding path to watcher", err, "path", item.Path)
 				continue
 			}
 		} else {
@@ -96,7 +98,6 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 		return nil
 	}
 
-	// TODO: should we replace clone with something else?
 	rec := proto.Clone(record).(*service.Record)
 	rec.GetFiles().Files = files
 	return rec

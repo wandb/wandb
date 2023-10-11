@@ -1,9 +1,10 @@
 package watcher
 
 import (
-	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/observability"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -13,34 +14,45 @@ import (
 
 type Watcher struct {
 	watcher *fw.Watcher
+	pathMap map[string]string
 	outChan chan *service.Record
 	wg      *sync.WaitGroup
-	// logger    observability.NexusLogger
+	logger  *observability.NexusLogger
 }
 
-func NewWatcher(outChan chan *service.Record) *Watcher {
+func NewWatcher(logger *observability.NexusLogger, outChan chan *service.Record) *Watcher {
 	return &Watcher{
 		watcher: fw.New(),
+		pathMap: make(map[string]string),
 		outChan: outChan,
 		wg:      &sync.WaitGroup{},
-		// logger:    logger,
+		logger:  logger,
 	}
 }
 
 func (w *Watcher) Start() {
 	w.wg.Add(1)
 	go func() {
-		fmt.Println("STARTING WATCHER")
+		w.logger.Debug("starting watcher")
 	loop:
 		for {
 			select {
 			case event := <-w.watcher.Event:
-				fmt.Println(event) // Print the event's info.
 				if event.Op == fw.Create || event.Op == fw.Write {
 					path := event.Path
 					if path == "-" {
 						path = event.Name()
+						absolutePath, err := filepath.Abs(path)
+						if _, ok := w.pathMap[absolutePath]; !ok {
+							w.pathMap[absolutePath] = path
+						}
+						if err != nil {
+							w.logger.CaptureError("error getting absolute path", err, "path", path)
+							continue
+						}
+						path = absolutePath
 					}
+
 					rec := &service.Record{
 						RecordType: &service.Record_Files{
 							Files: &service.FilesRecord{
@@ -52,18 +64,14 @@ func (w *Watcher) Start() {
 						rec.GetFiles().Files,
 						&service.FilesItem{
 							Policy: service.FilesItem_NOW,
-							Path:   path,
+							Path:   w.pathMap[path],
 						},
 					)
-					fmt.Println(rec)
 					w.outChan <- rec
-					fmt.Println("LOL")
 				}
 			case err := <-w.watcher.Error:
-				fmt.Println("ERROR", err)
-				fmt.Println(w.watcher.WatchedFiles())
+				w.logger.Error("error watching file", "err", err)
 			case <-w.watcher.Closed:
-				fmt.Println("DONE")
 				break loop
 			}
 		}
@@ -73,20 +81,17 @@ func (w *Watcher) Start() {
 	// Start the watching process - it'll check for changes every 100ms.
 	go func() {
 		if err := w.watcher.Start(time.Millisecond * 100); err != nil {
-			fmt.Println("ERROR", err)
+			w.logger.Error("error starting watcher", "err", err)
 		}
-		fmt.Println("DONE STARTING WATCHER")
 	}()
 	w.watcher.Wait()
-	fmt.Println("STARTED WATCHER")
+	w.logger.Debug("watcher started")
 }
 
 func (w *Watcher) Close() {
-	fmt.Println("STARTING CLOSING WATCHER")
 	w.watcher.Close()
-	fmt.Println("CANCELLED WATCHER")
 	w.wg.Wait()
-	fmt.Println("CLOSED WATCHER")
+	w.logger.Debug("watcher closed")
 }
 
 type EventFileInfo struct {
