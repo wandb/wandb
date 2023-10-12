@@ -93,13 +93,11 @@ class RecordMaker:
         so we use this as the simplest hack to skip that check.
 
         """
-        run = pb.RunRecord()
-
         # in this case run is a magicmock, so we need to convert the return types back to vanilla py types
         run = pb.RunRecord()
-        run.entity = str(self.run.entity())
-        run.project = str(self.run.project())
-        run.run_id = str(self.run.run_id())
+        run.entity = self.run.run.entity.return_value
+        run.project = self.run.run.project.return_value
+        run.run_id = self.run.run.run_id.return_value
 
         return self.interface._make_record(run=run)
 
@@ -189,7 +187,6 @@ class RecordMaker:
                     v = "NaN"
                 item.value_json = json.dumps(v)
             rec = self.interface._make_record(history=history)
-            print(f"{rec=}")
             yield rec
 
     def _make_files_record(self, metadata, artifacts, files, media, code) -> pb.Record:
@@ -224,8 +221,6 @@ class RecordMaker:
         proto.user_created = use_artifact
         proto.use_after_commit = use_artifact
         proto.finalize = True
-
-        # print(artifact.aliases)
 
         aliases = artifact._aliases
         aliases += ["latest", "imported"]
@@ -343,9 +338,7 @@ def _handle_use_artifacts(
         used_artifacts = rm.run.used_artifacts()
         if used_artifacts is not None:
             used_artifacts = list(used_artifacts)
-            print(f"{used_artifacts=}")
             aliases = [a._alias for a in used_artifacts]
-            print(f"{aliases=}")
 
             task = progress.subtask_pbar.add_task(task_name, total=len(used_artifacts))
             for artifact in used_artifacts:

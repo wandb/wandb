@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
-
+import shutil
 from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import (
@@ -102,7 +102,7 @@ class ArtifactManifestEntry:
             raise NotImplementedError
         return self._parent_artifact
 
-    def download(self, root: Optional[str] = None) -> FilePathStr:
+    def download(self, root: Optional[str] = None, cache: bool = True) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
         Arguments:
@@ -115,36 +115,36 @@ class ArtifactManifestEntry:
         if self._parent_artifact is None:
             raise NotImplementedError
         
-        print(">>> STARRT DOWNLOAD")
-
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
         dest_path = os.path.join(root, self.path)
 
-        print(">>> 2")
-
-
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
-        if os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
-            print(">>> 3")
+        # If cache=False, then force a re-download
+        if cache and os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
             return FilePathStr(dest_path)
 
         if self.ref is not None:
-            print(">>> 4")
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
                 self, local=True
             )
 
         else:
-            print(">>> 5")
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
                 self._parent_artifact, self
             )
-        print(">>> 6")
-        return FilePathStr(
-            str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
-        )
+
+        if cache:
+            return FilePathStr(
+                str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
+            )
+
+        # move the file, effectively deleting from cache
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        shutil.move(cache_path, dest_path)
+        return str(FilePathStr(dest_path))
+            
 
     def ref_target(self) -> Union[FilePathStr, URIStr]:
         """Get the reference URL that is targeted by this artifact entry.

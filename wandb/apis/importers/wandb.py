@@ -6,14 +6,16 @@ import time
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from unittest.mock import MagicMock, patch
-
+from unittest.mock import MagicMock, Mock, patch
+from dataclasses import dataclass, field
+import os
+import filecmp
 import polars as pl
 import requests
 import urllib3
 import yaml
 from wandb_gql import gql
-
+import functools
 import wandb
 from wandb.apis.public import Run
 from wandb.util import coalesce
@@ -38,6 +40,22 @@ RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME = "import_run_validation_success.jsonl"
 
 
 ART_SEQUENCE_DUMMY_DESCRIPTION = "__ART_SEQUENCE_DUMMY_DESCRIPTION__"
+
+
+def progress_decorator(description: Optional[str] = None):
+    def deco(f):
+        @functools.wraps(f)
+        def wrapper(self, *args, **kwargs):
+            # run_str = f"{src_run.entity}/{src_run.project}/{src_run.id}"
+            if description is None:
+                description = f"{f.__name__}({args=}{kwargs=})"
+            
+            t = progress.subsubtask_pbar.add_task(description)
+            result = f(*args, **kwargs)
+            progress.subsubtask_pbar.remove_task(t)
+            return result
+        return wrapper
+    return deco
 
 
 class WandbRun:
@@ -170,7 +188,7 @@ class WandbRun:
                 continue
             with patch("click.echo"):
                 try:
-                    path = art.download()
+                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
                     wandb_logger.error(
                         f"Error downloading metrics artifact ({art}) -- {e}",
@@ -207,9 +225,17 @@ class WandbRun:
         return self.run.display_name
 
     def notes(self) -> Optional[str]:
-        previous_link = self.run.url
+        # Notes includes the previous notes and serves as a catch-all for things we missed or can't add back
+        previous_link = f"Imported from: {self.run.url}"
+
+        print(f"{self.run.user=}")
+
+        previous_author = f"Author: {self.run.user.username}"
+
+        header = [previous_link, previous_author]
         previous_notes = self.run.notes or ""
-        return f"Imported from: {previous_link}\n---\n{previous_notes}"
+
+        return "\n".join(header) + "\n---\n" + previous_notes
 
     def tags(self) -> Optional[List[str]]:
         return self.run.tags
@@ -236,7 +262,7 @@ class WandbRun:
         for art in self._artifacts:
             with patch("click.echo"):
                 try:
-                    path = art.download()
+                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
                     wandb_logger.error(
                         f"Error downloading artifact ({art}) -- {e}",
@@ -281,7 +307,7 @@ class WandbRun:
         for art in self._used_artifacts:
             with patch("click.echo"):
                 try:
-                    path = art.download()
+                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
                     wandb_logger.error(
                         f"Error downloading used artifact ({art}) -- {e}",
@@ -356,7 +382,6 @@ class WandbRun:
 
     def start_time(self) -> Optional[int]:
         t = dt.fromisoformat(self.run.created_at).timestamp() * 1000
-        print(f"The {t=}")
         return int(t)
 
     def code_path(self) -> Optional[str]:
@@ -392,8 +417,8 @@ class WandbRun:
             if f.size == 0:
                 continue
             # Skip deadlist to avoid overloading S3
-            # if "wandb_manifest.json.deadlist" in f.name:
-            #     continue
+            if "wandb_manifest.json.deadlist" in f.name:
+                continue
 
             try:
                 result = f.download(files_dir, exist_ok=True)
@@ -672,8 +697,8 @@ class WandbImporter:
 
         # This is a hack to check for dummy runs
         if isinstance(placeholder_run, MagicMock):
-            entity = entity.return_value
-            project = project.return_value
+            entity = str(entity.return_value)
+            project = str(project.return_value)
 
         base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
 
@@ -706,7 +731,7 @@ class WandbImporter:
                     t = progress.subsubtask_pbar.add_task(
                         f"{base_descr} (Downloading artifact)", total=None
                     )
-                    path = art.download()
+                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
                     print(f"Some error {e=}")
                     wandb_logger.error(
@@ -788,7 +813,47 @@ class WandbImporter:
     def _compare_projects(self):
         ...
 
-    def _compare_artifact(self, src_art: Artifact, dst_art: Artifact):
+    def _compare_artifact_dirs(self, src_dir, dst_dir):
+        def compare(src_dir, dst_dir):
+            comparison = filecmp.dircmp(src_dir, dst_dir)
+            differences = {
+                "left_only": comparison.left_only,  # Items only in dir1
+                "right_only": comparison.right_only,  # Items only in dir2
+                "diff_files": comparison.diff_files,  # Different files
+                "subdir_differences": {},  # Differences in subdirectories
+            }
+
+            # Recursively find differences in subdirectories
+            for subdir in comparison.subdirs:
+                subdir_differences = compare(
+                    os.path.join(src_dir, subdir), os.path.join(dst_dir, subdir)
+                )
+                if any(
+                    subdir_differences.values()
+                ):  # If there are differences, add them to the result
+                    differences["subdir_differences"][subdir] = subdir_differences
+
+            return differences
+
+        # return [compare(src_dir, dst_dir)]
+        return compare(src_dir, dst_dir)
+
+    # def _compare_artifact_dirs(self, src_dir, dst_dir):
+    #     # Compare files and subdirectories in dir1 and dir2.
+    #     comparison = filecmp.dircmp(src_dir, dst_dir)
+
+    #     # Check if both directories have the same files and subdirectories.
+    #     if comparison.left_only or comparison.right_only or comparison.diff_files:
+    #         return False
+
+    #     # Recursively compare subdirectories.
+    #     for common_dir in comparison.common_dirs:
+    #         if not self._compare_artifact_dirs(os.path.join(src_dir, common_dir), os.path.join(dst_dir, common_dir)):
+    #             return False
+
+    #     return True
+
+    def _compare_artifact_manifests(self, src_art: Artifact, dst_art: Artifact):
         problems = []
         if isinstance(dst_art, wandb.CommError):
             return ["commError"]
@@ -838,50 +903,26 @@ class WandbImporter:
     def _clear_run_errors(self):
         with open(ARTIFACT_ERRORS_JSONL_FNAME, "w"):
             pass
-
+        
     def _get_run_problems(self, src_run, dst_run):
         problems = []
 
-        run_str = f"{src_run.entity}/{src_run.project}/{src_run.id}"
-        t = progress.subsubtask_pbar.add_task(
-            f"Compare run metadata ({run_str})", total=None
-        )
-        non_matching_metadata = self._compare_run_metadata(src_run, dst_run)
-        if non_matching_metadata:
+        if non_matching_metadata := self._compare_run_metadata(src_run, dst_run):
             problems.append("metadata:" + str(non_matching_metadata))
-        progress.subsubtask_pbar.remove_task(t)
 
-        t = progress.subsubtask_pbar.add_task(
-            f"Compare run summary ({run_str})", total=None
-        )
-        non_matching_summary = self._compare_run_summary(src_run, dst_run)
-        if non_matching_summary:
+        if non_matching_summary := self._compare_run_summary(src_run, dst_run):
             problems.append("summary:" + str(non_matching_summary))
-        progress.subsubtask_pbar.remove_task(t)
 
-        t = progress.subsubtask_pbar.add_task(
-            f"Compare run metrics ({run_str})", total=None
-        )
-        non_matching_metrics = self._compare_run_metrics(src_run, dst_run)
-        if non_matching_metrics:
+        if non_matching_metrics := self._compare_run_metrics(src_run, dst_run):
             problems.append("metrics:" + str(non_matching_metrics))
-        progress.subsubtask_pbar.remove_task(t)
-
+            
+        if non_matching_files := self._compare_run_files(src_run, dst_run):
+            problems.append("files" + str(non_matching_files))
+        
         return problems
 
-    def _compare_run(self, src_run, dst_run):
-        problems = []
 
-        non_matching_metadata = self._compare_run_metadata(src_run, dst_run)
-        if non_matching_metadata:
-            problems.append(non_matching_metadata)
-
-        non_matching_summary = self._compare_run_summary(src_run, dst_run)
-        if non_matching_summary:
-            problems.append(non_matching_summary)
-
-        return problems
-
+    @progress_decorator()
     def _compare_run_metadata(self, src_run, dst_run):
         fname = "wandb-metadata.json"
 
@@ -916,6 +957,7 @@ class WandbImporter:
 
         return non_matching
 
+    @progress_decorator()
     def _compare_run_summary(self, src_run, dst_run):
         non_matching = {}
         for k, src_v in src_run.summary.items():
@@ -947,6 +989,7 @@ class WandbImporter:
 
         return non_matching
 
+    @progress_decorator()
     def _compare_run_metrics(self, src_run, dst_run):
         src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
         dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
@@ -971,6 +1014,11 @@ class WandbImporter:
             return f"Non-matching metrics {non_matching=}"
         else:
             return None
+        
+    @progress_decorator()
+    def _compare_run_files(self, src_run, dst_run):
+        # TODO
+        return None
 
     def _collect_failed_artifact_sequences(self):
         try:
@@ -1080,7 +1128,7 @@ class WandbImporter:
                 continue
 
             try:
-                path = art.download()
+                path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
             except Exception as e:
                 wandb_logger.error(
                     f"Error downloading artifact {art} -- {e}",
@@ -1254,11 +1302,6 @@ class WandbImporter:
         for group in results:
             yield from group
 
-    def _add_aliases(
-        self,
-    ):
-        ...
-
     def _import_all_from_namespaces(
         self,
         namespaces: Iterable[Namespace],
@@ -1392,7 +1435,13 @@ class WandbImporter:
                     else:
                         f2.write(json.dumps(d) + "\n")
 
-    def _validate_artifact(self, src_art: Artifact, dst_entity: str, dst_project: str):
+    def _validate_artifact(
+        self,
+        src_art: Artifact,
+        dst_entity: str,
+        dst_project: str,
+        download_files_and_compare: bool = True,
+    ):
         # These patterns of artifacts are special and should not be validated
         ignore_patterns = [
             r"^job-(.*?)\.py(:v\d+)?$",
@@ -1410,11 +1459,26 @@ class WandbImporter:
             return (src_art, problems)
 
         try:
-            problems = self._compare_artifact(src_art, dst_art)
+            problems = self._compare_artifact_manifests(src_art, dst_art)
         except Exception as e:
             problems = [
                 f"Problem getting problems! problem with {src_art.entity=}, {src_art.project=}, {src_art.name=} {e=}"
             ]
+
+        print(f"problems so far {problems=}")
+
+        if download_files_and_compare:
+            src_dir = src_art.download(root=f"./artifacts/src/{src_art.name}", cache=False)
+
+            try:
+                dst_dir = dst_art.download(root=f"./artifacts/dst/{dst_art.name}", cache=False)
+                problems.append(self._compare_artifact_dirs(src_dir, dst_dir))
+            except requests.HTTPError as e:
+                problems.append(
+                    f"Invalid download link for dst {dst_art.entity=}, {dst_art.project=}, {dst_art.name=}, {e}"
+                )
+
+            print(f"problems so far {problems=}")
 
         if problems:
             print(
@@ -1489,8 +1553,7 @@ class WandbImporter:
         self._validate_artifact_sequences(seqs, incremental=incremental)
         failed_artifact_sequences = list(self._filter_failed_artifact_sequences(seqs))
 
-        names = [(s.entity, s.project, s.name) for s in failed_artifact_sequences]
-        print(f"The failed artifact sequences are {names=}")
+        # names = [(s.entity, s.project, s.name) for s in failed_artifact_sequences]
         self._import_failed_artifact_sequences(
             failed_artifact_sequences, max_workers=max_workers
         )
@@ -1518,7 +1581,7 @@ class WandbImporter:
         )
 
     def _import_failed_runs(
-        self, failed_runs: Iterable[WandbRun], max_workers: Optional[int] = None
+        self, failed_runs: Iterable[WandbRun], *, max_workers: Optional[int] = None
     ):
         args = [(a,) for a in failed_runs]
         parallelize(
@@ -1572,13 +1635,28 @@ class WandbImporter:
         limit: Optional[int] = None,
         api: Optional[Api] = None,
     ):
-        api = self.src_api
+        api = coalesce(api, self.src_api)
 
         def reports():
             for r in api.reports(f"{entity}/{project}"):
                 yield wr.Report.from_url(r.url, api=api)
 
         yield from itertools.islice(reports(), limit)
+
+    def _collect_artifact_sequence(
+        self,
+        entity,
+        project,
+        type,
+        name,
+        *,
+        api: Optional[Api] = None,
+    ):
+        api = coalesce(api, self.src_api)
+        art_type = api.artifact_type(type_name=type, project=f"{entity}/{project}")
+
+        c = art_type.collection(name)
+        return ArtifactSequence(c.versions(), entity, project)
 
     def _collect_artifact_sequences(
         self,
@@ -1589,6 +1667,7 @@ class WandbImporter:
         api: Optional[Api] = None,
     ):
         api = coalesce(api, self.src_api)
+
         task = progress.subtask_pbar.add_task(
             f"Collecting artifact sequences ({entity}/{project})", total=None
         )
@@ -1642,7 +1721,7 @@ class WandbImporter:
 
         progress.subtask_pbar.remove_task(task)
 
-    def import_artifact_sequences(
+    def _import_artifact_sequences(
         self,
         sequences: Iterable[ArtifactSequence],
         namespace: Optional[Namespace] = None,
@@ -1726,19 +1805,19 @@ class WandbImporter:
                     progress.subtask_pbar.advance(task, 1)
             progress.subtask_pbar.remove_task(task)
 
-    def _get_specific_sequence(self, art, entity, project, api: Optional[Api] = None):
-        api = coalesce(api, self.src_api)
-        name, _ = _get_art_name_ver(art)
+    # def _get_specific_sequence(self, art, entity, project, api: Optional[Api] = None):
+    #     api = coalesce(api, self.src_api)
+    #     name, _ = _get_art_name_ver(art)
 
-        try:
-            _type = api.artifact_type(art.type, f"{entity}/{project}")
-            arts = _type.collection(name).versions()
-        except wandb.CommError:
-            # The type or collection doesn't exist
-            arts = []
-        else:
-            arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-        return ArtifactSequence(arts, entity, project)
+    #     try:
+    #         _type = api.artifact_type(art.type, f"{entity}/{project}")
+    #         arts = _type.collection(name).versions()
+    #     except wandb.CommError:
+    #         # The type or collection doesn't exist
+    #         arts = []
+    #     else:
+    #         arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
+    #     return ArtifactSequence(arts, entity, project)
 
 
 def _get_art_name_ver(art: Artifact) -> Tuple[str, int]:
@@ -1813,7 +1892,7 @@ def almost_equal(x, y, eps=1e-8):
     if isinstance(x, numbers.Number) and isinstance(y, numbers.Number):
         return abs(x - y) < eps
 
-    if type(x) != type(y):
+    if type(x) is type(y):
         return False
 
     return x == y
@@ -1878,3 +1957,5 @@ def get_incremental_artifacts(expected, last_valid_ver: int):
         _, ver = _get_art_name_ver(art)
         if ver > last_valid_ver:
             yield art
+
+

@@ -266,7 +266,8 @@ class Api:
             transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
-                    "X-WANDB-USERNAME": env.get_username(env=self._environ),
+                    # "X-WANDB-USERNAME": env.get_username(env=self._environ),
+                    "X-WANDB-USERNAME": "testing",
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
                     **extra_http_headers,
                 },

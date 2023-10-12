@@ -109,8 +109,8 @@ class WandbStoragePolicy(StoragePolicy):
         artifact: "Artifact",
         manifest_entry: "ArtifactManifestEntry",
     ) -> FilePathStr:
-        print(f"{manifest_entry=}")
-        print(f"{manifest_entry._download_url=}")
+        # print(f"{manifest_entry=}")
+        # print(f"{manifest_entry._download_url=}")
         
         
         path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -118,28 +118,28 @@ class WandbStoragePolicy(StoragePolicy):
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
-            print(">>> return here")
+            # print(">>> return here")
             return path
 
         print(f"{manifest_entry._download_url=}")
 
         if manifest_entry._download_url is not None:
-            print(">>> have download url")
+            # print(">>> have download url")
             response = self._session.get(manifest_entry._download_url, stream=True)
-            print(f"{response=}")
+            # print(f"{response=}")
             try:
                 response.raise_for_status()
             except Exception:
                 # Signed URL might have expired, fall back to fetching it one by one.
                 manifest_entry._download_url = None
         if manifest_entry._download_url is None:
-            print(">>> dont have download url")
+            # print(">>> dont have download url")
             auth = None
             if not _thread_local_api_settings.cookies:
                 auth = ("api", self._api.api_key)
-            print(f"??? BEFORE RESPONSE")
+            # print(f"??? BEFORE RESPONSE")
             url = self._file_url(self._api, artifact.entity, manifest_entry)
-            print(f"??? {url=}")
+            # print(f"??? {url=}")
             response = self._session.get(
                 url,
                 auth=auth,
@@ -148,7 +148,7 @@ class WandbStoragePolicy(StoragePolicy):
                 stream=True,
             )
             response.raise_for_status()
-            print(f"??? AFTER RAISE")
+            # print(f"??? AFTER RAISE")
 
         with cache_open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):

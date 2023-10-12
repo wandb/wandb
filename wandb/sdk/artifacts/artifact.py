@@ -1663,6 +1663,7 @@ class Artifact:
         root: Optional[str] = None,
         recursive: bool = False,
         allow_missing_references: bool = False,
+        cache: bool = True,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1710,7 +1711,7 @@ class Artifact:
             _thread_local_api_settings.headers = headers
 
             try:
-                entry.download(root)
+                entry.download(root, cache=cache)
             except FileNotFoundError as e:
                 if allow_missing_references:
                     wandb.termwarn(str(e))
@@ -1725,14 +1726,14 @@ class Artifact:
             headers=_thread_local_api_settings.headers,
         )
         
-        def download_entry(entry):
-            print(f"{_thread_local_api_settings.api_key=}")
-            print(f"{_thread_local_api_settings.cookies=}")
-            print(f"{_thread_local_api_settings.headers=}")
+        # def download_entry(entry):
+        #     print(f"{_thread_local_api_settings.api_key=}")
+        #     print(f"{_thread_local_api_settings.cookies=}")
+        #     print(f"{_thread_local_api_settings.headers=}")
             
-            return _download_entry(entry, api_key=_thread_local_api_settings.api_key,
-cookies=_thread_local_api_settings.cookies,
-headers=_thread_local_api_settings.headers,)
+        #     return _download_entry(entry, api_key=_thread_local_api_settings.api_key,
+# cookies=_thread_local_api_settings.cookies,
+# headers=_thread_local_api_settings.headers,)
 
         with concurrent.futures.ThreadPoolExecutor(64) as executor:
             active_futures = set()
@@ -1745,7 +1746,7 @@ headers=_thread_local_api_settings.headers,)
                 for edge in attrs["edges"]:
                     entry = self.get_path(edge["node"]["name"])
                     entry._download_url = edge["node"]["directUrl"]
-                    print(f">>>>>>> {entry._download_url=}")
+                    # print(f">>>>>>> {entry._download_url=}")
                     active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
                 max_backlog = 5000
@@ -1761,7 +1762,7 @@ headers=_thread_local_api_settings.headers,)
 
         if recursive:
             for dependent_artifact in self._dependent_artifacts:
-                dependent_artifact.download()
+                dependent_artifact.download(cache=cache)
 
         if log:
             now = datetime.now()
