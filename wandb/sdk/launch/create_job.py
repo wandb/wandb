@@ -6,7 +6,7 @@ import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
-from wandb.apis.internal import Ap
+from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version

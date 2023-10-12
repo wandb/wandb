@@ -2,7 +2,6 @@ import json
 import os
 import random
 import string
-import sys
 
 from google.protobuf.wrappers_pb2 import BoolValue, StringValue
 from wandb.proto import wandb_settings_pb2
