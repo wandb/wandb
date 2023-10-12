@@ -19,7 +19,7 @@ def mock_sagemaker_environment():
     environment.get_region.return_value = "us-east-1"
 
 
-def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
+def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
     def mock_launch_sagemaker_job(*args, **kwargs):
         # return second arg, which is constructed sagemaker create_training_job request
         return args[1]
@@ -116,9 +116,8 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
         assert req["TrainingJobName"] == project.run_id
         env = req["Environment"]
         env.pop("WANDB_BASE_URL")
-        env.pop("WANDB_API_KEY")
         assert env == {
-            "WANDB_API_KEY": None,
+            "WANDB_API_KEY": user,
             "WANDB_PROJECT": "test_project",
             "WANDB_ENTITY": "test_entity",
             "WANDB_LAUNCH": "True",
