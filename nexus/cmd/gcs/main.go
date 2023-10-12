@@ -2,12 +2,13 @@ package main
 
 import (
 	"bytes"
-	"cloud.google.com/go/storage"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"time"
+
+	"cloud.google.com/go/storage"
 )
 
 // streamFileUpload uploads an object via a stream.
@@ -44,6 +45,11 @@ func streamFileUpload(w io.Writer, bucket, object string) error {
 }
 
 func main() {
+	/*
+		- run stuff with GOOGLE_APPLICATION_CREDENTIALS=service-acc-creds.json python ... or go run ...
+		- https://cloud.google.com/storage/docs/uploading-objects-from-memory
+		- https://cloud.google.com/iam/docs/keys-create-delete#iam-service-account-keys-create-console
+	*/
 	err := streamFileUpload(os.Stdout, "dotwandb", "loltest")
 	if err != nil {
 		panic(err)
