@@ -29,6 +29,9 @@ type Writer struct {
 
 	// record number count
 	recordNum int64
+
+	// flow control logic
+	flowControl *FlowControl
 }
 
 // NewWriter returns a new Writer
@@ -40,6 +43,7 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 		logger:   logger,
 		fwdChan:  make(chan *service.Record, BufferSize),
 	}
+	w.flowControl = NewFlowControl(w.sendRecord, w.sendPause)
 	return w
 }
 
@@ -82,7 +86,7 @@ func (w *Writer) handleRecord(record *service.Record) {
 		w.logger.Error("nil record type")
 	default:
 		w.storeRecord(record)
-		w.sendRecord(record)
+		w.flowControl.Flow(record)
 	}
 }
 
@@ -107,6 +111,9 @@ func (w *Writer) storeRecord(record *service.Record) {
 	}
 	// TODO: add StartOffset or switch leveldb/store to report end offset
 	record.GetControl().EndOffset = offset
+}
+
+func (w *Writer) sendPause() {
 }
 
 func (w *Writer) sendRecord(record *service.Record) {
