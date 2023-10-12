@@ -1,12 +1,12 @@
-import yaml
 from unittest.mock import MagicMock
-import pytest
 
 import kubernetes_asyncio
+import pytest
+import yaml
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
-from wandb.sdk.launch.runner import kubernetes_runner
 from wandb.sdk.launch.monitor import kubernetes_monitor
+from wandb.sdk.launch.runner import kubernetes_runner
 from wandb.sdk.launch.utils import make_name_dns_safe
 
 
@@ -241,7 +241,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
     )
 
     async def mock_create_from_yaml(path, jobs_dict, mock_status):
-        with open(path, "r") as path:
+        with open(path) as path:
             jobd = yaml.safe_load(path)
         name = jobd["metadata"].get("name")
         if not name:

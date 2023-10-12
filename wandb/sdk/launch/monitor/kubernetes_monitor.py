@@ -1,7 +1,6 @@
 """Monitors kubernetes resources managed by the launch agent."""
 import asyncio
 import logging
-import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
 import kubernetes_asyncio  # type: ignore # noqa: F401
