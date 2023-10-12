@@ -365,7 +365,6 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 
 // updateConfig updates the config map with the config record
 func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
-	// TODO: handle nested key updates and deletes
 	for _, d := range configRecord.GetUpdate() {
 		var value interface{}
 		if err := json.Unmarshal([]byte(d.GetValueJson()), &value); err != nil {
@@ -380,15 +379,31 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 		for _, k := range keyList[:len(keyList)-1] {
 			val, ok := target[k].(map[string]interface{})
 			if !ok {
-				val = make(map[string]interface{})
-				target[k] = val
+				target[k] = make(map[string]interface{})
 			}
 			target = val
 		}
 		target[keyList[len(keyList)-1]] = value
 	}
 	for _, d := range configRecord.GetRemove() {
-		delete(s.configMap, d.GetKey())
+		keyList := d.GetNestedKey()
+		if keyList == nil {
+			keyList = []string{d.GetKey()}
+		}
+		target := s.configMap
+		keyNotFound := false
+		for _, k := range keyList[:len(keyList)-1] {
+			val, ok := target[k]
+			if !ok {
+				s.logger.Error("sender: updateConfig: key not found", "entry", d)
+				keyNotFound = true
+				break
+			}
+			target = val.(map[string]interface{})
+		}
+		if !keyNotFound {
+			delete(target, keyList[len(keyList)-1])
+		}
 	}
 }
 
