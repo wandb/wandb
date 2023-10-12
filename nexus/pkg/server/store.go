@@ -4,14 +4,41 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
+	"github.com/wandb/wandb/nexus/pkg/observability"
+	"io"
 	"os"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
-
+	"cloud.google.com/go/storage"
 	"github.com/wandb/wandb/nexus/pkg/leveldb"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/proto"
 )
+
+func NewGCSWriter() (*storage.Writer, error) {
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("storage.NewClient: %w", err)
+	}
+	defer func(client *storage.Client) {
+		err := client.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(client)
+
+	// ctx, cancel := context.WithTimeout(ctx, time.Second*50)
+	// defer cancel()
+
+	// Upload an object with storage.Writer.
+	bucket := "dotwandb"
+	object := "loltest"
+	wc := client.Bucket(bucket).Object(object).NewWriter(ctx)
+	wc.ChunkSize = 0 // note retries are not supported for chunk size 0.
+
+	return wc, nil
+}
 
 // Store is the persistent store for a stream
 type Store struct {
@@ -23,6 +50,8 @@ type Store struct {
 
 	// db is the underlying database
 	db *os.File
+
+	gcsWriter *storage.Writer
 
 	// logger is the logger for the store
 	logger *observability.NexusLogger
@@ -36,10 +65,12 @@ func NewStore(ctx context.Context, fileName string, logger *observability.NexusL
 		return nil, err
 	}
 	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
+	gcsWriter, _ := NewGCSWriter()
 	sr := &Store{ctx: ctx,
-		writer: writer,
-		db:     f,
-		logger: logger,
+		writer:    writer,
+		db:        f,
+		gcsWriter: gcsWriter,
+		logger:    logger,
 	}
 	if err = sr.addHeader(); err != nil {
 		sr.logger.CaptureError("can't write header", err)
@@ -61,6 +92,11 @@ func (sr *Store) addHeader() error {
 		sr.logger.CaptureError("can't write header", err)
 		return err
 	}
+	// write to gcs
+	if _, err := io.Copy(sr.gcsWriter, buf); err != nil {
+		fmt.Println("can't write header to GCS", err)
+		sr.logger.CaptureError("can't write header to GCS", err)
+	}
 	if _, err := sr.db.Write(buf.Bytes()); err != nil {
 		sr.logger.CaptureError("can't write header", err)
 		return err
@@ -69,7 +105,8 @@ func (sr *Store) addHeader() error {
 }
 
 func (sr *Store) Close() error {
-	err := sr.writer.Close()
+	err := sr.gcsWriter.Close()
+	err = sr.writer.Close()
 	return err
 }
 

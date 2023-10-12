@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package record reads and writes sequences of records. Each record is a stream
+// Package leveldb reads and writes sequences of records. Each record is a stream
 // of bytes that completes before the next record starts.
 //
 // When reading, call Next to obtain an io.Reader for the next record. Next will
@@ -144,7 +144,7 @@ type Reader struct {
 	crc func([]byte) uint32
 }
 
-// NewReader returns a new reader.
+// NewReaderExt returns a new reader.
 func NewReaderExt(r io.Reader, algo CRCAlgo) *Reader {
 	crc := CRCCustom
 	if algo == CRCAlgoIEEE {
@@ -367,7 +367,7 @@ type Writer struct {
 	crc func([]byte) uint32
 }
 
-// NewWriter returns a new Writer.
+// NewWriterExt returns a new Writer.
 func NewWriterExt(w io.Writer, algo CRCAlgo) *Writer {
 	f, _ := w.(flusher)
 
