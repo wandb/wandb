@@ -273,7 +273,6 @@ def test_settings(test_dir, mocker, live_mock_server):
         root_dir=test_dir,
         run_id=runid.generate_id(),
         save_code=False,
-        disable_job_creation=True,
     )
     settings._set_run_start_time()
     yield settings
@@ -285,6 +284,15 @@ def test_settings(test_dir, mocker, live_mock_server):
 @pytest.fixture
 def mocked_run(runner, test_settings):
     """A managed run object for tests with a mock backend"""
+    run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
+    run._set_backend(MagicMock())
+    yield run
+
+
+@pytest.fixture
+def mocked_run_disable_job_creation(runner, test_settings):
+    """A managed run object for tests with a mock backend"""
+    test_settings.update({"disable_job_creation": True})
     run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     run._set_backend(MagicMock())
     yield run
