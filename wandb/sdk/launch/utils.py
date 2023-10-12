@@ -67,14 +67,16 @@ MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
 
 def threaded(func: Any) -> Any:
-    """Wrapper for making a function run in a thread.
+    """Wrapper for running any function in an awaitable thread on an event loop.
 
-    This can be used a decorator for a function that you want to run in a thread.
-    Or, you can call it directly, e.g.:
+    Example usage:
+    ```
+    def my_func(arg1, arg2):
+        return arg1 + arg2
 
-        ```
-        threaded(my_func)(arg1, arg2)
-        ```
+    future = threaded(my_func)(2, 2)
+    assert await future == 4
+    ```
 
     The returned function must be called within an active event loop.
     """

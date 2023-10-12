@@ -1,11 +1,13 @@
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint
 
 
-def test_local_container_entrypoint(relay_server, monkeypatch):
+@pytest.mark.asyncio
+async def test_local_container_entrypoint(relay_server, monkeypatch):
     def mock_run_entrypoint(*args, **kwargs):
         # return first arg, which is command
         return args[0]
@@ -59,7 +61,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
             environment,
             MagicMock(),
         )
-        command = runner.run(project, project.docker_image)
+        command = await runner.run(project, project.docker_image)
         assert (
             f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
             in command
