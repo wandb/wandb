@@ -46,7 +46,18 @@ ART_SEQUENCE_DUMMY_DESCRIPTION = "__ART_SEQUENCE_DUMMY_DESCRIPTION__"
 def progress_decorator(description: Optional[str] = None):
     def deco(f):
         @functools.wraps(f)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(*args, **kwargs):
+            if "self" in kwargs:
+                self = kwargs.pop("self")
+                src_run = args[0]
+                dst_run = args[1]
+            elif len(args) >= 2 and args[1].__class__.__name__ == "YourClass":
+                self, src_run, dst_run = args[0], args[1], args[2]
+            else:
+                src_run = args[0]
+                dst_run = args[1]
+                self = None
+
             # run_str = f"{src_run.entity}/{src_run.project}/{src_run.id}"
             desc = description or None
             if desc is None:
@@ -155,7 +166,6 @@ class WandbRun:
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
-        print(len(df))
         yield from df.iter_rows(named=True)
 
     def _get_metrics_from_scan_history_fallback(self) -> Iterable[Dict[str, Any]]:
@@ -228,9 +238,6 @@ class WandbRun:
     def notes(self) -> Optional[str]:
         # Notes includes the previous notes and serves as a catch-all for things we missed or can't add back
         previous_link = f"Imported from: {self.run.url}"
-
-        print(f"{self.run.user=}")
-
         previous_author = f"Author: {self.run.user.username}"
 
         header = [previous_link, previous_author]
@@ -638,7 +645,7 @@ class WandbImporter:
         try:
             run = art.logged_by()
         except ValueError as e:
-            print(f"This run does not exist! {e=}")
+            print(f"Trying to log {art=}, but {run=} doesn't exist! {e=}")
             run = special_logged_by(self.src_api.client, art)
         if run is None:
             run = special_logged_by(self.src_api.client, art)
@@ -708,7 +715,7 @@ class WandbImporter:
             base_descr,
             total=total,
         )
-        for i, group in enumerate(groups_of_artifacts):
+        for i, group in enumerate(groups_of_artifacts, 1):
             art = group[0]
             if art.description == ART_SEQUENCE_DUMMY_DESCRIPTION:
                 run = WandbRun(placeholder_run)
@@ -833,6 +840,9 @@ class WandbImporter:
                     subdir_differences.values()
                 ):  # If there are differences, add them to the result
                     differences["subdir_differences"][subdir] = subdir_differences
+
+            if all(not diff for diff in differences.values()):
+                return None
 
             return differences
 
@@ -1048,6 +1058,10 @@ class WandbImporter:
             # No errors found, good to go!
             if "empty string is not a valid JSON value" in str(e):
                 return seqs
+        except Exception as e:
+            print(f"{e=}")
+
+        print(f"{df=}")
 
         df = df[["entity", "project", "name", "type"]].unique()
 
@@ -1294,7 +1308,9 @@ class WandbImporter:
     ) -> Iterable[ArtifactSequence]:
         args = [(ns.entity, ns.project) for ns in namespaces]
         results = parallelize(
-            lambda args: list(self._collect_artifact_sequences(*args)),
+            lambda args: materialize(
+                self._collect_artifact_sequences(*args), "Collect artifact sequences"
+            ),
             args,
             description="Collecting artifact sequences",
         )
@@ -1476,7 +1492,8 @@ class WandbImporter:
                 dst_dir = dst_art.download(
                     root=f"./artifacts/dst/{dst_art.name}", cache=False
                 )
-                problems.append(self._compare_artifact_dirs(src_dir, dst_dir))
+                if problem := self._compare_artifact_dirs(src_dir, dst_dir):
+                    problems.append(problem)
             except requests.HTTPError as e:
                 problems.append(
                     f"Invalid download link for dst {dst_art.entity=}, {dst_art.project=}, {dst_art.name=}, {e}"
@@ -1896,7 +1913,7 @@ def almost_equal(x, y, eps=1e-8):
     if isinstance(x, numbers.Number) and isinstance(y, numbers.Number):
         return abs(x - y) < eps
 
-    if type(x) is type(y):
+    if type(x) is not type(y):
         return False
 
     return x == y
@@ -1961,3 +1978,12 @@ def get_incremental_artifacts(expected, last_valid_ver: int):
         _, ver = _get_art_name_ver(art)
         if ver > last_valid_ver:
             yield art
+
+
+def materialize(iterable, description=""):
+    lst = []
+    t = progress.subsubtask_pbar.add_task(f"Materializing: {description}", total=None)
+    for x in iterable:
+        lst.append(x)
+    progress.subsubtask_pbar.remove_task(t)
+    return lst

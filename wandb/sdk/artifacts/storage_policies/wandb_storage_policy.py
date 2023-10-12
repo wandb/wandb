@@ -120,7 +120,7 @@ class WandbStoragePolicy(StoragePolicy):
             # print(">>> return here")
             return path
 
-        print(f"{manifest_entry._download_url=}")
+        # print(f"{manifest_entry._download_url=}")
 
         if manifest_entry._download_url is not None:
             # print(">>> have download url")
@@ -266,6 +266,7 @@ class WandbStoragePolicy(StoragePolicy):
         entry: "ArtifactManifestEntry",
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
+        cache: bool = True,
     ) -> bool:
         """Upload a file to the artifact store.
 
@@ -339,7 +340,9 @@ class WandbStoragePolicy(StoragePolicy):
             self._api.complete_multipart_upload_artifact(
                 artifact_id, resp.storage_path, etags, resp.upload_id
             )
-        self._write_cache(entry)
+
+        if cache:
+            self._write_cache(entry)
 
         return False
 
@@ -350,6 +353,7 @@ class WandbStoragePolicy(StoragePolicy):
         entry: "ArtifactManifestEntry",
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
+        cache: bool = True,
     ) -> bool:
         """Async equivalent to `store_file_sync`."""
         resp = await preparer.prepare_async(
@@ -379,7 +383,8 @@ class WandbStoragePolicy(StoragePolicy):
                 },
             )
 
-        self._write_cache(entry)
+        if cache:
+            self._write_cache(entry)
 
         return False
 

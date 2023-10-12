@@ -43,6 +43,7 @@ class StoragePolicy:
         entry: "ArtifactManifestEntry",
         preparer: "StepPrepare",
         progress_callback: Optional["ProgressFn"] = None,
+        cache: bool = True,
     ) -> bool:
         raise NotImplementedError
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 from unittest.mock import MagicMock
 
+import numpy as np
 from google.protobuf.json_format import ParseDict
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
@@ -103,24 +104,10 @@ class RecordMaker:
 
     def _make_run_record(self) -> pb.Record:
         # unfortunate hack to get deleted wandb runs to work...
-        if isinstance(self.run.run, MagicMock):
+        if hasattr(self.run, "run") and isinstance(self.run.run, MagicMock):
             return self._make_fake_run_record()
 
-        username = pb.SettingsItem()
-        username.key = "username"
-        username.value_json = "1 username"
-
-        log_user = pb.SettingsItem()
-        log_user.key = "log_user"
-        log_user.value_json = "2 log user"
-
-        symlink_user = pb.SettingsItem()
-        symlink_user.key = "symlink_user"
-        symlink_user.value_json = "3 symlink user"
-
-        settings = pb.SettingsRecord(item=[username, log_user, symlink_user])
-
-        run = pb.RunRecord(settings=settings)
+        run = pb.RunRecord()
         run.run_id = self.run.run_id()
         run.entity = self.run.entity()
         run.project = self.run.project()
@@ -184,7 +171,7 @@ class RecordMaker:
                 # np.NaN gets converted to float("nan"), which is not expected by our system.
                 # If this cast to string (!) is not done, the row will be dropped.
                 if isinstance(v, float) and math.isnan(v):
-                    v = "NaN"
+                    v = np.NaN
                 item.value_json = json.dumps(v)
             rec = self.interface._make_record(history=history)
             yield rec

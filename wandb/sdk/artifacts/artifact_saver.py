@@ -109,6 +109,7 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
+        cache: bool = True,
     ) -> Optional[Dict]:
         alias_specs = []
         for alias in aliases or []:
@@ -186,6 +187,7 @@ class ArtifactSaver:
                 entry,
                 step_prepare,
                 progress_callback=progress_callback,
+                cache=cache,
             ),
             lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
                 artifact_id,
@@ -193,6 +195,7 @@ class ArtifactSaver:
                 entry,
                 step_prepare,
                 progress_callback=progress_callback,
+                cache=cache,
             ),
         )
 

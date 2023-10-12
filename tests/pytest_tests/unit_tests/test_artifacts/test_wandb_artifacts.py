@@ -130,7 +130,9 @@ class TestStoreFile:
         )
 
     @staticmethod
-    def _store_file_sync(policy: WandbStoragePolicy, **kwargs) -> bool:
+    def _store_file_sync(
+        policy: WandbStoragePolicy, cache: bool = True, **kwargs
+    ) -> bool:
         """Runs store_file_sync to completion.
 
         Don't call this directly; use the `store_file` fixture instead, to ensure that
@@ -140,11 +142,13 @@ class TestStoreFile:
         probably just call `policy.store_file_sync` directly.
         """
         return policy.store_file_sync(
-            **TestStoreFile._fixture_kwargs_to_kwargs(**kwargs)
+            cache=cache, **TestStoreFile._fixture_kwargs_to_kwargs(**kwargs)
         )
 
     @staticmethod
-    def _store_file_async(policy: WandbStoragePolicy, **kwargs) -> bool:
+    def _store_file_async(
+        policy: WandbStoragePolicy, cache: bool = True, **kwargs
+    ) -> bool:
         """Runs store_file_async to completion.
 
         Don't call this directly; use the `store_file` fixture instead, to ensure that
@@ -154,7 +158,9 @@ class TestStoreFile:
         probably just call `policy.store_file_async` directly.
         """
         return asyncio.new_event_loop().run_until_complete(
-            policy.store_file_async(**TestStoreFile._fixture_kwargs_to_kwargs(**kwargs))
+            policy.store_file_async(
+                cache=cache, **TestStoreFile._fixture_kwargs_to_kwargs(**kwargs)
+            )
         )
 
     @pytest.fixture(params=["sync", "async"])
@@ -393,6 +399,10 @@ class TestStoreFile:
             )
         )
         policy = WandbStoragePolicy(api=api)
+
+        # tests assume cache True for now
+        cache: bool = True
+
         # Mock minimum size for multipart so that we can test multipart
         with mock.patch(
             "wandb.sdk.artifacts.storage_policies.wandb_storage_policy."
@@ -401,7 +411,7 @@ class TestStoreFile:
         ):
             # We don't use the store_file fixture since multipart is not available in async
             deduped = self._store_file_sync(
-                policy, entry_local_path=example_file, preparer=preparer
+                policy, entry_local_path=example_file, preparer=preparer, cache=cache
             )
             assert deduped == expect_deduped
 
