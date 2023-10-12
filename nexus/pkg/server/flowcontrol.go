@@ -3,13 +3,13 @@ package server
 import (
 	"fmt"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/fsm"
+	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 type FlowControl struct {
-	sendRecord func(record *service.Record)
-	sendPause func()
+	sendRecord   func(record *service.Record)
+	sendPause    func()
 	stateMachine *fsm.Fsm[*service.Record]
 }
 
@@ -62,7 +62,7 @@ func (s *StatePausing) doQuiesce(record *service.Record) {
 func NewFlowControl(sendRecord func(record *service.Record), sendPause func()) *FlowControl {
 	flowControl := &FlowControl{
 		sendRecord: sendRecord,
-		sendPause: sendPause,
+		sendPause:  sendPause,
 	}
 
 	stateMachine := fsm.NewFsm[*service.Record]()

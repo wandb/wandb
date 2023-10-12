@@ -5,9 +5,9 @@ type Fsm[K any] struct {
 }
 
 type FsmTransition[K any] struct {
-	Condition func(K)bool
-	State FsmStateInterface[K]
-	Action func(K)
+	Condition func(K) bool
+	State     FsmStateInterface[K]
+	Action    func(K)
 }
 
 type FsmState[K any] struct {
@@ -35,11 +35,11 @@ func (f *Fsm[K]) Input(record K) {
 	f.state.OnCheck(record)
 }
 
-func (s *FsmState[K]) AddTransition(condition func(K)bool, state FsmStateInterface[K], action func(K)) {
+func (s *FsmState[K]) AddTransition(condition func(K) bool, state FsmStateInterface[K], action func(K)) {
 	s.transitions = append(s.transitions,
 		&FsmTransition[K]{
 			Condition: condition,
-			State: state,
-			Action: action,
+			State:     state,
+			Action:    action,
 		})
 }
