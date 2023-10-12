@@ -9,6 +9,7 @@ from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
+from ..utils import event_loop_thread_exec
 from .abstract import AbstractRegistry
 
 google = get_module(
@@ -166,7 +167,8 @@ class GoogleArtifactRegistry(AbstractRegistry):
             credentials=credentials
         )
         try:
-            response = client.list_repositories(request=request)
+            list_repositories = event_loop_thread_exec(client.list_repositories)
+            response = await list_repositories(request=request)
         except google.api_core.exceptions.PermissionDenied:
             raise LaunchError(
                 "The provided credentials do not have permission to access the "
@@ -188,7 +190,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Returns:
             A tuple of the username and password.
         """
-        credentials = self.environment.get_credentials()
+        credentials = await self.environment.get_credentials()
         return "oauth2accesstoken", credentials.token
 
     async def get_repo_uri(self) -> str:
@@ -218,20 +220,23 @@ class GoogleArtifactRegistry(AbstractRegistry):
             f"Checking if image {image_uri} exists. In Google Artifact Registry {self.uri}."
         )
         repo_uri, tag = image_uri.split(":")
-        if repo_uri != await self.get_repo_uri():
+        self_repo_uri = await self.get_repo_uri()
+        if repo_uri != self_repo_uri:
             raise LaunchError(
                 f"The image {image_uri} does not belong to the Google Artifact "
-                f"Repository {self.get_repo_uri()}."
+                f"Repository {self_repo_uri}."
             )
-        credentials = self.environment.get_credentials()
+        credentials = await self.environment.get_credentials()
 
         # request = google.cloud.artifactregistry.GetTagRequest(name=image_uri)
         parent = f"projects/{self.environment.project}/locations/{self.environment.region}/repositories/{self.repository}"
-        client = google.cloud.artifactregistry.ArtifactRegistryClient(
-            credentials=credentials
+        artifact_registry_client = event_loop_thread_exec(
+            google.cloud.artifactregistry.ArtifactRegistryClient
         )
+        client = artifact_registry_client(credentials=credentials)
+        list_images = event_loop_thread_exec(client.list_docker_images)
         try:
-            for image in client.list_docker_images(request={"parent": parent}):
+            for image in await list_images(request={"parent": parent}):
                 if tag in image.tags:
                     return True
         except google.api_core.exceptions.NotFound as e:

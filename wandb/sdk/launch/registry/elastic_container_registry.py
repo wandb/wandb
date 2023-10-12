@@ -177,9 +177,10 @@ class ElasticContainerRegistry(AbstractRegistry):
             bool: True if the image tag exists.
         """
         uri, tag = image_uri.split(":")
-        if uri != await self.get_repo_uri():
+        repo_uri = await self.get_repo_uri()
+        if uri != repo_uri:
             raise LaunchError(
-                f"Image uri {image_uri} does not match Elastic Container Registry uri {self.get_repo_uri()}."
+                f"Image uri {image_uri} does not match Elastic Container Registry uri {repo_uri}."
             )
 
         _logger.debug("Checking if image tag exists.")

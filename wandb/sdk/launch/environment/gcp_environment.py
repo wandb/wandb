@@ -8,6 +8,7 @@ from typing import Optional
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
+from ..utils import event_loop_thread_exec
 from .abstract import AbstractEnvironment
 
 google = get_module(
@@ -140,7 +141,7 @@ class GcpEnvironment(AbstractEnvironment):
             )
         return self._project
 
-    def get_credentials(self) -> google.auth.credentials.Credentials:  # type: ignore
+    async def get_credentials(self) -> google.auth.credentials.Credentials:  # type: ignore
         """Get the GCP credentials.
 
         Uses google.auth.default() to get the credentials. If the credentials
@@ -159,11 +160,16 @@ class GcpEnvironment(AbstractEnvironment):
             "https://www.googleapis.com/auth/cloud-platform",
         ]
         try:
-            creds, project = google.auth.default(scopes=scopes)
+            google_auth_default = await event_loop_thread_exec(google.auth.default)
+            creds, project = await event_loop_thread_exec(google_auth_default)(
+                scopes=scopes
+            )
             if not self._project:
                 self._project = project
             _logger.debug("Refreshing GCP credentials")
-            creds.refresh(google.auth.transport.requests.Request())
+            await event_loop_thread_exec(creds.refresh)(
+                google.auth.transport.requests.Request()
+            )
         except google.auth.exceptions.DefaultCredentialsError as e:
             raise LaunchError(
                 "No Google Cloud Platform credentials found. Please run "
@@ -200,7 +206,7 @@ class GcpEnvironment(AbstractEnvironment):
             None
         """
         _logger.debug("Verifying GCP environment")
-        self.get_credentials()
+        await self.get_credentials()
 
     async def verify_storage_uri(self, uri: str) -> None:
         """Verify that a storage URI is valid.
@@ -215,11 +221,11 @@ class GcpEnvironment(AbstractEnvironment):
         if not match:
             raise LaunchError(f"Invalid GCS URI: {uri}")
         bucket = match.group(1)
+        cloud_storage_client = await event_loop_thread_exec(google.cloud.storage.Client)
         try:
-            storage_client = google.cloud.storage.Client(
-                credentials=self.get_credentials()
-            )
-            bucket = storage_client.get_bucket(bucket)
+            credentials = await self.get_credentials()
+            storage_client = await cloud_storage_client(credentials=credentials)
+            bucket = await event_loop_thread_exec(storage_client).get_bucket(bucket)
         except google.api_core.exceptions.NotFound as e:
             raise LaunchError(f"Bucket {bucket} does not exist.") from e
 
@@ -241,13 +247,15 @@ class GcpEnvironment(AbstractEnvironment):
             raise LaunchError(f"Invalid GCS URI: {destination}")
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
+        google_storage_client = await event_loop_thread_exec(
+            google.cloud.storage.Client
+        )
+        credentials = await self.get_credentials()
         try:
-            storage_client = google.cloud.storage.Client(
-                credentials=self.get_credentials()
-            )
-            bucket = storage_client.bucket(bucket)
-            blob = bucket.blob(key)
-            blob.upload_from_filename(source)
+            storage_client = await google_storage_client(credentials=credentials)
+            bucket = await event_loop_thread_exec(storage_client.bucket)(bucket)
+            blob = await event_loop_thread_exec(bucket.blob)(key)
+            await event_loop_thread_exec(blob.upload_from_filename)(source)
         except google.api_core.exceptions.GoogleAPICallError as e:
             raise LaunchError(f"Could not upload file to GCS: {e}") from e
 
@@ -269,19 +277,21 @@ class GcpEnvironment(AbstractEnvironment):
             raise LaunchError(f"Invalid GCS URI: {destination}")
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
+        google_storage_client = await event_loop_thread_exec(
+            google.cloud.storage.Client
+        )
+        credentials = await self.get_credentials()
         try:
-            storage_client = google.cloud.storage.Client(
-                credentials=self.get_credentials()
-            )
-            bucket = storage_client.bucket(bucket)
+            storage_client = await google_storage_client(credentials=credentials)
+            bucket = await event_loop_thread_exec(storage_client.bucket)(bucket)
             for root, _, files in os.walk(source):
                 for file in files:
                     local_path = os.path.join(root, file)
                     gcs_path = os.path.join(
                         key, os.path.relpath(local_path, source)
                     ).replace("\\", "/")
-                    blob = bucket.blob(gcs_path)
-                    blob.upload_from_filename(local_path)
+                    blob = await event_loop_thread_exec(bucket.blob)(gcs_path)
+                    await event_loop_thread_exec(blob.upload_from_filename)(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
             raise LaunchError(f"Could not upload directory to GCS: {e}") from e
 

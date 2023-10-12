@@ -203,7 +203,11 @@ class KanikoBuilder(AbstractBuilder):
             ),
             data={
                 "config.json": json.dumps(
-                    {"auths": {f"{self.registry.get_repo_uri()}": {"auth": encoded}}}
+                    {
+                        "auths": {
+                            f"{await self.registry.get_repo_uri()}": {"auth": encoded}
+                        }
+                    }
                 )
             },
             immutable=True,
