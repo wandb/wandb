@@ -256,7 +256,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
-		h.sendRecord(record)
+		h.handleUseArtifact(record)
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -626,6 +626,10 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
