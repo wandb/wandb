@@ -52,6 +52,9 @@ async def test_local_container_entrypoint(relay_server, monkeypatch):
         project.image_name = "testimage"
         project.job = "testjob"
         project.launch_spec = {}
+        project.queue_name = "queue-name"
+        project.queue_entity = "queue-entity"
+        project.run_queue_item_id = None
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(

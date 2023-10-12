@@ -91,6 +91,9 @@ async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
         project.image_name = "testimage"
         project.job = "testjob"
         project.launch_spec = {}
+        project.queue_name = None
+        project.queue_entity = None
+        project.run_queue_item_id = None
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
@@ -115,7 +118,7 @@ async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
         env = req["Environment"]
         env.pop("WANDB_BASE_URL")
         assert env == {
-            "WANDB_API_KEY": None,
+            "WANDB_API_KEY": user,
             "WANDB_PROJECT": "test_project",
             "WANDB_ENTITY": "test_entity",
             "WANDB_LAUNCH": "True",

@@ -56,6 +56,9 @@ async def test_kubernetes_run_clean_generate_name(
         project.launch_spec = {"_resume_count": 0}
         project.fill_macros = lambda _: project.resource_args
         project.override_entrypoint.command = None
+        project.queue_name = None
+        project.queue_entity = None
+        project.run_queue_item_id = None
 
         environment = loader.environment_from_config({})
         api = Api()
