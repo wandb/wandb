@@ -11,10 +11,11 @@ type FsmTransition[T, C any] struct {
 }
 
 type FsmState[T, C any] struct {
-	transitions []*FsmTransition[T, C]
+	Transitions []*FsmTransition[T, C]
 }
 
 type FsmStateInterface[T any, C any] interface {
+	Input(arg T, state FsmStateInterface[T, C], changeState func(state FsmStateInterface[T,C]))
 	OnCheck(arg T)
 	OnEnter(arg T, context C)
 	OnExit(arg T) C
@@ -39,11 +40,32 @@ func (f *Fsm[T, C]) Input(record T) {
 	if f.state == nil {
 		return
 	}
-	f.state.OnCheck(record)
+	f.state.Input(record, f.state, f.changeState)
+}
+
+func (f *Fsm[T, C]) changeState(state FsmStateInterface[T, C]) {
+	f.state = state
+}
+
+func (s *FsmState[T, C]) Input(record T, state FsmStateInterface[T, C], changeState func(state FsmStateInterface[T,C])) {
+	state.OnCheck(record)
+	for _, transition := range s.Transitions {
+		if transition.Condition(record) {
+			transition.Action(record)
+			newState := transition.State
+			if state == newState {
+				return
+			}
+			context := state.OnExit(record)
+			changeState(newState)
+			newState.OnEnter(record, context)
+			return
+		}
+	}
 }
 
 func (s *FsmState[T, C]) AddTransition(condition func(T) bool, state FsmStateInterface[T, C], action func(T)) {
-	s.transitions = append(s.transitions,
+	s.Transitions = append(s.Transitions,
 		&FsmTransition[T, C]{
 			Condition: condition,
 			State:     state,
