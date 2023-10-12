@@ -599,21 +599,7 @@ class LaunchAgent:
         self._set_queue_and_rqi_in_project(project, job, job_tracker.queue)
         api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         # don't launch sweep runs if the sweep isn't healthy
-        if launch_spec.get("sweep_id"):
-            try:
-                state = api.get_sweep_state(
-                    sweep=launch_spec["sweep_id"],
-                    entity=launch_spec["entity"],
-                    project=launch_spec["project"],
-                )
-            except Exception as e:
-                _logger.debug(f"Fetch sweep state error: {e}")
-                state = None
-
-            if state != "RUNNING" and state != "PAUSED":
-                raise LaunchError(
-                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
-                )
+        self.check_sweep_state(launch_spec, api)
 
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
@@ -696,6 +682,24 @@ class LaunchAgent:
         # types of runners in general
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
             run._command_proc.kill()
+
+    def check_sweep_state(self, launch_spec: Dict[str, Any], api: Api) -> None:
+        """Check the state of a sweep before launching a run for the sweep."""
+        if launch_spec.get("sweep_id"):
+            try:
+                state = api.get_sweep_state(
+                    sweep=launch_spec["sweep_id"],
+                    entity=launch_spec["entity"],
+                    project=launch_spec["project"],
+                )
+            except Exception as e:
+                _logger.debug(f"Fetch sweep state error: {e}")
+                state = None
+
+            if state != "RUNNING" and state != "PAUSED":
+                raise LaunchError(
+                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
+                )
 
     async def _check_run_finished(
         self, job_tracker: JobAndRunStatusTracker, launch_spec: Dict[str, Any]
