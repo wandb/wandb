@@ -27,8 +27,7 @@ import (
 )
 
 const (
-	MetaFilename    = "wandb-metadata.json"
-	SummaryFilename = "wandb-summary.json"
+	MetaFilename = "wandb-metadata.json"
 	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
 	configDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
@@ -288,7 +287,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
 		request.State++
-		s.flushSummary()
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 		s.configDebouncer.Flush(s.upsertConfig)
@@ -544,23 +542,10 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) flushSummary() {
-	decodedSummary := make(map[string]interface{})
-	var vv interface{}
-	for k, v := range s.summaryMap {
-		if err := json.Unmarshal([]byte(v.ValueJson), &vv); err != nil {
-			return
-		}
-		decodedSummary[k] = vv
-	}
-	encodedSummary, _ := json.Marshal(decodedSummary)
-	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFilename), encodedSummary, 0644)
-	s.sendFile(SummaryFilename, uploader.WandbFile)
-}
-
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
 	// TODO(compat): handle deletes, nested keys
+	// TODO(compat): write summary file
 
 	// track each key in the in memory summary store
 	// TODO(memory): avoid keeping summary for all distinct keys
