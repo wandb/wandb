@@ -273,6 +273,7 @@ def test_settings(test_dir, mocker, live_mock_server):
         root_dir=test_dir,
         run_id=runid.generate_id(),
         save_code=False,
+        disable_job_creation=True,
     )
     settings._set_run_start_time()
     yield settings
