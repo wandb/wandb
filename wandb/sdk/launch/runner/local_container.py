@@ -23,7 +23,7 @@ from ..utils import (
     docker_image_exists,
     pull_docker_image,
     sanitize_wandb_api_key,
-    threaded,
+    event_loop_thread_exec,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -67,7 +67,7 @@ class LocalSubmittedRun(AbstractRun):
                     break  # type: ignore  # mypy thinks this is unreachable
             else:
                 return False
-        wait = threaded(self._command_proc.wait)
+        wait = event_loop_thread_exec(self._command_proc.wait)
         return int(await wait()) == 0
 
     async def get_logs(self) -> Optional[str]:

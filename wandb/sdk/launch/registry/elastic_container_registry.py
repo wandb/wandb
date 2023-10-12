@@ -10,7 +10,7 @@ from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
-from ..utils import threaded
+from ..utils import event_loop_thread_exec
 from .abstract import AbstractRegistry
 
 botocore = get_module(  # type: ignore[no-redef]
@@ -121,8 +121,8 @@ class ElasticContainerRegistry(AbstractRegistry):
         _logger.debug("Verifying Elastic Container Registry.")
         try:
             session = await self.environment.get_session()
-            client = await threaded(session.client)("ecr")
-            response = await threaded(client.describe_repositories)(
+            client = await event_loop_thread_exec(session.client)("ecr")
+            response = await event_loop_thread_exec(client.describe_repositories)(
                 repositoryNames=[self.repo_name]
             )
             self.uri = response["repositories"][0]["repositoryUri"].split("/")[0]
@@ -147,8 +147,8 @@ class ElasticContainerRegistry(AbstractRegistry):
         _logger.debug("Getting username and password for Elastic Container Registry.")
         try:
             session = await self.environment.get_session()
-            client = await threaded(session.client)("ecr")
-            response = await threaded(client.get_authorization_token)()
+            client = await event_loop_thread_exec(session.client)("ecr")
+            response = await event_loop_thread_exec(client.get_authorization_token)()
             username, password = base64.standard_b64decode(
                 response["authorizationData"][0]["authorizationToken"]
             ).split(b":")
@@ -186,8 +186,8 @@ class ElasticContainerRegistry(AbstractRegistry):
         _logger.debug("Checking if image tag exists.")
         try:
             session = await self.environment.get_session()
-            client = await threaded(session.client)("ecr")
-            response = await threaded(client.describe_images)(
+            client = await event_loop_thread_exec(session.client)("ecr")
+            response = await event_loop_thread_exec(client.describe_images)(
                 repositoryName=self.repo_name, imageIds=[{"imageTag": tag}]
             )
             return len(response["imageDetails"]) > 0

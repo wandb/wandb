@@ -33,7 +33,7 @@ from ..utils import (
     LAUNCH_CONFIG_FILE,
     LOG_PREFIX,
     resolve_build_and_registry_config,
-    threaded,
+    event_loop_thread_exec,
 )
 
 _logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ _DEFAULT_DOCKERFILE_NAME = "Dockerfile.wandb"
 
 async def validate_docker_installation() -> None:
     """Verify if Docker is installed on host machine."""
-    find_exec = threaded(find_executable)
+    find_exec = event_loop_thread_exec(find_executable)
     if not await find_exec("docker"):
         raise ExecutionError(
             "Could not find Docker executable. "

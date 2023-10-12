@@ -12,7 +12,7 @@ from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
-from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, threaded
+from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, event_loop_thread_exec
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -150,7 +150,7 @@ class VertexRunner(AbstractRunner):
                 "in resource arguments under the key `vertex.spec.staging_bucket`."
             )
         try:
-            init = threaded(aiplatform.init)
+            init = event_loop_thread_exec(aiplatform.init)
             await init(
                 project=self.environment.project,
                 location=self.environment.region,
@@ -182,10 +182,10 @@ class VertexRunner(AbstractRunner):
         except Exception as e:
             raise LaunchError(f"Failed to create Vertex job: {e}")
         if synchronous:
-            run = threaded(job.run)
+            run = event_loop_thread_exec(job.run)
             await run(**execution_kwargs, sync=True)
         else:
-            submit = threaded(job.submit)
+            submit = event_loop_thread_exec(job.submit)
             await submit(**execution_kwargs)
         submitted_run = VertexSubmittedRun(job)
         interval = 1

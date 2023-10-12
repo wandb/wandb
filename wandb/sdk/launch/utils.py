@@ -66,7 +66,7 @@ MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
 
-def threaded(func: Any) -> Any:
+def event_loop_thread_exec(func: Any) -> Any:
     """Wrapper for running any function in an awaitable thread on an event loop.
 
     Example usage:
@@ -74,7 +74,7 @@ def threaded(func: Any) -> Any:
     def my_func(arg1, arg2):
         return arg1 + arg2
 
-    future = threaded(my_func)(2, 2)
+    future = event_loop_thread_exec(my_func)(2, 2)
     assert await future == 4
     ```
 

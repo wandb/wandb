@@ -8,7 +8,7 @@ from typing import Dict, Optional
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
-from ..utils import threaded
+from ..utils import event_loop_thread_exec
 from .abstract import AbstractEnvironment
 
 boto3 = get_module(
@@ -132,8 +132,8 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.debug("Verifying AWS environment.")
         try:
             session = await self.get_session()
-            client = await threaded(session.client)("sts")
-            get_caller_identity = threaded(client.get_caller_identity)
+            client = await event_loop_thread_exec(session.client)("sts")
+            get_caller_identity = event_loop_thread_exec(client.get_caller_identity)
             self._account = (await get_caller_identity()).get("Account")
             # TODO: log identity details from the response
         except botocore.exceptions.ClientError as e:
@@ -152,7 +152,7 @@ class AwsEnvironment(AbstractEnvironment):
         """
         _logger.debug(f"Creating AWS session in region {self._region}")
         try:
-            session = threaded(boto3.Session)
+            session = event_loop_thread_exec(boto3.Session)
             return await session(
                 region_name=self._region,
                 aws_access_key_id=self._access_key,
@@ -192,7 +192,7 @@ class AwsEnvironment(AbstractEnvironment):
             key = ""
         session = await self.get_session()
         try:
-            client = await threaded(session.client)("s3")
+            client = await event_loop_thread_exec(session.client)("s3")
             client.upload_file(source, bucket, key)
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
@@ -228,7 +228,7 @@ class AwsEnvironment(AbstractEnvironment):
             key = ""
         session = await self.get_session()
         try:
-            client = await threaded(session.client)("s3")
+            client = await event_loop_thread_exec(session.client)("s3")
             for path, _, files in os.walk(source):
                 for file in files:
                     abs_path = os.path.join(path, file)
@@ -272,7 +272,7 @@ class AwsEnvironment(AbstractEnvironment):
         bucket = match.group(1)
         try:
             session = await self.get_session()
-            client = await threaded(session.client)("s3")
+            client = await event_loop_thread_exec(session.client)("s3")
             client.head_bucket(Bucket=bucket)
         except botocore.exceptions.ClientError as e:
             raise LaunchError(

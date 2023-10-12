@@ -21,7 +21,7 @@ from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
     sanitize_wandb_api_key,
-    threaded,
+    event_loop_thread_exec,
     warn_failed_packages_from_build_logs,
 )
 from .build import (
@@ -99,7 +99,7 @@ class DockerBuilder(AbstractBuilder):
             _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
         else:
             username, password = await self.registry.get_username_password()
-            login = threaded(docker.login)
+            login = event_loop_thread_exec(docker.login)
             await login(username, password, self.registry.uri)
 
     async def build_image(
@@ -154,7 +154,7 @@ class DockerBuilder(AbstractBuilder):
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
-            output = await threaded(docker.build)(
+            output = await event_loop_thread_exec(docker.build)(
                 tags=[image_uri],
                 file=dockerfile,
                 context_path=build_ctx_path,
@@ -179,7 +179,7 @@ class DockerBuilder(AbstractBuilder):
         if repository:
             reg, tag = image_uri.split(":")
             wandb.termlog(f"{LOG_PREFIX}Pushing image {image_uri}")
-            push_resp = await threaded(docker.push)(reg, tag)
+            push_resp = await event_loop_thread_exec(docker.push)(reg, tag)
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")
             elif (

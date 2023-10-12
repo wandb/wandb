@@ -18,7 +18,7 @@ from ..utils import (
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
-    threaded,
+    event_loop_thread_exec,
     to_camel_case,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -49,7 +49,9 @@ class SagemakerSubmittedRun(AbstractRun):
         if self.log_client is None:
             return None
         try:
-            describe_log_streams = threaded(self.log_client.describe_log_streams)
+            describe_log_streams = event_loop_thread_exec(
+                self.log_client.describe_log_streams
+            )
             describe_res = await describe_log_streams(
                 logGroupName="/aws/sagemaker/TrainingJobs",
                 logStreamNamePrefix=self.training_job_name,
@@ -60,7 +62,7 @@ class SagemakerSubmittedRun(AbstractRun):
                 )
                 return None
             log_name = describe_res["logStreams"][0]["logStreamName"]
-            get_log_events = threaded(self.log_client.get_log_events)
+            get_log_events = event_loop_thread_exec(self.log_client.get_log_events)
             res = await get_log_events(
                 logGroupName="/aws/sagemaker/TrainingJobs",
                 logStreamName=log_name,
@@ -98,7 +100,9 @@ class SagemakerSubmittedRun(AbstractRun):
             await self.wait()
 
     async def get_status(self) -> Status:
-        describe_training_job = threaded(self.client.describe_training_job)
+        describe_training_job = event_loop_thread_exec(
+            self.client.describe_training_job
+        )
         job_status = (
             await describe_training_job(TrainingJobName=self.training_job_name)
         )["TrainingJobStatus"]
@@ -170,7 +174,7 @@ class SageMakerRunner(AbstractRunner):
             default_output_path = f"s3://{default_output_path}"
 
         session = await self.environment.get_session()
-        client = await threaded(session.client)("sts")
+        client = await event_loop_thread_exec(session.client)("sts")
         caller_id = client.get_caller_identity()
         account_id = caller_id["Account"]
         _logger.info(f"Using account ID {account_id}")
@@ -377,7 +381,7 @@ async def launch_sagemaker_job(
     log_client: Optional["boto3.Client"] = None,
 ) -> SagemakerSubmittedRun:
     training_job_name = sagemaker_args.get("TrainingJobName") or launch_project.run_id
-    create_training_job = threaded(sagemaker_client.create_training_job)
+    create_training_job = event_loop_thread_exec(sagemaker_client.create_training_job)
     resp = await create_training_job(**sagemaker_args)
 
     if resp.get("TrainingJobArn") is None:
