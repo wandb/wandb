@@ -6,6 +6,7 @@ import os
 import tarfile
 import tempfile
 import time
+import traceback
 from typing import Optional
 
 import wandb
@@ -247,7 +248,7 @@ class KanikoBuilder(AbstractBuilder):
             dockerfile=launch_project.override_dockerfile,
         )
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
-        repo_uri = self.registry.get_repo_uri()
+        repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
 
         if not launch_project.build_required() and self.registry.check_image_exists(
@@ -302,17 +303,17 @@ class KanikoBuilder(AbstractBuilder):
                     },
                 )
                 await core_v1.create_namespaced_config_map(
-                    "wandb", dockerfile_config_map
+                    "wandb", dockerfile_config_map, async_req=True
                 )
             # core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             if self.secret_name:
                 await self._create_docker_ecr_config_map(
                     build_job_name, core_v1, repo_uri
                 )
-            await batch_v1.create_namespaced_job(NAMESPACE, build_job)
+            await batch_v1.create_namespaced_job(NAMESPACE, build_job, async_req=True)
 
             # wait for double the job deadline since it might take time to schedule
-            if not _wait_for_completion(
+            if not await _wait_for_completion(
                 batch_v1, build_job_name, 3 * _DEFAULT_BUILD_TIMEOUT_SECS
             ):
                 if job_tracker:
@@ -341,10 +342,14 @@ class KanikoBuilder(AbstractBuilder):
                     )
                 if self.secret_name:
                     await self._delete_docker_ecr_config_map(build_job_name, core_v1)
-                await batch_v1.delete_namespaced_job(build_job_name, NAMESPACE)
+                await batch_v1.delete_namespaced_job(
+                    build_job_name, NAMESPACE, async_req=True
+                )
             except Exception as e:
-                raise LaunchError(f"Exception during Kubernetes resource clean up {e}")
-
+                traceback.print_exc()
+                raise LaunchError(
+                    f"Exception during Kubernetes resource clean up {e}"
+                ) from e
         return image_uri
 
     async def _create_kaniko_job(
