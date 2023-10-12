@@ -6,7 +6,7 @@ import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
-from wandb.apis.internal import Api
+from wandb.apis.internal import Ap
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
@@ -135,8 +135,8 @@ def _create_job(
             project=project,
             job_type="cli_create_job",
         )
-    except Exception as e:
-        wandb.termerror(f"{e}")
+    except Exception:
+        # Error printed by wandb.init
         return None, "", []
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)

@@ -306,7 +306,7 @@ class JobBuilder:
         metadata = self._handle_metadata_file()
         if metadata is None:
             wandb.termwarn(
-                "No metadata file found, not creating job artifact. Ensure api settings files_dir exists with read and write access."
+                f"Ensure read and write access to run files dir: {self._settings.files_dir}, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables"
             )
             return None
 
