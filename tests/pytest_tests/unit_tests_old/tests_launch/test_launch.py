@@ -726,7 +726,7 @@ def test_launch_agent_runs(
         raise Exception
 
     monkeypatch.setattr(
-        multiprocessing.Pool,
+        multiprocessing.pool.Pool,
         "apply_async",
         lambda x, y: mock_raise_exception(),
     )
