@@ -116,6 +116,7 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
         assert req["TrainingJobName"] == project.run_id
         env = req["Environment"]
         env.pop("WANDB_BASE_URL")
+        env.pop("WANDB_API_KEY")
         assert env == {
             "WANDB_API_KEY": None,
             "WANDB_PROJECT": "test_project",
