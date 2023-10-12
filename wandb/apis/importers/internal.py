@@ -338,7 +338,7 @@ def _handle_use_artifacts(
         used_artifacts = rm.run.used_artifacts()
         if used_artifacts is not None:
             used_artifacts = list(used_artifacts)
-            aliases = [a._alias for a in used_artifacts]
+            [a._alias for a in used_artifacts]
 
             task = progress.subtask_pbar.add_task(task_name, total=len(used_artifacts))
             for artifact in used_artifacts:

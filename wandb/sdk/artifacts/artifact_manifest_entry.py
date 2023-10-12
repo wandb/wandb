@@ -1,10 +1,11 @@
 """Artifact manifest entry."""
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
-import shutil
+
 from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import (
@@ -114,7 +115,7 @@ class ArtifactManifestEntry:
         """
         if self._parent_artifact is None:
             raise NotImplementedError
-        
+
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
         dest_path = os.path.join(root, self.path)
@@ -122,7 +123,11 @@ class ArtifactManifestEntry:
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
         # If cache=False, then force a re-download
-        if cache and os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
+        if (
+            cache
+            and os.path.exists(dest_path)
+            and self.digest == md5_file_b64(dest_path)
+        ):
             return FilePathStr(dest_path)
 
         if self.ref is not None:
@@ -144,7 +149,6 @@ class ArtifactManifestEntry:
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         shutil.move(cache_path, dest_path)
         return str(FilePathStr(dest_path))
-            
 
     def ref_target(self) -> Union[FilePathStr, URIStr]:
         """Get the reference URL that is targeted by this artifact entry.

@@ -1048,7 +1048,6 @@ class Api:
             )["model"]["buckets"]
         )
 
-
     @normalize_exceptions
     def delete_project(self, project: str, entity: Optional[str] = None) -> bool:
         mutation = gql(
@@ -1064,8 +1063,6 @@ class Api:
         response = self.gql(mutation, variable_values={"id": project_info["id"]})
         status: bool = response["deleteModel"]["success"]
         return status
-
-
 
     @normalize_exceptions
     def run_config(

@@ -1,21 +1,22 @@
+import filecmp
+import functools
 import itertools
 import json
 import numbers
+import os
 import re
 import time
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from unittest.mock import MagicMock, Mock, patch
-from dataclasses import dataclass, field
-import os
-import filecmp
+from unittest.mock import MagicMock, patch
+
 import polars as pl
 import requests
 import urllib3
 import yaml
 from wandb_gql import gql
-import functools
+
 import wandb
 from wandb.apis.public import Run
 from wandb.util import coalesce
@@ -49,18 +50,19 @@ def progress_decorator(description: Optional[str] = None):
             # run_str = f"{src_run.entity}/{src_run.project}/{src_run.id}"
             if description is None:
                 description = f"{f.__name__}({args=}{kwargs=})"
-            
+
             t = progress.subsubtask_pbar.add_task(description)
             result = f(*args, **kwargs)
             progress.subsubtask_pbar.remove_task(t)
             return result
+
         return wrapper
+
     return deco
 
 
 class WandbRun:
     def __init__(self, run: Run):
-
         self.run = run
         # very hacky way to get alt username applied at thread level (if setting env var, would require proc level)
         from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -69,8 +71,7 @@ class WandbRun:
             _thread_local_api_settings.headers = {}
 
         _thread_local_api_settings.headers["X-WANDB-USERNAME"] = self.run.user.username
-        
-        
+
         self.api = wandb.Api(
             api_key=_thread_local_settings.src_api_key,
             overrides={"base_url": _thread_local_settings.src_base_url},
@@ -84,7 +85,6 @@ class WandbRun:
         _thread_local_settings.src_project = self.project()
         _thread_local_settings.src_run_id = self.run_id()
 
-        
         # import os
         # os.environ["WANDB_USERNAME"] = self.run.user.username
         # # _thread_local_settings.username = self.run.user.username
@@ -903,7 +903,7 @@ class WandbImporter:
     def _clear_run_errors(self):
         with open(ARTIFACT_ERRORS_JSONL_FNAME, "w"):
             pass
-        
+
     def _get_run_problems(self, src_run, dst_run):
         problems = []
 
@@ -915,12 +915,11 @@ class WandbImporter:
 
         if non_matching_metrics := self._compare_run_metrics(src_run, dst_run):
             problems.append("metrics:" + str(non_matching_metrics))
-            
+
         if non_matching_files := self._compare_run_files(src_run, dst_run):
             problems.append("files" + str(non_matching_files))
-        
-        return problems
 
+        return problems
 
     @progress_decorator()
     def _compare_run_metadata(self, src_run, dst_run):
@@ -1014,7 +1013,7 @@ class WandbImporter:
             return f"Non-matching metrics {non_matching=}"
         else:
             return None
-        
+
     @progress_decorator()
     def _compare_run_files(self, src_run, dst_run):
         # TODO
@@ -1468,10 +1467,14 @@ class WandbImporter:
         print(f"problems so far {problems=}")
 
         if download_files_and_compare:
-            src_dir = src_art.download(root=f"./artifacts/src/{src_art.name}", cache=False)
+            src_dir = src_art.download(
+                root=f"./artifacts/src/{src_art.name}", cache=False
+            )
 
             try:
-                dst_dir = dst_art.download(root=f"./artifacts/dst/{dst_art.name}", cache=False)
+                dst_dir = dst_art.download(
+                    root=f"./artifacts/dst/{dst_art.name}", cache=False
+                )
                 problems.append(self._compare_artifact_dirs(src_dir, dst_dir))
             except requests.HTTPError as e:
                 problems.append(
@@ -1957,5 +1960,3 @@ def get_incremental_artifacts(expected, last_valid_ver: int):
         _, ver = _get_art_name_ver(art)
         if ver > last_valid_ver:
             yield art
-
-

@@ -1725,15 +1725,15 @@ class Artifact:
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         )
-        
+
         # def download_entry(entry):
         #     print(f"{_thread_local_api_settings.api_key=}")
         #     print(f"{_thread_local_api_settings.cookies=}")
         #     print(f"{_thread_local_api_settings.headers=}")
-            
+
         #     return _download_entry(entry, api_key=_thread_local_api_settings.api_key,
-# cookies=_thread_local_api_settings.cookies,
-# headers=_thread_local_api_settings.headers,)
+        # cookies=_thread_local_api_settings.cookies,
+        # headers=_thread_local_api_settings.headers,)
 
         with concurrent.futures.ThreadPoolExecutor(64) as executor:
             active_futures = set()
