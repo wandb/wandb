@@ -25,7 +25,7 @@ class AbstractRegistry(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         """Get the URI for a repository.
 
         Returns:

@@ -13,13 +13,13 @@ from wandb.util import get_module
 from ..utils import threaded
 from .abstract import AbstractRegistry
 
-botocore = get_module(
+botocore = get_module(  # type: ignore[no-redef]
     "botocore",
     required="AWS environment requires botocore to be installed. Please install "
     "it with `pip install wandb[launch]`.",
 )
 
-import botocore.exceptions  # noqa: E402
+import botocore.exceptions  # noqa: E402 # type: ignore[import]
 
 _logger = logging.getLogger(__name__)
 

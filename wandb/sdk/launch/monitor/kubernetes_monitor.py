@@ -50,7 +50,6 @@ def _task_callback(task: asyncio.Task) -> None:
     """Callback to log exceptions from tasks."""
     if task.exception() is not None:
         _logger.error(f"Exception in task {task.get_name()}: {task.exception()}")
-        traceback.print_tb(task.exception().__traceback__)
 
 
 def _is_preempted(status: "V1PodStatus") -> bool:
