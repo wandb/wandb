@@ -13,13 +13,12 @@ from wandb.util import get_module
 from ..utils import event_loop_thread_exec
 from .abstract import AbstractRegistry
 
-botocore = get_module(  # type: ignore[no-redef]
+botocore = get_module(
     "botocore",
     required="AWS environment requires botocore to be installed. Please install "
     "it with `pip install wandb[launch]`.",
 )
 
-import botocore.exceptions  # noqa: E402 # type: ignore[import]
 
 _logger = logging.getLogger(__name__)
 
@@ -160,7 +159,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             # TODO: Log the code and the message here?
             raise LaunchError(f"Error getting username and password: {code} {msg}")
 
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         """Get the uri of the repository.
 
         Returns:
@@ -178,7 +177,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             bool: True if the image tag exists.
         """
         uri, tag = image_uri.split(":")
-        if uri != self.get_repo_uri():
+        if uri != await self.get_repo_uri():
             raise LaunchError(
                 f"Image uri {image_uri} does not match Elastic Container Registry uri {self.get_repo_uri()}."
             )

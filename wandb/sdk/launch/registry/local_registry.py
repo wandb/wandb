@@ -44,7 +44,7 @@ class LocalRegistry(AbstractRegistry):
         """Get the username and password of the local registry."""
         raise LaunchError("Attempted to get username and password for LocalRegistry.")
 
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         """Get the uri of the local registry.
 
         Returns: An empty string.

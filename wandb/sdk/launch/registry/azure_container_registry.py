@@ -98,7 +98,7 @@ class AzureContainerRegistry(AbstractRegistry):
                 f"Unable to check if image exists in Azure Container Registry: {e}"
             ) from e
 
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         return self.uri
 
     async def verify(self) -> None:

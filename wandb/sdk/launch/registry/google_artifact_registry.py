@@ -191,7 +191,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         credentials = self.environment.get_credentials()
         return "oauth2accesstoken", credentials.token
 
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         """Get the URI for the given repository.
 
         Arguments:
@@ -218,7 +218,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
             f"Checking if image {image_uri} exists. In Google Artifact Registry {self.uri}."
         )
         repo_uri, tag = image_uri.split(":")
-        if repo_uri != self.get_repo_uri():
+        if repo_uri != await self.get_repo_uri():
             raise LaunchError(
                 f"The image {image_uri} does not belong to the Google Artifact "
                 f"Repository {self.get_repo_uri()}."
