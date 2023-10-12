@@ -23,7 +23,8 @@ def test_acr_from_config(mocker):
     assert acr.uri == "test"
 
 
-def test_acr_get_repo_uri(mocker):
+@pytest.mark.asyncio
+async def test_acr_get_repo_uri(mocker):
     """Test AzureContainerRegistry class."""
     mocker.patch(
         "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
@@ -37,7 +38,7 @@ def test_acr_get_repo_uri(mocker):
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
-    assert registry.get_repo_uri() == "test"
+    assert await registry.get_repo_uri() == "test"
 
 
 @pytest.mark.asyncio
