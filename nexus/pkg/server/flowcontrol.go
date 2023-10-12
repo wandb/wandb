@@ -7,8 +7,8 @@ import (
 
 type FlowControlContext struct {
 	forwardedOffset int64
-	sentOffset int64
-	writtenOffset int64
+	sentOffset      int64
+	writtenOffset   int64
 }
 
 type FlowControl struct {
@@ -17,21 +17,32 @@ type FlowControl struct {
 	stateMachine *fsm.Fsm[*service.Record, *FlowControlContext]
 }
 
+type StateShared struct {
+	context FlowControlContext
+}
+
 type StateForwarding struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
+	StateShared
 
 	sendRecord func(record *service.Record)
 }
 
+type StatePausing struct {
+	fsm.FsmState[*service.Record, *FlowControlContext]
+	StateShared
+}
+
+func (s *StateShared) OnEnter(record *service.Record, context *FlowControlContext) {
+	s.context = *context
+}
+
+func (s *StateShared) OnExit(record *service.Record) *FlowControlContext {
+	return &s.context
+}
+
 func (s *StateForwarding) OnCheck(record *service.Record) {
 	s.sendRecord(record)
-}
-
-func (s *StateForwarding) OnEnter(record *service.Record, context *FlowControlContext) {
-}
-
-func (s *StateForwarding) OnExit(record *service.Record) *FlowControlContext {
-	return nil
 }
 
 func (s *StateForwarding) shouldPause(record *service.Record) bool {
@@ -41,18 +52,7 @@ func (s *StateForwarding) shouldPause(record *service.Record) bool {
 func (s *StateForwarding) doPause(record *service.Record) {
 }
 
-type StatePausing struct {
-	fsm.FsmState[*service.Record, *FlowControlContext]
-}
-
 func (s *StatePausing) OnCheck(record *service.Record) {
-}
-
-func (s *StatePausing) OnEnter(record *service.Record, context *FlowControlContext) {
-}
-
-func (s *StatePausing) OnExit(record *service.Record) *FlowControlContext {
-	return nil
 }
 
 func (s *StatePausing) shouldUnpause(record *service.Record) bool {
