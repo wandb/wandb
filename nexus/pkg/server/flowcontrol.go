@@ -15,7 +15,6 @@ type FlowControlContext struct {
 }
 
 type FlowControl struct {
-	sendRecord   func(record *service.Record)
 	sendPause    func()
 	stateMachine *fsm.Fsm[*service.Record, *FlowControlContext]
 }
@@ -97,8 +96,7 @@ func (s *StatePausing) doQuiesce(record *service.Record) {
 
 func NewFlowControl(sendRecord func(record *service.Record), sendPause func()) *FlowControl {
 	flowControl := &FlowControl{
-		sendRecord: sendRecord,
-		sendPause:  sendPause,
+		sendPause: sendPause,
 	}
 
 	stateMachine := fsm.NewFsm[*service.Record, *FlowControlContext]()
@@ -107,7 +105,11 @@ func NewFlowControl(sendRecord func(record *service.Record), sendPause func()) *
 			sendRecord: sendRecord,
 		},
 	}
-	pausing := &StatePausing{}
+	pausing := &StatePausing{
+		StateShared: StateShared{
+			sendRecord: sendRecord,
+		},
+	}
 	stateMachine.AddState(forwarding)
 	stateMachine.AddState(pausing)
 
