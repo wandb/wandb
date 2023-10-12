@@ -15,7 +15,7 @@ type FsmState[T, C any] struct {
 }
 
 type FsmStateInterface[T any, C any] interface {
-	Input(arg T, state FsmStateInterface[T, C], changeState func(state FsmStateInterface[T,C]))
+	Input(arg T, state FsmStateInterface[T, C], changeState func(state FsmStateInterface[T, C]))
 	OnCheck(arg T)
 	OnEnter(arg T, context C)
 	OnExit(arg T) C
@@ -47,7 +47,7 @@ func (f *Fsm[T, C]) changeState(state FsmStateInterface[T, C]) {
 	f.state = state
 }
 
-func (s *FsmState[T, C]) Input(record T, state FsmStateInterface[T, C], changeState func(state FsmStateInterface[T,C])) {
+func (s *FsmState[T, C]) Input(record T, state FsmStateInterface[T, C], changeState func(state FsmStateInterface[T, C])) {
 	state.OnCheck(record)
 	for _, transition := range s.Transitions {
 		if transition.Condition(record) {
