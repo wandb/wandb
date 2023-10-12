@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Any, Dict, Optional
 
@@ -16,6 +17,8 @@ from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
+
+_logger = logging.getLogger(__name__)
 
 
 class VertexSubmittedRun(AbstractRun):
@@ -90,10 +93,6 @@ class VertexRunner(AbstractRunner):
         self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
-        aiplatform = get_module(  # noqa: F811
-            "google.cloud.aiplatform",
-            "VertexRunner requires google.cloud.aiplatform to be installed",
-        )
         full_resource_args = launch_project.fill_macros(image_uri)
         resource_args = full_resource_args.get("vertex")
         # We support setting under gcp-vertex for historical reasons.
@@ -152,11 +151,12 @@ class VertexRunner(AbstractRunner):
                 "Vertex requires a staging bucket. Please specify a staging bucket "
                 "in resource arguments under the key `vertex.spec.staging_bucket`."
             )
+
+        _logger.info(f"Launching Vertex job...")
         submitted_run = launch_vertex_job(
             launch_project,
             spec_args,
             run_args,
-            aiplatform,
             self.environment,
             synchronous,
         )
@@ -167,11 +167,14 @@ def launch_vertex_job(
     launch_project: LaunchProject,
     spec_args: Dict[str, Any],
     run_args: Dict[str, Any],
-    aiplatform: Any,  # type: ignore
     environment: GcpEnvironment,
     synchronous: bool = False,
 ) -> VertexSubmittedRun:
     try:
+        aiplatform = get_module(  # noqa: F811
+            "google.cloud.aiplatform",
+            "VertexRunner requires google.cloud.aiplatform to be installed",
+        )
         aiplatform.init(
             project=environment.project,
             location=environment.region,
