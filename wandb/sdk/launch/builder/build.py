@@ -33,8 +33,8 @@ from ..errors import ExecutionError, LaunchError
 from ..utils import (
     LAUNCH_CONFIG_FILE,
     LOG_PREFIX,
-    resolve_build_and_registry_config,
     event_loop_thread_exec,
+    resolve_build_and_registry_config,
 )
 
 _logger = logging.getLogger(__name__)

@@ -20,8 +20,8 @@ from ..errors import LaunchDockerError, LaunchError
 from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
-    sanitize_wandb_api_key,
     event_loop_thread_exec,
+    sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
 from .build import (

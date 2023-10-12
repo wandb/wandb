@@ -20,7 +20,7 @@ def mock_sagemaker_environment():
 
 
 @pytest.mark.asyncio
-async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
+async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
     async def mock_launch_sagemaker_job(*args, **kwargs):
         # return second arg, which is constructed sagemaker create_training_job request
         return args[1]

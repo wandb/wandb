@@ -21,9 +21,9 @@ from ..utils import (
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
     docker_image_exists,
+    event_loop_thread_exec,
     pull_docker_image,
     sanitize_wandb_api_key,
-    event_loop_thread_exec,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
