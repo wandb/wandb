@@ -421,7 +421,7 @@ class InterfaceBase:
             # Download source info from logged partial job artifact
             job_info = {}
             try:
-                path = artifact.get_path("wandb-job.json").download()
+                path = artifact.get_entry("wandb-job.json").download()
                 with open(path) as f:
                     job_info = json.load(f)
             except Exception as e:
