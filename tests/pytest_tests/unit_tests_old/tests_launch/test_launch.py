@@ -1,5 +1,5 @@
 import json
-import multiprocessing
+import multiprocessing.pool
 import os
 import sys
 from unittest import mock
