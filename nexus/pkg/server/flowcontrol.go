@@ -14,7 +14,6 @@ type FlowControlContext struct {
 	writtenOffset int64
 }
 
-
 type FlowControl struct {
 	stateMachine *fsm.Fsm[*service.Record, *FlowControlContext]
 }
@@ -27,7 +26,7 @@ type StateShared struct {
 type StateForwarding struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
 	StateShared
-	sendPause    func()
+	sendPause      func()
 	pauseThreshold int64
 }
 
