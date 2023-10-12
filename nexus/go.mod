@@ -3,6 +3,7 @@ module github.com/wandb/wandb/nexus
 go 1.21
 
 require (
+	cloud.google.com/go/storage v1.33.0
 	github.com/Khan/genqlient v0.6.0
 	github.com/NVIDIA/go-nvml v0.12.0-1
 	github.com/getsentry/sentry-go v0.22.0
@@ -20,7 +21,6 @@ require (
 	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v1.1.0 // indirect
-	cloud.google.com/go/storage v1.33.0 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/alexflint/go-arg v1.4.2 // indirect
 	github.com/alexflint/go-scalar v1.0.0 // indirect
@@ -48,7 +48,6 @@ require (
 	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/net v0.12.0 // indirect
 	golang.org/x/oauth2 v0.10.0 // indirect
-	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/tools v0.8.0 // indirect

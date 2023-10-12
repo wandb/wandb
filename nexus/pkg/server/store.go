@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"io"
 	"os"
+
+	"github.com/wandb/wandb/nexus/pkg/observability"
 
 	"cloud.google.com/go/storage"
 	"github.com/wandb/wandb/nexus/pkg/leveldb"
