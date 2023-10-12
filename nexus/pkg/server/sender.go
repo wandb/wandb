@@ -792,7 +792,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	var response service.DownloadArtifactResponse
 	fmt.Printf("\n\nsender: %v\n\n", msg)
-	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), utils.NilIfZero(msg.Recursive), utils.NilIfZero(msg.AllowMissingReferences))
+	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), utils.NilIfZero(msg.Recursive), utils.NilIfZero(msg.AllowMissingReferences))
 	fileDownloadPath, err := downloader.Download()
 	if err != nil {
 		response.ErrorMessage = err.Error()

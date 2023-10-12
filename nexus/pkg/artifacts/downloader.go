@@ -3,12 +3,13 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/nexus/internal/filetransfer"
 	"github.com/wandb/wandb/nexus/internal/gql"
-	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/pkg/env"
 )
 
@@ -17,8 +18,9 @@ const MAX_BACKLOG int = 10000
 
 type ArtifactDownloader struct {
 	// Resources
-	Ctx           context.Context
-	GraphqlClient graphql.Client
+	Ctx             context.Context
+	GraphqlClient   graphql.Client
+	DownloadManager *filetransfer.FileTransferManager
 	//Input
 	QualifiedName          string
 	DownloadRoot           *string
@@ -29,18 +31,20 @@ type ArtifactDownloader struct {
 func NewArtifactDownloader(
 	ctx context.Context,
 	graphQLClient graphql.Client,
-	QualifiedName string,
-	DownloadRoot *string,
-	Recursive *bool,
-	AllowMissingReferences *bool,
+	downloadManager *filetransfer.FileTransferManager,
+	qualifiedName string,
+	downloadRoot *string,
+	recursive *bool,
+	allowMissingReferences *bool,
 ) ArtifactDownloader {
 	return ArtifactDownloader{
 		Ctx:                    ctx,
 		GraphqlClient:          graphQLClient,
-		QualifiedName:          QualifiedName,
-		DownloadRoot:           DownloadRoot,
-		Recursive:              Recursive,
-		AllowMissingReferences: AllowMissingReferences,
+		DownloadManager:        downloadManager,
+		QualifiedName:          qualifiedName,
+		DownloadRoot:           downloadRoot,
+		Recursive:              recursive,
+		AllowMissingReferences: allowMissingReferences,
 	}
 }
 
@@ -97,6 +101,7 @@ func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactB
 	}
 	fmt.Printf("\n\n Artifacts_dir ===> %v \n\n", artifactDir)
 	downloadRoot := filepath.Join(artifactDir, fmt.Sprintf("%s:v%d", sourceArtifactName, *versionIndex))
+
 	// todo: the utils are not tested. are probably incorrect
 	path := CheckExists(downloadRoot)
 	if path == nil {
@@ -115,21 +120,31 @@ func (ad *ArtifactDownloader) getArtifactManifestEntries() (map[string]ManifestE
 	return artifactManifest.Contents, nil
 }
 
+func (ad *ArtifactDownloader) ensureDownloadRootDir() error {
+	fmt.Printf("\n\n baseDir ===> %v \n\n", ad.DownloadRoot)
+	info, err := os.Stat(*ad.DownloadRoot)
+	if err == nil && info.IsDir() {
+		return nil
+	}
+	return os.MkdirAll(*ad.DownloadRoot, 0777)
+}
+
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries map[string]ManifestEntry) error {
 	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
 	batchSize := BATCH_SIZE
 
 	// Change to downloader or file_manager
 	type TaskResult struct {
-		Task *uploader.UploadTask
+		Task *filetransfer.DownloadTask
 		Name string
 	}
 
 	// Fetch URLs and download files in batches
 	numInProgress, numDone := 0, 0
 	nameToScheduledTime := map[string]time.Time{}
-	// taskResultsChan := make(chan TaskResult)
+	taskResultsChan := make(chan TaskResult)
 	manifestEntriesBatch := make([]ManifestEntry, 0, batchSize)
+
 	cursor := ""
 	hasNextPage := true
 	for numDone < len(manifestEntries) {
@@ -173,19 +188,19 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries m
 		fmt.Printf("\nbatch: %v", manifestEntriesBatch)
 		if len(manifestEntriesBatch) > 0 {
 			for _, entry := range manifestEntriesBatch {
-				// name := entry.Digest
+				name := entry.Digest
 				fmt.Printf("\nentry: %v", entry)
 				numInProgress++
-				// Download task
-				// task := &uploader.UploadTask{
-				// 	Path: *entry.LocalPath,
-				// 	Url:  *entry.DownloadURL,
-				// 	CompletionCallback: func(task *uploader.UploadTask) {
-				// 		taskResultsChan <- TaskResult{task, name}
-				// 	},
-				// 	FileType: uploader.ArtifactFile,
-				// }
-				// ad.UploadManager.AddTask(task)
+				// Call function that returns download path?
+				task := &filetransfer.DownloadTask{
+					Path: filepath.Join(*ad.DownloadRoot, "abc"), // change
+					Url:  *entry.DownloadURL,
+					CompletionCallback: func(task *filetransfer.DownloadTask) {
+						taskResultsChan <- TaskResult{task, name}
+					},
+					FileType: filetransfer.ArtifactFile,
+				}
+				ad.DownloadManager.AddTask(task)
 			}
 		}
 		fmt.Printf("\nDebug schedule downloads ===> numInProgress: %d, numDone: %d", numInProgress, numDone)
@@ -194,20 +209,20 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries m
 		for numInProgress > MAX_BACKLOG || (len(manifestEntriesBatch) == 0 && numInProgress > 0) {
 			fmt.Printf("\nInside catch up loop")
 			numInProgress--
-			// result := <-taskResultsChan
-			// if result.Task.Err != nil {
-			// 	// We want to retry when the signed URL expires. However, distinguishing that error from others is not
-			// 	// trivial. As a heuristic, we retry if the request failed more than an hour after we fetched the URL.
-			// 	if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
-			// 		return result.Task.Err
-			// 	}
-			// 	// Todo: This might not work for downloads?
-			// 	delete(nameToScheduledTime, result.Name) // retry
-			// 	continue
-			// }
+			result := <-taskResultsChan
+			if result.Task.Err != nil {
+				// We want to retry when the signed URL expires. However, distinguishing that error from others is not
+				// trivial. As a heuristic, we retry if the request failed more than an hour after we fetched the URL.
+				if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
+					return result.Task.Err
+				}
+				// Todo: This might not work for downloads?
+				delete(nameToScheduledTime, result.Name) // retry
+				continue
+			}
 			numDone++
 		}
-		// break
+		fmt.Printf("\n\nDONE. Debug schedule downloads ===> len_manifest: %d, numInProgress: %d, numDone: %d", len(manifestEntries), numInProgress, numDone)
 	}
 
 	return nil
@@ -224,6 +239,9 @@ func (ad *ArtifactDownloader) Download() (FileDownloadPath string, rerr error) {
 		if err != nil {
 			return "", err
 		}
+	}
+	if err := ad.ensureDownloadRootDir(); err != nil {
+		return "", err
 	}
 	fmt.Printf("\n\n Download root ===> %v \n\n", *ad.DownloadRoot)
 
@@ -245,5 +263,6 @@ func (ad *ArtifactDownloader) Download() (FileDownloadPath string, rerr error) {
 	// if nFiles > 5000 || size > 50*1024*1024 {
 	// 	ad.logger.Info("downloadArtifact: downloading large artifact %s, %d MB, %d files", ad.QualifiedName, size/(1024*1024), nFiles)
 	// }
+	fmt.Printf("\n\nOutside download files ")
 	return "", nil
 }
