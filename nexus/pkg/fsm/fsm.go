@@ -1,43 +1,50 @@
 package fsm
 
-type Fsm[K any] struct {
-	state FsmStateInterface[K]
+type Fsm[T, C any] struct {
+	state FsmStateInterface[T, C]
 }
 
-type FsmTransition[K any] struct {
-	Condition func(K) bool
-	State     FsmStateInterface[K]
-	Action    func(K)
+type FsmTransition[T, C any] struct {
+	Condition func(T) bool
+	State     FsmStateInterface[T, C]
+	Action    func(T)
 }
 
-type FsmState[K any] struct {
-	transitions []*FsmTransition[K]
+type FsmState[T, C any] struct {
+	transitions []*FsmTransition[T, C]
 }
 
-type FsmStateInterface[K any] interface {
-	OnCheck(arg K)
+type FsmStateInterface[T any, C any] interface {
+	OnCheck(arg T)
+	OnEnter(arg T, context C)
+	OnExit(arg T) C
 }
 
-func NewFsm[K any]() *Fsm[K] {
-	return &Fsm[K]{}
+func NewFsm[T any, C any]() *Fsm[T, C] {
+	return &Fsm[T, C]{}
 }
 
-func (f *Fsm[K]) AddState(state FsmStateInterface[K]) {
-	if f.state == nil {
-		f.state = state
+func (f *Fsm[T, C]) SetDefaultState(state FsmStateInterface[T, C]) {
+	if f.state != nil {
+		return
 	}
+	f.state = state
 }
 
-func (f *Fsm[K]) Input(record K) {
+func (f *Fsm[T, C]) AddState(state FsmStateInterface[T, C]) {
+	f.SetDefaultState(state)
+}
+
+func (f *Fsm[T, C]) Input(record T) {
 	if f.state == nil {
 		return
 	}
 	f.state.OnCheck(record)
 }
 
-func (s *FsmState[K]) AddTransition(condition func(K) bool, state FsmStateInterface[K], action func(K)) {
+func (s *FsmState[T, C]) AddTransition(condition func(T) bool, state FsmStateInterface[T, C], action func(T)) {
 	s.transitions = append(s.transitions,
-		&FsmTransition[K]{
+		&FsmTransition[T, C]{
 			Condition: condition,
 			State:     state,
 			Action:    action,

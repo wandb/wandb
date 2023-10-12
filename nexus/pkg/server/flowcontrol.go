@@ -1,27 +1,37 @@
 package server
 
 import (
-	"fmt"
-
 	"github.com/wandb/wandb/nexus/pkg/fsm"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+type FlowControlContext struct {
+	forwardedOffset int64
+	sentOffset int64
+	writtenOffset int64
+}
+
 type FlowControl struct {
 	sendRecord   func(record *service.Record)
 	sendPause    func()
-	stateMachine *fsm.Fsm[*service.Record]
+	stateMachine *fsm.Fsm[*service.Record, *FlowControlContext]
 }
 
 type StateForwarding struct {
-	fsm.FsmState[*service.Record]
+	fsm.FsmState[*service.Record, *FlowControlContext]
 
 	sendRecord func(record *service.Record)
 }
 
 func (s *StateForwarding) OnCheck(record *service.Record) {
-	fmt.Printf("forward input %+v\n", record)
 	s.sendRecord(record)
+}
+
+func (s *StateForwarding) OnEnter(record *service.Record, context *FlowControlContext) {
+}
+
+func (s *StateForwarding) OnExit(record *service.Record) *FlowControlContext {
+	return nil
 }
 
 func (s *StateForwarding) shouldPause(record *service.Record) bool {
@@ -32,10 +42,17 @@ func (s *StateForwarding) doPause(record *service.Record) {
 }
 
 type StatePausing struct {
-	fsm.FsmState[*service.Record]
+	fsm.FsmState[*service.Record, *FlowControlContext]
 }
 
 func (s *StatePausing) OnCheck(record *service.Record) {
+}
+
+func (s *StatePausing) OnEnter(record *service.Record, context *FlowControlContext) {
+}
+
+func (s *StatePausing) OnExit(record *service.Record) *FlowControlContext {
+	return nil
 }
 
 func (s *StatePausing) shouldUnpause(record *service.Record) bool {
@@ -65,7 +82,7 @@ func NewFlowControl(sendRecord func(record *service.Record), sendPause func()) *
 		sendPause:  sendPause,
 	}
 
-	stateMachine := fsm.NewFsm[*service.Record]()
+	stateMachine := fsm.NewFsm[*service.Record, *FlowControlContext]()
 	forwarding := &StateForwarding{
 		sendRecord: sendRecord,
 	}
