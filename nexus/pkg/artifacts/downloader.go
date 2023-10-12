@@ -3,7 +3,6 @@ package artifacts
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -120,15 +119,6 @@ func (ad *ArtifactDownloader) getArtifactManifestEntries() (map[string]ManifestE
 	return artifactManifest.Contents, nil
 }
 
-func (ad *ArtifactDownloader) ensureDownloadRootDir() error {
-	fmt.Printf("\n\n baseDir ===> %v \n\n", ad.DownloadRoot)
-	info, err := os.Stat(*ad.DownloadRoot)
-	if err == nil && info.IsDir() {
-		return nil
-	}
-	return os.MkdirAll(*ad.DownloadRoot, 0777)
-}
-
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries map[string]ManifestEntry) error {
 	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
 	batchSize := BATCH_SIZE
@@ -174,55 +164,47 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries m
 					return err
 				}
 				entry.DownloadURL = &edge.GetNode().DirectUrl
-				if _, ok := nameToScheduledTime[entry.Digest]; ok {
+				if _, ok := nameToScheduledTime[filePath]; ok {
 					continue
 				}
-				nameToScheduledTime[entry.Digest] = now
-				manifestEntriesBatch = append(manifestEntriesBatch, entry)
-			}
-			if len(manifestEntriesBatch) > MAX_BACKLOG {
-				break
-			}
-		}
-		// Schedule downloads
-		fmt.Printf("\nbatch: %v", manifestEntriesBatch)
-		if len(manifestEntriesBatch) > 0 {
-			for _, entry := range manifestEntriesBatch {
-				name := entry.Digest
+				nameToScheduledTime[filePath] = now
+
+				// Schedule download
 				fmt.Printf("\nentry: %v", entry)
 				numInProgress++
 				// Call function that returns download path?
 				task := &filetransfer.DownloadTask{
-					Path: filepath.Join(*ad.DownloadRoot, "abc"), // change
+					Path: filepath.Join(*ad.DownloadRoot, filePath), // change
 					Url:  *entry.DownloadURL,
 					CompletionCallback: func(task *filetransfer.DownloadTask) {
-						taskResultsChan <- TaskResult{task, name}
+						taskResultsChan <- TaskResult{task, filePath}
 					},
 					FileType: filetransfer.ArtifactFile,
 				}
 				ad.DownloadManager.AddTask(task)
+
+				// manifestEntriesBatch = append(manifestEntriesBatch, entry)
 			}
+			// Wait for downloader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
+			for numInProgress > MAX_BACKLOG || (len(manifestEntriesBatch) == 0 && numInProgress > 0) {
+				fmt.Printf("\nInside catch up loop")
+				numInProgress--
+				result := <-taskResultsChan
+				if result.Task.Err != nil {
+					// We want to retry when the signed URL expires. However, distinguishing that error from others is not
+					// trivial. As a heuristic, we retry if the request failed more than an hour after we fetched the URL.
+					if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
+						return result.Task.Err
+					}
+					// Todo: This might not work for downloads?
+					delete(nameToScheduledTime, result.Name) // retry
+					continue
+				}
+				numDone++
+			}
+			fmt.Printf("\n\nDONE. Debug schedule downloads ===> len_manifest: %d, numInProgress: %d, numDone: %d", len(manifestEntries), numInProgress, numDone)
 		}
 		fmt.Printf("\nDebug schedule downloads ===> numInProgress: %d, numDone: %d", numInProgress, numDone)
-
-		// Wait for downloader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
-		for numInProgress > MAX_BACKLOG || (len(manifestEntriesBatch) == 0 && numInProgress > 0) {
-			fmt.Printf("\nInside catch up loop")
-			numInProgress--
-			result := <-taskResultsChan
-			if result.Task.Err != nil {
-				// We want to retry when the signed URL expires. However, distinguishing that error from others is not
-				// trivial. As a heuristic, we retry if the request failed more than an hour after we fetched the URL.
-				if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
-					return result.Task.Err
-				}
-				// Todo: This might not work for downloads?
-				delete(nameToScheduledTime, result.Name) // retry
-				continue
-			}
-			numDone++
-		}
-		fmt.Printf("\n\nDONE. Debug schedule downloads ===> len_manifest: %d, numInProgress: %d, numDone: %d", len(manifestEntries), numInProgress, numDone)
 	}
 
 	return nil
@@ -239,9 +221,6 @@ func (ad *ArtifactDownloader) Download() (FileDownloadPath string, rerr error) {
 		if err != nil {
 			return "", err
 		}
-	}
-	if err := ad.ensureDownloadRootDir(); err != nil {
-		return "", err
 	}
 	fmt.Printf("\n\n Download root ===> %v \n\n", *ad.DownloadRoot)
 

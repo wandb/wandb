@@ -1,9 +1,11 @@
 package filetransfer
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -65,10 +67,23 @@ func (ft *DefaultFileTransfer) Upload(task *UploadTask) error {
 	return nil
 }
 
+func (d *DownloadTask) ensureDownloadRootDir() error {
+	baseDir := path.Dir(d.Path)
+	fmt.Printf("\n\n baseDir ===> %v \n\n", baseDir)
+	info, err := os.Stat(baseDir)
+	if err == nil && info.IsDir() {
+		return nil
+	}
+	return os.MkdirAll(baseDir, 0777)
+}
+
 // Download downloads a file from the server
 func (ft *DefaultFileTransfer) Download(task *DownloadTask) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
 	// open the file for reading and defer closing it
+	if err := task.ensureDownloadRootDir(); err != nil {
+		return err
+	}
 	file, err := os.Create(task.Path)
 	if err != nil {
 		return err
