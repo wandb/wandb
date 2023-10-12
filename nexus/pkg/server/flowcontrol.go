@@ -14,8 +14,8 @@ type FlowControlContext struct {
 	writtenOffset int64
 }
 
+
 type FlowControl struct {
-	sendPause    func()
 	stateMachine *fsm.Fsm[*service.Record, *FlowControlContext]
 }
 
@@ -27,11 +27,19 @@ type StateShared struct {
 type StateForwarding struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
 	StateShared
+	sendPause    func()
+	pauseThreshold int64
 }
 
 type StatePausing struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
 	StateShared
+	recoverThreshold int64
+	forwardThreshold int64
+}
+
+func (c FlowControlContext) behindBytes() int64 {
+	return c.forwardedOffset - c.sentOffset
 }
 
 func (s *StateShared) processRecord(record *service.Record) {
@@ -63,10 +71,11 @@ func (s *StateForwarding) OnCheck(record *service.Record) {
 }
 
 func (s *StateForwarding) shouldPause(record *service.Record) bool {
-	return false
+	return s.context.behindBytes() >= s.pauseThreshold
 }
 
 func (s *StateForwarding) doPause(record *service.Record) {
+	// self._pause_marker()
 }
 
 func (s *StatePausing) OnCheck(record *service.Record) {
@@ -95,21 +104,21 @@ func (s *StatePausing) doQuiesce(record *service.Record) {
 }
 
 func NewFlowControl(sendRecord func(record *service.Record), sendPause func()) *FlowControl {
-	flowControl := &FlowControl{
-		sendPause: sendPause,
-	}
+	flowControl := &FlowControl{}
 
 	stateMachine := fsm.NewFsm[*service.Record, *FlowControlContext]()
 	forwarding := &StateForwarding{
 		StateShared: StateShared{
 			sendRecord: sendRecord,
 		},
+		sendPause: sendPause,
 	}
 	pausing := &StatePausing{
 		StateShared: StateShared{
 			sendRecord: sendRecord,
 		},
 	}
+	stateMachine.SetDefaultState(forwarding)
 	stateMachine.AddState(forwarding)
 	stateMachine.AddState(pausing)
 
