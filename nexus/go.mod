@@ -8,6 +8,7 @@ require (
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.4
+	github.com/radovskyb/watcher v1.0.7
 	github.com/shirou/gopsutil/v3 v3.23.6
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/time v0.3.0

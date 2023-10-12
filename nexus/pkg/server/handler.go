@@ -133,6 +133,7 @@ func NewHandler(
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
+
 	// initialize the run metadata from settings
 	h.runMetadata = &service.MetadataRequest{
 		Os:       h.settings.GetXOs().GetValue(),
@@ -175,8 +176,6 @@ loop:
 			h.handleRecord(record)
 		}
 	}
-	h.close()
-	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendResponse(record *service.Record, response *service.Response) {
@@ -188,9 +187,10 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 	h.outChan <- result
 }
 
-func (h *Handler) close() {
+func (h *Handler) Close() {
 	close(h.outChan)
 	close(h.fwdChan)
+	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
@@ -255,6 +255,8 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Tbrecord:
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
+	case *service.Record_UseArtifact:
+		h.handleUseArtifact(record)
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -283,6 +285,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 		return
 	case *service.Request_PollExit:
 		h.handlePollExit(record)
+		return
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
@@ -342,6 +345,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.sendRecord(rec)
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
+		h.fh.Close()
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
 	case service.DeferRequest_END:
@@ -552,6 +556,14 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	runtime := int32(h.timer.Elapsed().Seconds())
 	exit.Runtime = runtime
 
+	// update summary with runtime
+	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
+		{
+			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+		},
+	})
+	h.sendRecord(summaryRecord)
+
 	// send the exit record
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
@@ -566,7 +578,8 @@ func (h *Handler) handleFiles(record *service.Record) {
 	}
 
 	if h.fh == nil {
-		h.fh = NewFileHandler()
+		h.fh = NewFileHandler(h.logger, h.loopbackChan)
+		h.fh.Start()
 	}
 
 	rec := h.fh.Handle(record)
@@ -613,6 +626,10 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
