@@ -48,10 +48,11 @@ def progress_decorator(description: Optional[str] = None):
         @functools.wraps(f)
         def wrapper(self, *args, **kwargs):
             # run_str = f"{src_run.entity}/{src_run.project}/{src_run.id}"
-            if description is None:
-                description = f"{f.__name__}({args=}{kwargs=})"
+            desc = description or None
+            if desc is None:
+                desc = f"{f.__name__}({args=}{kwargs=})"
 
-            t = progress.subsubtask_pbar.add_task(description)
+            t = progress.subsubtask_pbar.add_task(desc)
             result = f(*args, **kwargs)
             progress.subsubtask_pbar.remove_task(t)
             return result
