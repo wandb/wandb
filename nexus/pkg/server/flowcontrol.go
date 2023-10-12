@@ -6,9 +6,12 @@ import (
 )
 
 type FlowControlContext struct {
+	// last offset forwarded to the sender
 	forwardedOffset int64
-	sentOffset      int64
-	writtenOffset   int64
+	// last offset reported by the sender as sent
+	sentOffset int64
+	// last offset written to the transaction log
+	writtenOffset int64
 }
 
 type FlowControl struct {
@@ -18,19 +21,33 @@ type FlowControl struct {
 }
 
 type StateShared struct {
-	context FlowControlContext
+	context    FlowControlContext
+	sendRecord func(record *service.Record)
 }
 
 type StateForwarding struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
 	StateShared
-
-	sendRecord func(record *service.Record)
 }
 
 type StatePausing struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
 	StateShared
+}
+
+func (s *StateShared) processRecord(record *service.Record) {
+	s.context.writtenOffset = record.Control.EndOffset
+	// keep track of sent_offset if this is a status report
+	if req, ok := record.RecordType.(*service.Record_Request); ok {
+		if statusReport, ok := req.Request.RequestType.(*service.Request_StatusReport); ok {
+			s.context.sentOffset = statusReport.StatusReport.SentOffset
+		}
+	}
+}
+
+func (s *StateShared) forwardRecord(record *service.Record) {
+	s.context.forwardedOffset = record.Control.EndOffset
+	s.sendRecord(record)
 }
 
 func (s *StateShared) OnEnter(record *service.Record, context *FlowControlContext) {
@@ -42,7 +59,8 @@ func (s *StateShared) OnExit(record *service.Record) *FlowControlContext {
 }
 
 func (s *StateForwarding) OnCheck(record *service.Record) {
-	s.sendRecord(record)
+	s.processRecord(record)
+	s.forwardRecord(record)
 }
 
 func (s *StateForwarding) shouldPause(record *service.Record) bool {
@@ -53,6 +71,7 @@ func (s *StateForwarding) doPause(record *service.Record) {
 }
 
 func (s *StatePausing) OnCheck(record *service.Record) {
+	s.processRecord(record)
 }
 
 func (s *StatePausing) shouldUnpause(record *service.Record) bool {
@@ -84,7 +103,9 @@ func NewFlowControl(sendRecord func(record *service.Record), sendPause func()) *
 
 	stateMachine := fsm.NewFsm[*service.Record, *FlowControlContext]()
 	forwarding := &StateForwarding{
-		sendRecord: sendRecord,
+		StateShared: StateShared{
+			sendRecord: sendRecord,
+		},
 	}
 	pausing := &StatePausing{}
 	stateMachine.AddState(forwarding)
