@@ -284,9 +284,10 @@ class QueryResolver:
                 "name": "upsert_sweep",
                 "resolver": self.resolve_upsert_sweep,
             },
-            # { "name": "create_artifact",
-            #     "resolver": self.resolve_create_artifact,
-            # },
+            {
+                "name": "create_artifact",
+                "resolver": self.resolve_create_artifact,
+            },
         ]
 
     @staticmethod
@@ -525,8 +526,8 @@ class InjectedResponse:
         # always check the method and url
         ret = self.method == other.method and self.url == other.url
         # use custom_match_fn to check, e.g. the request body content
-        if self.custom_match_fn is not None:
-            ret = ret and self.custom_match_fn(self, other)
+        if ret and self.custom_match_fn is not None:
+            ret = self.custom_match_fn(self, other)
         return ret
 
     def to_dict(self):
