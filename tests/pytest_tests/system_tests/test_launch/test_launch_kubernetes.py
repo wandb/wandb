@@ -40,6 +40,9 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project.job = "testjob"
         project.launch_spec = {"_resume_count": 0}
         project.fill_macros = lambda _: project.resource_args
+        project.queue_name = None
+        project.queue_entity = None
+        project.run_queue_item_id = None
 
         environment = loader.environment_from_config({})
         api = Api()
