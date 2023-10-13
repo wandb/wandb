@@ -126,7 +126,7 @@ func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, 
 }
 
 func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactByNameProjectArtifact) (rerr error) {
-	// set absolute path to source_artifact_name:v{versionIndex} as default root
+	// This sets the absolute path of source_artifact_name:v{versionIndex} as default root
 	sourceArtifactName := artifactAttrs.GetArtifactSequence().Name
 	versionIndex := artifactAttrs.GetVersionIndex()
 	if versionIndex == nil {
@@ -136,10 +136,8 @@ func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactB
 	if err != nil {
 		return err
 	}
-	fmt.Printf("\n\n Artifacts_dir ===> %v \n\n", artifactDir)
 	downloadRoot := filepath.Join(artifactDir, fmt.Sprintf("%s:v%d", sourceArtifactName, *versionIndex))
 
-	// todo: the utils are not tested. are probably incorrect
 	path := CheckExists(downloadRoot)
 	if path == nil {
 		downloadRoot = SystemPreferredPath(downloadRoot, false)
@@ -240,7 +238,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			if len(manifestEntriesBatch) > 0 {
 				for _, entry := range manifestEntriesBatch {
 					numInProgress++
-					// Function that returns download path?
+					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(*ad.DownloadRoot, *entry.LocalPath)
 					task := &filetransfer.DownloadTask{
 						Path: downloadLocalPath, // change
@@ -293,17 +291,19 @@ func (ad *ArtifactDownloader) Download() (FileDownloadPath string, rerr error) {
 	}
 	fmt.Printf("\n\n manifest ===> %v \n\n", artifactManifest)
 
-	nFiles := len(artifactManifest.Contents)
-	fmt.Printf("\n\n manifest size ===> %v \n\n", nFiles)
-	size := 0
-	for _, file := range artifactManifest.Contents {
-		size += int(file.Size)
-	}
+	// todo: Logs??
+	/*
+		nFiles := len(artifactManifest.Contents)
+		fmt.Printf("\n\n manifest size ===> %v \n\n", nFiles)
+		size := 0
+		for _, file := range artifactManifest.Contents {
+			size += int(file.Size)
+		}
+		if nFiles > 5000 || size > 50*1024*1024 {
+			ad.logger.Info("downloadArtifact: downloading large artifact %s, %d MB, %d files", ad.QualifiedName, size/(1024*1024), nFiles)
+		}
+	*/
 
 	ad.downloadFiles(artifactAttrs.Id, artifactManifest)
-	// todo: ArtifactDownloadLogger??
-	// if nFiles > 5000 || size > 50*1024*1024 {
-	// 	ad.logger.Info("downloadArtifact: downloading large artifact %s, %d MB, %d files", ad.QualifiedName, size/(1024*1024), nFiles)
-	// }
-	return "", nil
+	return *ad.DownloadRoot, nil
 }

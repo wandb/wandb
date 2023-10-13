@@ -12,7 +12,7 @@ import (
 )
 
 func parseArtifactQualifiedName(name string) (entityName string, projectName string, artifactName string, rerr error) {
-	// todo: fix parsing; default project and entity
+	// todo: default/run project and entity?
 	projectName = "uncategorized"
 	entityName = ""
 	if name == "" {
@@ -30,6 +30,7 @@ func parseArtifactQualifiedName(name string) (entityName string, projectName str
 	return parts[0], parts[1], parts[2], nil
 }
 
+// todo: needs testing
 // filesystem utils - need to move?
 func GetPathFallbacks(path string) (pathFallbacks []string) {
 	// https://en.wikipedia.org/wiki/Filename#Comparison_of_filename_limitations
@@ -39,7 +40,6 @@ func GetPathFallbacks(path string) (pathFallbacks []string) {
 	}
 	charsBuilder.WriteString(`:"*<>?|`)
 	PROBLEMATIC_PATH_CHARS := charsBuilder.String()
-	// todo: check this split. this gives dir and file, not drive and path
 	root := filepath.VolumeName(path)
 	tail := path[len(root):]
 	fmt.Println("\n\npath fallbacks root %s; tail %s", root, tail)
@@ -57,19 +57,17 @@ func CheckExists(path string) *string {
 	for _, dest := range GetPathFallbacks(path) {
 		_, err := os.Stat(dest)
 		if err == nil {
-			// Path exists
 			return &dest
 		}
 	}
 	return nil
 }
 
-// todo: fix function.
+// todo: needs testing
 func SystemPreferredPath(path string, warn bool) string {
 	if runtime.GOOS != "windows" {
 		return path
 	}
-	// todo: check this split. this gives dir and file, not drive and path
 	head := filepath.VolumeName(path)
 	tail := path[len(head):]
 	if warn && strings.Contains(tail, ":") {
