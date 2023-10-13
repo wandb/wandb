@@ -388,13 +388,14 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 		}
 		target[keyList[len(keyList)-1]] = value
 	}
+	var keyNotFound bool
 	for _, d := range configRecord.GetRemove() {
 		keyList := d.GetNestedKey()
 		if keyList == nil {
 			keyList = []string{d.GetKey()}
 		}
 		target := s.configMap
-		keyNotFound := false
+		keyNotFound = false
 		for _, k := range keyList[:len(keyList)-1] {
 			val, ok := target[k].(map[string]interface{})
 			if !ok {
