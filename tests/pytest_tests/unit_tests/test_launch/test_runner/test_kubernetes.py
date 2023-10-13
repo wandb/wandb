@@ -292,7 +292,7 @@ def mock_event_streams(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.monitor.kubernetes_monitor.SafeWatch.stream",
+        "wandb.sdk.launch.runner.kubernetes_monitor.SafeWatch.stream",
         _select_stream,
     )
     return job_stream, pod_stream
@@ -428,13 +428,13 @@ async def test_launch_kube_works(
             {
                 "type": "ADDED",
                 "object": {
-                    "metadata": {"name": "test-pod"},
+                    "metadata": {"labels": {"job-name": "test-job"}},
                     "status": {"phase": "Pending"},
                 },
             }
         )
     )
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.1)
     assert str(await submitted_run.get_status()) == "unknown"
     await pod_stream.add(
         MockDict(
@@ -458,7 +458,7 @@ async def test_launch_kube_works(
             }
         )
     )
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.1)
     assert str(await submitted_run.get_status()) == "running"
     await job_stream.add(
         MockDict(
@@ -471,7 +471,7 @@ async def test_launch_kube_works(
             }
         )
     )
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.1)
     assert str(await submitted_run.get_status()) == "finished"
     assert mock_create_from_yaml.call_count == 1
     submitted_manifest = mock_create_from_yaml.call_args_list[0][0][1]

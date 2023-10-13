@@ -1,6 +1,7 @@
 """Monitors kubernetes resources managed by the launch agent."""
 import asyncio
 import logging
+import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import kubernetes_asyncio  # type: ignore # noqa: F401
@@ -64,8 +65,12 @@ _logger = logging.getLogger(__name__)
 
 def _task_callback(task: asyncio.Task) -> None:
     """Callback to log exceptions from tasks."""
-    if task.exception() is not None:
-        _logger.error(f"Exception in task {task.get_name()}: {task.exception()}")
+    exec = task.exception()
+    if exec is not None:
+        wandb.termerror(f"Exception in task {task.get_name()}")
+        tb = exec.__traceback__
+        tb_str = "".join(traceback.format_tb(tb))
+        wandb.termerror(tb_str)
 
 
 def _is_preempted(status: "V1PodStatus") -> bool:
