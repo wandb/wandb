@@ -5,6 +5,8 @@ use std::{
 };
 
 use prost::Message;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 
 use crate::wandb_internal::{self, Settings};
 
@@ -25,6 +27,20 @@ struct Header {
     data_length: u32,
 }
 
+fn generate_run_id(run_id: Option<String>) -> String {
+    match run_id {
+        Some(id) => id,
+        None => {
+            let rand_string: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(6)
+                .map(char::from)
+                .collect();
+            rand_string
+        }
+    }
+}
+
 impl Session {
     pub fn new(settings: Settings, addr: String) -> Session {
         let session = Session { settings, addr };
@@ -38,8 +54,6 @@ impl Session {
     fn connect(&self) -> TcpStream {
         println!("Connecting to {}", self.addr);
 
-        // let stream = TcpStream::connect(&self.addr).unwrap();
-
         if let Ok(stream) = TcpStream::connect(&self.addr) {
             println!("{}", stream.peer_addr().unwrap());
             println!("{}", stream.local_addr().unwrap());
@@ -49,24 +63,15 @@ impl Session {
             println!("Couldn't connect to server...");
             panic!();
         }
-
-        // let mut buffer = [0u8; 1024];
-        // match stream.read(&mut buffer) {
-        //     Ok(size) => {
-        //         let response = String::from_utf8_lossy(&buffer[..size]);
-        //         println!("Received from server: {}", response);
-        //     }
-        //     Err(e) => {
-        //         eprintln!("Error reading from socket: {}", e);
-        //     }
-        // }
     }
 
     pub fn new_run(&self, run_id: Option<String>) -> Run {
-        println!("Creating new run");
+        // generate a random alphnumeric string of length 6 if run_id is None:
+        let run_id = generate_run_id(run_id);
+        println!("Creating new run {}", run_id);
 
         let run = Run {
-            id: run_id.unwrap_or("a1b2c3".to_string()),
+            id: run_id,
             settings: self.settings.clone(),
             stream: self.connect(),
         };
@@ -77,26 +82,10 @@ impl Session {
 }
 
 impl Run {
-    fn init(&self) {
-        println!("Initializing run {}", self.id);
-
-        let server_inform_init_request = wandb_internal::ServerRequest {
-            server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::InformInit(
-                    wandb_internal::ServerInformInitRequest {
-                        settings: Some(self.settings.clone()),
-                        info: Some(wandb_internal::RecordInfo {
-                            stream_id: self.id.clone(),
-                            ..Default::default()
-                        }),
-                    },
-                ),
-            ),
-        };
-
-        // marshal the protobuf
+    fn send_message(&self, message: &wandb_internal::ServerRequest) {
+        // marshal the protobuf message
         let mut buf = Vec::new();
-        server_inform_init_request.encode(&mut buf).unwrap();
+        message.encode(&mut buf).unwrap();
 
         // let c = vec![];  // Placeholder for some kind of Write implementation, e.g., a TCP stream
         let mut writer = BufWriter::with_capacity(16384, &self.stream);
@@ -114,6 +103,54 @@ impl Run {
 
         // Write the protobuf to the writer
         writer.write_all(&buf).unwrap();
+    }
+
+    fn init(&self) {
+        println!("Initializing run {}", self.id);
+
+        let server_inform_init_request = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::InformInit(
+                    wandb_internal::ServerInformInitRequest {
+                        settings: Some(self.settings.clone()),
+                        info: Some(wandb_internal::RecordInfo {
+                            stream_id: self.id.clone(),
+                            ..Default::default()
+                        }),
+                    },
+                ),
+            ),
+        };
+
+        self.send_message(&server_inform_init_request);
+
+        let server_publish_run = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Run(
+                wandb_internal::RunRecord {
+                    run_id: self.id.clone(),
+                    // display_name: "gooba-gaba".to_string(),
+                    info: Some(wandb_internal::RecordInfo {
+                        stream_id: self.id.clone(),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id.clone(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let server_publish_run_request = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::RecordPublish(
+                    server_publish_run,
+                ),
+            ),
+        };
+
+        self.send_message(&server_publish_run_request);
     }
 
     pub fn log(&self) {
