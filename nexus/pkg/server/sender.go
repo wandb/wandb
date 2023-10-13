@@ -411,6 +411,7 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 }
 
 // updateConfigPrivate updates the private part of the config map
+// TODO: this should probably be removed and we should only have config messages
 func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
 	v := s.configMap["_wandb"].(map[string]interface{})
 	if telemetry.GetCliVersion() != "" {
