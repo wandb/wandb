@@ -2,7 +2,10 @@ package artifacts
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"path/filepath"
 	"time"
 
@@ -25,6 +28,7 @@ type ArtifactDownloader struct {
 	DownloadRoot           *string
 	Recursive              *bool
 	AllowMissingReferences *bool
+	UpstreamArtifacts      []gql.ArtifactByIDArtifact
 }
 
 func NewArtifactDownloader(
@@ -44,6 +48,7 @@ func NewArtifactDownloader(
 		DownloadRoot:           downloadRoot,
 		Recursive:              recursive,
 		AllowMissingReferences: allowMissingReferences,
+		UpstreamArtifacts:      []gql.ArtifactByIDArtifact{},
 	}
 }
 
@@ -66,6 +71,29 @@ func (ad *ArtifactDownloader) getArtifact() (attrs gql.ArtifactByNameProjectArti
 	return *response.GetProject().GetArtifact(), nil
 }
 
+func loadManifestFromURL(url string) (Manifest, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return Manifest{}, err
+	}
+	defer resp.Body.Close()
+	manifest := Manifest{}
+	if resp.StatusCode == http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return Manifest{}, fmt.Errorf("Error reading response body: %v\n", err)
+		}
+		fmt.Printf("\n\n Manifest response %v", string(body))
+		err = json.Unmarshal(body, &manifest)
+		if err != nil {
+			return Manifest{}, nil
+		}
+	} else {
+		return Manifest{}, fmt.Errorf("Request to get manifest from url failed with status code: %d\n", resp.StatusCode)
+	}
+	return manifest, nil
+}
+
 func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, rerr error) {
 	entityName, projectName, artifactName, err := parseArtifactQualifiedName(ad.QualifiedName)
 	if err != nil {
@@ -81,10 +109,20 @@ func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, 
 	if err != nil {
 		return Manifest{}, err
 	} else if response == nil {
-		return Manifest{}, fmt.Errorf("Could not get manifest from server")
+		return Manifest{}, fmt.Errorf("Could not get manifest for artifact %s", ad.QualifiedName)
 	}
 	directURL := response.GetProject().GetArtifact().GetCurrentManifest().GetFile().DirectUrl
-	return loadManifestFromURL(directURL)
+	manifest, err := loadManifestFromURL(directURL)
+	if err != nil {
+		return Manifest{}, err
+	}
+
+	// Set upstream artifacts, if any
+	err = ad.setUpstreamArtifacts(manifest)
+	if err != nil {
+		return Manifest{}, err
+	}
+	return manifest, nil
 }
 
 func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactByNameProjectArtifact) (rerr error) {
@@ -110,38 +148,58 @@ func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactB
 	return nil
 }
 
-func (ad *ArtifactDownloader) getArtifactManifestEntries() (map[string]ManifestEntry, error) {
-	artifactManifest, err := ad.getArtifactManifest()
-	if err != nil {
-		return map[string]ManifestEntry{}, err
+func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
+	fmt.Printf("\n\n manifest ===> %v \n\n", manifest)
+	for _, entry := range manifest.Contents {
+		referencedID, err := getReferencedID(entry.Ref)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\n\n referenced id ===> %v \n\n", *referencedID)
+		if referencedID != nil {
+			response, err := gql.ArtifactByID(
+				ad.Ctx,
+				ad.GraphqlClient,
+				*referencedID,
+			)
+			if err != nil {
+				return err
+			} else if response == nil {
+				return fmt.Errorf("Could not get artifact by id for reference %s", *entry.Ref)
+			}
+			depArtifact := response.GetArtifact()
+			if depArtifact != nil {
+				ad.UpstreamArtifacts = append(ad.UpstreamArtifacts, *depArtifact)
+			}
+		}
 	}
-	fmt.Printf("\n\n manifest ===> %v \n\n", artifactManifest)
-	return artifactManifest.Contents, nil
+	fmt.Printf("\nUpstream artifacts ===> %v\n\n", ad.UpstreamArtifacts)
+	return nil
 }
 
-func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries map[string]ManifestEntry) error {
+func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
 	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
 	batchSize := BATCH_SIZE
 
-	// Change to downloader or file_manager
 	type TaskResult struct {
 		Task *filetransfer.DownloadTask
 		Name string
 	}
 
 	// Fetch URLs and download files in batches
+	manifestEntries := manifest.Contents
 	numInProgress, numDone := 0, 0
 	nameToScheduledTime := map[string]time.Time{}
 	taskResultsChan := make(chan TaskResult)
 	manifestEntriesBatch := make([]ManifestEntry, 0, batchSize)
 
-	cursor := ""
-	hasNextPage := true
 	for numDone < len(manifestEntries) {
-		// Prepare a batch
-		now := time.Now()
-		manifestEntriesBatch = manifestEntriesBatch[:0]
+		cursor := ""
+		hasNextPage := true
 		for hasNextPage {
+			// Prepare a batch
+			now := time.Now()
+			manifestEntriesBatch = manifestEntriesBatch[:0]
 			response, err := gql.ArtifactFileURLs(
 				ad.Ctx,
 				ad.GraphqlClient,
@@ -159,35 +217,44 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries m
 			fmt.Printf("\nFetchFileURLs ===> hasNextPage: %v, cursor: %v", hasNextPage, cursor)
 			for _, edge := range response.GetArtifact().GetFiles().Edges {
 				filePath := edge.GetNode().Name
-				entry, err := getManifestEntryFromArtifactFilePath(manifestEntries, filePath)
+				entry, err := manifest.GetManifestEntryFromArtifactFilePath(filePath)
 				if err != nil {
 					return err
 				}
-				entry.DownloadURL = &edge.GetNode().DirectUrl
-				if _, ok := nameToScheduledTime[filePath]; ok {
+				if entry.Ref != nil {
+					// skip reference downloads for now
+					numDone++
 					continue
 				}
-				nameToScheduledTime[filePath] = now
-
-				// Schedule download
-				fmt.Printf("\nentry: %v", entry)
-				numInProgress++
-				// Call function that returns download path?
-				task := &filetransfer.DownloadTask{
-					Path: filepath.Join(*ad.DownloadRoot, filePath), // change
-					Url:  *entry.DownloadURL,
-					CompletionCallback: func(task *filetransfer.DownloadTask) {
-						taskResultsChan <- TaskResult{task, filePath}
-					},
-					FileType: filetransfer.ArtifactFile,
+				entry.DownloadURL = &edge.GetNode().DirectUrl
+				entry.LocalPath = &filePath
+				if _, ok := nameToScheduledTime[*entry.LocalPath]; ok {
+					continue
 				}
-				ad.DownloadManager.AddTask(task)
+				nameToScheduledTime[*entry.LocalPath] = now
+				fmt.Printf("\nentry: %v", entry)
+				manifestEntriesBatch = append(manifestEntriesBatch, entry)
+			}
 
-				// manifestEntriesBatch = append(manifestEntriesBatch, entry)
+			// Schedule downloads
+			if len(manifestEntriesBatch) > 0 {
+				for _, entry := range manifestEntriesBatch {
+					numInProgress++
+					// Function that returns download path?
+					downloadLocalPath := filepath.Join(*ad.DownloadRoot, *entry.LocalPath)
+					task := &filetransfer.DownloadTask{
+						Path: downloadLocalPath, // change
+						Url:  *entry.DownloadURL,
+						CompletionCallback: func(task *filetransfer.DownloadTask) {
+							taskResultsChan <- TaskResult{task, *entry.LocalPath}
+						},
+						FileType: filetransfer.ArtifactFile,
+					}
+					ad.DownloadManager.AddTask(task)
+				}
 			}
 			// Wait for downloader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
 			for numInProgress > MAX_BACKLOG || (len(manifestEntriesBatch) == 0 && numInProgress > 0) {
-				fmt.Printf("\nInside catch up loop")
 				numInProgress--
 				result := <-taskResultsChan
 				if result.Task.Err != nil {
@@ -196,17 +263,13 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifestEntries m
 					if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
 						return result.Task.Err
 					}
-					// Todo: This might not work for downloads?
 					delete(nameToScheduledTime, result.Name) // retry
 					continue
 				}
 				numDone++
 			}
-			fmt.Printf("\n\nDONE. Debug schedule downloads ===> len_manifest: %d, numInProgress: %d, numDone: %d", len(manifestEntries), numInProgress, numDone)
 		}
-		fmt.Printf("\nDebug schedule downloads ===> numInProgress: %d, numDone: %d", numInProgress, numDone)
 	}
-
 	return nil
 }
 
@@ -224,24 +287,23 @@ func (ad *ArtifactDownloader) Download() (FileDownloadPath string, rerr error) {
 	}
 	fmt.Printf("\n\n Download root ===> %v \n\n", *ad.DownloadRoot)
 
-	artifactManifestEntries, err := ad.getArtifactManifestEntries()
+	artifactManifest, err := ad.getArtifactManifest()
 	if err != nil {
 		return "", err
 	}
-	fmt.Printf("\n\n manifest ===> %v \n\n", artifactManifestEntries)
+	fmt.Printf("\n\n manifest ===> %v \n\n", artifactManifest)
 
-	nFiles := len(artifactManifestEntries)
+	nFiles := len(artifactManifest.Contents)
 	fmt.Printf("\n\n manifest size ===> %v \n\n", nFiles)
 	size := 0
-	for _, file := range artifactManifestEntries {
+	for _, file := range artifactManifest.Contents {
 		size += int(file.Size)
 	}
 
-	ad.downloadFiles(artifactAttrs.Id, artifactManifestEntries)
-	// todo: ArtifactDownloadLogger
+	ad.downloadFiles(artifactAttrs.Id, artifactManifest)
+	// todo: ArtifactDownloadLogger??
 	// if nFiles > 5000 || size > 50*1024*1024 {
 	// 	ad.logger.Info("downloadArtifact: downloading large artifact %s, %d MB, %d files", ad.QualifiedName, size/(1024*1024), nFiles)
 	// }
-	fmt.Printf("\n\nOutside download files ")
 	return "", nil
 }

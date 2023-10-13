@@ -29,6 +29,352 @@ func (v *ArtifactAliasInput) GetArtifactCollectionName() string { return v.Artif
 // GetAlias returns ArtifactAliasInput.Alias, and is useful for accessing the field via an interface.
 func (v *ArtifactAliasInput) GetAlias() string { return v.Alias }
 
+// ArtifactByIDArtifact includes the requested fields of the GraphQL type Artifact.
+type ArtifactByIDArtifact struct {
+	Id                 string                                               `json:"id"`
+	ArtifactSequence   ArtifactByIDArtifactArtifactSequence                 `json:"artifactSequence"`
+	VersionIndex       *int                                                 `json:"versionIndex"`
+	ArtifactType       ArtifactByIDArtifactArtifactType                     `json:"artifactType"`
+	Description        *string                                              `json:"description"`
+	Metadata           *string                                              `json:"metadata"`
+	TtlDurationSeconds int64                                                `json:"ttlDurationSeconds"`
+	TtlIsInherited     bool                                                 `json:"ttlIsInherited"`
+	Aliases            []ArtifactByIDArtifactAliasesArtifactAlias           `json:"aliases"`
+	State              ArtifactState                                        `json:"state"`
+	CommitHash         *string                                              `json:"commitHash"`
+	FileCount          int64                                                `json:"fileCount"`
+	CurrentManifest    *ArtifactByIDArtifactCurrentManifestArtifactManifest `json:"currentManifest"`
+}
+
+// GetId returns ArtifactByIDArtifact.Id, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetId() string { return v.Id }
+
+// GetArtifactSequence returns ArtifactByIDArtifact.ArtifactSequence, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetArtifactSequence() ArtifactByIDArtifactArtifactSequence {
+	return v.ArtifactSequence
+}
+
+// GetVersionIndex returns ArtifactByIDArtifact.VersionIndex, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetVersionIndex() *int { return v.VersionIndex }
+
+// GetArtifactType returns ArtifactByIDArtifact.ArtifactType, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetArtifactType() ArtifactByIDArtifactArtifactType {
+	return v.ArtifactType
+}
+
+// GetDescription returns ArtifactByIDArtifact.Description, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetDescription() *string { return v.Description }
+
+// GetMetadata returns ArtifactByIDArtifact.Metadata, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetMetadata() *string { return v.Metadata }
+
+// GetTtlDurationSeconds returns ArtifactByIDArtifact.TtlDurationSeconds, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetTtlDurationSeconds() int64 { return v.TtlDurationSeconds }
+
+// GetTtlIsInherited returns ArtifactByIDArtifact.TtlIsInherited, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetTtlIsInherited() bool { return v.TtlIsInherited }
+
+// GetAliases returns ArtifactByIDArtifact.Aliases, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetAliases() []ArtifactByIDArtifactAliasesArtifactAlias {
+	return v.Aliases
+}
+
+// GetState returns ArtifactByIDArtifact.State, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetState() ArtifactState { return v.State }
+
+// GetCommitHash returns ArtifactByIDArtifact.CommitHash, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetCommitHash() *string { return v.CommitHash }
+
+// GetFileCount returns ArtifactByIDArtifact.FileCount, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetFileCount() int64 { return v.FileCount }
+
+// GetCurrentManifest returns ArtifactByIDArtifact.CurrentManifest, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifact) GetCurrentManifest() *ArtifactByIDArtifactCurrentManifestArtifactManifest {
+	return v.CurrentManifest
+}
+
+// ArtifactByIDArtifactAliasesArtifactAlias includes the requested fields of the GraphQL type ArtifactAlias.
+type ArtifactByIDArtifactAliasesArtifactAlias struct {
+	ArtifactCollection *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection `json:"-"`
+	Alias              string                                                      `json:"alias"`
+}
+
+// GetArtifactCollection returns ArtifactByIDArtifactAliasesArtifactAlias.ArtifactCollection, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAlias) GetArtifactCollection() *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection {
+	return v.ArtifactCollection
+}
+
+// GetAlias returns ArtifactByIDArtifactAliasesArtifactAlias.Alias, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAlias) GetAlias() string { return v.Alias }
+
+func (v *ArtifactByIDArtifactAliasesArtifactAlias) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*ArtifactByIDArtifactAliasesArtifactAlias
+		ArtifactCollection json.RawMessage `json:"artifactCollection"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.ArtifactByIDArtifactAliasesArtifactAlias = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.ArtifactCollection
+		src := firstPass.ArtifactCollection
+		if len(src) != 0 && string(src) != "null" {
+			*dst = new(ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection)
+			err = __unmarshalArtifactByIDArtifactAliasesArtifactAliasArtifactCollection(
+				src, *dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal ArtifactByIDArtifactAliasesArtifactAlias.ArtifactCollection: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalArtifactByIDArtifactAliasesArtifactAlias struct {
+	ArtifactCollection json.RawMessage `json:"artifactCollection"`
+
+	Alias string `json:"alias"`
+}
+
+func (v *ArtifactByIDArtifactAliasesArtifactAlias) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *ArtifactByIDArtifactAliasesArtifactAlias) __premarshalJSON() (*__premarshalArtifactByIDArtifactAliasesArtifactAlias, error) {
+	var retval __premarshalArtifactByIDArtifactAliasesArtifactAlias
+
+	{
+
+		dst := &retval.ArtifactCollection
+		src := v.ArtifactCollection
+		if src != nil {
+			var err error
+			*dst, err = __marshalArtifactByIDArtifactAliasesArtifactAliasArtifactCollection(
+				src)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"unable to marshal ArtifactByIDArtifactAliasesArtifactAlias.ArtifactCollection: %w", err)
+			}
+		}
+	}
+	retval.Alias = v.Alias
+	return &retval, nil
+}
+
+// ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection includes the requested fields of the GraphQL interface ArtifactCollection.
+//
+// ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection is implemented by the following types:
+// ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio
+// ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence
+type ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection interface {
+	implementsGraphQLInterfaceArtifactByIDArtifactAliasesArtifactAliasArtifactCollection()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() *string
+	// GetProject returns the interface-field "project" from its implementation.
+	GetProject() ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject
+	// GetName returns the interface-field "name" from its implementation.
+	GetName() string
+}
+
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio) implementsGraphQLInterfaceArtifactByIDArtifactAliasesArtifactAliasArtifactCollection() {
+}
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence) implementsGraphQLInterfaceArtifactByIDArtifactAliasesArtifactAliasArtifactCollection() {
+}
+
+func __unmarshalArtifactByIDArtifactAliasesArtifactAliasArtifactCollection(b []byte, v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "ArtifactPortfolio":
+		*v = new(ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio)
+		return json.Unmarshal(b, *v)
+	case "ArtifactSequence":
+		*v = new(ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing ArtifactCollection.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalArtifactByIDArtifactAliasesArtifactAliasArtifactCollection(v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio:
+		typename = "ArtifactPortfolio"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio
+		}{typename, v}
+		return json.Marshal(result)
+	case *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence:
+		typename = "ArtifactSequence"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for ArtifactByIDArtifactAliasesArtifactAliasArtifactCollection: "%T"`, v)
+	}
+}
+
+// ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio includes the requested fields of the GraphQL type ArtifactPortfolio.
+type ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio struct {
+	Typename *string                                                           `json:"__typename"`
+	Project  ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject `json:"project"`
+	Name     string                                                            `json:"name"`
+}
+
+// GetTypename returns ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio.Typename, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio) GetTypename() *string {
+	return v.Typename
+}
+
+// GetProject returns ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio.Project, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio) GetProject() ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject {
+	return v.Project
+}
+
+// GetName returns ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactPortfolio) GetName() string {
+	return v.Name
+}
+
+// ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence includes the requested fields of the GraphQL type ArtifactSequence.
+type ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence struct {
+	Typename *string                                                           `json:"__typename"`
+	Project  ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject `json:"project"`
+	Name     string                                                            `json:"name"`
+}
+
+// GetTypename returns ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence.Typename, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence) GetTypename() *string {
+	return v.Typename
+}
+
+// GetProject returns ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence.Project, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence) GetProject() ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject {
+	return v.Project
+}
+
+// GetName returns ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionArtifactSequence) GetName() string {
+	return v.Name
+}
+
+// ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject includes the requested fields of the GraphQL type Project.
+type ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject struct {
+	EntityName string `json:"entityName"`
+	Name       string `json:"name"`
+}
+
+// GetEntityName returns ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject.EntityName, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject) GetEntityName() string {
+	return v.EntityName
+}
+
+// GetName returns ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactAliasesArtifactAliasArtifactCollectionProject) GetName() string {
+	return v.Name
+}
+
+// ArtifactByIDArtifactArtifactSequence includes the requested fields of the GraphQL type ArtifactSequence.
+type ArtifactByIDArtifactArtifactSequence struct {
+	Project ArtifactByIDArtifactArtifactSequenceProject `json:"project"`
+	Name    string                                      `json:"name"`
+}
+
+// GetProject returns ArtifactByIDArtifactArtifactSequence.Project, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactArtifactSequence) GetProject() ArtifactByIDArtifactArtifactSequenceProject {
+	return v.Project
+}
+
+// GetName returns ArtifactByIDArtifactArtifactSequence.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactArtifactSequence) GetName() string { return v.Name }
+
+// ArtifactByIDArtifactArtifactSequenceProject includes the requested fields of the GraphQL type Project.
+type ArtifactByIDArtifactArtifactSequenceProject struct {
+	EntityName string `json:"entityName"`
+	Name       string `json:"name"`
+}
+
+// GetEntityName returns ArtifactByIDArtifactArtifactSequenceProject.EntityName, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactArtifactSequenceProject) GetEntityName() string { return v.EntityName }
+
+// GetName returns ArtifactByIDArtifactArtifactSequenceProject.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactArtifactSequenceProject) GetName() string { return v.Name }
+
+// ArtifactByIDArtifactArtifactType includes the requested fields of the GraphQL type ArtifactType.
+type ArtifactByIDArtifactArtifactType struct {
+	Name string `json:"name"`
+}
+
+// GetName returns ArtifactByIDArtifactArtifactType.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactArtifactType) GetName() string { return v.Name }
+
+// ArtifactByIDArtifactCurrentManifestArtifactManifest includes the requested fields of the GraphQL type ArtifactManifest.
+type ArtifactByIDArtifactCurrentManifestArtifactManifest struct {
+	File ArtifactByIDArtifactCurrentManifestArtifactManifestFile `json:"file"`
+}
+
+// GetFile returns ArtifactByIDArtifactCurrentManifestArtifactManifest.File, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactCurrentManifestArtifactManifest) GetFile() ArtifactByIDArtifactCurrentManifestArtifactManifestFile {
+	return v.File
+}
+
+// ArtifactByIDArtifactCurrentManifestArtifactManifestFile includes the requested fields of the GraphQL type File.
+type ArtifactByIDArtifactCurrentManifestArtifactManifestFile struct {
+	DirectUrl string `json:"directUrl"`
+}
+
+// GetDirectUrl returns ArtifactByIDArtifactCurrentManifestArtifactManifestFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDArtifactCurrentManifestArtifactManifestFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// ArtifactByIDResponse is returned by ArtifactByID on success.
+type ArtifactByIDResponse struct {
+	Artifact *ArtifactByIDArtifact `json:"artifact"`
+}
+
+// GetArtifact returns ArtifactByIDResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *ArtifactByIDResponse) GetArtifact() *ArtifactByIDArtifact { return v.Artifact }
+
 // ArtifactByNameProject includes the requested fields of the GraphQL type Project.
 type ArtifactByNameProject struct {
 	Artifact *ArtifactByNameProjectArtifact `json:"artifact"`
@@ -1138,6 +1484,14 @@ func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity) GetName
 	return v.Name
 }
 
+// __ArtifactByIDInput is used internally by genqlient
+type __ArtifactByIDInput struct {
+	Id string `json:"id"`
+}
+
+// GetId returns __ArtifactByIDInput.Id, and is useful for accessing the field via an interface.
+func (v *__ArtifactByIDInput) GetId() string { return v.Id }
+
 // __ArtifactByNameInput is used internally by genqlient
 type __ArtifactByNameInput struct {
 	EntityName  string `json:"entityName"`
@@ -1511,6 +1865,75 @@ func (v *__UseArtifactInput) GetRunName() string { return v.RunName }
 
 // GetArtifactID returns __UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
 func (v *__UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// The query or mutation executed by ArtifactByID.
+const ArtifactByID_Operation = `
+query ArtifactByID ($id: ID!) {
+	artifact(id: $id) {
+		id
+		artifactSequence {
+			project {
+				entityName
+				name
+			}
+			name
+		}
+		versionIndex
+		artifactType {
+			name
+		}
+		description
+		metadata
+		ttlDurationSeconds
+		ttlIsInherited
+		aliases {
+			artifactCollection {
+				__typename
+				project {
+					entityName
+					name
+				}
+				name
+			}
+			alias
+		}
+		state
+		commitHash
+		fileCount
+		currentManifest {
+			file {
+				directUrl
+			}
+		}
+	}
+}
+`
+
+func ArtifactByID(
+	ctx context.Context,
+	client graphql.Client,
+	id string,
+) (*ArtifactByIDResponse, error) {
+	req := &graphql.Request{
+		OpName: "ArtifactByID",
+		Query:  ArtifactByID_Operation,
+		Variables: &__ArtifactByIDInput{
+			Id: id,
+		},
+	}
+	var err error
+
+	var data ArtifactByIDResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
 
 // The query or mutation executed by ArtifactByName.
 const ArtifactByName_Operation = `

@@ -35,8 +35,8 @@ query ArtifactByName(
             commitHash
             fileCount
             # causing parse issues
-            #createdAt
-            #updatedAt
+            # createdAt
+            # updatedAt
         }
     }
 }

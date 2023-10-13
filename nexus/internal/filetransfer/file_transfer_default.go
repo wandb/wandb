@@ -79,8 +79,7 @@ func (d *DownloadTask) ensureDownloadRootDir() error {
 
 // Download downloads a file from the server
 func (ft *DefaultFileTransfer) Download(task *DownloadTask) error {
-	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
-	// open the file for reading and defer closing it
+	// Skip downloading the file if it already exists
 	if err := task.ensureDownloadRootDir(); err != nil {
 		return err
 	}

@@ -2,10 +2,13 @@ package artifacts
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/wandb/wandb/nexus/pkg/utils"
 )
 
 func parseArtifactQualifiedName(name string) (entityName string, projectName string, artifactName string, rerr error) {
@@ -36,8 +39,10 @@ func GetPathFallbacks(path string) (pathFallbacks []string) {
 	}
 	charsBuilder.WriteString(`:"*<>?|`)
 	PROBLEMATIC_PATH_CHARS := charsBuilder.String()
-	// todo: fix this split. this gives dir and file, not drive and path
-	root, tail := filepath.Split(path)
+	// todo: check this split. this gives dir and file, not drive and path
+	root := filepath.VolumeName(path)
+	tail := path[len(root):]
+	fmt.Println("\n\npath fallbacks root %s; tail %s", root, tail)
 	pathFallbacks = append(pathFallbacks, filepath.Join(root, tail))
 	for _, char := range PROBLEMATIC_PATH_CHARS {
 		if strings.Contains(tail, string(char)) {
@@ -64,11 +69,44 @@ func SystemPreferredPath(path string, warn bool) string {
 	if runtime.GOOS != "windows" {
 		return path
 	}
-	// todo: fix this split. this gives dir and file, not drive and path
-	head, tail := filepath.Split(path)
+	// todo: check this split. this gives dir and file, not drive and path
+	head := filepath.VolumeName(path)
+	tail := path[len(head):]
 	if warn && strings.Contains(tail, ":") {
 		fmt.Printf("\nReplacing ':' in %s with '-'", tail)
 	}
 	new_path := filepath.Join(head, strings.Replace(tail, ":", "-", -1))
 	return new_path
+}
+
+func isArtifactReference(ref *string) (bool, error) {
+	if ref == nil {
+		return false, nil
+	}
+	u, err := url.Parse(*ref)
+	if err != nil {
+		return false, err
+	}
+	if u.Scheme == "wandb-artifact" {
+		return true, nil
+	}
+	return false, nil
+}
+
+func getReferencedID(ref *string) (*string, error) {
+	isRef, err := isArtifactReference(ref)
+	if err != nil {
+		return nil, err
+	} else if isRef == false {
+		return nil, nil
+	}
+	u, err := url.Parse(*ref)
+	if err != nil {
+		return nil, err
+	}
+	refID, err := utils.HexToB64(u.Host)
+	if err != nil {
+		return nil, err
+	}
+	return &refID, nil
 }

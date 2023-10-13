@@ -3,8 +3,6 @@ package artifacts
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -84,30 +82,8 @@ func (m *Manifest) WriteToFile() (filename string, digest string, rerr error) {
 	return
 }
 
-func loadManifestFromURL(url string) (Manifest, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return Manifest{}, err
-	}
-	defer resp.Body.Close()
-	manifest := Manifest{}
-	if resp.StatusCode == http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return Manifest{}, fmt.Errorf("Error reading response body: %v\n", err)
-		}
-		fmt.Printf("\n\n Manifest response %v", string(body))
-		err = json.Unmarshal(body, &manifest)
-		if err != nil {
-			return Manifest{}, nil
-		}
-	} else {
-		return Manifest{}, fmt.Errorf("Request to get manifest from url failed with status code: %d\n", resp.StatusCode)
-	}
-	return manifest, nil
-}
-
-func getManifestEntryFromArtifactFilePath(manifestEntries map[string]ManifestEntry, path string) (ManifestEntry, error) {
+func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEntry, error) {
+	manifestEntries := m.Contents
 	manifestEntry, ok := manifestEntries[path]
 	if !ok {
 		// implement _get_obj_entry
