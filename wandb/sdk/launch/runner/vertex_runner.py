@@ -152,7 +152,7 @@ class VertexRunner(AbstractRunner):
                 "in resource arguments under the key `vertex.spec.staging_bucket`."
             )
 
-        _logger.info(f"Launching Vertex job...")
+        _logger.info("Launching Vertex job...")
         submitted_run = launch_vertex_job(
             launch_project,
             spec_args,
