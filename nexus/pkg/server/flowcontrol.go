@@ -17,7 +17,7 @@ type FlowControlContext struct {
 const (
 	// By default we will allow 400 MiB of requests in the sender queue
 	// before falling back to the transaction log.
-	DefaultNetworkBuffer = 512 * 1024 * 1024  // 512 MiB
+	DefaultNetworkBuffer = 512 * 1024 * 1024 // 512 MiB
 )
 
 type FlowControl struct {
@@ -123,7 +123,7 @@ func NewFlowControl(settings *service.Settings, sendRecord func(record *service.
 		StateShared: StateShared{
 			sendRecord: sendRecord,
 		},
-		sendPause: sendPause,
+		sendPause:      sendPause,
 		thresholdPause: thresholdPause,
 	}
 	pausing := &StatePausing{
