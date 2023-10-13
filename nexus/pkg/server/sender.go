@@ -211,6 +211,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendRequest(record, x.Request)
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
+	case *service.Record_UseArtifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
