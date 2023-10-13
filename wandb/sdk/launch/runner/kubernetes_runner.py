@@ -21,7 +21,7 @@ from wandb.util import get_module
 from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
-from ..monitor.kubernetes_monitor import LaunchKubernetesMonitor
+from ..monitor.kubernetes_monitor import CustomResource, LaunchKubernetesMonitor
 from ..utils import (
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
@@ -449,6 +449,14 @@ class KubernetesRunner(AbstractRunner):
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(resource_args, env_vars)
 
+            # Add our labels to the resource args. This is necessary for the
+            # agent to find the custom object later on.
+            resource_args["metadata"] = resource_args.get("metadata", {})
+            resource_args["metadata"]["labels"] = resource_args["metadata"].get(
+                "labels", {}
+            )
+            resource_args["metadata"]["labels"]["wandb.ai/monitor"] = "true"
+
             # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
             add_label_to_pods(
@@ -464,6 +472,9 @@ class KubernetesRunner(AbstractRunner):
                     "wandb.ai/agent",
                     LaunchAgent.name(),
                 )
+                resource_args["metadata"]["labels"][
+                    "wandb.ai/agent"
+                ] = LaunchAgent.name()
 
             overrides = {}
             if launch_project.override_args:
@@ -478,13 +489,20 @@ class KubernetesRunner(AbstractRunner):
             # Infer the attributes of a custom object from the apiVersion and/or
             # a kind: attribute in the resource args.
             namespace = self.get_namespace(resource_args, context)
-            LaunchKubernetesMonitor.monitor_namespace(
-                namespace, custom_resource=api_version
-            )
             group, version, *_ = api_version.split("/")
             group = resource_args.get("group", group)
+            version = resource_args.get("version", version)
             kind = resource_args.get("kind", version)
             plural = f"{kind.lower()}s"
+            custom_resource = CustomResource(
+                group=group,
+                version=version,
+                plural=plural,
+            )
+            LaunchKubernetesMonitor.monitor_namespace(
+                namespace, custom_resource=custom_resource
+            )
+
             try:
                 response = await api.create_namespaced_custom_object(
                     group=group,

@@ -1369,6 +1369,8 @@ def launch(
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
             sys.exit(e)
+        except asyncio.CancelledError:
+            sys.exit(0)
     else:
         try:
             asyncio.run(

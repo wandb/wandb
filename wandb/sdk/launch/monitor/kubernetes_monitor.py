@@ -1,7 +1,7 @@
 """Monitors kubernetes resources managed by the launch agent."""
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import kubernetes_asyncio  # type: ignore # noqa: F401
 import urllib3
@@ -25,6 +25,24 @@ from ..utils import get_kube_context_and_api_client
 class Resources:
     JOBS = "jobs"
     PODS = "pods"
+
+
+class CustomResource:
+    """Class for custom resources."""
+
+    def __init__(self, group: str, version: str, plural: str) -> None:
+        """Initialize the CustomResource."""
+        self.group = group
+        self.version = version
+        self.plural = plural
+
+    def __str__(self) -> str:
+        """Return a string representation of the CustomResource."""
+        return f"{self.group}/{self.version}/{self.plural}"
+
+    def __hash__(self) -> int:
+        """Return a hash of the CustomResource."""
+        return hash(str(self))
 
 
 # Maps phases and conditions of custom objects to agent's internal run states.
@@ -76,7 +94,7 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
-def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
+def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
     """Get the status from the pod conditions."""
     true_conditions = [
         c.get("type", "").lower() for c in conditions if c.get("status") == "True"
@@ -86,15 +104,30 @@ def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
     }
     # The list below is ordered so that returning the first state detected
     # will accurately reflect the state of the job.
-    for state in [
+    states_in_order: List[State] = [
         "finished",
         "failed",
         "stopping",
         "running",
         "starting",
-    ]:
+    ]
+    for state in states_in_order:
         if state in detected_states:
             return state
+    return None
+
+
+def _state_from_replicated_status(status_dict: Dict[str, int]) -> Optional[State]:
+    """Get the status from the replicated jobs status.
+
+    This is useful for detecting when jobsets are starting.
+    """
+    pods_ready = status_dict.get("ready", 0)
+    pods_active = status_dict.get("active", 0)
+    if pods_ready >= 1:
+        return "running"
+    elif pods_active >= 1:
+        return "starting"
     return None
 
 
@@ -134,7 +167,9 @@ class LaunchKubernetesMonitor:
 
         # Dict mapping a tuple of (namespace, resource_type) to an
         # asyncio.Task that is monitoring that resource type in that namespace.
-        self._monitor_tasks: Dict[Tuple[str, str], asyncio.Task] = dict()
+        self._monitor_tasks: Dict[
+            Tuple[str, Union[str, CustomResource]], asyncio.Task
+        ] = dict()
 
         # Map from job name to job state.
         self._job_states: Dict[str, Status] = dict()
@@ -163,7 +198,7 @@ class LaunchKubernetesMonitor:
 
     @classmethod
     def monitor_namespace(
-        cls, namespace: str, custom_resource: Optional[str] = None
+        cls, namespace: str, custom_resource: Optional[CustomResource] = None
     ) -> None:
         """Start monitoring a namespaces for resources."""
         if cls._instance is None:
@@ -191,7 +226,7 @@ class LaunchKubernetesMonitor:
         return cls._instance.__status_count()
 
     def __monitor_namespace(
-        self, namespace: str, custom_resource: Optional[str] = None
+        self, namespace: str, custom_resource: Optional[CustomResource] = None
     ) -> None:
         """Start monitoring a namespaces for resources."""
         if (namespace, Resources.PODS) not in self._monitor_tasks:
@@ -208,7 +243,7 @@ class LaunchKubernetesMonitor:
             if (namespace, custom_resource) not in self._monitor_tasks:
                 self._monitor_tasks[(namespace, custom_resource)] = asyncio.create_task(
                     self._monitor_crd(namespace, custom_resource),
-                    name=f"monitor_{custom_resource}_{namespace}",
+                    name=f"monitor_{custom_resource.plural}_{namespace}",
                 )
                 self._monitor_tasks[(namespace, custom_resource)].add_done_callback(
                     _task_callback
@@ -255,7 +290,7 @@ class LaunchKubernetesMonitor:
             label_selector=self._label_selector,
         ):
             obj = event.get("object")
-            job_name = obj.get("metadata", {}).get("labels", {}).get("job-name")
+            job_name = obj.metadata.labels.get("job-name")
             if job_name is None:
                 continue
             # Sometimes ADDED events will be missing field.
@@ -283,31 +318,32 @@ class LaunchKubernetesMonitor:
             elif obj.status.failed is not None and obj.status.failed >= 1:
                 self._set_status(job_name, Status("failed"))
 
-    async def _monitor_crd(self, namespace: str, custom_resource: str) -> None:
+    async def _monitor_crd(
+        self, namespace: str, custom_resource: CustomResource
+    ) -> None:
         """Monitor a namespace for changes."""
-        group = custom_resource.split("/")
-        version = custom_resource.split("/")[1]
-        kind = version
-        plural = f"{kind.lower()}s"
         watcher = SafeWatch(watch.Watch())
         async for event in watcher.stream(
             self._custom_api.list_namespaced_custom_object,
             namespace=namespace,
-            plural=plural,
-            group=group,
-            version=version,
-            kind=kind,
-            label_selector=self._label_selector,
+            plural=custom_resource.plural,
+            group=custom_resource.group,
+            version=custom_resource.version,
+            # label_selector=self._label_selector,  # TODO: Label selector doesn't work for CRDs.
         ):
             object = event.get("object")
             name = object.get("metadata", dict()).get("name")
             status = object.get("status")
             if status is None:
                 continue
-            state = status.get("state")
-            if isinstance(state, dict):
-                raw_state = state.get("phase", "")
-                state = CRD_STATE_DICT.get(raw_state)
+            replicated_jobs_status = status.get("ReplicatedJobsStatus")
+            if replicated_jobs_status:
+                state = _state_from_replicated_status(replicated_jobs_status)
+            state_dict = status.get("state")
+            if isinstance(state_dict, dict):
+                phase = state_dict.get("phase")
+                if phase:
+                    state = CRD_STATE_DICT.get(phase.lower())
             else:
                 conditions = status.get("conditions")
                 if isinstance(conditions, list):

@@ -124,7 +124,10 @@ def create_and_run_agent(
     config: Dict[str, Any],
 ) -> None:
     agent = LaunchAgent(api, config)
-    asyncio.run(agent.loop())
+    try:
+        asyncio.run(agent.loop())
+    except asyncio.CancelledError:
+        pass
 
 
 async def _launch(
