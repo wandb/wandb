@@ -558,13 +558,24 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
-	// TODO(compat): handle deletes, nested keys
 	// TODO(compat): write summary file
 
 	// track each key in the in memory summary store
 	// TODO(memory): avoid keeping summary for all distinct keys
 	for _, item := range summary.Update {
-		s.summaryMap[item.Key] = item
+		keyList := item.GetNestedKey()
+		if keyList == nil {
+			keyList = []string{item.Key}
+		}
+		s.summaryMap[fmt.Sprintf("%v", keyList)] = item
+	}
+
+	for _, item := range summary.Remove {
+		keyList := item.GetNestedKey()
+		if keyList == nil {
+			keyList = []string{item.Key}
+		}
+		delete(s.summaryMap, fmt.Sprintf("%v", keyList))
 	}
 
 	// build list of summary items from the map
@@ -581,7 +592,6 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 			},
 		},
 	}
-
 	s.fileStream.StreamRecord(record)
 }
 
