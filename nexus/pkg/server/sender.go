@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wandb/wandb/nexus/internal/nexuslib"
+
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -16,7 +18,6 @@ import (
 	"github.com/wandb/wandb/nexus/internal/clients"
 	"github.com/wandb/wandb/nexus/internal/debounce"
 	"github.com/wandb/wandb/nexus/internal/gql"
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/internal/version"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
@@ -380,7 +381,8 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 		for _, k := range keyList[:len(keyList)-1] {
 			val, ok := target[k].(map[string]interface{})
 			if !ok {
-				target[k] = make(map[string]interface{})
+				val = make(map[string]interface{})
+				target[k] = val
 			}
 			target = val
 		}
@@ -394,13 +396,12 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 		target := s.configMap
 		keyNotFound := false
 		for _, k := range keyList[:len(keyList)-1] {
-			val, ok := target[k]
+			val, ok := target[k].(map[string]interface{})
 			if !ok {
-				s.logger.Error("sender: updateConfig: key not found", "entry", d)
 				keyNotFound = true
 				break
 			}
-			target = val.(map[string]interface{})
+			target = val
 		}
 		if !keyNotFound {
 			delete(target, keyList[len(keyList)-1])
@@ -410,27 +411,20 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 
 // updateConfigPrivate updates the private part of the config map
 func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
-	if _, ok := s.configMap["_wandb"]; !ok {
-		s.configMap["_wandb"] = make(map[string]interface{})
+	v := s.configMap["_wandb"].(map[string]interface{})
+	if telemetry.GetCliVersion() != "" {
+		v["cli_version"] = telemetry.CliVersion
 	}
-
-	switch v := s.configMap["_wandb"].(type) {
-	case map[string]interface{}:
-		if telemetry.GetCliVersion() != "" {
-			v["cli_version"] = telemetry.CliVersion
-		}
-		if telemetry.GetPythonVersion() != "" {
-			v["python_version"] = telemetry.PythonVersion
-		}
+	if telemetry.GetPythonVersion() != "" {
+		v["python_version"] = telemetry.PythonVersion
+	}
+	if s.telemetry != nil {
 		v["t"] = nexuslib.ProtoEncodeToDict(s.telemetry)
-		if s.ms != nil {
-			v["m"] = s.ms.configMetrics
-		}
-		// todo: add the rest of the telemetry from telemetry
-	default:
-		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
-		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
+	if s.ms != nil {
+		v["m"] = s.ms.configMetrics
+	}
+	// todo: add the rest of the telemetry from telemetry
 }
 
 // serializeConfig serializes the config map to a json string
@@ -568,7 +562,8 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 		if keyList == nil {
 			keyList = []string{item.Key}
 		}
-		s.summaryMap[fmt.Sprintf("%v", keyList)] = item
+		key := fmt.Sprintf("%v", keyList)
+		s.summaryMap[key] = item
 	}
 
 	for _, item := range summary.Remove {
@@ -576,7 +571,8 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 		if keyList == nil {
 			keyList = []string{item.Key}
 		}
-		delete(s.summaryMap, fmt.Sprintf("%v", keyList))
+		key := fmt.Sprintf("%v", keyList)
+		delete(s.summaryMap, key)
 	}
 
 	// build list of summary items from the map
