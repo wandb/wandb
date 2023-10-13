@@ -30,6 +30,10 @@ func parseArtifactQualifiedName(name string) (entityName string, projectName str
 	return parts[0], parts[1], parts[2], nil
 }
 
+func getArtifactQualifiedName(entityName string, projectName string, artifactName string, versionIndex string) (name string) {
+	return fmt.Sprintf("%s:v%s", strings.Join([]string{entityName, projectName, artifactName}, "/"), versionIndex)
+}
+
 // todo: needs testing
 // filesystem utils - need to move?
 func GetPathFallbacks(path string) (pathFallbacks []string) {
@@ -42,7 +46,6 @@ func GetPathFallbacks(path string) (pathFallbacks []string) {
 	PROBLEMATIC_PATH_CHARS := charsBuilder.String()
 	root := filepath.VolumeName(path)
 	tail := path[len(root):]
-	fmt.Println("\n\npath fallbacks root %s; tail %s", root, tail)
 	pathFallbacks = append(pathFallbacks, filepath.Join(root, tail))
 	for _, char := range PROBLEMATIC_PATH_CHARS {
 		if strings.Contains(tail, string(char)) {

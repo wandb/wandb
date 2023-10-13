@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -28,7 +29,9 @@ type ArtifactDownloader struct {
 	DownloadRoot           *string
 	Recursive              *bool
 	AllowMissingReferences *bool
-	UpstreamArtifacts      []gql.ArtifactByIDArtifact
+	// Properties
+	UpstreamArtifacts   []gql.ArtifactByIDArtifact
+	DefaultDownloadRoot *string
 }
 
 func NewArtifactDownloader(
@@ -39,8 +42,8 @@ func NewArtifactDownloader(
 	downloadRoot *string,
 	recursive *bool,
 	allowMissingReferences *bool,
-) ArtifactDownloader {
-	return ArtifactDownloader{
+) *ArtifactDownloader {
+	return &ArtifactDownloader{
 		Ctx:                    ctx,
 		GraphqlClient:          graphQLClient,
 		DownloadManager:        downloadManager,
@@ -49,11 +52,11 @@ func NewArtifactDownloader(
 		Recursive:              recursive,
 		AllowMissingReferences: allowMissingReferences,
 		UpstreamArtifacts:      []gql.ArtifactByIDArtifact{},
+		DefaultDownloadRoot:    nil,
 	}
 }
 
 func (ad *ArtifactDownloader) getArtifact() (attrs gql.ArtifactByNameProjectArtifact, rerr error) {
-	fmt.Printf("\nQualified Name ===> %s\n", ad.QualifiedName)
 	entityName, projectName, artifactName, err := parseArtifactQualifiedName(ad.QualifiedName)
 	if err != nil {
 		return gql.ArtifactByNameProjectArtifact{}, err
@@ -83,13 +86,36 @@ func loadManifestFromURL(url string) (Manifest, error) {
 		if err != nil {
 			return Manifest{}, fmt.Errorf("Error reading response body: %v\n", err)
 		}
-		fmt.Printf("\n\n Manifest response %v", string(body))
 		err = json.Unmarshal(body, &manifest)
 		if err != nil {
 			return Manifest{}, nil
 		}
 	} else {
 		return Manifest{}, fmt.Errorf("Request to get manifest from url failed with status code: %d\n", resp.StatusCode)
+	}
+	return manifest, nil
+}
+
+func (ad *ArtifactDownloader) getManifestByArtifactID(artifactID string) (Manifest, error) {
+	response, err := gql.ArtifactByID(
+		ad.Ctx,
+		ad.GraphqlClient,
+		artifactID,
+	)
+	if err != nil {
+		return Manifest{}, err
+	} else if response == nil {
+		return Manifest{}, fmt.Errorf("Could not get artifact by id")
+	}
+	directURL := response.GetArtifact().GetCurrentManifest().GetFile().DirectUrl
+	manifest, err := loadManifestFromURL(directURL)
+	if err != nil {
+		return Manifest{}, err
+	}
+	// Set upstream artifacts, if any
+	err = ad.setUpstreamArtifacts(manifest)
+	if err != nil {
+		return Manifest{}, err
 	}
 	return manifest, nil
 }
@@ -126,7 +152,7 @@ func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, 
 }
 
 func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactByNameProjectArtifact) (rerr error) {
-	// This sets the absolute path of source_artifact_name:v{versionIndex} as default root
+	// This sets the absolute path of source_artifact_name:v{versionIndex} as default download root
 	sourceArtifactName := artifactAttrs.GetArtifactSequence().Name
 	versionIndex := artifactAttrs.GetVersionIndex()
 	if versionIndex == nil {
@@ -142,18 +168,16 @@ func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactB
 	if path == nil {
 		downloadRoot = SystemPreferredPath(downloadRoot, false)
 	}
-	ad.DownloadRoot = &downloadRoot
+	ad.DefaultDownloadRoot = &downloadRoot
 	return nil
 }
 
 func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
-	fmt.Printf("\n\n manifest ===> %v \n\n", manifest)
 	for _, entry := range manifest.Contents {
 		referencedID, err := getReferencedID(entry.Ref)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("\n\n referenced id ===> %v \n\n", *referencedID)
 		if referencedID != nil {
 			response, err := gql.ArtifactByID(
 				ad.Ctx,
@@ -171,11 +195,66 @@ func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
 			}
 		}
 	}
-	fmt.Printf("\nUpstream artifacts ===> %v\n\n", ad.UpstreamArtifacts)
 	return nil
 }
 
-func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
+func (ad *ArtifactDownloader) downloadReferencedArtifact(filepath string, entry ManifestEntry) error {
+	referencedID, err := getReferencedID(entry.Ref)
+	if err != nil {
+		return err
+	}
+	if referencedID != nil {
+		response, err := gql.ArtifactByID(
+			ad.Ctx,
+			ad.GraphqlClient,
+			*referencedID,
+		)
+		if err != nil {
+			return err
+		} else if response == nil {
+			return fmt.Errorf("Could not get artifact by id for reference %s", *entry.Ref)
+		}
+		referencedArtifact := response.GetArtifact()
+		referencedArtifactSeq := referencedArtifact.GetArtifactSequence()
+		refArtifactProject := referencedArtifactSeq.Project
+		versionIndex := strconv.Itoa(*referencedArtifact.GetVersionIndex())
+		refArtifactQualifiedName := getArtifactQualifiedName(refArtifactProject.EntityName, refArtifactProject.Name, referencedArtifactSeq.Name, versionIndex)
+		downloadRoot, recursive, allowMissingReferences := ad.DownloadRoot, ad.Recursive, ad.AllowMissingReferences
+		newDownloader := NewArtifactDownloader(
+			ad.Ctx,
+			ad.GraphqlClient,
+			ad.DownloadManager,
+			refArtifactQualifiedName,
+			downloadRoot,
+			recursive,
+			allowMissingReferences,
+		)
+		artifactManifest, err := newDownloader.getArtifactManifest()
+		if err != nil {
+			return err
+		}
+		manifestEntry, ok := artifactManifest.Contents[filepath]
+		if !ok {
+			return fmt.Errorf("Could not find entry in manifest for file %s in artifact %s", filepath, refArtifactQualifiedName)
+		}
+
+		artifactManifest.Contents = map[string]ManifestEntry{
+			filepath: manifestEntry,
+		}
+		newDownloader.Download(&artifactManifest)
+	}
+	return nil
+}
+
+func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest, manifestSubset *Manifest) error {
+	var downloadRoot string
+	if ad.DownloadRoot != nil {
+		downloadRoot = *ad.DownloadRoot
+	} else if ad.DefaultDownloadRoot != nil {
+		downloadRoot = *ad.DefaultDownloadRoot
+	} else {
+		return fmt.Errorf("\n Download root was not set")
+	}
 	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
 	batchSize := BATCH_SIZE
 
@@ -212,15 +291,30 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			}
 			hasNextPage = response.GetArtifact().GetFiles().PageInfo.HasNextPage
 			cursor = *response.GetArtifact().GetFiles().PageInfo.EndCursor
-			fmt.Printf("\nFetchFileURLs ===> hasNextPage: %v, cursor: %v", hasNextPage, cursor)
 			for _, edge := range response.GetArtifact().GetFiles().Edges {
 				filePath := edge.GetNode().Name
 				entry, err := manifest.GetManifestEntryFromArtifactFilePath(filePath)
 				if err != nil {
 					return err
 				}
+				if manifestSubset != nil {
+					// Downloading a subset of the artifact's contents
+					// Relevant while downloading referenced artifacts
+					_, err = manifestSubset.GetManifestEntryFromArtifactFilePath(filePath)
+					if err != nil {
+						numDone++
+						continue
+					}
+				}
 				if entry.Ref != nil {
-					// skip reference downloads for now
+					referencedID, err := getReferencedID(entry.Ref)
+					if err != nil {
+						return err
+					}
+					if referencedID != nil {
+						ad.downloadReferencedArtifact(filePath, entry)
+					}
+					// skip reference downloads for non-wandb refs for now
 					numDone++
 					continue
 				}
@@ -230,7 +324,6 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					continue
 				}
 				nameToScheduledTime[*entry.LocalPath] = now
-				fmt.Printf("\nentry: %v", entry)
 				manifestEntriesBatch = append(manifestEntriesBatch, entry)
 			}
 
@@ -239,9 +332,9 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				for _, entry := range manifestEntriesBatch {
 					numInProgress++
 					// Add function that returns download path?
-					downloadLocalPath := filepath.Join(*ad.DownloadRoot, *entry.LocalPath)
+					downloadLocalPath := filepath.Join(downloadRoot, *entry.LocalPath)
 					task := &filetransfer.DownloadTask{
-						Path: downloadLocalPath, // change
+						Path: downloadLocalPath,
 						Url:  *entry.DownloadURL,
 						CompletionCallback: func(task *filetransfer.DownloadTask) {
 							taskResultsChan <- TaskResult{task, *entry.LocalPath}
@@ -268,28 +361,51 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			}
 		}
 	}
+	if ad.Recursive != nil {
+		if *ad.Recursive {
+			for _, referencedArtifact := range ad.UpstreamArtifacts {
+				referencedArtifactSeq := referencedArtifact.GetArtifactSequence()
+				refArtifactProject := referencedArtifactSeq.Project
+				versionIndex := strconv.Itoa(*referencedArtifact.GetVersionIndex())
+				refArtifactQualifiedName := getArtifactQualifiedName(refArtifactProject.EntityName, refArtifactProject.Name, referencedArtifactSeq.Name, versionIndex)
+				newDownloader := NewArtifactDownloader(
+					ad.Ctx,
+					ad.GraphqlClient,
+					ad.DownloadManager,
+					refArtifactQualifiedName,
+					ad.DownloadRoot,
+					ad.Recursive,
+					ad.AllowMissingReferences,
+				)
+				_, err := newDownloader.Download(nil)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
-func (ad *ArtifactDownloader) Download() (FileDownloadPath string, rerr error) {
+func (ad *ArtifactDownloader) Download(manifest *Manifest) (downloadRoot string, rerr error) {
 	artifactAttrs, err := ad.getArtifact()
 	if err != nil {
 		return "", err
 	}
-
 	if ad.DownloadRoot == nil {
 		err = ad.setDefaultDownloadRoot(artifactAttrs)
 		if err != nil {
 			return "", err
 		}
+		downloadRoot = *ad.DefaultDownloadRoot
+	} else {
+		downloadRoot = *ad.DownloadRoot
 	}
-	fmt.Printf("\n\n Download root ===> %v \n\n", *ad.DownloadRoot)
 
 	artifactManifest, err := ad.getArtifactManifest()
 	if err != nil {
 		return "", err
 	}
-	fmt.Printf("\n\n manifest ===> %v \n\n", artifactManifest)
 
 	// todo: Logs??
 	/*
@@ -304,6 +420,8 @@ func (ad *ArtifactDownloader) Download() (FileDownloadPath string, rerr error) {
 		}
 	*/
 
-	ad.downloadFiles(artifactAttrs.Id, artifactManifest)
-	return *ad.DownloadRoot, nil
+	if err := ad.downloadFiles(artifactAttrs.Id, artifactManifest, manifest); err != nil {
+		return "", err
+	}
+	return downloadRoot, nil
 }

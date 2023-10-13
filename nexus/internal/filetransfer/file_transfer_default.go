@@ -1,7 +1,6 @@
 package filetransfer
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -69,7 +68,6 @@ func (ft *DefaultFileTransfer) Upload(task *UploadTask) error {
 
 func (d *DownloadTask) ensureDownloadRootDir() error {
 	baseDir := path.Dir(d.Path)
-	fmt.Printf("\n\n baseDir ===> %v \n\n", baseDir)
 	info, err := os.Stat(baseDir)
 	if err == nil && info.IsDir() {
 		return nil
