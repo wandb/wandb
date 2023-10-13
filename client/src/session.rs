@@ -44,7 +44,7 @@ fn generate_run_id(run_id: Option<String>) -> String {
 impl Session {
     pub fn new(settings: Settings, addr: String) -> Session {
         let session = Session { settings, addr };
-        println!("Session created {:?} {}", session.settings, session.addr);
+        // println!("Session created {:?} {}", session.settings, session.addr);
 
         // todo: start Nexus
 
@@ -88,6 +88,10 @@ impl Run {
         message.encode(&mut buf).unwrap();
 
         // let c = vec![];  // Placeholder for some kind of Write implementation, e.g., a TCP stream
+        println!(
+            "Sending message to run {}",
+            self.stream.peer_addr().unwrap()
+        );
         let mut writer = BufWriter::with_capacity(16384, &self.stream);
 
         let header = Header {
@@ -124,36 +128,69 @@ impl Run {
 
         self.send_message(&server_inform_init_request);
 
-        let server_publish_run = wandb_internal::Record {
-            record_type: Some(wandb_internal::record::RecordType::Run(
-                wandb_internal::RunRecord {
-                    run_id: self.id.clone(),
-                    // display_name: "gooba-gaba".to_string(),
-                    info: Some(wandb_internal::RecordInfo {
-                        stream_id: self.id.clone(),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-            )),
-            info: Some(wandb_internal::RecordInfo {
-                stream_id: self.id.clone(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
         let server_publish_run_request = wandb_internal::ServerRequest {
             server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::RecordPublish(
-                    server_publish_run,
+                wandb_internal::server_request::ServerRequestType::RecordCommunicate(
+                    wandb_internal::Record {
+                        record_type: Some(wandb_internal::record::RecordType::Run(
+                            wandb_internal::RunRecord {
+                                run_id: self.id.clone(),
+                                // display_name: "gooba-gaba".to_string(),
+                                info: Some(wandb_internal::RecordInfo {
+                                    stream_id: self.id.clone(),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                        )),
+                        info: Some(wandb_internal::RecordInfo {
+                            stream_id: self.id.clone(),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
                 ),
             ),
         };
 
         self.send_message(&server_publish_run_request);
+
+        let server_publish_run_start = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::RecordCommunicate(
+                    wandb_internal::Record {
+                        record_type: Some(wandb_internal::record::RecordType::Request(
+                            wandb_internal::Request {
+                                request_type: Some(wandb_internal::request::RequestType::RunStart(
+                                    wandb_internal::RunStartRequest {
+                                        run: Some(wandb_internal::RunRecord {
+                                            ..Default::default()
+                                        }),
+                                        info: Some(wandb_internal::RequestInfo {
+                                            stream_id: self.id.clone(),
+                                            ..Default::default()
+                                        }),
+                                    },
+                                )),
+                            },
+                        )),
+                        info: Some(wandb_internal::RecordInfo {
+                            stream_id: self.id.clone(),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
+                ),
+            ),
+        };
+        self.send_message(&server_publish_run_start);
     }
 
     pub fn log(&self) {
+        let message = wandb_internal::ServerRequest {
+            server_request_type: Some(()),
+        };
+        self.send_message(&message);
         println!("Logging to run {}", self.id);
     }
 
