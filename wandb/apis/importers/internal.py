@@ -436,7 +436,7 @@ def send_run_with_send_manager(
 
     run_identifier = f"{run.entity()}/{run.project()}/{run.run_id()}"
 
-    with sender.SendManager(
+    with AlternateSendManager(
         settings, record_q, result_q, interface, context_keeper
     ) as sm:
         _handle_run_record(sm, rm)

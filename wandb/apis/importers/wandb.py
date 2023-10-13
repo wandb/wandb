@@ -6,10 +6,11 @@ import numbers
 import os
 import re
 import time
+from dataclasses import dataclass, field
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import polars as pl
 import requests
@@ -19,7 +20,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb.apis.public import Run
-from wandb.util import coalesce
+from wandb.util import coalesce, remove_keys_with_none_values
 
 from . import internal, progress, protocols
 from .config import Namespace
@@ -33,14 +34,15 @@ with patch("click.echo"):
 
 Artifact = wandb.Artifact
 Api = wandb.Api
+Project = wandb.apis.public.Project
 
 ARTIFACT_ERRORS_JSONL_FNAME = "import_artifact_errors.jsonl"
 ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME = "import_artifact_validation_success.jsonl"
 RUN_ERRORS_JSONL_FNAME = "import_run_errors.jsonl"
 RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME = "import_run_validation_success.jsonl"
 
-
 ART_SEQUENCE_DUMMY_DESCRIPTION = "__ART_SEQUENCE_DUMMY_DESCRIPTION__"
+DUMMY_PLACEHOLDER_NAME = "__dummy_placeholder_run__"
 
 
 def progress_decorator(description: Optional[str] = None):
@@ -54,9 +56,8 @@ def progress_decorator(description: Optional[str] = None):
             elif len(args) >= 2 and args[1].__class__.__name__ == "YourClass":
                 self, src_run, dst_run = args[0], args[1], args[2]
             else:
-                src_run = args[0]
-                dst_run = args[1]
-                self = None
+                args[0]
+                args[1]
 
             # run_str = f"{src_run.entity}/{src_run.project}/{src_run.id}"
             desc = description or None
@@ -166,7 +167,9 @@ class WandbRun:
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
-        yield from df.iter_rows(named=True)
+        for row in df.iter_rows(named=True):
+            row = remove_keys_with_none_values(row)
+            yield row
 
     def _get_metrics_from_scan_history_fallback(self) -> Iterable[Dict[str, Any]]:
         wandb_logger.warn(
@@ -566,7 +569,19 @@ class WandbImporter:
 
     import_runs = protocols.import_runs
 
-    def _import_run(self, run: WandbRun, namespace: Optional[Namespace] = None) -> None:
+    def _import_run(
+        self,
+        run: WandbRun,
+        namespace: Optional[Namespace] = None,
+        *,
+        metadata: bool = True,
+        files: bool = True,
+        media: bool = True,
+        code: bool = True,
+        history: bool = True,
+        summary: bool = True,
+        terminal_output: bool = True,
+    ) -> None:
         """Import one WandbRun.
 
         Use `namespace` to specify alternate settings like where the run should be uploaded
@@ -580,16 +595,14 @@ class WandbImporter:
         }
 
         sm_config = internal.SendManagerConfig(
-            metadata=True,
-            files=True,
-            media=True,
-            code=True,
-            history=True,
-            summary=True,
-            terminal_output=True,
+            metadata=metadata,
+            files=files,
+            media=media,
+            code=code,
+            history=history,
+            summary=summary,
+            terminal_output=terminal_output,
         )
-
-        # we should send the parquet artifact here too
 
         run_str = f"{run.entity()}/{run.project()}/{run.run_id()}"
         t = progress.subsubtask_pbar.add_task(f"Upload history ({run_str})", total=None)
@@ -600,29 +613,6 @@ class WandbImporter:
             config=sm_config,
         )
         progress.subsubtask_pbar.remove_task(t)
-
-        t = progress.subsubtask_pbar.add_task(
-            f"Collect history artifacts ({run_str})", total=None
-        )
-        history = []
-        for a in run.artifacts():
-            if a.type == "wandb-history":
-                name, _ = _get_art_name_ver(a)
-                a._name = name  # pylint: disable=W0212
-                history.append(a)
-        progress.subsubtask_pbar.remove_task(t)
-
-        # t = progress.subsubtask_pbar.add_task(
-        #     f"Upload history artifacts ({run_str})", total=None
-        # )
-        # internal.send_artifacts_with_send_manager(
-        #     history,
-        #     run,
-        #     overrides=namespace.send_manager_overrides,
-        #     settings_override={**settings_override, "resumed": True},
-        #     config=internal.SendManagerConfig(log_artifacts=True),
-        # )
-        # progress.subsubtask_pbar.remove_task(t)
 
     def _delete_collection_in_dst(self, src_art, entity=None, project=None):
         entity = coalesce(entity, src_art.entity)
@@ -646,7 +636,7 @@ class WandbImporter:
             run = art.logged_by()
         except ValueError as e:
             print(f"Trying to log {art=}, but {run=} doesn't exist! {e=}")
-            run = special_logged_by(self.src_api.client, art)
+
         if run is None:
             run = special_logged_by(self.src_api.client, art)
 
@@ -702,11 +692,6 @@ class WandbImporter:
         name, *_ = art.name.split(":v")
         entity = placeholder_run.entity
         project = placeholder_run.project
-
-        # This is a hack to check for dummy runs
-        if isinstance(placeholder_run, MagicMock):
-            entity = str(entity.return_value)
-            project = str(project.return_value)
 
         base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
 
@@ -818,9 +803,6 @@ class WandbImporter:
                 progress.subtask_pbar.advance(task)
         progress.subtask_pbar.remove_task(task)
 
-    def _compare_projects(self):
-        ...
-
     def _compare_artifact_dirs(self, src_dir, dst_dir):
         def compare(src_dir, dst_dir):
             comparison = filecmp.dircmp(src_dir, dst_dir)
@@ -846,23 +828,7 @@ class WandbImporter:
 
             return differences
 
-        # return [compare(src_dir, dst_dir)]
         return compare(src_dir, dst_dir)
-
-    # def _compare_artifact_dirs(self, src_dir, dst_dir):
-    #     # Compare files and subdirectories in dir1 and dir2.
-    #     comparison = filecmp.dircmp(src_dir, dst_dir)
-
-    #     # Check if both directories have the same files and subdirectories.
-    #     if comparison.left_only or comparison.right_only or comparison.diff_files:
-    #         return False
-
-    #     # Recursively compare subdirectories.
-    #     for common_dir in comparison.common_dirs:
-    #         if not self._compare_artifact_dirs(os.path.join(src_dir, common_dir), os.path.join(dst_dir, common_dir)):
-    #             return False
-
-    #     return True
 
     def _compare_artifact_manifests(self, src_art: Artifact, dst_art: Artifact):
         problems = []
@@ -1102,8 +1068,35 @@ class WandbImporter:
             r = Run(self.src_api.client, entity, project, run_id)
             yield WandbRun(r)
 
+    def _cleanup_placeholder_runs(
+        self, namespace: Namespace, *, api: Optional[Api] = None
+    ):
+        api = coalesce(api, self.dst_api)
+
+        runs = api.runs(
+            f"{namespace.entity}/{namespace.project}",
+            filters={"config.experiment_name": DUMMY_PLACEHOLDER_NAME},
+        )
+        for run in runs:
+            if run.name == DUMMY_PLACEHOLDER_NAME:
+                run.delete(delete_artifacts=False)
+
+    def _cleanup_placeholder_runs_from_namespaces(
+        self,
+        namespaces: Iterable[Namespace],
+    ):
+        descr = "Cleanup placeholder runs"
+        args = [(ns.entity, ns.project) for ns in namespaces]
+        parallelize(
+            lambda args: list(self._cleanup_placeholder_runs(*args)),
+            args,
+            description=descr,
+        )
+
     def use_artifact_sequence(
-        self, sequence: ArtifactSequence, config: Optional[Namespace] = None
+        self,
+        sequence: ArtifactSequence,
+        config: Optional[Namespace] = None,
     ) -> None:
         """Do the equivalent of `run.use_artifact(art)` for each artifact in the artifact sequence.
 
@@ -1235,8 +1228,8 @@ class WandbImporter:
         self,
         entity: str,
         project: Optional[str] = None,
-        api: Optional[wandb.Api] = None,
-    ) -> List[wandb.apis.public.Project]:
+        api: Optional[Api] = None,
+    ) -> List[Project]:
         if api is None:
             api = self.src_api
 
@@ -1288,11 +1281,17 @@ class WandbImporter:
             description="Use Artifact Sequences",
         )
 
-    def _collect_reports_from_namespaces(self, namespaces) -> Iterable[Report]:
+    def _collect_reports_from_namespaces(
+        self,
+        namespaces: Iterable[Namespace],
+    ) -> Iterable[Report]:
         for ns in namespaces:
             yield from self._collect_reports(ns.entity, ns.project)
 
-    def _collect_runs_from_namespaces(self, namespaces) -> Iterable[WandbRun]:
+    def _collect_runs_from_namespaces(
+        self,
+        namespaces: Iterable[Namespace],
+    ) -> Iterable[WandbRun]:
         c = 0
         task = progress.task_pbar.add_task(
             description="Collecting runs", total=len(namespaces)
@@ -1304,7 +1303,8 @@ class WandbImporter:
         progress.task_pbar.update(task, total=c, completed=c)
 
     def _collect_artifact_sequences_from_namespaces(
-        self, namespaces
+        self,
+        namespaces: Iterable[Namespace],
     ) -> Iterable[ArtifactSequence]:
         args = [(ns.entity, ns.project) for ns in namespaces]
         results = parallelize(
@@ -1351,18 +1351,17 @@ class WandbImporter:
         progress.subtask_pbar.remove_task(task)
         return (src_run, problems)
 
-    def _filter_previously_checked_runs(self, runs: Iterable[Run]):
+    def _filter_previously_checked_runs(self, runs: Iterable[Run]) -> Iterable[Run]:
         try:
             df = pl.read_ndjson(RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME)
         except FileNotFoundError:
             # No runs previously checked
-            yield from runs
-            return
+            return runs
+
         except RuntimeError as e:
             # No runs previously checked (file exists but is empty)
             if "empty string is not a valid JSON value" in str(e):
-                yield from runs
-                return
+                return runs
 
         data = [
             {"entity": r.entity, "project": r.project, "run_id": r.id, "data": r}
@@ -1436,6 +1435,8 @@ class WandbImporter:
         problems = parallelize(
             lambda args: list(self._validate_run(*args)), args, description=descr
         )
+
+        print(f"the problems are {problems=}")
 
         with open(RUN_ERRORS_JSONL_FNAME, "a") as f:
             with open(RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME, "a") as f2:
@@ -1521,7 +1522,9 @@ class WandbImporter:
                     )
                     continue
 
-                if art.type == "wandb-history" and isinstance(logged_by, MagicMock):
+                if art.type == "wandb-history" and isinstance(
+                    logged_by, _PlaceholderRun
+                ):
                     # We can never upload valid history for a deleted run, so skip it
                     continue
 
@@ -1567,7 +1570,7 @@ class WandbImporter:
         self._clear_run_errors()
         self._validate_runs_from_namespaces(namespaces, incremental=incremental)
         failed_runs = self._collect_failed_runs()
-        self._import_failed_runs(failed_runs)
+        self._import_runs(failed_runs)
 
         self._clear_artifact_errors()
         seqs = list(self._collect_artifact_sequences_from_namespaces(namespaces))
@@ -1584,13 +1587,28 @@ class WandbImporter:
         self._clear_run_errors()
         self._validate_runs_from_namespaces(namespaces, incremental=incremental)
         failed_runs = self._collect_failed_runs()
-        self._import_failed_runs(failed_runs)
+        self._import_runs(failed_runs)
 
         self._use_artifact_sequences(seqs)
+        self._cleanup_placeholder_runs_from_namespaces(namespaces)
+
+    def _cleanup_runs_in_dst_but_not_in_src(self, entity, project):
+        src_runs = [r for r in self.src_api.runs(f"{entity}/{project}")]
+        dst_runs = [r for r in self.dst_api.runs(f"{entity}/{project}")]
+
+        src_ids = set(r.id for r in src_runs)
+        dst_ids = set(r.id for r in dst_runs)
+
+        diff = dst_ids - src_ids
+
+        for run in dst_runs:
+            if run.id in diff:
+                run.delete(delete_artifacts=False)
 
     def _import_failed_artifact_sequences(
         self,
         failed_artifact_sequences: Iterable[ArtifactSequence],
+        *,
         max_workers: Optional[int] = None,
     ):
         args = [(a,) for a in failed_artifact_sequences]
@@ -1601,13 +1619,35 @@ class WandbImporter:
             description="Retry Failed Artifact Sequences",
         )
 
-    def _import_failed_runs(
-        self, failed_runs: Iterable[WandbRun], *, max_workers: Optional[int] = None
+    def _import_runs(
+        self,
+        runs: Iterable[WandbRun],
+        *,
+        max_workers: Optional[int] = None,
+        metadata: bool = True,
+        files: bool = True,
+        media: bool = True,
+        code: bool = True,
+        history: bool = True,
+        summary: bool = True,
+        terminal_output: bool = True,
     ):
-        args = [(a,) for a in failed_runs]
+        def _import_run_wrapped(run):
+            return self._import_run(
+                run,
+                namespace=None,
+                metadata=metadata,
+                files=files,
+                media=media,
+                code=code,
+                history=history,
+                summary=summary,
+                terminal_output=terminal_output,
+            )
+
         parallelize(
-            lambda args: self._import_run(*args, namespace=None),
-            args,
+            _import_run_wrapped,
+            runs,
             max_workers=max_workers,
             description="Retry Failed Runs",
         )
@@ -1745,6 +1785,7 @@ class WandbImporter:
     def _import_artifact_sequences(
         self,
         sequences: Iterable[ArtifactSequence],
+        *,
         namespace: Optional[Namespace] = None,
         max_workers: Optional[int] = None,
     ) -> None:
@@ -1950,11 +1991,11 @@ def special_logged_by(client, art):
     )
     creator = response.get("artifact", {}).get("createdBy", {})
 
-    placeholder_run = MagicMock()
-    placeholder_run.entity.return_value = art.entity
-    placeholder_run.project.return_value = art.project
-    placeholder_run.run_id.return_value = creator.get(
-        "name", "__dummy_placeholder_run__"
+    placeholder_run = _PlaceholderRun(
+        entity=art.entity,
+        project=art.project,
+        run_id=creator.get("name", DUMMY_PLACEHOLDER_NAME),
+        id=creator.get("name", DUMMY_PLACEHOLDER_NAME),
     )
 
     return placeholder_run
@@ -1987,3 +2028,28 @@ def materialize(iterable, description=""):
         lst.append(x)
     progress.subsubtask_pbar.remove_task(t)
     return lst
+
+
+@dataclass
+class _PlaceholderUser:
+    username: str = ""
+
+
+@dataclass
+class _PlaceholderRun:
+    entity: str = ""
+    project: str = ""
+    run_id: str = DUMMY_PLACEHOLDER_NAME
+    id: str = DUMMY_PLACEHOLDER_NAME
+    display_name: str = DUMMY_PLACEHOLDER_NAME
+    notes: str = ""
+    url: str = ""
+    group: str = ""
+    created_at: str = "2000-01-01"
+    user: _PlaceholderUser = field(default_factory=_PlaceholderUser)
+    tags: list = field(default_factory=list)
+    summary: dict = field(default_factory=dict)
+    config: dict = field(default_factory=dict)
+
+    def files(self):
+        return []

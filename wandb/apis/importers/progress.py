@@ -15,8 +15,9 @@ from rich.text import Text  # type: ignore
 from rich.console import Console
 from rich.traceback import install
 
-install(show_locals=True)
+install()
 console = Console()
+
 
 class TaskProgressWithCountColumn(ProgressColumn):
     def render(self, task) -> Text:
@@ -77,7 +78,6 @@ table.add_row(Panel(subsubtask_pbar, title="Sub-subtasks", padding=(1, 2)))
 
 
 live = Live(table, refresh_per_second=10)
-
 
 
 def cleanup():
