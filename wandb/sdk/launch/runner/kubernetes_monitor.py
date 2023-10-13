@@ -16,10 +16,10 @@ from kubernetes_asyncio.client import (  # type: ignore  # noqa: F401
 
 import wandb
 
-from ..agent import LaunchAgent
-from ..errors import LaunchError
-from ..runner.abstract import State, Status
-from ..utils import get_kube_context_and_api_client
+from wandb.sdk.launch.agent import LaunchAgent
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.runner.abstract import State, Status
+from wandb.sdk.launch.utils import get_kube_context_and_api_client
 
 
 class Resources:

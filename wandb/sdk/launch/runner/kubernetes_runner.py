@@ -21,7 +21,7 @@ from wandb.util import get_module
 from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
-from ..monitor.kubernetes_monitor import CustomResource, LaunchKubernetesMonitor
+from wandb.sdk.launch.runner.kubernetes_monitor import CustomResource, LaunchKubernetesMonitor
 from ..utils import (
     LOG_PREFIX,
     MAX_ENV_LENGTHS,

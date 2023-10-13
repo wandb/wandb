@@ -9,7 +9,7 @@ import yaml
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.monitor.kubernetes_monitor import (
+from wandb.sdk.launch.runner.kubernetes_monitor import (
     CRD_STATE_DICT,
     LaunchKubernetesMonitor,
     _state_from_conditions,

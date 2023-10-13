@@ -5,8 +5,7 @@ import pytest
 import yaml
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
-from wandb.sdk.launch.monitor import kubernetes_monitor
-from wandb.sdk.launch.runner import kubernetes_runner
+from wandb.sdk.launch.runner import kubernetes_runner, kubernetes_monitor
 from wandb.sdk.launch.utils import make_name_dns_safe
 
 
