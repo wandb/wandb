@@ -12,6 +12,7 @@ path = "src/binder.rs"
 
 [dependencies]
 bytes = "1.0.1"
+byteorder = "1.5.0"
 prost = "0.12.0"
 prost-types = "0.12.0"
 
