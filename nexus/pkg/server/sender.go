@@ -78,7 +78,6 @@ type Sender struct {
 	summaryMap map[string]*service.SummaryItem
 
 	// Keep track of config which is being updated incrementally
-	// TODO: this should be a map[string]*service.ConfigItem
 	configMap map[string]interface{}
 
 	// Keep track of exit record to pass to file stream when the time comes
