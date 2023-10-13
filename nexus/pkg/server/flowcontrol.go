@@ -14,6 +14,12 @@ type FlowControlContext struct {
 	writtenOffset int64
 }
 
+const (
+	// By default we will allow 400 MiB of requests in the sender queue
+	// before falling back to the transaction log.
+	DefaultNetworkBuffer = 512 * 1024 * 1024  // 512 MiB
+)
+
 type FlowControl struct {
 	stateMachine *fsm.Fsm[*service.Record, *FlowControlContext]
 }
@@ -27,14 +33,14 @@ type StateForwarding struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
 	StateShared
 	sendPause      func()
-	pauseThreshold int64
+	thresholdPause int64
 }
 
 type StatePausing struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
 	StateShared
-	recoverThreshold int64
-	forwardThreshold int64
+	thresholdRecover int64
+	thresholdForward int64
 }
 
 func (c FlowControlContext) behindBytes() int64 {
@@ -70,7 +76,7 @@ func (s *StateForwarding) OnCheck(record *service.Record) {
 }
 
 func (s *StateForwarding) shouldPause(record *service.Record) bool {
-	return s.context.behindBytes() >= s.pauseThreshold
+	return s.context.behindBytes() >= s.thresholdPause
 }
 
 func (s *StateForwarding) doPause(record *service.Record) {
@@ -102,7 +108,14 @@ func (s *StatePausing) shouldQuiesce(record *service.Record) bool {
 func (s *StatePausing) doQuiesce(record *service.Record) {
 }
 
-func NewFlowControl(sendRecord func(record *service.Record), sendPause func()) *FlowControl {
+func NewFlowControl(settings *service.Settings, sendRecord func(record *service.Record), sendPause func()) *FlowControl {
+	var networkBuffer int64 = DefaultNetworkBuffer
+	if param := settings.GetXNetworkBuffer(); param != nil {
+		networkBuffer = int64(param.GetValue())
+	}
+	thresholdPause := networkBuffer
+	thresholdRecover := networkBuffer / 2
+	thresholdForward := networkBuffer / 4
 	flowControl := &FlowControl{}
 
 	stateMachine := fsm.NewFsm[*service.Record, *FlowControlContext]()
@@ -111,11 +124,14 @@ func NewFlowControl(sendRecord func(record *service.Record), sendPause func()) *
 			sendRecord: sendRecord,
 		},
 		sendPause: sendPause,
+		thresholdPause: thresholdPause,
 	}
 	pausing := &StatePausing{
 		StateShared: StateShared{
 			sendRecord: sendRecord,
 		},
+		thresholdRecover: thresholdRecover,
+		thresholdForward: thresholdForward,
 	}
 	stateMachine.SetDefaultState(forwarding)
 	stateMachine.AddState(forwarding)

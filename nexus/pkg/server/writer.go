@@ -43,7 +43,7 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 		logger:   logger,
 		fwdChan:  make(chan *service.Record, BufferSize),
 	}
-	w.flowControl = NewFlowControl(w.sendRecord, w.sendPause)
+	w.flowControl = NewFlowControl(settings, w.sendRecord, w.sendPause)
 	return w
 }
 
