@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, WriteBytesExt};
+
 use std::{
     collections::HashMap,
     io::{BufWriter, Write},
@@ -9,13 +10,18 @@ use prost::Message;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 
+// pub mod wandb_internal;
 use crate::wandb_internal::{self, Settings};
 
+use pyo3::prelude::*;
+
+#[pyclass]
 pub struct Session {
     settings: Settings,
     addr: String,
 }
 
+#[pyclass]
 pub struct Run {
     pub id: String,
     pub settings: Settings,
@@ -42,6 +48,7 @@ fn generate_run_id(run_id: Option<String>) -> String {
     }
 }
 
+// #[pymethods]
 impl Session {
     pub fn new(settings: Settings, addr: String) -> Session {
         let session = Session { settings, addr };
@@ -82,8 +89,9 @@ impl Session {
     }
 }
 
+// #[pymethods]
 impl Run {
-    fn send_message(&self, message: &wandb_internal::ServerRequest) {
+    fn send_message(&self, message: &wandb_internal::ServerRequest) -> Result<(), ()> {
         // marshal the protobuf message
         let mut buf = Vec::new();
         message.encode(&mut buf).unwrap();
@@ -108,6 +116,8 @@ impl Run {
 
         // Write the protobuf to the writer
         writer.write_all(&buf).unwrap();
+        writer.flush().unwrap();
+        Ok(())
     }
 
     fn init(&self) {
@@ -127,7 +137,7 @@ impl Run {
             ),
         };
 
-        self.send_message(&server_inform_init_request);
+        self.send_message(&server_inform_init_request).unwrap();
 
         let server_publish_run_request = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -154,7 +164,7 @@ impl Run {
             ),
         };
 
-        self.send_message(&server_publish_run_request);
+        self.send_message(&server_publish_run_request).unwrap();
 
         let server_publish_run_start = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -184,7 +194,7 @@ impl Run {
                 ),
             ),
         };
-        self.send_message(&server_publish_run_start);
+        self.send_message(&server_publish_run_start).unwrap();
     }
 
     pub fn log(&self, data: HashMap<String, f64>) {
@@ -217,7 +227,7 @@ impl Run {
             ),
         };
 
-        self.send_message(&message);
+        self.send_message(&message).unwrap();
     }
 
     pub fn finish(&self) {
@@ -246,7 +256,7 @@ impl Run {
                 wandb_internal::server_request::ServerRequestType::RecordCommunicate(record),
             ),
         };
-        self.send_message(&message);
+        self.send_message(&message).unwrap();
 
         let shutdown_request = wandb_internal::Request {
             request_type: Some(wandb_internal::request::RequestType::Shutdown(
@@ -275,7 +285,7 @@ impl Run {
                 ),
             ),
         };
-        self.send_message(&message);
+        self.send_message(&message).unwrap();
 
         let inform_finish_request = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -289,7 +299,7 @@ impl Run {
                 ),
             ),
         };
-        self.send_message(&inform_finish_request);
+        self.send_message(&inform_finish_request).unwrap();
 
         loop {}
     }

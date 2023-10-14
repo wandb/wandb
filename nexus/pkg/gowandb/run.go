@@ -96,7 +96,7 @@ func (r *Run) init() {
 	}
 	record := service.Record{
 		RecordType: &runRecord,
-		XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
 	serverRecord = service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
