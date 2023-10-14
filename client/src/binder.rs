@@ -1,9 +1,6 @@
 mod session;
 mod wandb_internal;
-use std::{
-    collections::HashMap,
-    env,
-};
+use std::{collections::HashMap, env};
 
 fn main() {
     let args: Vec<String> = env::args().collect();

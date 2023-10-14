@@ -218,7 +218,6 @@ impl Run {
         };
 
         self.send_message(&message);
-
     }
 
     pub fn finish(&self) {
@@ -260,7 +259,9 @@ impl Run {
             )),
         };
         let shutdown_record = wandb_internal::Record {
-            record_type: Some(wandb_internal::record::RecordType::Request(shutdown_request)),
+            record_type: Some(wandb_internal::record::RecordType::Request(
+                shutdown_request,
+            )),
             info: Some(wandb_internal::RecordInfo {
                 stream_id: self.id.clone(),
                 ..Default::default()
@@ -283,7 +284,7 @@ impl Run {
                         info: Some(wandb_internal::RecordInfo {
                             stream_id: self.id.clone(),
                             ..Default::default()
-                        })
+                        }),
                     },
                 ),
             ),
