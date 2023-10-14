@@ -13,15 +13,15 @@ use rand::Rng;
 // pub mod wandb_internal;
 use crate::wandb_internal::{self, Settings};
 
-use pyo3::prelude::*;
+// use pyo3::prelude::*;
 
-#[pyclass]
+// #[pyclass]
 pub struct Session {
     settings: Settings,
     addr: String,
 }
 
-#[pyclass]
+// #[pyclass]
 pub struct Run {
     pub id: String,
     pub settings: Settings,
