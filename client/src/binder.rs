@@ -1,10 +1,11 @@
+mod connection;
+mod run;
 mod session;
 mod wandb_internal;
 
 use std::{collections::HashMap, env};
 
 fn main() {
-    println!("Hello, world!");
     let args: Vec<String> = env::args().collect();
 
     // Check if at least one argument is provided
@@ -25,8 +26,6 @@ fn main() {
 
     let settings = wandb_internal::Settings {
         base_url: Some("https://api.wandb.ai".to_string()),
-        // disable_meta: Some(true),
-        // disable_stats: Some(true),
         stats_sample_rate_seconds: Some(1.0),
         stats_samples_to_average: Some(1),
         log_internal: Some("wandb-internal.log".to_string()),
