@@ -170,7 +170,7 @@ class RecordMaker:
                 # There seems to be some conversion issue to breaks when we try to re-upload.
                 # np.NaN gets converted to float("nan"), which is not expected by our system.
                 # If this cast to string (!) is not done, the row will be dropped.
-                if isinstance(v, float) and math.isnan(v):
+                if (isinstance(v, float) and math.isnan(v)) or v == "NaN":
                     v = np.NaN
                 item.value_json = json.dumps(v)
             rec = self.interface._make_record(history=history)
@@ -481,6 +481,6 @@ def send_artifacts_with_send_manager(
     ) as sm:
         _handle_run_record(sm, rm)
 
-        for art in arts:
+        for art in progress.subsubtask_progress(arts):
             _handle_use_specific_artifact(sm, rm, art, config)
             _handle_log_specific_artifact(sm, rm, art, config)

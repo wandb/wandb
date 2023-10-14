@@ -1,7 +1,7 @@
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import wandb
 
@@ -182,15 +182,16 @@ def parallelize(
     *args,
     description: str,
     max_workers: Optional[int] = None,
-    accumulate: bool = False,
     **kwargs,
 ):
     results = []
     progress.live.start()
     with ThreadPoolExecutor(max_workers) as exc:
         futures = {exc.submit(func, x, *args, **kwargs): x for x in iterable}
-        task = progress.task_pbar.add_task(description, total=len(futures))
-        for future in as_completed(futures):
+        # task = progress.task_pbar.add_task(description, total=len(futures))
+        for future in progress.task_progress(
+            as_completed(futures), description=description, total=len(futures)
+        ):
             try:
                 result = future.result()
             except Exception as e:
@@ -205,8 +206,8 @@ def parallelize(
                 continue
             else:
                 results.append(result)
-            finally:
-                progress.task_pbar.update(task, advance=1, refresh=True)
-        progress.task_pbar.update(task, completed=len(futures), refresh=True)
+        #     finally:
+        #         progress.task_pbar.update(task, advance=1, refresh=True, visible=True)
+        # progress.task_pbar.update(task, completed=len(futures), refresh=True)
 
     return results

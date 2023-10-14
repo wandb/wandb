@@ -3131,7 +3131,7 @@ class File(Attrs):
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def download(
-        self, root: str = ".", replace: bool = False, exist_ok: bool = False
+        self, root: str = ".", replace: bool = False, exist_ok: bool = False, timeout:int=5
     ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 
@@ -3154,7 +3154,7 @@ class File(Attrs):
                     "File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error."
                 )
 
-        util.download_file_from_url(path, self.url, Api().api_key)
+        util.download_file_from_url(path, self.url, Api().api_key, timeout=5)
         return open(path)
 
     @normalize_exceptions

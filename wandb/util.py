@@ -1298,7 +1298,7 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 
 
 def download_file_from_url(
-    dest_path: str, source_url: str, api_key: Optional[str] = None
+    dest_path: str, source_url: str, api_key: Optional[str] = None, timeout: int = 5
 ) -> None:
     auth = None
     if not _thread_local_api_settings.cookies:
@@ -1309,7 +1309,7 @@ def download_file_from_url(
         headers=_thread_local_api_settings.headers,
         cookies=_thread_local_api_settings.cookies,
         stream=True,
-        timeout=5,
+        timeout=timeout,
     )
     response.raise_for_status()
 
@@ -1320,7 +1320,9 @@ def download_file_from_url(
             file.write(data)
 
 
-def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
+def download_file_into_memory(
+    source_url: str, api_key: Optional[str] = None, timeout: int = 5
+) -> bytes:
     auth = None
     if not _thread_local_api_settings.cookies:
         auth = ("api", api_key or "")
@@ -1330,7 +1332,7 @@ def download_file_into_memory(source_url: str, api_key: Optional[str] = None) ->
         headers=_thread_local_api_settings.headers,
         cookies=_thread_local_api_settings.cookies,
         stream=True,
-        timeout=5,
+        timeout=timeout,
     )
     response.raise_for_status()
     return response.content
