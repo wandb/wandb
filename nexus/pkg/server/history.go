@@ -13,7 +13,6 @@ import (
 // It is responsible for handling the history record internally, processing it,
 // and forwarding it to the Writer.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
-
 	if history.GetItem() == nil {
 		return
 	}

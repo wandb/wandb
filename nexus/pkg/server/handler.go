@@ -235,6 +235,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Footer:
 	case *service.Record_Header:
 	case *service.Record_History:
+		h.handleHistory(x.History)
 	case *service.Record_LinkArtifact:
 		h.handleLinkArtifact(record)
 	case *service.Record_Metric:

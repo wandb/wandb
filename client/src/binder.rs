@@ -1,6 +1,9 @@
 mod session;
 mod wandb_internal;
-use std::env;
+use std::{
+    collections::HashMap,
+    env,
+};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -23,6 +26,8 @@ fn main() {
 
     let settings = wandb_internal::Settings {
         base_url: Some("https://api.wandb.ai".to_string()),
+        disable_meta: Some(true),
+        disable_stats: Some(true),
         log_internal: Some("wandb-internal.log".to_string()),
         sync_file: Some("lol.wandb".to_string()),
         ..Default::default()
@@ -33,7 +38,10 @@ fn main() {
 
     let run = session.new_run(None);
     println!("Run id: {}", run.id);
-    run.log();
+
+    let mut data: HashMap<String, f64> = HashMap::new();
+    data.insert("loss".to_string(), 13.37);
+
+    run.log(data);
     run.finish();
-    loop {}
 }

@@ -1,5 +1,6 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::{
+    collections::HashMap,
     io::{BufWriter, Write},
     net::TcpStream,
 };
@@ -186,15 +187,109 @@ impl Run {
         self.send_message(&server_publish_run_start);
     }
 
-    pub fn log(&self) {
-        let message = wandb_internal::ServerRequest {
-            server_request_type: Some(()),
-        };
-        self.send_message(&message);
+    pub fn log(&self, data: HashMap<String, f64>) {
         println!("Logging to run {}", self.id);
+
+        let history_record = wandb_internal::HistoryRecord {
+            item: data
+                .iter()
+                .map(|(k, v)| wandb_internal::HistoryItem {
+                    key: k.clone(),
+                    value_json: v.to_string(),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        };
+
+        let record = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::History(history_record)),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id.clone(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let message = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::RecordPublish(record),
+            ),
+        };
+
+        self.send_message(&message);
+
     }
 
     pub fn finish(&self) {
         println!("Finishing run {}", self.id);
+
+        let finish_record = wandb_internal::RunExitRecord {
+            exit_code: 0,
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id.clone(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let record = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Exit(finish_record)),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id.clone(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let message = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::RecordCommunicate(record),
+            ),
+        };
+        self.send_message(&message);
+
+        let shutdown_request = wandb_internal::Request {
+            request_type: Some(wandb_internal::request::RequestType::Shutdown(
+                wandb_internal::ShutdownRequest {
+                    info: Some(wandb_internal::RequestInfo {
+                        stream_id: self.id.clone(),
+                        ..Default::default()
+                    }),
+                },
+            )),
+        };
+        let shutdown_record = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Request(shutdown_request)),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id.clone(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let message = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::RecordCommunicate(
+                    shutdown_record,
+                ),
+            ),
+        };
+        self.send_message(&message);
+
+        let inform_finish_request = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::InformFinish(
+                    wandb_internal::ServerInformFinishRequest {
+                        info: Some(wandb_internal::RecordInfo {
+                            stream_id: self.id.clone(),
+                            ..Default::default()
+                        })
+                    },
+                ),
+            ),
+        };
+        self.send_message(&inform_finish_request);
+
+        loop {}
     }
 }
