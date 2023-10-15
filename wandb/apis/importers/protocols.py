@@ -189,7 +189,7 @@ def parallelize(
     with ThreadPoolExecutor(max_workers) as exc:
         futures = {exc.submit(func, x, *args, **kwargs): x for x in iterable}
         # task = progress.task_pbar.add_task(description, total=len(futures))
-        for future in progress.task_progress(
+        for future in progress.task_track(
             as_completed(futures), description=description, total=len(futures)
         ):
             try:

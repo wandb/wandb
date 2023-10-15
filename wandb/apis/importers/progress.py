@@ -1,5 +1,6 @@
 import atexit
 import functools
+from contextlib import contextmanager
 from typing import Optional
 
 from rich.console import Console
@@ -117,3 +118,46 @@ def progress(
 task_progress = functools.partial(progress, pbar=task_pbar)
 subtask_progress = functools.partial(progress, pbar=subtask_pbar, transient=True)
 subsubtask_progress = functools.partial(progress, pbar=subsubtask_pbar, transient=True)
+
+
+@contextmanager
+def _track_task(description: str, *, pbar: Progress):
+    t = pbar.add_task(description)
+    try:
+        yield
+    finally:
+        pbar.remove_task(t)
+
+
+track_task = functools.partial(_track_task, pbar=task_pbar)
+track_subtask = functools.partial(_track_task, pbar=subtask_pbar)
+track_subsubtask = functools.partial(_track_task, pbar=subsubtask_pbar)
+
+
+def progress_decorator(description: Optional[str] = None, *, pbar: Progress):
+    def deco(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            desc = description or None
+            if desc is None:
+                desc = f"{f.__name__}({args=}{kwargs=})"
+            else:
+                arg_names = f.__code__.co_varnames[: f.__code__.co_argcount]
+                args_kwargs = {**dict(zip(arg_names, args)), **kwargs}
+                desc = description.format(**args_kwargs)
+
+            t = pbar.add_task(desc, total=None)
+            try:
+                result = f(*args, **kwargs)
+            finally:
+                pbar.remove_task(t)
+            return result
+
+        return wrapper
+
+    return deco
+
+
+task_progress_deco = functools.partial(progress_decorator, pbar=task_pbar)
+subtask_progress_deco = functools.partial(progress_decorator, pbar=subtask_pbar)
+subsubtask_progress_deco = functools.partial(progress_decorator, pbar=subsubtask_pbar)
