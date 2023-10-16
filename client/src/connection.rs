@@ -1,6 +1,5 @@
 use crate::wandb_internal;
 use byteorder::{LittleEndian, WriteBytesExt};
-use bytes;
 use prost::Message;
 use std::{
     io::{BufWriter, Write},
@@ -62,45 +61,45 @@ impl Connection {
         conn
     }
 
+    pub fn recv_message(&self) -> Vec<u8> {
+        // Read the magic byte
+        let mut magic_byte = [0; 1];
+        let bytes_read = std::io::Read::read(&mut &self.stream, &mut magic_byte).unwrap();
+        println!("Read {} bytes", bytes_read);
+        println!("Magic byte: {:?}", magic_byte);
+
+        if magic_byte != [b'W'] {
+            println!("Magic number is not 'W'");
+            return vec![];
+        }
+
+        let mut body_length_bytes = [0; 4];
+        std::io::Read::read(&mut &self.stream, &mut body_length_bytes).unwrap();
+        let body_length = u32::from_le_bytes(body_length_bytes);
+        println!("Body length: {}", body_length);
+
+        // Read the body
+        let mut body = vec![0; body_length as usize];
+        std::io::Read::read(&mut &self.stream, &mut body).unwrap();
+        println!("Body: {:?}", body);
+
+        body
+    }
+
     pub fn recv(&mut self) {
         println!(
             "Receiving messages from run {}",
             self.stream.peer_addr().unwrap()
         );
-        // let mut tokenizer = Tokenizer::new();
-        // let buffer = bytes::BytesMut::new();
         loop {
             println!("Waiting for message...");
-            let mut data = vec![0; 16384];
-            let bytes_read = std::io::Read::read(&mut self.stream, &mut data).unwrap();
-            println!("Read {} bytes", bytes_read);
-            println!("Data: {:?}", data);
-            // exit once connection is closed
-            if bytes_read == 0 {
+            let msg = self.recv_message();
+            if msg.len() == 0 {
                 println!("Connection closed");
                 break;
             }
+            let proto_message = wandb_internal::ServerResponse::decode(msg.as_slice()).unwrap();
+            println!("Received message: {:?}", proto_message);
         }
     }
 }
-
-// pub struct Tokenizer {}
-
-// impl Tokenizer {
-//     pub fn new() -> Self {
-//         Tokenizer {}
-//     }
-
-//     pub fn split<'a>(&'a mut self, data: &'a [u8]) -> Option<&[u8]> {
-//         if data.len() < 5 {
-//             return None;
-//         }
-//         let magic = data[0];
-//         let data_length = bytes::Buf::get_u32_le(&mut &data[1..5]) as usize;
-//         if magic != b'W' || data.len() < 5 + data_length {
-//             // log::error!("Invalid header or not enough data");
-//             return None;
-//         }
-//         Some(&data[5..5 + data_length])
-//     }
-// }
