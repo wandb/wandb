@@ -601,7 +601,7 @@ def test_get_job_and_queue(mocker):
     assert agent._queues == ["queue-2", "queue-3", "queue-1"]
 
 
-def test_get_agent_name(mocker):
+def test_get_agent_name(mocker, clean_agent):
     with pytest.raises(LaunchError):
         LaunchAgent.name()
     _setup(mocker)

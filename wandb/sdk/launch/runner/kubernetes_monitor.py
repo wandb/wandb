@@ -63,7 +63,7 @@ CRD_STATE_DICT: Dict[str, State] = {
 _logger = logging.getLogger(__name__)
 
 
-def _task_callback(task: asyncio.Task) -> None:
+def _log_err_task_callback(task: asyncio.Task) -> None:
     """Callback to log exceptions from tasks."""
     exec = task.exception()
     if exec is not None:
@@ -122,7 +122,10 @@ def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
 
 
 def _state_from_replicated_status(status_dict: Dict[str, int]) -> Optional[State]:
-    """Get the status from the replicated jobs status.
+    """Infer overall job status from replicated job status for jobsets.
+
+    More info on jobset:
+    https://github.com/kubernetes-sigs/jobset/blob/main/docs/concepts/README.md
 
     This is useful for detecting when jobsets are starting.
     """
@@ -239,7 +242,7 @@ class LaunchKubernetesMonitor:
                 name=f"monitor_{Resources.PODS}_{namespace}",
             )
             self._monitor_tasks[(namespace, Resources.PODS)].add_done_callback(
-                _task_callback
+                _log_err_task_callback
             )
         # If a custom resource is specified then we will start monitoring
         # that resource type in the namespace instead of jobs.
@@ -250,7 +253,7 @@ class LaunchKubernetesMonitor:
                     name=f"monitor_{custom_resource.plural}_{namespace}",
                 )
                 self._monitor_tasks[(namespace, custom_resource)].add_done_callback(
-                    _task_callback
+                    _log_err_task_callback
                 )
         else:
             if (namespace, Resources.JOBS) not in self._monitor_tasks:
@@ -259,7 +262,7 @@ class LaunchKubernetesMonitor:
                     name=f"monitor_{Resources.JOBS}_{namespace}",
                 )
                 self._monitor_tasks[(namespace, Resources.JOBS)].add_done_callback(
-                    _task_callback
+                    _log_err_task_callback
                 )
 
     def __get_status(self, job_name: str) -> Status:
@@ -328,15 +331,16 @@ class LaunchKubernetesMonitor:
             plural=custom_resource.plural,
             group=custom_resource.group,
             version=custom_resource.version,
-            # label_selector=self._label_selector,  # TODO: Label selector doesn't work for CRDs.
+            label_selector=self._label_selector,  # TODO: Label selector doesn't work for CRDs.
         ):
             object = event.get("object")
             name = object.get("metadata", dict()).get("name")
             status = object.get("status")
+            state = None
             if status is None:
                 continue
             replicated_jobs_status = status.get("ReplicatedJobsStatus")
-            if replicated_jobs_status:
+            if isinstance(replicated_jobs_status, dict):
                 state = _state_from_replicated_status(replicated_jobs_status)
             state_dict = status.get("state")
             if isinstance(state_dict, dict):
@@ -362,7 +366,7 @@ class LaunchKubernetesMonitor:
 class SafeWatch:
     """Wrapper for the kubernetes watch class that can recover in more situations."""
 
-    def __init__(self, watcher: "watch.Watch") -> None:
+    def __init__(self, watcher: watch.Watch) -> None:
         """Initialize the SafeWatch."""
         self._watcher = watcher
         self._last_seen_resource_version: Optional[str] = None
@@ -399,11 +403,13 @@ class SafeWatch:
                 if self._stopped:
                     break
             except urllib3.exceptions.ProtocolError as e:
-                wandb.termwarn(f"Broken event stream: {e}")
+                wandb.termwarn(f"Broken event stream: {e}, attempting to recover")
             except ApiException as e:
                 if e.status == 410:
                     # If resource version is too old we need to start over.
                     del kwargs["resource_version"]
                     self._last_seen_resource_version = None
             except Exception as E:
-                wandb.termerror(f"Unknown exception in event stream: {E}")
+                wandb.termerror(
+                    f"Unknown exception in event stream: {E}, attempting to recover"
+                )

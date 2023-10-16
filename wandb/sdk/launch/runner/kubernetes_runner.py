@@ -141,7 +141,6 @@ class KubernetesSubmittedRun(AbstractRun):
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
     async def get_status(self) -> Status:
-        # return self.monitor.get_status()
         return LaunchKubernetesMonitor.get_status(self.name)
 
     async def cancel(self) -> None:
@@ -398,7 +397,6 @@ class KubernetesRunner(AbstractRunner):
         job["spec"] = job_spec
         job["metadata"] = job_metadata
 
-        # add_label_to_pods(resource_args, "wandb.ai/run-id", launch_project.run_id)
         add_label_to_pods(
             job,
             "wandb.ai/monitor",
@@ -427,7 +425,7 @@ class KubernetesRunner(AbstractRunner):
         Returns:
             The run object if the run was successful, otherwise None.
         """
-        await LaunchKubernetesMonitor.ensure_initialized()  # No up if running
+        await LaunchKubernetesMonitor.ensure_initialized()
         resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
