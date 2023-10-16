@@ -343,7 +343,7 @@ def mock_kube_context_and_api_client(monkeypatch):
         return (None, None)
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.kubernetes_runner.get_kube_context_and_api_client",
+        "wandb.sdk.launch.utils.get_kube_context_and_api_client",
         lambda *args, **kwargs: _mock_get_kube_context_and_api_client(),
     )
 
