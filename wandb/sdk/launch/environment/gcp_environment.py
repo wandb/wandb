@@ -160,10 +160,8 @@ class GcpEnvironment(AbstractEnvironment):
             "https://www.googleapis.com/auth/cloud-platform",
         ]
         try:
-            google_auth_default = await event_loop_thread_exec(google.auth.default)
-            creds, project = await event_loop_thread_exec(google_auth_default)(
-                scopes=scopes
-            )
+            google_auth_default = event_loop_thread_exec(google.auth.default)
+            creds, project = await google_auth_default(scopes=scopes)
             if not self._project:
                 self._project = project
             _logger.debug("Refreshing GCP credentials")
@@ -221,7 +219,7 @@ class GcpEnvironment(AbstractEnvironment):
         if not match:
             raise LaunchError(f"Invalid GCS URI: {uri}")
         bucket = match.group(1)
-        cloud_storage_client = await event_loop_thread_exec(google.cloud.storage.Client)
+        cloud_storage_client = event_loop_thread_exec(google.cloud.storage.Client)
         try:
             credentials = await self.get_credentials()
             storage_client = await cloud_storage_client(credentials=credentials)
@@ -247,9 +245,7 @@ class GcpEnvironment(AbstractEnvironment):
             raise LaunchError(f"Invalid GCS URI: {destination}")
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
-        google_storage_client = await event_loop_thread_exec(
-            google.cloud.storage.Client
-        )
+        google_storage_client = event_loop_thread_exec(google.cloud.storage.Client)
         credentials = await self.get_credentials()
         try:
             storage_client = await google_storage_client(credentials=credentials)
@@ -277,9 +273,7 @@ class GcpEnvironment(AbstractEnvironment):
             raise LaunchError(f"Invalid GCS URI: {destination}")
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
-        google_storage_client = await event_loop_thread_exec(
-            google.cloud.storage.Client
-        )
+        google_storage_client = event_loop_thread_exec(google.cloud.storage.Client)
         credentials = await self.get_credentials()
         try:
             storage_client = await google_storage_client(credentials=credentials)
