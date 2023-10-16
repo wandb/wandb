@@ -435,7 +435,7 @@ class LaunchAgent:
         job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
 
         asyncio.create_task(
-            self.thread_run_job(
+            self.task_run_job(
                 launch_spec,
                 job,
                 self.default_config,
@@ -552,7 +552,7 @@ class LaunchAgent:
             self._jobs_event.clear()
 
     # Threaded functions
-    async def thread_run_job(
+    async def task_run_job(
         self,
         launch_spec: Dict[str, Any],
         job: Dict[str, Any],
@@ -566,7 +566,7 @@ class LaunchAgent:
         try:
             with self._jobs_lock:
                 self._jobs[rqi_id] = job_tracker
-            await self._thread_run_job(
+            await self._task_run_job(
                 launch_spec, job, default_config, api, rqi_id, job_tracker
             )
         except LaunchDockerError as e:
@@ -586,7 +586,7 @@ class LaunchAgent:
         finally:
             await self.finish_thread_id(rqi_id, exception)
 
-    async def _thread_run_job(
+    async def _task_run_job(
         self,
         launch_spec: Dict[str, Any],
         job: Dict[str, Any],

@@ -19,7 +19,6 @@ botocore = get_module(
     "it with `pip install wandb[launch]`.",
 )
 
-
 _logger = logging.getLogger(__name__)
 
 

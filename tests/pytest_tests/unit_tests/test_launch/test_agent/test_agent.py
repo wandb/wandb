@@ -174,7 +174,7 @@ async def test_requeue_on_preemption(mocker, clean_agent):
         mock_job["runQueueItemId"], "test-queue", MagicMock()
     )
 
-    await agent.thread_run_job(
+    await agent.task_run_job(
         launch_spec=mock_launch_spec,
         job=mock_job,
         default_config={},
@@ -536,12 +536,10 @@ async def test_thread_run_job_calls_finish_thread_id(mocker, exception, clean_ag
             raise exception
         return asyncio.sleep(0)
 
-    agent._thread_run_job = mock_thread_run_job
+    agent._task_run_job = mock_thread_run_job
     mock_finish_thread_id = AsyncMock()
     agent.finish_thread_id = mock_finish_thread_id
-    await agent.thread_run_job(
-        {}, dict(runQueueItemId="rqi-xxxx"), {}, MagicMock(), job
-    )
+    await agent.task_run_job({}, dict(runQueueItemId="rqi-xxxx"), {}, MagicMock(), job)
 
     mock_finish_thread_id.assert_called_once_with("rqi-xxxx", exception)
 
@@ -573,7 +571,7 @@ async def test_inner_thread_run_job(mocker, clean_agent):
 
     mocker.run.cancel = AsyncMock(side_effect=_side_effect)
 
-    await agent._thread_run_job(
+    await agent._task_run_job(
         mock_spec,
         {"runQueueItemId": "blah"},
         {},
@@ -601,3 +599,16 @@ def test_get_job_and_queue(mocker):
     assert job_and_queue.job == mock_job
     assert job_and_queue.queue == "queue-1"
     assert agent._queues == ["queue-2", "queue-3", "queue-1"]
+
+
+def test_get_agent_name(mocker):
+    with pytest.raises(LaunchError):
+        LaunchAgent.name()
+    _setup(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    LaunchAgent(api=mocker.api, config=mock_config)
+
+    assert LaunchAgent.name() == "test-name"

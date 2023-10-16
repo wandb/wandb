@@ -295,16 +295,11 @@ class LaunchKubernetesMonitor:
         ):
             obj = event.get("object")
             job_name = obj.metadata.labels.get("job-name")
-            if job_name is None:
+            if job_name is None or not hasattr(obj, "status"):
                 continue
-            # Sometimes ADDED events will be missing field.
-            if not hasattr(obj, "status"):
-                continue
-            if obj.status.phase == "Running":
+            if obj.status.phase == "Running" or _is_container_creating(obj.status):
                 self._set_status(job_name, Status("running"))
-            if _is_container_creating(obj.status):
-                self._set_status(job_name, Status("running"))
-            if _is_preempted(obj.status):
+            elif _is_preempted(obj.status):
                 self._set_status(job_name, Status("preempted"))
 
     async def _monitor_jobs(self, namespace: str) -> None:
