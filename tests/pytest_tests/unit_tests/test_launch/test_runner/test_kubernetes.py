@@ -339,12 +339,16 @@ def mock_custom_api(monkeypatch):
 def mock_kube_context_and_api_client(monkeypatch):
     """Patches the kubernetes context and api client with a mock and returns it."""
 
-    async def _mock_get_kube_context_and_api_client():
+    async def _mock_get_kube_context_and_api_client(*args, **kwargs):
         return (None, None)
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.utils.get_kube_context_and_api_client",
-        lambda *args, **kwargs: _mock_get_kube_context_and_api_client(),
+        "wandb.sdk.launch.runner.kubernetes_runner.get_kube_context_and_api_client",
+        _mock_get_kube_context_and_api_client,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_monitor.get_kube_context_and_api_client",
+        _mock_get_kube_context_and_api_client,
     )
 
 
@@ -352,12 +356,12 @@ def mock_kube_context_and_api_client(monkeypatch):
 def mock_maybe_create_image_pullsecret(monkeypatch):
     """Patches the kubernetes context and api client with a mock and returns it."""
 
-    async def _mock_maybe_create_image_pullsecret():
+    async def _mock_maybe_create_image_pullsecret(*args, **kwargs):
         return None
 
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
-        lambda *args, **kwargs: _mock_maybe_create_image_pullsecret(),
+        _mock_maybe_create_image_pullsecret,
     )
 
 
@@ -749,7 +753,12 @@ def pod_factory(event_type, job_name, condition_types, condition_reasons, phase=
     ["EvictionByEvictionAPI", "PreemptionByScheduler", "TerminationByKubelet"],
 )
 async def test_monitor_preempted(
-    mock_event_streams, mock_batch_api, mock_core_api, reason, clean_monitor
+    mock_event_streams,
+    mock_kube_context_and_api_client,
+    mock_batch_api,
+    mock_core_api,
+    reason,
+    clean_monitor,
 ):
     """Test if the monitor thread detects a preempted job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -766,7 +775,11 @@ async def test_monitor_preempted(
 
 @pytest.mark.asyncio
 async def test_monitor_succeeded(
-    mock_event_streams, mock_batch_api, mock_core_api, clean_monitor
+    mock_event_streams,
+    mock_kube_context_and_api_client,
+    mock_batch_api,
+    mock_core_api,
+    clean_monitor,
 ):
     """Test if the monitor thread detects a succeeded job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -782,7 +795,11 @@ async def test_monitor_succeeded(
 
 @pytest.mark.asyncio
 async def test_monitor_failed(
-    mock_event_streams, mock_batch_api, mock_core_api, clean_monitor
+    mock_event_streams,
+    mock_kube_context_and_api_client,
+    mock_batch_api,
+    mock_core_api,
+    clean_monitor,
 ):
     """Test if the monitor thread detects a failed job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -798,7 +815,11 @@ async def test_monitor_failed(
 
 @pytest.mark.asyncio
 async def test_monitor_running(
-    mock_event_streams, mock_batch_api, mock_core_api, clean_monitor
+    mock_event_streams,
+    mock_kube_context_and_api_client,
+    mock_batch_api,
+    mock_core_api,
+    clean_monitor,
 ):
     """Test if the monitor thread detects a running job."""
     await LaunchKubernetesMonitor.ensure_initialized()

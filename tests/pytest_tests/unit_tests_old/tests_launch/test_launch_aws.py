@@ -15,6 +15,17 @@ from tests.pytest_tests.unit_tests_old.utils import fixture_open
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 
 
+class MockBuilder:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def build_image(self, *args, **kwargs):
+        return "testimage:12345"
+
+    async def verify(*args, **kwargs):
+        pass
+
+
 @pytest.fixture
 def mock_sagemaker_environment():
     """Mock an instance of the AwsEnvironment class."""
@@ -95,7 +106,7 @@ async def test_launch_aws_sagemaker_no_instance(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -141,7 +152,7 @@ async def test_launch_aws_sagemaker(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -221,9 +232,9 @@ async def test_launch_aws_sagemaker_launch_fail(
     )
 
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
-        "build_image",
-        lambda *args: "testimage:12345",
+        wandb.sdk.launch.loader,
+        "builder_from_config",
+        lambda *args: MockBuilder(),
     )
 
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
@@ -268,7 +279,7 @@ async def test_sagemaker_specified_image(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -419,7 +430,7 @@ async def test_no_OuputDataConfig(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -465,7 +476,7 @@ async def test_no_StoppingCondition(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -510,7 +521,7 @@ async def test_no_ResourceConfig(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -551,7 +562,7 @@ async def test_no_RoleARN(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
