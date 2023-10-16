@@ -871,6 +871,7 @@ def make_safe_for_json(obj: Any) -> Any:
 def no_retry_4xx(e: Exception) -> bool:
     if not isinstance(e, requests.HTTPError):
         return True
+    assert e.response is not None
     if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
         return True
     body = json.loads(e.response.content)
@@ -883,7 +884,7 @@ def no_retry_auth(e: Any) -> bool:
     if not isinstance(e, requests.HTTPError):
         return True
     if e.response is None:
-        return True  # type: ignore
+        return True
     # Don't retry bad request errors; raise immediately
     if e.response.status_code in (400, 409):
         return False
