@@ -26,8 +26,8 @@ fn main() {
 
     let settings = wandb_internal::Settings {
         base_url: Some("https://api.wandb.ai".to_string()),
-        stats_sample_rate_seconds: Some(1.0),
-        stats_samples_to_average: Some(1),
+        // stats_sample_rate_seconds: Some(1.0),
+        // stats_samples_to_average: Some(1),
         log_internal: Some("wandb-internal.log".to_string()),
         sync_file: Some("lol.wandb".to_string()),
         ..Default::default()

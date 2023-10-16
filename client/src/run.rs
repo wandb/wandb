@@ -67,6 +67,7 @@ impl Run {
                                 request_type: Some(wandb_internal::request::RequestType::RunStart(
                                     wandb_internal::RunStartRequest {
                                         run: Some(wandb_internal::RunRecord {
+                                            run_id: self.id.clone(),
                                             ..Default::default()
                                         }),
                                         info: Some(wandb_internal::RequestInfo {
@@ -77,6 +78,10 @@ impl Run {
                                 )),
                             },
                         )),
+                        control: Some(wandb_internal::Control {
+                            local: true,
+                            ..Default::default()
+                        }),
                         info: Some(wandb_internal::RecordInfo {
                             stream_id: self.id.clone(),
                             ..Default::default()
@@ -175,7 +180,8 @@ impl Run {
                 ),
             ),
         };
-        self.conn.send_message(&message).unwrap();
+        println!("Sending shutdown request {:?}", message);
+        // self.conn.send_message(&message).unwrap();
 
         let inform_finish_request = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -189,7 +195,8 @@ impl Run {
                 ),
             ),
         };
-        self.conn.send_message(&inform_finish_request).unwrap();
+        println!("Sending inform finish request {:?}", inform_finish_request);
+        // self.conn.send_message(&inform_finish_request).unwrap();
 
         loop {}
     }

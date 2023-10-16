@@ -59,9 +59,7 @@ impl Session {
         let run_id = generate_run_id(run_id);
         println!("Creating new run {}", run_id);
 
-        let conn = Connection {
-            stream: self.connect(),
-        };
+        let conn = Connection::new(self.connect());
 
         let run = Run {
             id: run_id,
