@@ -5,13 +5,16 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+import wandb
 import yaml
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes_monitor import (
+    CustomResource,
     LaunchKubernetesMonitor,
     _is_container_creating,
+    _log_err_task_callback,
     _state_from_conditions,
     _state_from_replicated_status,
 )
@@ -897,6 +900,32 @@ def test_state_from_replicated_status(status_dict, expected):
     """Test that we extract replicated job state from status correctly."""
     state = _state_from_replicated_status(status_dict)
     assert state == expected
+
+
+def test_custom_resource_helper():
+    """Test that the custom resource helper class works as expected."""
+    resource = CustomResource("batch.volcano.sh", "v1alpha1", "jobs")
+    assert resource.group == "batch.volcano.sh"
+    assert resource.version == "v1alpha1"
+    assert resource.plural == "jobs"
+    assert str(resource) == "batch.volcano.sh/v1alpha1/jobs"
+    assert hash(resource) == hash(str(resource))
+
+
+@pytest.mark.asyncio
+async def test_log_error_callback(monkeypatch):
+    """Test that our callback logs exceptions for crashed tasks."""
+    monkeypatch.setattr("wandb.termerror", MagicMock())
+
+    async def _error_raiser():
+        raise LaunchError("test error")
+
+    task = asyncio.create_task(_error_raiser())
+    task.add_done_callback(_log_err_task_callback)
+    with pytest.raises(LaunchError):
+        await task
+    assert wandb.termerror.call_count == 2
+    assert wandb.termerror.call_args_list[0][0][0].startswith("Exception in task")
 
 
 # Tests for KubernetesSubmittedRun
