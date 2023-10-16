@@ -10,9 +10,10 @@ from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes_monitor import (
-    CRD_STATE_DICT,
     LaunchKubernetesMonitor,
+    _is_container_creating,
     _state_from_conditions,
+    _state_from_replicated_status,
 )
 from wandb.sdk.launch.runner.kubernetes_runner import (
     KubernetesRunner,
@@ -832,36 +833,70 @@ def condition_factory(
     "conditions, expected",
     [
         (
-            [
-                condition_factory("PodScheduled", "True", "", "2023-09-06T20:04:11Z"),
-                condition_factory("Initialized", "True", "", "2023-09-06T20:04:12Z"),
-                condition_factory(
-                    "ContainersReady", "True", "", "2023-09-06T20:04:13Z"
-                ),
-                condition_factory("Running", "True", "", "2023-09-06T20:04:14Z"),
-            ],
+            [condition_factory("Running", "True", "", "2023-09-06T20:04:11Z")],
             "running",
         ),
         (
             [
-                condition_factory("PodScheduled", "True", "", "2023-09-06T20:04:11Z"),
-                condition_factory("Initialized", "True", "", "2023-09-06T20:04:12Z"),
-                condition_factory(
-                    "ContainersReady", "True", "", "2023-09-06T20:04:13Z"
-                ),
-                condition_factory("Running", "False", "", "2023-09-06T20:04:14Z"),
+                condition_factory("Running", "False", "", "2023-09-06T20:04:11Z"),
+                condition_factory("Succeeded", "True", "", "2023-09-06T20:04:11Z"),
             ],
-            None,
+            "finished",
         ),
+        (
+            [
+                condition_factory("Running", "True", "", "2023-09-06T20:04:11Z"),
+                condition_factory("Terminating", "True", "", "2023-09-06T20:04:11Z"),
+            ],
+            "stopping",
+        ),
+        ([condition_factory("Running", False, "", "2023-09-06T20:04:11Z")], None),
     ],
 )
 def test_state_from_conditions(conditions, expected):
     """Test that we extract CRD state from conditions correctly."""
     state = _state_from_conditions(conditions)
     if isinstance(state, str):
-        assert CRD_STATE_DICT[state.lower()] == expected
+        assert state == expected
     else:
-        assert state == expected is None
+        assert state == expected and state is None
+
+
+def container_status_factory(reason):
+    """Factory for creating container statuses."""
+    return MockDict({"state": {"waiting": {"reason": reason}}})
+
+
+@pytest.mark.parametrize(
+    "conditions, expected",
+    [
+        (
+            [container_status_factory("ContainerCreating")],
+            True,
+        ),
+        (
+            [container_status_factory("PodInitializing")],
+            False,
+        ),
+    ],
+)
+def test_is_container_creating(conditions, expected):
+    pod = MockDict({"container_statuses": conditions})
+    assert _is_container_creating(pod) == expected
+
+
+@pytest.mark.parametrize(
+    "status_dict,expected",
+    [
+        ({}, None),
+        ({"ready": 1}, "running"),
+        ({"active": 1}, "starting"),
+    ],
+)
+def test_state_from_replicated_status(status_dict, expected):
+    """Test that we extract replicated job state from status correctly."""
+    state = _state_from_replicated_status(status_dict)
+    assert state == expected
 
 
 # Tests for KubernetesSubmittedRun
