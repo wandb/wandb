@@ -96,7 +96,6 @@ async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets
     )
 
     with relay_server():
-        api = Api()
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
@@ -134,6 +133,10 @@ async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets
         project.docker_image = "hello-world"
         project.job = "testjob"
         project.fill_macros = lambda _: project.resource_args
+        project.queue_name = None
+        project.queue_entity = None
+        project.run_queue_item_id = None
+
         monkeypatch.setattr(
             kubernetes_runner,
             "maybe_create_imagepull_secret",
@@ -240,6 +243,15 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         kubernetes_monitor,
         "LaunchKubernetesMonitor",
         MagicMock(),
+    )
+
+    async def _mock_get_context_and_client(*args, **kwargs):
+        return None, None
+
+    monkeypatch.setattr(
+        kubernetes_monitor,
+        "get_kube_context_and_api_client",
+        _mock_get_context_and_client,
     )
 
     async def mock_create_from_yaml(path, jobs_dict, mock_status):
