@@ -42,11 +42,15 @@ async def test_verify_storage(mocker):
     """Test that the AwsEnvironment correctly verifies storage."""
     session = MagicMock()
     client = MagicMock()
-    client.head_bucket.return_value = "Success!"
     session.client.return_value = client
+    client.head_bucket.return_value = "Success!"
+
+    async def _mock_get_session(*args, **kwargs):
+        return session
+
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
-        return_value=session,
+        _mock_get_session,
     )
     environment = _get_environment()
     await environment.verify_storage_uri("s3://bucket/key")
@@ -67,7 +71,14 @@ async def test_verify(mocker):
     identity = MagicMock()
     identity.get.return_value = "123456789012"
     client.get_caller_identity.return_value = identity
-    session.client.return_value = client
+
+    async def _mock_get_session(*args, **kwargs):
+        return session
+
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
+        _mock_get_session,
+    )
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
         return_value=session,
@@ -115,9 +126,13 @@ async def test_upload_directory(mocker):
     client = MagicMock()
 
     session.client.return_value = client
+
+    async def _mock_get_session(*args, **kwargs):
+        return session
+
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
-        return_value=session,
+        _mock_get_session,
     )
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.os.path.isdir", return_value=True
@@ -205,9 +220,13 @@ async def test_upload_file(mocker):
     client = MagicMock()
     session = MagicMock()
     session.client.return_value = client
+
+    async def _mock_get_session(*args, **kwargs):
+        return session
+
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
-        return_value=session,
+        _mock_get_session,
     )
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.os.path.isfile", return_value=True
