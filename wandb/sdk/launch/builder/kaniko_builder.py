@@ -255,8 +255,9 @@ class KanikoBuilder(AbstractBuilder):
         repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
 
-        if not launch_project.build_required() and self.registry.check_image_exists(
-            image_uri
+        if (
+            not launch_project.build_required()
+            and await self.registry.check_image_exists(image_uri)
         ):
             return image_uri
 
@@ -285,7 +286,7 @@ class KanikoBuilder(AbstractBuilder):
         build_job_name = f"{self.build_job_name}-{run_id}"
 
         build_context = await self._upload_build_context(run_id, context_path)
-        build_job = self._create_kaniko_job(
+        build_job = await self._create_kaniko_job(
             build_job_name, repo_uri, image_uri, build_context, core_v1
         )
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
@@ -307,14 +308,13 @@ class KanikoBuilder(AbstractBuilder):
                     },
                 )
                 await core_v1.create_namespaced_config_map(
-                    "wandb", dockerfile_config_map, async_req=True
+                    "wandb", dockerfile_config_map
                 )
-            # core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
             if self.secret_name:
                 await self._create_docker_ecr_config_map(
                     build_job_name, core_v1, repo_uri
                 )
-            await batch_v1.create_namespaced_job(NAMESPACE, build_job, async_req=True)
+            await batch_v1.create_namespaced_job(NAMESPACE, build_job)
 
             # wait for double the job deadline since it might take time to schedule
             if not await _wait_for_completion(
@@ -324,7 +324,15 @@ class KanikoBuilder(AbstractBuilder):
                     job_tracker.set_err_stage("build")
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
             try:
-                logs = await batch_v1.read_namespaced_job_log(build_job_name, NAMESPACE)
+                pods_from_job = await core_v1.list_namespaced_pod(
+                    namespace=NAMESPACE, label_selector=f"job-name={build_job_name}"
+                )
+                if len(pods_from_job.items) != 1:
+                    raise Exception(
+                        f"Expected 1 pod for job {build_job_name}, found {len(pods_from_job.items)}"
+                    )
+                pod_name = pods_from_job.items[0].metadata.name
+                logs = await core_v1.read_namespaced_pod_log(pod_name, NAMESPACE)
                 warn_failed_packages_from_build_logs(
                     logs, image_uri, launch_project.api, job_tracker
                 )
@@ -346,9 +354,7 @@ class KanikoBuilder(AbstractBuilder):
                     )
                 if self.secret_name:
                     await self._delete_docker_ecr_config_map(build_job_name, core_v1)
-                await batch_v1.delete_namespaced_job(
-                    build_job_name, NAMESPACE, async_req=True
-                )
+                await batch_v1.delete_namespaced_job(build_job_name, NAMESPACE)
             except Exception as e:
                 traceback.print_exc()
                 raise LaunchError(
