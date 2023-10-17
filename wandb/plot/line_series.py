@@ -10,7 +10,7 @@ def line_series(
     keys: t.Optional[t.Iterable] = None,
     title: t.Optional[str] = None,
     xname: t.Optional[str] = None,
-    log_table_separately: t.Optional[bool] = False,
+    split_table: t.Optional[bool] = False,
 ):
     """Construct a line series plot.
 
@@ -83,5 +83,5 @@ def line_series(
         table,
         {"step": "step", "lineKey": "lineKey", "lineVal": "lineVal"},
         {"title": title, "xname": xname or "x"},
-        log_table_separately=log_table_separately,
+        split_table=split_table,
     )

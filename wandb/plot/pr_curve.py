@@ -12,7 +12,7 @@ def pr_curve(
     classes_to_plot=None,
     interp_size=21,
     title=None,
-    log_table_separately: Optional[bool] = False,
+    split_table: Optional[bool] = False,
 ):
     """Compute the tradeoff between precision and recall for different thresholds.
 
@@ -130,5 +130,5 @@ def pr_curve(
         table,
         {"x": "recall", "y": "precision", "class": "class"},
         {"title": title},
-        log_table_separately=log_table_separately,
+        split_table=split_table,
     )

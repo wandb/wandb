@@ -1402,7 +1402,7 @@ class Run:
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
-        log_table_separately_set = set()
+        split_table_set = set()
         for k in row:
             if isinstance(row[k], Visualize):
                 key = row[k].get_config_key(k)
@@ -1412,11 +1412,11 @@ class Run:
             elif isinstance(row[k], CustomChart):
                 chart_keys.add(k)
                 key = row[k].get_config_key(k)
-                if row[k]._log_table_separately:
+                if row[k]._split_table:
                     value = row[k].get_config_value(
                         "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
                     )
-                    log_table_separately_set.add(k)
+                    split_table_set.add(k)
                 else:
                     value = row[k].get_config_value(
                         "Vega2", row[k].user_query(f"{k}_table")
@@ -1428,7 +1428,7 @@ class Run:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
             #     a non-custom chart to this key?
-            if k in log_table_separately_set:
+            if k in split_table_set:
                 row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
             else:
                 row[f"{k}_table"] = row.pop(k)
@@ -2010,7 +2010,7 @@ class Run:
         data_table: "wandb.Table",
         fields: Dict[str, Any],
         string_fields: Optional[Dict[str, Any]] = None,
-        log_table_separately: Optional[bool] = False,
+        split_table: Optional[bool] = False,
     ) -> CustomChart:
         """Create a custom plot on a table.
 
@@ -2023,7 +2023,7 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        return custom_chart(vega_spec_name, data_table, fields, string_fields or {}, log_table_separately)
+        return custom_chart(vega_spec_name, data_table, fields, string_fields or {}, split_table)
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict

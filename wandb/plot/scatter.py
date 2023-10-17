@@ -3,7 +3,7 @@ from typing import Optional
 import wandb
 
 
-def scatter(table, x, y, title=None, log_table_separately: Optional[bool] = False):
+def scatter(table, x, y, title=None, split_table: Optional[bool] = False):
     """Construct a scatter plot.
 
     Arguments:
@@ -23,5 +23,5 @@ def scatter(table, x, y, title=None, log_table_separately: Optional[bool] = Fals
         ```
     """
     return wandb.plot_table(
-        "wandb/scatter/v0", table, {"x": x, "y": y}, {"title": title}, log_table_separately=log_table_separately
+        "wandb/scatter/v0", table, {"x": x, "y": y}, {"title": title}, split_table=split_table
     )

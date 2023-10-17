@@ -12,7 +12,7 @@ def confusion_matrix(
     preds: Optional[Sequence] = None,
     class_names: Optional[Sequence[str]] = None,
     title: Optional[str] = None,
-    log_table_separately: Optional[bool] = False,
+    split_table: Optional[bool] = False,
 ):
     """Compute a multi-run confusion matrix.
 
@@ -94,5 +94,5 @@ def confusion_matrix(
         wandb.Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
         fields,
         {"title": title},
-        log_table_separately=log_table_separately,
+        split_table=split_table,
     )
