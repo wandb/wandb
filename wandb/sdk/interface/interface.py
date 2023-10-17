@@ -440,7 +440,7 @@ class InterfaceBase:
     def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
-    def communicate_artifact(
+    def deliver_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -449,7 +449,7 @@ class InterfaceBase:
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> MessageFuture:
+    ) -> MailboxHandle:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -465,13 +465,13 @@ class InterfaceBase:
         log_artifact.artifact.CopyFrom(proto_artifact)
         if history_step is not None:
             log_artifact.history_step = history_step
-        resp = self._communicate_artifact(log_artifact)
+        resp = self._deliver_artifact(log_artifact)
         return resp
 
     @abstractmethod
-    def _communicate_artifact(
+    def _deliver_artifact(
         self, log_artifact: pb.LogArtifactRequest
-    ) -> MessageFuture:
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def publish_artifact(
