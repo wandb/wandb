@@ -959,6 +959,11 @@ def init(
 ) -> Union[Run, RunDisabled, None]:
     r"""Start a new run to track and log to W&B.
 
+    `wandb.init` creates a [run](https://docs.wandb.ai/ref/python/run), a single unit of computation
+    that W&B can log. If you find yourself making major changes
+    like editing a hyperparameter, using a different model,
+    or creating an artifact, you should initialize a new run.
+
     In an ML training pipeline, you could add `wandb.init()`
     to the beginning of your training script as well as your evaluation
     script, and each piece would be tracked as a run in W&B.
@@ -966,7 +971,7 @@ def init(
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to wandb.ai by default, so you can see live visualizations.
 
-    Call `wandb.init()` to start a run before logging data with `wandb.log()`:
+    You must call `wandb.init()` to start a run before logging data with `wandb.log()`:
     <!--yeadoc-test:init-method-log-->
     ```python
     import wandb
@@ -986,6 +991,8 @@ def init(
 
     assert run is wandb.run
     ```
+
+    There is only ever at most one active run object in any process.
 
     At the end of your script, we will automatically call `wandb.finish` to
     finalize and cleanup the run. However, if you call `wandb.init` from a
