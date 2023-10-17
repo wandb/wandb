@@ -2,9 +2,12 @@ use crate::wandb_internal;
 use byteorder::{LittleEndian, WriteBytesExt};
 use prost::Message;
 use std::{
+    collections::HashMap,
     io::{BufWriter, Write},
     net::TcpStream,
+    sync::mpsc::Sender,
 };
+use crate::session::generate_run_id;
 
 #[repr(C)]
 struct Header {
@@ -14,13 +17,31 @@ struct Header {
 
 pub struct Connection {
     pub stream: TcpStream,
+    // hashmap string -> channel
+    pub handles: HashMap<String, Sender<wandb_internal::Result>>,
 }
 
 impl Connection {
     pub fn clone(&self) -> Self {
         Connection {
             stream: self.stream.try_clone().unwrap(),
+            handles: self.handles.clone(),
         }
+    }
+
+    pub fn send_and_recv_message(
+        &self,
+        message: &wandb_internal::ServerRequest,
+    ) -> Sender<wandb_internal::Result> {
+        // todo: generate unique id for this message
+        let uuid = generate_run_id(None);
+        // message.server_request_type.RecordCommunicate.control.mailbox_slot = uuid.clone();
+        // update the message with the uuid
+        // let
+
+
+        self.send_message(message).unwrap();
+        self.recv();
     }
 
     pub fn send_message(&self, message: &wandb_internal::ServerRequest) -> Result<(), ()> {
@@ -52,7 +73,10 @@ impl Connection {
     }
 
     pub fn new(stream: TcpStream) -> Self {
-        let conn = Connection { stream };
+        let conn = Connection {
+            stream,
+            handles: HashMap::new(),
+        };
 
         // spin up a thread to listen for messages from the server on the connection
         let mut conn_clone = conn.clone();
@@ -100,6 +124,8 @@ impl Connection {
             }
             let proto_message = wandb_internal::ServerResponse::decode(msg.as_slice()).unwrap();
             println!("Received message: {:?}", proto_message);
+
+            // let handle_id
         }
     }
 }

@@ -15,7 +15,7 @@ pub struct Session {
     addr: String,
 }
 
-fn generate_run_id(run_id: Option<String>) -> String {
+pub fn generate_run_id(run_id: Option<String>) -> String {
     match run_id {
         Some(id) => id,
         None => {
