@@ -73,11 +73,11 @@ async def test_safe_watch():
 
     safe_watch = SafeWatch(watch)
     stream = safe_watch.stream(None)
-    assert await anext(stream) == item_1
+    assert await stream.__anext__() == item_1
     assert safe_watch._last_seen_resource_version == "1"
-    assert await anext(stream) == item_2
+    assert await stream.__anext__() == item_2
     assert safe_watch._last_seen_resource_version == "2"
-    assert await anext(stream) == item_3
+    assert await stream.__anext__() == item_3
     assert safe_watch._last_seen_resource_version == "3"
-    assert await anext(stream) == item_4
+    assert await stream.__anext__() == item_4
     assert safe_watch._last_seen_resource_version == "4"
