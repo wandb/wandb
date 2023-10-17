@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence, Any
 
 import wandb
 import wandb.filesync.step_prepare
@@ -72,26 +72,23 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Optional[Dict]:
-        try:
-            return self._save_internal(
-                type,
-                name,
-                client_id,
-                sequence_client_id,
-                distributed_id,
-                finalize,
-                metadata,
-                ttl_duration_seconds,
-                description,
-                aliases,
-                use_after_commit,
-                incremental,
-                history_step,
-                base_id,
-            )
-        finally:
-            self._cleanup_staged_entries()
+    ) -> Any:
+        return self._save_internal(
+            type,
+            name,
+            client_id,
+            sequence_client_id,
+            distributed_id,
+            finalize,
+            metadata,
+            ttl_duration_seconds,
+            description,
+            aliases,
+            use_after_commit,
+            incremental,
+            history_step,
+            base_id,
+        )
 
     def _save_internal(
         self,
@@ -109,7 +106,7 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Optional[Dict]:
+    ) -> Any:
         alias_specs = []
         for alias in aliases or []:
             alias_specs.append({"artifactCollectionName": name, "alias": alias})
@@ -241,15 +238,16 @@ class ArtifactSaver:
 
         # Block until all artifact files are uploaded and the
         # artifact is committed.
-        try:
-            commit_result.result()
-        finally:
+            # commit_result.result()
+
+        def done_callback(future):
             step_prepare.shutdown()
+            if finalize and use_after_commit:
+                self._api.use_artifact(artifact_id)
+            self._cleanup_staged_entries()
 
-        if finalize and use_after_commit:
-            self._api.use_artifact(artifact_id)
-
-        return self._server_artifact
+        commit_result.add_done_callback(done_callback)
+        return self._server_artifact, commit_result
 
     def _resolve_client_id_manifest_references(self) -> None:
         for entry_path in self._manifest.entries:

@@ -379,7 +379,7 @@ class SendManager:
         if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
-
+        logger.error(f"Sending {handler_str}")
         context_id = context.context_id_from_record(record)
         api_context = self._context_keeper.get(context_id)
         try:
@@ -390,6 +390,7 @@ class SendManager:
             self._context_keeper.release(context_id)
         finally:
             self._api.clear_local_context()
+        logger.error(f"Done sending {handler_str}")
 
     def send_preempting(self, _: "Record") -> None:
         if self._fs:
@@ -1432,13 +1433,13 @@ class SendManager:
             )
 
     def send_request_log_artifact(self, record: "Record") -> None:
-        assert record.control.req_resp
+        assert record.control.mailbox_slot
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step
 
         try:
-            res = self._send_artifact(artifact, history_step)
+            res, future = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
             logger.info(f"logged artifact {artifact.name} - {res}")
@@ -1446,13 +1447,14 @@ class SendManager:
             result.response.log_artifact_response.error_message = (
                 f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
-
-        self._respond_result(result)
+        def respond_callback(future):
+            self._respond_result(result)
+        future.add_done_callback(respond_callback)
 
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
-            res = self._send_artifact(artifact)
+            res, _ = self._send_artifact(artifact)
             logger.info(f"sent artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
@@ -1463,7 +1465,7 @@ class SendManager:
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Optional[Dict]:
+    ) -> Any:
         from pkg_resources import parse_version
 
         assert self._pusher
@@ -1487,7 +1489,7 @@ class SendManager:
                 return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        res = saver.save(
+        res, future = saver.save(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
@@ -1505,7 +1507,7 @@ class SendManager:
         )
 
         self._job_builder._handle_server_artifact(res, artifact)
-        return res
+        return res, future
 
     def send_alert(self, record: "Record") -> None:
         from pkg_resources import parse_version
