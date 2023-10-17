@@ -21,15 +21,12 @@ class ArtifactSequence:
     artifacts: Iterable[wandb.Artifact]
     entity: str
     project: str
+    _type: str
+    name: str
 
-    name: str = field(init=False)
-
-    def __post_init__(self):
-        self.artifacts = list(self.artifacts)
-        if self.artifacts:
-            self.name = self.artifacts[0].name
-        else:
-            self.name = ""
+    @property
+    def identifier(self):
+        return "/".join([self.entity, self.project, self._type, self.name])
 
     def __iter__(self) -> Iterator:
         return iter(self.artifacts)
@@ -189,19 +186,19 @@ def parallelize(
     with ThreadPoolExecutor(max_workers) as exc:
         futures = {exc.submit(func, x, *args, **kwargs): x for x in iterable}
         # task = progress.task_pbar.add_task(description, total=len(futures))
-        for future in progress.task_track(
+        for future in progress.task_progress(
             as_completed(futures), description=description, total=len(futures)
         ):
             try:
                 result = future.result()
             except Exception as e:
-                run = futures[future]
+                item = futures[future]
                 _, _, exc_traceback = sys.exc_info()
                 traceback_details = traceback.extract_tb(exc_traceback)
                 filename = traceback_details[-1].filename
                 lineno = traceback_details[-1].lineno
                 print(
-                    f"Exception: {run=} {e=} {filename=} {lineno=}. {traceback_details=}"
+                    f"Exception: {item=} {e=} {filename=} {lineno=}. {traceback_details=}"
                 )
                 continue
             else:

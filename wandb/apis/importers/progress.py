@@ -94,7 +94,7 @@ def progress(
     if total is None:
         try:
             total = len(iterable)
-        except TypeError:
+        except Exception:
             pass
 
     task = pbar.add_task(description, total=total)

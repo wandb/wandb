@@ -3131,7 +3131,11 @@ class File(Attrs):
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def download(
-        self, root: str = ".", replace: bool = False, exist_ok: bool = False, timeout:int=5
+        self,
+        root: str = ".",
+        replace: bool = False,
+        exist_ok: bool = False,
+        timeout: int = 5,
     ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 
