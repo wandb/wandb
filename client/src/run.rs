@@ -12,7 +12,7 @@ pub struct Run {
 
 // #[pymethods]
 impl Run {
-    pub fn init(&self) {
+    pub fn init(&mut self) {
         println!("Initializing run {}", self.id);
 
         let server_inform_init_request = wandb_internal::ServerRequest {
@@ -58,40 +58,38 @@ impl Run {
 
         self.conn.send_message(&server_publish_run_request).unwrap();
 
-        let server_publish_run_start = wandb_internal::ServerRequest {
-            server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::RecordCommunicate(
-                    wandb_internal::Record {
-                        record_type: Some(wandb_internal::record::RecordType::Request(
-                            wandb_internal::Request {
-                                request_type: Some(wandb_internal::request::RequestType::RunStart(
-                                    wandb_internal::RunStartRequest {
-                                        run: Some(wandb_internal::RunRecord {
-                                            run_id: self.id.clone(),
-                                            ..Default::default()
-                                        }),
-                                        info: Some(wandb_internal::RequestInfo {
-                                            stream_id: self.id.clone(),
-                                            ..Default::default()
-                                        }),
-                                    },
-                                )),
-                            },
-                        )),
-                        control: Some(wandb_internal::Control {
-                            local: true,
-                            ..Default::default()
-                        }),
-                        info: Some(wandb_internal::RecordInfo {
-                            stream_id: self.id.clone(),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    },
-                ),
-            ),
+        let mut server_publish_run_start = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Request(
+                wandb_internal::Request {
+                    request_type: Some(wandb_internal::request::RequestType::RunStart(
+                        wandb_internal::RunStartRequest {
+                            run: Some(wandb_internal::RunRecord {
+                                run_id: self.id.clone(),
+                                ..Default::default()
+                            }),
+                            info: Some(wandb_internal::RequestInfo {
+                                stream_id: self.id.clone(),
+                                ..Default::default()
+                            }),
+                        },
+                    )),
+                },
+            )),
+            control: Some(wandb_internal::Control {
+                local: true,
+                ..Default::default()
+            }),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id.clone(),
+                ..Default::default()
+            }),
+            ..Default::default()
         };
-        self.conn.send_message(&server_publish_run_start).unwrap();
+        let result = self
+            .conn
+            .send_and_recv_message(&mut server_publish_run_start);
+
+        println!("Result: {:?}", result);
     }
 
     pub fn log(&self, data: HashMap<String, f64>) {

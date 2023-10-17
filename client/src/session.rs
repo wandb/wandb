@@ -61,7 +61,7 @@ impl Session {
 
         let conn = Connection::new(self.connect());
 
-        let run = Run {
+        let mut run = Run {
             id: run_id,
             settings: self.settings.clone(),
             conn: conn,

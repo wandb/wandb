@@ -1,3 +1,4 @@
+use crate::session::generate_run_id;
 use crate::wandb_internal;
 use byteorder::{LittleEndian, WriteBytesExt};
 use prost::Message;
@@ -5,9 +6,8 @@ use std::{
     collections::HashMap,
     io::{BufWriter, Write},
     net::TcpStream,
-    sync::mpsc::Sender,
+    sync::mpsc::{channel, Sender},
 };
-use crate::session::generate_run_id;
 
 #[repr(C)]
 struct Header {
@@ -30,18 +30,40 @@ impl Connection {
     }
 
     pub fn send_and_recv_message(
-        &self,
-        message: &wandb_internal::ServerRequest,
-    ) -> Sender<wandb_internal::Result> {
+        &mut self,
+        // message: &wandb_internal::ServerRequest,
+        message: &mut wandb_internal::Record,
+    ) -> wandb_internal::Result {
         // todo: generate unique id for this message
         let uuid = generate_run_id(None);
         // message.server_request_type.RecordCommunicate.control.mailbox_slot = uuid.clone();
         // update the message with the uuid
         // let
+        if let Some(ref mut control) = message.control {
+            control.mailbox_slot = uuid.clone();
+            control.req_resp = true;
+        } else {
+            message.control = Some(wandb_internal::Control {
+                mailbox_slot: uuid.clone(),
+                req_resp: true,
+                ..Default::default()
+            });
+        }
 
+        let message = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::RecordCommunicate(
+                    message.clone(),
+                ),
+            ),
+        };
 
-        self.send_message(message).unwrap();
-        self.recv();
+        let (sender, receiver) = channel();
+        self.handles.insert(uuid, sender);
+        self.send_message(&message).unwrap();
+
+        println!(">>> Waiting for result...");
+        return receiver.recv().unwrap();
     }
 
     pub fn send_message(&self, message: &wandb_internal::ServerRequest) -> Result<(), ()> {
@@ -125,6 +147,35 @@ impl Connection {
             let proto_message = wandb_internal::ServerResponse::decode(msg.as_slice()).unwrap();
             println!("Received message: {:?}", proto_message);
 
+            match proto_message.server_response_type {
+                Some(wandb_internal::server_response::ServerResponseType::ResultCommunicate(
+                    result,
+                )) => {
+                    // Handle ResultCommunicate variant here
+                    // You can access fields of Result if needed
+                    println!(">>>>Received ResultCommunicate: {:?}", result);
+
+                    if let Some(control) = &result.control {
+                        let mailbox_slot = &control.mailbox_slot;
+                        println!("Mailbox slot: {}", mailbox_slot);
+                        if let Some(sender) = self.handles.get(mailbox_slot) {
+                            println!("Sending result to sender {:?}", sender);
+                            // todo: use the result type of the result_communicate
+                            sender.send(result.clone()).expect("Failed to send result")
+                        } else {
+                            println!("Failed to send result to sender");
+                        }
+                    } else {
+                        println!("Received ResultCommunicate without control")
+                    }
+                }
+                Some(_) => {
+                    println!("Received message with unknown type");
+                }
+                None => {
+                    println!("Received message without type")
+                }
+            }
             // let handle_id
         }
     }
