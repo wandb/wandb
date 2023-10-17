@@ -409,24 +409,20 @@ def fetch_project_diff(
     return patch
 
 
-def apply_patch(patch_string: str, dst_dir: str) -> None:
+def apply_patch(patch_string: str, dst_dir: str) -> Optional[str]:
+    _msg = None
     """Applies a patch file to a directory."""
     _logger.info("Applying diff.patch")
     with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
         fp.write(patch_string)
     try:
         subprocess.check_call(
-            [
-                "patch",
-                "-s",
-                f"--directory={dst_dir}",
-                "-p1",
-                "-i",
-                "diff.patch",
-            ]
+            ["patch", "-s", f"--directory={dst_dir}", "-p1", "-i", "diff.patch", "-N"]
         )
-    except subprocess.CalledProcessError:
-        raise wandb.Error("Failed to apply diff.patch associated with run.")
+    except subprocess.CalledProcessError as e:
+        _msg = f"Failed to apply diff.patch associated with run: {e}"
+        wandb.termwarn(_msg)
+    return _msg
 
 
 def _make_refspec_from_version(version: Optional[str]) -> List[str]:
