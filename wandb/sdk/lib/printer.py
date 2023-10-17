@@ -205,7 +205,7 @@ class PrinterTerm(_Printer):
         percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
         filledLength = int(length * iteration // total)
         bar = fill * (filledLength - 1)
-        bar += "🏎" 
+        bar += "💸" 
         bar +=  '-' * (length - filledLength)
         wandb.termlog(f'\r\r\r\r\r\r{prefix} |{bar}| {percent}% {suffix}', prefix=False, newline=False)
 
