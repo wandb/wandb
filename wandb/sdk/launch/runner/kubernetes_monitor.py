@@ -1,6 +1,7 @@
 """Monitors kubernetes resources managed by the launch agent."""
 import asyncio
 import logging
+import sys
 import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -20,6 +21,10 @@ from wandb.sdk.launch.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import State, Status
 from wandb.sdk.launch.utils import get_kube_context_and_api_client
+
+WANDB_K8S_LABEL_NAMESPACE = "wandb.ai"
+WANDB_K8S_LABEL_AGENT = f"{WANDB_K8S_LABEL_NAMESPACE}/agent"
+WANDB_K8S_LABEL_MONITOR = f"{WANDB_K8S_LABEL_NAMESPACE}/monitor"
 
 
 class Resources:
@@ -66,7 +71,8 @@ _logger = logging.getLogger(__name__)
 def create_named_task(name: str, coro: Any, *args: Any, **kwargs: Any) -> asyncio.Task:
     """Create a named task."""
     task = asyncio.create_task(coro(*args, **kwargs))
-    task.set_name(name)
+    if sys.version_info >= (3, 8):
+        task.set_name(name)
     task.add_done_callback(_log_err_task_callback)
     return task
 
@@ -75,7 +81,11 @@ def _log_err_task_callback(task: asyncio.Task) -> None:
     """Callback to log exceptions from tasks."""
     exec = task.exception()
     if exec is not None:
-        wandb.termerror(f"Exception in task {task.get_name()}")
+        if isinstance(exec, asyncio.CancelledError):
+            wandb.termlog(f"Task {task.get_name()} was cancelled")
+            return
+        name = str(task) if sys.version_info < (3, 8) else task.get_name()
+        wandb.termerror(f"Exception in task {name}")
         tb = exec.__traceback__
         tb_str = "".join(traceback.format_tb(tb))
         wandb.termerror(tb_str)
@@ -201,9 +211,9 @@ class LaunchKubernetesMonitor:
             core_api = CoreV1Api(api_client)
             batch_api = BatchV1Api(api_client)
             custom_api = CustomObjectsApi(api_client)
-            label_selector = "wandb.ai/monitor=true"
+            label_selector = f"{WANDB_K8S_LABEL_MONITOR}=true"
             if LaunchAgent.initialized():
-                label_selector += f",wandb.ai/agent={LaunchAgent.name()}"
+                label_selector += f",{WANDB_K8S_LABEL_AGENT}={LaunchAgent.name()}"
             cls(
                 core_api=core_api,
                 batch_api=batch_api,

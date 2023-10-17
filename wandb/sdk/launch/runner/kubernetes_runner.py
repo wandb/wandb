@@ -17,6 +17,8 @@ from wandb.sdk.launch.registry.azure_container_registry import AzureContainerReg
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import Status
 from wandb.sdk.launch.runner.kubernetes_monitor import (
+    WANDB_K8S_LABEL_AGENT,
+    WANDB_K8S_LABEL_MONITOR,
     CustomResource,
     LaunchKubernetesMonitor,
 )
@@ -331,9 +333,9 @@ class KubernetesRunner(AbstractRunner):
 
         # Add labels to job metadata
         job_metadata.setdefault("labels", {})
-        job_metadata["labels"]["wandb.ai/monitor"] = "true"
+        job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
         if LaunchAgent.initialized():
-            job_metadata["labels"]["wandb.ai/agent"] = LaunchAgent.name()
+            job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
 
         # name precedence: name in spec > generated name
         if not job_metadata.get("name"):
@@ -399,7 +401,7 @@ class KubernetesRunner(AbstractRunner):
 
         add_label_to_pods(
             job,
-            "wandb.ai/monitor",
+            WANDB_K8S_LABEL_MONITOR,
             "true",
         )
 
@@ -407,7 +409,7 @@ class KubernetesRunner(AbstractRunner):
         if LaunchAgent.initialized():
             add_label_to_pods(
                 job,
-                "wandb.ai/agent",
+                WANDB_K8S_LABEL_AGENT,
                 LaunchAgent.name(),
             )
 
@@ -456,13 +458,13 @@ class KubernetesRunner(AbstractRunner):
             resource_args["metadata"]["labels"] = resource_args["metadata"].get(
                 "labels", {}
             )
-            resource_args["metadata"]["labels"]["wandb.ai/monitor"] = "true"
+            resource_args["metadata"]["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
 
             # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
             add_label_to_pods(
                 resource_args,
-                "wandb.ai/monitor",
+                WANDB_K8S_LABEL_MONITOR,
                 "true",
             )
 
@@ -470,11 +472,11 @@ class KubernetesRunner(AbstractRunner):
             if LaunchAgent.initialized():
                 add_label_to_pods(
                     resource_args,
-                    "wandb.ai/agent",
+                    WANDB_K8S_LABEL_MONITOR,
                     LaunchAgent.name(),
                 )
                 resource_args["metadata"]["labels"][
-                    "wandb.ai/agent"
+                    WANDB_K8S_LABEL_AGENT
                 ] = LaunchAgent.name()
 
             overrides = {}
