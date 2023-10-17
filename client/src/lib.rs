@@ -12,7 +12,7 @@ pub mod wandb_internal;
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
 #[pymodule]
-fn wandb_lib(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn wandbinder(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(session::generate_run_id, m)?)?;
     // m.add_class::<session::Lol>()?;
     m.add_class::<session::Settings>()?;
