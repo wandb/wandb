@@ -1,16 +1,20 @@
+use pyo3::prelude::*;
+
 use crate::connection::Interface;
 use crate::wandb_internal;
-use crate::wandb_internal::Settings;
+// use crate::wandb_internal::Settings;
 use std::collections::HashMap;
 
-// #[pyclass]
+use crate::session::Settings;
+
+#[pyclass]
 pub struct Run {
     pub id: String,
     pub settings: Settings,
     pub interface: Interface,
 }
 
-// #[pymethods]
+#[pymethods]
 impl Run {
     pub fn init(&mut self) {
         println!("Initializing run {}", self.id);
@@ -19,7 +23,7 @@ impl Run {
             server_request_type: Some(
                 wandb_internal::server_request::ServerRequestType::InformInit(
                     wandb_internal::ServerInformInitRequest {
-                        settings: Some(self.settings.clone()),
+                        settings: Some(self.settings.proto.clone()),
                         info: Some(wandb_internal::RecordInfo {
                             stream_id: self.id.clone(),
                             ..Default::default()
@@ -153,7 +157,9 @@ impl Run {
             ..Default::default()
         };
 
-        self.interface.conn.send_and_recv_message(&mut record, &mut self.interface.handles);
+        self.interface
+            .conn
+            .send_and_recv_message(&mut record, &mut self.interface.handles);
 
         let mut shutdown_request = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Request(
@@ -175,7 +181,8 @@ impl Run {
             ..Default::default()
         };
 
-        let result = self.interface
+        let result = self
+            .interface
             .conn
             .send_and_recv_message(&mut shutdown_request, &mut self.interface.handles);
 
@@ -194,7 +201,10 @@ impl Run {
             ),
         };
         println!("Sending inform finish request {:?}", inform_finish_request);
-        self.interface.conn.send_message(&inform_finish_request).unwrap();
+        self.interface
+            .conn
+            .send_message(&inform_finish_request)
+            .unwrap();
 
         // loop {}
     }

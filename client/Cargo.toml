@@ -3,17 +3,13 @@ name = "wandbinder"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-name = "wandbinder"
-crate-type = ["cdylib"]
-
+path = "src/lib.rs"
+crate-type = ["lib", "cdylib"]
 
 [[bin]]
 name = "binder"
 path = "src/binder.rs"
-
 
 [dependencies]
 bytes = "1.0.1"
@@ -21,15 +17,12 @@ byteorder = "1.5.0"
 prost = "0.12.0"
 prost-types = "0.12.0"
 rand = "0.8.5"
-# pyo3 = { version = "0.20.0", features = ["abi3-py37", "extension-module"] }
+pyo3 = { version = "0.20.0", features = ["abi3-py37", "extension-module"] }
 tempfile = "3.8.0"
 prost-build = "0.12.0"
 uuid = "1.4.1"
 fork = "0.1.22"
-# depend on the library crate from the same workspace
-wandbinder = { path = "." }
 
 [build-dependencies]
 prost-build = "0.12.0"
 tempfile = "3.8.0"
-# pyo3 = { version = "0.20.0", features = ["abi3-py37", "extension-module"] }

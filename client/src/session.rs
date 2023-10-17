@@ -1,25 +1,94 @@
+use pyo3::prelude::*;
+
 use std::net::TcpStream;
 
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::env;
 
-use crate::wandb_internal::Settings;
+use crate::wandb_internal::Settings as SettingsProto;
 // use pyo3::prelude::*;
 
 use crate::connection::{Connection, Interface};
-use crate::run::Run;
 use crate::launcher::Launcher;
+use crate::run::Run;
 
 // constants
 const ENV_NEXUS_PATH: &str = "_WANDB_NEXUS_PATH";
 
 // #[pyclass]
+// pub struct Lol {
+//     #[pyo3(get)]
+//     pub name: String,
+//     id: i32,
+// }
+
+// #[pymethods]
+// impl Lol {
+//     #[new]
+//     pub fn new(name: String) -> Lol {
+//         let l = Lol { name, id: 123 };
+//         println!("Lol created {:?}", l.id);
+//         l
+//     }
+// }
+// impl Lol {
+//     fn imma_get_name(&self) -> &str {
+//         &self.name
+//     }
+
+//     fn imma_get_id(&self) -> i32 {
+//         self.id
+//     }
+// }
+
+#[pyclass]
+#[derive(Clone)]
+pub struct Settings {
+    pub proto: SettingsProto,
+}
+
+#[pymethods]
+impl Settings {
+    #[new]
+    pub fn new(
+        base_url: Option<String>,
+        // stats_sample_rate_seconds: Option<f64>,
+        // stats_samples_to_average: Option<i32>,
+        // log_internal: Option<String>,
+        // sync_file: Option<String>,
+    ) -> Settings {
+        let proto = SettingsProto {
+            base_url: Some(base_url.unwrap_or("https://api.wandb.ai".to_string())),
+            // stats_sample_rate_seconds: Some(1.0),
+            // stats_samples_to_average: Some(1),
+            log_internal: Some("wandb-internal.log".to_string()),
+            sync_file: Some("lol.wandb".to_string()),
+            ..Default::default()
+        };
+        Settings { proto }
+    }
+
+    #[getter]
+    fn base_url(&self) -> String {
+        self.proto.base_url.clone().unwrap()
+    }
+}
+
+impl Settings {
+    pub fn clone(&self) -> Settings {
+        let proto = self.proto.clone();
+        Settings { proto }
+    }
+}
+
+#[pyclass]
 pub struct Session {
     settings: Settings,
     addr: String,
 }
 
+#[pyfunction]
 pub fn generate_run_id(run_id: Option<String>) -> String {
     match run_id {
         Some(id) => id,
@@ -42,40 +111,24 @@ pub fn get_nexus_address() -> String {
         nexus_cmd = nexus_path.unwrap();
     }
 
-    let launcher = Launcher{
+    let launcher = Launcher {
         command: nexus_cmd.to_string(),
     };
     let port = launcher.start();
     format!("127.0.0.1:{}", port)
 }
 
-// #[pymethods]
+#[pymethods]
 impl Session {
+    #[new]
     pub fn new(settings: Settings) -> Session {
         let addr = get_nexus_address();
-        let session = Session {
-            settings: settings,
-            addr: addr,
-        };
+        let session = Session { settings, addr };
         // println!("Session created {:?}", session.settings);
         session
     }
 
-    fn connect(&self) -> TcpStream {
-        println!("Connecting to {}", self.addr);
-
-        if let Ok(stream) = TcpStream::connect(&self.addr) {
-            println!("{}", stream.peer_addr().unwrap());
-            println!("{}", stream.local_addr().unwrap());
-
-            return stream;
-        } else {
-            println!("Couldn't connect to server...");
-            panic!();
-        }
-    }
-
-    pub fn new_run(&self, run_id: Option<String>) -> Run {
+    pub fn init_run(&self, run_id: Option<String>) -> Run {
         // generate a random alphnumeric string of length 6 if run_id is None:
         let run_id = generate_run_id(run_id);
         println!("Creating new run {}", run_id);
@@ -91,5 +144,21 @@ impl Session {
 
         run.init();
         return run;
+    }
+}
+
+impl Session {
+    fn connect(&self) -> TcpStream {
+        println!("Connecting to {}", self.addr);
+
+        if let Ok(stream) = TcpStream::connect(&self.addr) {
+            println!("{}", stream.peer_addr().unwrap());
+            println!("{}", stream.local_addr().unwrap());
+
+            return stream;
+        } else {
+            println!("Couldn't connect to server...");
+            panic!();
+        }
     }
 }
