@@ -4840,17 +4840,6 @@ class Job:
                         launch_project._run_queue_item_id, warning, "agent", None
                     )
 
-        if os.path.exists(os.path.join(self._fpath, "diff.patch")):
-            with open(os.path.join(self._fpath, "diff.patch")) as f:
-                warning = apply_patch(f.read(), launch_project.project_dir)
-                if (
-                    warning is not None
-                    and launch_project._run_queue_item_id is not None
-                ):
-                    launch_project.api.update_run_queue_item_warning(
-                        launch_project._run_queue_item_id, warning, "agent", None
-                    )
-
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.python_version = self._job_info.get("runtime")
         if self._notebook_job:
