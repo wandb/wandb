@@ -432,6 +432,7 @@ def test_container_job_creation(live_mock_server, test_settings):
             x["alias"] for x in ctx["artifacts"]["job-dummy-container"][0]["aliases"]
         ]
         assert "docker-tag" in aliases
+        assert "latest" in aliases
 
 
 def test_manual_git_run_metadata_from_settings(live_mock_server, test_settings):
