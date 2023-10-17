@@ -10,6 +10,17 @@ from wandb.sdk.launch.builder.build import EntryPoint
 from wandb.sdk.launch.errors import LaunchError
 
 
+class MockBuilder:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def verify(self):
+        pass
+
+    async def build(self, *args, **kwargs):
+        pass
+
+
 @pytest.mark.asyncio
 async def test_launch_incorrect_backend(
     runner, user, monkeypatch, wandb_init, test_settings
@@ -49,7 +60,7 @@ async def test_launch_incorrect_backend(
 
     monkeypatch.setattr(
         "wandb.sdk.launch.loader.builder_from_config",
-        lambda *args, **kawrgs: MagicMock(),
+        lambda *args, **kawrgs: MockBuilder(),
     )
     r = wandb_init(settings=settings)
     r.finish()

@@ -63,6 +63,14 @@ CRD_STATE_DICT: Dict[str, State] = {
 _logger = logging.getLogger(__name__)
 
 
+def create_named_task(name: str, coro: Any, *args: Any, **kwargs: Any) -> asyncio.Task:
+    """Create a named task."""
+    task = asyncio.create_task(coro(*args, **kwargs))
+    task.set_name(name)
+    task.add_done_callback(_log_err_task_callback)
+    return task
+
+
 def _log_err_task_callback(task: asyncio.Task) -> None:
     """Callback to log exceptions from tasks."""
     exec = task.exception()
@@ -237,32 +245,27 @@ class LaunchKubernetesMonitor:
     ) -> None:
         """Start monitoring a namespaces for resources."""
         if (namespace, Resources.PODS) not in self._monitor_tasks:
-            self._monitor_tasks[(namespace, Resources.PODS)] = asyncio.create_task(
-                self._monitor_pods(namespace),
-                name=f"monitor_{Resources.PODS}_{namespace}",
-            )
-            self._monitor_tasks[(namespace, Resources.PODS)].add_done_callback(
-                _log_err_task_callback
+            self._monitor_tasks[(namespace, Resources.PODS)] = create_named_task(
+                f"monitor_pods_{namespace}",
+                self._monitor_pods,
+                namespace,
             )
         # If a custom resource is specified then we will start monitoring
         # that resource type in the namespace instead of jobs.
         if custom_resource is not None:
             if (namespace, custom_resource) not in self._monitor_tasks:
-                self._monitor_tasks[(namespace, custom_resource)] = asyncio.create_task(
-                    self._monitor_crd(namespace, custom_resource),
-                    name=f"monitor_{custom_resource.plural}_{namespace}",
-                )
-                self._monitor_tasks[(namespace, custom_resource)].add_done_callback(
-                    _log_err_task_callback
+                self._monitor_tasks[(namespace, custom_resource)] = create_named_task(
+                    f"monitor_{custom_resource}_{namespace}",
+                    self._monitor_crd,
+                    namespace,
+                    custom_resource=custom_resource,
                 )
         else:
             if (namespace, Resources.JOBS) not in self._monitor_tasks:
-                self._monitor_tasks[(namespace, Resources.JOBS)] = asyncio.create_task(
-                    self._monitor_jobs(namespace),
-                    name=f"monitor_{Resources.JOBS}_{namespace}",
-                )
-                self._monitor_tasks[(namespace, Resources.JOBS)].add_done_callback(
-                    _log_err_task_callback
+                self._monitor_tasks[(namespace, Resources.JOBS)] = create_named_task(
+                    f"monitor_jobs_{namespace}",
+                    self._monitor_jobs,
+                    namespace,
                 )
 
     def __get_status(self, job_name: str) -> Status:

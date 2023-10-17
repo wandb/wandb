@@ -12,6 +12,9 @@ async def test_local_container_entrypoint(relay_server, monkeypatch):
         # return first arg, which is command
         return args[0]
 
+    async def mock_build_image(*args, **kwargs):
+        return "testimage"
+
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         mock_run_entrypoint,
@@ -27,7 +30,7 @@ async def test_local_container_entrypoint(relay_server, monkeypatch):
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.builder.noop.NoOpBuilder.build_image",
-        lambda *args, **kwargs: "testimage",
+        mock_build_image,
     )
 
     with relay_server():
@@ -71,7 +74,7 @@ async def test_local_container_entrypoint(relay_server, monkeypatch):
         )
 
         # test with no user provided image
-        command = runner.run(project, project.docker_image)
+        command = await runner.run(project, project.docker_image)
         assert (
             f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
             in command
