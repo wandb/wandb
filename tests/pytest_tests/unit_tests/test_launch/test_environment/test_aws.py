@@ -79,10 +79,6 @@ async def test_verify(mocker):
         "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
         _mock_get_session,
     )
-    mocker.patch(
-        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
-        return_value=session,
-    )
     environment = _get_environment()
     await environment.verify()
 
