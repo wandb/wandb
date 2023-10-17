@@ -196,6 +196,6 @@ impl Run {
         println!("Sending inform finish request {:?}", inform_finish_request);
         self.interface.conn.send_message(&inform_finish_request).unwrap();
 
-        loop {}
+        // loop {}
     }
 }
