@@ -36,7 +36,7 @@ fn main() {
     let addr = format!("127.0.0.1:{}", port);
     let session = session::Session::new(settings, addr.to_string());
 
-    let run = session.new_run(None);
+    let mut run = session.new_run(None);
     println!("Run id: {}", run.id);
 
     let mut data: HashMap<String, f64> = HashMap::new();

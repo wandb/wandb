@@ -1,4 +1,4 @@
-use crate::connection::Connection;
+use crate::connection::Interface;
 use crate::wandb_internal;
 use crate::wandb_internal::Settings;
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 pub struct Run {
     pub id: String,
     pub settings: Settings,
-    pub conn: Connection,
+    pub interface: Interface,
 }
 
 // #[pymethods]
@@ -29,7 +29,10 @@ impl Run {
             ),
         };
 
-        self.conn.send_message(&server_inform_init_request).unwrap();
+        self.interface
+            .conn
+            .send_message(&server_inform_init_request)
+            .unwrap();
 
         let server_publish_run_request = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -56,7 +59,10 @@ impl Run {
             ),
         };
 
-        self.conn.send_message(&server_publish_run_request).unwrap();
+        self.interface
+            .conn
+            .send_message(&server_publish_run_request)
+            .unwrap();
 
         let mut server_publish_run_start = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Request(
@@ -86,8 +92,9 @@ impl Run {
             ..Default::default()
         };
         let result = self
+            .interface
             .conn
-            .send_and_recv_message(&mut server_publish_run_start);
+            .send_and_recv_message(&mut server_publish_run_start, &mut self.interface.handles);
 
         println!("Result: {:?}", result);
     }
@@ -122,10 +129,10 @@ impl Run {
             ),
         };
 
-        self.conn.send_message(&message).unwrap();
+        self.interface.conn.send_message(&message).unwrap();
     }
 
-    pub fn finish(&self) {
+    pub fn finish(&mut self) {
         println!("Finishing run {}", self.id);
 
         let finish_record = wandb_internal::RunExitRecord {
@@ -137,7 +144,7 @@ impl Run {
             ..Default::default()
         };
 
-        let record = wandb_internal::Record {
+        let mut record = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Exit(finish_record)),
             info: Some(wandb_internal::RecordInfo {
                 stream_id: self.id.clone(),
@@ -146,40 +153,33 @@ impl Run {
             ..Default::default()
         };
 
-        let message = wandb_internal::ServerRequest {
-            server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::RecordCommunicate(record),
-            ),
-        };
-        self.conn.send_message(&message).unwrap();
+        self.interface.conn.send_and_recv_message(&mut record, &mut self.interface.handles);
 
-        let message = wandb_internal::ServerRequest {
-            server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::RecordCommunicate(
-                    wandb_internal::Record {
-                        record_type: Some(wandb_internal::record::RecordType::Request(
-                            wandb_internal::Request {
-                                request_type: Some(wandb_internal::request::RequestType::Shutdown(
-                                    wandb_internal::ShutdownRequest {
-                                        info: Some(wandb_internal::RequestInfo {
-                                            stream_id: self.id.clone(),
-                                            ..Default::default()
-                                        }),
-                                    },
-                                )),
-                            },
-                        )),
-                        info: Some(wandb_internal::RecordInfo {
-                            stream_id: self.id.clone(),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    },
-                ),
-            ),
+        let mut shutdown_request = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Request(
+                wandb_internal::Request {
+                    request_type: Some(wandb_internal::request::RequestType::Shutdown(
+                        wandb_internal::ShutdownRequest {
+                            info: Some(wandb_internal::RequestInfo {
+                                stream_id: self.id.clone(),
+                                ..Default::default()
+                            }),
+                        },
+                    )),
+                },
+            )),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id.clone(),
+                ..Default::default()
+            }),
+            ..Default::default()
         };
-        println!("Sending shutdown request {:?}", message);
-        // self.conn.send_message(&message).unwrap();
+
+        let result = self.interface
+            .conn
+            .send_and_recv_message(&mut shutdown_request, &mut self.interface.handles);
+
+        println!("Result: {:?}", result);
 
         let inform_finish_request = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -194,7 +194,7 @@ impl Run {
             ),
         };
         println!("Sending inform finish request {:?}", inform_finish_request);
-        // self.conn.send_message(&inform_finish_request).unwrap();
+        self.interface.conn.send_message(&inform_finish_request).unwrap();
 
         loop {}
     }

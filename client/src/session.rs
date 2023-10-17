@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::wandb_internal::Settings;
 // use pyo3::prelude::*;
 
-use crate::connection::Connection;
+use crate::connection::{Connection, Interface};
 use crate::run::Run;
 
 // #[pyclass]
@@ -60,11 +60,12 @@ impl Session {
         println!("Creating new run {}", run_id);
 
         let conn = Connection::new(self.connect());
+        let interface = Interface::new(conn);
 
         let mut run = Run {
             id: run_id,
             settings: self.settings.clone(),
-            conn: conn,
+            interface,
         };
 
         run.init();

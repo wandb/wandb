@@ -7,6 +7,7 @@ use std::{
     io::{BufWriter, Write},
     net::TcpStream,
     sync::mpsc::{channel, Sender},
+    sync::{Arc, Mutex},
 };
 
 #[repr(C)]
@@ -15,24 +16,51 @@ struct Header {
     data_length: u32,
 }
 
-pub struct Connection {
-    pub stream: TcpStream,
+pub struct Interface {
+    pub conn: Connection,
     // hashmap string -> channel
-    pub handles: HashMap<String, Sender<wandb_internal::Result>>,
+    pub handles: Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>,
+}
+
+impl Interface {
+    pub fn new(conn: Connection) -> Self {
+        let handles = Arc::new(Mutex::new(HashMap::new()));
+        let interface = Interface {
+            handles: handles.clone(),
+            conn: conn.clone(),
+        };
+
+        std::thread::spawn(move || conn.recv(&handles));
+
+        interface
+    }
+}
+
+
+pub struct Connection {
+    pub stream: TcpStream
 }
 
 impl Connection {
+    pub fn new(stream: TcpStream) -> Self {
+        let conn = Connection {
+            stream,
+        };
+
+        conn
+    }
+
     pub fn clone(&self) -> Self {
+        let stream = self.stream.try_clone().unwrap();
         Connection {
-            stream: self.stream.try_clone().unwrap(),
-            handles: self.handles.clone(),
+            stream,
         }
     }
 
     pub fn send_and_recv_message(
         &mut self,
-        // message: &wandb_internal::ServerRequest,
         message: &mut wandb_internal::Record,
+        handles: &mut Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>
     ) -> wandb_internal::Result {
         // todo: generate unique id for this message
         let uuid = generate_run_id(None);
@@ -59,7 +87,9 @@ impl Connection {
         };
 
         let (sender, receiver) = channel();
-        self.handles.insert(uuid, sender);
+        println!(">>> Inserting sender {:?} for uuid {}", sender, uuid);
+        handles.lock().unwrap().insert(uuid, sender);
+        println!(">>> Handles: {:?}", handles);
         self.send_message(&message).unwrap();
 
         println!(">>> Waiting for result...");
@@ -94,19 +124,6 @@ impl Connection {
         Ok(())
     }
 
-    pub fn new(stream: TcpStream) -> Self {
-        let conn = Connection {
-            stream,
-            handles: HashMap::new(),
-        };
-
-        // spin up a thread to listen for messages from the server on the connection
-        let mut conn_clone = conn.clone();
-        std::thread::spawn(move || conn_clone.recv());
-
-        conn
-    }
-
     pub fn recv_message(&self) -> Vec<u8> {
         // Read the magic byte
         let mut magic_byte = [0; 1];
@@ -132,7 +149,7 @@ impl Connection {
         body
     }
 
-    pub fn recv(&mut self) {
+    pub fn recv(&self, handles: &Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>) {
         println!(
             "Receiving messages from run {}",
             self.stream.peer_addr().unwrap()
@@ -146,6 +163,7 @@ impl Connection {
             }
             let proto_message = wandb_internal::ServerResponse::decode(msg.as_slice()).unwrap();
             println!("Received message: {:?}", proto_message);
+            println!("Handles: {:?}", handles);
 
             match proto_message.server_response_type {
                 Some(wandb_internal::server_response::ServerResponseType::ResultCommunicate(
@@ -153,15 +171,17 @@ impl Connection {
                 )) => {
                     // Handle ResultCommunicate variant here
                     // You can access fields of Result if needed
-                    println!(">>>>Received ResultCommunicate: {:?}", result);
+                    println!(">>>> Received ResultCommunicate: {:?}", result);
 
                     if let Some(control) = &result.control {
                         let mailbox_slot = &control.mailbox_slot;
                         println!("Mailbox slot: {}", mailbox_slot);
-                        if let Some(sender) = self.handles.get(mailbox_slot) {
+                        println!("Handles: {:?}", handles);
+                        if let Some(sender) = handles.lock().unwrap().get(mailbox_slot) {
                             println!("Sending result to sender {:?}", sender);
                             // todo: use the result type of the result_communicate
-                            sender.send(result.clone()).expect("Failed to send result")
+                            // let cloned_result = result.clone();
+                            sender.send(result).expect("Failed to send result")
                         } else {
                             println!("Failed to send result to sender");
                         }
