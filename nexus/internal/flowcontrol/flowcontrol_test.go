@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/internal/nexustest"
+	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
