@@ -6,9 +6,9 @@ repos:
     rev: v1.0
     hooks:
     - id: fmt
-      args: ['--manifest-path=client/Cargo.toml', '--']
+      args: ['--manifest-path=client/Cargo.toml', '--', '--check']
     - id: cargo-check
-      args: ['--manifest-path=client/Cargo.toml', '--']
+      args: ['--manifest-path=client/Cargo.toml', '--', '--all-features']
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.1.0"
     hooks:
