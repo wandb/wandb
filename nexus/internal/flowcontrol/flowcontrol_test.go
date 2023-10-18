@@ -2,10 +2,11 @@ package flowcontrol
 
 import (
 	"testing"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	"github.com/golang/mock/gomock"
 )
 
 //go:generate mockgen -package=flowcontrol -source=flowcontrol_test.go -destination flowcontrol_test_gen.go MockTestFlow
@@ -22,11 +23,11 @@ func TestFlowControl(t *testing.T) {
 	m := NewMockTestFlow(ctrl)
 
 	/*
-	m.EXPECT().
-      RecoverRecords(gomock.Eq(99), gomock.Eq(33))
+			m.EXPECT().
+		      RecoverRecords(gomock.Eq(99), gomock.Eq(33))
 	*/
-	settings :=  &service.Settings{
-		RunId: &wrapperspb.StringValue{Value: "run1"},
+	settings := &service.Settings{
+		RunId:          &wrapperspb.StringValue{Value: "run1"},
 		XNetworkBuffer: &wrapperspb.Int32Value{Value: 20},
 	}
 	record := &service.Record{
@@ -49,5 +50,5 @@ func TestFlowControl(t *testing.T) {
 	flowControl.Flow(record)
 	flowControl.Flow(record)
 	flowControl.Flow(record)
-	assert.Equal(t, 1, 2)
+	// assert.Equal(t, 1, 2)
 }
