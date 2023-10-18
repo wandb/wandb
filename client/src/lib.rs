@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 
+use sentry;
 use tracing;
 use tracing_subscriber;
 
@@ -16,6 +17,10 @@ pub mod wandb_internal;
 /// import the module.
 #[pymodule]
 fn wandbinder(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    let _guard = sentry::init(
+        "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.sentry.io/4506068829470720",
+    );
+
     let log_level = tracing::Level::INFO;
     // let log_level = tracing::Level::DEBUG;
     tracing_subscriber::fmt().with_max_level(log_level).init();

@@ -1,4 +1,5 @@
 use fork::{fork, Fork};
+use sentry;
 use std::fs;
 use std::process::Command;
 use std::{thread, time};
@@ -47,7 +48,13 @@ impl Launcher {
                     .arg(port_filename)
                     .output();
             }
-            Err(_) => tracing::error!("Fork failed"),
+            Err(e) => {
+                sentry::capture_error(&std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Fork failed: {}", e),
+                ));
+                tracing::error!("Fork failed");
+            }
         }
         0
     }
