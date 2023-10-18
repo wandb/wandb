@@ -239,7 +239,9 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
 	case *service.Request_SenderMark:
-		// s.sendServerInfo(record, x.ServerInfo)
+		s.sendSenderMark(record, x.SenderMark)
+	case *service.Request_StatusReport:
+		s.sendStatusReport(record, x.StatusReport)
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RequestType", err)
@@ -828,4 +830,28 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) maybeReportStatus(always bool) {
+	if !always {
+		return
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_StatusReport{
+					StatusReport: &service.StatusReportRequest{},
+				},
+			},
+		},
+	}
+	s.loopbackChan <- record
+}
+
+func (s *Sender) sendSenderMark(record *service.Record, _ *service.SenderMarkRequest) {
+	s.maybeReportStatus(/* always */ true)
+}
+
+func (s *Sender) sendStatusReport(record *service.Record, _ *service.StatusReportRequest) {
+	// note: this record is not really needed in the sender (it was used in the flow control path)
 }

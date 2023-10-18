@@ -305,6 +305,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleCancel(record)
 	case *service.Request_GetSystemMetrics:
 		h.handleGetSystemMetrics(record, response)
+	case *service.Request_StatusReport:
+		h.handleStatusReport(record)
 	case *service.Request_InternalMessages:
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
@@ -322,6 +324,14 @@ func (h *Handler) handleRequest(record *service.Record) {
 	if shutdown {
 		close(h.loopbackChan)
 	}
+}
+
+func (h *Handler) handleStatusReport(record *service.Record) {
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
