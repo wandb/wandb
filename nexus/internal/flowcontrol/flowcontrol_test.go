@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/nexus/internal/nexustest"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -21,10 +22,6 @@ func TestFlowControl(t *testing.T) {
 
 	m := NewMockTestFlow(ctrl)
 
-	/*
-			m.EXPECT().
-		      RecoverRecords(gomock.Eq(99), gomock.Eq(33))
-	*/
 	settings := &service.Settings{
 		RunId:          &wrapperspb.StringValue{Value: "run1"},
 		XNetworkBuffer: &wrapperspb.Int32Value{Value: 20},
@@ -40,9 +37,13 @@ func TestFlowControl(t *testing.T) {
 		},
 	}
 
-	m.EXPECT().SendRecord(record)
-	m.EXPECT().SendRecord(record)
-	m.EXPECT().SendRecord(record)
+	// m.EXPECT().RecoverRecords(gomock.Eq(99), gomock.Eq(33))
+	// m.EXPECT().SendRecord(&RecordMatch{Record: record})
+	m.EXPECT().SendRecord(nexustest.MatchRecord(record, nexustest.RecordCompare))
+	m.EXPECT().SendRecord(nexustest.MatchRecord(record, nexustest.RecordCompare))
+	m.EXPECT().SendRecord(nexustest.MatchRecord(record, nexustest.RecordCompare))
+	// m.EXPECT().SendRecord(record)
+	// m.EXPECT().SendRecord(record)
 	// m.EXPECT().SendPause()
 	flowControl := NewFlowControl(settings, m.SendRecord, m.SendPause, m.RecoverRecords)
 
