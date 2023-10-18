@@ -50,18 +50,7 @@ fn print_header(name: &str, url: &str) {
             .unwrap()
             // For more spinners check out the cli-spinners project:
             // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
-            .tick_strings(&[
-                "⠋",
-                "⠙",
-                "⠚",
-                "⠞",
-                "⠖",
-                "⠦",
-                "⠴",
-                "⠲",
-                "⠳",
-                "⠓",
-            ])
+            .tick_strings(&["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]),
     );
     pb.set_message("Creating run...");
     thread::sleep(Duration::from_secs(3));
@@ -88,9 +77,14 @@ fn print_footer(name: &str, url: &str) {
 
     let pb = ProgressBar::new(total_size);
     pb.set_prefix(prefix.to_string());
-    pb.set_style(ProgressStyle::with_template("{prefix}Syncing run {wide_bar:.magenta/white.dim} {bytes}/{total_bytes} ({eta})")
+    pb.set_style(
+        ProgressStyle::with_template(
+            "{prefix}Syncing run {wide_bar:.magenta/white.dim} {bytes}/{total_bytes} ({eta})",
+        )
         .unwrap()
-        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
+            write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+        })
         // .progress_chars("⠿⠇"),
         .progress_chars("⣿⡇"),
     );
