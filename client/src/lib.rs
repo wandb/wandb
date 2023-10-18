@@ -17,7 +17,7 @@ pub mod wandb_internal;
 /// import the module.
 #[pymodule]
 fn wandbinder(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    // todo: this doesn't work
+    // TODO: this doesn't work
     let _guard = sentry::init(
         "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.sentry.io/4506068829470720",
     );

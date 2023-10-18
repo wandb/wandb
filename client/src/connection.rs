@@ -58,7 +58,7 @@ impl Connection {
         message: &mut wandb_internal::Record,
         handles: &mut Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>,
     ) -> wandb_internal::Result {
-        // todo: generate unique id for this message
+        // TODO: generate unique id for this message
         let uuid = generate_run_id(None);
         // message.server_request_type.RecordCommunicate.control.mailbox_slot = uuid.clone();
         // update the message with the uuid
@@ -175,7 +175,7 @@ impl Connection {
                         tracing::debug!("Handles: {:?}", handles);
                         if let Some(sender) = handles.lock().unwrap().get(mailbox_slot) {
                             tracing::debug!("Sending result to sender {:?}", sender);
-                            // todo: use the result type of the result_communicate
+                            // TODO: use the result type of the result_communicate
                             // let cloned_result = result.clone();
                             sender.send(result).expect("Failed to send result")
                         } else {
