@@ -296,6 +296,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
+
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DIR:
@@ -822,4 +823,8 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) flushJob() {
+
 }
