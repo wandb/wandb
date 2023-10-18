@@ -849,7 +849,7 @@ func (s *Sender) maybeReportStatus(always bool) {
 }
 
 func (s *Sender) sendSenderMark(record *service.Record, _ *service.SenderMarkRequest) {
-	s.maybeReportStatus(/* always */ true)
+	s.maybeReportStatus( /* always */ true)
 }
 
 func (s *Sender) sendStatusReport(record *service.Record, _ *service.StatusReportRequest) {
