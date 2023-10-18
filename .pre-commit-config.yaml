@@ -6,6 +6,7 @@ repos:
     rev: master
     hooks:
     - id: fmt
+      files: 'client/'
     - id: cargo-check
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.0.284"
