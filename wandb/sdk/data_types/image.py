@@ -18,13 +18,12 @@ from .helper_types.image_mask import ImageMask
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import numpy as np  # type: ignore
+    import numpy as np
     import torch  # type: ignore
     from PIL.Image import Image as PILImage
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
     ImageDataType = Union[
@@ -70,7 +69,7 @@ class Image(BatchableMedia):
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
-            "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
+            "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes.
         caption: (string) Label for display of image.
 
     Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
@@ -288,6 +287,8 @@ class Image(BatchableMedia):
             )
             if hasattr(data, "requires_grad") and data.requires_grad:
                 data = data.detach()  # type: ignore
+            if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
+                data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
             self._image = pil_image.fromarray(
                 data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
@@ -309,11 +310,13 @@ class Image(BatchableMedia):
 
     @classmethod
     def from_json(
-        cls: Type["Image"], json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
-        classes = None
+        classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
-            classes = source_artifact.get(json_obj["classes"]["path"])
+            value = source_artifact.get(json_obj["classes"]["path"])
+            assert isinstance(value, (type(None), Classes))
+            classes = value
 
         masks = json_obj.get("masks")
         _masks: Optional[Dict[str, ImageMask]] = None
@@ -386,7 +389,7 @@ class Image(BatchableMedia):
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
@@ -400,7 +403,7 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
             if (
                 self._masks is not None or self._boxes is not None

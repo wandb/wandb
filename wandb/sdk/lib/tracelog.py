@@ -103,8 +103,8 @@ def _result_msg_type(result: "pb.Result") -> str:
 def _log_message(
     msg: "MessageType", log_type: str, resource: Optional[str] = None
 ) -> None:
-    record: Optional["pb.Record"] = None
-    result: Optional["pb.Result"] = None
+    record: Optional[pb.Record] = None
+    result: Optional[pb.Result] = None
     is_response = False
     msg_type: str
     # Note: using strings to avoid an import

@@ -1,13 +1,16 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
 import wandb
 from wandb import util
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.errors import LaunchError
+
+if TYPE_CHECKING:
+    from wandb.apis.public import Api as PublicApi
 
 DEFAULT_SWEEP_COMMAND: List[str] = [
     "${env}",
@@ -123,11 +126,13 @@ def construct_scheduler_args(
     queue: str,
     project: str,
     author: Optional[str] = None,
-    sweep_type: Optional[str] = "sweep",
-) -> Optional[List[str]]:
-    """Construct a sweep scheduler entrypoing and args.
+    sweep_type: Optional[str] = "wandb",
+    return_job: bool = False,
+) -> Union[List[str], Dict[str, str], None]:
+    """Construct sweep scheduler args.
 
-    logs error and returns None if misconfigured, otherwise returns entrypoint and args
+    logs error and returns None if misconfigured,
+    otherwise returns args as a dict if is_job else a list of strings.
     """
     job = sweep_config.get("job")
     image_uri = sweep_config.get("image_uri")
@@ -142,19 +147,42 @@ def construct_scheduler_args(
         )
         return None
 
+    # if scheduler is a job, return args as dict
+    if return_job:
+        args_dict: Dict[str, str] = {
+            "sweep_id": "WANDB_SWEEP_ID",
+            "queue": queue,
+            "project": project,
+        }
+        if job:
+            args_dict["job"] = job
+        elif image_uri:
+            args_dict["image_uri"] = image_uri
+
+        if author:
+            args_dict["author"] = author
+
+        return args_dict
+
+    # scheduler uses cli commands, pass args as param list
     args = [
         "--queue",
         f"{queue!r}",
         "--project",
-        project,
+        f"{project!r}",
         "--sweep_type",
         f"{sweep_type}",
     ]
-
     if author:
-        args += ["--author", author]
+        args += [
+            "--author",
+            f"{author!r}",
+        ]
     if job:
-        args += ["--job", job]
+        args += [
+            "--job",
+            f"{job!r}",
+        ]
     elif image_uri:
         args += ["--image_uri", image_uri]
 
@@ -199,9 +227,12 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
     # (5) flags without equals (e.g. --foo bar)
     args_no_equals: List[str] = []
     for param, config in command["args"].items():
-        _value: Any = config.get("value", None)
-        if _value is None:
+        # allow 'None' as a valid value, but error if no value is found
+        try:
+            _value: Any = config["value"]
+        except KeyError:
             raise ValueError('No "value" found for command["args"]["%s"]' % param)
+
         _flag: str = f"{param}={_value}"
         flags.append("--" + _flag)
         flags_no_hyphens.append(_flag)
@@ -248,3 +279,41 @@ def make_launch_sweep_entrypoint(
         return None, macro_args
 
     return entry_point, macro_args
+
+
+def check_job_exists(public_api: "PublicApi", job: Optional[str]) -> bool:
+    """Check if the job exists using the public api.
+
+    Returns: True if no job is passed, or if the job exists.
+    Returns: False if the job is misformatted or doesn't exist.
+    """
+    if not job:
+        return True
+
+    try:
+        public_api.job(job)
+    except Exception as e:
+        wandb.termerror(f"Failed to load job. {e}")
+        return False
+    return True
+
+
+def get_previous_args(
+    run_spec: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Parse through previous scheduler run_spec.
+
+    returns scheduler_args and settings.
+    """
+    scheduler_args = (
+        run_spec.get("overrides", {}).get("run_config", {}).get("scheduler", {})
+    )
+    # also pipe through top level resource setup
+    if run_spec.get("resource"):
+        scheduler_args["resource"] = run_spec["resource"]
+    if run_spec.get("resource_args"):
+        scheduler_args["resource_args"] = run_spec["resource_args"]
+
+    settings = run_spec.get("overrides", {}).get("run_config", {}).get("settings", {})
+
+    return scheduler_args, settings

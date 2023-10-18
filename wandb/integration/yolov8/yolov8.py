@@ -16,8 +16,11 @@ class WandbCallback:
     Usage:
     ```python
     from wandb.integration.yolov8.yolov8 import WandbCallback
+
     model = YOLO("yolov8n.pt")
-    wandb_logger = WandbCallback(model,)
+    wandb_logger = WandbCallback(
+        model,
+    )
     for event, callback_fn in wandb_logger.callbacks.items():
         model.add_callback(event, callback_fn)
     ```
@@ -222,14 +225,30 @@ def add_callbacks(
     Usage:
     ```python
     from wandb.integration.yolov8 import add_callbacks as add_wandb_callbacks
+
     model = YOLO("yolov8n.pt")
-    add_wandb_callbacks(model,)
-    model.train(data="coco128.yaml", epochs=3, imgsz=640,)
+    add_wandb_callbacks(
+        model,
+    )
+    model.train(
+        data="coco128.yaml",
+        epochs=3,
+        imgsz=640,
+    )
     ```
     """
     wandb.termwarn(
         """The wandb callback is currently in beta and is subject to change based on updates to `ultralytics yolov8`.
         The callback is tested and supported for ultralytics v8.0.43 and above.
+        Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.
+        """,
+        repeat=False,
+    )
+    wandb.termwarn(
+        """This wandb callback is no longer functional and would be deprecated in the near future.
+        We recommend you to use the updated callback using `from wandb.integration.ultralytics import add_wandb_callback`.
+        The updated callback is tested and supported for ultralytics 8.0.167 and above.
+        You can refer to https://docs.wandb.ai/guides/integrations/ultralytics for the updated documentation.
         Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.
         """,
         repeat=False,

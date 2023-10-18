@@ -11,7 +11,8 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.15.4.dev1"
+__version__ = "0.15.13.dev1"
+_minimum_nexus_version = "0.16.0b3"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -33,7 +34,6 @@ init = wandb_sdk.init
 setup = wandb_sdk.setup
 _attach = wandb_sdk._attach
 _teardown = wandb_sdk.teardown
-save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
 finish = wandb_sdk.finish
@@ -84,6 +84,8 @@ from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
+# Artifact import types
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 
 # Used to make sure we don't use some code in the incorrect process context
 _IS_INTERNAL_PROCESS = False
@@ -200,6 +202,21 @@ _sentry = _Sentry()
 _sentry.setup()
 
 
+# print a warning if running py 3.6 saying that it will be deprecated in the 0.16.0 release
+try:
+    import sys
+
+    if sys.version_info[0] == 3 and sys.version_info[1] == 6:
+        termwarn(
+            "Support for Python 3.6 will be discontinued "
+            "in the upcoming 0.16.0 release of wandb. "
+            "We recommend upgrading to Python 3.7 or a later version.",
+            repeat=False,
+        )
+except Exception:
+    pass
+
+
 __all__ = (
     "__version__",
     "init",
@@ -223,4 +240,5 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
+    "ArtifactTTL",
 )

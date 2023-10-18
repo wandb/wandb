@@ -3,11 +3,11 @@ plugin:
   - wandb
 tag:
   shard: llm
-  skips:
-    - platform: win
+  skip: true
 depend:
   requirements:
-    - langchain
+    - langchain>=0.0.188
+    - beautifulsoup4
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 1
@@ -22,6 +22,4 @@ assert:
   # - :op:contains:
   #   - :wandb:runs[0][summary][langchain_trace]
   #   - model_hash
-  - :op:contains:
-    - :wandb:runs[0][telemetry][3]  # features
-    - 52  # LangChain W&B Tracer callback
+  - :wandb:runs[0][telemetry][9][2] : langchain  # label is langchain

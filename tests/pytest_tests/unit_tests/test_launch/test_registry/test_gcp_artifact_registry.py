@@ -34,3 +34,39 @@ def test_bad_image_name():
                 verify=False,
             )
         assert f"The image name {bad_name} is invalid." in str(e.value)
+
+
+def test_from_config():
+    """Test that we construct a GoogleArtifactRegistry from a config dict."""
+    environment = MagicMock()
+    environment.project = "myproject-12345"
+    environment.region = "region"
+    config = {
+        "type": "gcr",
+        "repository": "test-repository",
+        "image-name": "test-image",
+    }
+    registry = GoogleArtifactRegistry.from_config(config, environment, verify=False)
+    assert registry.repository == "test-repository"
+    assert registry.image_name == "test-image"
+    assert registry.environment
+
+    config = {
+        "type": "gcr",
+        "uri": "region-docker.pkg.dev/myproject-12345/test-repository/test-image",
+    }
+    registry = GoogleArtifactRegistry.from_config(config, environment, verify=False)
+    assert registry.repository == "test-repository"
+    assert registry.image_name == "test-image"
+
+
+def test_from_config_bad_uri():
+    environment = MagicMock()
+    environment.project = "myproject-12345"
+    environment.region = "region"
+    config = {
+        "type": "gcr",
+        "uri": "region-docker.pkg.dev/myproject-12345/test-repository",
+    }  # missing image name
+    with pytest.raises(LaunchError):
+        GoogleArtifactRegistry.from_config(config, environment, verify=False)

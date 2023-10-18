@@ -1,7 +1,9 @@
-from pytest import fixture
-from wandb import wandb_sdk
+from pathlib import Path
+
+import pytest
+from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache
 
 
-@fixture
-def cache(tmp_path):
-    return wandb_sdk.wandb_artifacts.ArtifactsCache(tmp_path)
+@pytest.fixture
+def artifacts_cache(tmp_path: Path) -> ArtifactsCache:
+    return ArtifactsCache(tmp_path / "artifacts-cache")
