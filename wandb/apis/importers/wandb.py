@@ -1024,8 +1024,9 @@ class WandbImporter:
 
         try:
             shutil.copy2(src, dst)
-        except FileNotFoundError as e:
-            print(f"problem {e=}")
+        except FileNotFoundError:
+            # this is just to make a copy of the last iteration, so its ok if the src doesn't exist
+            pass
 
         with open(ARTIFACTS_ERRORS_JSONL_FNAME, "w"):
             pass
@@ -1036,8 +1037,9 @@ class WandbImporter:
 
         try:
             shutil.copy2(src, dst)
-        except FileNotFoundError as e:
-            print(f"problem {e=}")
+        except FileNotFoundError:
+            # this is just to make a copy of the last iteration, so its ok if the src doesn't exist
+            pass
 
         with open(RUNS_ERRORS_JSONL_FNAME, "w"):
             pass
@@ -1288,77 +1290,6 @@ class WandbImporter:
             except Exception as e:
                 print(f"problem cleanup {e=}")
                 continue
-
-    def use_artifact_sequence(
-        self,
-        sequence: ArtifactSequence,
-        config: Optional[Namespace] = None,
-    ) -> None:
-        """Do the equivalent of `run.use_artifact(art)` for each artifact in the artifact sequence.
-
-        Use `namespace` to specify alternate settings like where the artifact sequence should be used
-        """
-        if config is None:
-            config = Namespace()
-
-        settings_override = {
-            "api_key": self.dst_api_key,
-            "base_url": self.dst_base_url,
-            "resume": "true",
-            "resumed": True,
-        }
-
-        send_manager_config = internal.SendManagerConfig(
-            use_artifacts=True,
-        )
-
-        sequence = list(sequence)
-        s = sequence[0]
-        _type = s.type
-        name, _ = s.name.split(":")
-
-        task = progress.subtask_pbar.add_task(
-            f"Use Artifact Sequence ({_type}/{name})", total=len(sequence)
-        )
-        for art in sequence:
-            if art.type == "job":
-                # Job is a special type that can't be used yet
-                continue
-
-            wandb_runs = art.used_by()
-            if wandb_runs == []:
-                # Don't try to download an artifact that doesn't exist
-                continue
-
-            try:
-                path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
-            except Exception as e:
-                wandb_logger.error(
-                    f"Error downloading artifact {art} -- {e}",
-                    extra={
-                        "entity": wandb_runs[0].entity,
-                        "project": wandb_runs[0].project,
-                        "run_id": wandb_runs[0].id,
-                    },
-                )
-                continue
-
-            new_art = _make_new_art(art)
-
-            if Path(path).is_dir():
-                new_art.add_dir(path)
-
-            for wandb_run in wandb_runs:
-                run = WandbRun(wandb_run)
-                internal.send_artifacts_with_send_manager(
-                    new_art,
-                    run,
-                    overrides=config.send_manager_overrides,
-                    settings_override=settings_override,
-                    config=send_manager_config,
-                )
-            progress.subtask_pbar.update(task, advance=1)
-        progress.subtask_pbar.remove_task(task)
 
     def collect_reports(
         self, entity: str, project: Optional[str] = None, limit: Optional[int] = None
