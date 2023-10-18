@@ -1,4 +1,4 @@
-package server
+package flowcontrol
 
 import (
 	"github.com/wandb/wandb/nexus/pkg/fsm"

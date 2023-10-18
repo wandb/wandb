@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/wandb/wandb/nexus/internal/flowcontrol"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -32,7 +33,7 @@ type Writer struct {
 	recordNum int64
 
 	// flow control logic
-	flowControl *FlowControl
+	flowControl *flowcontrol.FlowControl
 
 	// keep track of if we have hit overflow condition
 	overflowTelemetrySent bool
@@ -47,7 +48,7 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 		logger:   logger,
 		fwdChan:  make(chan *service.Record, BufferSize),
 	}
-	w.flowControl = NewFlowControl(settings, w.sendRecord, w.sendPause, w.recoverRecords)
+	w.flowControl = flowcontrol.NewFlowControl(settings, w.sendRecord, w.sendPause, w.recoverRecords)
 	return w
 }
 
