@@ -39,16 +39,17 @@ type StateForwarding struct {
 type StatePausing struct {
 	fsm.FsmState[*service.Record, *FlowControlContext]
 	StateShared
+	recoverRecords   func(int64, int64)
 	thresholdRecover int64
 	thresholdForward int64
 }
 
 func isControlRecord(record *service.Record) bool {
-    return record.Control.FlowControl
+	return record.Control.FlowControl
 }
 
 func isLocalNonControlRecord(record *service.Record) bool {
-    return record.Control.Local && !record.Control.FlowControl
+	return record.Control.Local && !record.Control.FlowControl
 }
 
 func (c FlowControlContext) behindBytes() int64 {
@@ -118,18 +119,20 @@ func (s *StatePausing) shouldQuiesce(record *service.Record) bool {
 }
 
 func (s *StatePausing) doQuiesce(record *service.Record) {
-	/*
-        start = self._context.last_forwarded_offset
-        end = self._context.last_written_offset
-        if start != end:
-            self._recover_records(start, end)
-        if _is_local_non_control_record(record):
-            self._forward_record(record)
-        self._update_forwarded_offset()
-	*/
+	startOffset := s.context.forwardedOffset
+	endOffset := s.context.writtenOffset
+	if startOffset != endOffset {
+		s.recoverRecords(startOffset, endOffset)
+	}
+	if isLocalNonControlRecord(record) {
+		s.forwardRecord(record)
+	}
+	// update offset TODO: is this right?
+	s.context.forwardedOffset = record.Control.EndOffset
 }
 
-func NewFlowControl(settings *service.Settings, sendRecord func(record *service.Record), sendPause func()) *FlowControl {
+func NewFlowControl(settings *service.Settings, sendRecord func(record *service.Record), sendPause func(),
+                    recoverRecords func(int64, int64)) *FlowControl {
 	var networkBuffer int64 = DefaultNetworkBuffer
 	if param := settings.GetXNetworkBuffer(); param != nil {
 		networkBuffer = int64(param.GetValue())
@@ -151,6 +154,7 @@ func NewFlowControl(settings *service.Settings, sendRecord func(record *service.
 		StateShared: StateShared{
 			sendRecord: sendRecord,
 		},
+		recoverRecords:   recoverRecords,
 		thresholdRecover: thresholdRecover,
 		thresholdForward: thresholdForward,
 	}
