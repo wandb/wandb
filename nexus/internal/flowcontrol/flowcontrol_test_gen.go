@@ -11,61 +11,61 @@ import (
 	service "github.com/wandb/wandb/nexus/pkg/service"
 )
 
-// MockTestFlow is a mock of TestFlow interface.
-type MockTestFlow struct {
+// MockTestFlowcontrol is a mock of TestFlowcontrol interface.
+type MockTestFlowcontrol struct {
 	ctrl     *gomock.Controller
-	recorder *MockTestFlowMockRecorder
+	recorder *MockTestFlowcontrolMockRecorder
 }
 
-// MockTestFlowMockRecorder is the mock recorder for MockTestFlow.
-type MockTestFlowMockRecorder struct {
-	mock *MockTestFlow
+// MockTestFlowcontrolMockRecorder is the mock recorder for MockTestFlowcontrol.
+type MockTestFlowcontrolMockRecorder struct {
+	mock *MockTestFlowcontrol
 }
 
-// NewMockTestFlow creates a new mock instance.
-func NewMockTestFlow(ctrl *gomock.Controller) *MockTestFlow {
-	mock := &MockTestFlow{ctrl: ctrl}
-	mock.recorder = &MockTestFlowMockRecorder{mock}
+// NewMockTestFlowcontrol creates a new mock instance.
+func NewMockTestFlowcontrol(ctrl *gomock.Controller) *MockTestFlowcontrol {
+	mock := &MockTestFlowcontrol{ctrl: ctrl}
+	mock.recorder = &MockTestFlowcontrolMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTestFlow) EXPECT() *MockTestFlowMockRecorder {
+func (m *MockTestFlowcontrol) EXPECT() *MockTestFlowcontrolMockRecorder {
 	return m.recorder
 }
 
 // RecoverRecords mocks base method.
-func (m *MockTestFlow) RecoverRecords(startOffset, endOffset int64) {
+func (m *MockTestFlowcontrol) RecoverRecords(startOffset, endOffset int64) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RecoverRecords", startOffset, endOffset)
 }
 
 // RecoverRecords indicates an expected call of RecoverRecords.
-func (mr *MockTestFlowMockRecorder) RecoverRecords(startOffset, endOffset interface{}) *gomock.Call {
+func (mr *MockTestFlowcontrolMockRecorder) RecoverRecords(startOffset, endOffset interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecoverRecords", reflect.TypeOf((*MockTestFlow)(nil).RecoverRecords), startOffset, endOffset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecoverRecords", reflect.TypeOf((*MockTestFlowcontrol)(nil).RecoverRecords), startOffset, endOffset)
 }
 
 // SendPause mocks base method.
-func (m *MockTestFlow) SendPause() {
+func (m *MockTestFlowcontrol) SendPause() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SendPause")
 }
 
 // SendPause indicates an expected call of SendPause.
-func (mr *MockTestFlowMockRecorder) SendPause() *gomock.Call {
+func (mr *MockTestFlowcontrolMockRecorder) SendPause() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendPause", reflect.TypeOf((*MockTestFlow)(nil).SendPause))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendPause", reflect.TypeOf((*MockTestFlowcontrol)(nil).SendPause))
 }
 
 // SendRecord mocks base method.
-func (m *MockTestFlow) SendRecord(record *service.Record) {
+func (m *MockTestFlowcontrol) SendRecord(record *service.Record) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SendRecord", record)
 }
 
 // SendRecord indicates an expected call of SendRecord.
-func (mr *MockTestFlowMockRecorder) SendRecord(record interface{}) *gomock.Call {
+func (mr *MockTestFlowcontrolMockRecorder) SendRecord(record interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendRecord", reflect.TypeOf((*MockTestFlow)(nil).SendRecord), record)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendRecord", reflect.TypeOf((*MockTestFlowcontrol)(nil).SendRecord), record)
 }
