@@ -15,7 +15,7 @@ type FlowControlContext struct {
 }
 
 const (
-	// By default we will allow 400 MiB of requests in the sender queue
+	// By default we will allow 512 MiB of requests in the sender queue
 	// before falling back to the transaction log.
 	DefaultNetworkBuffer = 512 * 1024 * 1024 // 512 MiB
 )
@@ -43,6 +43,14 @@ type StatePausing struct {
 	thresholdForward int64
 }
 
+func isControlRecord(record *service.Record) bool {
+    return record.Control.FlowControl
+}
+
+func isLocalNonControlRecord(record *service.Record) bool {
+    return record.Control.Local && !record.Control.FlowControl
+}
+
 func (c FlowControlContext) behindBytes() int64 {
 	return c.forwardedOffset - c.sentOffset
 }
@@ -59,7 +67,9 @@ func (s *StateShared) processRecord(record *service.Record) {
 
 func (s *StateShared) forwardRecord(record *service.Record) {
 	s.context.forwardedOffset = record.Control.EndOffset
-	s.sendRecord(record)
+	if !isControlRecord(record) {
+		s.sendRecord(record)
+	}
 }
 
 func (s *StateShared) OnEnter(record *service.Record, context *FlowControlContext) {
@@ -80,7 +90,7 @@ func (s *StateForwarding) shouldPause(record *service.Record) bool {
 }
 
 func (s *StateForwarding) doPause(record *service.Record) {
-	// self._pause_marker()
+	s.sendPause()
 }
 
 func (s *StatePausing) OnCheck(record *service.Record) {
@@ -88,24 +98,35 @@ func (s *StatePausing) OnCheck(record *service.Record) {
 }
 
 func (s *StatePausing) shouldUnpause(record *service.Record) bool {
-	return false
+	return s.context.behindBytes() < s.thresholdForward
 }
 
 func (s *StatePausing) doUnpause(record *service.Record) {
+	s.doQuiesce(record)
 }
 
 func (s *StatePausing) shouldRecover(record *service.Record) bool {
-	return false
+	return s.context.behindBytes() < s.thresholdRecover
 }
 
 func (s *StatePausing) doRecover(record *service.Record) {
+	s.doQuiesce(record)
 }
 
 func (s *StatePausing) shouldQuiesce(record *service.Record) bool {
-	return false
+	return isLocalNonControlRecord(record)
 }
 
 func (s *StatePausing) doQuiesce(record *service.Record) {
+	/*
+        start = self._context.last_forwarded_offset
+        end = self._context.last_written_offset
+        if start != end:
+            self._recover_records(start, end)
+        if _is_local_non_control_record(record):
+            self._forward_record(record)
+        self._update_forwarded_offset()
+	*/
 }
 
 func NewFlowControl(settings *service.Settings, sendRecord func(record *service.Record), sendPause func()) *FlowControl {

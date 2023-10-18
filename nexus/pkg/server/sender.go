@@ -180,6 +180,7 @@ func (s *Sender) Close() {
 
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
+	fmt.Printf("FFFFFFFFFFFFFFFFFFFFFF %+v\n", record)
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
 	case *service.Record_Run:
@@ -237,8 +238,14 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendPollExit(record, x.PollExit)
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
+	case *service.Request_SenderMark:
+		// s.sendServerInfo(record, x.ServerInfo)
+	case nil:
+		err := fmt.Errorf("sender: sendRequest: nil RequestType")
+		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RequestType", err)
 	default:
-		// TODO: handle errors
+		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
 	}
 }
 

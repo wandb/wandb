@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -32,6 +33,9 @@ type Writer struct {
 
 	// flow control logic
 	flowControl *FlowControl
+
+	// keep track of if we have hit overflow condition
+	overflowTelemetrySent bool
 }
 
 // NewWriter returns a new Writer
@@ -113,13 +117,65 @@ func (w *Writer) storeRecord(record *service.Record) {
 	record.GetControl().EndOffset = offset
 }
 
+func (w *Writer) sendMark() {
+	record := &service.Record{
+		RecordType: &service.Record_Request{Request: &service.Request{
+			RequestType: &service.Request_SenderMark{},
+		}},
+	}
+	w.sendRecord(record)
+}
+
+func (w *Writer) maybeSendTelemetry() {
+	if w.overflowTelemetrySent {
+		return
+	}
+	w.overflowTelemetrySent = true
+	fmt.Printf("telem XXXXXXXXXXXXXx\n")
+	record := &service.Record{
+		RecordType: &service.Record_Telemetry{Telemetry: &service.TelemetryRecord{
+			Feature: &service.Feature{FlowControlOverflow: true},
+		}},
+	}
+	w.sendRecord(record)
+}
+
 func (w *Writer) sendPause() {
+	fmt.Printf("sendPause XXXXXXXXXXXXXx\n")
+	w.maybeSendTelemetry()
+	w.sendMark()
+}
+
+func (w *Writer) ensureFlushed(offset int64) {
+	fmt.Printf("ensureFlushed XXXXXXXXXXXXXx\n")
+	err := w.store.Flush()
+	if err != nil {
+		w.logger.Error("writer: error flushing store", "error", err)
+	}
+}
+
+func (w *Writer) recoverRecords(startOffset int64, endOffset int64) {
+	fmt.Printf("recover XXXXXXXXXXXXXx\n")
+	w.ensureFlushed(endOffset)
+	record := &service.Record{
+		RecordType: &service.Record_Request{Request: &service.Request{
+			RequestType: &service.Request_SenderRead{
+				SenderRead: &service.SenderReadRequest{
+					StartOffset: startOffset,
+					FinalOffset: endOffset,
+				},
+			},
+		}},
+	}
+	w.sendRecord(record)
 }
 
 func (w *Writer) sendRecord(record *service.Record) {
+	fmt.Printf("SEND %+v\n", record)
 	// TODO: redo it so it only uses control
 	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return
 	}
+	fmt.Printf("SEND2 %+v\n", record)
 	w.fwdChan <- record
 }

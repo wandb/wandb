@@ -68,6 +68,11 @@ func (sr *Store) addHeader() error {
 	return nil
 }
 
+func (sr *Store) Flush() error {
+	err := sr.writer.Flush()
+	return err
+}
+
 func (sr *Store) Close() error {
 	err := sr.writer.Close()
 	return err
