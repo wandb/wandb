@@ -57,7 +57,7 @@ func (c FlowControlContext) behindBytes() int64 {
 }
 
 func (s *StateShared) processRecord(record *service.Record) {
-	s.context.writtenOffset = record.Control.EndOffset
+	s.context.writtenOffset = record.Control.StartOffset
 	// keep track of sent_offset if this is a status report
 	if req, ok := record.RecordType.(*service.Record_Request); ok {
 		if statusReport, ok := req.Request.RequestType.(*service.Request_StatusReport); ok {
@@ -67,7 +67,7 @@ func (s *StateShared) processRecord(record *service.Record) {
 }
 
 func (s *StateShared) forwardRecord(record *service.Record) {
-	s.context.forwardedOffset = record.Control.EndOffset
+	s.context.forwardedOffset = record.Control.StartOffset
 	if !isControlRecord(record) {
 		s.sendRecord(record)
 	}
@@ -128,7 +128,7 @@ func (s *StatePausing) doQuiesce(record *service.Record) {
 		s.forwardRecord(record)
 	}
 	// update offset TODO: is this right?
-	s.context.forwardedOffset = record.Control.EndOffset
+	s.context.forwardedOffset = record.Control.StartOffset
 }
 
 func NewFlowControl(settings *service.Settings, sendRecord func(record *service.Record), sendPause func(),

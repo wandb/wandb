@@ -114,8 +114,7 @@ func (w *Writer) storeRecord(record *service.Record) {
 	if record.Control == nil {
 		record.Control = &service.Control{}
 	}
-	// TODO: add StartOffset or switch leveldb/store to report end offset
-	record.GetControl().EndOffset = offset
+	record.Control.StartOffset = offset
 }
 
 func (w *Writer) sendMark() {

@@ -17,15 +17,13 @@ type TestFlowcontrol interface {
 	RecoverRecords(startOffset int64, endOffset int64)
 }
 
-func makeRecord() *service.Record {
+func makeRecord(offset int64) *service.Record {
 	record := &service.Record{
-		RecordType: &service.Record_Run{
-			Run: &service.RunRecord{
-				Project: "testProject",
-				Entity:  "testEntity",
-			}},
+		RecordType: &service.Record_History{
+			History: &service.HistoryRecord{},
+		},
 		Control: &service.Control{
-			MailboxSlot: "junk",
+			StartOffset: offset,
 		},
 	}
 	return record
@@ -36,19 +34,23 @@ func TestFlowControl(t *testing.T) {
 	m := NewMockTestFlowcontrol(ctrl)
 
 	settings := &service.Settings{
-		RunId:          &wrapperspb.StringValue{Value: "run1"},
-		XNetworkBuffer: &wrapperspb.Int32Value{Value: 20},
+		XNetworkBuffer: &wrapperspb.Int32Value{Value: 32},
 	}
-
-	record := makeRecord()
+	records := []*service.Record{
+		makeRecord(0),
+		makeRecord(10),
+		makeRecord(32),
+	}
+	gomock.InOrder(
+		m.EXPECT().SendRecord(nexustest.MatchRecord(records[0], nexustest.RecordCompare)),
+		m.EXPECT().SendRecord(nexustest.MatchRecord(records[1], nexustest.RecordCompare)),
+		m.EXPECT().SendRecord(nexustest.MatchRecord(records[2], nexustest.RecordCompare)),
+		m.EXPECT().SendPause(),
+	)
 	// m.EXPECT().RecoverRecords(gomock.Eq(99), gomock.Eq(33))
-	// m.EXPECT().SendPause()
-	m.EXPECT().SendRecord(nexustest.MatchRecord(record, nexustest.RecordCompare))
-	m.EXPECT().SendRecord(nexustest.MatchRecord(record, nexustest.RecordCompare))
-	m.EXPECT().SendRecord(nexustest.MatchRecord(record, nexustest.RecordCompare))
 	flowControl := NewFlowControl(settings, m.SendRecord, m.SendPause, m.RecoverRecords)
 
-	flowControl.Flow(record)
-	flowControl.Flow(record)
-	flowControl.Flow(record)
+	for _, record := range records {
+		flowControl.Flow(record)
+	}
 }
