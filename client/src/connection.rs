@@ -36,31 +36,26 @@ impl Interface {
     }
 }
 
-
 pub struct Connection {
-    pub stream: TcpStream
+    pub stream: TcpStream,
 }
 
 impl Connection {
     pub fn new(stream: TcpStream) -> Self {
-        let conn = Connection {
-            stream,
-        };
+        let conn = Connection { stream };
 
         conn
     }
 
     pub fn clone(&self) -> Self {
         let stream = self.stream.try_clone().unwrap();
-        Connection {
-            stream,
-        }
+        Connection { stream }
     }
 
     pub fn send_and_recv_message(
         &mut self,
         message: &mut wandb_internal::Record,
-        handles: &mut Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>
+        handles: &mut Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>,
     ) -> wandb_internal::Result {
         // todo: generate unique id for this message
         let uuid = generate_run_id(None);

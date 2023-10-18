@@ -2,7 +2,6 @@ use pyo3::prelude::*;
 
 use crate::connection::Interface;
 use crate::wandb_internal;
-// use crate::wandb_internal::Settings;
 use std::collections::HashMap;
 
 use crate::session::Settings;
