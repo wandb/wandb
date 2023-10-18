@@ -3,6 +3,7 @@ use std::fs;
 use std::process::Command;
 use std::{thread, time};
 use tempfile::NamedTempFile;
+use tracing;
 
 pub struct Launcher {
     pub command: String,
@@ -46,7 +47,7 @@ impl Launcher {
                     .arg(port_filename)
                     .output();
             }
-            Err(_) => println!("Fork failed"),
+            Err(_) => tracing::error!("Fork failed"),
         }
         0
     }

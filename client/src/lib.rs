@@ -1,5 +1,8 @@
 use pyo3::prelude::*;
 
+use tracing;
+use tracing_subscriber;
+
 pub mod connection;
 pub mod launcher;
 pub mod run;
@@ -13,6 +16,10 @@ pub mod wandb_internal;
 /// import the module.
 #[pymodule]
 fn wandbinder(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    let log_level = tracing::Level::INFO;
+    // let log_level = tracing::Level::DEBUG;
+    tracing_subscriber::fmt().with_max_level(log_level).init();
+
     m.add_function(wrap_pyfunction!(session::generate_run_id, m)?)?;
     m.add_class::<session::Settings>()?;
     m.add_class::<session::Session>()?;

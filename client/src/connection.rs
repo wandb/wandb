@@ -9,6 +9,7 @@ use std::{
     sync::mpsc::{channel, Sender},
     sync::{Arc, Mutex},
 };
+use tracing;
 
 #[repr(C)]
 struct Header {
@@ -82,12 +83,11 @@ impl Connection {
         };
 
         let (sender, receiver) = channel();
-        println!(">>> Inserting sender {:?} for uuid {}", sender, uuid);
+        tracing::debug!(">>> Inserting sender {:?} for uuid {}", sender, uuid);
         handles.lock().unwrap().insert(uuid, sender);
-        println!(">>> Handles: {:?}", handles);
+        tracing::debug!(">>> Handles: {:?}", handles);
         self.send_message(&message).unwrap();
-
-        println!(">>> Waiting for result...");
+        tracing::debug!(">>> Waiting for result...");
         return receiver.recv().unwrap();
     }
 
@@ -96,8 +96,9 @@ impl Connection {
         let mut buf = Vec::new();
         message.encode(&mut buf).unwrap();
 
-        println!(
-            "Sending message to run {}",
+        tracing::debug!(
+            "Sending message {:?} to run {}",
+            message,
             self.stream.peer_addr().unwrap()
         );
         let mut writer = BufWriter::with_capacity(16384, &self.stream);
@@ -123,42 +124,42 @@ impl Connection {
         // Read the magic byte
         let mut magic_byte = [0; 1];
         let bytes_read = std::io::Read::read(&mut &self.stream, &mut magic_byte).unwrap();
-        println!("Read {} bytes", bytes_read);
-        println!("Magic byte: {:?}", magic_byte);
+        tracing::debug!("Read {} bytes", bytes_read);
+        tracing::debug!("Magic byte: {:?}", magic_byte);
 
         if magic_byte != [b'W'] {
-            println!("Magic number is not 'W'");
+            tracing::warn!("Magic number is not 'W': {}", magic_byte[0]);
             return vec![];
         }
 
         let mut body_length_bytes = [0; 4];
         std::io::Read::read(&mut &self.stream, &mut body_length_bytes).unwrap();
         let body_length = u32::from_le_bytes(body_length_bytes);
-        println!("Body length: {}", body_length);
+        tracing::debug!("Body length: {}", body_length);
 
         // Read the body
         let mut body = vec![0; body_length as usize];
         std::io::Read::read(&mut &self.stream, &mut body).unwrap();
-        println!("Body: {:?}", body);
+        tracing::debug!("Body: {:?}", body);
 
         body
     }
 
     pub fn recv(&self, handles: &Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>) {
-        println!(
+        tracing::debug!(
             "Receiving messages from run {}",
             self.stream.peer_addr().unwrap()
         );
         loop {
-            println!("Waiting for message...");
+            tracing::debug!("Waiting for message...");
             let msg = self.recv_message();
             if msg.len() == 0 {
-                println!("Connection closed");
+                tracing::debug!("Connection closed");
                 break;
             }
             let proto_message = wandb_internal::ServerResponse::decode(msg.as_slice()).unwrap();
-            println!("Received message: {:?}", proto_message);
-            println!("Handles: {:?}", handles);
+            tracing::debug!("Received message: {:?}", proto_message);
+            tracing::debug!("Handles: {:?}", handles);
 
             match proto_message.server_response_type {
                 Some(wandb_internal::server_response::ServerResponseType::ResultCommunicate(
@@ -166,29 +167,29 @@ impl Connection {
                 )) => {
                     // Handle ResultCommunicate variant here
                     // You can access fields of Result if needed
-                    println!(">>>> Received ResultCommunicate: {:?}", result);
+                    tracing::debug!(">>>> Received ResultCommunicate: {:?}", result);
 
                     if let Some(control) = &result.control {
                         let mailbox_slot = &control.mailbox_slot;
-                        println!("Mailbox slot: {}", mailbox_slot);
-                        println!("Handles: {:?}", handles);
+                        tracing::debug!("Mailbox slot: {}", mailbox_slot);
+                        tracing::debug!("Handles: {:?}", handles);
                         if let Some(sender) = handles.lock().unwrap().get(mailbox_slot) {
-                            println!("Sending result to sender {:?}", sender);
+                            tracing::debug!("Sending result to sender {:?}", sender);
                             // todo: use the result type of the result_communicate
                             // let cloned_result = result.clone();
                             sender.send(result).expect("Failed to send result")
                         } else {
-                            println!("Failed to send result to sender");
+                            tracing::warn!("Failed to send result to sender");
                         }
                     } else {
-                        println!("Received ResultCommunicate without control")
+                        tracing::warn!("Received ResultCommunicate without control");
                     }
                 }
                 Some(_) => {
-                    println!("Received message with unknown type");
+                    tracing::warn!("Received message with unknown type");
                 }
                 None => {
-                    println!("Received message without type")
+                    tracing::warn!("Received message without type")
                 }
             }
             // let handle_id

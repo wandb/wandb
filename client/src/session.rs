@@ -5,9 +5,9 @@ use std::net::TcpStream;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::env;
+use tracing;
 
 use crate::wandb_internal::Settings as SettingsProto;
-// use pyo3::prelude::*;
 
 use crate::connection::{Connection, Interface};
 use crate::launcher::Launcher;
@@ -15,32 +15,6 @@ use crate::run::Run;
 
 // constants
 const ENV_NEXUS_PATH: &str = "_WANDB_NEXUS_PATH";
-
-// #[pyclass]
-// pub struct Lol {
-//     #[pyo3(get)]
-//     pub name: String,
-//     id: i32,
-// }
-
-// #[pymethods]
-// impl Lol {
-//     #[new]
-//     pub fn new(name: String) -> Lol {
-//         let l = Lol { name, id: 123 };
-//         println!("Lol created {:?}", l.id);
-//         l
-//     }
-// }
-// impl Lol {
-//     fn imma_get_name(&self) -> &str {
-//         &self.name
-//     }
-
-//     fn imma_get_id(&self) -> i32 {
-//         self.id
-//     }
-// }
 
 #[pyclass]
 #[derive(Clone)]
@@ -124,14 +98,15 @@ impl Session {
     pub fn new(settings: Settings) -> Session {
         let addr = get_nexus_address();
         let session = Session { settings, addr };
-        // println!("Session created {:?}", session.settings);
+        tracing::debug!("Session created");
+
         session
     }
 
     pub fn init_run(&self, run_id: Option<String>) -> Run {
         // generate a random alphnumeric string of length 6 if run_id is None:
         let run_id = generate_run_id(run_id);
-        println!("Creating new run {}", run_id);
+        tracing::debug!("Creating new run {}", run_id);
 
         let conn = Connection::new(self.connect());
         let interface = Interface::new(conn);
@@ -149,15 +124,15 @@ impl Session {
 
 impl Session {
     fn connect(&self) -> TcpStream {
-        println!("Connecting to {}", self.addr);
+        tracing::debug!("Connecting to {}", self.addr);
 
         if let Ok(stream) = TcpStream::connect(&self.addr) {
-            println!("{}", stream.peer_addr().unwrap());
-            println!("{}", stream.local_addr().unwrap());
+            tracing::debug!("Stream peer address: {}", stream.peer_addr().unwrap());
+            tracing::debug!("Stream local address: {}", stream.local_addr().unwrap());
 
             return stream;
         } else {
-            println!("Couldn't connect to server...");
+            tracing::error!("Couldn't connect to server...");
             panic!();
         }
     }

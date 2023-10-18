@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use crate::connection::Interface;
 use crate::wandb_internal;
 use std::collections::HashMap;
+use tracing;
 
 use crate::session::Settings;
 
@@ -16,7 +17,7 @@ pub struct Run {
 #[pymethods]
 impl Run {
     pub fn init(&mut self) {
-        println!("Initializing run {}", self.id);
+        tracing::debug!("Initializing run {}", self.id);
 
         let server_inform_init_request = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -99,11 +100,11 @@ impl Run {
             .conn
             .send_and_recv_message(&mut server_publish_run_start, &mut self.interface.handles);
 
-        println!("Result: {:?}", result);
+        tracing::debug!("Result: {:?}", result);
     }
 
     pub fn log(&self, data: HashMap<String, f64>) {
-        println!("Logging to run {}", self.id);
+        tracing::debug!("Logging to run {}", self.id);
 
         let history_record = wandb_internal::HistoryRecord {
             item: data
@@ -136,7 +137,7 @@ impl Run {
     }
 
     pub fn finish(&mut self) {
-        println!("Finishing run {}", self.id);
+        tracing::debug!("Finishing run {}", self.id);
 
         let finish_record = wandb_internal::RunExitRecord {
             exit_code: 0,
@@ -185,7 +186,7 @@ impl Run {
             .conn
             .send_and_recv_message(&mut shutdown_request, &mut self.interface.handles);
 
-        println!("Result: {:?}", result);
+        tracing::debug!("Result: {:?}", result);
 
         let inform_finish_request = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -199,7 +200,7 @@ impl Run {
                 ),
             ),
         };
-        println!("Sending inform finish request {:?}", inform_finish_request);
+        tracing::debug!("Sending inform finish request {:?}", inform_finish_request);
         self.interface
             .conn
             .send_message(&inform_finish_request)
