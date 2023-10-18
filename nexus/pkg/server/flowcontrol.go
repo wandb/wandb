@@ -132,7 +132,7 @@ func (s *StatePausing) doQuiesce(record *service.Record) {
 }
 
 func NewFlowControl(settings *service.Settings, sendRecord func(record *service.Record), sendPause func(),
-                    recoverRecords func(int64, int64)) *FlowControl {
+	recoverRecords func(int64, int64)) *FlowControl {
 	var networkBuffer int64 = DefaultNetworkBuffer
 	if param := settings.GetXNetworkBuffer(); param != nil {
 		networkBuffer = int64(param.GetValue())
