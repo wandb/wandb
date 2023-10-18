@@ -6,7 +6,6 @@ repos:
     rev: master
     hooks:
     - id: fmt
-      args: ['--manifest-path=client/Cargo.toml']
     - id: cargo-check
       args: ['--manifest-path=client/Cargo.toml']
   - repo: https://github.com/astral-sh/ruff-pre-commit
