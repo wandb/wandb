@@ -2,6 +2,11 @@
 default_stages:
   - pre-push
 repos:
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: master
+    hooks:
+    - id: fmt
+    - id: cargo-check
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.0.284"
     hooks:
