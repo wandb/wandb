@@ -1297,18 +1297,23 @@ class WandbImporter:
         summary: bool = True,
         terminal_output: bool = True,
     ):
+        print(f"Starting to import runs for {namespaces=}")
         self._clear_run_errors()
 
         # Collect runs from source and validate against destination
+        print(f"Starting to collect runs for {namespaces=}")
         runs = self._collect_runs(namespaces=namespaces, limit=limit)
         runs = list(runs)
+        print(f"Starting to validate runs for {namespaces=}, {len(runs)=}")
         self._validate_runs(
             runs,
             skip_previously_validated=incremental,
         )
 
         # (Re)-upload differences
+        print(f"Starting to filter runs for {namespaces=}")
         incremental_runs = self._filter_for_failed_runs_only(runs)
+        print(f"Starting to import runs for {namespaces=}")
         self._import_runs(
             incremental_runs,
             max_workers=max_workers,
@@ -1320,6 +1325,7 @@ class WandbImporter:
             summary=summary,
             terminal_output=terminal_output,
         )
+        print(f"Finished runs {namespaces=}")
 
     @progress.with_progress
     def true_import_reports(
@@ -1328,8 +1334,10 @@ class WandbImporter:
         namespaces: Optional[Iterable[Namespace]] = None,
         limit: Optional[int] = None,
     ):
+        print(f"Starting to import reports for {namespaces=}")
         reports = self._true_collect_reports(namespaces=namespaces, limit=limit)
         self.import_reports(reports)
+        print(f"Finished reports {namespaces=}")
 
     @progress.with_progress
     def true_import_artifact_sequences(
@@ -1339,11 +1347,14 @@ class WandbImporter:
         incremental: bool = True,
         max_workers: Optional[int] = None,
     ):
+        print(f"Starting to import artifact sequences for {namespaces=}")
         self._clear_artifact_errors()
 
         # Collect artifacts from source and validate against destination
+        print(f"Starting to collect artifact sequences for {namespaces=}")
         seqs = self._true_collect_artifact_sequences(namespaces=namespaces)
         seqs = list(seqs)
+        print(f"Starting to validate artifact sequences for {namespaces=} {len(seqs)=}")
         self._validate_artifact_sequences_new(
             seqs,
             skip_previously_checked=incremental,
@@ -1351,18 +1362,24 @@ class WandbImporter:
 
         # (Re)-upload differences
         # incremental_seqs = self._collect_failed_artifact_sequences()
+        print(f"Starting to filter artifact sequences for {namespaces=}")
         incremental_seqs = self._filter_for_failed_sequences_only(seqs)
         incremental_seqs = list(incremental_seqs)
-        print(f"{incremental_seqs=}")
+        print(
+            f"Starting to import artifact sequences for {namespaces=} {len(incremental_seqs)=}"
+        )
         self._import_artifact_sequences_new(incremental_seqs, max_workers=max_workers)
 
         # it's safer to just use artifact on all seqs to make sure we don't miss anything
         # For seqs that have already been used, this is a no-op.
+        print(f"Starting to use artifact sequences for {namespaces=}")
         self._use_artifact_sequences(seqs)
 
         # Artifacts whose parent runs have been deleted should have that run deleted in the
         # destination as well
+        print(f"Starting to use cleanup placeholder runs for {namespaces=}")
         self._cleanup_placeholder_runs_new(namespaces=namespaces)
+        print(f"Finished artifact sequences{namespaces=}")
 
     @progress.with_progress
     def import_all(
