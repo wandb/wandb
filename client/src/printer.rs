@@ -29,10 +29,17 @@ pub fn generate_sparkline(values: Vec<f64>) -> String {
         .collect()
 }
 
-fn hyperlink(text: &str, url: &str) -> ColoredString {
+fn hyperlink(text: &str, url: &str) -> String {
     // format!("\x1B]8;;{}\x07{}\x1B]8;;\x07", url, text).white()
-    format!("\x1B]8;;{}\x07{}\x1B]8;;\x07", url, text).truecolor(250, 193, 60)
+    format!("\x1B]8;;{}\x07{}\x1B]8;;\x07", url, text)
+        .bold()
+        .truecolor(250, 193, 60)
+        .to_string()
+
     // format!("\x1B]8;;{}\x07{}\x1B]8;;\x07", url, text).truecolor(226, 129, 254)
+    // let text = format!("{}", text).white().bold();
+    // let url = format!("{}", url).truecolor(250, 193, 60);
+    // format!("{}({})", text, url)
 }
 
 fn get_prefix() -> ColoredString {
@@ -52,20 +59,15 @@ fn get_checkmark() -> ColoredString {
 //     String::from("✗").truecolor(227, 50, 79)
 // }
 
-fn get_header() -> ColoredString {
-    String::from("wandb").white().bold()
+fn get_header() -> String {
+    let header = String::from("wandb").white().bold();
+    let header = format!("{} {}", get_prefix(), header);
+    return header;
 }
 
-pub fn print_header(name: &str, url: &str) {
-    let link = hyperlink(name, url);
-
+fn spinner(msg: String, fin_msg: String) {
     let prefix = get_prefix();
-    let checkmark = get_checkmark();
-    let header = get_header();
 
-    println!("{}{}", prefix, header);
-
-    // spinner
     let pb = ProgressBar::new_spinner();
     pb.enable_steady_tick(Duration::from_millis(120));
     pb.set_prefix(prefix.to_string());
@@ -76,17 +78,32 @@ pub fn print_header(name: &str, url: &str) {
             // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
             .tick_strings(&["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]),
     );
-    pb.set_message("Creating run...");
+    pb.set_message(msg);
+
     // TODO: this is for the demo LOL LOL LOL
-    thread::sleep(Duration::from_millis(500));
+    thread::sleep(Duration::from_millis(800));
 
     // pb.finish_with_message("Done");
     pb.finish_and_clear();
-
     // TODO: handle errors
-    println!("{}{} Run created - {}", prefix, checkmark, link);
-    // println!("{}{} {}", prefix, crossmark, dimmed);
-    // println!();
+
+    println!("{}", fin_msg);
+}
+
+pub fn print_header(name: &str, url: &str) {
+    println!("{}", get_header());
+
+    // spinner
+    let msg = format!("Creating run...");
+    let prefix = get_prefix();
+
+    let fin_msg = format!(
+        "{} {} Run created - {}",
+        prefix,
+        get_checkmark(),
+        hyperlink(name, url)
+    );
+    spinner(msg, fin_msg);
 }
 
 pub fn print_footer(
@@ -104,31 +121,34 @@ pub fn print_footer(
     let checkmark = get_checkmark();
     let header = get_header();
 
-    println!("{}{}", prefix, header);
+    println!("{}", header);
 
     // run stats
-    // TODO: fix me
-    // fake loss that exponentially decreases
     // iterate over history and print out the last value
-    for (key, value) in sparklines {
+    let mut sorted_keys: Vec<_> = sparklines.keys().cloned().collect();
+    sorted_keys.sort();
+
+    for key in sorted_keys {
         // continue if starts with an underscore
         if key.starts_with("_") {
             continue;
         }
-        let sparkline = generate_sparkline(value.0.iter().map(|&x| x as f64).collect());
-        match value.1 {
-            Some(summary) => {
-                let formatted_loss = format!(
-                    "{}{:<20} {}",
-                    prefix,
-                    format!("{} ({:.7})", key, summary),
-                    sparkline,
-                );
-                println!("{}", formatted_loss);
-            }
-            None => {
-                let formatted_loss = format!("{}{:<20} {}", prefix, key, sparkline);
-                println!("{}", formatted_loss);
+        if let Some(value) = sparklines.get(&key) {
+            let sparkline = generate_sparkline(value.0.iter().map(|&x| x as f64).collect());
+            match &value.1 {
+                Some(summary) => {
+                    let formatted = format!(
+                        "{} {:<20} {}",
+                        prefix,
+                        format!("{} ({:.7})", key, summary),
+                        sparkline,
+                    );
+                    println!("{}", formatted);
+                }
+                None => {
+                    let formatted_loss = format!("{}{:<20} {}", prefix, key, sparkline);
+                    println!("{}", formatted_loss);
+                }
             }
         }
     }

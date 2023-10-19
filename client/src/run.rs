@@ -375,7 +375,6 @@ impl Run {
                 history.insert(item.key, updated_tuple);
             }
         }
-        // println!("Summary: {:?}", summary);
 
         let mut shutdown_request = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Request(
