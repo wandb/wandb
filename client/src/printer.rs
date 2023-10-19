@@ -40,6 +40,7 @@ fn get_prefix() -> ColoredString {
     // String::from("▏").truecolor(250, 193, 60)
     // String::from("▎").truecolor(250, 193, 60)
     // String::from("▌ ").truecolor(250, 193, 60)
+    // String::from("▍ ").truecolor(226, 129, 254)  // magenta variant
     String::from("▍ ").truecolor(250, 193, 60) // this one is the best
 }
 
