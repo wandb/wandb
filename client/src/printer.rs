@@ -111,13 +111,17 @@ pub fn print_footer(
     // fake loss that exponentially decreases
     // iterate over history and print out the last value
     for (key, value) in sparklines {
+        // continue if starts with an underscore
+        if key.starts_with("_") {
+            continue;
+        }
         let sparkline = generate_sparkline(value.0.iter().map(|&x| x as f64).collect());
         match value.1 {
             Some(summary) => {
                 let formatted_loss = format!(
                     "{}{:<20} {}",
                     prefix,
-                    format!("{} ({})", key, summary),
+                    format!("{} ({:.7})", key, summary),
                     sparkline,
                 );
                 println!("{}", formatted_loss);
@@ -152,6 +156,8 @@ pub fn print_footer(
     }
 
     pb.finish_and_clear();
+
+    println!("{}", prefix);
 
     println!("{}{} Run synced - {}", prefix, checkmark, link);
 
