@@ -130,11 +130,24 @@ func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
 }
 
 func (fs *FileStream) streamStreamData(msg *service.StreamDataRecord) {
-	jsonBytes, err := json.Marshal(msg.Items)
+	row := make(map[string]interface{})
+	for k, v := range msg.Items {
+		switch x := v.StreamValueType.(type) {
+		case *service.StreamValue_Int64Value:
+			row[k] = x.Int64Value
+		case *service.StreamValue_DoubleValue:
+			row[k] = x.DoubleValue
+		case *service.StreamValue_StringValue:
+			row[k] = x.StringValue
+		}
+	}
+	fmt.Printf("SEND %+v\n", row)
+	jsonBytes, err := json.Marshal(row)
 	if err != nil {
 		panic("badness")
 	}
 	line := string(jsonBytes)
+	fmt.Printf("LINE %+v\n", line)
 
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
