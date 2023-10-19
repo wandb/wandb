@@ -106,7 +106,36 @@ impl Run {
     pub fn log(&self, data: HashMap<String, f64>) {
         tracing::debug!("Logging to run {}", self.id);
 
-        let history_record = wandb_internal::HistoryRecord {
+        // let history_record = wandb_internal::HistoryRecord {
+        //     item: data
+        //         .iter()
+        //         .map(|(k, v)| wandb_internal::HistoryItem {
+        //             key: k.clone(),
+        //             value_json: v.to_string(),
+        //             ..Default::default()
+        //         })
+        //         .collect(),
+        //     ..Default::default()
+        // };
+
+        // let record = wandb_internal::Record {
+        //     record_type: Some(wandb_internal::record::RecordType::History(history_record)),
+        //     info: Some(wandb_internal::RecordInfo {
+        //         stream_id: self.id.clone(),
+        //         ..Default::default()
+        //     }),
+        //     ..Default::default()
+        // };
+
+        // let message = wandb_internal::ServerRequest {
+        //     server_request_type: Some(
+        //         wandb_internal::server_request::ServerRequestType::RecordPublish(record),
+        //     ),
+        // };
+
+        // self.interface.conn.send_message(&message).unwrap();
+
+        let partial_history_request = wandb_internal::PartialHistoryRequest{
             item: data
                 .iter()
                 .map(|(k, v)| wandb_internal::HistoryItem {
@@ -119,7 +148,13 @@ impl Run {
         };
 
         let record = wandb_internal::Record {
-            record_type: Some(wandb_internal::record::RecordType::History(history_record)),
+            record_type: Some(wandb_internal::record::RecordType::Request(
+                wandb_internal::Request {
+                    request_type: Some(wandb_internal::request::RequestType::PartialHistory(
+                        partial_history_request,
+                    )),
+                },
+            )),
             info: Some(wandb_internal::RecordInfo {
                 stream_id: self.id.clone(),
                 ..Default::default()

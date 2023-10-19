@@ -27,7 +27,9 @@ fn main() {
     let mut data: HashMap<String, f64> = HashMap::new();
     data.insert("loss".to_string(), 13.37);
 
-    run.log(data);
+    run.log(data.clone());
+    run.log(data.clone());
+    run.log(data.clone());
     println!("\nLogging to run {}...\n", run.id);
     thread::sleep(Duration::from_secs(2));
 
