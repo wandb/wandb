@@ -32,19 +32,14 @@ pub struct ListStringValue {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MapStringKeyStringValue {
     #[prost(map = "string, string", tag = "1")]
-    pub value: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub value:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MapStringKeyMapStringKeyStringValue {
     #[prost(map = "string, message", tag = "1")]
-    pub value: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        MapStringKeyStringValue,
-    >,
+    pub value: ::std::collections::HashMap<::prost::alloc::string::String, MapStringKeyStringValue>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -187,9 +182,7 @@ pub struct Settings {
     #[prost(message, optional, tag = "45")]
     pub stats_join_assets: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "46")]
-    pub stats_neuron_monitor_config_path: ::core::option::Option<
-        ::prost::alloc::string::String,
-    >,
+    pub stats_neuron_monitor_config_path: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "47")]
     pub stats_open_metrics_endpoints: ::core::option::Option<MapStringKeyStringValue>,
     #[prost(message, optional, tag = "48")]
@@ -1155,17 +1148,7 @@ pub struct ErrorInfo {
 }
 /// Nested message and enum types in `ErrorInfo`.
 pub mod error_info {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum ErrorCode {
         Unknown = 0,
@@ -1292,17 +1275,7 @@ pub struct OutputRecord {
 }
 /// Nested message and enum types in `OutputRecord`.
 pub mod output_record {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum OutputType {
         Stderr = 0,
@@ -1348,17 +1321,7 @@ pub struct OutputRawRecord {
 }
 /// Nested message and enum types in `OutputRawRecord`.
 pub mod output_raw_record {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum OutputType {
         Stderr = 0,
@@ -1418,17 +1381,7 @@ pub struct MetricRecord {
 }
 /// Nested message and enum types in `MetricRecord`.
 pub mod metric_record {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum MetricGoal {
         GoalUnset = 0,
@@ -1568,17 +1521,7 @@ pub struct FilesItem {
 }
 /// Nested message and enum types in `FilesItem`.
 pub mod files_item {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum PolicyType {
         Now = 0,
@@ -1627,17 +1570,7 @@ pub struct StatsRecord {
 }
 /// Nested message and enum types in `StatsRecord`.
 pub mod stats_record {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum StatsType {
         System = 0,
@@ -1972,17 +1905,7 @@ pub struct DeferRequest {
 }
 /// Nested message and enum types in `DeferRequest`.
 pub mod defer_request {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum DeferState {
         Begin = 0,
@@ -2126,10 +2049,8 @@ pub struct SystemMetricsBuffer {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSystemMetricsResponse {
     #[prost(map = "string, message", tag = "1")]
-    pub system_metrics: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        SystemMetricsBuffer,
-    >,
+    pub system_metrics:
+        ::std::collections::HashMap<::prost::alloc::string::String, SystemMetricsBuffer>,
 }
 ///
 /// StatusRequest:
@@ -2857,10 +2778,11 @@ pub mod server_request {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ServerResponse {
-    #[prost(oneof = "server_response::ServerResponseType", tags = "2, 3, 4, 5, 6, 7, 8")]
-    pub server_response_type: ::core::option::Option<
-        server_response::ServerResponseType,
-    >,
+    #[prost(
+        oneof = "server_response::ServerResponseType",
+        tags = "2, 3, 4, 5, 6, 7, 8"
+    )]
+    pub server_response_type: ::core::option::Option<server_response::ServerResponseType>,
 }
 /// Nested message and enum types in `ServerResponse`.
 pub mod server_response {
