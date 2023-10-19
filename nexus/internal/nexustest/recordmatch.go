@@ -9,7 +9,7 @@ import (
 
 type RecordMatcher struct {
 	expectedRecord *service.Record
-	compareFunc func(*service.Record, *service.Record) bool
+	compareFunc    func(*service.Record, *service.Record) bool
 }
 
 func (m *RecordMatcher) Matches(x interface{}) bool {
