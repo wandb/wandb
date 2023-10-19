@@ -873,7 +873,7 @@ func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.St
 func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecord) {
 	artifact := &service.ArtifactRecord{
 		Manifest: &service.ArtifactManifest{
-			Version: 1,
+			Version:       1,
 			StoragePolicy: "wandb-storage-policy-v1",
 		},
 	}
