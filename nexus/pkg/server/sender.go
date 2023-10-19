@@ -828,10 +828,9 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 
 func (s *Sender) sendStreamTable(record *service.Record, run *service.StreamTableRecord) {
 	result := &service.Result{
-		ResultType: &service.Result_RunResult{
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
+		ResultType: &service.Result_RunResult{},
+		Control:    record.Control,
+		Uuid:       record.Uuid,
 	}
 	s.outChan <- result
 }
