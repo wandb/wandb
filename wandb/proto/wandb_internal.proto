@@ -133,6 +133,15 @@ message RunRecord {
   _RecordInfo               _info = 200;
 }
 
+/*
+ * StreamTableRecord
+ */
+message StreamTableRecord {
+  string                    table = 1;
+  string                    entity = 2;
+  string                    project = 3;
+}
+
 message GitRepoRecord {
   string remote_url = 1 [json_name="remote"];
   string commit = 2;
