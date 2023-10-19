@@ -210,14 +210,16 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases.")
 @click.argument("key", nargs=-1)
-@click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option(
+    "--cloud", is_flag=True, help="Login to the cloud instead of a local directory."
+)
+@click.option("--host", default=None, help="Login to a specific instance of W&B.")
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
-@click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
+@click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously.")
 @display_error
 def login(key, host, cloud, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
@@ -247,7 +249,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
+    context_settings=CONTEXT, help="Run a wandb service.", name="service", hidden=True
 )
 @click.option(
     "--sock-port", default=None, type=int, help="The host port to bind socket service."
@@ -255,8 +257,8 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @click.option("--port-filename", default=None, help="Save allocated port to file.")
 @click.option("--address", default=None, help="The address to bind service.")
 @click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
-@click.option("--debug", is_flag=True, help="log debug info")
-@click.option("--serve-sock", is_flag=True, help="use socket mode")
+@click.option("--debug", is_flag=True, help="Log debug info.")
+@click.option("--serve-sock", is_flag=True, help="Use socket mode.")
 @display_error
 def service(
     sock_port=None,
@@ -287,7 +289,7 @@ def service(
 # TODO(jhr): Enable these with settings rework
 # @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
 # @click.option('--show', is_flag=True, help="Show settings")
-@click.option("--reset", is_flag=True, help="Reset settings")
+@click.option("--reset", is_flag=True, help="Reset settings.")
 @click.option(
     "--mode",
     "-m",
@@ -417,14 +419,23 @@ def init(ctx, project, entity, reset, mode):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Upload an offline training directory to W&B"
+    context_settings=CONTEXT,
+    help="Upload an offline training directory to Weights & Biases.",
 )
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
-@click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
-@click.option("--verbose", is_flag=True, default=False, help="Verbose", hidden=True)
-@click.option("--id", "run_id", help="The run you want to upload to.")
-@click.option("--project", "-p", help="The project you want to upload to.")
+@click.option(
+    "--view", is_flag=True, default=False, help="View your runs.", hidden=True
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Display verbose output.",
+    hidden=True,
+)
+@click.option("--id", "run_id", help="The ID of the run you want to upload to.")
+@click.option("--project", "-p", help="The name of project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
 @click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
@@ -438,25 +449,25 @@ def init(ctx, project, entity, reset, mode):
     "--include-online/--no-include-online",
     is_flag=True,
     default=None,
-    help="Include online runs",
+    help="Include online runs.",
 )
 @click.option(
     "--include-offline/--no-include-offline",
     is_flag=True,
     default=None,
-    help="Include offline runs",
+    help="Include offline runs.",
 )
 @click.option(
     "--include-synced/--no-include-synced",
     is_flag=True,
     default=None,
-    help="Include synced runs",
+    help="Include synced runs.",
 )
 @click.option(
     "--mark-synced/--no-mark-synced",
     is_flag=True,
     default=True,
-    help="Mark runs as synced",
+    help="Mark runs as synced.",
 )
 @click.option("--sync-all", is_flag=True, default=False, help="Sync all runs")
 @click.option("--clean", is_flag=True, default=False, help="Delete synced runs")
@@ -473,8 +484,8 @@ def init(ctx, project, entity, reset, mode):
     help="Clean without confirmation prompt.",
 )
 @click.option("--ignore", hidden=True)
-@click.option("--show", default=5, help="Number of runs to show")
-@click.option("--append", is_flag=True, default=False, help="Append run")
+@click.option("--show", default=5, help="Number of runs to show.")
+@click.option("--append", is_flag=True, default=False, help="Append a run.")
 @display_error
 def sync(
     ctx,
@@ -652,15 +663,17 @@ def sync(
         _summary()
 
 
-@cli.command(context_settings=CONTEXT, help="Create a sweep")
-@click.option("--project", "-p", default=None, help="The project of the sweep.")
+@cli.command(context_settings=CONTEXT, help="Create a sweep.")
+@click.option(
+    "--project", "-p", default=None, help="The project that contains the sweep."
+)
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
-@click.option("--controller", is_flag=True, default=False, help="Run local controller")
-@click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
-@click.option("--name", default=None, help="Set sweep name")
-@click.option("--program", default=None, help="Set sweep program")
-@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
-@click.option("--update", default=None, help="Update pending sweep")
+@click.option("--controller", is_flag=True, default=False, help="Run local controller.")
+@click.option("--verbose", is_flag=True, default=False, help="Display verbose output.")
+@click.option("--name", default=None, help="Set sweep name.")
+@click.option("--program", default=None, help="Set sweep program.")
+@click.option("--settings", default=None, help="Configure sweep settings.", hidden=True)
+@click.option("--update", default=None, help="Update pending sweep.")
 @click.option(
     "--stop",
     is_flag=True,
@@ -882,32 +895,32 @@ def sweep(
 @cli.command(
     context_settings=CONTEXT,
     no_args_is_help=True,
-    help="Run a W&B launch sweep (Experimental).",
+    help="Run a Weights and Biases launch sweep (Experimental).",
 )
 @click.option(
     "--queue",
     "-q",
     default=None,
-    help="The name of a queue to push the sweep to",
+    help="The name of the queue to push the sweep to.",
 )
 @click.option(
     "--project",
     "-p",
     default=None,
     help="Name of the project which the agent will watch. "
-    "If passed in, will override the project value passed in using a config file",
+    "If passed in, this value will override any value passed in using a config file.",
 )
 @click.option(
     "--entity",
     "-e",
     default=None,
-    help="The entity to use. Defaults to current logged-in user",
+    help="The entity to use. Defaults to current logged-in user.",
 )
 @click.option(
     "--resume_id",
     "-r",
     default=None,
-    help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
+    help="Resume a launch sweep by passing an 8-char sweep id. Queue required.",
 )
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
@@ -1135,7 +1148,7 @@ def launch_sweep(
     "-E",
     metavar="NAME",
     default=None,
-    help="""Entry point within project. [default: main]. If the entry point is not found,
+    help="""Entry point within your project. [default: main]. If the entry point is not found,
     attempts to run the project file with the specified name as a script,
     using 'python' to run .py files and the default shell (specified by
     environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.""",
@@ -1246,7 +1259,7 @@ def launch_sweep(
     "--dockerfile",
     "-D",
     default=None,
-    help="Path to the Dockerfile used to build the job, relative to the job's root",
+    help="Path to the Dockerfile used to build the job, relative to the job's root.",
 )
 @display_error
 def launch(
@@ -1390,7 +1403,7 @@ def launch(
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Run a W&B launch agent.",
+    help="Run a Weights & Biases launch agent.",
 )
 @click.pass_context
 @click.option(
@@ -1406,30 +1419,33 @@ def launch(
     "--project",
     "-p",
     default=None,
-    help="""Name of the project which the agent will watch.
-    If passed in, will override the project value passed in using a config file.""",
+    help="""Name of the project that the agent will watch.
+    If passed in, this value will override any value passed in using a config file.""",
 )
 @click.option(
     "--entity",
     "-e",
     default=None,
-    help="The entity to use. Defaults to current logged-in user",
+    help="The entity to use. Defaults to current logged-in user.",
 )
 @click.option(
     "--max-jobs",
     "-j",
     default=None,
-    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit.",
 )
 @click.option(
-    "--config", "-c", default=None, help="path to the agent config yaml to use"
+    "--config",
+    "-c",
+    default=None,
+    help="The path to the agent config YAML file to use.",
 )
 @click.option(
     "--url",
     "-u",
     default=None,
     hidden=True,
-    help="a wandb client registration URL, this is generated in the UI",
+    help="A wandb client registration URL, this is generated in the UI.",
 )
 @display_error
 def launch_agent(
@@ -1501,7 +1517,8 @@ def agent(ctx, project, entity, count, sweep_id):
 
 
 @cli.command(
-    context_settings=RUN_CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
+    context_settings=RUN_CONTEXT,
+    help="Run a Weights & Biases launch sweep scheduler (Experimental).",
 )
 @click.pass_context
 @click.argument("sweep_id")
@@ -1544,12 +1561,12 @@ def scheduler(
         raise e
 
 
-@cli.group(help="Commands for managing and viewing W&B jobs")
+@cli.group(help="Commands for managing and viewing Weights and Biases jobs.")
 def job() -> None:
     pass
 
 
-@job.command("list", help="List jobs in a project")
+@job.command("list", help="List jobs in a project.")
 @click.option(
     "--project",
     "-p",
@@ -1561,7 +1578,7 @@ def job() -> None:
     "-e",
     default="models",
     envvar=env.ENTITY,
-    help="The entity the jobs belong to",
+    help="The entity the jobs belong to.",
 )
 def _list(project, entity):
     wandb.termlog(f"Listing jobs in {entity}/{project}")
@@ -1592,7 +1609,7 @@ def _list(project, entity):
 
 
 @job.command(
-    help="Describe a launch job. Provide the launch job in the form of: entity/project/job-name:alias-or-version"
+    help="Describe a launch job. Provide the launch job in the form of: entity/project/job-name:alias-or-version ."
 )
 @click.argument("job")
 def describe(job):
@@ -1622,23 +1639,23 @@ def describe(job):
     "--entity",
     "-e",
     envvar=env.ENTITY,
-    help="The entity the jobs belong to",
+    help="The entity the jobs belong to.",
 )
 @click.option(
     "--name",
     "-n",
-    help="Name for the job",
+    help="Name for the job.",
 )
 @click.option(
     "--description",
     "-d",
-    help="Description for the job",
+    help="Description for the job.",
 )
 @click.option(
     "--alias",
     "-a",
     "aliases",
-    help="Alias for the job",
+    help="Alias for the job.",
     multiple=True,
     default=tuple(),
 )
@@ -1646,7 +1663,7 @@ def describe(job):
     "--entry-point",
     "-E",
     "entrypoint",
-    help="Codepath to the main script, required for repo jobs",
+    help="Codepath to the main script, required for repo jobs.",
 )
 @click.option(
     "--git-hash",
@@ -1733,8 +1750,10 @@ def create(
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 
 
-@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
-@click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
+@cli.command(
+    context_settings=CONTEXT, help="Run the Weights & Biases local sweep controller."
+)
+@click.option("--verbose", is_flag=True, default=False, help="Display verbose output.")
 @click.argument("sweep_id")
 @display_error
 def controller(verbose, sweep_id):
@@ -1792,25 +1811,27 @@ def docker_run(ctx, docker_run_args):
 @click.option(
     "--nvidia/--no-nvidia",
     default=find_executable("nvidia-docker") is not None,
-    help="Use the nvidia runtime, defaults to nvidia if nvidia-docker is present",
+    help="Use the nvidia runtime, defaults to nvidia if nvidia-docker is present.",
 )
 @click.option(
-    "--digest", is_flag=True, default=False, help="Output the image digest and exit"
+    "--digest", is_flag=True, default=False, help="Output the image digest and exit."
 )
 @click.option(
-    "--jupyter/--no-jupyter", default=False, help="Run jupyter lab in the container"
+    "--jupyter/--no-jupyter", default=False, help="Run jupyter lab in the container."
 )
 @click.option(
-    "--dir", default="/app", help="Which directory to mount the code in the container"
+    "--dir",
+    default="/app",
+    help="Set which directory to mount the code in the container.",
 )
-@click.option("--no-dir", is_flag=True, help="Don't mount the current directory")
+@click.option("--no-dir", is_flag=True, help="Don't mount the current directory.")
 @click.option(
-    "--shell", default="/bin/bash", help="The shell to start the container with"
+    "--shell", default="/bin/bash", help="The shell to start the container with."
 )
-@click.option("--port", default="8888", help="The host port to bind jupyter on")
-@click.option("--cmd", help="The command to run in the container")
+@click.option("--port", default="8888", help="The host port to bind jupyter on.")
+@click.option("--cmd", help="The command to run in the container.")
 @click.option(
-    "--no-tty", is_flag=True, default=False, help="Run the command without a tty"
+    "--no-tty", is_flag=True, default=False, help="Run the command without a tty."
 )
 @display_error
 def docker(
@@ -1927,22 +1948,33 @@ def docker(
 
 @cli.command(
     context_settings=RUN_CONTEXT,
-    help="Start a local W&B container (deprecated, see wandb server --help)",
+    help="Start a local Weights & Biases container (deprecated, see wandb server --help).",
     hidden=True,
 )
 @click.pass_context
-@click.option("--port", "-p", default="8080", help="The host port to bind W&B local on")
 @click.option(
-    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+    "--port",
+    "-p",
+    default="8080",
+    help="The host port to bind Weights & Biases local on.",
 )
 @click.option(
-    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+    "--env",
+    "-e",
+    default=[],
+    multiple=True,
+    help="Environment variables to pass to wandb/local.",
 )
 @click.option(
-    "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version"
+    "--daemon/--no-daemon",
+    default=True,
+    help="Set whether to run in daemon mode or not.",
 )
 @click.option(
-    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
+    "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version."
+)
+@click.option(
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge.", hidden=True
 )
 @display_error
 def local(ctx, *args, **kwargs):
@@ -1950,27 +1982,38 @@ def local(ctx, *args, **kwargs):
     ctx.invoke(start, *args, **kwargs)
 
 
-@cli.group(help="Commands for operating a local W&B server")
+@cli.group(help="Commands for operating a local Weights & Biases server.")
 def server():
     pass
 
 
-@server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
+@server.command(
+    context_settings=RUN_CONTEXT, help="Start a local Weights & Biases server."
+)
 @click.pass_context
 @click.option(
-    "--port", "-p", default="8080", help="The host port to bind W&B server on"
+    "--port",
+    "-p",
+    default="8080",
+    help="The host port to bind Weights & Biases server on.",
 )
 @click.option(
-    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+    "--env",
+    "-e",
+    default=[],
+    multiple=True,
+    help="Environment variables to pass to wandb/local.",
 )
 @click.option(
-    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+    "--daemon/--no-daemon",
+    default=True,
+    help="Set whether to run in daemon mode or not.",
 )
 @click.option(
     "--upgrade",
     is_flag=True,
     default=False,
-    help="Upgrade to the most recent version",
+    help="Upgrade to the most recent version of the Weights & Biases server.",
     hidden=True,
 )
 @click.option(
@@ -2059,10 +2102,10 @@ def artifact():
     pass
 
 
-@artifact.command(context_settings=CONTEXT, help="Upload an artifact to wandb")
+@artifact.command(context_settings=CONTEXT, help="Upload an artifact to wandb.")
 @click.argument("path")
 @click.option(
-    "--name", "-n", help="The name of the artifact to push: project/artifact_name"
+    "--name", "-n", help="The name of the artifact to push: project/artifact_name."
 )
 @click.option("--description", "-d", help="A description of this artifact")
 @click.option("--type", "-t", default="dataset", help="The type of the artifact")
@@ -2130,14 +2173,14 @@ def put(path, name, description, type, alias, run_id, resume):
 
 @artifact.command(context_settings=CONTEXT, help="Download an artifact from wandb")
 @click.argument("path")
-@click.option("--root", help="The directory you want to download the artifact to")
-@click.option("--type", help="The type of artifact you are downloading")
+@click.option("--root", help="The directory you want to download the artifact to.")
+@click.option("--type", help="The type of artifact you are downloading.")
 @display_error
 def get(path, root, type):
     public_api = PublicApi()
     entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
-        project = click.prompt("Enter the name of the project you want to use")
+        project = click.prompt("Enter the name of the project you want to use.")
 
     try:
         artifact_parts = artifact_name.split(":")
@@ -2160,10 +2203,10 @@ def get(path, root, type):
 
 
 @artifact.command(
-    context_settings=CONTEXT, help="List all artifacts in a wandb project"
+    context_settings=CONTEXT, help="List all artifacts in a wandb project."
 )
 @click.argument("path")
-@click.option("--type", "-t", help="The type of artifacts to list")
+@click.option("--type", "-t", help="The type of artifacts to list.")
 @display_error
 def ls(path, type):
     public_api = PublicApi()
@@ -2190,17 +2233,19 @@ def ls(path, type):
             )
 
 
-@artifact.group(help="Commands for interacting with the artifact cache")
+@artifact.group(help="Commands for interacting with the artifact cache.")
 def cache():
     pass
 
 
 @cache.command(
     context_settings=CONTEXT,
-    help="Clean up less frequently used files from the artifacts cache",
+    help="Clean up less frequently used files from the artifacts cache.",
 )
 @click.argument("target_size")
-@click.option("--remove-temp/--no-remove-temp", default=False, help="Remove temp files")
+@click.option(
+    "--remove-temp/--no-remove-temp", default=False, help="Remove temp files."
+)
 @display_error
 def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
@@ -2209,7 +2254,7 @@ def cleanup(target_size, remove_temp):
     print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
-@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
+@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases.")
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(
     "--project", "-p", envvar=env.PROJECT, help="The project you want to download."
@@ -2252,7 +2297,7 @@ def pull(run, project, entity):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Restore code, config and docker state for a run"
+    context_settings=CONTEXT, help="Restore code, config, and docker state for a run."
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
@@ -2260,7 +2305,7 @@ def pull(run, project, entity):
 @click.option(
     "--branch/--no-branch",
     default=True,
-    help="Whether to create a branch or checkout detached",
+    help="Whether to create a branch or checkout detached.",
 )
 @click.option(
     "--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to."
@@ -2402,7 +2447,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
     return commit, json_config, patch_content, repo, metadata
 
 
-@cli.command(context_settings=CONTEXT, help="Run any script with wandb", hidden=True)
+@cli.command(context_settings=CONTEXT, help="Run any script with wandb.", hidden=True)
 @click.pass_context
 @click.argument("program")
 @click.argument("args", nargs=-1)
@@ -2455,7 +2500,7 @@ def online():
     )
 
 
-@cli.command("offline", help="Disable W&B sync")
+@cli.command("offline", help="Disable Weights & Biases sync.")
 @display_error
 def offline():
     api = InternalApi()
@@ -2485,9 +2530,9 @@ def off(ctx):
     ctx.invoke(offline)
 
 
-@cli.command("status", help="Show configuration settings")
+@cli.command("status", help="Show configuration settings.")
 @click.option(
-    "--settings/--no-settings", help="Show the current settings", default=True
+    "--settings/--no-settings", help="Toggle a list of current settings.", default=True
 )
 def status(settings):
     api = _get_cling_api()
@@ -2499,13 +2544,13 @@ def status(settings):
         )
 
 
-@cli.command("disabled", help="Disable W&B.")
+@cli.command("disabled", help="Disable Weights & Biases.")
 @click.option(
     "--service",
     is_flag=True,
     show_default=True,
     default=True,
-    help="Disable W&B service",
+    help="Disable the Weights & Biases service",
 )
 def disabled(service):
     api = InternalApi()
@@ -2525,7 +2570,7 @@ def disabled(service):
     is_flag=True,
     show_default=True,
     default=True,
-    help="Enable W&B service",
+    help="Enable the Weights & Biases service",
 )
 def enabled(service):
     api = InternalApi()
@@ -2547,8 +2592,10 @@ def gc(args):
     )
 
 
-@cli.command(context_settings=CONTEXT, help="Verify your local instance")
-@click.option("--host", default=None, help="Test a specific instance of W&B")
+@cli.command(context_settings=CONTEXT, help="Verify your local instance.")
+@click.option(
+    "--host", default=None, help="Test a specific instance of Weights & Biases."
+)
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
@@ -2601,20 +2648,22 @@ def verify(host):
         sys.exit(1)
 
 
-@cli.group("import", help="Commands for importing data from other systems")
+@cli.group("import", help="Commands for importing data from other systems.")
 def importer():
     pass
 
 
-@importer.command("mlflow", help="Import from MLFlow")
-@click.option("--mlflow-tracking-uri", help="MLFlow Tracking URI")
+@importer.command("mlflow", help="Import from MLFlow.")
+@click.option("--mlflow-tracking-uri", help="Set the MLFlow Tracking URI.")
 @click.option(
-    "--target-entity", required=True, help="Override default entity to import data into"
+    "--target-entity",
+    required=True,
+    help="Override the default entity to import data into.",
 )
 @click.option(
     "--target-project",
     required=True,
-    help="Override default project to import data into",
+    help="Override the default project to import data into.",
 )
 def mlflow(mlflow_tracking_uri, target_entity, target_project):
     from wandb.apis.importers import MlflowImporter
