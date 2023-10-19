@@ -18,13 +18,10 @@ fn main() -> Result<()> {
         let content = fs::read_to_string(proto).expect("Could not read proto file");
         let modified_content = content.replace("wandb/proto/", "");
 
-        // Add // @generated at the top
-        let final_content = format!("// @generated\n{}", modified_content);
-
         let file_name = Path::new(proto).file_name().unwrap();
         let temp_file_path = temp_dir.path().join(file_name);
 
-        fs::write(&temp_file_path, final_content).expect("Could not write to temp file");
+        fs::write(&temp_file_path, modified_content).expect("Could not write to temp file");
         temp_files.push(temp_file_path);
     }
 
