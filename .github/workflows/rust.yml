@@ -16,6 +16,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Setup python
+        uses: actions/setup-python@v4
+      - name: Install maturin
+        run: pip install maturin
+      - name: Build
+        working-directory: ./client
+        run: maturin develop
       - name: Build
         working-directory: ./client
         run: cargo build --verbose
