@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use tracing;
 
 use crate::printer;
-use crate::session::Settings;
+use crate::settings::Settings;
 
 // #[pyfunction]
 pub fn generate_id(length: usize) -> String {

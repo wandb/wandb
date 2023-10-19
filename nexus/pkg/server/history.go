@@ -97,7 +97,7 @@ func (h *Handler) sampleHistory(history *service.HistoryRecord) {
 		}
 		if _, ok := h.sampledHistory[item.Key]; !ok {
 			h.sampledHistory[item.Key] = &ReservoirSampling[float32]{
-				k:     64,
+				k:     48,
 				delta: 0.0005,
 			}
 		}
