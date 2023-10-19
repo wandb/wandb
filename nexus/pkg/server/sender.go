@@ -876,11 +876,11 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 			Version:       1,
 			StoragePolicy: "wandb-storage-policy-v1",
 		},
-		Entity: streamTable.Entity,
+		Entity:  streamTable.Entity,
 		Project: streamTable.Project,
-		RunId: streamTable.Table,
-		Name: streamTable.Table,
-		Type: "stream_table",
+		RunId:   streamTable.Table,
+		Name:    streamTable.Table,
+		Type:    "stream_table",
 	}
 	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, artifact, 0)
 	artifactID, err := saver.Save()
