@@ -85,7 +85,7 @@ func (r *Stream) init() {
 	runRecord := service.Record_StreamTable{StreamTable: &service.StreamTableRecord{
 		Entity:  "jeffr",
 		Project: "hack23",
-		Table:   "table3",
+		Table:   "table5",
 		XInfo:   &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
 	/*

@@ -868,7 +868,7 @@ func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.St
 	}
 	fmt.Printf("GOT DATA %+v\n", data)
 
-	s.createStreamTableArtifact(streamTable)
+	// s.createStreamTableArtifact(streamTable)
 	s.startStreamTable(streamTable)
 	result := &service.Result{
 		ResultType: &service.Result_RunResult{},
