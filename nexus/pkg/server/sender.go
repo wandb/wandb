@@ -214,7 +214,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_StreamTable:
 		s.sendStreamTable(record, x.StreamTable)
 	case *service.Record_StreamData:
-		s.sendStreamData(record, x.StreamData)
+		s.sendStreamData(record)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -828,7 +828,8 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 	s.outChan <- result
 }
 
-func (s *Sender) sendStreamTable(record *service.Record, run *service.StreamTableRecord) {
+func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.StreamTableRecord) {
+	s.startStreamTable(streamTable)
 	result := &service.Result{
 		ResultType: &service.Result_RunResult{},
 		Control:    record.Control,
@@ -837,5 +838,17 @@ func (s *Sender) sendStreamTable(record *service.Record, run *service.StreamTabl
 	s.outChan <- result
 }
 
-func (s *Sender) sendStreamData(record *service.Record, run *service.StreamDataRecord) {
+func (s *Sender) startStreamTable(streamTable *service.StreamTableRecord) {
+	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
+		s.settings.GetBaseUrl().GetValue(), streamTable.Entity, streamTable.Project, streamTable.Table)
+	fmt.Printf("GOOOO %+v\n", fsPath)
+
+	fs.WithPath(fsPath)(s.fileStream)
+	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
+
+	s.fileStream.Start()
+}
+
+func (s *Sender) sendStreamData(record *service.Record) {
+	s.fileStream.StreamRecord(record)
 }

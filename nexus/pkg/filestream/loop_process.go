@@ -40,6 +40,8 @@ func (fs *FileStream) loopProcess(inChan <-chan *service.Record) {
 			fs.streamFinish(x.Exit)
 		case *service.Record_Preempting:
 			fs.streamPreempting(x.Preempting)
+		case *service.Record_StreamData:
+			fs.streamStreamData(x.StreamData)
 		case nil:
 			err := fmt.Errorf("filestream: field not set")
 			fs.logger.CaptureFatalAndPanic("filestream error:", err)
@@ -124,5 +126,21 @@ func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
 	fs.addTransmit(processedChunk{
 		Complete: &boolTrue,
 		Exitcode: &exitRecord.ExitCode,
+	})
+}
+
+func (fs *FileStream) streamStreamData(msg *service.StreamDataRecord) {
+	jsonBytes, err := json.Marshal(msg.Items)
+	if err != nil {
+		panic("badness")
+	}
+	line := string(jsonBytes)
+
+	if err != nil {
+		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+	}
+	fs.addTransmit(processedChunk{
+		fileType: HistoryChunk,
+		fileLine: line,
 	})
 }
