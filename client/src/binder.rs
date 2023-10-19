@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use std::thread;
 
-use wandbinder::{session};
+use wandbinder::session;
 
 fn main() {
     // let _guard = sentry::init(
