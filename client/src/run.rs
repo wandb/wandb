@@ -135,7 +135,7 @@ impl Run {
 
         // self.interface.conn.send_message(&message).unwrap();
 
-        let partial_history_request = wandb_internal::PartialHistoryRequest{
+        let partial_history_request = wandb_internal::PartialHistoryRequest {
             item: data
                 .iter()
                 .map(|(k, v)| wandb_internal::HistoryItem {
