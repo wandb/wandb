@@ -20,6 +20,7 @@ type BenchOpts struct {
 	offline            *bool
 	numCPUs            *int
 	numWorkers         *int
+	useStreamTable     *bool
 }
 
 type Bench struct {
@@ -56,14 +57,18 @@ func (b *Bench) RunWorkers() {
 	for i := 0; i < *b.opts.numWorkers; i++ {
 		wg.Add(1)
 		go func() {
-			b.Worker()
+			if *b.opts.useStreamTable {
+				b.StreamWorker()
+			} else {
+				b.RunWorker()
+			}
 			wg.Done()
 		}()
 	}
 	wg.Wait()
 }
 
-func (b *Bench) Worker() {
+func (b *Bench) RunWorker() {
 	run, err := b.wandb.NewRun()
 	if err != nil {
 		panic(err)
@@ -78,6 +83,23 @@ func (b *Bench) Worker() {
 		run.Log(data)
 	}
 	run.Finish()
+}
+
+func (b *Bench) StreamWorker() {
+	stream, err := b.wandb.NewStream()
+	if err != nil {
+		panic(err)
+	}
+
+	data := make(gowandb.History)
+	for i := 0; i < *b.opts.numHistoryElements; i++ {
+		data[fmt.Sprintf("loss_%d", i)] = float64(100 + i)
+	}
+
+	for i := 0; i < *b.opts.numHistory; i++ {
+		stream.Log(data)
+	}
+	stream.Finish()
 }
 
 func (b *Bench) Close() {
@@ -96,6 +118,7 @@ func main() {
 		offline:            flag.Bool("offline", false, "use offline mode"),
 		numCPUs:            flag.Int("numCPUs", 0, "number of cpus"),
 		numWorkers:         flag.Int("numWorkers", 1, "number of parallel workers"),
+		useStreamTable:     flag.Bool("useStreamTable", true, "create stream table runs"),
 	}
 	flag.Parse()
 
