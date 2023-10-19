@@ -46,6 +46,7 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
+    StreamTableRecord stream_table = 26;
     // request field does not belong here longterm
     Request         request = 100;
   }
