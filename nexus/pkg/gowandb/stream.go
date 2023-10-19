@@ -14,13 +14,13 @@ import (
 )
 
 type Stream struct {
-	ctx            context.Context
-	settings       *service.Settings
-	config         *runconfig.Config
-	conn           *Connection
-	wg             sync.WaitGroup
-	run            *service.RunRecord
-	params         *runopts.RunParams
+	ctx      context.Context
+	settings *service.Settings
+	config   *runconfig.Config
+	conn     *Connection
+	wg       sync.WaitGroup
+	run      *service.RunRecord
+	params   *runopts.RunParams
 }
 
 func NewStream(ctx context.Context, settings *service.Settings, conn *Connection, runParams *runopts.RunParams) *Stream {
@@ -78,20 +78,20 @@ func (r *Stream) init() {
 		})
 	}
 	/*
-	if r.params.Name != nil {
-		DisplayName = *r.params.Name
-	}
+		if r.params.Name != nil {
+			DisplayName = *r.params.Name
+		}
 	*/
 	runRecord := service.Record_StreamTable{StreamTable: &service.StreamTableRecord{
-		Table: "table",
-		Entity: "ent",
+		Table:   "table",
+		Entity:  "ent",
 		Project: "proj",
-		XInfo:       &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+		XInfo:   &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
 	/*
-	if r.params.Project != nil {
-		runRecord.Run.Project = *r.params.Project
-	}
+		if r.params.Project != nil {
+			runRecord.Run.Project = *r.params.Project
+		}
 	*/
 	record := service.Record{
 		RecordType: &runRecord,
@@ -123,28 +123,31 @@ func (r *Stream) start() {
 		return
 	}
 
-/*
-	request := service.Request{RequestType: &service.Request_RunStart{
-		RunStart: &service.RunStartRequest{Run: &service.RunRecord{
-			RunId: r.settings.GetRunId().GetValue(),
-		}}}}
-	record := service.Record{
-		RecordType: &service.Record_Request{Request: &request},
-		Control:    &service.Control{Local: true},
-		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	}
+	/*
+	   	request := service.Request{RequestType: &service.Request_RunStart{
+	   		RunStart: &service.RunStartRequest{Run: &service.RunRecord{
+	   			RunId: r.settings.GetRunId().GetValue(),
+	   		}}}}
 
-	serverRecord = service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
-	}
+	   	record := service.Record{
+	   		RecordType: &service.Record_Request{Request: &request},
+	   		Control:    &service.Control{Local: true},
+	   		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+	   	}
 
-	handle := r.conn.Mbox.Deliver(&record)
-	err = r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-	handle.wait()
-*/
+	   	serverRecord = service.ServerRequest{
+	   		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
+	   	}
+
+	   handle := r.conn.Mbox.Deliver(&record)
+	   err = r.conn.Send(&serverRecord)
+
+	   	if err != nil {
+	   		return
+	   	}
+
+	   handle.wait()
+	*/
 }
 
 func (r *Stream) Log(data map[string]interface{}) {
