@@ -1,4 +1,4 @@
-use crate::session::generate_id;
+use crate::run::generate_id;
 use crate::wandb_internal;
 use byteorder::{LittleEndian, WriteBytesExt};
 use prost::Message;

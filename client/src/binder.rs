@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use std::thread;
 
-use wandbinder::{printer, session};
+use wandbinder::{session};
 
 fn main() {
     // let _guard = sentry::init(
@@ -19,10 +19,7 @@ fn main() {
 
     let mut run = session.init_run(None);
 
-    let name = "glorious-capybara-23";
-    let url = "https://wandb.ai/dimaduev/uncategorized/runs/KEHHBT";
-
-    // printer::print_header(name, url);
+    // let name = "glorious-capybara-23";
 
     println!();
     for i in 0..5 {
@@ -35,6 +32,4 @@ fn main() {
     println!();
 
     run.finish();
-
-    printer::print_footer(name, url, "/Users/.wandb/run-20201231_123456");
 }

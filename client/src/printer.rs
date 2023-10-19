@@ -100,6 +100,7 @@ pub fn print_footer(name: &str, url: &str, run_dir: &str) {
     println!("{}{}", prefix, header);
 
     // run stats
+    // TODO: fix me
     // fake loss that exponentially decreases
     let loss = vec![0.1, 0.07, 0.05, 0.03, 0.01, 0.005, 0.001, 0.0005];
     let sparkline = generate_sparkline(loss);
