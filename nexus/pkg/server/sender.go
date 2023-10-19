@@ -184,8 +184,6 @@ func (s *Sender) sendRecord(record *service.Record) {
 	switch x := record.RecordType.(type) {
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
-	case *service.Record_StreamTable:
-		s.sendStreamTable(record, x.StreamTable)
 	case *service.Record_Exit:
 		s.sendExit(record, x.Exit)
 	case *service.Record_Alert:
@@ -213,6 +211,10 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
+	case *service.Record_StreamTable:
+		s.sendStreamTable(record, x.StreamTable)
+	case *service.Record_StreamData:
+		s.sendStreamData(record, x.StreamData)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -833,4 +835,7 @@ func (s *Sender) sendStreamTable(record *service.Record, run *service.StreamTabl
 		Uuid:       record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendStreamData(record *service.Record, run *service.StreamDataRecord) {
 }
