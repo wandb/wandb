@@ -47,6 +47,7 @@ message Record {
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
     StreamTableRecord stream_table = 26;
+    StreamDataRecord stream_data = 27;
     // request field does not belong here longterm
     Request         request = 100;
   }
