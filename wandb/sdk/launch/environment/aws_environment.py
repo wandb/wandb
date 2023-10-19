@@ -67,7 +67,9 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.info("Creating AWS environment from defsault credentials.")
         try:
             session = boto3.Session()
-            region = region or session.region or os.environ.get("AWS_REGION")
+            if hasattr(session, "region"):
+                region = region or session.region
+            region = region or os.environ.get("AWS_REGION")
             credentials = session.get_credentials()
             if not credentials:
                 raise LaunchError(
