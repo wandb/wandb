@@ -162,17 +162,21 @@ pub fn print_footer(
     sorted_keys.sort();
 
     for key in sorted_keys {
+        // continue if starts with an underscore
+        if key.starts_with("_") {
+            continue;
+        }
         if let Some(value) = sparklines.get(&key) {
             let sparkline = Printer::sparkline(value.0.iter().map(|&x| x as f64).collect());
             match &value.1 {
                 Some(summary) => {
-                    let formatted_loss = format!(
+                    let formatted = format!(
                         "{} {:<20} {}",
                         Printer::with_prefix(""),
                         format!("{} ({})", key, summary),
                         sparkline.dimmed(),
                     );
-                    println!("{}", formatted_loss);
+                    println!("{}", formatted);
                 }
                 None => {
                     let formatted_loss =
