@@ -2,14 +2,14 @@ package flowcontrol
 
 import (
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/nexus/internal/nexustest"
 	"github.com/wandb/wandb/nexus/pkg/service"
-	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -34,7 +34,11 @@ func makeRecord(offset int64) *service.Record {
 }
 
 func TestFlowControl(t *testing.T) {
-	cases := []struct{NetworkBuffer int32; Records []int64; Expect string}{
+	cases := []struct {
+		NetworkBuffer int32
+		Records       []int64
+		Expect        string
+	}{
 		// no flowcontrol
 		{64, []int64{0, 16, 32}, "s0,s1,s2"},
 		// pause
@@ -51,7 +55,7 @@ func TestFlowControl(t *testing.T) {
 				XNetworkBuffer: &wrapperspb.Int32Value{Value: tc.NetworkBuffer},
 			}
 			records := []*service.Record{}
-			for _, recordOffset := range(tc.Records) {
+			for _, recordOffset := range tc.Records {
 				records = append(records, makeRecord(recordOffset))
 			}
 
