@@ -770,13 +770,16 @@ class WandbImporter:
                 settings_override=settings_override,
                 config=send_manager_config,
             )
-            print(f"W&B Importer: Finished uploading partial artifact sequence ({entity}/{project}/{_type}/{name}) ({i=}/{total=})")
-            
-        print(f"W&B Importer: Finished uploading artifact sequences ({entity}/{project}/{_type}/{name})")
+            print(
+                f"W&B Importer: Finished uploading partial artifact sequence ({entity}/{project}/{_type}/{name}) ({i=}/{total=})"
+            )
+
+        print(
+            f"W&B Importer: Finished uploading artifact sequences ({entity}/{project}/{_type}/{name})"
+        )
 
         # query it back and remove placeholders
         self._remove_placeholders(art)
-        
 
     def _remove_placeholders(self, art: Artifact) -> None:
         try:
@@ -809,8 +812,10 @@ class WandbImporter:
                     raise e
             finally:
                 progress.subtask_pbar.advance(task)
-                
-        print(f"W&B Importer: Finished removing placeholders ({art.entity}/{art.project})")
+
+        print(
+            f"W&B Importer: Finished removing placeholders ({art.entity}/{art.project})"
+        )
         progress.subtask_pbar.remove_task(task)
 
     def _compare_artifact_dirs(self, src_dir, dst_dir):
@@ -1598,8 +1603,10 @@ class WandbImporter:
             print(
                 f"Problem validating artifact: {src_art.entity=}, {src_art.project=}, {src_art.name=} {problems=}"
             )
-            
-        print(f"W&B Importer: Finished validating artifact ({src_art.entity=}, {src_art.project=}, {src_art.name=})")
+
+        print(
+            f"W&B Importer: Finished validating artifact ({src_art.entity=}, {src_art.project=}, {src_art.name=})"
+        )
 
         return (src_art, problems)
 
@@ -1814,8 +1821,7 @@ class WandbImporter:
                         f.write(json.dumps(d) + "\n")
                     else:
                         f2.write(json.dumps(d) + "\n")
-        print(f"W&B Importer: Finished validating artifact sequences")
-
+        print("W&B Importer: Finished validating artifact sequences")
 
     def _collect_runs(
         self,
