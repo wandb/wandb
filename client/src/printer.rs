@@ -81,6 +81,7 @@ pub fn print_header(name: &str, url: &str) {
     // pb.finish_with_message("Done");
     pb.finish_and_clear();
 
+    // TODO: handle errors
     println!("{}{} Run created - {}", prefix, checkmark, link);
     // println!("{}{} {}", prefix, crossmark, dimmed);
     // println!();
