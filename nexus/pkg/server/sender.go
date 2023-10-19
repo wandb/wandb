@@ -117,23 +117,6 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
-		fileStreamRetryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
-			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
-			// retryClient.BackOff = fs.GetBackoffFunc()
-			// TODO(nexus:beta): add custom retry function
-			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
-		)
-		sender.fileStream = fs.NewFileStream(
-			fs.WithSettings(settings),
-			fs.WithLogger(logger),
-			fs.WithHttpClient(fileStreamRetryClient),
-		)
 		uploaderRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
@@ -247,15 +230,40 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	}
 }
 
+func (s *Sender) startFileStream(fsPath string, useAsync bool) {
+	headers := map[string]string{}
+	if useAsync {
+		headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+	}
+
+	fileStreamRetryClient := clients.NewRetryClient(
+		clients.WithRetryClientLogger(s.logger),
+		clients.WithRetryClientRetryMax(int(s.settings.GetXFileStreamRetryMax().GetValue())),
+		clients.WithRetryClientRetryWaitMin(time.Duration(s.settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+		clients.WithRetryClientRetryWaitMax(time.Duration(s.settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+		clients.WithRetryClientHttpTimeout(time.Duration(s.settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
+		clients.WithRetryClientHttpAuthTransport(s.settings.GetApiKey().GetValue(), headers),
+		// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+		// retryClient.BackOff = fs.GetBackoffFunc()
+		// TODO(nexus:beta): add custom retry function
+		// retryClient.CheckRetry = fs.GetCheckRetryFunc()
+	)
+	s.fileStream = fs.NewFileStream(
+		fs.WithSettings(s.settings),
+		fs.WithLogger(s.logger),
+		fs.WithHttpClient(fileStreamRetryClient),
+		fs.WithPath(fsPath),
+		fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
+	)
+
+	s.fileStream.Start()
+}
+
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-
-	fs.WithPath(fsPath)(s.fileStream)
-	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
-
-	s.fileStream.Start()
+	s.startFileStream(fsPath, false)
 	s.uploadManager.Start()
 }
 
@@ -894,11 +902,7 @@ func (s *Sender) startStreamTable(streamTable *service.StreamTableRecord) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), streamTable.Entity, streamTable.Project, streamTable.Table)
 	fmt.Printf("GOOOO %+v\n", fsPath)
-
-	fs.WithPath(fsPath)(s.fileStream)
-	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
-
-	s.fileStream.Start()
+	s.startFileStream(fsPath, true)
 }
 
 func (s *Sender) sendStreamData(record *service.Record) {
