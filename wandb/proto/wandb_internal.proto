@@ -77,7 +77,7 @@ message Result {
     SummaryResult     summary_result = 21;
     OutputResult      output_result = 22;
     ConfigResult      config_result = 23;
-    StreamTableResult stream_table_result = 24;
+    StreamTableResult stream_table_result = 25;
     /* response field does not belong here longterm */
     Response          response = 100;
   }
