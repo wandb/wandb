@@ -1,2 +1,0 @@
-ignore = ["src/wandb_internal.rs"]
-unstable_features = true
