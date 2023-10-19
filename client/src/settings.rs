@@ -18,12 +18,15 @@ impl Settings {
         // log_internal: Option<String>,
         // sync_file: Option<String>,
     ) -> Settings {
+        let pid = std::process::id();
+
         let proto = SettingsProto {
             base_url: Some(base_url.unwrap_or("https://api.wandb.ai".to_string())),
             stats_sample_rate_seconds: Some(stats_sample_rate_seconds.unwrap_or(5.0)),
             stats_samples_to_average: Some(stats_samples_to_average.unwrap_or(1)),
             log_internal: Some("wandb-internal.log".to_string()),
             sync_file: Some("lol.wandb".to_string()),
+            stats_pid: Some(pid as i32),
             ..Default::default()
         };
         Settings { proto }
