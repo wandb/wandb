@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use std::thread;
 
-use wandbinder::session;
+use wandbinder::{session, settings};
 
 fn main() {
     // let _guard = sentry::init(
@@ -13,7 +13,7 @@ fn main() {
     // );
     // sentry::capture_error(&io::Error::new(io::ErrorKind::Other, "LOL HAI I AM ERROR"));
 
-    let settings = session::Settings::new(None, Some(1.0), Some(1));
+    let settings = settings::Settings::new(None, Some(1.0), Some(1));
 
     let mut session = session::Session::new(settings);
 

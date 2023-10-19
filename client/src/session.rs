@@ -8,70 +8,13 @@ use sentry;
 use std::env;
 use tracing;
 
-use crate::wandb_internal::Settings as SettingsProto;
-
 use crate::connection::{Connection, Interface};
 use crate::launcher::Launcher;
 use crate::run::Run;
+use crate::settings::Settings;
 
 // constants
 const ENV_NEXUS_PATH: &str = "_WANDB_NEXUS_PATH";
-
-#[pyclass]
-#[derive(Clone)]
-pub struct Settings {
-    pub proto: SettingsProto,
-}
-
-#[pymethods]
-impl Settings {
-    #[new]
-    pub fn new(
-        base_url: Option<String>,
-        stats_sample_rate_seconds: Option<f64>,
-        stats_samples_to_average: Option<i32>,
-        // log_internal: Option<String>,
-        // sync_file: Option<String>,
-    ) -> Settings {
-        let proto = SettingsProto {
-            base_url: Some(base_url.unwrap_or("https://api.wandb.ai".to_string())),
-            stats_sample_rate_seconds: Some(stats_sample_rate_seconds.unwrap_or(5.0)),
-            stats_samples_to_average: Some(stats_samples_to_average.unwrap_or(1)),
-            log_internal: Some("wandb-internal.log".to_string()),
-            sync_file: Some("lol.wandb".to_string()),
-            ..Default::default()
-        };
-        Settings { proto }
-    }
-
-    // TODO: auto-generate all getters and setters
-    #[getter]
-    pub fn base_url(&self) -> String {
-        self.proto.base_url.clone().unwrap()
-    }
-
-    #[getter]
-    pub fn run_name(&self) -> String {
-        self.proto.run_name.clone().unwrap()
-    }
-
-    #[getter]
-    pub fn run_url(&self) -> String {
-        self.proto.run_url.clone().unwrap()
-    }
-
-    #[getter]
-    pub fn sync_dir(&self) -> String {
-        self.proto.sync_dir.clone().unwrap()
-    }
-}
-
-impl Settings {
-    pub fn clone(&self) -> Settings {
-        let proto = self.proto.clone();
-        Settings { proto }
-    }
-}
 
 #[pyclass]
 pub struct Session {
