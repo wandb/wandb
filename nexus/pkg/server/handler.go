@@ -290,7 +290,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
-		h.handleSampledHistory(record, x.SampledHistory)
+		h.handleSampledHistory(record, response)
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
