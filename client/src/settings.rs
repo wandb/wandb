@@ -13,12 +13,13 @@ impl Settings {
     #[new]
     pub fn new(
         base_url: Option<String>,
+        stats_pid: Option<i32>,
         stats_sample_rate_seconds: Option<f64>,
         stats_samples_to_average: Option<i32>,
         // log_internal: Option<String>,
         // sync_file: Option<String>,
     ) -> Settings {
-        let pid = std::process::id();
+        let pid = std::process::id() as i32;
 
         let proto = SettingsProto {
             base_url: Some(base_url.unwrap_or("https://api.wandb.ai".to_string())),
@@ -26,7 +27,7 @@ impl Settings {
             stats_samples_to_average: Some(stats_samples_to_average.unwrap_or(1)),
             log_internal: Some("wandb-internal.log".to_string()),
             sync_file: Some("lol.wandb".to_string()),
-            stats_pid: Some(pid as i32),
+            stats_pid: Some(stats_pid.unwrap_or(pid)),
             ..Default::default()
         };
         Settings { proto }
