@@ -6,6 +6,7 @@ use tracing_subscriber;
 
 pub mod connection;
 pub mod launcher;
+pub mod printer;
 pub mod run;
 pub mod session;
 pub mod wandb_internal;

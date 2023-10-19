@@ -10,7 +10,7 @@ use std::{cmp::min, fmt::Write};
 
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
-use wandbinder::session;
+use wandbinder::{printer, session};
 
 fn hyperlink(text: &str, url: &str) -> ColoredString {
     format!("\x1B]8;;{}\x07{}\x1B]8;;\x07", url, text).white()
@@ -67,11 +67,11 @@ fn print_header(name: &str, url: &str) {
     // println!();
 }
 
-fn print_footer(name: &str, url: &str) {
+fn print_footer(name: &str, url: &str, run_dir: &str) {
     let link = hyperlink(name, url);
 
     let mut downloaded = 0;
-    let total_size = 231231231;
+    let total_size = 23123123;
 
     let prefix = get_prefix();
     let checkmark = get_checkmark();
@@ -79,11 +79,30 @@ fn print_footer(name: &str, url: &str) {
 
     println!("{}{}", prefix, header);
 
+    // run stats
+    // fake loss that exponentially decreases
+    let loss = vec![0.1, 0.07, 0.05, 0.03, 0.01, 0.005, 0.001, 0.0005];
+    let sparkline = printer::generate_sparkline(loss);
+    let formatted_loss = format!("{}{:<20} {}", prefix, "Loss (0.0005)", sparkline);
+    println!("{}", formatted_loss);
+
+    // fake accuracy slowly increasing to 0.98
+    let accuracy = vec![0.5, 0.75, 0.52, 0.63, 0.43, 0.74, 0.85, 0.92, 0.95, 0.98];
+    let sparkline = printer::generate_sparkline(accuracy);
+    let formatted_accuracy = format!("{}{:<20} {}", prefix, "Accuracy (0.98314)", sparkline);
+    println!("{}", formatted_accuracy);
+
+    let local_dir = String::from(format!("Run dir - {}", run_dir))
+        .white()
+        .dimmed();
+    println!("{}{}", prefix, local_dir);
+
+    // sync progress bar
     let pb = ProgressBar::new(total_size);
     pb.set_prefix(prefix.to_string());
     pb.set_style(
         ProgressStyle::with_template(
-            "{prefix}Syncing run {wide_bar:.yellow/white.dim} {bytes}/{total_bytes} ({eta})",
+            "{prefix}Syncing run {wide_bar:.magenta/white.dim} {bytes}/{total_bytes} ({eta})",
         )
         .unwrap()
         .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
@@ -131,5 +150,5 @@ fn main() {
 
     run.finish();
 
-    print_footer(name, url);
+    print_footer(name, url, "/Users/.wandb/run-20201231_123456");
 }
