@@ -829,6 +829,37 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 }
 
 func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.StreamTableRecord) {
+	run := streamTable
+	zero := ""
+	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
+	data, err := gql.UpsertBucket(
+		ctx,                              // ctx
+		s.graphqlClient,                  // client
+		nil,                              // id
+		&run.Table,                       // name
+		utils.NilIfZero(run.Project),     // project
+		utils.NilIfZero(run.Entity),      // entity
+		utils.NilIfZero(zero),            // groupName
+		nil,                              // description
+		utils.NilIfZero(zero),            // displayName
+		utils.NilIfZero(zero),            // notes
+		utils.NilIfZero(zero),            // commit
+		nil,                              // config
+		utils.NilIfZero(zero),            // host
+		nil,                              // debug
+		utils.NilIfZero(zero),            // program
+		utils.NilIfZero(zero),            // repo
+		utils.NilIfZero(zero),            // jobType
+		nil,                              // state
+		nil,                              // sweep
+		nil,                              // tags []string,
+		nil,                              // summaryMetrics
+	)
+	if err != nil {
+		panic("bad")
+	}
+	fmt.Printf("GOT DATA %+v\n", data)
+
 	s.startStreamTable(streamTable)
 	result := &service.Result{
 		ResultType: &service.Result_RunResult{},
