@@ -19,8 +19,6 @@ fn main() {
 
     let mut run = session.init_run(None);
 
-    // let name = "glorious-capybara-23";
-
     println!();
     for i in 0..5 {
         println!("Epoch {}", i);

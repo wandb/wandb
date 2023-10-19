@@ -246,27 +246,80 @@ impl Run {
     pub fn finish(&mut self) {
         tracing::debug!("Finishing run {}", self.id());
 
-        let finish_record = wandb_internal::RunExitRecord {
-            exit_code: 0,
-            info: Some(wandb_internal::RecordInfo {
-                stream_id: self.id(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
         let mut record = wandb_internal::Record {
-            record_type: Some(wandb_internal::record::RecordType::Exit(finish_record)),
+            record_type: Some(wandb_internal::record::RecordType::Exit(
+                wandb_internal::RunExitRecord {
+                    exit_code: 0,
+                    info: Some(wandb_internal::RecordInfo {
+                        stream_id: self.id(),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )),
             info: Some(wandb_internal::RecordInfo {
                 stream_id: self.id(),
                 ..Default::default()
             }),
             ..Default::default()
         };
-
         self.interface
             .conn
             .send_and_recv_message(&mut record, &mut self.interface.handles);
+
+        let mut record = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Request(
+                wandb_internal::Request {
+                    request_type: Some(wandb_internal::request::RequestType::SampledHistory(
+                        wandb_internal::SampledHistoryRequest {
+                            info: Some(wandb_internal::RequestInfo {
+                                stream_id: self.id(),
+                                ..Default::default()
+                            }),
+                        },
+                    )),
+                },
+            )),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let sampled_history = self
+            .interface
+            .conn
+            .send_and_recv_message(&mut record, &mut self.interface.handles);
+
+        let sampled_history = match sampled_history.result_type {
+            Some(wandb_internal::result::ResultType::Response(response)) => {
+                match response.response_type {
+                    Some(wandb_internal::response::ResponseType::SampledHistoryResponse(
+                        sampled_history_response,
+                    )) => sampled_history_response.item,
+                    _ => {
+                        tracing::warn!("Unexpected response type");
+                        return;
+                    }
+                }
+            }
+            Some(_) => {
+                tracing::warn!("Unexpected result type");
+                return;
+            }
+            None => {
+                tracing::warn!("No result type, me is puzzled");
+                return;
+            }
+        };
+
+        let mut history: HashMap<String, Vec<f32>> = HashMap::new();
+        for item in sampled_history {
+            let key = item.key.clone();
+            let value = item.values_float;
+            history.insert(key, value);
+        }
 
         let mut shutdown_request = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Request(
@@ -317,6 +370,7 @@ impl Run {
             &self.settings.run_name(),
             &self.settings.run_url(),
             &self.settings.sync_dir(),
+            history,
         );
     }
 }

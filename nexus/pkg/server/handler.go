@@ -103,6 +103,10 @@ type Handler struct {
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
 
+	// sampledHistory is the sampled history for the stream
+	// TODO fix this to be generic type
+	sampledHistory map[string]*ReservoirSampling[float32]
+
 	// mh is the metric handler for the stream
 	mh *MetricHandler
 
@@ -624,18 +628,6 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &service.SystemMetricsBuffer{
 			Record: buffer,
 		}
-	}
-}
-
-func (h *Handler) handleSampledHistory(record *service.Record, response *service.Response) {
-	var items []*service.SampledHistoryItem
-
-	// TODO: implement
-
-	response.ResponseType = &service.Response_SampledHistoryResponse{
-		SampledHistoryResponse: &service.SampledHistoryResponse{
-			Item: items,
-		},
 	}
 }
 

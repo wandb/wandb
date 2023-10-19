@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
 use std::{cmp::min, fmt::Write};
@@ -87,7 +88,7 @@ pub fn print_header(name: &str, url: &str) {
     // println!();
 }
 
-pub fn print_footer(name: &str, url: &str, run_dir: &str) {
+pub fn print_footer(name: &str, url: &str, run_dir: &str, sparklines: HashMap<String, Vec<f32>>) {
     let link = hyperlink(name, url);
 
     let mut downloaded = 0;
@@ -102,16 +103,12 @@ pub fn print_footer(name: &str, url: &str, run_dir: &str) {
     // run stats
     // TODO: fix me
     // fake loss that exponentially decreases
-    let loss = vec![0.1, 0.07, 0.05, 0.03, 0.01, 0.005, 0.001, 0.0005];
-    let sparkline = generate_sparkline(loss);
-    let formatted_loss = format!("{}{:<20} {}", prefix, "Loss (0.0005)", sparkline);
-    println!("{}", formatted_loss);
-
-    // fake accuracy slowly increasing to 0.98
-    let accuracy = vec![0.5, 0.75, 0.52, 0.63, 0.43, 0.74, 0.85, 0.92, 0.95, 0.98];
-    let sparkline = generate_sparkline(accuracy);
-    let formatted_accuracy = format!("{}{:<20} {}", prefix, "Accuracy (0.98314)", sparkline);
-    println!("{}", formatted_accuracy);
+    // iterate over history and print out the last value
+    for (key, value) in sparklines {
+        let sparkline = generate_sparkline(value.iter().map(|&x| x as f64).collect());
+        let formatted_loss = format!("{}{:<20} {}", prefix, key, sparkline);
+        println!("{}", formatted_loss);
+    }
 
     // sync progress bar
     let pb = ProgressBar::new(total_size);
