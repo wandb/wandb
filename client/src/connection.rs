@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     io::{BufWriter, Write},
     net::TcpStream,
-    sync::mpsc::{channel, Sender},
+    sync::mpsc::{channel, Receiver, RecvError, Sender},
     sync::{Arc, Mutex},
 };
 use tracing;
@@ -16,6 +16,19 @@ struct Header {
     magic: u8,
     data_length: u32,
 }
+
+// struct Handle {
+//     id: String,
+//     sender: Sender<wandb_internal::Result>,
+//     receiver: Receiver<wandb_internal::Result>,
+// }
+
+// impl Handle {
+//     fn wait(&self, wait_fn: fn(wandb_internal::Result)) {
+//         let result = self.receiver.recv().unwrap();
+//         wait_fn(result);
+//     }
+// }
 
 pub struct Interface {
     pub conn: Connection,

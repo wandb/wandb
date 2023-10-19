@@ -20,11 +20,21 @@ fn main() {
     let mut run = session.init_run(None);
 
     println!();
-    for i in 0..5 {
-        println!("Epoch {}", i);
-        let mut data = HashMap::new();
-        data.insert("loss".to_string(), 1.0 / (i + 1) as f64);
-        run.log(data);
+    let mut data = HashMap::new();
+    let num_functions = 10;
+    let num_points = 50;
+    let amplitude = 1.0;
+    use std::f64::consts::PI;
+
+    for i in 0..num_points {
+        for j in 0..num_functions {
+            let phase = 2.0 * PI * j as f64 / num_functions as f64;
+            println!("Epoch {} Batch {}", i, j);
+            let v = amplitude * (2.0 * PI * i as f64 / num_points as f64 + phase).sin();
+            let k = format!("loss_{}", j);
+            data.insert(k, (v * 1e5).round() / 1e5);
+        }
+        run.log(data.clone());
         thread::sleep(Duration::from_millis(250));
     }
     println!();
