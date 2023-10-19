@@ -172,6 +172,22 @@ message StreamTableResult {
 }
 
 /*
+ * StreamDataRecord
+ */
+message StreamDataRecord {
+  map<string, StreamValue> items = 1;
+  _RecordInfo _info = 200;
+}
+
+message StreamValue {
+  oneof stream_value_type {
+    int64 Int64Value = 1;
+    double DoubleValue = 2;
+    string StringValue = 3;
+  }
+}
+
+/*
  * RunExitRecord: exit status of process
  */
 message RunExitRecord {

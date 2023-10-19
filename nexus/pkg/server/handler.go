@@ -250,6 +250,8 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleRun(record)
 	case *service.Record_StreamTable:
 		h.handleStreamTable(record)
+	case *service.Record_StreamData:
+		h.handleStreamData(record, x.StreamData)
 	case *service.Record_Stats:
 		h.handleSystemMetrics(record)
 	case *service.Record_Summary:
