@@ -97,7 +97,7 @@ class StreamTable:
             self._artifact = self._stream_table_artifact()
             base_url = wandb_public_api().settings["base_url"]
             if base_url.endswith("api.wandb.ai"):
-                base_url = base_url.replace("api", "weave.")
+                base_url = base_url.replace("api", "weave")
             else:
                 base_url = base_url + "/weave"
             url = f"{base_url}/wandb/{self._entity_name}/{self._project_name}/table/{self._table_name}"
@@ -155,7 +155,10 @@ class StreamTable:
         if wandb.run is not None:
             row_copy["_run"] = wandb.run.path
         row_copy["_client_id"] = self._client_id
-        self._lite_run.log(obj_to_weave(row_copy))
+        print("GOT", row_copy)
+        out = obj_to_weave(row_copy, run=self._lite_run, key="junk")
+        print("OUT", out)
+        self._lite_run.log(out)
 
     def finish(self) -> None:
         with self._lock:
