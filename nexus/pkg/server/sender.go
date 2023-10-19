@@ -871,9 +871,11 @@ func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.St
 }
 
 func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecord) {
-	//	SAVEIT {'type': 'stream_table', 'name': 'streamtable2', 'client_id': 'yd4wj183rk7f0p8wqjryimgfxz9mnuh27spj6wvdxn9z48fxj8ohjhour6n058wkp1ngc2ivf2ic7xlcs2s6x4u80dn27i1caimgucacxbg621h9lxx8jcm8nwpei6ye', 'sequence_client_id': '5iqf48t20l7pifwa81niaklmcq2wj5r7os4jpoz0u4iqeu6hg8ixjdrwc39uxsjvcy1j0rxw3z1wdypshzrpg9p9qv0e6wsn64o11z5t83woymgd4mbdh08039wwq6rc', 'finalize': True, 'metadata': {'_weave_meta': {'is_panel': False, 'is_weave_obj': True, 'type_name': 'stream_table'}}, 'description': None, 'aliases': ['latest'], 'labels': None, 'use_after_commit': False, 'history_step': None, 'base_id': None, 'distributed_id': None, 'incremental': False, 'self': <wandb.sdk.artifacts.artifact_saver.ArtifactSaver object at 0x12c1dc2e0>}
 	artifact := &service.ArtifactRecord{
-		Manifest: &service.ArtifactManifest{},
+		Manifest: &service.ArtifactManifest{
+			Version: 1,
+			StoragePolicy: "wandb-storage-policy-v1",
+		},
 	}
 	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, artifact, 0)
 	artifactID, err := saver.Save()
