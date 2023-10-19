@@ -88,7 +88,12 @@ pub fn print_header(name: &str, url: &str) {
     // println!();
 }
 
-pub fn print_footer(name: &str, url: &str, run_dir: &str, sparklines: HashMap<String, Vec<f32>>) {
+pub fn print_footer(
+    name: &str,
+    url: &str,
+    run_dir: &str,
+    sparklines: HashMap<String, (Vec<f32>, Option<String>)>,
+) {
     let link = hyperlink(name, url);
 
     let mut downloaded = 0;
@@ -105,9 +110,22 @@ pub fn print_footer(name: &str, url: &str, run_dir: &str, sparklines: HashMap<St
     // fake loss that exponentially decreases
     // iterate over history and print out the last value
     for (key, value) in sparklines {
-        let sparkline = generate_sparkline(value.iter().map(|&x| x as f64).collect());
-        let formatted_loss = format!("{}{:<20} {}", prefix, key, sparkline);
-        println!("{}", formatted_loss);
+        let sparkline = generate_sparkline(value.0.iter().map(|&x| x as f64).collect());
+        match value.1 {
+            Some(summary) => {
+                let formatted_loss = format!(
+                    "{}{:<20} {}",
+                    prefix,
+                    format!("{} ({})", key, summary),
+                    sparkline,
+                );
+                println!("{}", formatted_loss);
+            }
+            None => {
+                let formatted_loss = format!("{}{:<20} {}", prefix, key, sparkline);
+                println!("{}", formatted_loss);
+            }
+        }
     }
 
     // sync progress bar

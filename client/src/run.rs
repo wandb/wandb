@@ -314,12 +314,68 @@ impl Run {
             }
         };
 
-        let mut history: HashMap<String, Vec<f32>> = HashMap::new();
+        let mut history: HashMap<String, (Vec<f32>, Option<String>)> = HashMap::new();
         for item in sampled_history {
             let key = item.key.clone();
             let value = item.values_float;
-            history.insert(key, value);
+            history.insert(key, (value, None));
         }
+
+        let mut record = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Request(
+                wandb_internal::Request {
+                    request_type: Some(wandb_internal::request::RequestType::GetSummary(
+                        wandb_internal::GetSummaryRequest {
+                            info: Some(wandb_internal::RequestInfo {
+                                stream_id: self.id(),
+                                ..Default::default()
+                            }),
+                        },
+                    )),
+                },
+            )),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let summary = self
+            .interface
+            .conn
+            .send_and_recv_message(&mut record, &mut self.interface.handles);
+
+        let summary = match summary.result_type {
+            Some(wandb_internal::result::ResultType::Response(response)) => {
+                match response.response_type {
+                    Some(wandb_internal::response::ResponseType::GetSummaryResponse(
+                        summary_response,
+                    )) => summary_response.item,
+                    _ => {
+                        tracing::warn!("Unexpected response type");
+                        return;
+                    }
+                }
+            }
+            Some(_) => {
+                tracing::warn!("Unexpected result type");
+                return;
+            }
+            None => {
+                tracing::warn!("No result type, me is puzzled");
+                return;
+            }
+        };
+
+        for item in summary {
+            if item.key != "_wandb" {
+                let value = &history[&item.key];
+                let updated_tuple = (value.0.clone(), Some(item.value_json));
+                history.insert(item.key, updated_tuple);
+            }
+        }
+        // println!("Summary: {:?}", summary);
 
         let mut shutdown_request = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Request(
