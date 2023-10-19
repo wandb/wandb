@@ -290,6 +290,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
+		h.handleSampledHistory(record, x.SampledHistory)
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
@@ -623,6 +624,18 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &service.SystemMetricsBuffer{
 			Record: buffer,
 		}
+	}
+}
+
+func (h *Handler) handleSampledHistory(record *service.Record, response *service.Response) {
+	var items []*service.SampledHistoryItem
+
+	// TODO: implement
+
+	response.ResponseType = &service.Response_SampledHistoryResponse{
+		SampledHistoryResponse: &service.SampledHistoryResponse{
+			Item: items,
+		},
 	}
 }
 
