@@ -1474,9 +1474,7 @@ class Graph(Media):
             node = Node(**node_kwargs)
         elif node_kwargs:
             raise ValueError(
-                "Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})".format(
-                    node=node, node_kwargs=node_kwargs
-                )
+                f"Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})"
             )
         self.nodes.append(node)
         self.nodes_by_id[node.id] = node
