@@ -52,7 +52,9 @@ class ArtifactSaver:
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
+        print("JHRDEBUG1", manifest_json)
         self._manifest = ArtifactManifest.from_manifest_json(manifest_json)
+        print("JHRDEBUG2", self._manifest)
         self._is_user_created = is_user_created
         self._server_artifact = None
 
@@ -112,6 +114,7 @@ class ArtifactSaver:
     ) -> Optional[Dict]:
         aliases = aliases or []
         alias_specs = []
+        print("ARTDEBUG0", locals())
         for alias in aliases:
             if ":" in alias:
                 # Users can explicitly alias this artifact to names
@@ -147,6 +150,7 @@ class ArtifactSaver:
             history_step=history_step,
         )
 
+        print("ARTDEBUG0.1", locals())
         # TODO(artifacts):
         #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily
         #   correct. It may be better to poll until it's committed or failed, and then decided what to
@@ -162,6 +166,7 @@ class ArtifactSaver:
             # TODO: update aliases, labels, description etc?
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
+            print("ARTDEBUG0.1.1", vars(self))
             return self._server_artifact
         elif (
             self._server_artifact["state"] != "PENDING"
@@ -171,6 +176,7 @@ class ArtifactSaver:
                 'Unknown artifact state "{}"'.format(self._server_artifact["state"])
             )
 
+        print("ARTDEBUG0.2", locals())
         manifest_type = "FULL"
         manifest_filename = "wandb_manifest.json"
         if incremental:
@@ -179,6 +185,9 @@ class ArtifactSaver:
         elif distributed_id:
             manifest_type = "PATCH"
             manifest_filename = "wandb_manifest.patch.json"
+        print("ARTDEBUG1", locals())
+        print("ARTDEBUG2", vars(self))
+        print("ARTDEBUG2", dir(self))
         artifact_manifest_id, _ = self._api.create_artifact_manifest(
             manifest_filename,
             "",
