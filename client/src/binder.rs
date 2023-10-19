@@ -17,7 +17,11 @@ fn hyperlink(text: &str, url: &str) -> ColoredString {
 }
 
 fn get_prefix() -> ColoredString {
-    String::from("│ ").truecolor(250, 193, 60)
+    // String::from("│ ").truecolor(250, 193, 60)
+    // String::from("▏").truecolor(250, 193, 60)
+    // String::from("▎").truecolor(250, 193, 60)
+    String::from("▍ ").truecolor(250, 193, 60)
+    // String::from("▌ ").truecolor(250, 193, 60)
 }
 
 fn get_checkmark() -> ColoredString {
@@ -79,7 +83,7 @@ fn print_footer(name: &str, url: &str) {
     pb.set_prefix(prefix.to_string());
     pb.set_style(
         ProgressStyle::with_template(
-            "{prefix}Syncing run {wide_bar:.magenta/white.dim} {bytes}/{total_bytes} ({eta})",
+            "{prefix}Syncing run {wide_bar:.yellow/white.dim} {bytes}/{total_bytes} ({eta})",
         )
         .unwrap()
         .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
@@ -122,7 +126,7 @@ fn main() {
     data.insert("loss".to_string(), 13.37);
 
     run.log(data);
-    println!("Logging to run {}...", run.id);
+    println!("\nLogging to run {}...\n", run.id);
     thread::sleep(Duration::from_secs(2));
 
     run.finish();
