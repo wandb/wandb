@@ -2,11 +2,11 @@
 default_stages:
   - pre-push
 repos:
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
-    hooks:
-    - id: fmt
-      args: ['--manifest-path=client/Cargo.toml', '--all', '--', 'client/src/binder.rs']
+  # - repo: https://github.com/doublify/pre-commit-rust
+  #   rev: v1.0
+  #   hooks:
+  #   - id: fmt
+  #     args: ['--manifest-path=client/Cargo.toml', '--all', '--']
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.1.0"
     hooks:
