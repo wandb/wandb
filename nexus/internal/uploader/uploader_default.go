@@ -1,6 +1,7 @@
 package uploader
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -42,7 +43,8 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 		}
 	}(file)
 
-	req, err := retryablehttp.NewRequest(
+	// req, err := retryablehttp.NewRequest(
+	req, err := http.NewRequest(
 		http.MethodPut,
 		task.Url,
 		file,
@@ -57,9 +59,11 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 		return err
 	}
 
-	if _, err = u.client.Do(req); err != nil {
+	var resp *http.Response
+	// if resp, err = u.client.Do(req); err != nil {
+	if resp, err = http.DefaultClient.Do(req); err != nil {
 		return err
 	}
-
+	fmt.Println(*resp)
 	return nil
 }

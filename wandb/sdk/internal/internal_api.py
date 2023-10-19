@@ -307,6 +307,7 @@ class Api:
                 timeout=self.FILE_PUSHER_TIMEOUT,
             )
         if proxies:
+            print("UPDATING PROXIES")
             self._upload_file_session.proxies.update(proxies)
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
@@ -2547,6 +2548,7 @@ class Api:
                     )
                 if env.is_debug(env=self._environ):
                     logger.debug("upload_file: %s", url)
+                print(f"Request URL {url} and header {extra_headers}")
                 response = self._upload_file_session.put(
                     url, data=progress, headers=extra_headers
                 )

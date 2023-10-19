@@ -206,6 +206,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				delete(nameToScheduledTime, result.Name) // retry
 				continue
 			}
+			// fmt.Println("Num done: ", numDone)
 			numDone++
 		}
 	}
@@ -341,7 +342,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if as.Artifact.Finalize {
 		err = as.commitArtifact(artifactID)
 		if err != nil {
-			return "", fmt.Errorf("ArtifactSacer.commitArtifact: %w", err)
+			return "", fmt.Errorf("ArtifactSaver.commitArtifact: %w", err)
 		}
 
 		if as.Artifact.UseAfterCommit {

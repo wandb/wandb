@@ -766,8 +766,11 @@ func (s *Sender) sendFile(name string, fileType uploader.FileType) {
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
+	start := time.Now()
 	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, msg.Artifact, msg.HistoryStep)
 	artifactID, err := saver.Save()
+	end := time.Now().Sub(start)
+	fmt.Println("Upload duration: ", end.Milliseconds())
 	if err != nil {
 		response.ErrorMessage = err.Error()
 	} else {
