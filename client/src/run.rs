@@ -317,6 +317,7 @@ impl Run {
         let mut history: HashMap<String, (Vec<f32>, Option<String>)> = HashMap::new();
         for item in sampled_history {
             let key = item.key.clone();
+            println!("lol");
             let value = item.values_float;
             history.insert(key, (value, None));
         }
