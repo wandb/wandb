@@ -840,7 +840,7 @@ func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.St
 	run := streamTable
 	zero := ""
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
-	data, err := gql.UpsertBucket(
+	_, err := gql.UpsertBucket(
 		ctx,                          // ctx
 		s.graphqlClient,              // client
 		nil,                          // id
@@ -866,15 +866,14 @@ func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.St
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: upsertBucket: could not create stream", err)
 	}
-	fmt.Printf("GOT DATA %+v\n", data)
 
-	// s.createStreamTableArtifact(streamTable)
 	s.startStreamTable(streamTable)
 	result := &service.Result{
 		ResultType: &service.Result_RunResult{},
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
+	s.createStreamTableArtifact(streamTable)
 	s.outChan <- result
 }
 
@@ -883,26 +882,34 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 		Manifest: &service.ArtifactManifest{
 			Version:       1,
 			StoragePolicy: "wandb-storage-policy-v1",
+			StoragePolicyConfig: []*service.StoragePolicyConfigItem{{
+				Key: "storageLayout",
+				ValueJson: "\"V2\"",
+			}},
 		},
 		Entity:  streamTable.Entity,
 		Project: streamTable.Project,
 		RunId:   streamTable.Table,
 		Name:    streamTable.Table,
 		Type:    "stream_table",
+		Digest:  "cfb52bcc7b4e93bf34ce206745250202",
+		Aliases: []string{"latest"},
+		Finalize: true,
+		ClientId: "fdjskflsjfklsdjjfsdlkfjdsklfs",
+		// SequenceClientId: "44fdjfdsfdsfskflsjfklsdjjfsdlkfjdsklfs",
 	}
 	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, artifact, 0)
-	artifactID, err := saver.Save()
+	_, err := saver.Save()
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: could not create stream artifact", err)
 	}
-	fmt.Printf("GOT ARTIFACTID %+v\n", artifactID)
 }
 
 func (s *Sender) startStreamTable(streamTable *service.StreamTableRecord) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), streamTable.Entity, streamTable.Project, streamTable.Table)
-	fmt.Printf("GOOOO %+v\n", fsPath)
 	s.startFileStream(fsPath, true)
+	s.uploadManager.Start()
 }
 
 func (s *Sender) sendStreamData(record *service.Record) {
